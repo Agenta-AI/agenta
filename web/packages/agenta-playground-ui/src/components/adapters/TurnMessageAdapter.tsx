@@ -10,7 +10,12 @@ import {
     getAttachments,
     updateTextInContent,
 } from "@agenta/shared/utils"
-import {ChatMessageEditor as MessageEditor, MessageAttachments} from "@agenta/ui/chat-message"
+import {message, modal} from "@agenta/ui"
+import {
+    ChatMessageEditor as MessageEditor,
+    MessageAttachments,
+    createSnippetPdfAttachment,
+} from "@agenta/ui/chat-message"
 import {
     getCollapseStyle,
     PromptImageUpload,
@@ -111,10 +116,20 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const patchMessage = useSetAtom(executionItemController.actions.patchMessage)
     const deleteMsg = useSetAtom(executionItemController.actions.deleteMessage)
     const clearResponseByRowEntity = useSetAtom(executionItemController.actions.clearResponse)
-    const {footerClassName, ...messageProps} = (_messageProps || {}) as AdapterMessageProps
+    const {
+        footerClassName,
+        onPasteLimitExceeded: messageOnPasteLimitExceeded,
+        ...messageProps
+    } = (_messageProps || {}) as AdapterMessageProps
     const [isMessageCollapsed, setIsMessageCollapsed] = useState(false)
     const [uploadSlots, setUploadSlots] = useState<
-        {id: string; type: "image" | "document"; file?: UploadFile; filled?: boolean}[]
+        {
+            id: string
+            type: "image" | "document"
+            file?: UploadFile
+            filled?: boolean
+            value?: string
+        }[]
     >([])
     const autoMinimizedRef = useRef(false)
     const isToolKind = kind === "tool"
@@ -265,8 +280,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
         [handleAddImage],
     )
 
-    const handleDocumentFileChange = useCallback(
-        (slotId: string, fileData: string, filename: string, format: string) => {
+    const handleAddFileAttachment = useCallback(
+        (fileData: string, filename: string, format: string) => {
             patchMessage({
                 target: messageTarget,
                 updater: (m) => {
@@ -277,10 +292,28 @@ const TurnMessageAdapter: React.FC<Props> = ({
                     }
                 },
             })
-            // Mark slot as filled (keep it visible)
-            setUploadSlots((prev) => prev.map((s) => (s.id === slotId ? {...s, filled: true} : s)))
         },
         [messageTarget, patchMessage],
+    )
+
+    const handleDocumentFileChange = useCallback(
+        (slotId: string, fileData: string, filename: string, format: string) => {
+            handleAddFileAttachment(fileData, filename, format)
+            // Mark slot as filled (keep it visible)
+            setUploadSlots((prev) =>
+                prev.map((s) => (s.id === slotId ? {...s, filled: true, value: fileData} : s)),
+            )
+        },
+        [handleAddFileAttachment],
+    )
+
+    const handleAddSnippetAttachment = useCallback(
+        async (pastedText: string) => {
+            const {fileData, filename, mimeType} = await createSnippetPdfAttachment(pastedText)
+            handleAddFileAttachment(fileData, filename, mimeType)
+            message?.success(`Attached ${filename} as a snippet.`)
+        },
+        [handleAddFileAttachment],
     )
 
     const handleRemoveUploadSlot = useCallback(
@@ -365,6 +398,54 @@ const TurnMessageAdapter: React.FC<Props> = ({
         },
         [messageTarget, patchMessage],
     )
+
+    const defaultOnPasteLimitExceeded = useCallback(
+        ({
+            pastedText,
+            maxPasteChars,
+            overBy,
+        }: {
+            pastedText: string
+            maxPasteChars: number
+            overBy: number
+        }) => {
+            if (!isUserRole || effectiveDisabled || !modal) {
+                return false
+            }
+
+            const limitSummary =
+                overBy > 0
+                    ? `This paste is ${overBy.toLocaleString()} characters over the ${maxPasteChars.toLocaleString()}-character limit.`
+                    : `This paste exceeds the ${maxPasteChars.toLocaleString()}-character limit.`
+
+            modal.confirm({
+                title: "That's too long to paste",
+                content: `${limitSummary} To keep the editor responsive, you can attach the pasted content as a snippet instead.`,
+                okText: "Create Snippet",
+                cancelText: "Dismiss",
+                centered: true,
+                onOk: async () => {
+                    try {
+                        await handleAddSnippetAttachment(pastedText)
+                    } catch (error) {
+                        message?.error(
+                            error instanceof Error
+                                ? error.message
+                                : "Failed to create snippet attachment.",
+                        )
+                        throw error
+                    }
+                },
+            })
+
+            return true
+        },
+        [effectiveDisabled, handleAddSnippetAttachment, isUserRole],
+    )
+
+    const onPasteLimitExceeded =
+        messageOnPasteLimitExceeded ??
+        (isUserRole && !effectiveDisabled ? defaultOnPasteLimitExceeded : undefined)
 
     // Check if this user turn has been executed (gates re-run enabled state).
     // We check for ANY child message (assistant, error, tool) — not just assistants,
@@ -479,6 +560,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             <PromptDocumentUpload
                                 key={slot.id}
                                 disabled={effectiveDisabled}
+                                value={slot.value}
                                 onFileChange={(fileData, filename, format) =>
                                     handleDocumentFileChange(slot.id, fileData, filename, format)
                                 }
@@ -527,20 +609,29 @@ const TurnMessageAdapter: React.FC<Props> = ({
 
     const msgId = msg?.id
     useEffect(() => {
-        // Auto-collapse tool/assistant-with-tool-calls messages that already
-        // have content (loaded from history). Messages created blank (for user
-        // input) stay expanded. Keyed on msgId so this only runs once per
-        // message identity — never mid-edit as the user types.
+        // Auto-collapse generated tool/assistant-with-tool-calls messages.
+        // We use autoMinimizedRef so a message is only auto-collapsed ONCE
+        // to not override explicit user interactions to open it later.
         if (autoMinimizedRef.current) return
-        const isCollapsible = isToolKind || (kind === "assistant" && toolPayloads.length > 0)
-        if (!isCollapsible) return
-        const hasExistingContent = Boolean(
+
+        // 1. If it's an Assistant message that has generated tool_calls payload
+        const isAssistantWithTools = kind === "assistant" && toolPayloads.length > 0
+
+        // 2. If it's a generated Tool response message and it has actual content
+        const hasTextContent = Boolean(
             msg?.content && (typeof msg.content !== "string" || msg.content.length > 0),
         )
-        if (!hasExistingContent) return
+        const isGeneratedToolOutput = isToolKind && hasTextContent
+
+        const readyToCollapse = isAssistantWithTools || isGeneratedToolOutput
+
+        if (!readyToCollapse) return
+
         setIsMessageCollapsed(true)
         autoMinimizedRef.current = true
-    }, [msgId]) // intentionally only msgId — avoid re-running as user types
+
+        // Observe msg?.content so streaming/delayed text updates re-trigger the collapse check
+    }, [msgId, kind, isToolKind, toolPayloads.length, msg?.content])
 
     return (
         <>
@@ -621,6 +712,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             }
                             footer={footerContent}
                             editorType={editorType}
+                            onPasteLimitExceeded={onPasteLimitExceeded}
                             {...messageProps}
                         />
                     </div>
@@ -696,6 +788,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         }
                         footer={footerContent}
                         editorType={editorType}
+                        onPasteLimitExceeded={onPasteLimitExceeded}
                         {...messageProps}
                     />
                 </div>

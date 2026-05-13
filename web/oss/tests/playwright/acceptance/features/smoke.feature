@@ -1,5 +1,6 @@
 # Test: smoke.spec.ts
-# Tags: @coverage:smoke
+# RTM ID: WEB-ACC-AUTH-001
+# Tags: @scope:auth @coverage:smoke @path:happy @case:typical @speed:fast
 
 Feature: Authentication and Basic Navigation
   As a user
@@ -9,7 +10,7 @@ Feature: Authentication and Basic Navigation
   Background:
     Given the user has valid credentials for the OSS deployment
 
-  @smoke
+  @smoke @happy @scope:auth @speed:fast
   Scenario: Authenticate and navigate to apps
     When the user logs in with their credentials
     Then the user should be redirected to the workspace-scoped apps page

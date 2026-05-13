@@ -1,4 +1,4 @@
-import {Fragment} from "react"
+import {Fragment, useState} from "react"
 
 import {Button, Divider, Form, Input, Select} from "antd"
 
@@ -14,12 +14,20 @@ interface Props {
 
 const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditMode: boolean}) => {
     const form = Form.useFormInstance()
+    const [isChangingSecret, setIsChangingSecret] = useState(false)
 
     // Determine visibility using useWatch safely inside this separate component
     // Always call the hook to satisfy React rules
     const watchField = field.visibleWhen?.field || ""
     const dependsOnValue = Form.useWatch(watchField, form)
-    const isChangingSecret = Form.useWatch(`_changing_${field.key}`, form)
+    const currentValue = Form.useWatch(field.key, form)
+
+    const dynamicExtra =
+        currentValue !== undefined && field.extraByValue
+            ? field.extraByValue[String(currentValue)]
+            : undefined
+
+    const fieldExtra = dynamicExtra ?? field.extra
 
     if (field.visibleWhen && dependsOnValue !== field.visibleWhen.value) {
         return null
@@ -85,14 +93,14 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
                 extra={
                     field.secret ? (
                         <div className="flex items-start justify-between">
-                            {field.extra && <span>{field.extra}</span>}
+                            {fieldExtra && <span>{fieldExtra}</span>}
                             {isEditMode && !isChangingSecret && (
                                 <Button
                                     type="link"
                                     size="small"
                                     className="!p-0"
                                     onClick={() => {
-                                        form.setFieldValue(`_changing_${field.key}`, true)
+                                        setIsChangingSecret(true)
                                         form.setFieldValue(field.key, undefined)
                                     }}
                                 >
@@ -101,7 +109,7 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
                             )}
                         </div>
                     ) : (
-                        field.extra
+                        fieldExtra
                     )
                 }
             >
@@ -128,7 +136,7 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
             initialValue={field.initialValue}
             rules={field.rules || (field.required ? [{required: true, message: "Required"}] : [])}
             className="!mb-0"
-            extra={field.extra}
+            extra={fieldExtra}
         >
             {InputComponent}
         </Form.Item>

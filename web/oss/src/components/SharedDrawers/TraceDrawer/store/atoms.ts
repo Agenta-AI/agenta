@@ -1,6 +1,5 @@
+import type {PlaygroundTestResult as TestResult} from "@agenta/playground"
 import {atom} from "jotai"
-
-import {TestResult} from "@/oss/lib/shared/variant/types"
 
 export interface TraceDrawerState {
     open: boolean

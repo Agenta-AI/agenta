@@ -259,7 +259,12 @@ axios.interceptors.response.use(
                 .catch(console.error)
         }
 
-        globalErrorHandler(error)
+        const isGet = error.config?.method?.toLowerCase() === "get"
+        const showError = error.config?._showError === true
+
+        if (!isGet || showError) {
+            globalErrorHandler(error)
+        }
 
         throw error
     },

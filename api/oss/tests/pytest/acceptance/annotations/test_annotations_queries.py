@@ -2,6 +2,8 @@ from uuid import uuid4
 
 import pytest
 
+from utils.polling import wait_for_response
+
 
 @pytest.fixture(scope="class")
 def mock_data(authed_api):
@@ -15,9 +17,9 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/annotations/",
+        "/simple/traces/",
         json={
-            "annotation": {
+            "trace": {
                 "origin": "custom",
                 "kind": "adhoc",
                 "channel": "api",
@@ -44,29 +46,31 @@ def mock_data(authed_api):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code in (200, 202)
     assert response.json()["count"] == 1
 
-    annotation_1_link = {
-        "trace_id": response.json()["annotation"]["trace_id"],
-        "span_id": response.json()["annotation"]["span_id"],
+    trace_1_link = {
+        "trace_id": response.json()["trace"]["trace_id"],
+        "span_id": response.json()["trace"]["span_id"],
     }
 
-    response = authed_api(
+    response = wait_for_response(
+        authed_api,
         "GET",
-        f"/preview/annotations/{annotation_1_link['trace_id']}/{annotation_1_link['span_id']}",
+        f"/simple/traces/{trace_1_link['trace_id']}",
+        condition_fn=lambda r: r.json().get("count", 0) == 1,
     )
 
     assert response.status_code == 200
     assert response.json()["count"] == 1
 
-    annotation_1_data = response.json()["annotation"]
+    trace_1_data = response.json()["trace"]
 
     response = authed_api(
         "POST",
-        "/preview/annotations/",
+        "/simple/traces/",
         json={
-            "annotation": {
+            "trace": {
                 "origin": "human",
                 "kind": "eval",
                 "channel": "web",
@@ -93,31 +97,33 @@ def mock_data(authed_api):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code in (200, 202)
     assert response.json()["count"] == 1
 
-    annotation_2_link = {
-        "trace_id": response.json()["annotation"]["trace_id"],
-        "span_id": response.json()["annotation"]["span_id"],
+    trace_2_link = {
+        "trace_id": response.json()["trace"]["trace_id"],
+        "span_id": response.json()["trace"]["span_id"],
     }
 
-    response = authed_api(
+    response = wait_for_response(
+        authed_api,
         "GET",
-        f"/preview/annotations/{annotation_2_link['trace_id']}/{annotation_2_link['span_id']}",
+        f"/simple/traces/{trace_2_link['trace_id']}",
+        condition_fn=lambda r: r.json().get("count", 0) == 1,
     )
 
     assert response.status_code == 200
     assert response.json()["count"] == 1
 
-    annotation_2_data = response.json()["annotation"]
+    trace_2_data = response.json()["trace"]
 
     evaluator_slug_2 = str(uuid4())
 
     response = authed_api(
         "POST",
-        "/preview/annotations/",
+        "/simple/traces/",
         json={
-            "annotation": {
+            "trace": {
                 "origin": "auto",
                 "kind": "eval",
                 "channel": "sdk",
@@ -144,35 +150,37 @@ def mock_data(authed_api):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code in (200, 202)
     assert response.json()["count"] == 1
 
-    annotation_3_link = {
-        "trace_id": response.json()["annotation"]["trace_id"],
-        "span_id": response.json()["annotation"]["span_id"],
+    trace_3_link = {
+        "trace_id": response.json()["trace"]["trace_id"],
+        "span_id": response.json()["trace"]["span_id"],
     }
 
-    response = authed_api(
+    response = wait_for_response(
+        authed_api,
         "GET",
-        f"/preview/annotations/{annotation_3_link['trace_id']}/{annotation_3_link['span_id']}",
+        f"/simple/traces/{trace_3_link['trace_id']}",
+        condition_fn=lambda r: r.json().get("count", 0) == 1,
     )
 
     assert response.status_code == 200
     assert response.json()["count"] == 1
 
-    annotation_3_data = response.json()["annotation"]
+    trace_3_data = response.json()["trace"]
     # ----------------------------------------------------------------------
 
     _mock_data = {
-        "annotations": [
-            annotation_1_data,
-            annotation_2_data,
-            annotation_3_data,
+        "traces": [
+            trace_1_data,
+            trace_2_data,
+            trace_3_data,
         ],
-        "annotation_links": [
-            annotation_1_link,
-            annotation_2_link,
-            annotation_3_link,
+        "trace_links": [
+            trace_1_link,
+            trace_2_link,
+            trace_3_link,
         ],
     }
 
@@ -184,7 +192,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/simple/traces/query",
             json={},
         )
         # ----------------------------------------------------------------------
@@ -197,13 +205,13 @@ class TestAnnotationsQueries:
 
     def test_query_annotations_by_annotation_link(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
-        annotation_link_1 = mock_data["annotation_links"][0]
+        trace_link_1 = mock_data["trace_links"][0]
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/simple/traces/query",
             json={
-                "annotation_links": [annotation_link_1],
+                "links": [trace_link_1],
             },
         )
         # ----------------------------------------------------------------------
@@ -213,19 +221,19 @@ class TestAnnotationsQueries:
         response = response.json()
         print(response)
         assert response["count"] == 1
-        assert response["annotations"][0]["trace_id"] == annotation_link_1["trace_id"]
-        assert response["annotations"][0]["span_id"] == annotation_link_1["span_id"]
+        assert response["traces"][0]["trace_id"] == trace_link_1["trace_id"]
+        assert response["traces"][0]["span_id"] == trace_link_1["span_id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        annotation_link_2 = mock_data["annotation_links"][1]
-        annotation_link_3 = mock_data["annotation_links"][2]
+        trace_link_2 = mock_data["trace_links"][1]
+        trace_link_3 = mock_data["trace_links"][2]
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/simple/traces/query",
             json={
-                "annotation_links": [annotation_link_2, annotation_link_3],
+                "links": [trace_link_2, trace_link_3],
             },
         )
         # ----------------------------------------------------------------------
@@ -239,15 +247,15 @@ class TestAnnotationsQueries:
 
     def test_query_annotations_by_link(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
-        annotation = mock_data["annotations"][0]
+        trace = mock_data["traces"][0]
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/simple/traces/query",
             json={
-                "annotation": {
+                "trace": {
                     "links": {
-                        "invocation": annotation["links"]["invocation"],
+                        "invocation": trace["links"]["invocation"],
                     }
                 }
             },
@@ -261,14 +269,14 @@ class TestAnnotationsQueries:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        annotation = mock_data["annotations"][0]
+        trace = mock_data["traces"][0]
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/simple/traces/query",
             json={
-                "annotation": {
-                    "links": [annotation["links"]["invocation"]],
+                "trace": {
+                    "links": [trace["links"]["invocation"]],
                 }
             },
         )
@@ -282,13 +290,13 @@ class TestAnnotationsQueries:
 
     def test_query_annotations_by_reference(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
-        evaluator_slug = mock_data["annotations"][0]["references"]["evaluator"]["slug"]
+        evaluator_slug = mock_data["traces"][0]["references"]["evaluator"]["slug"]
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/simple/traces/query",
             json={
-                "annotation": {
+                "trace": {
                     "references": {
                         "evaluator": {"slug": evaluator_slug},
                     }
@@ -307,8 +315,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"tags": {"tag1": "value1"}}},
+            "/simple/traces/query",
+            json={"trace": {"tags": {"tag1": "value1"}}},
         )
         # ----------------------------------------------------------------------
 
@@ -321,8 +329,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"tags": {"tag2": "value2"}}},
+            "/simple/traces/query",
+            json={"trace": {"tags": {"tag2": "value2"}}},
         )
         # ----------------------------------------------------------------------
 
@@ -335,8 +343,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"tags": {"tag1": "value3"}}},
+            "/simple/traces/query",
+            json={"trace": {"tags": {"tag1": "value3"}}},
         )
         # ----------------------------------------------------------------------
 
@@ -349,8 +357,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"tags": {"tag2": "value3"}}},
+            "/simple/traces/query",
+            json={"trace": {"tags": {"tag2": "value3"}}},
         )
         # ----------------------------------------------------------------------
 
@@ -364,8 +372,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"meta": {"meta1": "value1"}}},
+            "/simple/traces/query",
+            json={"trace": {"meta": {"meta1": "value1"}}},
         )
         # ----------------------------------------------------------------------
 
@@ -378,8 +386,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"meta": {"meta2": "value2"}}},
+            "/simple/traces/query",
+            json={"trace": {"meta": {"meta2": "value2"}}},
         )
         # ----------------------------------------------------------------------
 
@@ -392,8 +400,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"meta": {"meta1": "value3"}}},
+            "/simple/traces/query",
+            json={"trace": {"meta": {"meta1": "value3"}}},
         )
         # ----------------------------------------------------------------------
 
@@ -406,8 +414,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"meta": {"meta2": "value3"}}},
+            "/simple/traces/query",
+            json={"trace": {"meta": {"meta2": "value3"}}},
         )
         # ----------------------------------------------------------------------
 
@@ -421,8 +429,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"origin": "custom"}},
+            "/simple/traces/query",
+            json={"trace": {"origin": "custom"}},
         )
         # ----------------------------------------------------------------------
 
@@ -435,8 +443,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"origin": "human"}},
+            "/simple/traces/query",
+            json={"trace": {"origin": "human"}},
         )
         # ----------------------------------------------------------------------
 
@@ -449,8 +457,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"origin": "auto"}},
+            "/simple/traces/query",
+            json={"trace": {"origin": "auto"}},
         )
         # ----------------------------------------------------------------------
 
@@ -464,8 +472,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"kind": "adhoc"}},
+            "/simple/traces/query",
+            json={"trace": {"kind": "adhoc"}},
         )
         # ----------------------------------------------------------------------
 
@@ -478,8 +486,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"kind": "eval"}},
+            "/simple/traces/query",
+            json={"trace": {"kind": "eval"}},
         )
         # ----------------------------------------------------------------------
 
@@ -493,8 +501,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"channel": "api"}},
+            "/simple/traces/query",
+            json={"trace": {"channel": "api"}},
         )
         # ----------------------------------------------------------------------
 
@@ -507,8 +515,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"channel": "web"}},
+            "/simple/traces/query",
+            json={"trace": {"channel": "web"}},
         )
         # ----------------------------------------------------------------------
 
@@ -521,8 +529,8 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
-            json={"annotation": {"channel": "sdk"}},
+            "/simple/traces/query",
+            json={"trace": {"channel": "sdk"}},
         )
         # ----------------------------------------------------------------------
 

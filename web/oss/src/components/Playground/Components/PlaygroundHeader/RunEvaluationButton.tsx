@@ -1,8 +1,8 @@
 import {memo, useState} from "react"
 
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
-import {Play} from "@phosphor-icons/react"
-import {Button} from "antd"
+import {Flask} from "@phosphor-icons/react"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -29,21 +29,32 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
     const currentApp = useAtomValue(currentAppAtom)
 
     const hasEntities = displayedEntities.length > 0
+    // Project-scoped playground has no current app — evaluation creation
+    // requires an app target, so the button is disabled in that context.
+    const isProjectScoped = !currentApp
+    const isDisabled = !hasEntities || isProjectScoped
 
     return (
         <>
-            <Button
-                variant="outlined"
-                color="default"
-                icon={<Play size={14} />}
-                className={clsx("self-start", className)}
-                disabled={!hasEntities}
-                data-tour="run-evaluation-button"
-                onClick={() => setIsModalOpen(true)}
-                size="small"
+            <Tooltip
+                title={
+                    isProjectScoped
+                        ? "Open this trace from an app's playground to create an evaluation."
+                        : "Run your prompt against a full test set with evaluators. Results are saved to the Evaluations page."
+                }
             >
-                Run Evaluation
-            </Button>
+                <Button
+                    type="text"
+                    icon={<Flask size={14} />}
+                    className={clsx("self-start", className)}
+                    disabled={isDisabled}
+                    data-tour="run-evaluation-button"
+                    onClick={() => setIsModalOpen(true)}
+                    size="small"
+                >
+                    New Evaluation
+                </Button>
+            </Tooltip>
 
             <NewEvaluationModal
                 open={isModalOpen}
@@ -52,7 +63,7 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
                 evaluationType="auto"
                 preview={false}
                 preSelectedVariantIds={displayedEntities}
-                preSelectedAppId={currentApp?.app_id}
+                preSelectedAppId={currentApp?.id}
             />
         </>
     )

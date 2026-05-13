@@ -41,18 +41,18 @@ def mock_data(authed_api):
         }
     }
 
-    resp_a = authed_api("POST", "/webhooks/", json=payload_a)
+    resp_a = authed_api("POST", "/webhooks/subscriptions/", json=payload_a)
     assert resp_a.status_code == 200
     sub_a = resp_a.json()["subscription"]
 
-    resp_b = authed_api("POST", "/webhooks/", json=payload_b)
+    resp_b = authed_api("POST", "/webhooks/subscriptions/", json=payload_b)
     assert resp_b.status_code == 200
     sub_b = resp_b.json()["subscription"]
 
     # Verify setup via marker-scoped query
     query_resp = authed_api(
         "POST",
-        "/webhooks/query",
+        "/webhooks/subscriptions/query",
         json={
             "subscription": {"tags": {"_marker": marker}},
         },
@@ -77,7 +77,7 @@ class TestWebhooksSubscriptionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/webhooks/query",
+            "/webhooks/subscriptions/query",
             json={
                 "subscription": {"tags": {"_marker": mock_data["_marker"]}},
             },
@@ -99,7 +99,7 @@ class TestWebhooksSubscriptionsQueries:
         # ACT — filter for the first subscription by partial name --------------
         response = authed_api(
             "POST",
-            "/webhooks/query",
+            "/webhooks/subscriptions/query",
             json={
                 "subscription": {
                     "tags": {"_marker": marker},
@@ -119,7 +119,7 @@ class TestWebhooksSubscriptionsQueries:
         # ACT — filter for the second subscription by partial name -------------
         response = authed_api(
             "POST",
-            "/webhooks/query",
+            "/webhooks/subscriptions/query",
             json={
                 "subscription": {
                     "tags": {"_marker": marker},
@@ -142,7 +142,7 @@ class TestWebhooksSubscriptionsQueries:
         # ACT — match only subscription A by its unique tag value --------------
         response = authed_api(
             "POST",
-            "/webhooks/query",
+            "/webhooks/subscriptions/query",
             json={
                 "subscription": {"tags": {"_marker": marker, "kind": "A"}},
             },
@@ -159,7 +159,7 @@ class TestWebhooksSubscriptionsQueries:
         # ACT — no match for non-existent tag value ----------------------------
         response = authed_api(
             "POST",
-            "/webhooks/query",
+            "/webhooks/subscriptions/query",
             json={
                 "subscription": {"tags": {"_marker": marker, "kind": "nonexistent"}},
             },
@@ -179,7 +179,7 @@ class TestWebhooksSubscriptionsQueries:
         # ACT — page 1 ---------------------------------------------------------
         response = authed_api(
             "POST",
-            "/webhooks/query",
+            "/webhooks/subscriptions/query",
             json={
                 "subscription": {"tags": {"_marker": marker}},
                 "windowing": {"limit": 1},
@@ -198,7 +198,7 @@ class TestWebhooksSubscriptionsQueries:
         # ACT — page 2 ---------------------------------------------------------
         response = authed_api(
             "POST",
-            "/webhooks/query",
+            "/webhooks/subscriptions/query",
             json={
                 "subscription": {"tags": {"_marker": marker}},
                 "windowing": {"limit": 1, "next": first_id},
@@ -218,7 +218,7 @@ class TestWebhooksSubscriptionsQueries:
         last_id = body["subscriptions"][0]["id"]
         response = authed_api(
             "POST",
-            "/webhooks/query",
+            "/webhooks/subscriptions/query",
             json={
                 "subscription": {"tags": {"_marker": marker}},
                 "windowing": {"limit": 1, "next": last_id},
@@ -234,7 +234,7 @@ class TestWebhooksSubscriptionsQueries:
 
     def test_query_empty_returns_valid_response(self, authed_api):
         # ACT — completely empty query body ------------------------------------
-        response = authed_api("POST", "/webhooks/query", json={})
+        response = authed_api("POST", "/webhooks/subscriptions/query", json={})
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------

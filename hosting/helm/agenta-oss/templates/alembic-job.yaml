@@ -48,15 +48,18 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          command: ["sh", "-c", "python -m oss.databases.postgres.migrations.runner"]
+          command:
+            - sh
+            - -c
+            - {{ printf "python -m %s" (include "agenta.alembicRunnerModule" .) | quote }}
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
             - name: ALEMBIC_AUTO_MIGRATIONS
               value: "true"
             - name: ALEMBIC_CFG_PATH_CORE
-              value: "/app/oss/databases/postgres/migrations/core/alembic.ini"
+              value: {{ include "agenta.alembicCfgPathCore" . | quote }}
             - name: ALEMBIC_CFG_PATH_TRACING
-              value: "/app/oss/databases/postgres/migrations/tracing/alembic.ini"
+              value: {{ include "agenta.alembicCfgPathTracing" . | quote }}
             {{- range $key, $val := .Values.alembic.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}

@@ -2,13 +2,14 @@ from typing import Optional, List, TypeVar, Type
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func, update
+from sqlalchemy import or_, select, func, update
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.types import VariantForkError
 from oss.src.core.git.dtos import (
     Artifact,
     ArtifactCreate,
@@ -184,15 +185,23 @@ class GitDAO(GitDAOInterface):
             now = datetime.now(timezone.utc)
             artifact_dbe.updated_at = now  # type: ignore
             artifact_dbe.updated_by_id = user_id  # type: ignore
-            #
-            artifact_dbe.flags = artifact_edit.flags  # type: ignore
-            artifact_dbe.tags = artifact_edit.tags  # type: ignore
-            artifact_dbe.meta = artifact_edit.meta  # type: ignore
-            #
-            artifact_dbe.name = artifact_edit.name  # type: ignore
-            artifact_dbe.description = artifact_edit.description  # type: ignore
-            #
-            artifact_dbe.folder_id = artifact_edit.folder_id  # type: ignore
+
+            # Only update fields that were explicitly set in the edit request.
+            # This prevents partial edits (e.g., moving to a folder) from
+            # wiping unrelated fields (flags, name, etc.) to None.
+            _set = artifact_edit.model_fields_set
+            if "flags" in _set:
+                artifact_dbe.flags = artifact_edit.flags  # type: ignore
+            if "tags" in _set:
+                artifact_dbe.tags = artifact_edit.tags  # type: ignore
+            if "meta" in _set:
+                artifact_dbe.meta = artifact_edit.meta  # type: ignore
+            if "name" in _set:
+                artifact_dbe.name = artifact_edit.name  # type: ignore
+            if "description" in _set:
+                artifact_dbe.description = artifact_edit.description  # type: ignore
+            if "folder_id" in _set:
+                artifact_dbe.folder_id = artifact_edit.folder_id  # type: ignore
 
             await session.commit()
 
@@ -325,6 +334,27 @@ class GitDAO(GitDAOInterface):
                 if artifact_slugs:
                     stmt = stmt.filter(
                         self.ArtifactDBE.slug.in_(artifact_slugs)  # type: ignore
+                    )
+
+            artifact_query_slugs = []
+            if artifact_query.slug:
+                artifact_query_slugs.append(artifact_query.slug)
+            if artifact_query.slugs:
+                artifact_query_slugs.extend(artifact_query.slugs)
+
+            if artifact_query_slugs:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.slug.in_(artifact_query_slugs)  # type: ignore
+                )
+
+            if "folder_id" in artifact_query.model_fields_set:
+                if artifact_query.folder_id is None:
+                    stmt = stmt.filter(
+                        self.ArtifactDBE.folder_id.is_(None)  # type: ignore
+                    )
+                else:
+                    stmt = stmt.filter(
+                        self.ArtifactDBE.folder_id == artifact_query.folder_id  # type: ignore
                     )
 
             if artifact_query.flags:
@@ -566,6 +596,23 @@ class GitDAO(GitDAOInterface):
             variant_dbe.deleted_at = now
             variant_dbe.deleted_by_id = user_id
 
+            # Cascade soft-delete to all child revisions so they no longer
+            # appear in revision queries that filter on deleted_at.
+            await session.execute(
+                update(self.RevisionDBE)
+                .where(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.variant_id == variant_id,  # type: ignore
+                    self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+                )
+                .values(
+                    updated_at=now,
+                    updated_by_id=user_id,
+                    deleted_at=now,
+                    deleted_by_id=user_id,
+                )
+            )
+
             await session.commit()
 
             await session.refresh(variant_dbe)
@@ -608,6 +655,22 @@ class GitDAO(GitDAOInterface):
             variant_dbe.updated_by_id = user_id
             variant_dbe.deleted_by_id = None
 
+            # Cascade unarchive to all child revisions that were soft-deleted.
+            await session.execute(
+                update(self.RevisionDBE)
+                .where(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.variant_id == variant_id,  # type: ignore
+                    self.RevisionDBE.deleted_at.isnot(None),  # type: ignore
+                )
+                .values(
+                    updated_at=now,
+                    updated_by_id=user_id,
+                    deleted_at=None,
+                    deleted_by_id=None,
+                )
+            )
+
             await session.commit()
 
             await session.refresh(variant_dbe)
@@ -643,28 +706,60 @@ class GitDAO(GitDAOInterface):
                 artifact_ids = [
                     artifact.id for artifact in artifact_refs if artifact.id
                 ]
+                artifact_slugs = [
+                    artifact.slug for artifact in artifact_refs if artifact.slug
+                ]
+
+                artifact_filters = []
 
                 if artifact_ids:
-                    stmt = stmt.filter(
+                    artifact_filters.append(
                         self.VariantDBE.artifact_id.in_(artifact_ids)  # type: ignore
                     )
 
-            if variant_refs:
-                variant_ids = [variant.id for variant in variant_refs if variant.id]
-
-                if variant_ids:
-                    stmt = stmt.filter(
-                        self.VariantDBE.id.in_(variant_ids)  # type: ignore
+                if artifact_slugs:
+                    artifact_id_subquery = select(self.ArtifactDBE.id).filter(  # type: ignore
+                        self.ArtifactDBE.project_id == project_id,  # type: ignore
+                        self.ArtifactDBE.slug.in_(artifact_slugs),  # type: ignore
+                    )
+                    artifact_filters.append(
+                        self.VariantDBE.artifact_id.in_(artifact_id_subquery)  # type: ignore
                     )
 
+                if artifact_filters:
+                    stmt = stmt.filter(or_(*artifact_filters))
+
+            if variant_refs:
+                variant_ids = [variant.id for variant in variant_refs if variant.id]
                 variant_slugs = [
                     variant.slug for variant in variant_refs if variant.slug
                 ]
 
+                variant_filters = []
+
+                if variant_ids:
+                    variant_filters.append(
+                        self.VariantDBE.id.in_(variant_ids)  # type: ignore
+                    )
+
                 if variant_slugs:
-                    stmt = stmt.filter(
+                    variant_filters.append(
                         self.VariantDBE.slug.in_(variant_slugs)  # type: ignore
                     )
+
+                if variant_filters:
+                    stmt = stmt.filter(or_(*variant_filters))
+
+            variant_query_slugs = []
+            if variant_query.slug:
+                variant_query_slugs.append(variant_query.slug)
+            if variant_query.slugs:
+                variant_query_slugs.extend(variant_query.slugs)
+
+            if variant_query_slugs:
+                stmt = stmt.filter(
+                    self.VariantDBE.slug.in_(variant_query_slugs)  # type: ignore
+                )
 
             if variant_query.flags:
                 stmt = stmt.filter(
@@ -722,7 +817,7 @@ class GitDAO(GitDAOInterface):
 
     # --------------------------------------------------------------------------
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[VariantForkError])
     async def fork_variant(
         self,
         *,
@@ -731,6 +826,16 @@ class GitDAO(GitDAOInterface):
         #
         artifact_fork: ArtifactFork,
     ) -> Optional[Variant]:
+        if artifact_fork.variant is None:
+            raise VariantForkError(
+                "Fork requires a 'variant' payload describing the new variant."
+            )
+
+        if not artifact_fork.variant_id and not artifact_fork.revision_id:
+            raise VariantForkError(
+                "Fork requires a source reference: 'variant_id' or 'revision_id'."
+            )
+
         source_revisions = await self.log_revisions(
             project_id=project_id,
             #
@@ -742,7 +847,11 @@ class GitDAO(GitDAOInterface):
         )
 
         if not source_revisions:
-            return None
+            raise VariantForkError(
+                "Fork source has no revisions to copy. "
+                "Verify 'variant_id'/'revision_id' resolve to an existing variant "
+                "with at least one committed revision."
+            )
 
         source_variant = await self.fetch_variant(
             project_id=project_id,
@@ -751,7 +860,7 @@ class GitDAO(GitDAOInterface):
         )
 
         if not source_variant:
-            return None
+            raise VariantForkError("Fork source variant could not be resolved.")
 
         variant_create = VariantCreate(
             slug=artifact_fork.variant.slug,
@@ -803,29 +912,30 @@ class GitDAO(GitDAOInterface):
                 revision_commit=revision_commit,
             )
 
-        revision_commit = RevisionCommit(
-            slug=artifact_fork.revision.slug,
-            #
-            name=artifact_fork.revision.name,
-            description=artifact_fork.revision.description,
-            #
-            flags=artifact_fork.revision.flags,
-            tags=artifact_fork.revision.tags,
-            meta=artifact_fork.revision.meta,
-            #
-            message=artifact_fork.revision.message,
-            data=artifact_fork.revision.data or source_revisions[0].data,
-            #
-            artifact_id=target_variant.artifact_id,
-            variant_id=target_variant.id,
-        )
+        if artifact_fork.revision is not None:
+            revision_commit = RevisionCommit(
+                slug=artifact_fork.revision.slug,
+                #
+                name=artifact_fork.revision.name,
+                description=artifact_fork.revision.description,
+                #
+                flags=artifact_fork.revision.flags,
+                tags=artifact_fork.revision.tags,
+                meta=artifact_fork.revision.meta,
+                #
+                message=artifact_fork.revision.message,
+                data=artifact_fork.revision.data or source_revisions[0].data,
+                #
+                artifact_id=target_variant.artifact_id,
+                variant_id=target_variant.id,
+            )
 
-        await self.commit_revision(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            revision_commit=revision_commit,
-        )
+            await self.commit_revision(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                revision_commit=revision_commit,
+            )
 
         return target_variant  # type: ignore
 
@@ -1108,6 +1218,8 @@ class GitDAO(GitDAOInterface):
         variant_refs: Optional[List[Reference]] = None,
         revision_refs: Optional[List[Reference]] = None,
         #
+        application_refs: Optional[List[Reference]] = None,
+        #
         include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
@@ -1121,19 +1233,53 @@ class GitDAO(GitDAOInterface):
                 artifact_ids = [
                     artifact.id for artifact in artifact_refs if artifact.id
                 ]
+                artifact_slugs = [
+                    artifact.slug for artifact in artifact_refs if artifact.slug
+                ]
+
+                artifact_filters = []
 
                 if artifact_ids:
-                    stmt = stmt.filter(
+                    artifact_filters.append(
                         self.RevisionDBE.artifact_id.in_(artifact_ids)  # type: ignore
                     )
 
+                if artifact_slugs:
+                    artifact_id_subquery = select(self.ArtifactDBE.id).filter(  # type: ignore
+                        self.ArtifactDBE.project_id == project_id,  # type: ignore
+                        self.ArtifactDBE.slug.in_(artifact_slugs),  # type: ignore
+                    )
+                    artifact_filters.append(
+                        self.RevisionDBE.artifact_id.in_(artifact_id_subquery)  # type: ignore
+                    )
+
+                if artifact_filters:
+                    stmt = stmt.filter(or_(*artifact_filters))
+
             if variant_refs:
                 variant_ids = [variant.id for variant in variant_refs if variant.id]
+                variant_slugs = [
+                    variant.slug for variant in variant_refs if variant.slug
+                ]
+
+                variant_filters = []
 
                 if variant_ids:
-                    stmt = stmt.filter(
+                    variant_filters.append(
                         self.RevisionDBE.variant_id.in_(variant_ids)  # type: ignore
                     )
+
+                if variant_slugs:
+                    variant_id_subquery = select(self.VariantDBE.id).filter(  # type: ignore
+                        self.VariantDBE.project_id == project_id,  # type: ignore
+                        self.VariantDBE.slug.in_(variant_slugs),  # type: ignore
+                    )
+                    variant_filters.append(
+                        self.RevisionDBE.variant_id.in_(variant_id_subquery)  # type: ignore
+                    )
+
+                if variant_filters:
+                    stmt = stmt.filter(or_(*variant_filters))
 
             if revision_refs:
                 revision_ids = [
@@ -1153,6 +1299,17 @@ class GitDAO(GitDAOInterface):
                     stmt = stmt.filter(
                         self.RevisionDBE.slug.in_(revision_slugs)  # type: ignore
                     )
+
+            revision_query_slugs = []
+            if revision_query.slug:
+                revision_query_slugs.append(revision_query.slug)
+            if revision_query.slugs:
+                revision_query_slugs.extend(revision_query.slugs)
+
+            if revision_query_slugs:
+                stmt = stmt.filter(
+                    self.RevisionDBE.slug.in_(revision_query_slugs)  # type: ignore
+                )
 
             if revision_query.flags:
                 stmt = stmt.filter(
@@ -1224,6 +1381,68 @@ class GitDAO(GitDAOInterface):
             result = await session.execute(stmt)
 
             revision_dbes = result.scalars().all()
+
+            # TEMPORARY ADAPTER: this `application_refs` filter exists only for the
+            # current web UX/UI, which wants to view environment history by
+            # application and only surface revisions where that application's
+            # deployment changed. This is not canonical DAO behavior.
+            #
+            # The target state is to remove this adapter once the frontend no
+            # longer depends on this application-grouped diff view. Even now,
+            # this logic should not live in the DAO, but we are not moving it
+            # elsewhere because the intended transition is from "temporary
+            # adapter here" to "removed entirely".
+            if application_refs:
+                app_ids = {str(ref.id) for ref in application_refs if ref.id}
+                if app_ids:
+                    filtered_dbes = []
+                    prev_app_revision_ids: dict[str, str | None] = {
+                        app_id: None for app_id in app_ids
+                    }
+
+                    # Revisions are ordered descending (newest first)
+                    # We need to process in ascending order to detect changes
+                    for dbe in reversed(revision_dbes):
+                        if not dbe.data or not isinstance(dbe.data, dict):
+                            continue
+
+                        refs = dbe.data.get("references")
+                        if not refs or not isinstance(refs, dict):
+                            continue
+
+                        # Check each app we're filtering for
+                        for app_id in app_ids:
+                            current_revision_id: str | None = None
+
+                            # Find this app's revision in the current environment revision
+                            for ref_data in refs.values():
+                                if not isinstance(ref_data, dict):
+                                    continue
+                                app_ref = ref_data.get("application")
+                                if (
+                                    isinstance(app_ref, dict)
+                                    and str(app_ref.get("id")) == app_id
+                                ):
+                                    app_revision = ref_data.get("application_revision")
+                                    if app_revision:
+                                        current_revision_id = str(
+                                            app_revision.get("id")
+                                        )
+                                    break
+
+                            # If this app's deployment changed, include this revision
+                            if current_revision_id != prev_app_revision_ids[app_id]:
+                                if dbe not in filtered_dbes:
+                                    filtered_dbes.append(dbe)
+                                prev_app_revision_ids[app_id] = current_revision_id
+
+                    # Reverse back to descending order (newest first)
+                    filtered_dbes.reverse()
+                    revision_dbes = filtered_dbes
+
+            # END TEMPORARY ADAPTER: remove this block when the web frontend no
+            # longer needs application-grouped diff history. Do not migrate this
+            # behavior deeper into the persistence layer.
 
             revisions = [
                 map_dbe_to_dto(
@@ -1305,6 +1524,16 @@ class GitDAO(GitDAOInterface):
                     version=revision.version,
                 )
 
+                if revision.version == "0":
+                    await self._null_revision_fields(
+                        project_id=project_id,
+                        revision_id=revision.id,  # type: ignore
+                    )
+                    revision.flags = None
+                    revision.tags = None
+                    revision.meta = None
+                    revision.data = None
+
                 return revision
 
         except Exception as e:
@@ -1357,7 +1586,6 @@ class GitDAO(GitDAOInterface):
             return []
 
         depth = revisions_log.depth
-        version = int(revision.version) if revision.version else 0
 
         if depth is not None:
             if not isinstance(depth, int):
@@ -1366,40 +1594,51 @@ class GitDAO(GitDAOInterface):
             if depth < 1:
                 return []
 
-        offset = None
-        limit = None
-        order_by = self.RevisionDBE.id.desc()  # type: ignore
-
-        if depth is None:
-            offset = 0
-            limit = version + 1
-            order_by = self.RevisionDBE.id.asc()  # type: ignore
-        elif depth is not None:
-            offset = max(version - depth + 1, 0)
-            limit = min(depth, version + 1)
-            order_by = self.RevisionDBE.id.asc()  # type: ignore
-
+        # Window is "the target revision and the `depth - 1` rows preceding it
+        # within the variant," counted over the visibility set selected by
+        # `include_archived`. ROW_NUMBER() over that set gives us each row's
+        # 1-indexed position; we then keep rows up to the target's position
+        # and limit to `depth` from the tail.
         async with engine.core_session() as session:
-            stmt = select(self.RevisionDBE).filter(
-                self.RevisionDBE.project_id == project_id,  # type: ignore
+            visibility_filter = (
+                (self.RevisionDBE.deleted_at.is_(None),)  # type: ignore
+                if not include_archived
+                else ()
             )
-
-            stmt = stmt.filter(
-                self.RevisionDBE.variant_id == revision.variant_id,  # type: ignore
-            )
-
-            # Filter out archived/deleted revisions unless explicitly requested
-            if not include_archived:
-                stmt = stmt.filter(
-                    self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+            positions = (
+                select(
+                    self.RevisionDBE.id.label("id"),  # type: ignore
+                    func.row_number()
+                    .over(
+                        partition_by=self.RevisionDBE.variant_id,  # type: ignore
+                        order_by=self.RevisionDBE.id.asc(),  # type: ignore
+                    )
+                    .label("pos"),
                 )
+                .where(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.variant_id == revision.variant_id,  # type: ignore
+                    *visibility_filter,
+                )
+                .subquery()
+            )
 
-            stmt = stmt.order_by(order_by)
-            stmt = stmt.offset(offset)
-            stmt = stmt.limit(limit)
+            target_pos = (
+                select(positions.c.pos)
+                .where(positions.c.id == revision.id)
+                .scalar_subquery()
+            )
+
+            stmt = (
+                select(self.RevisionDBE)  # type: ignore
+                .join(positions, positions.c.id == self.RevisionDBE.id)  # type: ignore
+                .where(positions.c.pos <= target_pos)
+                .order_by(self.RevisionDBE.id.desc())  # type: ignore
+            )
+            if depth is not None:
+                stmt = stmt.limit(depth)
 
             result = await session.execute(stmt)
-
             revision_dbes = result.scalars().all()
 
             if not revision_dbes:
@@ -1412,9 +1651,6 @@ class GitDAO(GitDAOInterface):
                 )
                 for revision_dbe in revision_dbes
             ]
-
-            if order_by == self.RevisionDBE.id.asc():  # type: ignore
-                revisions.reverse()
 
             return revisions
 
@@ -1461,6 +1697,26 @@ class GitDAO(GitDAOInterface):
             stmt = stmt.filter(self.RevisionDBE.id == revision_id)  # type: ignore
 
             stmt = stmt.values(version=version)  # type: ignore
+
+            await session.execute(stmt)
+
+            await session.commit()
+
+    async def _null_revision_fields(
+        self,
+        *,
+        project_id: UUID,
+        revision_id: UUID,
+    ) -> None:
+        async with engine.core_session() as session:
+            stmt = (
+                update(self.RevisionDBE)
+                .filter(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.id == revision_id,  # type: ignore
+                )
+                .values(data=None, flags=None, tags=None, meta=None)  # type: ignore
+            )
 
             await session.execute(stmt)
 

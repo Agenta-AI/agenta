@@ -3,14 +3,16 @@ import {useEffect, useMemo, useRef} from "react"
 import {Spin} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
+import {signOut} from "supertokens-auth-react/recipe/session"
 
 import useURL from "@/oss/hooks/useURL"
-import {orgsAtom} from "@/oss/state/org"
+import {orgsAtom, orgsQueryAtom} from "@/oss/state/org"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const WorkspaceSelection = () => {
     const router = useRouter()
     const orgs = useAtomValue(orgsAtom)
+    const orgsQuery = useAtomValue(orgsQueryAtom) as any
     const {workspaceId, baseAppURL, projectURL, orgURL} = useURL()
     const pendingRef = useRef(false)
 
@@ -71,6 +73,15 @@ const WorkspaceSelection = () => {
                 if (fallbackPath) {
                     if (fallbackTimer) clearTimeout(fallbackTimer)
                     await redirect(fallbackPath)
+                    return
+                }
+
+                // Query is settled and no orgs are available — sign out
+                const querySettled = !orgsQuery?.isPending && !orgsQuery?.isFetching
+                if (querySettled && orgs.length === 0) {
+                    if (fallbackTimer) clearTimeout(fallbackTimer)
+                    await signOut()
+                    await router.replace("/auth")
                 }
             })
             .finally(() => {

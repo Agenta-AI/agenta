@@ -7,11 +7,11 @@
 import {StandardSecretDTO} from "../../oss/src/lib/Types"
 
 import {existsSync, readFileSync, unlinkSync} from "fs"
-import {dirname, resolve} from "path"
-import {fileURLToPath} from "url"
+
+import {getProjectMetadataPath, getStorageStatePath} from "./config/runtime.ts"
 
 /**
- * Extracts the session token from state.json for authenticated API calls.
+ * Extracts the session token from the storage state for authenticated API calls.
  */
 function getSessionToken(statePath: string): string | null {
     if (!existsSync(statePath)) {
@@ -26,7 +26,6 @@ function getSessionToken(statePath: string): string | null {
  * Runs after tests complete.
  * 1. Deletes the ephemeral project created during setup (if any).
  * 2. Cleans up model hub secrets (OpenAI keys added during tests).
- * 3. Optionally deletes all accounts on disposable CI environments.
  */
 /**
  * Derives the API base URL from AGENTA_WEB_URL.
@@ -47,58 +46,26 @@ async function globalTeardown() {
     const baseURL = process.env.AGENTA_WEB_URL || "http://localhost:3000"
     console.log(`[global-teardown] Using web-url: ${baseURL}`)
 
-    const token = process.env.AGENTA_AUTH_KEY
     const apiURL = getApiURL(baseURL)
-    const allowDestructiveTeardown =
-        String(process.env.AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN).toLowerCase() === "true"
     console.log(`[global-teardown] Using api-url: ${apiURL}`)
-
-    const license = process.env.AGENTA_LICENSE || "oss"
-    console.log(
-        `[global-teardown] Environment variables - token: ${token ? "present" : "absent"}, AGENTA_LICENSE: ${license}, AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN: ${allowDestructiveTeardown}`,
-    )
 
     // --- Phase 1: Delete ephemeral project ---
     await deleteEphemeralProject(apiURL)
 
-    // --- Phase 2: Delete all accounts (destructive, CI-only) ---
-    if (allowDestructiveTeardown && token && license === "oss") {
-        console.log(
-            "[global-teardown] Conditions met for deleting all accounts, sending request...",
-        )
-        try {
-            await fetch(`${apiURL}/admin/accounts/delete-all`, {
-                method: "POST",
-                headers: {
-                    Authorization: `Access ${token}`,
-                },
-            })
-            console.log("[global-teardown] Deleted all accounts successfully")
-        } catch (error) {
-            console.error("[global-teardown] Error deleting accounts:", error)
-        }
-    } else {
-        console.log(
-            "[global-teardown] Skipping delete-all accounts (set AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true to enable)",
-        )
-    }
-
-    // --- Phase 3: Clean up model hub secrets ---
+    // --- Phase 2: Clean up model hub secrets ---
     await cleanupModelHubSecrets(apiURL)
 }
 
 /**
  * Deletes the ephemeral project created during global-setup.
- * Reads project metadata from test-project.json, calls DELETE /api/projects/{id},
+ * Reads project metadata from the runtime metadata file, calls DELETE /api/projects/{id},
  * then removes the metadata file.
  */
 async function deleteEphemeralProject(apiURL: string): Promise<void> {
-    const __filename = fileURLToPath(import.meta.url)
-    const __dirname = dirname(__filename)
-    const projectPath = resolve(__dirname, "../test-project.json")
+    const projectPath = getProjectMetadataPath()
 
     if (!existsSync(projectPath)) {
-        console.log("[global-teardown] No test-project.json found, skipping project cleanup")
+        console.log("[global-teardown] No test project metadata found, skipping project cleanup")
         return
     }
 
@@ -108,15 +75,13 @@ async function deleteEphemeralProject(apiURL: string): Promise<void> {
         const projectName = projectData.project_name
 
         if (!projectId) {
-            console.warn("[global-teardown] test-project.json has no project_id, skipping")
+            console.warn("[global-teardown] Project metadata has no project_id, skipping")
             return
         }
 
-        console.log(
-            `[global-teardown] Deleting ephemeral project: ${projectName} (${projectId})`,
-        )
+        console.log(`[global-teardown] Deleting ephemeral project: ${projectName} (${projectId})`)
 
-        const statePath = resolve(__dirname, "../state.json")
+        const statePath = getStorageStatePath()
         const sessionToken = getSessionToken(statePath)
 
         if (!sessionToken) {
@@ -171,7 +136,7 @@ async function deleteEphemeralProject(apiURL: string): Promise<void> {
         // Always clean up the metadata file
         try {
             unlinkSync(projectPath)
-            console.log("[global-teardown] Removed test-project.json")
+            console.log("[global-teardown] Removed test project metadata")
         } catch {
             // Ignore if already deleted
         }
@@ -184,21 +149,18 @@ async function deleteEphemeralProject(apiURL: string): Promise<void> {
 async function cleanupModelHubSecrets(apiURL: string): Promise<void> {
     try {
         console.log("[global-teardown] Deleting model hub secrets...")
-        const __filename = fileURLToPath(import.meta.url)
-        const __dirname = dirname(__filename)
-
-        const statePath = resolve(__dirname, "../state.json")
+        const statePath = getStorageStatePath()
         const sessionToken = getSessionToken(statePath)
 
         if (!sessionToken) {
             console.log(
-                "[global-teardown] No session token in state.json, skipping model hub cleanup",
+                "[global-teardown] No session token in storage state, skipping model hub cleanup",
             )
             return
         }
 
         console.log(
-            `[teardown] Extracted session token from state.json: ${sessionToken ? "present" : "absent"}`,
+            `[teardown] Extracted session token from storage state: ${sessionToken ? "present" : "absent"}`,
         )
 
         const secretsResp = await fetch(`${apiURL}/vault/v1/secrets/`, {

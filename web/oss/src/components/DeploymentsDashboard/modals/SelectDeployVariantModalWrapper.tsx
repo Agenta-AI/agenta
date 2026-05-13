@@ -1,55 +1,65 @@
-import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
-import {useAtomValue, useSetAtom} from "jotai"
+import {EnhancedModal, ModalFooter} from "@agenta/ui"
+import {Typography} from "antd"
+import {useAtomValue} from "jotai"
 
-import SelectDeployVariantModal from "@/oss/components/DeploymentsDashboard/components/Modal/SelectDeployVariantModal"
-import {
-    closeSelectDeployVariantModalAtom,
-    selectDeployVariantStateAtom,
-    setSelectedRowKeysAtom,
-} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
-import {openDeploymentConfirmationModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
+import SelectDeployVariantModalContent, {
+    useSelectDeployVariant,
+} from "./SelectDeployVariantModalContent"
+import {selectDeployVariantStateAtom} from "./store/deploymentModalsStore"
 
 const SelectDeployVariantModalWrapper = () => {
     const state = useAtomValue(selectDeployVariantStateAtom)
-    const close = useSetAtom(closeSelectDeployVariantModalAtom)
-    const setKeys = useSetAtom(setSelectedRowKeysAtom)
-    const openConfirm = useSetAtom(openDeploymentConfirmationModalAtom)
-    const publishMutation = useAtomValue(publishMutationAtom)
+    const {
+        close,
+        isPending,
+        isAlreadyDeployed,
+        currentDeployment,
+        selectedRowKeys,
+        setSelectedRowKeys,
+        selectedRowRef,
+        note,
+        setNote,
+        handleDeploy,
+    } = useSelectDeployVariant()
 
     return (
-        <SelectDeployVariantModal
+        <EnhancedModal
             open={state.open}
-            onCancel={() => close()}
-            variants={state.variants}
-            envRevisions={state.envRevisions}
-            setIsDeployVariantModalOpen={() => {
-                const selectedId = state.selectedRowKeys[0]
-                const variant = state.variants.find((v: any) => v.id === selectedId)
-                const envName = state.envRevisions?.name || ""
-                // Close selector and open confirmation modal
-                close()
-                openConfirm({
-                    variant,
-                    envName,
-                    actionType: "deploy",
-                    onConfirm: async (noteValue) => {
-                        const revisionId = selectedId as string
-                        await publishMutation.mutateAsync({
-                            type: "revision",
-                            revision_id: revisionId,
-                            environment_ref: envName,
-                            note: noteValue,
-                        })
-                    },
-                    onSuccess: () => {
-                        // no-op for now; publish mutation invalidates queries globally
-                    },
-                    successMessage: `Deployment started for ${envName}`,
-                })
+            onCancel={close}
+            title={
+                <Typography.Text className="text-lg font-semibold leading-relaxed capitalize">
+                    Deploy {state.envName}
+                </Typography.Text>
+            }
+            footer={
+                <ModalFooter
+                    onCancel={close}
+                    onConfirm={handleDeploy}
+                    confirmLabel="Deploy"
+                    canConfirm={selectedRowKeys.length > 0 && !isAlreadyDeployed}
+                    isLoading={isPending}
+                />
+            }
+            width={1000}
+            styles={{
+                body: {
+                    maxHeight: "calc(80vh - 110px)",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                },
             }}
-            setSelectedRowKeys={(keys) => setKeys(keys as (string | number)[])}
-            selectedRowKeys={state.selectedRowKeys}
-        />
+        >
+            <SelectDeployVariantModalContent
+                selectedRowKeys={selectedRowKeys}
+                setSelectedRowKeys={setSelectedRowKeys}
+                selectedRowRef={selectedRowRef}
+                note={note}
+                setNote={setNote}
+                envName={state.envName}
+                currentDeployment={currentDeployment}
+            />
+        </EnhancedModal>
     )
 }
 

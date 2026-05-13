@@ -12,7 +12,7 @@ class TestTraceBasics:
 
         response = authed_api(
             "POST",
-            "/preview/tracing/traces/",
+            "/tracing/traces/",
             json={
                 "traces": {
                     trace_id: {
@@ -89,7 +89,7 @@ class TestTraceBasics:
 
         response = authed_api(
             "POST",
-            "/preview/tracing/traces/",
+            "/tracing/traces/",
             json={
                 "spans": [
                     {
@@ -135,7 +135,7 @@ class TestTraceBasics:
         response = wait_for_response(
             authed_api,
             "GET",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/tracing/traces/{trace_id}",
             condition_fn=lambda r: r.json()["count"] == 1,
         )
         # ----------------------------------------------------------------------
@@ -153,7 +153,7 @@ class TestTraceBasics:
 
         response = authed_api(
             "POST",
-            "/preview/tracing/traces/",
+            "/tracing/traces/",
             json={
                 "spans": [
                     {
@@ -177,7 +177,7 @@ class TestTraceBasics:
         wait_for_response(
             authed_api,
             "GET",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/tracing/traces/{trace_id}",
             condition_fn=lambda r: r.json()["count"] == 1,
         )
         # ----------------------------------------------------------------------
@@ -185,7 +185,7 @@ class TestTraceBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/tracing/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -197,7 +197,7 @@ class TestTraceBasics:
         response = wait_for_response(
             authed_api,
             "GET",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/tracing/traces/{trace_id}",
             condition_fn=lambda r: r.json()["count"] == 0,
         )
         # ----------------------------------------------------------------------
@@ -211,7 +211,7 @@ class TestTraceBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/tracing/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 

@@ -5,7 +5,7 @@ def _create_run(authed_api, name: str = None) -> str:
     """Create a minimal evaluation run and return its ID."""
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/evaluations/runs/",
         json={"runs": [{"name": name or f"run-{uuid4()}"}]},
     )
     assert response.status_code == 200
@@ -25,7 +25,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={
                 "queues": [
                     {
@@ -55,7 +55,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={
                 "queues": [
                     {
@@ -84,7 +84,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={
                 "queues": [
                     {"name": "queue-1", "run_id": run_id_1},
@@ -109,7 +109,7 @@ class TestEvaluationQueuesBasics:
         run_id = _create_run(authed_api)
         create_resp = authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={"queues": [{"name": "test-queue-fetch", "run_id": run_id}]},
         )
         assert create_resp.status_code == 200
@@ -119,7 +119,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/queues/{queue_id}",
+            f"/evaluations/queues/{queue_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -137,7 +137,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/queues/{uuid4()}",
+            f"/evaluations/queues/{uuid4()}",
         )
         # ----------------------------------------------------------------------
 
@@ -157,7 +157,7 @@ class TestEvaluationQueuesBasics:
         run_id = _create_run(authed_api)
         authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={"queues": [{"name": "test-queue-query", "run_id": run_id}]},
         )
         # ----------------------------------------------------------------------
@@ -165,7 +165,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/queues/query",
+            "/evaluations/queues/query",
             json={},
         )
         # ----------------------------------------------------------------------
@@ -182,7 +182,7 @@ class TestEvaluationQueuesBasics:
         run_id = _create_run(authed_api)
         authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={"queues": [{"name": "test-queue-query-by-run", "run_id": run_id}]},
         )
         # ----------------------------------------------------------------------
@@ -190,7 +190,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/queues/query",
+            "/evaluations/queues/query",
             json={"queue": {"run_id": run_id}},
         )
         # ----------------------------------------------------------------------
@@ -210,7 +210,7 @@ class TestEvaluationQueuesBasics:
         run_id = _create_run(authed_api)
         create_resp = authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={"queues": [{"name": "before-edit", "run_id": run_id}]},
         )
         assert create_resp.status_code == 200
@@ -220,7 +220,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "PATCH",
-            f"/preview/evaluations/queues/{queue_id}",
+            f"/evaluations/queues/{queue_id}",
             json={
                 "queue": {
                     "id": queue_id,
@@ -245,7 +245,7 @@ class TestEvaluationQueuesBasics:
         run_id_2 = _create_run(authed_api)
         create_resp = authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={
                 "queues": [
                     {"name": "bulk-edit-1", "run_id": run_id_1},
@@ -262,7 +262,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "PATCH",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={
                 "queues": [
                     {"id": queue_id_1, "name": "bulk-edited-1"},
@@ -287,7 +287,7 @@ class TestEvaluationQueuesBasics:
         run_id = _create_run(authed_api)
         create_resp = authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={"queues": [{"name": "to-delete", "run_id": run_id}]},
         )
         assert create_resp.status_code == 200
@@ -297,7 +297,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/queues/{queue_id}",
+            f"/evaluations/queues/{queue_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -311,7 +311,7 @@ class TestEvaluationQueuesBasics:
         # VERIFY ---------------------------------------------------------------
         fetch_resp = authed_api(
             "GET",
-            f"/preview/evaluations/queues/{queue_id}",
+            f"/evaluations/queues/{queue_id}",
         )
         assert fetch_resp.status_code == 200
         assert fetch_resp.json()["count"] == 0
@@ -323,7 +323,7 @@ class TestEvaluationQueuesBasics:
         run_id_2 = _create_run(authed_api)
         create_resp = authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={
                 "queues": [
                     {"run_id": run_id_1},
@@ -340,7 +340,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={"queue_ids": [queue_id_1, queue_id_2]},
         )
         # ----------------------------------------------------------------------
@@ -358,7 +358,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={"queue_ids": [str(uuid4()), str(uuid4())]},
         )
         # ----------------------------------------------------------------------
@@ -378,7 +378,7 @@ class TestEvaluationQueuesBasics:
         run_id = _create_run(authed_api)
         create_resp = authed_api(
             "POST",
-            "/preview/evaluations/queues/",
+            "/evaluations/queues/",
             json={"queues": [{"run_id": run_id}]},
         )
         assert create_resp.status_code == 200
@@ -388,7 +388,7 @@ class TestEvaluationQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/evaluations/queues/{queue_id}/scenarios/query",
+            f"/evaluations/queues/{queue_id}/scenarios/query",
             json={},
         )
         # ----------------------------------------------------------------------

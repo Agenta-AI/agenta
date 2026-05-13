@@ -80,7 +80,7 @@ def wait_for_response(
     Args:
         authed_api: Authenticated API client fixture
         method: HTTP method (GET, POST, PUT, DELETE, etc.)
-        endpoint: API endpoint path (e.g., "/preview/tracing/spans/query")
+        endpoint: API endpoint path (e.g., "/tracing/spans/query")
         json: Optional JSON payload for the request
         expected_status: Expected HTTP status code (default: 200)
         condition_fn: Optional function to validate response beyond status code.
@@ -98,7 +98,7 @@ def wait_for_response(
         response = wait_for_response(
             authed_api,
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={"filter": {"conditions": [{"field": "trace_id", "value": "123"}]}},
             condition_fn=lambda r: r.json().get("count", 0) >= 2
         )
@@ -107,7 +107,7 @@ def wait_for_response(
         response = wait_for_response(
             authed_api,
             "GET",
-            "/preview/tracing/traces/abc123",
+            "/tracing/traces/abc123",
             condition_fn=lambda r: r.json()["count"] == 1,
             max_retries=10
         )

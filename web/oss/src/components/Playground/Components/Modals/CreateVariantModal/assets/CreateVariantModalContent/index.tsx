@@ -1,9 +1,9 @@
 import {type ChangeEvent, useCallback} from "react"
 
+import {CommitMessageInput} from "@agenta/ui"
 import {Input, Select, Typography, Form, Checkbox} from "antd"
 import clsx from "clsx"
 
-import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 
 import {CreateVariantModalContentProps} from "../types"
@@ -101,7 +101,7 @@ const CreateVariantModalContent = ({
                         </Form.Item>
                     </div>
 
-                    <CommitNote note={note} setNote={setNote} />
+                    <CommitMessageInput value={note} onChange={setNote} />
 
                     <Checkbox
                         checked={isCompareMode}

@@ -12,6 +12,7 @@ from oss.src.models.api.api_models import (
     EnvironmentRevision,
     EnvironmentOutputExtended,
 )
+from ee.src.models.shared_models import WorkspaceRole
 
 
 class TimestampModel(BaseModel):
@@ -21,7 +22,7 @@ class TimestampModel(BaseModel):
 
 class InviteRequest(BaseModel):
     email: str
-    roles: List[str]
+    roles: List[WorkspaceRole]
 
 
 class ReseendInviteRequest(BaseModel):

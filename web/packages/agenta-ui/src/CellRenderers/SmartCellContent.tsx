@@ -14,6 +14,7 @@ import {
     safeJsonStringify,
     tryParseJson,
     type ChatExtractionPreference,
+    type ChatPreviewStrategy,
 } from "./utils"
 
 const {Text} = Typography
@@ -35,6 +36,10 @@ interface SmartCellContentProps {
     showPopover?: boolean
     /** Hint for chat extraction direction in mixed payloads */
     chatPreference?: ChatExtractionPreference
+    /** Strategy for selecting chat messages in the truncated cell preview */
+    chatPreviewStrategy?: ChatPreviewStrategy
+    /** Render JSON records as readable key/value fields */
+    beautifyJson?: boolean
 }
 
 /**
@@ -60,6 +65,8 @@ const SmartCellContent = memo(
         className = "",
         showPopover = true,
         chatPreference,
+        chatPreviewStrategy,
+        beautifyJson = false,
     }: SmartCellContentProps) => {
         // Get maxLines from context if not provided via prop
         const rowHeightContext = useRowHeightContext()
@@ -104,6 +111,7 @@ const SmartCellContent = memo(
                         value={jsonValue}
                         keyPrefix={keyPrefix}
                         chatPreference={chatPreference}
+                        previewStrategy={chatPreviewStrategy}
                         maxLines={4}
                         maxTotalLines={maxLines}
                         truncate
@@ -134,7 +142,12 @@ const SmartCellContent = memo(
         if (isJson) {
             const cellContent = (
                 <div className={`cursor-pointer ${className}`}>
-                    <JsonCellContent value={jsonValue} maxLines={maxLines} truncate />
+                    <JsonCellContent
+                        value={jsonValue}
+                        maxLines={maxLines}
+                        truncate
+                        beautified={beautifyJson}
+                    />
                 </div>
             )
 
@@ -142,7 +155,13 @@ const SmartCellContent = memo(
 
             return (
                 <CellContentPopover
-                    fullContent={<JsonCellContent value={jsonValue} truncate={false} />}
+                    fullContent={
+                        <JsonCellContent
+                            value={jsonValue}
+                            truncate={false}
+                            beautified={beautifyJson}
+                        />
+                    }
                     copyText={copyText}
                 >
                     {cellContent}

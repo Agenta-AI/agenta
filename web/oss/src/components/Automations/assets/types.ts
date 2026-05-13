@@ -24,6 +24,7 @@ export interface FieldDescriptor {
     options?: {label: string; value: string}[]
     rules?: Rule[]
     extra?: React.ReactNode
+    extraByValue?: Record<string, React.ReactNode>
     secret?: boolean
     visibleWhen?: {
         field: string

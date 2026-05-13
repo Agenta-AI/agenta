@@ -1,7 +1,7 @@
+import {getValueAtPath} from "@agenta/entities/trace"
 import {atom} from "jotai"
 
 import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
-import {getValueAtPath} from "@/oss/state/entities/trace"
 
 import type {Mapping, TestsetTraceData} from "../assets/types"
 

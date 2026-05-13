@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {Skeleton, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -12,7 +13,6 @@ import {
     environmentReferenceAtomFamily,
     previewTestsetReferenceAtomFamily,
     queryReferenceAtomFamily,
-    variantConfigAtomFamily,
 } from "./atoms/entityReferences"
 import type {ReferenceTone} from "./referenceColors"
 import ReferenceTag from "./ReferenceTag"
@@ -320,7 +320,7 @@ export const ApplicationReferenceLabel = memo(
 export const VariantReferenceLabel = memo(
     ({
         revisionId,
-        projectId,
+        projectId: _projectId,
         fallbackLabel,
         showVersionPill = false,
         explicitVersion,
@@ -341,10 +341,15 @@ export const VariantReferenceLabel = memo(
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
     }) => {
-        const queryAtom = useMemo(
-            () => variantConfigAtomFamily({projectId, revisionId}),
-            [projectId, revisionId],
+        const dataAtom = useMemo(
+            () => workflowMolecule.selectors.data(revisionId ?? ""),
+            [revisionId],
         )
+        const queryAtom = useMemo(
+            () => workflowMolecule.selectors.query(revisionId ?? ""),
+            [revisionId],
+        )
+        const data = useAtomValue(dataAtom)
         const query = useAtomValue(queryAtom)
 
         if (!revisionId) {
@@ -360,18 +365,17 @@ export const VariantReferenceLabel = memo(
             return <Text type="secondary">—</Text>
         }
 
-        if ((query.isPending || query.isFetching) && !query.isError) {
+        if (query.isPending && !query.isError) {
             return <Skeleton.Input active size="small" style={{width: 140}} />
         }
 
-        const ref = query.data
-        const hasResolvedData = ref?.variantName || ref?.revision != null || fallbackLabel
+        const hasResolvedData = data?.name || data?.slug || data?.version != null || fallbackLabel
         const isDeleted =
             Boolean(query.isError && !fallbackLabel) || (!hasResolvedData && !fallbackLabel)
         const label = isDeleted
             ? "Deleted"
-            : (ref?.variantName ?? fallbackLabel ?? customLabel ?? ref?.revisionId ?? revisionId)
-        const resolvedVersion = isDeleted ? null : (explicitVersion ?? ref?.revision ?? null)
+            : (data?.name ?? data?.slug ?? fallbackLabel ?? customLabel ?? revisionId)
+        const resolvedVersion = isDeleted ? null : (explicitVersion ?? data?.version ?? null)
         // Don't show link for deleted variants
         const href = isDeleted ? null : explicitHref
 
@@ -406,7 +410,7 @@ export const VariantRevisionLabel = memo(
     ({
         variantId,
         revisionId,
-        projectId,
+        projectId: _projectId,
         fallbackVariantName,
         fallbackRevision,
         href: explicitHref,
@@ -422,37 +426,38 @@ export const VariantRevisionLabel = memo(
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
     }) => {
-        // Fetch variant config using revisionId to get revision number
-        const configQueryAtom = useMemo(
-            () => variantConfigAtomFamily({projectId, revisionId}),
-            [projectId, revisionId],
+        const dataAtom = useMemo(
+            () => workflowMolecule.selectors.data(revisionId ?? ""),
+            [revisionId],
         )
-        const configQuery = useAtomValue(configQueryAtom)
+        const queryAtom = useMemo(
+            () => workflowMolecule.selectors.query(revisionId ?? ""),
+            [revisionId],
+        )
+        const data = useAtomValue(dataAtom)
+        const query = useAtomValue(queryAtom)
 
         if (!variantId && !revisionId) {
             return <Text type="secondary">—</Text>
         }
 
-        const isLoading = (configQuery.isPending || configQuery.isFetching) && !configQuery.isError
-
-        if (isLoading) {
+        if (query.isPending && !query.isError) {
             return <Skeleton.Input active size="small" style={{width: 140}} />
         }
 
-        const configRef = configQuery.data
+        // Get variant name from workflow data or fallback
+        // Prefer `name` over `slug` — slug can be an opaque ID on older revisions
+        const variantName = data?.name ?? data?.slug ?? fallbackVariantName ?? null
 
-        // Get variant name from config query or fallback
-        const variantName = configRef?.variantName ?? fallbackVariantName ?? null
-
-        // Get revision number from config query or fallback
-        const revision = configRef?.revision ?? fallbackRevision ?? null
+        // Get revision number from workflow data or fallback
+        const revision = data?.version ?? fallbackRevision ?? null
 
         // Determine if deleted - only mark as deleted if:
         // 1. Query errored AND we have no fallback variant name
         // 2. No data from query AND no fallbacks at all
         const hasFallbackData = fallbackVariantName || fallbackRevision != null
-        const hasResolvedData = configRef?.variantName || configRef?.revision != null
-        const isDeleted = !hasFallbackData && (Boolean(configQuery.isError) || !hasResolvedData)
+        const hasResolvedData = data?.name || data?.slug || data?.version != null
+        const isDeleted = !hasFallbackData && (Boolean(query.isError) || !hasResolvedData)
 
         // Build combined label: "variantName v{revision}"
         const label = isDeleted
@@ -484,7 +489,7 @@ export const VariantRevisionLabel = memo(
 export const VariantReferenceText = memo(
     ({
         revisionId,
-        projectId,
+        projectId: _projectId,
         fallback,
         label: customLabel,
     }: {
@@ -493,10 +498,15 @@ export const VariantReferenceText = memo(
         fallback?: string
         label?: string
     }) => {
-        const queryAtom = useMemo(
-            () => variantConfigAtomFamily({projectId, revisionId}),
-            [projectId, revisionId],
+        const dataAtom = useMemo(
+            () => workflowMolecule.selectors.data(revisionId ?? ""),
+            [revisionId],
         )
+        const queryAtom = useMemo(
+            () => workflowMolecule.selectors.query(revisionId ?? ""),
+            [revisionId],
+        )
+        const data = useAtomValue(dataAtom)
         const query = useAtomValue(queryAtom)
 
         if (!revisionId) {
@@ -507,12 +517,11 @@ export const VariantReferenceText = memo(
             )
         }
 
-        if (query.isPending || query.isFetching) {
+        if (query.isPending) {
             return <Skeleton.Input active size="small" style={{width: 140}} />
         }
 
-        const ref = query.data
-        const label = ref?.variantName ?? ref?.revisionId ?? revisionId
+        const label = data?.slug ?? revisionId
 
         return <Text>{label}</Text>
     },

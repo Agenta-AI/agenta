@@ -31,6 +31,7 @@ This directory specifies the testing strategy for the Agenta monorepo, covering 
 | [testing.fixtures.specs.md](testing.fixtures.specs.md) | Shared test infrastructure, accounts, helpers, scoping |
 | [testing.running.specs.md](testing.running.specs.md) | How to run tests: local, cloud, CI |
 | [testing.initial.specs.md](testing.initial.specs.md) | Original discussion-format spec (preserved as reference) |
+| [rtm/web-acceptance-rtm.md](rtm/web-acceptance-rtm.md) | Web acceptance requirements traceability matrix for the current OSS Playwright suite |
 
 ---
 
@@ -75,16 +76,16 @@ python -m pytest oss/tests/pytest/ -v -m "cost_free"  # Exclude paid tests
 # Run all tests (unit + E2E)
 cd sdk
 AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
-  poetry run pytest tests/pytest/ -v
+  uv run pytest oss/tests/pytest/ -v
 
 # Run unit tests only (no external deps)
-poetry run pytest oss/tests/pytest/unit/ -v
+uv run pytest oss/tests/pytest/unit/ -v
 
 # Run acceptance tests only (requires running API)
-poetry run pytest oss/tests/pytest/acceptance/ -v -m acceptance
+uv run pytest oss/tests/pytest/acceptance/ -v -m acceptance
 
 # Run with dimension filters
-poetry run pytest oss/tests/pytest/acceptance/ -v -m "coverage_smoke and cost_free"
+uv run pytest oss/tests/pytest/acceptance/ -v -m "coverage_smoke and cost_free"
 ```
 
 ### Web Tests

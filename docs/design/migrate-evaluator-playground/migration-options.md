@@ -3,8 +3,8 @@
 ## Goal
 
 Full migration of the Evaluator Playground to the new workflow-based evaluator APIs, including:
-- CRUD on evaluator configs via `/preview/simple/evaluators/*`
-- Running evaluators via native workflow invocation (`/preview/workflows/invoke`) instead of the legacy `/evaluators/{key}/run`
+- CRUD on evaluator configs via `/simple/evaluators/*`
+- Running evaluators via native workflow invocation (`/workflows/invoke`) instead of the legacy `/evaluators/{key}/run`
 
 ---
 
@@ -47,13 +47,13 @@ Change the frontend domain model to match the backend:
 To keep changes reviewable while avoiding adapters:
 
 ### PR 1: CRUD Migration
-- Migrate all CRUD operations to `/preview/simple/evaluators/*`
+- Migrate all CRUD operations to `/simple/evaluators/*`
 - Change internal types from `EvaluatorConfig` to `SimpleEvaluator`
 - Update atoms, services, and components
 - Keep legacy run endpoint temporarily
 
 ### PR 2: Run Migration
-- Migrate run from `/evaluators/{key}/run` to `/preview/workflows/invoke`
+- Migrate run from `/evaluators/{key}/run` to `/workflows/invoke`
 - Add `WorkflowServiceRequest/Response` types
 - Update `DebugSection.tsx` to use native invoke
 
@@ -97,10 +97,10 @@ This sequencing:
 | `EvaluatorConfig` | `SimpleEvaluator` |
 | `evaluator_key` | derived from `data.uri` |
 | `settings_values` | `data.parameters` |
-| `GET /evaluators/configs/` | `POST /preview/simple/evaluators/query` |
-| `POST /evaluators/configs/` | `POST /preview/simple/evaluators/` |
-| `PUT /evaluators/configs/{id}/` | `PUT /preview/simple/evaluators/{id}` |
-| `DELETE /evaluators/configs/{id}/` | `POST /preview/simple/evaluators/{id}/archive` |
-| `POST /evaluators/{key}/run/` | `POST /preview/workflows/invoke` |
+| `GET /evaluators/configs/` | `POST /simple/evaluators/query` |
+| `POST /evaluators/configs/` | `POST /simple/evaluators/` |
+| `PUT /evaluators/configs/{id}/` | `PUT /simple/evaluators/{id}` |
+| `DELETE /evaluators/configs/{id}/` | `POST /simple/evaluators/{id}/archive` |
+| `POST /evaluators/{key}/run/` | `POST /workflows/invoke` |
 
 See [plan.md](./plan.md) for detailed implementation steps.

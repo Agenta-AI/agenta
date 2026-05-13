@@ -1,0 +1,295 @@
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {LoadingOutlined, MinusCircleOutlined, PlusCircleOutlined} from "@ant-design/icons"
+import {
+    ArrowCounterClockwise,
+    ArchiveIcon,
+    Copy,
+    DownloadSimple,
+    Eye,
+    Note,
+    PencilSimple,
+} from "@phosphor-icons/react"
+import {Tag} from "antd"
+import type {ColumnsType} from "antd/es/table"
+
+import {createStandardColumns} from "@/oss/components/InfiniteVirtualTable"
+import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
+import type {ExportFileType} from "@/oss/services/testsets/api"
+import type {TestsetTableMode, TestsetTableRow} from "@/oss/state/entities/testset"
+
+interface TestsetsExpandState {
+    expandedRowKeys: string[]
+    loadingRows: Set<string>
+    onToggleExpand: (record: TestsetTableRow, expanded: boolean) => void
+}
+
+export interface TestsetsTableColumnActions {
+    onOpen: (record: TestsetTableRow) => void
+    onClone: (record: TestsetTableRow) => void
+    onRename: (record: TestsetTableRow) => void
+    onDelete: (record: TestsetTableRow) => void
+    onDeleteRevision: (record: TestsetTableRow) => void
+    onRestore: (record: TestsetTableRow) => void
+    onExport: (record: TestsetTableRow, format: ExportFileType) => void
+}
+
+interface CreateTestsetsColumnsOptions {
+    mode?: TestsetTableMode
+    interactionMode?: "manage" | "select"
+    canExportData?: boolean
+    exportingRowKey?: string | null
+    expandState: TestsetsExpandState
+}
+
+export function createTestsetsColumns(
+    actions: TestsetsTableColumnActions,
+    {
+        mode = "active",
+        interactionMode = "manage",
+        canExportData = false,
+        exportingRowKey = null,
+        expandState,
+    }: CreateTestsetsColumnsOptions,
+): ColumnsType<TestsetTableRow> {
+    const isArchived = mode === "archived"
+    const isSelectMode = interactionMode === "select"
+    const isManageMode = !isSelectMode
+
+    return createStandardColumns<TestsetTableRow>([
+        {
+            type: "text",
+            key: "name",
+            title: "Name",
+            width: 300,
+            columnVisibilityLocked: true,
+            render: (_value, record) => {
+                const isRevision = Boolean((record as any).__isRevision)
+                const isExpanded = expandState.expandedRowKeys.includes(record.key)
+                const isLoading = expandState.loadingRows.has(record.key)
+                const isSkeleton = record.__isSkeleton
+
+                if (isRevision) {
+                    const version = (record as any).__version
+                    return (
+                        <div className="flex items-center gap-2 pl-6 min-w-0">
+                            <span className="truncate" title={record.name}>
+                                {record.name}
+                            </span>
+                            {version !== null && version !== undefined && (
+                                <Tag className="bg-[rgba(5,23,41,0.06)] shrink-0" variant="filled">
+                                    v{version}
+                                </Tag>
+                            )}
+                        </div>
+                    )
+                }
+
+                return (
+                    <div className="flex items-center gap-2 h-full min-w-0">
+                        {!isSkeleton && (
+                            <span
+                                className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    expandState.onToggleExpand(record, !isExpanded)
+                                }}
+                            >
+                                {isLoading ? (
+                                    <LoadingOutlined style={{fontSize: 14}} />
+                                ) : isExpanded ? (
+                                    <MinusCircleOutlined style={{fontSize: 14}} />
+                                ) : (
+                                    <PlusCircleOutlined style={{fontSize: 14}} />
+                                )}
+                            </span>
+                        )}
+                        <span className="truncate" title={record.name}>
+                            {record.name}
+                        </span>
+                    </div>
+                )
+            },
+        },
+        {
+            type: "text",
+            key: "commit_message",
+            title: "Commit Message",
+            width: 250,
+            render: (_value, record) => {
+                const isRevision = Boolean((record as any).__isRevision)
+
+                if (!isRevision) {
+                    return <CommitMessageCell testsetId={record.id} />
+                }
+
+                const commitMessage = (record as any).__commitMessage
+                const isAutoGenerated =
+                    commitMessage?.startsWith("Updated testset:") ||
+                    commitMessage?.startsWith("Patched testset") ||
+                    commitMessage?.startsWith("Initial commit")
+
+                if (!commitMessage || isAutoGenerated) {
+                    return <span className="text-gray-400">—</span>
+                }
+
+                return (
+                    <span className="text-gray-600 truncate h-full" title={commitMessage}>
+                        {commitMessage}
+                    </span>
+                )
+            },
+        },
+        {
+            type: "date",
+            key: "created_at",
+            title: "Date Created",
+        },
+        {
+            type: "user",
+            key: "created_by_id",
+            title: "Created by",
+        },
+        ...(isArchived
+            ? [
+                  {
+                      type: "date" as const,
+                      key: "deletedAt",
+                      title: "Archived at",
+                  },
+                  {
+                      type: "text" as const,
+                      key: "deletedById",
+                      title: "Archived by",
+                      render: (_value: unknown, record: TestsetTableRow) => (
+                          <div className="h-full flex items-center">
+                              {record.deletedById ? (
+                                  <UserAuthorLabel
+                                      userId={record.deletedById}
+                                      showPrefix={false}
+                                      showAvatar
+                                      showYouLabel
+                                  />
+                              ) : null}
+                          </div>
+                      ),
+                  },
+              ]
+            : []),
+        {
+            type: "actions",
+            width: 48,
+            maxWidth: 48,
+            items: isArchived
+                ? [
+                      {
+                          key: "details",
+                          label: "View details",
+                          icon: <Note size={16} />,
+                          onClick: actions.onOpen,
+                          hidden: (record: TestsetTableRow) =>
+                              Boolean((record as any).__isRevision),
+                      },
+                      {
+                          key: "view-revision",
+                          label: "View revision",
+                          icon: <Eye size={16} />,
+                          onClick: actions.onOpen,
+                          hidden: (record: TestsetTableRow) => !(record as any).__isRevision,
+                      },
+                      {
+                          type: "divider",
+                          hidden: (record: TestsetTableRow) =>
+                              Boolean((record as any).__isRevision),
+                      },
+                      {
+                          key: "restore",
+                          label: "Restore",
+                          icon: <ArrowCounterClockwise size={16} />,
+                          onClick: actions.onRestore,
+                          hidden: (record: TestsetTableRow) =>
+                              Boolean((record as any).__isRevision),
+                      },
+                  ]
+                : [
+                      {
+                          key: "details",
+                          label: "View details",
+                          icon: <Note size={16} />,
+                          onClick: actions.onOpen,
+                          hidden: (record: TestsetTableRow) =>
+                              Boolean((record as any).__isRevision),
+                      },
+                      {
+                          key: "clone",
+                          label: "Clone",
+                          icon: <Copy size={16} />,
+                          onClick: actions.onClone,
+                          hidden: (record: TestsetTableRow) =>
+                              isSelectMode || Boolean((record as any).__isRevision),
+                      },
+                      {
+                          key: "rename",
+                          label: "Rename",
+                          icon: <PencilSimple size={16} />,
+                          onClick: actions.onRename,
+                          hidden: (record: TestsetTableRow) =>
+                              isSelectMode || Boolean((record as any).__isRevision),
+                      },
+                      {
+                          type: "divider",
+                          hidden: (record: TestsetTableRow) =>
+                              isSelectMode || Boolean((record as any).__isRevision),
+                      },
+                      {
+                          key: "delete",
+                          label: "Archive",
+                          icon: <ArchiveIcon size={14} />,
+                          danger: true,
+                          onClick: actions.onDelete,
+                          hidden: (record: TestsetTableRow) =>
+                              isSelectMode || Boolean((record as any).__isRevision),
+                      },
+                      {
+                          key: "view-revision",
+                          label: "View revision",
+                          icon: <Eye size={16} />,
+                          onClick: actions.onOpen,
+                          hidden: (record: TestsetTableRow) => !(record as any).__isRevision,
+                      },
+                      {
+                          type: "divider",
+                          hidden: (record: TestsetTableRow) =>
+                              isSelectMode || !(record as any).__isRevision,
+                      },
+                      {
+                          key: "delete-revision",
+                          label: "Archive revision",
+                          icon: <ArchiveIcon size={14} />,
+                          danger: true,
+                          onClick: actions.onDeleteRevision,
+                          hidden: (record: TestsetTableRow) =>
+                              isSelectMode || !(record as any).__isRevision,
+                      },
+                      {
+                          type: "divider",
+                          hidden: () => !isManageMode || !canExportData,
+                      },
+                      {
+                          key: "export-csv",
+                          label: "Export as CSV",
+                          icon: <DownloadSimple size={16} />,
+                          onClick: (record: TestsetTableRow) => actions.onExport(record, "csv"),
+                          hidden: () => !isManageMode || !canExportData || Boolean(exportingRowKey),
+                      },
+                      {
+                          key: "export-json",
+                          label: "Export as JSON",
+                          icon: <DownloadSimple size={16} />,
+                          onClick: (record: TestsetTableRow) => actions.onExport(record, "json"),
+                          hidden: () => !isManageMode || !canExportData || Boolean(exportingRowKey),
+                      },
+                  ],
+            getRecordId: (record) => record.id,
+        },
+    ])
+}

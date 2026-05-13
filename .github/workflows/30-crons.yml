@@ -1,0 +1,14 @@
+name: 30 ---------- Crons
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  crons:
+    name: Crons
+    runs-on: ubuntu-latest
+    steps:
+      - name: Crons
+        run: echo "crons"

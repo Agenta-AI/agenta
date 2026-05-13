@@ -93,11 +93,11 @@ Each evaluator's JSON schema drives the input widgets via `PlaygroundPropertyCon
 
 **Save logic** (`assets/AnnotateDrawerTitle/index.tsx`, `onSaveChanges()`):
 
-1. For existing annotations with changes → `PATCH /preview/annotations/{traceId}/{spanId}`
-2. For newly selected evaluators → `POST /preview/annotations/`
+1. For existing annotations with changes → `PATCH /annotations/{traceId}/{spanId}`
+2. For newly selected evaluators → `POST /annotations/`
 3. After save, invalidate:
    - Jotai `fetchAnnotations()` (for observability table)
-   - SWR cache entries matching `/preview/annotations/`
+   - SWR cache entries matching `/annotations/`
    - SWR cache for `/evaluators`
    - Optional TanStack Query key passed via `queryKey` prop
 
@@ -117,18 +117,18 @@ This is the annotation UI specifically for evaluation run scenario tables. It is
 **`handleAnnotate()` — what happens on submit:**
 
 ```
-1.  updateAnnotation()     → PATCH /preview/annotations/{tid}/{sid}   (for changed existing annotations)
-2.  createAnnotation()     → POST  /preview/annotations/               (for newly-selected evaluators)
+1.  updateAnnotation()     → PATCH /annotations/{tid}/{sid}   (for changed existing annotations)
+2.  createAnnotation()     → POST  /annotations/               (for newly-selected evaluators)
 3.  upsertStepResultWithAnnotation()
-                           → PATCH /preview/evaluations/results/       (links annotation trace_id to step result)
+                           → PATCH /evaluations/results/       (links annotation trace_id to step result)
 4.  upsertScenarioMetricData()
-                           → POST  /preview/run-metrics/...             (stores per-scenario metric summaries)
+                           → POST  /run-metrics/...             (stores per-scenario metric summaries)
 5.  updateScenarioStatus(scenarioId, "success")
-                           → PATCH /preview/evaluations/scenarios/...
+                           → PATCH /evaluations/scenarios/...
 6.  checkAndUpdateRunStatus(runId)
-                           → may PATCH /preview/evaluations/runs/...
+                           → may PATCH /evaluations/runs/...
 7.  triggerMetricsRefresh({projectId, runId, scenarioId})
-                           → POST  /preview/evaluations/metrics/refresh
+                           → POST  /evaluations/metrics/refresh
 8.  Invalidate all relevant caches
 ```
 
@@ -156,17 +156,17 @@ Renders annotation values in the scenarios table. Key behaviors:
 This hook manages evaluation run lifecycle. The `createNewRun()` function orchestrates run creation:
 
 ```
-1. If testset given: paginate through POST /preview/testcases/query to collect testcase IDs
+1. If testset given: paginate through POST /testcases/query to collect testcase IDs
 2. Build run payload with meta: {evaluation_kind: "human"}
-3. POST /preview/evaluations/runs/        → creates the EvaluationRun
-4. POST /preview/evaluations/scenarios/   → creates one scenario per testcase row
-5. POST /preview/evaluations/results/     → seeds placeholder step results
+3. POST /evaluations/runs/        → creates the EvaluationRun
+4. POST /evaluations/scenarios/   → creates one scenario per testcase row
+5. POST /evaluations/results/     → seeds placeholder step results
    (one per: input step, invocation step, each annotation step)
 ```
 
 Human evaluation runs are flagged with `has_human: true` in `EvaluationRunFlags`. This is how the UI filters to show only human eval runs in the Human Evaluation tab.
 
-**Note:** The frontend does NOT currently call the queue endpoints (`/preview/evaluations/queues/`). The `EvaluationQueue` backend is fully implemented but unused by the frontend. There is no assignment, no inbox, and no per-item status — any annotator can annotate any scenario.
+**Note:** The frontend does NOT currently call the queue endpoints (`/evaluations/queues/`). The `EvaluationQueue` backend is fully implemented but unused by the frontend. There is no assignment, no inbox, and no per-item status — any annotator can annotate any scenario.
 
 ---
 
@@ -175,7 +175,7 @@ Human evaluation runs are flagged with `has_human: true` in `EvaluationRunFlags`
 `web/oss/src/lib/hooks/useAnnotations/index.ts`
 
 Simple SWR hook that queries annotations:
-- Calls `POST /preview/annotations/query?project_id=...`
+- Calls `POST /annotations/query?project_id=...`
 - Transforms raw API data: resolves `created_by_id → username`, formats dates, groups output values
 - Returns standard SWR response
 
@@ -263,7 +263,7 @@ links[0]:
 
 ### Annotation API Endpoints
 
-Mounted at `/preview/annotations/`:
+Mounted at `/annotations/`:
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -291,7 +291,7 @@ The `is_human` flag propagates through the whole stack:
 - `SimpleEvaluatorFlags(EvaluatorFlags)` inherits it
 - A human evaluator has **no `service.uri`** — it has only a JSON schema defining what metrics to collect
 
-**Frontend filter:** `useEvaluators({preview: true, queries: {is_human: true}})` → `POST /preview/simple/evaluators/query` with body `{evaluator: {flags: {is_human: true}}}`
+**Frontend filter:** `useEvaluators({preview: true, queries: {is_human: true}})` → `POST /simple/evaluators/query` with body `{evaluator: {flags: {is_human: true}}}`
 
 **Evaluator-as-Workflow pattern:**  
 Human evaluators are stored via the Git-style Artifact/Variant/Revision pattern in `workflow_artifacts`, `workflow_variants`, `workflow_revisions` tables. `EvaluatorsService` is an alias of `WorkflowsService`. The evaluator's JSON schema lives in `data.service.format` on the revision.
@@ -332,11 +332,11 @@ SimpleEvaluatorCreate(
 ┌─────────────────────────────────────────────────────────────────────┐
 │  1. SETUP                                                           │
 │                                                                     │
-│  POST /preview/simple/evaluators/      → create human evaluator    │
+│  POST /simple/evaluators/      → create human evaluator    │
 │    flags: {is_human: true}                                          │
 │    data.service.format: <JSON schema>                               │
 │                                                                     │
-│  POST /preview/evaluations/runs/       → create eval run           │
+│  POST /evaluations/runs/       → create eval run           │
 │    data.steps: [                                                    │
 │      {key: "input", type: "input"},                                 │
 │      {key: "invocation", type: "invocation"},                       │
@@ -344,8 +344,8 @@ SimpleEvaluatorCreate(
 │    ]                                                                │
 │    flags: {has_human: true}                                         │
 │                                                                     │
-│  POST /preview/evaluations/scenarios/  → one per testcase row      │
-│  POST /preview/evaluations/results/    → seed placeholder results  │
+│  POST /evaluations/scenarios/  → one per testcase row      │
+│  POST /evaluations/results/    → seed placeholder results  │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -357,19 +357,19 @@ SimpleEvaluatorCreate(
 │    → Annotator fills in metric values (driven by evaluator schema)  │
 │    → Clicks "Annotate"                                              │
 │                                                                     │
-│  POST  /preview/annotations/           → creates OTel annotation   │
+│  POST  /annotations/           → creates OTel annotation   │
 │    origin: "human", kind: "eval", channel: "web"                   │
 │    data.outputs: {approved: true}                                   │
 │    links[0]: {trace_id: <invocation>, span_id: <inv_span>}         │
 │    → returns {trace_id: <ann_trace>, span_id: <ann_span>}           │
 │                                                                     │
-│  PATCH /preview/evaluations/results/   → links annotation to step  │
+│  PATCH /evaluations/results/   → links annotation to step  │
 │    step_key: "quality-rating"                                       │
 │    trace_id: <ann_trace>    ← the bridge between the two systems   │
 │                                                                     │
-│  POST  /preview/run-metrics/...        → upsert scenario metrics   │
-│  PATCH /preview/evaluations/scenarios/ → status = "success"        │
-│  POST  /preview/evaluations/metrics/refresh → aggregate run stats  │
+│  POST  /run-metrics/...        → upsert scenario metrics   │
+│  PATCH /evaluations/scenarios/ → status = "success"        │
+│  POST  /evaluations/metrics/refresh → aggregate run stats  │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -395,7 +395,7 @@ SimpleEvaluatorCreate(
 │  → AnnotateDrawer opens with traceSpanIds                           │
 │  → User selects evaluators, fills metrics, clicks Save              │
 │                                                                     │
-│  POST  /preview/annotations/                                        │
+│  POST  /annotations/                                        │
 │    origin: "human", kind: "adhoc", channel: "web"   ← key diff     │
 │    links[0]: {trace_id: <app trace>, span_id: <span>}               │
 │                                                                     │
@@ -415,7 +415,7 @@ The backend `EvaluationQueue` has a complete implementation:
 
 | Feature | Backend status | Frontend status |
 |---------|---------------|-----------------|
-| Queue CRUD | ✅ Full API at `/preview/evaluations/queues/` | ❌ Not called |
+| Queue CRUD | ✅ Full API at `/evaluations/queues/` | ❌ Not called |
 | Assignment algorithm | ✅ `filter_scenario_ids()` in `utils.py` | ❌ Not used |
 | Per-repeat tracking | ✅ `user_ids: List[List[UUID]]` | ❌ Not used |
 | Scenario subset filter | ✅ `data.scenario_ids` | ❌ Not used |

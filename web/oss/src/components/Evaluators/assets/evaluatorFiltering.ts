@@ -1,17 +1,35 @@
 /**
  * Shared utilities for filtering and displaying evaluator templates.
  * Used by both SelectEvaluatorModalContent and EvaluatorTemplateDropdown.
+ *
+ * Supports both catalog templates (EvaluatorCatalogTemplate with `categories`)
+ * and legacy EvaluatorPreview/Evaluator types (with `tags`).
  */
+
+import type {EvaluatorCatalogTemplate, Workflow} from "@agenta/entities/workflow"
 
 import {capitalize} from "@/oss/lib/helpers/utils"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import type {Evaluator} from "@/oss/lib/Types"
 
 import type {EvaluatorPreview} from "./types"
 
 /**
- * Whitelist of evaluator template keys that can be used for creating new evaluator configs.
- * These are the "blessed" evaluator types shown in the UI.
+ * Union type for items accepted by filtering utilities.
+ * Supports catalog templates, Workflow entities, and legacy EvaluatorPreview.
+ */
+export type FilterableEvaluator = EvaluatorCatalogTemplate | Workflow | EvaluatorPreview
+
+/**
+ * Evaluator template keys supported in the "Create new evaluator" picker flow.
+ *
+ * This is NOT equivalent to `archived: false` — some templates may be
+ * non-archived in the backend but not supported for creation in this UI flow
+ * (e.g., `field_match_test` is archived in the backend registry but was
+ * historically included here).
+ *
+ * After the evaluator key consolidation (see docs/designs/runnables/managed-workflows.md),
+ * these keys will be replaced by canonical family keys: match, code, hook, prompt, agent.
+ * See docs/designs/runnables/frontend/evaluator-key-dependencies.md for details.
  */
 export const ENABLED_EVALUATORS = [
     "auto_exact_match",
@@ -36,8 +54,8 @@ export type EnabledEvaluatorKey = (typeof ENABLED_EVALUATORS)[number]
 export const DEFAULT_TAB_KEY = "all"
 
 /**
- * Tailwind CSS class mappings for evaluator tag badges.
- * Each tag category has a distinct color scheme.
+ * Tailwind CSS class mappings for evaluator category badges.
+ * Each category has a distinct color scheme.
  */
 export const TAG_CLASSNAME_MAP: Record<string, string> = {
     rag: "bg-sky-100 text-sky-700",
@@ -48,12 +66,12 @@ export const TAG_CLASSNAME_MAP: Record<string, string> = {
 }
 
 /**
- * Default tag styling when no specific mapping exists.
+ * Default category styling when no specific mapping exists.
  */
 export const DEFAULT_TAG_CLASSNAME = "bg-slate-100 text-slate-700"
 
 /**
- * Returns the base evaluator tag options for tab filtering.
+ * Returns the base evaluator category options for tab filtering.
  * The list varies based on whether we're in demo mode.
  */
 export const getEvaluatorTags = () => {
@@ -72,23 +90,32 @@ export const getEvaluatorTags = () => {
 }
 
 /**
- * Extracts tag values from an evaluator object.
- * Tags can come from multiple sources: explicit tags array, flags.tags, or meta.tags.
- * All values are normalized to lowercase strings.
+ * Extracts category/tag values from an evaluator object.
  *
- * @param item - Evaluator or EvaluatorPreview object
- * @returns Array of unique lowercase tag strings
+ * For catalog templates: reads `categories` array.
+ * For legacy types: reads `tags`, `flags.tags`, and `meta.tags`.
+ * All values are normalized to lowercase strings.
  */
-export const getEvaluatorTagValues = (item: EvaluatorPreview | Evaluator): string[] => {
+export const getEvaluatorTagValues = (item: FilterableEvaluator): string[] => {
     const registry = new Set<string>()
 
-    // Prefer explicit evaluator tags when available
-    const primaryTags = Array.isArray((item as Evaluator).tags) ? (item as Evaluator).tags : []
-    primaryTags.filter(Boolean).forEach((tag) => {
-        registry.add(String(tag).toLowerCase())
-    })
+    // Catalog templates use `categories`
+    const categories = (item as EvaluatorCatalogTemplate).categories
+    if (Array.isArray(categories)) {
+        categories.filter(Boolean).forEach((cat) => {
+            registry.add(String(cat).toLowerCase())
+        })
+    }
 
-    // Fall back to metadata tags (EvaluatorPreview has flags/meta, Evaluator doesn't)
+    // Legacy Evaluator type uses `tags`
+    const legacyTags = (item as Evaluator).tags
+    if (Array.isArray(legacyTags)) {
+        legacyTags.filter(Boolean).forEach((tag) => {
+            registry.add(String(tag).toLowerCase())
+        })
+    }
+
+    // Fall back to metadata tags (EvaluatorPreview has flags/meta)
     const itemAny = item as any
     const rawTags = [
         ...(Array.isArray(itemAny.flags?.tags) ? itemAny.flags.tags : []),
@@ -101,12 +128,9 @@ export const getEvaluatorTagValues = (item: EvaluatorPreview | Evaluator): strin
 }
 
 /**
- * Gets the CSS class name for an evaluator's primary tag badge.
- *
- * @param item - Evaluator or EvaluatorPreview object
- * @returns Tailwind CSS class string for the badge
+ * Gets the CSS class name for an evaluator's primary category badge.
  */
-export const getEvaluatorTagClassName = (item: EvaluatorPreview | Evaluator): string => {
+export const getEvaluatorTagClassName = (item: FilterableEvaluator): string => {
     const primaryTag = getEvaluatorTagValues(item)[0]
     return primaryTag
         ? TAG_CLASSNAME_MAP[primaryTag] || DEFAULT_TAG_CLASSNAME
@@ -114,78 +138,88 @@ export const getEvaluatorTagClassName = (item: EvaluatorPreview | Evaluator): st
 }
 
 /**
- * Filters evaluators to only include enabled templates.
+ * Filters evaluators to only include templates ready for users.
  *
- * @param evaluators - Array of evaluator objects
- * @returns Filtered array containing only enabled evaluators
+ * Uses `flags.is_recommended` from the catalog when available.
+ * Falls back to the legacy ENABLED_EVALUATORS allowlist + !archived check.
  */
-export const filterEnabledEvaluators = <T extends {key?: string}>(evaluators: T[]): T[] => {
-    return evaluators.filter((item) => item.key && ENABLED_EVALUATORS.includes(item.key as any))
+export const filterEnabledEvaluators = <T extends Record<string, unknown>>(
+    evaluators: T[],
+): T[] => {
+    return evaluators.filter((item) => {
+        const key = (item as any)?.key as string | undefined
+        if (!key) return false
+        if ((item as any)?.archived) return false
+
+        // If catalog explicitly recommends, include regardless of allowlist
+        const flags = (item as any)?.flags as Record<string, unknown> | undefined
+        if (flags?.is_recommended === true) return true
+
+        // Otherwise use the curated allowlist
+        return (ENABLED_EVALUATORS as readonly string[]).includes(key)
+    })
 }
 
 /**
- * Filters evaluators by a specific tag.
+ * Filters evaluators by a specific category.
  *
  * @param evaluators - Array of evaluator objects
- * @param tag - Tag value to filter by (or DEFAULT_TAB_KEY for all)
- * @returns Filtered array of evaluators matching the tag
+ * @param category - Category value to filter by (or DEFAULT_TAB_KEY for all)
+ * @returns Filtered array of evaluators matching the category
  */
-export const filterEvaluatorsByTag = <T extends EvaluatorPreview | Evaluator>(
+export const filterEvaluatorsByTag = <T extends FilterableEvaluator>(
     evaluators: T[],
-    tag: string,
+    category: string,
 ): T[] => {
-    if (tag === DEFAULT_TAB_KEY) {
+    if (category === DEFAULT_TAB_KEY) {
         return evaluators
     }
 
     return evaluators.filter((item) => {
         const tags = getEvaluatorTagValues(item)
-        return tags.includes(tag)
+        return tags.includes(category)
     })
 }
 
 /**
  * Builds tab items for the evaluator filter tabs.
- * Only includes tags that have at least one enabled evaluator.
- *
- * @param evaluators - Array of evaluator objects (should be non-archived)
- * @returns Array of tab items with key and label
+ * Only includes categories that have at least one evaluator.
  */
 export const buildEvaluatorTabItems = (
-    evaluators: (EvaluatorPreview | Evaluator)[],
+    evaluators: FilterableEvaluator[],
 ): {key: string; label: string}[] => {
     const items: {key: string; label: string}[] = [{key: DEFAULT_TAB_KEY, label: "All templates"}]
 
     const enabledEvaluators = filterEnabledEvaluators(evaluators)
 
-    // Create a set of tags that actually have evaluators
-    const tagsWithEvaluators = new Set<string>()
+    // Create a set of categories that actually have evaluators
+    const categoriesWithEvaluators = new Set<string>()
     enabledEvaluators.forEach((item) => {
         getEvaluatorTagValues(item).forEach((tag) => {
-            tagsWithEvaluators.add(tag)
+            categoriesWithEvaluators.add(tag)
         })
     })
 
-    // Build available tags map
+    // Build available categories map
     const baseTags = getEvaluatorTags()
-    const availableTags = new Map<string, string>()
+    const availableCategories = new Map<string, string>()
 
     baseTags.forEach((tag) => {
-        availableTags.set(tag.value, tag.label)
+        availableCategories.set(tag.value, tag.label)
     })
 
-    // Add any additional tags found in evaluators
+    // Add any additional categories found in evaluators
     evaluators.forEach((item) => {
         getEvaluatorTagValues(item).forEach((tag) => {
-            if (!availableTags.has(tag)) {
-                availableTags.set(tag, capitalize(tag.replace(/[_-]+/g, " ")))
+            if (!availableCategories.has(tag)) {
+                availableCategories.set(tag, capitalize(tag.replace(/[_-]+/g, " ")))
             }
         })
     })
 
-    // Only add tabs for tags that have evaluators
-    availableTags.forEach((label, value) => {
-        if (tagsWithEvaluators.has(value)) {
+    // Only add tabs for categories that have evaluators
+    availableCategories.forEach((label, value) => {
+        if (categoriesWithEvaluators.has(value)) {
             items.push({key: value, label})
         }
     })

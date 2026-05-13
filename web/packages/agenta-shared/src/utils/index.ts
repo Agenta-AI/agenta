@@ -44,6 +44,15 @@ export type {
     TypedPathInfo,
 } from "./pathUtils"
 
+// Template variable validation (envelope-slot aware)
+export {
+    KNOWN_ENVELOPE_SLOTS,
+    extractTemplateExpression,
+    isValidTemplateVariable,
+    validateTemplateVariable,
+} from "./templateVariable"
+export type {TemplateVariableValidation} from "./templateVariable"
+
 // Type narrowing utilities
 export {asRecord, safeStringify} from "./typeNarrowing"
 
@@ -101,6 +110,10 @@ export {
 // OpenAPI schema utilities
 export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"
 
+// API error utilities
+export {extractApiErrorMessage, preserveResponseStatus} from "./extractApiErrorMessage"
+export type {ErrorWithResponseStatus} from "./extractApiErrorMessage"
+
 // Formatting utilities
 export {
     createFormatter,
@@ -136,6 +149,17 @@ export {dataUriToObjectUrl, isBase64, isUrl} from "./dataUri"
 // Value extraction utilities (strip enhanced wrappers / metadata)
 export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./valueExtraction"
 
+// Slug utilities
+export {
+    generateSlugWithExistingSuffix,
+    generateSlugWithSuffix,
+    getSlugSuffix,
+    isValidSlug,
+    regenerateSlugSuffix,
+    slugifyName,
+    stripSlugSuffix,
+} from "./slug"
+
 // Status inference utilities
 export {
     getStatusColor,
@@ -169,3 +193,12 @@ export {
     randomAlphanumeric,
 } from "./connectionSlug"
 export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
+
+// Polling utilities
+export {shortPoll} from "./shortPoll"
+
+// URI utilities
+export {removeTrailingSlash} from "./uriUtils"
+
+// Trace ID conversion utilities (UUID ↔ OpenTelemetry)
+export {uuidToSpanId, uuidToTraceId} from "./traceIds"

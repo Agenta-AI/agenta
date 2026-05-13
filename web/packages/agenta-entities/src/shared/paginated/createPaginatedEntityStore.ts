@@ -7,8 +7,9 @@
 
 import type {Key} from "react"
 
-import {atom} from "jotai"
 import type {Atom, PrimitiveAtom, WritableAtom} from "jotai"
+import {atom} from "jotai"
+import {getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
 
 import type {InfiniteTableFetchResult, InfiniteTableRowBase, WindowingState} from "../tableTypes"
@@ -384,8 +385,8 @@ export function createPaginatedEntityStore<
 
     // Invalidation function
     const invalidate = () => {
-        // The refresh trigger will cause metaAtom to update,
-        // which invalidates the query cache
+        const store = getDefaultStore()
+        store.set(refreshAtom)
     }
 
     // ========================================================================

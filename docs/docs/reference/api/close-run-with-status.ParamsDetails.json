@@ -1,0 +1,1 @@
+{"parameters":[{"name":"run_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Run Id"}},{"name":"status","in":"path","required":true,"schema":{"anyOf":[{"type":"string","enum":["pending","queued","running","success","failure","errors","cancelled"],"title":"EvaluationStatus"},{"type":"null"}],"title":"Status"}}]}

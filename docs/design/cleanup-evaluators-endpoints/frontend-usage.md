@@ -18,12 +18,12 @@
 
 | Endpoint | Service Function | Status |
 |----------|------------------|--------|
-| `POST /preview/simple/evaluators/query` | `fetchAllEvaluatorConfigs()` | **ACTIVE** |
-| `POST /preview/simple/evaluators/` | `createEvaluatorConfig()` | **ACTIVE** |
-| `PUT /preview/simple/evaluators/{id}` | `updateEvaluatorConfig()` | **ACTIVE** |
-| `GET /preview/simple/evaluators/{id}` | `fetchEvaluatorById()` | **ACTIVE** |
-| `POST /preview/simple/evaluators/{id}/archive` | `deleteEvaluatorConfig()` | **ACTIVE** |
-| `POST /preview/workflows/invoke` | `invokeEvaluator()` | **ACTIVE** |
+| `POST /simple/evaluators/query` | `fetchAllEvaluatorConfigs()` | **ACTIVE** |
+| `POST /simple/evaluators/` | `createEvaluatorConfig()` | **ACTIVE** |
+| `PUT /simple/evaluators/{id}` | `updateEvaluatorConfig()` | **ACTIVE** |
+| `GET /simple/evaluators/{id}` | `fetchEvaluatorById()` | **ACTIVE** |
+| `POST /simple/evaluators/{id}/archive` | `deleteEvaluatorConfig()` | **ACTIVE** |
+| `POST /workflows/invoke` | `invokeEvaluator()` | **ACTIVE** |
 
 ### Verification
 
@@ -148,7 +148,7 @@ oss/src/services/evaluations/api_ee/index.ts:21:export const createEvaluatorRunE
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Service: invokeEvaluator()                                                  │
 │  File: web/oss/src/services/workflows/invoke.ts:41-86                       │
-│  Endpoint: POST /preview/workflows/invoke?project_id={projectId}            │
+│  Endpoint: POST /workflows/invoke?project_id={projectId}            │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼

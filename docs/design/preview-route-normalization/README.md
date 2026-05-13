@@ -1,6 +1,6 @@
 # Preview Route Normalization
 
-This workspace tracks the plan to keep legacy `/preview/*` endpoints working while introducing canonical non-preview mounts and exposing only canonical paths in OpenAPI.
+This workspace tracks the plan to keep legacy `/*` endpoints working while introducing canonical non-preview mounts and exposing only canonical paths in OpenAPI.
 
 ## Prompt
 

@@ -8,7 +8,7 @@ import {useWatch} from "antd/lib/form/Form"
 
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
+import {isSlugInputValid} from "@/oss/lib/helpers/utils"
 import {PROVIDER_KINDS, PROVIDER_LABELS, SecretDTOProvider} from "@/oss/lib/Types"
 
 import LabelInput from "../../../assets/LabelInput"
@@ -143,9 +143,10 @@ const ConfigureProviderDrawerContent = ({
 
     useEffect(() => {
         if (selectedProvider) {
+            const rawProvider = String(selectedProvider.provider ?? "")
             form.setFieldsValue({
                 ...selectedProvider,
-                provider: selectedProvider.provider ?? "",
+                provider: PROVIDER_KINDS[rawProvider] ?? rawProvider,
             })
         } else {
             form.resetFields()
@@ -238,7 +239,7 @@ const ConfigureProviderDrawerContent = ({
                                                                   return Promise.reject(
                                                                       "Please enter name",
                                                                   )
-                                                              if (!isAppNameInputValid(value)) {
+                                                              if (!isSlugInputValid(value)) {
                                                                   return Promise.reject(
                                                                       "Name must contain only letters, numbers, underscore, or dash without any spaces.",
                                                                   )

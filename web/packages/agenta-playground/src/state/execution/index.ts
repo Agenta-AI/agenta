@@ -217,6 +217,8 @@ export {
     rowDataWithContextAtomFamily,
     rowVariableValueAtomFamily,
     rowVariableKeysWithContextAtom,
+    rowVariableKeysAtomFamily,
+    downstreamNodeQueriesAtom,
     activeSessionsWithContextAtom,
     isCompareModeWithContextAtom,
     isAnyExecutingWithContextAtom,
@@ -253,6 +255,7 @@ export {
     inputVariableNamesAtom,
     // Variable schema map (type + schema per key)
     inputPortSchemaMapAtom,
+    outputPortSchemaMapAtom,
     // App-level mode selectors
     isChatModeAtom,
     appTypeAtom,
@@ -264,6 +267,12 @@ export {
     testcaseDataAtomFamily,
 } from "./selectors"
 export type {RenderableExecutionItem, RenderableExecutionRow} from "./selectors"
+
+// ============================================================================
+// RUNNER (standalone imperative execution)
+// ============================================================================
+
+export {executeStepForSessionWithExecutionItems} from "./executionRunner"
 
 // ============================================================================
 // GENERATION SELECTORS (higher-level UI selectors)
@@ -279,6 +288,7 @@ export {
     triggerExecutionsAtom,
     // Mutations
     cancelTestsMutationAtom,
+    clearAllExecutionItemsMutationAtom,
     clearAllRunsMutationAtom,
     // Chat comparison
     canRunAllChatComparisonAtom,

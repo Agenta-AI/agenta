@@ -200,7 +200,7 @@ This branch introduces the **SimpleQueuesService** layer — a convenience API f
 
 1. **`SimpleQueuesService`** — orchestrates queue creation, trace/testcase ingestion, scenario querying
 2. **New worker tasks** — `evaluate_batch_invocation`, `evaluate_batch_traces`, `evaluate_batch_testcases` (in `tasks/legacy.py`)
-3. **`SimpleQueuesRouter`** — REST endpoints under `/preview/simple/queues/`
+3. **`SimpleQueuesRouter`** — REST endpoints under `/simple/queues/`
 4. **`is_queue` flag** on `EvaluationRunFlags` — marks evaluation runs for ad-hoc/bucket behavior
 5. **`user_ids` column** — denormalized `UUID[]` on `evaluation_queues` for efficient assignee filtering (GIN indexed)
 6. **`batch_size` / `batch_offset`** on `EvaluationQueueData` — configurable scenario partitioning
@@ -211,12 +211,12 @@ This branch introduces the **SimpleQueuesService** layer — a convenience API f
 
 | Method | Path | Operation |
 |--------|------|-----------|
-| POST | `/preview/simple/queues/` | Create queue |
-| POST | `/preview/simple/queues/query` | Query queues |
-| GET | `/preview/simple/queues/{queue_id}` | Fetch queue |
-| POST | `/preview/simple/queues/{queue_id}/scenarios/query` | Query queue scenarios |
-| POST | `/preview/simple/queues/{queue_id}/traces/` | Add traces to queue |
-| POST | `/preview/simple/queues/{queue_id}/testcases/` | Add testcases to queue |
+| POST | `/simple/queues/` | Create queue |
+| POST | `/simple/queues/query` | Query queues |
+| GET | `/simple/queues/{queue_id}` | Fetch queue |
+| POST | `/simple/queues/{queue_id}/scenarios/query` | Query queue scenarios |
+| POST | `/simple/queues/{queue_id}/traces/` | Add traces to queue |
+| POST | `/simple/queues/{queue_id}/testcases/` | Add testcases to queue |
 
 ---
 

@@ -61,7 +61,7 @@ This also removes the `configuration` dependency, making the modal simpler and p
 - Open variant drawer
 - Edit a prompt value
 - Click Commit
-- Verify the request goes to `POST /preview/workflows/revisions/commit`
+- Verify the request goes to `POST /workflows/revisions/commit`
 - Verify a new revision is created and the drawer updates
 
 ## Deferred Follow-ups

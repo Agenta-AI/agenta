@@ -1,19 +1,22 @@
-FROM python:3.11-slim-bookworm AS builder
+ARG UV_VERSION=0.11.9
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
-ARG POETRY_VERSION=2.3.1
+FROM python:3.13-slim-trixie AS builder
+
+ARG UV_VERSION
 
 WORKDIR /app
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=0 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy
 
-# Install poetry system-level (outside venv) — only used for export
-RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
-    pip install --timeout=300 "poetry==${POETRY_VERSION}" "poetry-plugin-export"
+COPY --from=uv /uv /uvx /bin/
 
-COPY ./pyproject.toml ./poetry.lock* /app/
+COPY ./pyproject.toml ./uv.lock* /app/
 
 # Create clean venv, install app deps, strip heavy unused deps
 # Merged into one layer so stripped files don't persist in a previous layer.
@@ -24,29 +27,22 @@ COPY ./pyproject.toml ./poetry.lock* /app/
 #   dynamically imports these at runtime to route calls to different LLM providers
 # Kept: newrelic — used for observability
 RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
-    --mount=type=cache,id=pypoetry-services,target=/root/.cache/pypoetry \
-    python -m venv /opt/venv \
-    && . /opt/venv/bin/activate \
-    && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
-    && pip install -r /tmp/requirements.txt \
-    && rm -f /tmp/requirements.txt \
-    && (pip uninstall -y pip setuptools 2>/dev/null || true) \
-    && SITE=$(python -c 'import site; print(site.getsitepackages()[0])') \
+    --mount=type=cache,id=uv-services,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-install-project \
+    && SITE=$(/opt/venv/bin/python -c 'import site; print(site.getsitepackages()[0])') \
     && rm -rf \
         ${SITE}/hf_xet* \
         ${SITE}/shapely* \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 # Copy and install SDK first (changes less frequently than app code)
-RUN mkdir -p /app/sdk
-COPY ./sd[k] /app/sdk/
+COPY ./sdks/python /sdks/python/
+COPY ./clients/python /clients/python/
 
 RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
-    if [ -f /app/sdk/pyproject.toml ]; then \
-        . /opt/venv/bin/activate && \
-        pip install pip && \
-        pip install --editable /app/sdk && \
-        (pip uninstall -y pip 2>/dev/null || true); \
+    --mount=type=cache,id=uv-services,target=/root/.cache/uv \
+    if [ -f /sdks/python/pyproject.toml ]; then \
+        uv pip install --python /opt/venv/bin/python --editable /sdks/python; \
     fi
 
 # Copy app code last (changes more frequently)
@@ -54,7 +50,7 @@ COPY ./oss /app/oss/
 COPY ./entrypoints /app/entrypoints/
 
 
-FROM python:3.11-slim-bookworm AS runner
+FROM python:3.13-slim-trixie AS runner
 
 ARG BUILD_DATE
 ARG VCS_REF
@@ -64,7 +60,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app:/app/sdk \
+    PYTHONPATH=/app:/sdks/python:/clients/python \
     PATH="/opt/venv/bin:${PATH}"
 
 RUN groupadd --gid 10001 agenta && \
@@ -73,7 +69,8 @@ RUN groupadd --gid 10001 agenta && \
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=agenta:agenta --from=builder /app/oss /app/oss
 COPY --chown=agenta:agenta --from=builder /app/entrypoints /app/entrypoints
-COPY --chown=agenta:agenta --from=builder /app/sdk /app/sdk
+COPY --chown=agenta:agenta --from=builder /sdks/python /sdks/python
+COPY --chown=agenta:agenta --from=builder /clients/python /clients/python
 
 USER 10001
 

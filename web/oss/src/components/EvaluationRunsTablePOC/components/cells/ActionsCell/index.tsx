@@ -280,17 +280,19 @@ const RunActionsCell = ({
             })
         }
 
-        menuItems.push({
-            key: "export-run",
-            label: "Export row",
-            icon: <DownloadSimple size={16} />,
-            disabled: !onExportRow || isExporting,
-            onClick: (event) => {
-                event.domEvent.stopPropagation()
-                if (!onExportRow || isExporting) return
-                onExportRow(record)
-            },
-        })
+        if (onExportRow) {
+            menuItems.push({
+                key: "export-run",
+                label: "Export row",
+                icon: <DownloadSimple size={16} />,
+                disabled: isExporting,
+                onClick: (event) => {
+                    event.domEvent.stopPropagation()
+                    if (isExporting) return
+                    onExportRow(record)
+                },
+            })
+        }
         menuItems.push({type: "divider"})
         menuItems.push({
             key: "delete",

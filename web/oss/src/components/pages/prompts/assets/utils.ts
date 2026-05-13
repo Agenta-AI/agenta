@@ -1,12 +1,12 @@
-import {ListAppsItem} from "@/oss/lib/Types"
-import {Folder} from "@/oss/services/folders/types"
+import type {Folder} from "@/oss/services/folders/types"
+
+import type {PromptsWorkflowRow} from "../store"
 
 /**
- * Tree leaf for an app
+ * Tree leaf for a workflow app
  */
-export interface AppTreeNode extends ListAppsItem {
+export interface AppTreeNode extends PromptsWorkflowRow {
     type: "app"
-    folder_id?: string | null
 }
 
 /**
@@ -24,7 +24,7 @@ export type FolderTreeItem = FolderTreeNode | AppTreeNode
 
 export const buildFolderTree = (
     folders: Folder[],
-    apps: ListAppsItem[] = [],
+    workflows: PromptsWorkflowRow[] = [],
 ): {
     roots: FolderTreeItem[]
     foldersById: Record<string, FolderTreeNode>
@@ -44,7 +44,7 @@ export const buildFolderTree = (
 
     // 2) Hook up folder parents
     for (const node of Object.values(foldersById)) {
-        const parentId = (node as any).parent_id as string | undefined
+        const parentId = node.parent_id ?? undefined
 
         if (parentId && foldersById[parentId]) {
             foldersById[parentId].children.push(node)
@@ -53,14 +53,14 @@ export const buildFolderTree = (
         }
     }
 
-    // 3) Attach apps as tree leaves
-    for (const app of apps) {
+    // 3) Attach workflows as tree leaves
+    for (const workflow of workflows) {
         const appNode: AppTreeNode = {
-            ...app,
+            ...workflow,
             type: "app",
         }
 
-        const folderId = (app as any).folder_id ?? null
+        const folderId = workflow.folderId
         if (folderId && foldersById[folderId]) {
             foldersById[folderId].children.push(appNode)
         } else {

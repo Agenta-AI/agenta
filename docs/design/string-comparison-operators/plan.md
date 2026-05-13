@@ -122,7 +122,7 @@ def string_comparison_data(authed_api):
     
     response = authed_api(
         "POST",
-        "/preview/tracing/spans/ingest",
+        "/tracing/spans/ingest",
         json={"spans": spans},
     )
     assert response.status_code == 202
@@ -131,7 +131,7 @@ def string_comparison_data(authed_api):
     wait_for_response(
         authed_api,
         "POST",
-        "/preview/tracing/spans/query",
+        "/tracing/spans/query",
         json={
             "focus": "span",
             "filter": {"conditions": [{"field": "trace_id", "operator": "is", "value": trace_id}]},
@@ -153,7 +153,7 @@ class TestStringComparisonOperators:
         
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {
@@ -178,7 +178,7 @@ class TestStringComparisonOperators:
         
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {
@@ -203,7 +203,7 @@ class TestStringComparisonOperators:
         
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {
@@ -228,7 +228,7 @@ class TestStringComparisonOperators:
         
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {
@@ -253,7 +253,7 @@ class TestStringComparisonOperators:
         
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {

@@ -56,15 +56,70 @@ import {WIDGET_DEFAULT_CONFIG, WIDGET_HEADER_TITLE} from "./constants"
 
 const {Text} = Typography
 
-const OnboardingWidget = () => {
+// ---------------------------------------------------------------------------
+// Lightweight gate — only reads cheap localStorage-backed atoms + session
+// to decide whether the heavy widget should mount at all.
+// ---------------------------------------------------------------------------
+
+const OnboardingWidgetGate = () => {
     const router = useRouter()
     const {doesSessionExist} = useSession()
+    const config = useAtomValue(onboardingWidgetConfigAtom)
+    const widgetStatus = useAtomValue(onboardingWidgetStatusAtom)
+    const widgetUIState = useAtomValue(onboardingWidgetUIStateAtom)
+    const setWidgetConfig = useSetAtom(setOnboardingWidgetConfigAtom)
+    const setWidgetUIState = useSetAtom(onboardingWidgetUIStateAtom)
+    const isNewUser = useAtomValue(isNewUserAtom)
+
+    // Seed default config if empty
+    useEffect(() => {
+        if (!config.sections.length) {
+            setWidgetConfig(WIDGET_DEFAULT_CONFIG)
+        }
+    }, [config.sections.length, setWidgetConfig])
+
+    // Auto-open for new users
+    useEffect(() => {
+        if (!isNewUser || !doesSessionExist) return
+        setWidgetUIState((prev) => {
+            if (prev.isOpen) return prev
+            return {...prev, isOpen: true}
+        })
+    }, [isNewUser, doesSessionExist, setWidgetUIState])
+
+    const isOnboardingRoute =
+        router.pathname.includes("/auth") ||
+        router.pathname.includes("/post-signup") ||
+        router.pathname.includes("/get-started") ||
+        router.pathname.includes("/workspaces")
+
+    const totalTasks = config.sections.flatMap((s) => s.items).length
+
+    const shouldRender =
+        doesSessionExist &&
+        !isOnboardingRoute &&
+        widgetStatus !== "dismissed" &&
+        widgetUIState.isOpen &&
+        totalTasks > 0
+
+    if (!shouldRender) return null
+
+    return <OnboardingWidgetContent />
+}
+
+// ---------------------------------------------------------------------------
+// Full widget — only mounts when the gate decides to render.
+// All heavy subscriptions (traces, tours, analytics) live here.
+// ---------------------------------------------------------------------------
+
+const OnboardingWidgetContent = () => {
+    console.log("OnboardingWidgetContent")
+    const router = useRouter()
     const {appURL, recentlyVisitedAppURL, baseAppURL, projectURL} = useURL()
     const config = useAtomValue(onboardingWidgetConfigAtom)
     const widgetStatus = useAtomValue(onboardingWidgetStatusAtom)
     const setWidgetStatus = useSetAtom(onboardingWidgetStatusAtom)
     const widgetUIState = useAtomValue(onboardingWidgetUIStateAtom)
-    const setWidgetConfig = useSetAtom(setOnboardingWidgetConfigAtom)
     const setWidgetUIState = useSetAtom(onboardingWidgetUIStateAtom)
     const setWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
     const setSectionExpanded = useSetAtom(setWidgetSectionExpandedAtom)
@@ -75,7 +130,6 @@ const OnboardingWidget = () => {
     const widgetEvents = useAtomValue(onboardingWidgetEventsAtom)
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
-    const isNewUser = useAtomValue(isNewUserAtom)
     const hasSeenCloseTooltip = useAtomValue(hasSeenCloseTooltipAtom)
     const setHasSeenCloseTooltip = useSetAtom(hasSeenCloseTooltipAtom)
     const activeTourId = useAtomValue(activeTourIdAtom)
@@ -104,20 +158,6 @@ const OnboardingWidget = () => {
 
     const completedEventCount = useMemo(() => Object.keys(widgetEvents).length, [widgetEvents])
 
-    // Widget only renders for authenticated new users who haven't dismissed it
-    // and only on app pages (not on auth/onboarding routes)
-    const isOnboardingRoute =
-        router.pathname.includes("/auth") ||
-        router.pathname.includes("/post-signup") ||
-        router.pathname.includes("/get-started") ||
-        router.pathname.includes("/workspaces")
-
-    const shouldRender =
-        doesSessionExist &&
-        !isOnboardingRoute &&
-        widgetStatus !== "dismissed" &&
-        widgetUIState.isOpen &&
-        totalTasks > 0
     const hasTrackedOpenRef = useRef(false)
 
     const startTour = useCallback(
@@ -315,19 +355,14 @@ const OnboardingWidget = () => {
 
     const toggleSection = useCallback(
         (sectionId: string) => {
-            // Get current expanded state from computed atom
             const isCurrentlyExpanded = computedExpanded[sectionId] ?? false
 
             if (isCurrentlyExpanded) {
-                // Collapsing - check if this is the auto-expanded first incomplete section
                 if (sectionId === firstIncomplete) {
-                    // Mark as manually collapsed to prevent auto-expand
                     setSectionManuallyCollapsed({sectionId, collapsed: true})
                 }
-                // Also update explicit expanded state to collapsed
                 setSectionExpanded({sectionId, expanded: false})
             } else {
-                // Expanding - clear manual collapse flag and set explicit expand
                 setSectionManuallyCollapsed({sectionId, collapsed: false})
                 setSectionExpanded({sectionId, expanded: true})
             }
@@ -344,15 +379,12 @@ const OnboardingWidget = () => {
     }, [setWidgetUIState])
 
     const closeWidget = useCallback(() => {
-        // Close immediately
         setWidgetStatus("dismissed")
         setWidgetUIState({isOpen: false, isMinimized: false})
         trackWidgetClosed({totalTasks, completedTasks})
 
-        // If user hasn't seen the close tooltip, start the sidebar tour
         if (!hasSeenCloseTooltip) {
             setHasSeenCloseTooltip(true)
-            // Small delay to let the widget close first
             setTimeout(() => {
                 startNextStep("onboarding-widget-closed-tour")
             }, 300)
@@ -367,7 +399,7 @@ const OnboardingWidget = () => {
         startNextStep,
     ])
 
-    // Register the widget closed tour
+    // Register tours
     useEffect(() => {
         registerWidgetClosedTour()
         registerDeployPromptTour()
@@ -375,31 +407,20 @@ const OnboardingWidget = () => {
         registerTestsetFromTracesTour()
     }, [])
 
+    // Track open
     useEffect(() => {
-        if (!config.sections.length) {
-            setWidgetConfig(WIDGET_DEFAULT_CONFIG)
-        }
-    }, [config.sections.length, setWidgetConfig])
-
-    useEffect(() => {
-        if (!isNewUser || !doesSessionExist) return
-        setWidgetUIState((prev) => {
-            if (prev.isOpen) return prev
-            return {...prev, isOpen: true}
-        })
-    }, [isNewUser, doesSessionExist, setWidgetUIState])
-
-    useEffect(() => {
-        if (!shouldRender || hasTrackedOpenRef.current) return
+        if (hasTrackedOpenRef.current) return
         hasTrackedOpenRef.current = true
         trackWidgetOpened({totalTasks, completedTasks})
-    }, [shouldRender, totalTasks, completedTasks])
+    }, [totalTasks, completedTasks])
 
+    // Track events
     useEffect(() => {
         if (!completedEventCount) return
         trackWidgetTaskEventRecorded(String(completedEventCount))
     }, [completedEventCount])
 
+    // Mark completed
     useEffect(() => {
         const shouldComplete = totalTasks > 0 && completedTasks >= totalTasks
         if (!shouldComplete || widgetStatus === "completed") return
@@ -407,19 +428,17 @@ const OnboardingWidget = () => {
         trackWidgetTaskCompleted({totalTasks, completedTasks})
     }, [totalTasks, completedTasks, widgetStatus, setWidgetStatus])
 
-    // Auto-close sections when they transition from incomplete to complete
+    // Auto-close completed sections
     const prevCompletionRef = useRef<Record<string, boolean>>({})
     useEffect(() => {
         config.sections.forEach((section) => {
             const wasComplete = prevCompletionRef.current[section.id] ?? false
             const isComplete = section.items.every((item) => completionMap[item.id])
 
-            // Only auto-close if section just became complete (transition from false to true)
             if (!wasComplete && isComplete) {
                 setSectionExpanded({sectionId: section.id, expanded: false})
             }
 
-            // Update completion tracking
             prevCompletionRef.current[section.id] = isComplete
         })
     }, [config.sections, completionMap, setSectionExpanded])
@@ -492,10 +511,6 @@ const OnboardingWidget = () => {
         ],
     )
 
-    if (!shouldRender) {
-        return null
-    }
-
     return (
         <section
             className={clsx(
@@ -515,4 +530,4 @@ const OnboardingWidget = () => {
     )
 }
 
-export default OnboardingWidget
+export default OnboardingWidgetGate

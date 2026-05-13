@@ -49,24 +49,182 @@ After you create the automation, Agenta sends an HTTP `POST` to your endpoint ev
 
 ## What Agenta sends
 
-For `environments.revisions.committed`, the current webhook body is the event attributes object.
+Agenta sends a JSON body with three top-level objects:
+
+- `event`, which contains the event metadata and payload
+- `subscription`, which identifies the automation that fired
+- `scope`, which identifies the project
+
+For `environments.revisions.committed`, the deployment details live in `event.attributes`.
+
+`references` identifies the environment revision that was just committed.
+
+`state` is the current value of `data.references` in that environment revision.
+
+`diff` is the diff for that commit.
+
+The overall request body looks like this:
 
 ```json
 {
+  "event": {
+    "event_id": "01961234-5678-7abc-9def-123456789abc",
+    "event_type": "environments.revisions.committed",
+    "timestamp": "2026-04-07T11:24:18.000Z",
+    "created_at": "2026-04-07T11:24:18.000Z",
+    "attributes": {
+      "...": "deployment payload"
+    }
+  },
+  "subscription": {
+    "id": "01961234-aaaa-7abc-9def-123456789abc"
+  },
+  "scope": {
+    "project_id": "01961234-bbbb-7abc-9def-123456789abc"
+  }
+}
+```
+
+Here are two concrete `event.attributes` examples.
+
+### Example 1: first deployment of a new app
+
+```json
+{
+  "user_id": "019315dc-a332-7ba5-a426-d079c43ab776",
   "references": {
     "environment": {
       "id": "019c2b74-d84f-7cf2-aff0-e45e116e26cb"
     },
     "environment_revision": {
       "id": "019cd9b8-e21c-7c73-82a2-099cb1352f19",
-      "slug": "5baf5e00de25",
-      "version": "13"
+      "slug": "prod-0001",
+      "version": "1"
     },
     "environment_variant": {
       "id": "019c2b74-d85c-7803-8a55-f12f2fc8f461"
     }
   },
-  "user_id": "019315dc-a332-7ba5-a426-d079c43ab776"
+  "state": {
+    "references": {
+      "customer-support-bot.revision": {
+        "application": {
+          "id": "019c2b74-d8b7-74e7-9f16-6a6a2c9cd111",
+          "slug": "customer-support-bot"
+        },
+        "application_variant": {
+          "id": "019c2b74-d8df-7f57-bb13-5e8c0c3f5222",
+          "slug": "production"
+        },
+        "application_revision": {
+          "id": "019cd9b8-e21c-7c73-82a2-099cb1352f19",
+          "slug": "prompt-v1",
+          "version": "1"
+        }
+      }
+    }
+  },
+  "diff": {
+    "created": {
+      "customer-support-bot.revision": {
+        "new": {
+          "application": {
+            "id": "019c2b74-d8b7-74e7-9f16-6a6a2c9cd111",
+            "slug": "customer-support-bot"
+          },
+          "application_variant": {
+            "id": "019c2b74-d8df-7f57-bb13-5e8c0c3f5222",
+            "slug": "production"
+          },
+          "application_revision": {
+            "id": "019cd9b8-e21c-7c73-82a2-099cb1352f19",
+            "slug": "prompt-v1",
+            "version": "1"
+          }
+        }
+      }
+    },
+    "updated": {},
+    "deleted": {}
+  }
+}
+```
+
+### Example 2: deploying a new revision for an app that is already in the environment
+
+```json
+{
+  "user_id": "019315dc-a332-7ba5-a426-d079c43ab776",
+  "references": {
+    "environment": {
+      "id": "019c2b74-d84f-7cf2-aff0-e45e116e26cb"
+    },
+    "environment_revision": {
+      "id": "019cd9c9-a742-78e0-9c0d-a08da7df88a1",
+      "slug": "prod-0008",
+      "version": "8"
+    },
+    "environment_variant": {
+      "id": "019c2b74-d85c-7803-8a55-f12f2fc8f461"
+    }
+  },
+  "state": {
+    "references": {
+      "customer-support-bot.revision": {
+        "application": {
+          "id": "019c2b74-d8b7-74e7-9f16-6a6a2c9cd111",
+          "slug": "customer-support-bot"
+        },
+        "application_variant": {
+          "id": "019c2b74-d8df-7f57-bb13-5e8c0c3f5222",
+          "slug": "production"
+        },
+        "application_revision": {
+          "id": "019cd9c9-a742-78e0-9c0d-a08da7df88a1",
+          "slug": "prompt-v8",
+          "version": "8"
+        }
+      }
+    }
+  },
+  "diff": {
+    "created": {},
+    "updated": {
+      "customer-support-bot.revision": {
+        "old": {
+          "application": {
+            "id": "019c2b74-d8b7-74e7-9f16-6a6a2c9cd111",
+            "slug": "customer-support-bot"
+          },
+          "application_variant": {
+            "id": "019c2b74-d8df-7f57-bb13-5e8c0c3f5222",
+            "slug": "production"
+          },
+          "application_revision": {
+            "id": "019cd9a1-3fd6-7144-9c0d-fcbf0a6fd777",
+            "slug": "prompt-v7",
+            "version": "7"
+          }
+        },
+        "new": {
+          "application": {
+            "id": "019c2b74-d8b7-74e7-9f16-6a6a2c9cd111",
+            "slug": "customer-support-bot"
+          },
+          "application_variant": {
+            "id": "019c2b74-d8df-7f57-bb13-5e8c0c3f5222",
+            "slug": "production"
+          },
+          "application_revision": {
+            "id": "019cd9c9-a742-78e0-9c0d-a08da7df88a1",
+            "slug": "prompt-v8",
+            "version": "8"
+          }
+        }
+      }
+    },
+    "deleted": {}
+  }
 }
 ```
 

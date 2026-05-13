@@ -1,3 +1,4 @@
+import {createBatchFetcher, type BatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -5,7 +6,6 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import type {PreviewTestCase} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
-import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 
 import {resolveTestcaseValueByPath, splitPath} from "../../utils/valueAccess"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "../run"
@@ -56,7 +56,7 @@ export const evaluationTestcaseBatcherFamily = atomFamily(({runId}: {runId?: str
                     }
 
                     const response = await axios.post(
-                        `/preview/testcases/query`,
+                        `/testcases/query`,
                         {testcase_ids: uniqueIds},
                         {
                             params: {project_id: projectId},

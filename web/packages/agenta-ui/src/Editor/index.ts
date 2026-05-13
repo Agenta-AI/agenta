@@ -69,6 +69,11 @@ export {
     $convertToMarkdownStringCustom,
     PLAYGROUND_TRANSFORMERS,
 } from "./plugins/markdown/assets/transformers"
+export {
+    isLargeRichTextDocument,
+    LARGE_RICH_TEXT_CHAR_THRESHOLD,
+    LARGE_RICH_TEXT_LINE_THRESHOLD,
+} from "./utils/largeDocument"
 
 // Form view types
 export type {CustomRenderFn} from "./form/nodes/NodeTypes"
@@ -84,3 +89,15 @@ export {useEditorResize} from "./hooks/useEditorResize"
 // Commands
 export {INITIAL_CONTENT_COMMAND} from "./commands/InitialContentCommand"
 export type {InitialContentPayload} from "./commands/InitialContentCommand"
+
+// Token typeahead — path-aware suggestion context (playground providers
+// feed port schemas / observed keys into this).
+export {
+    TokenPathSuggestionsProvider,
+    useTokenPathSuggestions,
+} from "./plugins/token/TokenPathSuggestionsContext"
+export type {
+    TokenPathSuggestion,
+    TokenPathSuggestionsGetter,
+    TokenPathSuggestionsProviderProps,
+} from "./plugins/token/TokenPathSuggestionsContext"

@@ -1,8 +1,9 @@
-import {memo, useCallback} from "react"
+import {memo, useCallback, useMemo} from "react"
 
 import {Menu, Tag, Tooltip} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
+import {useRouter} from "next/router"
 
 import {SidebarConfig, SidebarMenuProps} from "../types"
 
@@ -12,6 +13,20 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
     collapsed,
     mode = "inline",
 }) => {
+    const router = useRouter()
+
+    const linkMap = useMemo(() => {
+        const map: Record<string, SidebarConfig> = {}
+        const collect = (items: SidebarConfig[]) => {
+            items.forEach((item) => {
+                if (item.submenu) collect(item.submenu)
+                else map[item.key] = item
+            })
+        }
+        collect(items)
+        return map
+    }, [items])
+
     const transformItems = useCallback(
         (items: SidebarConfig[]): any => {
             return items.flatMap((item): any => {
@@ -87,6 +102,21 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
             items={transformItems(items)}
             {...(mode === "inline" ? {inlineCollapsed: collapsed} : {})}
             {...menuProps}
+            onClick={(info) => {
+                menuProps?.onClick?.(info)
+                if (collapsed) {
+                    const item = linkMap[info.key]
+                    if (item?.onClick) {
+                        item.onClick(info.domEvent as React.MouseEvent)
+                    } else if (item?.link) {
+                        if (item.link.startsWith("http")) {
+                            window.open(item.link, "_blank")
+                        } else {
+                            router.push(item.link)
+                        }
+                    }
+                }
+            }}
             className={clsx([
                 "!overflow-x-hidden",
                 "[&_.ant-menu-item]:flex [&_.ant-menu-item]:items-center",

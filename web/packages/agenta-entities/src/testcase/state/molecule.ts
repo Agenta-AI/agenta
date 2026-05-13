@@ -137,7 +137,15 @@ function getChangesFromPath(
     path: DataPath,
     value: unknown,
 ): {data: Record<string, unknown>} | null {
-    if (!testcase || path.length === 0) return null
+    if (!testcase) return null
+
+    // Root-level replacement: treat value as the entire data object
+    if (path.length === 0) {
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+            return {data: value as Record<string, unknown>}
+        }
+        return null
+    }
 
     // Build the update using setValueAtPath on the data property
     const currentData = testcase.data ?? {}
@@ -950,8 +958,13 @@ export const testcaseMolecule = {
         },
     },
 
-    // Imperative API
-    get: extendedMolecule.get,
+    // Imperative API — override get.data to use testcaseEntityAtomFamily
+    // (handles draft-only/new testcases that the base molecule's merge returns null for)
+    get: {
+        ...extendedMolecule.get,
+        data: (id: string, options?: StoreOptions) =>
+            getStore(options).get(testcaseEntityAtomFamily(id)),
+    },
     set: extendedMolecule.set,
 
     // Lifecycle and cleanup from base molecule

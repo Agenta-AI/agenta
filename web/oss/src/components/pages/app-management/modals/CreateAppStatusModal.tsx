@@ -107,10 +107,10 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                     if (draft.fetching_image?.type === "loading")
                         draft.fetching_image.type = "success"
                     break
-                case "starting_app":
+                case "configuring_app":
                     draft[status] = {
                         type: "loading",
-                        message: "Starting service (takes ~20s)",
+                        message: "Configuring variant and committing defaults",
                     }
                     if (draft.creating_app?.type === "loading") draft.creating_app.type = "success"
                     break
@@ -119,7 +119,8 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         type: "success",
                         message: "Launching your application",
                     }
-                    if (draft.starting_app?.type === "loading") draft.starting_app.type = "success"
+                    if (draft.configuring_app?.type === "loading")
+                        draft.configuring_app.type = "success"
                     if (appId) {
                         setNavigationTarget(appId)
                     }
@@ -141,10 +142,10 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                     }
                     break
                 case "timeout":
-                    draft.starting_app = {
-                        ...(draft.starting_app ?? {
+                    draft.configuring_app = {
+                        ...(draft.configuring_app ?? {
                             type: "error",
-                            message: "Starting service (takes ~20s)",
+                            message: "Configuring variant and committing defaults",
                         }),
                         type: "error",
                         errorMessage:

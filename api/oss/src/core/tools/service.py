@@ -222,9 +222,7 @@ class ToolsService:
             user_id=user_id,
             secret_key=env.agenta.crypt_key,
         )
-        callback_url = (
-            f"{env.agenta.api_url}/preview/tools/connections/callback?state={state}"
-        )
+        callback_url = f"{env.agenta.api_url}/tools/connections/callback?state={state}"
 
         # Initiate with provider
         connection_create_data = connection_create.data
@@ -350,9 +348,7 @@ class ToolsService:
             user_id=project_id,  # refresh has no user_id; use project_id as entity
             secret_key=env.agenta.crypt_key,
         )
-        callback_url = (
-            f"{env.agenta.api_url}/preview/tools/connections/callback?state={state}"
-        )
+        callback_url = f"{env.agenta.api_url}/tools/connections/callback?state={state}"
 
         adapter = self.adapter_registry.get(conn.provider_key.value)
 

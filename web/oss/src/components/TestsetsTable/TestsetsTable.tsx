@@ -1,22 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {testsetMolecule} from "@agenta/entities/testset"
 import {message} from "@agenta/ui/app-message"
-import {
-    MinusCircleOutlined,
-    PlusCircleOutlined,
-    PlusOutlined,
-    LoadingOutlined,
-} from "@ant-design/icons"
-import {
-    CaretDown,
-    Copy,
-    DownloadSimple,
-    Eye,
-    Note,
-    PencilSimple,
-    Trash,
-} from "@phosphor-icons/react"
-import {Button, Dropdown, Modal, Space, Tag, Typography} from "antd"
+import {PlusOutlined} from "@ant-design/icons"
+import {ArchiveIcon, CaretDown, DownloadSimple} from "@phosphor-icons/react"
+import {Button, Dropdown, Space} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -26,25 +14,30 @@ import {
     InfiniteVirtualTableFeatureShell,
     useTableManager,
     useTableActions,
-    createStandardColumns,
-    TableDescription,
 } from "@/oss/components/InfiniteVirtualTable"
-import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 import {
     onboardingWidgetActivationAtom,
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
+import {downloadTestset, downloadRevision, type ExportFileType} from "@/oss/services/testsets/api"
 import {
-    archiveTestsetRevision,
-    downloadTestset,
-    downloadRevision,
-    type ExportFileType,
-} from "@/oss/services/testsets/api"
-import {fetchRevisionsList, testset, type TestsetTableRow} from "@/oss/state/entities/testset"
+    fetchRevisionsList,
+    getTestsetTableState,
+    invalidateTestsetManagementQueries,
+    testset,
+    type TestsetTableMode,
+    type TestsetTableRow,
+} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
+
+import {
+    createTestsetsColumns,
+    type TestsetsTableColumnActions,
+} from "./assets/createTestsetsColumns"
 
 const TestsetModal: any = dynamic(() => import("@/oss/components/pages/testset/modals"))
 const DeleteTestsetModal: any = dynamic(
@@ -62,6 +55,7 @@ export interface TestsetsTableProps {
      * - "select": clicking a revision row calls `onSelectRevision` instead of navigating.
      */
     mode?: "manage" | "select"
+    tableMode?: TestsetTableMode
     /** Callback invoked when a revision row is selected in `mode="select"`. */
     onSelectRevision?: (params: {
         revisionId: string
@@ -88,17 +82,21 @@ const TestsetsTable = ({
     className,
     autoHeight = true,
     mode = "manage",
+    tableMode = "active",
     onSelectRevision,
     selectedRevisionId,
 }: TestsetsTableProps) => {
     const router = useRouter()
     const {projectURL} = useURL()
+    const {canExportData} = useProjectPermissions()
     const projectId = useAtomValue(projectIdAtom)
     const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
+    const tableState = getTestsetTableState(tableMode)
+    const isArchivedView = tableMode === "archived"
 
     // Refresh trigger for the table
-    const setRefreshTrigger = useSetAtom(testset.paginated.refreshAtom)
+    const setRefreshTrigger = useSetAtom(tableState.paginatedStore.refreshAtom)
 
     // Modal state
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
@@ -109,7 +107,7 @@ const TestsetsTable = ({
     const [isDeleteTestsetModalOpen, setIsDeleteTestsetModalOpen] = useState(false)
 
     useEffect(() => {
-        if (onboardingWidgetActivation !== "create-testset") return
+        if (isArchivedView || onboardingWidgetActivation !== "create-testset") return
         setTestsetCreationMode("create")
         setEditTestsetValues(null)
         setCurrent(0)
@@ -122,6 +120,7 @@ const TestsetsTable = ({
         setEditTestsetValues,
         setIsCreateTestsetModalOpen,
         setTestsetCreationMode,
+        isArchivedView,
     ])
 
     // Refresh table data
@@ -176,7 +175,7 @@ const TestsetsTable = ({
                 }
 
                 // Prefer cached children (already-fetched revisions)
-                const cachedChildren = childrenCache.get(record.key)
+                const cachedChildren = childrenCache.get(String(record.key))
                 if (cachedChildren && cachedChildren.length > 0) {
                     const latestRow = cachedChildren[0]
                     selectFromRevision({
@@ -192,6 +191,7 @@ const TestsetsTable = ({
                     const response = await fetchRevisionsList({
                         projectId,
                         testsetId: record.id,
+                        includeArchived: isArchivedView,
                     })
                     // Filter out v0 revisions - they are placeholders
                     const revisions = response.testset_revisions.filter(
@@ -221,7 +221,7 @@ const TestsetsTable = ({
 
             // If it's a testset, navigate to the latest revision
             // First check if we have cached children
-            const cachedChildren = childrenCache.get(record.key)
+            const cachedChildren = childrenCache.get(String(record.key))
             if (cachedChildren && cachedChildren.length > 0) {
                 // Navigate to the first child (latest revision)
                 const latestRevision = cachedChildren[0]
@@ -232,7 +232,11 @@ const TestsetsTable = ({
             // Otherwise, fetch revisions to get the latest one
             try {
                 if (!projectId) return
-                const response = await fetchRevisionsList({projectId, testsetId: record.id})
+                const response = await fetchRevisionsList({
+                    projectId,
+                    testsetId: record.id,
+                    includeArchived: isArchivedView,
+                })
                 // Filter out v0 revisions - they are placeholders
                 const revisions = response.testset_revisions.filter(
                     (r: any) => r.version !== 0 && r.version !== "0",
@@ -245,7 +249,15 @@ const TestsetsTable = ({
                 console.error("[TestsetsTable] Failed to fetch revisions for navigation:", error)
             }
         },
-        [projectURL, childrenCache, isSelectMode, onSelectRevision, router],
+        [
+            projectURL,
+            childrenCache,
+            isSelectMode,
+            onSelectRevision,
+            router,
+            projectId,
+            isArchivedView,
+        ],
     )
 
     // Action handlers - consolidated
@@ -282,40 +294,19 @@ const TestsetsTable = ({
             const validRevisions = cachedChildren?.filter((r) => (r as any).__version !== 0) || []
 
             if (validRevisions.length <= 1) {
-                message.warning("Cannot delete the only revision. Delete the testset instead.")
+                message.warning("Cannot archive the only revision. Archive the testset instead.")
                 return
             }
 
-            Modal.confirm({
-                title: "Delete Revision",
-                content: `Are you sure you want to delete "${record.name}" revision v${version}? This action cannot be undone.`,
-                okText: "Delete",
-                okButtonProps: {danger: true},
-                onOk: async () => {
-                    try {
-                        await archiveTestsetRevision(record.id)
-                        message.success(`Revision v${version} deleted`)
-
-                        // Remove from cache
-                        if (testsetId) {
-                            setChildrenCache((prev) => {
-                                const newCache = new Map(prev)
-                                const children = newCache.get(testsetId)
-                                if (children) {
-                                    newCache.set(
-                                        testsetId,
-                                        children.filter((c) => c.id !== record.id),
-                                    )
-                                }
-                                return newCache
-                            })
-                        }
-                    } catch (error) {
-                        console.error("[TestsetsTable] Failed to delete revision:", error)
-                        message.error("Failed to delete revision")
-                    }
+            setSelectedTestsetToDelete([
+                {
+                    ...record,
+                    __isRevision: true,
+                    __version: version,
+                    __testsetId: testsetId,
                 },
-            })
+            ])
+            setIsDeleteTestsetModalOpen(true)
         },
         [childrenCache],
     )
@@ -329,12 +320,13 @@ const TestsetsTable = ({
     // Handler to export a testset or revision using the backend endpoint
     const handleExportTestset = useCallback(
         async (record: TestsetTableRow, format: ExportFileType) => {
+            if (!canExportData) return
             const isRevision = (record as any).__isRevision
             const version = (record as any).__version
             const sanitizedName = record.name.replace(/[^a-zA-Z0-9-_]/g, "-")
-            const exportKey = `export-${record.key}`
+            const exportKey = `export-${String(record.key)}`
 
-            setExportingRowKey(record.key)
+            setExportingRowKey(String(record.key))
             // Show immediate feedback that action was triggered
             message.info(`Starting ${format.toUpperCase()} export for "${record.name}"...`)
             // Show persistent loading message
@@ -374,32 +366,55 @@ const TestsetsTable = ({
                 setExportingRowKey(null)
             }
         },
-        [setExportFormat],
+        [canExportData, setExportFormat],
     )
 
     // Table manager - consolidates pagination, selection, row handlers, export, delete buttons
     const table = useTableManager<TestsetTableRow>({
-        datasetStore: testset.paginated.store,
-        scopeId,
+        datasetStore: tableState.paginatedStore.store,
+        scopeId: isArchivedView ? "archived-testsets-page" : scopeId,
         pageSize: 50,
         rowHeight: 48,
         onRowClick: handleRowClick,
         rowClassName: "testsets-table__row",
-        exportFilename: "testsets.csv",
+        columnVisibilityStorageKey: isArchivedView
+            ? "agenta:archived-testsets:column-visibility"
+            : "agenta:testsets:column-visibility",
+        exportFilename: isArchivedView ? "archived-testsets.csv" : "testsets.csv",
         exportDisabledTooltip: "Select testsets to export",
-        onBulkDelete: (records) => {
-            setSelectedTestsetToDelete(records)
-            setIsDeleteTestsetModalOpen(true)
-        },
-        deleteDisabledTooltip: "Select testsets to delete",
     })
+
+    const handleRestoreTestset = useCallback(
+        async (record: TestsetTableRow) => {
+            if (!projectId) {
+                message.error("Missing project id")
+                return
+            }
+
+            try {
+                await testsetMolecule.lifecycle.unarchive(record.id, {projectId})
+                invalidateTestsetManagementQueries()
+                setChildrenCache((prev) => {
+                    const next = new Map(prev)
+                    next.delete(String(record.key))
+                    return next
+                })
+                table.clearSelection()
+                message.success("Testset restored")
+            } catch (error) {
+                console.error("[TestsetsTable] Failed to restore testset:", error)
+                message.error("Failed to restore testset")
+            }
+        },
+        [projectId, table],
+    )
 
     // Build rows with children for tree data (supports nested children)
     const rowsWithChildren = useMemo(() => {
         // Helper to recursively add children from cache
         const addChildren = (row: TestsetTableRow): TestsetTableRow => {
             // Use row.key for cache lookup (matches expandedRowKeys)
-            const children = childrenCache.get(row.key)
+            const children = childrenCache.get(String(row.key))
             if (children && children.length > 0) {
                 // Recursively add children to each child row
                 const childrenWithNested = children.map(addChildren)
@@ -455,7 +470,11 @@ const TestsetsTable = ({
                 try {
                     // Fetch revisions directly for this testset (skip variants)
                     if (!projectId) return
-                    const response = await fetchRevisionsList({projectId, testsetId: record.id})
+                    const response = await fetchRevisionsList({
+                        projectId,
+                        testsetId: record.id,
+                        includeArchived: isArchivedView,
+                    })
                     // Filter out v0 revisions - they are placeholders and should not be displayed
                     const revisions = response.testset_revisions.filter(
                         (r: any) => r.version !== 0 && r.version !== "0",
@@ -467,6 +486,8 @@ const TestsetsTable = ({
                         created_at: revision.created_at,
                         updated_at: revision.updated_at || revision.created_at,
                         created_by_id: revision.created_by_id,
+                        deletedAt: record.deletedAt ?? null,
+                        deletedById: record.deletedById ?? null,
                         __isSkeleton: false,
                         __isRevision: true,
                         __parentId: record.id,
@@ -489,206 +510,44 @@ const TestsetsTable = ({
                 setExpandedRowKeys((prev) => prev.filter((k) => k !== rowKey))
             }
         },
-        [childrenCache],
+        [childrenCache, projectId, isArchivedView],
     )
 
-    // Columns with expand icon integrated into Name column
+    const columnActions = useMemo<TestsetsTableColumnActions>(
+        () => ({
+            onOpen: handleRowClick,
+            onClone: actions.handleClone,
+            onRename: actions.handleRename,
+            onDelete: actions.handleDelete,
+            onDeleteRevision: handleDeleteRevision,
+            onRestore: handleRestoreTestset,
+            onExport: handleExportTestset,
+        }),
+        [actions, handleExportTestset, handleDeleteRevision, handleRestoreTestset, handleRowClick],
+    )
+
     const columns = useMemo(
         () =>
-            createStandardColumns<TestsetTableRow>([
-                {
-                    type: "text",
-                    key: "name",
-                    title: "Name",
-                    width: 300,
-                    columnVisibilityLocked: true,
-                    render: (_value, record) => {
-                        const isRevision = (record as any).__isRevision
-                        const isExpanded = expandedRowKeys.includes(record.key)
-                        const isLoading = loadingRows.has(record.key)
-                        const isSkeleton = record.__isSkeleton
-
-                        // Revision rows - show name + version tag with indent
-                        if (isRevision) {
-                            const version = (record as any).__version
-                            return (
-                                <div className="flex items-center gap-2 pl-6 min-w-0">
-                                    <span className="truncate" title={record.name}>
-                                        {record.name}
-                                    </span>
-                                    {version !== null && version !== undefined && (
-                                        <Tag
-                                            className="bg-[rgba(5,23,41,0.06)] shrink-0"
-                                            variant="filled"
-                                        >
-                                            v{version}
-                                        </Tag>
-                                    )}
-                                </div>
-                            )
-                        }
-
-                        // Testset rows (parent) - show expand icon
-                        return (
-                            <div className="flex items-center gap-2 h-full min-w-0">
-                                {!isSkeleton && (
-                                    <span
-                                        className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors shrink-0"
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleExpand(!isExpanded, record)
-                                        }}
-                                    >
-                                        {isLoading ? (
-                                            <LoadingOutlined style={{fontSize: 14}} />
-                                        ) : isExpanded ? (
-                                            <MinusCircleOutlined style={{fontSize: 14}} />
-                                        ) : (
-                                            <PlusCircleOutlined style={{fontSize: 14}} />
-                                        )}
-                                    </span>
-                                )}
-                                <span className="truncate" title={record.name}>
-                                    {record.name}
-                                </span>
-                            </div>
-                        )
-                    },
+            createTestsetsColumns(columnActions, {
+                mode: tableMode,
+                interactionMode: mode,
+                canExportData,
+                exportingRowKey,
+                expandState: {
+                    expandedRowKeys,
+                    loadingRows,
+                    onToggleExpand: (record, expanded) => handleExpand(expanded, record),
                 },
-                {
-                    type: "text",
-                    key: "commit_message",
-                    title: "Commit Message",
-                    width: 250,
-                    render: (_value, record) => {
-                        const isRevision = (record as any).__isRevision
-
-                        // For testset rows: use CommitMessageCell to read from atom family
-                        if (!isRevision) {
-                            return <CommitMessageCell testsetId={record.id} />
-                        }
-
-                        // For revision rows: use __commitMessage from the fetched child data
-                        const commitMessage = (record as any).__commitMessage
-
-                        // Filter out auto-generated messages
-                        const isAutoGenerated =
-                            commitMessage?.startsWith("Updated testset:") ||
-                            commitMessage?.startsWith("Patched testset") ||
-                            commitMessage?.startsWith("Initial commit")
-                        if (!commitMessage || isAutoGenerated) {
-                            return <span className="text-gray-400">—</span>
-                        }
-
-                        return (
-                            <span className="text-gray-600 truncate h-full" title={commitMessage}>
-                                {commitMessage}
-                            </span>
-                        )
-                    },
-                },
-                {
-                    type: "date",
-                    key: "created_at",
-                    title: "Date Created",
-                },
-                {
-                    type: "user",
-                    key: "created_by_id",
-                    title: "Created by",
-                },
-                {
-                    type: "actions",
-                    width: 48,
-                    maxWidth: 48,
-                    items: [
-                        // Testset actions (always allow view in both modes)
-                        {
-                            key: "details",
-                            label: "View details",
-                            icon: <Note size={16} />,
-                            onClick: handleRowClick,
-                            hidden: (record) => (record as any).__isRevision,
-                        },
-                        // Management actions – hidden in select mode
-                        {
-                            key: "clone",
-                            label: "Clone",
-                            icon: <Copy size={16} />,
-                            onClick: actions.handleClone,
-                            hidden: (record) => isSelectMode || (record as any).__isRevision,
-                        },
-                        {
-                            key: "rename",
-                            label: "Rename",
-                            icon: <PencilSimple size={16} />,
-                            onClick: actions.handleRename,
-                            hidden: (record) => isSelectMode || (record as any).__isRevision,
-                        },
-                        {
-                            type: "divider",
-                            hidden: (record) => isSelectMode || (record as any).__isRevision,
-                        },
-                        {
-                            key: "delete",
-                            label: "Delete",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            onClick: actions.handleDelete,
-                            hidden: (record) => isSelectMode || (record as any).__isRevision,
-                        },
-                        // Revision actions
-                        {
-                            key: "view-revision",
-                            label: "View revision",
-                            icon: <Eye size={16} />,
-                            onClick: handleRowClick,
-                            hidden: (record) => !(record as any).__isRevision,
-                        },
-                        {
-                            type: "divider",
-                            hidden: (record) => isSelectMode || !(record as any).__isRevision,
-                        },
-                        {
-                            key: "delete-revision",
-                            label: "Delete revision",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            onClick: handleDeleteRevision,
-                            hidden: (record) => isSelectMode || !(record as any).__isRevision,
-                        },
-                        // Export actions (available for both testsets and revisions in manage mode)
-                        {
-                            type: "divider",
-                            hidden: () => !isManageMode,
-                        },
-                        {
-                            key: "export-csv",
-                            label: "Export as CSV",
-                            icon: <DownloadSimple size={16} />,
-                            onClick: (record) => handleExportTestset(record, "csv"),
-                            hidden: () => !isManageMode || Boolean(exportingRowKey),
-                        },
-                        {
-                            key: "export-json",
-                            label: "Export as JSON",
-                            icon: <DownloadSimple size={16} />,
-                            onClick: (record) => handleExportTestset(record, "json"),
-                            hidden: () => !isManageMode || Boolean(exportingRowKey),
-                        },
-                    ],
-                    getRecordId: (record) => record.id,
-                },
-            ]),
+            }),
         [
-            actions,
-            handleExportTestset,
-            exportingRowKey,
+            canExportData,
+            columnActions,
             expandedRowKeys,
-            loadingRows,
+            exportingRowKey,
             handleExpand,
-            handleDeleteRevision,
-            isManageMode,
+            loadingRows,
+            mode,
+            tableMode,
         ],
     )
 
@@ -697,19 +556,7 @@ const TestsetsTable = ({
         table.columnsRef.current = columns
     }, [columns, table.columnsRef])
 
-    const headerTitle = useMemo(
-        () => (
-            <div className="flex flex-col gap-1">
-                <Typography.Title level={5} style={{margin: 0}}>
-                    Testsets
-                </Typography.Title>
-                <TableDescription>Manage your testsets for evaluations.</TableDescription>
-            </div>
-        ),
-        [],
-    )
-
-    const filtersNode = useMemo(() => <TestsetsHeaderFilters />, [])
+    const filtersNode = useMemo(() => <TestsetsHeaderFilters tableMode={tableMode} />, [tableMode])
 
     const createButton = useMemo(
         () => (
@@ -723,6 +570,26 @@ const TestsetsTable = ({
         ),
         [actions.handleCreate],
     )
+
+    const archiveButton = useMemo(() => {
+        if (!isManageMode || isArchivedView) return undefined
+
+        return (
+            <Button
+                type="text"
+                icon={<ArchiveIcon size={14} />}
+                onClick={() => router.push(`${projectURL}/testsets/archived`)}
+            >
+                Archived
+            </Button>
+        )
+    }, [isArchivedView, isManageMode, projectURL, router])
+
+    const primaryActions = useMemo(() => {
+        if (!isManageMode || isArchivedView) return undefined
+
+        return createButton
+    }, [createButton, isArchivedView, isManageMode])
 
     // Smart export button with dropdown - remembers last used format
     const renderExportButton = useCallback(
@@ -797,7 +664,7 @@ const TestsetsTable = ({
     const rowSelection = useMemo(() => {
         if (isSelectMode) {
             return {
-                type: "radio" as const,
+                type: "checkbox" as const,
                 selectedRowKeys: selectedRowKey ? [selectedRowKey] : [],
                 getCheckboxProps: (record: TestsetTableRow) => ({
                     disabled: Boolean(record.__isSkeleton),
@@ -815,34 +682,25 @@ const TestsetsTable = ({
         return table.rowSelection
     }, [isSelectMode, selectedRowKey, table.rowSelection, handleRowClick])
 
-    // Custom delete action that uses our getSelectedRecords (includes revisions)
-    const deleteAction = useMemo(() => {
-        const selectedRecords = getSelectedRecords()
-        return {
-            onDelete: () => {
-                setSelectedTestsetToDelete(selectedRecords)
-                setIsDeleteTestsetModalOpen(true)
-            },
-            disabled: !selectedRecords.length,
-            disabledTooltip: "Select testsets or revisions to delete",
-            label: "Delete",
-        }
-    }, [getSelectedRecords])
-
     return (
         <div className={clsx("flex flex-col h-full min-h-0 grow w-full", className)}>
             <InfiniteVirtualTableFeatureShell<TestsetTableRow>
                 {...table.shellProps}
                 dataSource={rowsWithChildren}
                 columns={columns}
-                title={isManageMode ? headerTitle : undefined}
+                title={undefined}
                 filters={filtersNode}
-                primaryActions={isManageMode ? createButton : undefined}
+                primaryActions={primaryActions}
+                secondaryActions={archiveButton}
                 rowSelection={rowSelection}
-                deleteAction={isManageMode ? deleteAction : undefined}
-                enableExport={isManageMode}
+                deleteAction={undefined}
+                enableExport={isArchivedView ? true : isManageMode && canExportData}
                 exportAction={undefined}
-                renderExportButton={isManageMode ? renderExportButton : undefined}
+                renderExportButton={
+                    isManageMode && canExportData && !isArchivedView
+                        ? renderExportButton
+                        : undefined
+                }
                 tableProps={{
                     ...table.shellProps.tableProps,
                     expandable: treeExpandable,
@@ -872,7 +730,13 @@ const TestsetsTable = ({
                         setIsDeleteTestsetModalOpen(false)
                         table.clearSelection()
                     }}
-                    onAfterDelete={({testsets: deletedTestsets, revisions: deletedRevisions}) => {
+                    onAfterDelete={({
+                        testsets: deletedTestsets,
+                        revisions: deletedRevisions,
+                    }: {
+                        testsets: TestsetTableRow[]
+                        revisions: TestsetTableRow[]
+                    }) => {
                         setChildrenCache((prev) => {
                             const newCache = new Map(prev)
 
@@ -901,18 +765,20 @@ const TestsetsTable = ({
                 />
             )}
 
-            <TestsetModal
-                editTestsetValues={editTestsetValues}
-                setEditTestsetValues={setEditTestsetValues}
-                current={current}
-                setCurrent={setCurrent}
-                testsetCreationMode={testsetCreationMode}
-                setTestsetCreationMode={setTestsetCreationMode}
-                open={isCreateTestsetModalOpen}
-                onCancel={() => {
-                    setIsCreateTestsetModalOpen(false)
-                }}
-            />
+            {!isArchivedView && (
+                <TestsetModal
+                    editTestsetValues={editTestsetValues}
+                    setEditTestsetValues={setEditTestsetValues}
+                    current={current}
+                    setCurrent={setCurrent}
+                    testsetCreationMode={testsetCreationMode}
+                    setTestsetCreationMode={setTestsetCreationMode}
+                    open={isCreateTestsetModalOpen}
+                    onCancel={() => {
+                        setIsCreateTestsetModalOpen(false)
+                    }}
+                />
+            )}
         </div>
     )
 }

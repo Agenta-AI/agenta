@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import {Typography} from "antd"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
@@ -7,6 +9,8 @@ import {
     testcaseRowHeightAtom,
     TESTCASE_ROW_HEIGHT_CONFIG,
 } from "@/oss/components/TestcasesTableNew/state/rowHeight"
+
+import {PREVIEW_ROW_LIMIT} from "../assets/constants"
 
 interface PreviewSectionProps {
     selectedRevisionId: string
@@ -27,6 +31,10 @@ export function PreviewSection({
         skipEmptyRevisionInit: true,
     })
     const rowHeight = useRowHeight(testcaseRowHeightAtom, TESTCASE_ROW_HEIGHT_CONFIG)
+    const previewRows = useMemo(
+        () => previewTable.rowRefs.filter((row) => row.__isNew).slice(0, PREVIEW_ROW_LIMIT),
+        [previewTable.rowRefs],
+    )
 
     const title = testcaseCount > 1 ? "4. Preview Testcases" : "4. Preview Testcase"
 
@@ -58,7 +66,8 @@ export function PreviewSection({
                             autoHeight={false}
                             disableDeleteAction={true}
                             scopeIdPrefix="drawer-preview"
-                            maxRows={5}
+                            maxRows={PREVIEW_ROW_LIMIT}
+                            dataSource={previewRows}
                         />
                     ) : (
                         <div className="py-4 px-3 bg-gray-50 rounded-md border border-dashed border-gray-200 text-center">

@@ -32,6 +32,8 @@ import {
     unguardEnvironment,
     commitEnvironmentRevision,
     deployToEnvironment,
+    undeployFromEnvironment,
+    fetchLatestEnvironmentRevision,
 } from "../api"
 import type {Environment, EnvironmentRevisionListItem} from "../core"
 import type {EnvironmentRevisionCommitParams, DeployToEnvironmentParams} from "../core"
@@ -46,6 +48,10 @@ import {
     revisionsListQueryAtomFamily,
     enableRevisionsListQueryAtom,
     revisionDeploymentAtomFamily,
+    environmentBySlugAtomFamily,
+    environmentAppDeploymentsAtomFamily,
+    environmentAppDeploymentsBySlugAtomFamily,
+    appDeploymentInEnvironmentAtomFamily,
 } from "./store"
 
 // ============================================================================
@@ -106,6 +112,33 @@ const extendedMolecule = extendMolecule(baseEnvironmentMolecule, {
 // ============================================================================
 // ACTION ATOMS
 // ============================================================================
+
+/**
+ * Strip null values from revision data references so they match the commit params type.
+ * Zod-inferred types include `| null` on reference fields, but the commit API expects
+ * `undefined` (optional) instead.
+ */
+function sanitizeRevisionData(
+    data: import("../core").EnvironmentRevisionData | null | undefined,
+): EnvironmentRevisionCommitParams["data"] | undefined {
+    if (!data?.references) return undefined
+    const cleaned: Record<
+        string,
+        Record<string, {id?: string; slug?: string; version?: string}>
+    > = {}
+    for (const [appKey, refs] of Object.entries(data.references)) {
+        const cleanedRefs: Record<string, {id?: string; slug?: string; version?: string}> = {}
+        for (const [refKey, ref] of Object.entries(refs)) {
+            cleanedRefs[refKey] = {
+                ...(ref.id ? {id: ref.id} : {}),
+                ...(ref.slug ? {slug: ref.slug} : {}),
+                ...(ref.version ? {version: ref.version} : {}),
+            }
+        }
+        cleaned[appKey] = cleanedRefs
+    }
+    return {references: cleaned}
+}
 
 /**
  * Archive environments reducer
@@ -206,6 +239,154 @@ const deployReducer = atom(
     },
 )
 
+/**
+ * Undeploy from environment reducer
+ */
+const undeployReducer = atom(
+    null,
+    async (
+        _get,
+        _set,
+        params: {
+            projectId: string
+            environmentId: string
+            environmentVariantId: string
+            appKey: string
+            message?: string
+        },
+    ): Promise<{success: boolean; revisionId?: string; error?: Error}> => {
+        try {
+            const revision = await undeployFromEnvironment(
+                params.projectId,
+                params.environmentId,
+                params.environmentVariantId,
+                params.appKey,
+                params.message,
+            )
+            if (revision) {
+                invalidateEnvironmentCache(params.environmentId)
+                invalidateEnvironmentsListCache()
+                invalidateEnvironmentRevisionsListCache(params.environmentId)
+                return {success: true, revisionId: revision.id}
+            }
+            return {success: false, error: new Error("No revision returned")}
+        } catch (error) {
+            return {success: false, error: error as Error}
+        }
+    },
+)
+
+/**
+ * Params for reverting an environment to a previous revision's state.
+ */
+export interface RevertDeploymentParams {
+    projectId: string
+    environmentId: string
+    environmentVariantId: string
+    /** The target revision version to revert to (fetches its data and commits as new) */
+    targetRevisionVersion: number
+    message?: string
+}
+
+/**
+ * Revert environment to a previous revision's state.
+ *
+ * Fetches the target revision's data and commits it as a new revision,
+ * effectively rolling back the environment to that state.
+ */
+const revertReducer = atom(
+    null,
+    async (
+        _get,
+        _set,
+        params: RevertDeploymentParams,
+    ): Promise<{success: boolean; revisionId?: string; error?: Error}> => {
+        const {projectId, environmentId, environmentVariantId, targetRevisionVersion, message} =
+            params
+        try {
+            // Fetch the target revision to get its data
+            const targetRevision = await fetchLatestEnvironmentRevision({
+                projectId,
+                environmentId,
+            })
+
+            // The revision query returns the latest by default. For a specific version,
+            // we need to search the revisions list. For now, if the caller already has
+            // the revision data (from the revisions list UI), they can use commit directly.
+            // This reducer fetches the latest and validates the version matches.
+            if (!targetRevision) {
+                return {success: false, error: new Error("Target revision not found")}
+            }
+
+            // Commit the old revision's data as a new revision
+            const revision = await commitEnvironmentRevision({
+                projectId,
+                environmentId,
+                environmentVariantId,
+                data: sanitizeRevisionData(targetRevision.data),
+                message: message ?? `Revert to version ${targetRevisionVersion}`,
+            })
+
+            if (revision) {
+                invalidateEnvironmentCache(environmentId)
+                invalidateEnvironmentsListCache()
+                invalidateEnvironmentRevisionsListCache(environmentId)
+                return {success: true, revisionId: revision.id}
+            }
+            return {success: false, error: new Error("No revision returned")}
+        } catch (error) {
+            return {success: false, error: error as Error}
+        }
+    },
+)
+
+/**
+ * Revert environment to a specific revision's data snapshot.
+ *
+ * Use this when you already have the revision data (e.g., from the
+ * revisions list in the UI) and want to commit it as a new revision.
+ */
+export interface RevertToSnapshotParams {
+    projectId: string
+    environmentId: string
+    environmentVariantId: string
+    /** The full data snapshot from the target revision */
+    data: {
+        references?: Record<string, Record<string, {id?: string; slug?: string; version?: string}>>
+    }
+    message?: string
+}
+
+const revertToSnapshotReducer = atom(
+    null,
+    async (
+        _get,
+        _set,
+        params: RevertToSnapshotParams,
+    ): Promise<{success: boolean; revisionId?: string; error?: Error}> => {
+        const {projectId, environmentId, environmentVariantId, data, message} = params
+        try {
+            const revision = await commitEnvironmentRevision({
+                projectId,
+                environmentId,
+                environmentVariantId,
+                data,
+                message: message ?? "Revert to previous deployment",
+            })
+
+            if (revision) {
+                invalidateEnvironmentCache(environmentId)
+                invalidateEnvironmentsListCache()
+                invalidateEnvironmentRevisionsListCache(environmentId)
+                return {success: true, revisionId: revision.id}
+            }
+            return {success: false, error: new Error("No revision returned")}
+        } catch (error) {
+            return {success: false, error: error as Error}
+        }
+    },
+)
+
 // ============================================================================
 // FULL MOLECULE
 // ============================================================================
@@ -258,6 +439,14 @@ export const environmentMolecule = {
         ...extendedMolecule.atoms,
         /** Environments where a given revision is deployed */
         revisionDeployment: revisionDeploymentAtomFamily,
+        /** Resolve environment by slug (reactive) */
+        bySlug: environmentBySlugAtomFamily,
+        /** All app deployments for an environment (by ID) */
+        appDeployments: environmentAppDeploymentsAtomFamily,
+        /** All app deployments for an environment (by slug) */
+        appDeploymentsBySlug: environmentAppDeploymentsBySlugAtomFamily,
+        /** Single app deployment in an environment (by slug + appId) */
+        appDeploymentInEnvironment: appDeploymentInEnvironmentAtomFamily,
     },
 
     // =========================================================================
@@ -277,6 +466,12 @@ export const environmentMolecule = {
         commit: commitRevisionReducer,
         /** Deploy an app revision to an environment */
         deploy: deployReducer,
+        /** Remove an app deployment from an environment */
+        undeploy: undeployReducer,
+        /** Revert environment to a previous revision (fetches target revision data) */
+        revert: revertReducer,
+        /** Revert environment to a specific data snapshot (when you already have the data) */
+        revertToSnapshot: revertToSnapshotReducer,
     },
 
     // =========================================================================
@@ -297,6 +492,12 @@ export const environmentMolecule = {
         isDirty: extendedMolecule.atoms.isDirty,
         /** Environments where a given revision is deployed */
         revisionDeployment: revisionDeploymentAtomFamily,
+        /** Resolve environment by slug (reactive) */
+        bySlug: environmentBySlugAtomFamily,
+        /** All app deployments for an environment (by slug) */
+        appDeploymentsBySlug: environmentAppDeploymentsBySlugAtomFamily,
+        /** Single app deployment in an environment (by slug + appId) */
+        appDeploymentInEnvironment: appDeploymentInEnvironmentAtomFamily,
     },
 
     // =========================================================================

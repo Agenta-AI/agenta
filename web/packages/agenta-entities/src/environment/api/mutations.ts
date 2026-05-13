@@ -6,6 +6,7 @@
  */
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {v4 as uuidv4} from "uuid"
 
 import {safeParseWithLogging} from "../../shared"
 import {
@@ -34,7 +35,7 @@ export async function createEnvironment(
     const {projectId, slug, name, description, flags, data} = params
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/environments/`,
+        `${getAgentaApiUrl()}/simple/environments/`,
         {
             environment: {
                 slug,
@@ -62,7 +63,7 @@ export async function editEnvironment(params: EditEnvironmentParams): Promise<En
     const {projectId, environmentId, name, description, flags, data} = params
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/preview/simple/environments/${environmentId}`,
+        `${getAgentaApiUrl()}/simple/environments/${environmentId}`,
         {
             environment: {
                 id: environmentId,
@@ -91,7 +92,7 @@ export async function archiveEnvironment(
     environmentId: string,
 ): Promise<Environment | null> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/environments/${environmentId}/archive`,
+        `${getAgentaApiUrl()}/simple/environments/${environmentId}/archive`,
         {},
         {params: {project_id: projectId}},
     )
@@ -112,7 +113,7 @@ export async function unarchiveEnvironment(
     environmentId: string,
 ): Promise<Environment | null> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/environments/${environmentId}/unarchive`,
+        `${getAgentaApiUrl()}/simple/environments/${environmentId}/unarchive`,
         {},
         {params: {project_id: projectId}},
     )
@@ -133,7 +134,7 @@ export async function guardEnvironment(
     environmentId: string,
 ): Promise<Environment | null> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/environments/${environmentId}/guard`,
+        `${getAgentaApiUrl()}/simple/environments/${environmentId}/guard`,
         {},
         {params: {project_id: projectId}},
     )
@@ -154,7 +155,7 @@ export async function unguardEnvironment(
     environmentId: string,
 ): Promise<Environment | null> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/environments/${environmentId}/unguard`,
+        `${getAgentaApiUrl()}/simple/environments/${environmentId}/unguard`,
         {},
         {params: {project_id: projectId}},
     )
@@ -182,10 +183,13 @@ export async function commitEnvironmentRevision(
 ): Promise<EnvironmentRevision | null> {
     const {projectId, environmentId, environmentVariantId, data, delta, message} = params
 
+    const slug = uuidv4().replace(/-/g, "").slice(-12)
+
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/environments/revisions/commit`,
+        `${getAgentaApiUrl()}/environments/revisions/commit`,
         {
             environment_revision_commit: {
+                slug,
                 environment_id: environmentId,
                 environment_variant_id: environmentVariantId,
                 data,

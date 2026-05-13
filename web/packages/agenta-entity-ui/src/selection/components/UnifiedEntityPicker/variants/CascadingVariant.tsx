@@ -39,6 +39,7 @@ import type {CascadingVariantProps} from "../types"
 export function CascadingVariant<TSelection = EntitySelectionResult>({
     adapter,
     onSelect,
+    onDeselect,
     instanceId,
     autoSelectByLevel,
     initialSelections,
@@ -56,6 +57,7 @@ export function CascadingVariant<TSelection = EntitySelectionResult>({
         adapter,
         instanceId,
         onSelect,
+        onDeselect,
         autoSelectByLevel,
         initialSelections,
     })

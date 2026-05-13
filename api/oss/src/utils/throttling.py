@@ -44,7 +44,7 @@ from enum import Enum
 
 from pydantic import BaseModel
 from redis.asyncio import Redis
-from redis.exceptions import ResponseError
+from redis.exceptions import RedisError, ResponseError
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
@@ -225,11 +225,6 @@ async def _with_script_retry(
             return await operation()
 
         # Re-raise other Redis errors
-        raise
-
-    except Exception:
-        # Unexpected errors (connection issues, etc.)
-        log.error(f"[throttle] [{operation_name}] Unexpected error", exc_info=True)
         raise
 
 
@@ -516,6 +511,14 @@ async def check_throttle(
 
             return _failure_result(key_str, failure_mode)
 
+    except RedisError:
+        log.warning(
+            "[throttle] Redis unavailable, applying throttle failure mode",
+            key=key_str,
+            failure_mode=failure_mode.value,
+        )
+        return _failure_result(key_str, failure_mode)
+
     except Exception:
         log.error("[throttle] Unexpected error", key=key_str, exc_info=True)
 
@@ -637,6 +640,14 @@ async def check_throttles(
             return await _execute_batch_pipeline(processed, algorithm)
 
         return await _with_script_retry(_do_batch, "batch")
+
+    except RedisError:
+        log.warning(
+            "[throttle] Redis unavailable, applying throttle failure mode",
+            failure_mode=failure_mode.value,
+            batch_size=len(processed),
+        )
+        return [_failure_result(ks, failure_mode) for _, ks, _, _ in processed]
 
     except Exception:
         log.error("[throttle] [batch] Unexpected error", exc_info=True)

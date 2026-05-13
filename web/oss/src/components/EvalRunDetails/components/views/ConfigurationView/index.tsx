@@ -122,10 +122,8 @@ const configurationRunSummaryAtomFamily = atomFamily(
                     resolveLabel(
                         variantApplicationRef?.name,
                         applicationRef?.name,
-                        applicationRef?.app_name,
                         variantApplicationRef?.slug,
                         applicationRef?.slug,
-                        applicationRef?.app_slug,
                     ) ?? undefined
                 )
             })()

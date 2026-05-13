@@ -28,12 +28,12 @@ Authorization: Access {{agenta_auth_key}}
 
 ###
 # @name list_providers
-GET {{agenta_api_url}}/preview/tools/catalog/providers/
+GET {{agenta_api_url}}/tools/catalog/providers/
 Authorization: {{authorization}}
 
 ###
 # @name get_provider
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio
+GET {{agenta_api_url}}/tools/catalog/providers/composio
 Authorization: {{authorization}}
 
 # =====================================================================
@@ -43,7 +43,7 @@ Authorization: {{authorization}}
 ###
 # @name list_integrations_page1
 # Our API — first page
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/?limit=20
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/?limit=20
 Authorization: {{authorization}}
 
 ###
@@ -59,7 +59,7 @@ x-api-key: {{composio_api_key}}
 ###
 # @name list_integrations_page2
 # Our API — next page
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/?limit=20&cursor={{integrations_next}}
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/?limit=20&cursor={{integrations_next}}
 Authorization: {{authorization}}
 
 ###
@@ -71,13 +71,13 @@ x-api-key: {{composio_api_key}}
 ###
 # @name list_integrations_search
 # Our API — client-side search (cursor suppressed when search is applied)
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/?search=gmail&limit=10
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/?search=gmail&limit=10
 Authorization: {{authorization}}
 
 ###
 # @name get_integration
 # Our API — single integration
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/gmail
 Authorization: {{authorization}}
 
 # =====================================================================
@@ -87,7 +87,7 @@ Authorization: {{authorization}}
 ###
 # @name list_actions_page1
 # Our API — first page; action keys have GMAIL_ prefix stripped
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/?limit=20
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/gmail/actions/?limit=20
 Authorization: {{authorization}}
 
 ###
@@ -103,7 +103,7 @@ x-api-key: {{composio_api_key}}
 ###
 # @name list_actions_page2
 # Our API — next page
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/?limit=20&cursor={{actions_next}}
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/gmail/actions/?limit=20&cursor={{actions_next}}
 Authorization: {{authorization}}
 
 ###
@@ -115,13 +115,13 @@ x-api-key: {{composio_api_key}}
 ###
 # @name list_actions_search
 # Our API — client-side search (cursor suppressed)
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/?search=send&limit=10
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/gmail/actions/?search=send&limit=10
 Authorization: {{authorization}}
 
 ###
 # @name get_action
 # Our API — use stripped key (GMAIL_ prefix removed by our parser)
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/SEND_EMAIL
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/gmail/actions/SEND_EMAIL
 Authorization: {{authorization}}
 
 ###
@@ -133,7 +133,7 @@ x-api-key: {{composio_api_key}}
 ###
 # @name get_action_github
 # Our API — stripped key
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/github/actions/CREATE_ISSUE
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/github/actions/CREATE_ISSUE
 Authorization: {{authorization}}
 
 ###

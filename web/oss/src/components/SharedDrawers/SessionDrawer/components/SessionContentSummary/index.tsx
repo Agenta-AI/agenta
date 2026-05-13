@@ -1,6 +1,5 @@
+import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import {Typography} from "antd"
-
-import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 
 import useSessionDrawer from "../../hooks/useSessionDrawer"
 

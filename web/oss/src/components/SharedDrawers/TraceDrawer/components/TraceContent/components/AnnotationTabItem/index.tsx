@@ -1,10 +1,12 @@
 import {useMemo} from "react"
 
+import {evaluatorsListDataAtom, resolveOutputSchemaProperties} from "@agenta/entities/workflow"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {ChatText} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Space, Table, Typography} from "antd"
 import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {
@@ -13,7 +15,6 @@ import {
 } from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/constants"
 import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {JSSTheme} from "@/oss/lib/Types"
 
 import NoTraceAnnotations from "../../../TraceSidePanel/TraceAnnotations/components/NoTraceAnnotations"
@@ -35,9 +36,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
     const classes = useStyles()
-    const {data: evaluators = []} = useEvaluators({
-        preview: true,
-    })
+    const evaluators = useAtomValue(evaluatorsListDataAtom)
 
     // Last minute changes to display multiselect values in the table. This is not the best way to do it but it works for now.
     const mergedAnnWithEvaluator = useMemo(() => {
@@ -46,8 +45,7 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
             const allAnnMetrics = {...outputs.metrics, ...outputs.notes, ...outputs.extra}
             const evaluator = evaluators.find((e) => e.slug === ann.references?.evaluator?.slug)
 
-            const evalMetricsSchema =
-                evaluator?.data?.service?.format?.properties?.outputs?.properties || {}
+            const evalMetricsSchema = resolveOutputSchemaProperties(evaluator?.data) ?? {}
 
             const grouped = Object.entries(allAnnMetrics).reduce(
                 (acc, [key, value]) => {

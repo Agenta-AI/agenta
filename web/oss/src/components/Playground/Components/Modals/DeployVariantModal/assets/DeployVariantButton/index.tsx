@@ -1,12 +1,12 @@
 import {cloneElement, isValidElement, useCallback, useMemo, useState} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule, workflowVariantsListDataAtomFamily} from "@agenta/entities/workflow"
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
-import {useEnvironments} from "@/oss/state/environment/hooks/useEnvironments"
+import {useAppEnvironments} from "@/oss/state/environment/useAppEnvironments"
 
 import {DeployVariantButtonProps} from "./types"
 
@@ -25,18 +25,20 @@ const DeployVariantButton = ({
         environments: _environments,
         mutate: mutateEnv,
         isEnvironmentsLoading,
-    } = useEnvironments()
+    } = useAppEnvironments()
 
-    // Use runnableBridge for entity-type-aware data access
-    const runnableData = useAtomValue(runnableBridge.data(revisionId || ""))
+    const runnableData = useAtomValue(workflowMolecule.selectors.data(revisionId || ""))
+    const workflowId = runnableData?.workflow_id || ""
+    const variants = useAtomValue(workflowVariantsListDataAtomFamily(workflowId))
 
     const {environments, variantName, revision} = useMemo(() => {
+        const variantEntity = variants.find((v) => v.id === runnableData?.workflow_variant_id)
         return {
-            variantName: runnableData?.name || "",
+            variantName: variantEntity?.name || runnableData?.name || "",
             revision: runnableData?.version ?? "",
             environments: _environments,
         }
-    }, [runnableData, _environments])
+    }, [runnableData, variants, _environments])
 
     const onSuccess = useCallback(async () => {
         await mutateEnv()

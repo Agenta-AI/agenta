@@ -1,0 +1,118 @@
+---
+title: Configure SSO Authentication
+sidebar_label: Configure SSO
+description: Set up Single Sign-On with Okta, Azure AD, or BoxySAML for your self-hosted Agenta Enterprise deployment
+---
+
+import Admonition from "@theme/Admonition";
+
+<Admonition type="warning" title="Enterprise Feature">
+SSO authentication requires an Agenta Enterprise license. <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo">Book a demo</a> or <a href="mailto:team@agenta.ai">contact our team</a> to get started.
+</Admonition>
+
+<Admonition type="info" title="Deployment-wide configuration">
+This guide covers setting up SSO at the deployment level via environment variables. The configured providers will be available to all users on the login page. Once signed in, organization owners can further control which authentication methods are allowed per organization (SSO-only, disable password login, restrict to verified domains, etc.) from <strong>Settings → Access & Security</strong>. See the <a href="/administration/access-control/sso">SSO administration guide</a> for details.
+</Admonition>
+
+Agenta supports Single Sign-On (SSO) through OpenID Connect (OIDC) providers. When you configure an SSO provider's environment variables, the corresponding login button automatically appears on the sign-in page.
+
+## Supported SSO Providers
+
+| Provider | Protocol | Required Variables |
+|----------|----------|-------------------|
+| [Okta](#okta) | OIDC | `OKTA_OAUTH_CLIENT_ID`, `OKTA_OAUTH_CLIENT_SECRET`, `OKTA_DOMAIN` |
+| [Azure AD](#azure-ad) | OIDC | `AZURE_AD_OAUTH_CLIENT_ID`, `AZURE_AD_OAUTH_CLIENT_SECRET`, `AZURE_AD_DIRECTORY_ID` |
+| [BoxySAML](#boxyhq-saml) | SAML (via BoxyHQ) | `BOXY_SAML_OAUTH_CLIENT_ID`, `BOXY_SAML_OAUTH_CLIENT_SECRET`, `BOXY_SAML_URL` |
+
+## Okta
+
+### 1. Create an application in Okta
+
+1. Sign in to your [Okta Admin Console](https://login.okta.com/)
+2. Navigate to **Applications** → **Applications** → **Create App Integration**
+3. Select **OIDC - OpenID Connect** as the sign-in method
+4. Select **Web Application** as the application type
+5. Configure the application:
+   - **App integration name**: `Agenta` (or your preferred name)
+   - **Grant type**: Authorization Code
+   - **Sign-in redirect URI**: `https://<your-agenta-domain>/auth/callback/okta`
+   - **Sign-out redirect URI**: `https://<your-agenta-domain>`
+6. Under **Assignments**, select who can access the application (e.g., specific groups or everyone)
+7. Click **Save**
+8. Copy the **Client ID** and **Client Secret** from the application settings
+9. Note your **Okta domain** (e.g., `dev-12345.okta.com` or `your-company.okta.com`)
+
+### 2. Set environment variables
+
+Add the following to your `.env` file or docker-compose configuration:
+
+```bash
+OKTA_OAUTH_CLIENT_ID=your-client-id
+OKTA_OAUTH_CLIENT_SECRET=your-client-secret
+OKTA_DOMAIN=your-okta-domain.okta.com
+```
+
+### 3. Restart Agenta
+
+Restart your Agenta deployment. The **"Continue with Okta"** button will appear on the login page.
+
+<Admonition type="warning" title="Callback URL">
+The sign-in redirect URI configured in Okta must exactly match <code>https://&lt;your-agenta-domain&gt;/auth/callback/okta</code>. If you're running locally without SSL, use <code>http://</code> instead. No trailing slash.
+</Admonition>
+
+## Azure AD
+
+### 1. Register an application in Azure
+
+1. Sign in to the [Azure Portal](https://portal.azure.com/)
+2. Navigate to **Azure Active Directory** → **App registrations** → **New registration**
+3. Configure:
+   - **Name**: `Agenta`
+   - **Supported account types**: Choose based on your requirements
+   - **Redirect URI**: Select **Web** and enter `https://<your-agenta-domain>/auth/callback/azure-ad`
+4. Click **Register**
+5. Copy the **Application (client) ID** and **Directory (tenant) ID**
+6. Navigate to **Certificates & secrets** → **New client secret**
+7. Copy the **Secret Value**
+
+### 2. Set environment variables
+
+```bash
+AZURE_AD_OAUTH_CLIENT_ID=your-application-client-id
+AZURE_AD_OAUTH_CLIENT_SECRET=your-client-secret-value
+AZURE_AD_DIRECTORY_ID=your-directory-tenant-id
+```
+
+### 3. Restart Agenta
+
+Restart your deployment. The **"Continue with Azure AD"** button will appear on the login page.
+
+## BoxyHQ SAML
+
+BoxyHQ provides a SAML-to-OIDC bridge, allowing Agenta to support any SAML 2.0 identity provider.
+
+### 1. Set up BoxyHQ SAML Jackson
+
+Follow the [BoxyHQ SAML Jackson documentation](https://boxyhq.com/docs/jackson/overview) to deploy and configure the SAML bridge with your identity provider.
+
+### 2. Set environment variables
+
+```bash
+BOXY_SAML_OAUTH_CLIENT_ID=your-boxy-client-id
+BOXY_SAML_OAUTH_CLIENT_SECRET=your-boxy-client-secret
+BOXY_SAML_URL=https://your-boxy-instance.com
+```
+
+### 3. Restart Agenta
+
+Restart your deployment. The SAML login option will appear on the login page.
+
+## Disabling password login
+
+If you want users to authenticate exclusively through SSO, you can disable email/password login by setting:
+
+```bash
+SUPERTOKENS_EMAIL_DISABLED=true
+```
+
+With this set, the login page will only show the SSO and OAuth buttons you have configured. Make sure you have at least one SSO or OAuth provider configured before disabling email login, otherwise users will have no way to sign in.
