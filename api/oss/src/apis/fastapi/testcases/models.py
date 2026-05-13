@@ -3,7 +3,6 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
@@ -11,7 +10,6 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.testcases.dtos import (
     Testcase,
 )
-
 
 # TESTCASES --------------------------------------------------------------------
 

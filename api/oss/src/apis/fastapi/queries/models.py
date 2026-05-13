@@ -2,7 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-
 from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
@@ -30,7 +29,6 @@ from oss.src.core.queries.dtos import (
     SimpleQueryEdit,
     SimpleQueryQuery,
 )
-
 
 # QUERIES ----------------------------------------------------------------------
 

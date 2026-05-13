@@ -4,7 +4,6 @@ from uuid import UUID
 from pydantic import BaseModel
 from fastapi import HTTPException
 
-
 from oss.src.core.folders.types import (
     Folder,
     FolderCreate,

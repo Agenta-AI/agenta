@@ -2,7 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
@@ -40,7 +39,6 @@ from oss.src.core.embeds.dtos import (
     ErrorPolicy,
     ResolutionInfo,
 )
-
 
 # WORKFLOWS --------------------------------------------------------------------
 

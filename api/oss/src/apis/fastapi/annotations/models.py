@@ -2,7 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-
 from oss.src.core.shared.dtos import (
     Link,
     Windowing,
@@ -13,7 +12,6 @@ from oss.src.core.annotations.types import (
     AnnotationEdit,
     AnnotationQuery,
 )
-
 
 # ANNOTATIONS ------------------------------------------------------------------
 

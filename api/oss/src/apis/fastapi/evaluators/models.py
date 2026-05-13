@@ -2,7 +2,6 @@ from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel
 
-
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
@@ -40,7 +39,6 @@ from oss.src.core.evaluators.dtos import (
     EvaluatorCatalogTemplate,
     EvaluatorCatalogPreset,
 )
-
 
 # EVALUATORS -------------------------------------------------------------------
 

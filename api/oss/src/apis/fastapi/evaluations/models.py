@@ -4,7 +4,6 @@ from uuid import UUID
 from pydantic import BaseModel, model_validator
 from fastapi import HTTPException
 
-
 from oss.src.core.shared.dtos import (
     Windowing,
 )
