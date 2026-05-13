@@ -195,7 +195,7 @@ The legacy `STRIPE_PRICING` / `AGENTA_PRICING` variables are no longer read.
 A converter script ships in the design folder:
 
 ```bash
-STRIPE_PRICING='<old json>' python docs/designs/dynamic-entitlements/migrate_stripe_pricing.py \
+STRIPE_PRICING='<old json>' python docs/designs/dynamic-access-and-billing/migrate_stripe_pricing.py \
     --env STRIPE_PRICING \
     --free cloud_v0_hobby \
     --pretty
