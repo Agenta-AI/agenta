@@ -34,6 +34,10 @@ from oss.src.apis.fastapi.tracing.models import (
     UsersQueryRequest,
     UserIdsResponse,
 )
+from oss.src.core.events.utils import (
+    publish_trace_fetched,
+    publish_trace_queried,
+)
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.utils.parsing import parse_trace_id_to_uuid
 from oss.src.core.tracing.utils.trees import traces_to_trace_map
@@ -1234,7 +1238,19 @@ class TracesRouter:
         except FilteringException as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-        return TracesResponse(count=len(traces), traces=traces)
+        traces_response = TracesResponse(count=len(traces), traces=traces)
+
+        trace_ids = [
+            getattr(trace, "trace_id", None) for trace in (traces_response.traces or [])
+        ]
+        trace_ids = [t for t in trace_ids if t is not None]
+        await publish_trace_queried(
+            request=request,
+            count=traces_response.count,
+            trace_ids=trace_ids,
+        )
+
+        return traces_response
 
     @intercept_exceptions()
     async def create_trace(
@@ -1455,10 +1471,22 @@ class TracesRouter:
         except TypeError as e:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
-        return TracesResponse(
+        traces_response = TracesResponse(
             count=len(traces_list),
             traces=traces_list,
         )
+
+        trace_ids_out = [
+            getattr(trace, "trace_id", None) for trace in (traces_response.traces or [])
+        ]
+        trace_ids_out = [t for t in trace_ids_out if t is not None]
+        await publish_trace_fetched(
+            request=request,
+            count=traces_response.count,
+            trace_ids=trace_ids_out,
+        )
+
+        return traces_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=TraceResponse(), exclude=[HTTPException])
@@ -1490,10 +1518,23 @@ class TracesRouter:
         except TypeError as e:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
-        return TraceResponse(
+        trace_response = TraceResponse(
             count=1 if trace else 0,
             trace=trace,
         )
+
+        resolved_trace_id = (
+            getattr(trace_response.trace, "trace_id", None)
+            if trace_response.trace
+            else None
+        )
+        await publish_trace_fetched(
+            request=request,
+            count=trace_response.count,
+            trace_id=resolved_trace_id,
+        )
+
+        return trace_response
 
     @intercept_exceptions()
     async def delete_trace(  # DELETE

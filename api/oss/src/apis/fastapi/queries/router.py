@@ -8,6 +8,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache
 
+from oss.src.core.events.utils import publish_revision_event
+
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -733,6 +735,14 @@ class QueriesRouter:
             query_revision=query_revision,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="query",
+            action="fetch",
+            revision=query_revision_response.query_revision,
+            count=query_revision_response.count,
+        )
+
         return query_revision_response
 
     @intercept_exceptions()
@@ -862,6 +872,14 @@ class QueriesRouter:
             query_revisions=query_revisions,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="query",
+            action="query",
+            revisions=query_revisions_response.query_revisions or [],
+            count=query_revisions_response.count,
+        )
+
         return query_revisions_response
 
     @intercept_exceptions()
@@ -891,6 +909,14 @@ class QueriesRouter:
             query_revision=query_revision,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="query",
+            action="commit",
+            revision=query_revision_response.query_revision,
+            message=query_revision_commit_request.query_revision_commit.message,
+        )
+
         return query_revision_response
 
     @intercept_exceptions()
@@ -918,6 +944,14 @@ class QueriesRouter:
         revisions_response = QueryRevisionsResponse(
             count=len(query_revisions),
             query_revisions=query_revisions,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="query",
+            action="log",
+            revisions=revisions_response.query_revisions or [],
+            count=revisions_response.count,
         )
 
         return revisions_response
@@ -1010,6 +1044,14 @@ class QueriesRouter:
         query_revision_response = QueryRevisionResponse(
             count=1 if query_revision else 0,
             query_revision=query_revision,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="query",
+            action="retrieve",
+            revision=query_revision_response.query_revision,
+            count=query_revision_response.count,
         )
 
         return query_revision_response

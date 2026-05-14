@@ -27,6 +27,7 @@ from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import set_cache, get_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
+from oss.src.core.events.utils import publish_revision_event
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -957,6 +958,14 @@ class TestsetsRouter:
             testset_revision=testset_revision,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="testset",
+            action="fetch",
+            revision=testset_revision_response.testset_revision,
+            count=testset_revision_response.count,
+        )
+
         return testset_revision_response
 
     @intercept_exceptions()
@@ -1301,6 +1310,14 @@ class TestsetsRouter:
             testset_revisions=testset_revisions,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="testset",
+            action="query",
+            revisions=testset_revisions_response.testset_revisions or [],
+            count=testset_revisions_response.count,
+        )
+
         return testset_revisions_response
 
     @intercept_exceptions()
@@ -1341,6 +1358,14 @@ class TestsetsRouter:
         testset_revision_response = TestsetRevisionResponse(
             count=1 if testset_revision else 0,
             testset_revision=testset_revision,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="testset",
+            action="commit",
+            revision=testset_revision_response.testset_revision,
+            message=commit.message,
         )
 
         return testset_revision_response
@@ -1428,6 +1453,14 @@ class TestsetsRouter:
             testset_revision=testset_revision,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="testset",
+            action="retrieve",
+            revision=testset_revision_response.testset_revision,
+            count=testset_revision_response.count,
+        )
+
         return testset_revision_response
 
     @intercept_exceptions()
@@ -1456,6 +1489,14 @@ class TestsetsRouter:
         testset_revisions_response = TestsetRevisionsResponse(
             count=len(testset_revisions),
             testset_revisions=testset_revisions,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="testset",
+            action="log",
+            revisions=testset_revisions_response.testset_revisions or [],
+            count=testset_revisions_response.count,
         )
 
         return testset_revisions_response

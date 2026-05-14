@@ -8,6 +8,10 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
+from oss.src.core.events.utils import (
+    publish_testcase_fetched,
+    publish_testcase_queried,
+)
 from oss.src.core.shared.dtos import Windowing
 
 from oss.src.core.testcases.service import (
@@ -119,10 +123,20 @@ class TestcasesRouter:
             windowing=None,
         )
 
-        return TestcasesResponse(
+        response = TestcasesResponse(
             count=len(testcases),
             testcases=testcases if testcases else [],
         )
+
+        returned_ids = [getattr(tc, "id", None) for tc in (response.testcases or [])]
+        returned_ids = [t for t in returned_ids if t is not None]
+        await publish_testcase_fetched(
+            request=request,
+            count=response.count,
+            testcase_ids=returned_ids,
+        )
+
+        return response
 
     @intercept_exceptions()
     @suppress_exceptions(default=TestcaseResponse(), exclude=[HTTPException])
@@ -151,6 +165,17 @@ class TestcasesRouter:
         testcase_response = TestcaseResponse(
             count=1 if testcase else 0,
             testcase=testcase,
+        )
+
+        resolved_id = (
+            getattr(testcase_response.testcase, "id", None)
+            if testcase_response.testcase
+            else None
+        )
+        await publish_testcase_fetched(
+            request=request,
+            count=testcase_response.count,
+            testcase_id=resolved_id,
         )
 
         return testcase_response
@@ -245,6 +270,16 @@ class TestcasesRouter:
             count=len(testcases),
             testcases=testcases if testcases else [],
             windowing=next_windowing,
+        )
+
+        returned_ids = [
+            getattr(tc, "id", None) for tc in (testcase_response.testcases or [])
+        ]
+        returned_ids = [t for t in returned_ids if t is not None]
+        await publish_testcase_queried(
+            request=request,
+            count=testcase_response.count,
+            testcase_ids=returned_ids,
         )
 
         return testcase_response

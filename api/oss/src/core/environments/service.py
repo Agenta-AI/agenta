@@ -1,8 +1,6 @@
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
-import uuid_utils.compat as uuid_compat
 from pydantic import BaseModel
 
 from oss.src.core.environments.dtos import (
@@ -36,9 +34,7 @@ from oss.src.core.embeds.dtos import (
     ResolutionInfo,
 )
 
-from oss.src.core.events.dtos import Event
-from oss.src.core.events.streaming import publish_event
-from oss.src.core.events.types import EventType, RequestType
+from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
@@ -980,47 +976,18 @@ class EnvironmentsService:
             new=current_references,
         )
 
-        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
-        request_id = uuid_compat.uuid7()
-        event_id = uuid_compat.uuid7()
-
-        request_type = RequestType.UNKNOWN
-        event_type = EventType.ENVIRONMENTS_REVISIONS_COMMITTED
-
-        timestamp = datetime.now(timezone.utc)
-
-        attributes = dict(
-            user_id=str(user_id),
-            references=dict(
-                environment=dict(
-                    id=str(environment_revision.environment_id),
-                ),
-                environment_variant=dict(
-                    id=str(environment_revision.environment_variant_id),
-                ),
-                environment_revision=dict(
-                    id=str(environment_revision.id),
-                    slug=environment_revision.slug,
-                    version=environment_revision.version,
-                ),
-            ),
-            state=current_state,
-            diff=references_diff,
-        )
-        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
-
-        event = Event(
-            request_id=request_id,
-            event_id=event_id,
-            request_type=request_type,
-            event_type=event_type,
-            timestamp=timestamp,
-            attributes=attributes,
-        )
-
-        await publish_event(
+        await publish_revision_event(
+            domain="environment",
+            action="commit",
+            organization_id=None,
             project_id=project_id,
-            event=event,
+            user_id=user_id,
+            revision=environment_revision,
+            message=environment_revision_commit.message,
+            extra={
+                "state": current_state,
+                "diff": references_diff,
+            },
         )
 
         return environment_revision

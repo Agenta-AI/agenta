@@ -8,6 +8,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
 
+from oss.src.core.events.utils import publish_revision_event
+
 from oss.src.core.git.types import VariantForkError
 from oss.src.core.shared.dtos import (
     Reference,
@@ -1256,6 +1258,14 @@ class EvaluatorsRouter:
             resolution_info=resolution_info,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="evaluator",
+            action="retrieve",
+            revision=evaluator_revision_response.evaluator_revision,
+            count=evaluator_revision_response.count,
+        )
+
         return evaluator_revision_response
 
     @intercept_exceptions()
@@ -1307,10 +1317,20 @@ class EvaluatorsRouter:
             evaluator_revision_ref=Reference(id=evaluator_revision_id),
         )
 
-        return EvaluatorRevisionResponse(
+        response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
             evaluator_revision=evaluator_revision,
         )
+
+        await publish_revision_event(
+            request=request,
+            domain="evaluator",
+            action="fetch",
+            revision=response.evaluator_revision,
+            count=response.count,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def edit_evaluator_revision(
@@ -1447,10 +1467,20 @@ class EvaluatorsRouter:
                             f"Failed to resolve embeds for revision {revision.id}: {e}"
                         )
 
-        return EvaluatorRevisionsResponse(
+        response = EvaluatorRevisionsResponse(
             count=len(evaluator_revisions),
             evaluator_revisions=evaluator_revisions,
         )
+
+        await publish_revision_event(
+            request=request,
+            domain="evaluator",
+            action="query",
+            revisions=response.evaluator_revisions or [],
+            count=response.count,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def commit_evaluator_revision(
@@ -1474,10 +1504,20 @@ class EvaluatorsRouter:
             evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision_commit,
         )
 
-        return EvaluatorRevisionResponse(
+        response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
             evaluator_revision=evaluator_revision,
         )
+
+        await publish_revision_event(
+            request=request,
+            domain="evaluator",
+            action="commit",
+            revision=response.evaluator_revision,
+            message=evaluator_revision_commit_request.evaluator_revision_commit.message,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def log_evaluator_revisions(
@@ -1503,6 +1543,14 @@ class EvaluatorsRouter:
         revisions_response = EvaluatorRevisionsResponse(
             count=len(evaluator_revisions),
             evaluator_revisions=evaluator_revisions,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="evaluator",
+            action="log",
+            revisions=revisions_response.evaluator_revisions or [],
+            count=revisions_response.count,
         )
 
         return revisions_response

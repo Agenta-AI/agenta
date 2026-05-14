@@ -7,6 +7,8 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
+from oss.src.core.events.utils import publish_revision_event
+
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -766,6 +768,14 @@ class EnvironmentsRouter:
             resolution_info=resolution_info,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="environment",
+            action="retrieve",
+            revision=environment_revision_response.environment_revision,
+            count=environment_revision_response.count,
+        )
+
         return environment_revision_response
 
     @intercept_exceptions()
@@ -878,10 +888,20 @@ class EnvironmentsRouter:
             )
         )
 
-        return EnvironmentRevisionResponse(
+        response = EnvironmentRevisionResponse(
             count=1 if environment_revision else 0,
             environment_revision=environment_revision,
         )
+
+        await publish_revision_event(
+            request=request,
+            domain="environment",
+            action="fetch",
+            revision=response.environment_revision,
+            count=response.count,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def edit_environment_revision(
@@ -1051,10 +1071,20 @@ class EnvironmentsRouter:
                             f"Failed to resolve embeds for revision {revision.id}: {e}"
                         )
 
-        return EnvironmentRevisionsResponse(
+        response = EnvironmentRevisionsResponse(
             count=len(environment_revisions),
             environment_revisions=environment_revisions,
         )
+
+        await publish_revision_event(
+            request=request,
+            domain="environment",
+            action="query",
+            revisions=response.environment_revisions or [],
+            count=response.count,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def commit_environment_revision(
@@ -1132,6 +1162,14 @@ class EnvironmentsRouter:
         revisions_response = EnvironmentRevisionsResponse(
             count=len(environment_revisions),
             environment_revisions=environment_revisions,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="environment",
+            action="log",
+            revisions=revisions_response.environment_revisions or [],
+            count=revisions_response.count,
         )
 
         return revisions_response
