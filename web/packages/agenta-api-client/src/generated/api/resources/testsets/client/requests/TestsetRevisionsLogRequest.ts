@@ -9,6 +9,8 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface TestsetRevisionsLogRequest {
+    /** Scope for the log: one of `testset_id`, `testset_variant_id`, or `testset_revision_id`. Optional `depth` limits how far back to walk. */
     testset_revision: AgentaApi.TestsetRevisionsLog;
+    /** Include full testcase objects for each returned revision. */
     include_testcases?: boolean | null;
 }

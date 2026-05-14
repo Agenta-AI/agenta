@@ -12,9 +12,21 @@ from .workflow import Workflow
 class WorkflowsResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    workflows: typing.Optional[typing.List[Workflow]] = None
-    windowing: typing.Optional[Windowing] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of workflows in this page.
+    """
+    
+    workflows: typing.Optional[typing.List[Workflow]] = pydantic.Field(default=None)
+    """
+    Workflow artifacts matching the query.
+    """
+    
+    windowing: typing.Optional[Windowing] = pydantic.Field(default=None)
+    """
+    Pagination cursor; pass `windowing.next` back to fetch the following page.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

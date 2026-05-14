@@ -7,11 +7,18 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface EvaluatorRevisionQueryRequest {
+    /** Filter on revision attributes. */
     evaluator_revision?: AgentaApi.EvaluatorRevisionQuery | null;
+    /** Restrict to revisions under these evaluators. */
     evaluator_refs?: AgentaApi.Reference[] | null;
+    /** Restrict to revisions under these variants. */
     evaluator_variant_refs?: AgentaApi.Reference[] | null;
+    /** Restrict to these specific revisions. */
     evaluator_revision_refs?: AgentaApi.Reference[] | null;
+    /** When true, include soft-deleted revisions. */
     include_archived?: boolean | null;
+    /** Cursor-based pagination controls. */
     windowing?: AgentaApi.Windowing | null;
+    /** When true, resolve embedded references on each returned revision's `data`. */
     resolve?: boolean | null;
 }

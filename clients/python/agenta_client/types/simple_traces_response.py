@@ -9,10 +9,21 @@ from .simple_trace import SimpleTrace
 
 
 class SimpleTracesResponse(UniversalBaseModel):
+    """
+    Response from `POST /simple/traces/query`.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    traces: typing.Optional[typing.List[SimpleTrace]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of matching traces in this page.
+    """
+    
+    traces: typing.Optional[typing.List[SimpleTrace]] = pydantic.Field(default=None)
+    """
+    The matching traces in the high-level `SimpleTrace` shape.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -9,10 +9,21 @@ from .simple_application import SimpleApplication
 
 
 class SimpleApplicationResponse(UniversalBaseModel):
+    """
+    Simple-application single-row response envelope.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    application: typing.Optional[SimpleApplication] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` when the application was found, `0` otherwise.
+    """
+    
+    application: typing.Optional[SimpleApplication] = pydantic.Field(default=None)
+    """
+    The application with `variant_id`, `revision_id`, and the revision's `data` merged. `data.url` is the invocation URL.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -12,11 +12,31 @@ from .spans_tree_output import SpansTreeOutput
 
 
 class OTelTracingResponse(UniversalBaseModel):
+    """
+    Response from span/trace queries.
+    
+    Exactly one of `spans` or `traces` is populated, controlled by the
+    `focus` field in the request (`"span"` for flat lists, `"trace"` for
+    nested trees). The shapes here match what the ingest endpoint accepts,
+    so you can round-trip data between environments.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    spans: typing.Optional[typing.List[SpanOutput]] = None
-    traces: typing.Optional[typing.Dict[str, typing.Optional[SpansTreeOutput]]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Total number of matching traces or spans in the window.
+    """
+    
+    spans: typing.Optional[typing.List[SpanOutput]] = pydantic.Field(default=None)
+    """
+    Flat list of spans, populated when the query was run with `focus="span"`.
+    """
+    
+    traces: typing.Optional[typing.Dict[str, typing.Optional[SpansTreeOutput]]] = pydantic.Field(default=None)
+    """
+    Nested tree of spans keyed by `trace_id` → span name, populated when the query was run with `focus="trace"` (default).
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

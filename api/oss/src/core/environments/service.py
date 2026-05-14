@@ -976,6 +976,16 @@ class EnvironmentsService:
             new=current_references,
         )
 
+        # Write-action emission lives in the SERVICE layer (read actions live
+        # in the router). Every caller of commit_environment_revision — direct
+        # commit route, deploy paths from applications/evaluators/workflows
+        # routers, defaults seeding, delta commits that re-enter this method,
+        # etc. — therefore emits exactly one `environments.revisions.committed`
+        # event. This was the original precedent for the read-vs-write split;
+        # see core/events/utils.py for the full rationale.
+        #
+        # The `extra` kwarg carries the environment-specific `state` and `diff`
+        # attributes that this event has always had.
         await publish_revision_event(
             domain="environment",
             action="commit",

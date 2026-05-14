@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface ApplicationRevisionEditRequest {
     application_revision_id: string;
+    /** Full revision body. Edit replaces the editable fields in a single PUT, so include every editable field even if its value is unchanged. `id` must match the `application_revision_id` in the URL path. `data`, `author`, `date`, and `message` are immutable. */
     application_revision: AgentaApi.ApplicationRevisionEdit;
 }

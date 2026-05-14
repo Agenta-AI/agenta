@@ -7,6 +7,8 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface UsersQueryRequest {
+    /** When `true`, paginate by `last_active`. When `false` or unset, paginate by the stable `first_active` cursor. */
     realtime?: boolean | null;
+    /** Cursor pagination and time range. */
     windowing?: AgentaApi.Windowing | null;
 }

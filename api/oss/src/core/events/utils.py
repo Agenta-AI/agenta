@@ -7,6 +7,89 @@ These utilities build `Event` objects and publish them through
 - testcases.fetched, testcases.queried
 - <domain>.revisions.{retrieved,fetched,queried,logged,committed}
 
+============================================================================
+WHERE TO EMIT — CANONICAL POLICY (read this before adding a new call site)
+============================================================================
+
+The emission point is *intentionally asymmetric* between read actions and
+write actions.
+
+  read action   →  emit at the **router** (after the response is materialized)
+  write action  →  emit at the **service** (at the operation's seam, e.g.
+                   inside `commit_*_revision`)
+
+Currently in scope:
+
+  read actions:  retrieve, fetch, query, log
+  write actions: commit
+                 (future writes — archive, unarchive, etc. — should follow
+                  the same service-layer rule when they are instrumented)
+
+### Why reads emit from the ROUTER layer
+
+  publish_trace_fetched / publish_trace_queried
+  publish_testcase_fetched / publish_testcase_queried
+  publish_revision_event(action="retrieve" | "fetch" | "query" | "log")
+
+Service methods like `fetch_query_revision`, `fetch_application_revision`,
+`fetch_evaluator_revision`, `fetch_environment_revision`, and the matching
+`query_*_revisions` are called both:
+
+  1. directly by router handlers (user-initiated read — should emit)
+  2. internally by other services to resolve refs / hydrate state
+     (NOT user-initiated — must NOT emit)
+
+Examples of (2) that would produce spurious events if reads emitted in the
+service layer:
+
+  - `EnvironmentsService.commit_environment_revision` calls
+    `self.query_environment_revisions` to compute the diff. Every commit
+    would also fire `environments.revisions.queried`.
+  - `TracingService.query_traces` calls `queries_service.fetch_query_revision`
+    to resolve the saved query. Every trace query that uses a saved query
+    would falsely fire `queries.revisions.fetched`.
+  - Evaluation runs call `fetch_query_revision`, `fetch_application_revision`,
+    `fetch_evaluator_revision` many times per scenario. One evaluation
+    request would produce hundreds of stray `*.revisions.fetched` events.
+
+Keeping read emission at the router boundary keeps the event about API
+retrieval — not low-level helper activity — and avoids double counting
+nested service calls.
+
+### Why writes emit from the SERVICE layer
+
+  publish_revision_event(action="commit", project_id=..., user_id=..., ...)
+
+  Service-layer commit sites (one per domain):
+    - core/applications/service.py::commit_application_revision
+    - core/queries/service.py::commit_query_revision
+    - core/testsets/service.py::commit_testset_revision
+    - core/evaluators/service.py::commit_evaluator_revision
+    - core/environments/service.py::commit_environment_revision
+
+A write action is *always* a deliberate user-initiated state transition.
+There is no "internal write happening as a side effect of a read" pattern
+in this codebase. Every caller of `commit_*_revision()` — direct commit
+route, simple-service create/edit, deploy paths, fork, defaults seeding —
+is a real commit that should emit exactly one event.
+
+If write emission lived at the router, the simple-service create/edit
+paths and the deploy paths (which call commit through the service without
+hitting `/<domain>/revisions/commit`) would silently miss the event.
+
+### Adding a new call site
+
+When adding a new domain or call site, follow this split. If you find a new
+internal caller of a read method, you do nothing — internal callers are
+already silent by virtue of where emission lives. If you find a new external
+path that lands in `commit_*_revision`, you do nothing — service-layer
+emission already covers it.
+
+For a new write action (e.g. `archive_*_revision`), emit from the service
+method, not the router.
+
+============================================================================
+
 Behavior:
 
 - Build the `Event` envelope with a generated `request_id`/`event_id`,
@@ -502,6 +585,17 @@ async def publish_revision_event(
     extra: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Build and publish a revision event for the given domain/action.
+
+    EMISSION-LAYER RULE (see module docstring for the full rationale):
+
+      read action  (retrieve/fetch/query/log)  →  call from the ROUTER
+      write action (commit, future writes)     →  call from the SERVICE
+        (inside the domain's commit_*_revision method)
+
+    Read calls pass `request`; write calls pass explicit `project_id` /
+    `user_id` (since service-layer code does not have a `Request` object). Do
+    not call this helper from a service method for a read action — internal
+    lookups happen all the time and would produce duplicate/spurious events.
 
     Pass either `request` (router-layer call) OR explicit scope arguments
     (service-layer call like environments commit).

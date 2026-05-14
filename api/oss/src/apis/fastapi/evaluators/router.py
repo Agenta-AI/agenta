@@ -123,6 +123,12 @@ def _registry_entry_to_catalog_template(
 
 
 class EvaluatorsRouter:
+    # `evaluators.revisions.{retrieved,fetched,queried,logged}` READ events
+    # are emitted from this router after each handler materializes its
+    # response. `evaluators.revisions.committed` is a WRITE event and is
+    # emitted from `EvaluatorsService.commit_evaluator_revision`, not from
+    # this router. See core/events/utils.py module docstring for the
+    # read-vs-write split rationale.
     def __init__(
         self,
         *,
@@ -1509,13 +1515,7 @@ class EvaluatorsRouter:
             evaluator_revision=evaluator_revision,
         )
 
-        await publish_revision_event(
-            request=request,
-            domain="evaluator",
-            action="commit",
-            revision=response.evaluator_revision,
-            message=evaluator_revision_commit_request.evaluator_revision_commit.message,
-        )
+        # commit emission lives in EvaluatorsService.commit_evaluator_revision
 
         return response
 

@@ -79,6 +79,12 @@ log = get_module_logger(__name__)
 
 
 class EnvironmentsRouter:
+    # `environments.revisions.{retrieved,fetched,queried,logged}` READ events
+    # are emitted from this router after each handler materializes its
+    # response. `environments.revisions.committed` is a WRITE event and is
+    # emitted from `EnvironmentsService.commit_environment_revision`, not
+    # from this router. (This was the original precedent for the read-vs-write
+    # split.) See core/events/utils.py module docstring for the rationale.
     def __init__(
         self,
         *,

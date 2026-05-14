@@ -253,6 +253,12 @@ def _build_testcase_export_row(testcase: Any) -> Dict[str, Any]:
 
 
 class TestsetsRouter:
+    # `testsets.revisions.{retrieved,fetched,queried,logged}` READ events are
+    # emitted from this router after each handler materializes its response.
+    # `testsets.revisions.committed` is a WRITE event and is emitted from
+    # `TestsetsService.commit_testset_revision`, not from this router. See
+    # core/events/utils.py module docstring for the read-vs-write split
+    # rationale.
     TESTCASES_FLAGS = TestsetFlags(
         has_testcases=True,
         has_traces=False,
@@ -1360,13 +1366,7 @@ class TestsetsRouter:
             testset_revision=testset_revision,
         )
 
-        await publish_revision_event(
-            request=request,
-            domain="testset",
-            action="commit",
-            revision=testset_revision_response.testset_revision,
-            message=commit.message,
-        )
+        # commit emission lives in TestsetsService.commit_testset_revision
 
         return testset_revision_response
 

@@ -1062,6 +1062,10 @@ class SpansRouter:
 
 
 class TracesRouter:
+    # Trace READ events (`traces.fetched` / `traces.queried`) are emitted from
+    # the router boundary, after the response is materialized. This is the
+    # canonical place for read emission — see core/events/utils.py module
+    # docstring for why reads emit at the router and writes emit at the service.
     def __init__(
         self,
         *,

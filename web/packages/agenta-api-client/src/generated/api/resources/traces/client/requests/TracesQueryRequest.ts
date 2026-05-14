@@ -7,9 +7,14 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface TracesQueryRequest {
+    /** Span-level conditions. A trace matches when any of its spans matches. */
     filtering?: AgentaApi.FilteringInput | null;
+    /** Cursor pagination and time range (see [Query Pattern](/reference/api-guide/query-pattern#windowing)). */
     windowing?: AgentaApi.Windowing | null;
+    /** Resolve filtering/windowing from a saved query by `id`/`slug`. Only one of the three `query_*_ref` fields is needed. */
     query_ref?: AgentaApi.Reference | null;
+    /** Resolve from the latest revision of a specific query variant. */
     query_variant_ref?: AgentaApi.Reference | null;
+    /** Resolve from a specific query revision. Returns `409` when the revision's stored `formatting.focus` is `span`. */
     query_revision_ref?: AgentaApi.Reference | null;
 }

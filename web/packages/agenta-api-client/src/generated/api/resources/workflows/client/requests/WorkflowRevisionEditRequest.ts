@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface WorkflowRevisionEditRequest {
     workflow_revision_id: string;
+    /** Revision fields to update (lifecycle metadata only). Data and configuration are immutable — commit a new revision to change them. */
     workflow_revision: AgentaApi.WorkflowRevisionEdit;
 }

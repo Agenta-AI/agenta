@@ -38,6 +38,12 @@ log = get_module_logger(__name__)
 class TestcasesRouter:
     """
     FastAPI router for testcase endpoints.
+
+    Testcase READ events (`testcases.fetched` / `testcases.queried`) are
+    emitted from the router boundary, after the response is materialized.
+    This is the canonical place for read emission — see
+    `core/events/utils.py` module docstring for why reads emit at the router
+    and writes emit at the service.
     """
 
     __test__ = False

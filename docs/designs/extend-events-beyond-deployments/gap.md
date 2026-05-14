@@ -1,5 +1,15 @@
 # Extend Events Beyond Deployments - Gaps
 
+## Status
+
+All gaps in this document are now closed by the implementation in [proposal.md](./proposal.md), [events.md](./events.md), and [tasks.md](./tasks.md). The summary and gap list below are kept for historical context; they describe the pre-implementation state, not the current code.
+
+Key deviations from the originally listed gaps:
+
+- Preview / `/preview/*` route exclusion was dropped. Emission happens from every mount of an instrumented handler; the duplicate mounts share a single handler instance so each request emits exactly once.
+- Commit emission was moved into the service layer (`commit_*_revision(...)`) for every domain, matching the existing `EnvironmentsService.commit_environment_revision` precedent. Router handlers do not emit commit events.
+- The environments mount gap (point 11) was a non-issue at implementation time: `EnvironmentsRouter` is already mounted at non-preview `/environments`.
+
 ## Summary
 
 The current docs were directionally correct, but they missed several important implementation realities:

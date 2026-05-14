@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface WorkflowVariantEditRequest {
     workflow_variant_id: string;
+    /** Variant fields to update. `id` is required and must match the path parameter. */
     workflow_variant: AgentaApi.WorkflowVariantEdit;
 }

@@ -2,17 +2,32 @@
 
 /**
  * Static evaluator template definition (built-in evaluator types).
+ *
+ * Templates are shipped with the product and describe the available
+ * evaluator types. They are read-only and separate from user-owned
+ * evaluator artifacts.
  */
 export interface EvaluatorTemplate {
+    /** Human-readable template name. */
     name: string;
+    /** Stable template identifier, used to create evaluators from the template. */
     key: string;
+    /** Whether the template can be used without further configuration. */
     direct_use: boolean;
+    /** Preset parameter configurations shipped with the template. */
     settings_presets?: (Record<string, unknown>[] | null) | undefined;
+    /** JSON Schema describing the template's configurable parameters. */
     settings_template: Record<string, unknown>;
+    /** JSON Schema describing the template's evaluator output shape. */
     outputs_schema?: (Record<string, unknown> | null) | undefined;
+    /** Template description. */
     description?: (string | null) | undefined;
+    /** True when the template is available in OSS builds. */
     oss?: (boolean | null) | undefined;
+    /** True when the template calls an LLM provider and requires an API key. */
     requires_llm_api_keys?: (boolean | null) | undefined;
+    /** Tags for grouping templates. */
     tags?: string[] | undefined;
+    /** True when the template is deprecated. Hidden unless `include_archived=true`. */
     archived?: (boolean | null) | undefined;
 }

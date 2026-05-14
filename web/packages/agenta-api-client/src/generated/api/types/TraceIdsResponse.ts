@@ -3,6 +3,8 @@
 export interface TraceIdsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of distinct trace IDs in this response. */
     count?: number | undefined;
+    /** 32-char hex UUIDs of the traces that were ingested. Compare against the number you submitted to detect partial failures. */
     trace_ids?: string[] | undefined;
 }

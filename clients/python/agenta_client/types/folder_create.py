@@ -16,8 +16,16 @@ class FolderCreate(UniversalBaseModel):
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     slug: typing.Optional[str] = None
-    kind: typing.Optional[FolderKind] = None
-    parent_id: typing.Optional[str] = None
+    kind: typing.Optional[FolderKind] = pydantic.Field(default=None)
+    """
+    Resource family the folder organizes. Defaults to `applications` when omitted.
+    """
+    
+    parent_id: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Id of the parent folder. Omit or set to `null` to create a root folder.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

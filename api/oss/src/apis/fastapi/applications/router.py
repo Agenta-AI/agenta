@@ -106,6 +106,12 @@ def _build_rename_apps_disabled_detail(*, existing_name: Optional[str]) -> str:
 
 
 class ApplicationsRouter:
+    # `applications.revisions.{retrieved,fetched,queried,logged}` READ events
+    # are emitted from this router after each handler materializes its
+    # response. `applications.revisions.committed` is a WRITE event and is
+    # emitted from `ApplicationsService.commit_application_revision`, not
+    # from this router. See core/events/utils.py module docstring for the
+    # read-vs-write split rationale.
     def __init__(
         self,
         *,
@@ -1531,13 +1537,7 @@ class ApplicationsRouter:
             application_revision=application_revision,
         )
 
-        await publish_revision_event(
-            request=request,
-            domain="application",
-            action="commit",
-            revision=response.application_revision,
-            message=application_revision_commit_request.application_revision_commit.message,
-        )
+        # commit emission lives in ApplicationsService.commit_application_revision
 
         return response
 

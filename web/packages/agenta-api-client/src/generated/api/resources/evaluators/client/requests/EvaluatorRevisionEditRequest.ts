@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface EvaluatorRevisionEditRequest {
     evaluator_revision_id: string;
+    /** Revision edit payload. Requires the revision `id`. */
     evaluator_revision: AgentaApi.EvaluatorRevisionEdit;
 }

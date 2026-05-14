@@ -6,25 +6,16 @@ Add internal events that record entity read and commit activity, store them in t
 
 ## Scope
 
-Emit one event per current, non-legacy, non-deprecated tracing read operation that returns traces.
+Emit one event per API-level read operation (fetch / retrieve / query / log) that returns the target entity.
 
-Do not track these route families:
+Route-prefix policy:
 
-- `/preview/*`
-- `/preview/tracing/*`
-- `/preview/spans/*`
-- `/preview/traces/*`
-- `/tracing/*`
+- Emission is **not** gated by the route prefix. The same handler emits the same event regardless of whether it is mounted at the stable path, the `/preview/*` duplicate, or a deprecated/legacy compatibility path. Suppressing preview emission would under-count real reads. The duplicate mounts share a single handler instance, so each call emits exactly once.
+- `TracingRouter` and `SpansRouter` are still **not** instrumented, because span-level events are out of scope and the trace endpoints exposed on those routers are deprecated. Trace events come only from `TracesRouter` (mounted at `/traces` and `/preview/traces`).
 
-Current codebase note:
+Do not emit for internal service-only reads (read events).
 
-- The mounted span/trace read APIs found in `api/entrypoints/routers.py` are currently under preview or legacy tracing prefixes.
-- Those routes are useful references for response shapes and service behavior, but they are not instrumentation targets for this event.
-- If no stable non-preview tracing read endpoint exists at implementation time, add the event type and helper/tests as applicable, but do not wire emission into deprecated or legacy routes.
-
-Do not emit for internal service-only reads.
-
-This makes the event about API retrieval, not low-level helper activity, and avoids duplicate events from nested service calls.
+Commit events follow a different rule: emit from the **service layer** at the `commit_*_revision(...)` boundary, so every code path that successfully commits — direct `POST /<domain>/revisions/commit`, simple-service create/edit, deploy paths, defaults seeding — produces exactly one commit event.
 
 ## Event Contract
 
@@ -214,41 +205,33 @@ Rules:
 
 ## Emission Design
 
-Add a shared core-layer helper near `api/oss/src/core/tracing/` that:
+Shared utilities live in `api/oss/src/core/events/utils.py`:
 
-- accepts request scope:
-  - `organization_id`
-  - `project_id`
-  - `user_id`
-- inspects the final response object
-- computes the returned count
-- extracts bounded event-specific reference lists when useful
-- builds an `Event`
-- publishes with `publish_event(...)`
-- logs publish failures without failing the read request
+- `publish_trace_fetched(request, count, trace_id=..., trace_ids=...)`
+- `publish_trace_queried(request, count, trace_ids=...)`
+- `publish_testcase_fetched(request, count, testcase_id=..., testcase_ids=...)`
+- `publish_testcase_queried(request, count, testcase_ids=...)`
+- `publish_revision_event(domain, action, revision|revisions, ..., request=... | project_id/user_id explicit)`
 
-For revision entities, add a shared event helper in the events core layer, not separately in every entity service. The helper should:
+Behavior:
 
-- accept a domain descriptor such as `workflow`, `query`, or `testset`
-- accept action type: `retrieve`, `fetch`, `query`, `log`, or `commit`
-- accept one revision DTO or a list response
-- derive references and capped event-specific reference lists
-- build the correct `EventType`
-- publish through `publish_event(...)`
-- fail open with logging
+- Each helper resolves scope (`organization_id`, `project_id`, `user_id`) from `request.state` and short-circuits without raising if the scope is unusable. Callers do not need to None-check fields.
+- Each helper builds an `Event` with generated `request_id`, generated `event_id`, `RequestType.UNKNOWN`, and the matching `EventType`.
+- `publish_event(...)` is called with `organization_id` and `project_id` in the envelope. `attributes` always carries `user_id`. Read/query/log events carry `count`. Commit events do not carry `count` (matching the existing `environments.revisions.committed` precedent).
+- Publish failures are caught, logged, and swallowed so the API response is unaffected.
+- `publish_revision_event` accepts either a `request` (router-layer) **or** explicit `project_id`/`user_id`/`organization_id` (service-layer, e.g., environments commit). This lets the commit emission live at the service boundary even when no request context is available.
 
-Use:
+For revision entities, the helper accepts:
 
-- generated `request_id`
-- generated `event_id`
-- `RequestType.UNKNOWN`
-- `EventType.TRACES_FETCHED` or `EventType.TRACES_QUERIED`
+- domain: `application`, `query`, `testset`, `evaluator`, or `environment`
+- action: `retrieve`, `fetch`, `query`, `log`, or `commit`
+- one revision DTO (single-shape actions) **or** a list of revisions (`query`/`log`)
+- optional `message`
+- optional `extra` (used by `environments.revisions.committed` for `state` and `diff`)
 
-Include `organization_id` and `project_id` in the publish envelope. Include `user_id`, `count`, and event-specific attributes in `attributes`.
+## Router and Service Instrumentation
 
-Only include workspace scope if these tracing routes expose a stable workspace identifier in request context.
-
-## Router Instrumentation
+### Read events (retrieve, fetch, query, log)
 
 Emit at router boundaries after the full response object is materialized and just before returning it.
 
@@ -256,23 +239,51 @@ Recommended flow per handler:
 
 1. Execute existing read logic.
 2. Materialize the final response object.
-3. Run the helper against that response object.
-4. Skip publishing when `count == 0`.
+3. Call the matching helper with `request` and the response.
+4. The helper skips publishing when `count == 0`.
 5. Return the response object normally even if publishing fails.
 
 Instrumentation targets:
 
-- current stable trace read endpoints that return span-derived trace data, once identified
-- current stable trace query endpoints that return span-derived trace data, once identified
+- `TracesRouter.fetch_trace`, `TracesRouter.fetch_traces`, `TracesRouter.query_traces`
+- `TestcasesRouter.fetch_testcase`, `TestcasesRouter.fetch_testcases`, `TestcasesRouter.query_testcases`
+- For each revision domain (`applications`, `queries`, `testsets`, `evaluators`, `environments`):
+  - `retrieve_*_revision` handler → `*.revisions.retrieved`
+  - `fetch_*_revision` handler → `*.revisions.fetched`
+  - `query_*_revisions` handler → `*.revisions.queried`
+  - `log_*_revisions` handler → `*.revisions.logged`
 
-Explicitly excluded targets:
+Explicitly excluded:
 
-- `TracingRouter`
-- `TracesRouter` while mounted only under `/preview/traces`
-- any router mounted under `/preview/*`
-- any router mounted under `/tracing/*`
+- `TracingRouter` (legacy deprecated trace endpoints)
+- `SpansRouter` (span events out of scope)
+- Workflows revisions (intentionally deferred)
 
-For revision entities, instrument stable router boundaries for retrieve/fetch/query. Keep commit emission in the service layer or in a shared helper called by services, because commit events represent a state transition and already have a service-layer precedent in `EnvironmentsService.commit_environment_revision`.
+### Write events (commits, and any future write actions)
+
+Write emission lives in the **service layer**, at the operation's seam — currently `commit_*_revision(...)` — so that any code path that reaches the write logic emits exactly once. This matches the existing `EnvironmentsService.commit_environment_revision` precedent.
+
+Service-layer commit emission points:
+
+- `EnvironmentsService.commit_environment_revision` (already in place, normalized to the shared helper, now includes optional `message`)
+- `ApplicationsService.commit_application_revision`
+- `QueriesService.commit_query_revision`
+- `TestsetsService.commit_testset_revision`
+- `EvaluatorsService.commit_evaluator_revision`
+
+Compatibility / nested paths that funnel through these methods (deploy paths, simple-service create/edit, defaults seeding, fork) automatically emit once via the service layer. Router handlers do **not** also emit commit events — that would double-publish.
+
+### Why this split (read=router, write=service)
+
+The asymmetry is intentional and is documented in detail in the `core/events/utils.py` module docstring. Summary:
+
+- **Reads** are called both from routers (user-initiated, count-worthy) and internally from other services to resolve refs and hydrate state (not count-worthy). Emitting at the router is the only way to suppress the internal lookups. Examples that would mis-fire if reads emitted at the service:
+  - `commit_environment_revision` calls `query_environment_revisions` to compute the diff → every commit would also fire `environments.revisions.queried`.
+  - `TracingService.query_traces` calls `queries_service.fetch_query_revision` to resolve the saved query → every trace query would falsely fire `queries.revisions.fetched`.
+  - Evaluation runs call multiple revision fetches per scenario → one evaluation would produce hundreds of stray `*.revisions.fetched` events.
+- **Writes** are *always* user-initiated state transitions. There is no "internal write happening as a side effect of a read" pattern in this codebase. Emitting at the service is the only way to cover compatibility paths (deploy, simple-service create/edit, defaults seeding, fork) that bypass `/<domain>/revisions/commit`.
+
+Future write actions (e.g. `archive_*_revision`) should follow the same service-layer rule.
 
 ## Tracing Event Shape
 

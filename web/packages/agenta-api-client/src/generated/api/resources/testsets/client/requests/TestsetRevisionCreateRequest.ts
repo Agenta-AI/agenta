@@ -9,6 +9,8 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface TestsetRevisionCreateRequest {
+    /** Revision to create on an existing variant. Typically used to seed an empty revision; use /testsets/revisions/commit to set testcases. */
     testset_revision: AgentaApi.TestsetRevisionCreate;
+    /** Include full testcase objects in the response. Defaults to true when the response would carry revision data. */
     include_testcases?: boolean | null;
 }

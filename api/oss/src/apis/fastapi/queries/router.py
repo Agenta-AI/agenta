@@ -74,6 +74,12 @@ def _to_plain_dict(value):
 
 
 class QueriesRouter:
+    # `queries.revisions.{retrieved,fetched,queried,logged}` READ events are
+    # emitted from this router after each handler materializes its response.
+    # `queries.revisions.committed` is a WRITE event and is emitted from
+    # `QueriesService.commit_query_revision`, not from this router. See
+    # core/events/utils.py module docstring for the read-vs-write split
+    # rationale.
     def __init__(self, *, queries_service: QueriesService):
         self.queries_service = queries_service
         self.router = APIRouter()
@@ -909,13 +915,7 @@ class QueriesRouter:
             query_revision=query_revision,
         )
 
-        await publish_revision_event(
-            request=request,
-            domain="query",
-            action="commit",
-            revision=query_revision_response.query_revision,
-            message=query_revision_commit_request.query_revision_commit.message,
-        )
+        # commit emission lives in QueriesService.commit_query_revision
 
         return query_revision_response
 

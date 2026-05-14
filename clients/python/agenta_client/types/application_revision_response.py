@@ -10,11 +10,26 @@ from .resolution_info import ResolutionInfo
 
 
 class ApplicationRevisionResponse(UniversalBaseModel):
+    """
+    Single-revision response envelope.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    application_revision: typing.Optional[ApplicationRevision] = None
-    resolution_info: typing.Optional[ResolutionInfo] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` when a revision was found, `0` otherwise.
+    """
+    
+    application_revision: typing.Optional[ApplicationRevision] = pydantic.Field(default=None)
+    """
+    The application revision, including its `data` payload (prompt, model parameters, schemas, URL).
+    """
+    
+    resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)
+    """
+    Present only when the request set `resolve: true`. Describes which embedded references were resolved and any errors that occurred.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

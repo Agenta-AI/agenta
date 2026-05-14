@@ -3,12 +3,14 @@
 ## Rules
 
 - Add every event below to both `EventType` and `WebhookEventType`.
-- Emit read events at stable route handler boundaries after the response is materialized.
-- Emit commit events from the shared commit helper/service path after commit succeeds.
-- Do not emit from `/preview/*`.
-- Do not emit workflow events for now.
-- Do not emit read events when `count == 0`.
+- **Read actions** (`retrieve` / `fetch` / `query` / `log`, plus trace and testcase reads) emit from the **router** boundary, after the response is materialized. The same handler emits whether mounted at the stable path or at a `/preview/*` duplicate (both prefixes share one handler instance, so each call still emits exactly once).
+- **Write actions** (currently just `commit`) emit from the **service layer**, at the operation's seam — e.g. `commit_*_revision(...)`. This covers direct commit routes, simple-service create/edit, deploy paths, and any other caller of the same service method. Future write actions (`archive`, `unarchive`, …) should follow the same service-layer rule.
+- The read/write split is asymmetric on purpose: reads have legitimate internal callers that must stay silent; writes do not. See `core/events/utils.py` module docstring for the full rationale.
+- Do not emit from `TracingRouter` or `SpansRouter` (legacy / out-of-scope span endpoints).
+- Do not emit workflow revision events for now.
+- Suppress emission when `count == 0` (and for commits when the revision is not returned).
 - Do not put generic `links` in every payload. Use event-specific fields only where useful.
+- Cap event-specific reference lists at 1000 entries. `count` stays uncapped.
 
 ## Existing Environment Commit Event
 

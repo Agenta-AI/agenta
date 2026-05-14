@@ -11,8 +11,16 @@ from .workflow_catalog_preset import WorkflowCatalogPreset
 class WorkflowCatalogPresetResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    preset: typing.Optional[WorkflowCatalogPreset] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` when the preset is returned, `0` when not found.
+    """
+    
+    preset: typing.Optional[WorkflowCatalogPreset] = pydantic.Field(default=None)
+    """
+    Named parameter set defined against a template.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

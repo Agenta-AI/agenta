@@ -7,9 +7,14 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface TestsetVariantQueryRequest {
+    /** Attribute filter on the variant (name, description, slug, flags, tags, meta). */
     testset_variant?: AgentaApi.TestsetVariantQuery | null;
+    /** Scope to variants whose parent testset matches one of these references. */
     testset_refs?: AgentaApi.Reference[] | null;
+    /** Restrict the query to specific variants by reference (id or slug). */
     testset_variant_refs?: AgentaApi.Reference[] | null;
+    /** Include soft-deleted variants. */
     include_archived?: boolean | null;
+    /** Cursor-based pagination. See the Query Pattern guide. */
     windowing?: AgentaApi.Windowing | null;
 }

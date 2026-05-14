@@ -7,12 +7,20 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface ApplicationRevisionDeployRequest {
+    /** Application reference. If provided, the latest revision of the default variant is deployed. */
     application_ref?: AgentaApi.Reference | null;
+    /** Variant reference. Its latest revision is deployed. */
     application_variant_ref?: AgentaApi.Reference | null;
+    /** Revision reference. The exact revision is deployed. */
     application_revision_ref?: AgentaApi.Reference | null;
+    /** Target environment (for example `{"slug": "production"}`). */
     environment_ref?: AgentaApi.Reference | null;
+    /** Target environment variant. */
     environment_variant_ref?: AgentaApi.Reference | null;
+    /** Target environment revision; advanced use only. */
     environment_revision_ref?: AgentaApi.Reference | null;
+    /** Deployment key inside the environment revision. Defaults to `{application_slug}.revision`. */
     key?: string | null;
+    /** Optional commit message attached to the environment revision. */
     message?: string | null;
 }
