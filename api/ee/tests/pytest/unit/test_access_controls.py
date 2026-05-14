@@ -36,7 +36,7 @@ class TestDefaults:
     def test_get_roles_returns_workspace_role_set(self):
         ws = controls.get_roles("workspace")
         slugs = {r["role"] for r in ws}
-        # Workspace exposes the legacy WorkspaceRole enum set on top of the
+        # Workspace exposes the code-default WorkspaceRole enum set on top of the
         # owner/viewer minima.
         assert slugs == {r.value for r in WorkspaceRole}
 
@@ -50,15 +50,20 @@ class TestDefaults:
             assert DefaultRole.OWNER.value in slugs
             assert DefaultRole.VIEWER.value in slugs
 
-    def test_organization_and_project_default_to_minima_only(self):
-        # Today only workspace exposes extra roles by default.
+    def test_organization_defaults_to_minima_only(self):
+        # Organization scope has no permission concept today; it stays at the
+        # minima while workspace and project expose the code-default WorkspaceRole set.
         assert {r["role"] for r in controls.get_roles("organization")} == {
             DefaultRole.OWNER.value,
             DefaultRole.VIEWER.value,
         }
+
+    def test_project_default_mirrors_workspace_role_set(self):
+        # project_members.role historically stores workspace-role slugs
+        # (admin/developer/editor/annotator), so the project scope must
+        # surface the same permission map for non-overridden deployments.
         assert {r["role"] for r in controls.get_roles("project")} == {
-            DefaultRole.OWNER.value,
-            DefaultRole.VIEWER.value,
+            r.value for r in WorkspaceRole
         }
 
     def test_owner_role_is_wildcard(self):
@@ -67,7 +72,7 @@ class TestDefaults:
         assert controls.get_role_permissions("workspace", "owner") == ["*"]
 
     def test_viewer_in_workspace_and_project_is_read_only(self):
-        # Viewer permissions in workspace/project come from the legacy
+        # Viewer permissions in workspace/project come from the code-default
         # `WorkspaceRole.VIEWER` set — every entry is a real Permission.
         valid = {p.value for p in Permission}
         for scope in ("workspace", "project"):
@@ -132,13 +137,19 @@ class TestParsePlansOverride:
         with pytest.raises(ValueError, match="non-empty JSON object"):
             controls._parse_plans_override([])
 
-    def test_plan_with_no_entitlements_rejected(self):
-        with pytest.raises(ValueError, match="at least one of"):
-            controls._parse_plans_override({"empty_plan": {}})
+    def test_plan_with_no_entitlements_allowed(self):
+        # Display-only plans (e.g. custom/self-hosted) may carry no
+        # entitlement trackers. The runtime returns an empty entitlement
+        # map for those plans rather than treating them as unknown.
+        plans, _ = controls._parse_plans_override({"empty_plan": {}})
+        assert plans == {"empty_plan": {}}
 
-    def test_plan_with_only_description_rejected(self):
-        with pytest.raises(ValueError, match="at least one of"):
-            controls._parse_plans_override({"p": {"description": "x"}})
+    def test_plan_with_only_description_allowed(self):
+        plans, descriptions = controls._parse_plans_override(
+            {"p": {"description": "display only"}}
+        )
+        assert plans == {"p": {}}
+        assert descriptions == {"p": "display only"}
 
     def test_unknown_flag_key_rejected(self):
         with pytest.raises(ValueError, match="Unknown flag"):
@@ -181,9 +192,10 @@ class TestParseRolesOverride:
         ws_slugs = [r["role"] for r in result["workspace"]]
         org_slugs = [r["role"] for r in result["organization"]]
 
-        # Project: minima + override.
+        # Project: minima + override (env overrides REPLACE default extras in
+        # the overridden scope).
         assert proj_slugs == ["owner", "viewer", "reviewer"]
-        # Workspace: untouched code default (minima + legacy WorkspaceRole extras).
+        # Workspace: untouched code default (minima + default WorkspaceRole extras).
         assert ws_slugs[:2] == ["owner", "viewer"]
         assert "admin" in ws_slugs
         # Organization: untouched (minima-only by default).
@@ -254,3 +266,283 @@ class TestParseRolesOverride:
         assert slugs[0] == "owner"
         assert slugs[1] == "viewer"
         assert "auditor" in slugs
+
+
+# ---------------------------------------------------------------------------
+# Default-plan overlay parser + apply
+# ---------------------------------------------------------------------------
+
+
+from ee.src.core.entitlements.types import (  # noqa: E402
+    Category,
+    Counter,
+    Flag,
+    Gauge,
+    Quota,
+    Throttle,
+)
+
+
+class TestDefaultPlanOverlayParse:
+    def test_empty_payload_rejected(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            controls._parse_default_plan_overlay({})
+
+    def test_non_dict_rejected(self):
+        with pytest.raises(ValueError, match="non-empty JSON object"):
+            controls._parse_default_plan_overlay([])
+
+    def test_unknown_flag_rejected(self):
+        with pytest.raises(ValueError, match="Unknown flag"):
+            controls._parse_default_plan_overlay({"flags": {"bogus": True}})
+
+    def test_unknown_counter_rejected(self):
+        with pytest.raises(ValueError, match="Unknown counter"):
+            controls._parse_default_plan_overlay({"counters": {"bogus": {"limit": 1}}})
+
+    def test_unknown_throttle_category_rejected(self):
+        with pytest.raises(ValueError, match="not a valid throttle category"):
+            controls._parse_default_plan_overlay(
+                {"throttles": {"galaxy": {"bucket": {"rate": 1}}}}
+            )
+
+    def test_extra_field_rejected(self):
+        with pytest.raises(
+            ValueError, match="Invalid AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY"
+        ):
+            controls._parse_default_plan_overlay({"surprise": "x"})
+
+
+class TestDefaultPlanOverlayApply:
+    def _base_plan(self) -> dict:
+        return {
+            Tracker.FLAGS: {Flag.HOOKS: False},
+            Tracker.COUNTERS: {
+                Counter.TRACES: Quota(free=5000, monthly=True, retention=44640)
+            },
+            Tracker.GAUGES: {Gauge.USERS: Quota(limit=2, free=2, strict=True)},
+            Tracker.THROTTLES: [
+                Throttle(
+                    categories=[Category.STANDARD],
+                    mode="include",
+                    bucket={"capacity": 480, "rate": 480},
+                ),
+                Throttle(
+                    categories=[Category.CORE_FAST, Category.TRACING_FAST],
+                    mode="include",
+                    bucket={"capacity": 1200, "rate": 1200},
+                ),
+            ],
+        }
+
+    def test_quota_field_merge_preserves_other_fields(self):
+        plans = {"the_plan": self._base_plan()}
+        descriptions: dict = {}
+        overlay = controls._parse_default_plan_overlay(
+            {"counters": {"traces": {"retention": 525600}}}
+        )
+        plans, _ = controls._apply_default_plan_overlay(
+            plans, descriptions, overlay, "the_plan"
+        )
+        traces: Quota = plans["the_plan"][Tracker.COUNTERS][Counter.TRACES]
+        # Only retention changed; the rest is untouched.
+        assert traces.retention == 525600
+        assert traces.free == 5000
+        assert traces.monthly is True
+
+    def test_throttle_category_patch_preserves_other_throttles(self):
+        plans = {"the_plan": self._base_plan()}
+        overlay = controls._parse_default_plan_overlay(
+            {"throttles": {"standard": {"bucket": {"rate": 7200}}}}
+        )
+        plans, _ = controls._apply_default_plan_overlay(plans, {}, overlay, "the_plan")
+        throttles = plans["the_plan"][Tracker.THROTTLES]
+        # Standard throttle: rate patched, capacity preserved.
+        standard = next(t for t in throttles if t.categories == [Category.STANDARD])
+        assert standard.bucket.rate == 7200
+        assert standard.bucket.capacity == 480
+        # Multi-category throttle: untouched.
+        multi = next(t for t in throttles if t.categories and len(t.categories) > 1)
+        assert multi.bucket.rate == 1200
+
+    def test_overlay_targeting_unknown_plan_fails(self):
+        plans = {"the_plan": self._base_plan()}
+        overlay = controls._parse_default_plan_overlay({"flags": {"hooks": True}})
+        with pytest.raises(ValueError, match="not in the effective plan set"):
+            controls._apply_default_plan_overlay(plans, {}, overlay, "ghost_plan")
+
+    def test_overlay_targeting_throttle_with_no_match_fails(self):
+        plans = {"the_plan": self._base_plan()}
+        overlay = controls._parse_default_plan_overlay(
+            {"throttles": {"ai_services": {"bucket": {"rate": 99}}}}
+        )
+        with pytest.raises(
+            ValueError, match="no single-category throttle entry for 'ai_services'"
+        ):
+            controls._apply_default_plan_overlay(plans, {}, overlay, "the_plan")
+
+    def test_description_replaces(self):
+        plans = {"the_plan": self._base_plan()}
+        overlay = controls._parse_default_plan_overlay(
+            {"description": "Self-hosted override"}
+        )
+        _, descriptions = controls._apply_default_plan_overlay(
+            plans, {}, overlay, "the_plan"
+        )
+        assert descriptions["the_plan"] == "Self-hosted override"
+
+    def test_flag_patch_only_overwrites_named_keys(self):
+        base = self._base_plan()
+        base[Tracker.FLAGS] = {Flag.HOOKS: False, Flag.RBAC: True}
+        plans = {"the_plan": base}
+        overlay = controls._parse_default_plan_overlay({"flags": {"hooks": True}})
+        plans, _ = controls._apply_default_plan_overlay(plans, {}, overlay, "the_plan")
+        flags = plans["the_plan"][Tracker.FLAGS]
+        assert flags[Flag.HOOKS] is True
+        assert flags[Flag.RBAC] is True  # untouched
+
+
+# ---------------------------------------------------------------------------
+# Roles overlay parser + apply
+# ---------------------------------------------------------------------------
+
+
+class TestRolesOverlayParse:
+    def test_empty_payload_rejected(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            controls._parse_roles_overlay({})
+
+    def test_non_dict_rejected(self):
+        with pytest.raises(ValueError, match="non-empty JSON object"):
+            controls._parse_roles_overlay([])
+
+    def test_non_project_scope_rejected(self):
+        with pytest.raises(ValueError, match="only supports the 'project' scope"):
+            controls._parse_roles_overlay(
+                {"workspace": {"editor": {"permissions": ["read_system"]}}}
+            )
+
+    def test_multiple_scopes_rejected_lists_offenders(self):
+        with pytest.raises(ValueError, match="organization"):
+            controls._parse_roles_overlay(
+                {
+                    "project": {"editor": {"permissions": ["read_system"]}},
+                    "organization": {"foo": {"permissions": []}},
+                }
+            )
+
+    def test_empty_project_block_rejected(self):
+        with pytest.raises(ValueError, match="must be a non-empty"):
+            controls._parse_roles_overlay({"project": {}})
+
+    def test_reserved_role_patch_rejected(self):
+        with pytest.raises(ValueError, match="cannot patch reserved role 'owner'"):
+            controls._parse_roles_overlay(
+                {"project": {"owner": {"permissions": ["read_system"]}}}
+            )
+
+    def test_reserved_viewer_patch_rejected(self):
+        with pytest.raises(ValueError, match="cannot patch reserved role 'viewer'"):
+            controls._parse_roles_overlay(
+                {"project": {"viewer": {"permissions": ["read_system"]}}}
+            )
+
+    def test_unknown_permission_rejected(self):
+        with pytest.raises(ValueError, match="Unknown permission"):
+            controls._parse_roles_overlay(
+                {"project": {"editor": {"permissions": ["bogus_perm"]}}}
+            )
+
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValueError, match="Invalid AGENTA_ACCESS_ROLES_OVERLAY"):
+            controls._parse_roles_overlay({"project": {"editor": {"surprise": "yes"}}})
+
+
+class TestRolesOverlayApply:
+    def _base_roles(self) -> dict:
+        # Mirror the code-default catalog (minima + default extras for
+        # workspace and project; minima only for organization).
+        return controls._default_roles()
+
+    def test_patch_existing_role_replaces_permissions_in_both_scopes(self):
+        roles = self._base_roles()
+        overlay = controls._parse_roles_overlay(
+            {"project": {"editor": {"permissions": ["read_system"]}}}
+        )
+        result = controls._apply_roles_overlay(roles, overlay)
+
+        for scope in ("workspace", "project"):
+            editor = next(r for r in result[scope] if r["role"] == "editor")
+            assert editor["permissions"] == ["read_system"]
+
+    def test_patch_existing_role_preserves_description_when_not_set(self):
+        roles = self._base_roles()
+        original_description = next(
+            r for r in roles["project"] if r["role"] == "editor"
+        )["description"]
+        overlay = controls._parse_roles_overlay(
+            {"project": {"editor": {"permissions": ["read_system"]}}}
+        )
+        result = controls._apply_roles_overlay(roles, overlay)
+
+        for scope in ("workspace", "project"):
+            editor = next(r for r in result[scope] if r["role"] == "editor")
+            assert editor["description"] == original_description
+
+    def test_patch_existing_role_preserves_permissions_when_not_set(self):
+        roles = self._base_roles()
+        original_perms = list(
+            next(r for r in roles["project"] if r["role"] == "editor")["permissions"]
+        )
+        overlay = controls._parse_roles_overlay(
+            {"project": {"editor": {"description": "Custom description"}}}
+        )
+        result = controls._apply_roles_overlay(roles, overlay)
+
+        for scope in ("workspace", "project"):
+            editor = next(r for r in result[scope] if r["role"] == "editor")
+            assert editor["description"] == "Custom description"
+            assert editor["permissions"] == original_perms
+
+    def test_new_role_added_to_both_scopes(self):
+        roles = self._base_roles()
+        overlay = controls._parse_roles_overlay(
+            {
+                "project": {
+                    "auditor": {
+                        "description": "Audit-only.",
+                        "permissions": ["read_system"],
+                    }
+                }
+            }
+        )
+        result = controls._apply_roles_overlay(roles, overlay)
+
+        for scope in ("workspace", "project"):
+            slugs = [r["role"] for r in result[scope]]
+            assert "auditor" in slugs
+
+    def test_new_role_without_permissions_rejected(self):
+        roles = self._base_roles()
+        overlay = controls._parse_roles_overlay(
+            {"project": {"auditor": {"description": "Only description"}}}
+        )
+        with pytest.raises(ValueError, match="new role requires 'permissions'"):
+            controls._apply_roles_overlay(roles, overlay)
+
+    def test_organization_scope_untouched(self):
+        roles = self._base_roles()
+        original_org_slugs = [r["role"] for r in roles["organization"]]
+        overlay = controls._parse_roles_overlay(
+            {
+                "project": {
+                    "auditor": {
+                        "description": "Audit-only.",
+                        "permissions": ["read_system"],
+                    }
+                }
+            }
+        )
+        result = controls._apply_roles_overlay(roles, overlay)
+
+        assert [r["role"] for r in result["organization"]] == original_org_slugs

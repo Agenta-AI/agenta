@@ -53,12 +53,19 @@ def _fails(snippet: str, env_extra: dict, expected_msg_substr: str) -> str:
 
 class TestNoOverride:
     def test_no_env_uses_defaults(self):
+        # Plans count should equal DefaultPlan enum size; catalog count
+        # should match (one entry per plan in DEFAULT_CATALOG plus the
+        # Enterprise contact-sales tier which has no `plan` field).
+        from ee.src.core.entitlements.types import DEFAULT_CATALOG, DefaultPlan
+
+        expected_plans = len(list(DefaultPlan))
+        expected_catalog = len(DEFAULT_CATALOG)
         out = _ok(
             "from ee.src.core.entitlements.controls import get_plans; "
             "from ee.src.core.subscriptions.settings import get_catalog; "
             "print(len(get_plans())); print(len(get_catalog()))"
         )
-        assert out.splitlines() == ["7", "7"]
+        assert out.splitlines() == [str(expected_plans), str(expected_catalog)]
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +90,15 @@ class TestPlansOverride:
             }
         ),
         "AGENTA_BILLING_CATALOG": json.dumps(
-            [{"title": "Only", "plan": "only_plan", "type": "standard"}]
+            [
+                {
+                    "title": "Only",
+                    "description": "Only plan",
+                    "plan": "only_plan",
+                    "type": "standard",
+                    "features": [],
+                }
+            ]
         ),
         "AGENTA_BILLING_PRICING": json.dumps({"only_plan": {"free": True}}),
     }
@@ -125,12 +140,17 @@ class TestPlansOverride:
             "non-empty",
         )
 
-    def test_plan_with_no_entitlements_fails(self):
-        _fails(
-            "from ee.src.core.entitlements.controls import get_plans",
-            {"AGENTA_ACCESS_PLANS": '{"x":{"description":"y"}}'},
-            "at least one of",
+    def test_plan_with_only_description_allowed(self):
+        # Display-only plans (no enforced trackers) are accepted. They show
+        # up in the effective plan map with an empty entitlements dict.
+        out = _ok(
+            "from ee.src.core.entitlements.controls import get_plans, get_plan_entitlements; "
+            "print(sorted(get_plans())); print(get_plan_entitlements('x'))",
+            env_extra={"AGENTA_ACCESS_PLANS": '{"x":{"description":"y"}}'},
         )
+        lines = out.splitlines()
+        assert lines[0] == "['x']"
+        assert lines[1] == "{}"
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +177,15 @@ class TestCatalogConsistency:
                     }
                 ),
                 "AGENTA_BILLING_CATALOG": json.dumps(
-                    [{"plan": "nonexistent", "type": "standard"}]
+                    [
+                        {
+                            "plan": "nonexistent",
+                            "title": "X",
+                            "description": "x",
+                            "type": "standard",
+                            "features": [],
+                        }
+                    ]
                 ),
             },
             "AGENTA_BILLING_CATALOG references plan 'nonexistent'",
@@ -211,7 +239,15 @@ class TestPricingConsistency:
                     }
                 ),
                 "AGENTA_BILLING_CATALOG": json.dumps(
-                    [{"plan": "only", "type": "standard"}]
+                    [
+                        {
+                            "plan": "only",
+                            "title": "Only",
+                            "description": "Only plan",
+                            "type": "standard",
+                            "features": [],
+                        }
+                    ]
                 ),
                 "AGENTA_BILLING_PRICING": json.dumps({"missing": {"free": True}}),
             },
@@ -237,7 +273,15 @@ class TestPricingConsistency:
                     }
                 ),
                 "AGENTA_BILLING_CATALOG": json.dumps(
-                    [{"plan": "only", "type": "standard"}]
+                    [
+                        {
+                            "plan": "only",
+                            "title": "Only",
+                            "description": "Only plan",
+                            "type": "standard",
+                            "features": [],
+                        }
+                    ]
                 ),
                 "AGENTA_BILLING_PRICING": json.dumps({"only": {"free": True}}),
             },
@@ -272,8 +316,20 @@ class TestPricingConsistency:
                 ),
                 "AGENTA_BILLING_CATALOG": json.dumps(
                     [
-                        {"plan": "a", "type": "standard"},
-                        {"plan": "b", "type": "standard"},
+                        {
+                            "plan": "a",
+                            "title": "A",
+                            "description": "a",
+                            "type": "standard",
+                            "features": [],
+                        },
+                        {
+                            "plan": "b",
+                            "title": "B",
+                            "description": "b",
+                            "type": "standard",
+                            "features": [],
+                        },
                     ]
                 ),
                 "AGENTA_BILLING_PRICING": json.dumps(
@@ -390,7 +446,7 @@ class TestRolesOverride:
                 )
             },
         )
-        # Workspace = owner + viewer + 4 legacy extras (admin/developer/editor/annotator).
+        # Workspace = owner + viewer + 4 default extras (admin/developer/editor/annotator).
         assert int(out.strip()) == 6
 
     def test_unknown_permission_fails_startup(self):
@@ -475,4 +531,268 @@ class TestEnvTypeValidation:
             "from oss.src.utils.env import env; print(env.billing.catalog)",
             {"AGENTA_BILLING_CATALOG": "{}"},
             "must be a JSON array",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Default-plan overlay (env wired end-to-end)
+# ---------------------------------------------------------------------------
+
+
+class TestDefaultPlanOverlay:
+    """The overlay targets whatever `get_default_plan()` resolves to. We
+    pin the default plan via `AGENTA_ACCESS_DEFAULT_PLAN` to make the test
+    deterministic regardless of whether Stripe is configured in the parent
+    environment.
+    """
+
+    def test_overlay_patches_traces_retention(self):
+        out = _ok(
+            "from ee.src.core.entitlements.controls import get_plan_entitlements; "
+            "from ee.src.core.entitlements.types import Tracker, Counter; "
+            "ent = get_plan_entitlements('cloud_v0_hobby'); "
+            "print(ent[Tracker.COUNTERS][Counter.TRACES].retention)",
+            env_extra={
+                "AGENTA_ACCESS_DEFAULT_PLAN": "cloud_v0_hobby",
+                "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
+                    {"counters": {"traces": {"retention": 43200}}}
+                ),
+            },
+        )
+        assert out.strip() == "43200"
+
+    def test_overlay_preserves_other_quota_fields(self):
+        # Hobby's traces quota: free=5000, monthly=True, retention=44640.
+        # Overlay sets only retention → free/monthly stay.
+        out = _ok(
+            "from ee.src.core.entitlements.controls import get_plan_entitlements; "
+            "from ee.src.core.entitlements.types import Tracker, Counter; "
+            "q = get_plan_entitlements('cloud_v0_hobby')"
+            "[Tracker.COUNTERS][Counter.TRACES]; "
+            "print(q.retention, q.free, q.monthly)",
+            env_extra={
+                "AGENTA_ACCESS_DEFAULT_PLAN": "cloud_v0_hobby",
+                "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
+                    {"counters": {"traces": {"retention": 525600}}}
+                ),
+            },
+        )
+        assert out.strip() == "525600 5000 True"
+
+    def test_overlay_patches_throttle_rate_only(self):
+        out = _ok(
+            "from ee.src.core.entitlements.controls import get_plan_entitlements; "
+            "from ee.src.core.entitlements.types import Tracker, Category; "
+            "ent = get_plan_entitlements('cloud_v0_hobby'); "
+            "t = next(t for t in ent[Tracker.THROTTLES] "
+            "         if t.categories == [Category.STANDARD]); "
+            "print(t.bucket.rate, t.bucket.capacity)",
+            env_extra={
+                "AGENTA_ACCESS_DEFAULT_PLAN": "cloud_v0_hobby",
+                "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
+                    {"throttles": {"standard": {"bucket": {"rate": 7200}}}}
+                ),
+            },
+        )
+        # rate patched; capacity preserved from the hobby default (480).
+        assert out.strip() == "7200 480"
+
+    def test_overlay_invalid_field_fails_startup(self):
+        _fails(
+            "from ee.src.core.entitlements.controls import get_plans",
+            {
+                "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
+                    {"flags": {"bogus_flag": True}}
+                )
+            },
+            "Unknown flag",
+        )
+
+    def test_overlay_targeting_unknown_plan_fails(self):
+        _fails(
+            "from ee.src.core.entitlements.controls import get_plans",
+            {
+                "AGENTA_ACCESS_DEFAULT_PLAN": "ghost_plan",
+                "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
+                    {"flags": {"hooks": True}}
+                ),
+            },
+            "not in the effective plan set",
+        )
+
+    def test_overlay_empty_object_fails_startup(self):
+        _fails(
+            "from ee.src.core.entitlements.controls import get_plans",
+            {"AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": "{}"},
+            "non-empty",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Default-plan env var (canonical + legacy)
+# ---------------------------------------------------------------------------
+
+
+class TestDefaultPlanEnv:
+    def test_canonical_var_takes_precedence(self):
+        out = _ok(
+            "from ee.src.core.subscriptions.types import get_default_plan; "
+            "print(get_default_plan())",
+            env_extra={
+                "AGENTA_ACCESS_DEFAULT_PLAN": "cloud_v0_business",
+                "AGENTA_DEFAULT_PLAN": "cloud_v0_hobby",
+            },
+        )
+        assert out.strip() == "cloud_v0_business"
+
+    def test_legacy_var_still_honored(self):
+        out = _ok(
+            "from ee.src.core.subscriptions.types import get_default_plan; "
+            "print(get_default_plan())",
+            env_extra={"AGENTA_DEFAULT_PLAN": "cloud_v0_business"},
+        )
+        assert out.strip() == "cloud_v0_business"
+
+    def test_unset_falls_back_to_self_hosted_when_stripe_off(self):
+        # Force Stripe disabled by clearing the API key inherited from the
+        # parent test env, so the fallback path is exercised independently
+        # of the developer's local config.
+        out = _ok(
+            "from ee.src.core.subscriptions.types import get_default_plan; "
+            "print(get_default_plan())",
+            env_extra={"STRIPE_API_KEY": ""},
+        )
+        assert out.strip() == "self_hosted_enterprise"
+
+    def test_unset_falls_back_to_hobby_when_stripe_on(self):
+        out = _ok(
+            "from ee.src.core.subscriptions.types import get_default_plan; "
+            "print(get_default_plan())",
+            env_extra={"STRIPE_API_KEY": "sk_test_dummy"},
+        )
+        assert out.strip() == "cloud_v0_hobby"
+
+    def test_default_plan_not_in_effective_set_fails_startup(self):
+        _fails(
+            "from ee.src.core.subscriptions.settings import get_catalog",
+            {"AGENTA_ACCESS_DEFAULT_PLAN": "ghost_plan"},
+            "is not in the effective plans set",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Roles overlay (env wired end-to-end)
+# ---------------------------------------------------------------------------
+
+
+class TestRolesOverlay:
+    """The overlay accepts only the `project` key today and applies to both
+    workspace and project scopes (they share the same default role set).
+    """
+
+    def test_overlay_patches_editor_permissions_in_both_scopes(self):
+        out = _ok(
+            "from ee.src.core.entitlements.controls import get_role_permissions; "
+            "print(get_role_permissions('workspace', 'editor')); "
+            "print(get_role_permissions('project', 'editor'))",
+            env_extra={
+                "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
+                    {"project": {"editor": {"permissions": ["read_system"]}}}
+                )
+            },
+        )
+        lines = out.splitlines()
+        assert lines[0] == "['read_system']"
+        assert lines[1] == "['read_system']"
+
+    def test_overlay_adds_new_role_to_both_scopes(self):
+        out = _ok(
+            "from ee.src.core.entitlements.controls import get_roles; "
+            "print('auditor' in [r['role'] for r in get_roles('workspace')]); "
+            "print('auditor' in [r['role'] for r in get_roles('project')])",
+            env_extra={
+                "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
+                    {
+                        "project": {
+                            "auditor": {
+                                "description": "Audit-only.",
+                                "permissions": ["read_system"],
+                            }
+                        }
+                    }
+                )
+            },
+        )
+        assert out.splitlines() == ["True", "True"]
+
+    def test_overlay_organization_scope_untouched(self):
+        # Organization scope only has the minima (owner + viewer) by default.
+        # The overlay must not change that — it targets workspace + project.
+        out = _ok(
+            "from ee.src.core.entitlements.controls import get_roles; "
+            "print(','.join(r['role'] for r in get_roles('organization')))",
+            env_extra={
+                "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
+                    {
+                        "project": {
+                            "auditor": {
+                                "description": "Audit-only.",
+                                "permissions": ["read_system"],
+                            }
+                        }
+                    }
+                )
+            },
+        )
+        assert out.strip() == "owner,viewer"
+
+    def test_overlay_non_project_scope_fails_startup(self):
+        _fails(
+            "from ee.src.core.entitlements.controls import get_roles",
+            {
+                "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
+                    {"workspace": {"editor": {"permissions": ["read_system"]}}}
+                )
+            },
+            "only supports the 'project' scope",
+        )
+
+    def test_overlay_reserved_role_fails_startup(self):
+        _fails(
+            "from ee.src.core.entitlements.controls import get_roles",
+            {
+                "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
+                    {"project": {"owner": {"permissions": ["*"]}}}
+                )
+            },
+            "cannot patch reserved role 'owner'",
+        )
+
+    def test_overlay_unknown_permission_fails_startup(self):
+        _fails(
+            "from ee.src.core.entitlements.controls import get_roles",
+            {
+                "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
+                    {"project": {"editor": {"permissions": ["bogus_perm"]}}}
+                )
+            },
+            "Unknown permission",
+        )
+
+    def test_overlay_empty_object_fails_startup(self):
+        _fails(
+            "from ee.src.core.entitlements.controls import get_roles",
+            {"AGENTA_ACCESS_ROLES_OVERLAY": "{}"},
+            "non-empty",
+        )
+
+    def test_overlay_new_role_without_permissions_fails_startup(self):
+        _fails(
+            "from ee.src.core.entitlements.controls import get_roles",
+            {
+                "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
+                    {"project": {"auditor": {"description": "x"}}}
+                )
+            },
+            "new role requires 'permissions'",
         )

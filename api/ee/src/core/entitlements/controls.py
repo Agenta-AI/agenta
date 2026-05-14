@@ -21,8 +21,10 @@ from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.entitlements.types import (
+    Category,
     Counter,
     DEFAULT_ENTITLEMENTS,
+    DefaultPlan,
     DefaultRole,
     Flag,
     Gauge,
@@ -139,12 +141,10 @@ def _parse_plans_override(
         if override.throttles is not None:
             plan_entry[Tracker.THROTTLES] = list(override.throttles)
 
-        if not plan_entry:
-            raise ValueError(
-                f"AGENTA_ACCESS_PLANS['{slug}'] must define at least one of: "
-                "flags, counters, gauges, throttles"
-            )
-
+        # Plans with only a description are allowed — they represent custom /
+        # display-only plans (e.g. self-hosted Enterprise) that don't enforce
+        # quotas server-side. Downstream consumers must handle the empty
+        # entitlement map gracefully (e.g. `fetch_usage` returns no rows).
         plans[slug] = plan_entry
 
         if override.description:
@@ -164,7 +164,7 @@ def _parse_plans_override(
 
 
 def _read_only_permissions() -> List[str]:
-    """Read-only permission set sourced from the legacy `WorkspaceRole.VIEWER`.
+    """Read-only permission set sourced from the code-default `WorkspaceRole.VIEWER`.
 
     Used as the `viewer` minima permissions for the `workspace` and `project`
     scopes where permissions are actually enforced. Organization-scope `viewer`
@@ -177,7 +177,7 @@ def _viewer_permissions_for_scope(scope: str) -> List[str]:
     """Per-scope code-default permissions for the `viewer` minima role.
 
     - `organization`: empty — orgs have no permission concept today.
-    - `workspace` and `project`: the legacy `WorkspaceRole.VIEWER` read-only set.
+    - `workspace` and `project`: the code-default `WorkspaceRole.VIEWER` read-only set.
     """
     if scope == "organization":
         return []
@@ -215,17 +215,19 @@ def _minima_for(scope: str) -> List[Dict[str, Any]]:
 def _default_roles() -> Dict[str, List[Dict[str, Any]]]:
     """Return the code-default role catalog for each scope.
 
-    Workspace exposes the historical `WorkspaceRole` enum entries on top of
-    the minima for backward compatibility with existing UIs. Organization and
-    project scopes only get the minima today; new roles can be added per-scope
-    via `AGENTA_ACCESS_ROLES`.
+    Workspace and project scopes expose the code-default `WorkspaceRole`
+    entries on top of the minima — project membership stores the same role
+    slugs (`admin`/`developer`/`editor`/`annotator`), and the runtime
+    permission check resolves them through this map. Organization scope
+    only gets the minima today; new roles can be added per-scope via
+    `AGENTA_ACCESS_ROLES`.
     """
-    workspace_extras: List[Dict[str, Any]] = []
+    default_extras: List[Dict[str, Any]] = []
     minima_slugs = {DefaultRole.OWNER.value, DefaultRole.VIEWER.value}
     for role in WorkspaceRole:
         if role.value in minima_slugs:
             continue
-        workspace_extras.append(
+        default_extras.append(
             {
                 "role": role.value,
                 "description": WorkspaceRole.get_description(role),
@@ -235,8 +237,8 @@ def _default_roles() -> Dict[str, List[Dict[str, Any]]]:
 
     return {
         "organization": _minima_for("organization"),
-        "workspace": _minima_for("workspace") + workspace_extras,
-        "project": _minima_for("project"),
+        "workspace": _minima_for("workspace") + default_extras,
+        "project": _minima_for("project") + default_extras,
     }
 
 
@@ -327,6 +329,322 @@ def _parse_roles_override(decoded: Any) -> Dict[str, List[Dict[str, Any]]]:
 
 
 # ---------------------------------------------------------------------------
+# Roles overlay
+# ---------------------------------------------------------------------------
+#
+# `AGENTA_ACCESS_ROLES_OVERLAY` lets operators tweak individual fields on
+# existing default roles (`admin`, `developer`, `editor`, `annotator`) — or
+# add new roles — without restating the whole scope catalog the way
+# `AGENTA_ACCESS_ROLES` requires.
+#
+# Today only the `project` key is accepted. The patch is applied to both
+# the `workspace` and `project` scopes because the two scopes share the
+# same role set in the code defaults. If `workspace` or `organization`
+# appears as a key, startup fails — silent ignore would mislead operators.
+#
+# Merge semantics per role slug:
+#   - role exists in the scope: per-field replace (`permissions` and/or
+#     `description`).
+#   - role does not exist: append as a new role (must include both
+#     `description` and `permissions`).
+#   - `owner` and `viewer` minima cannot be patched (platform-managed).
+
+
+class _RoleOverlayEntry(BaseModel):
+    """Partial role update. ``permissions`` and ``description`` are both
+    optional; whatever is set replaces the matching field on the existing
+    role entry. To add a new role both fields must be supplied — that
+    constraint is enforced in :func:`_apply_roles_overlay`.
+    """
+
+    description: Optional[str] = None
+    permissions: Optional[List[str]] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+def _parse_roles_overlay(decoded: Any) -> Dict[str, _RoleOverlayEntry]:
+    """Parse `AGENTA_ACCESS_ROLES_OVERLAY` and return per-slug entries.
+
+    Today only the ``project`` scope key is accepted. The single accepted
+    payload shape is ``{"project": {<role_slug>: <patch>}}``. The result
+    is the inner ``{<role_slug>: <patch>}`` dict; the caller decides which
+    scopes the patch applies to.
+    """
+    if not isinstance(decoded, dict) or not decoded:
+        raise ValueError("AGENTA_ACCESS_ROLES_OVERLAY must be a non-empty JSON object")
+
+    unknown = set(decoded.keys()) - {"project"}
+    if unknown:
+        raise ValueError(
+            f"AGENTA_ACCESS_ROLES_OVERLAY only supports the 'project' scope "
+            f"today (got: {sorted(unknown)}). The patch is applied to both "
+            "workspace and project."
+        )
+
+    project_payload = decoded.get("project")
+    if not isinstance(project_payload, dict) or not project_payload:
+        raise ValueError(
+            "AGENTA_ACCESS_ROLES_OVERLAY['project'] must be a non-empty "
+            "JSON object keyed by role slug"
+        )
+
+    reserved = {DefaultRole.OWNER.value, DefaultRole.VIEWER.value}
+    entries: Dict[str, _RoleOverlayEntry] = {}
+    for slug, patch in project_payload.items():
+        if not slug or not isinstance(slug, str):
+            raise ValueError(
+                f"Invalid role slug '{slug}' in AGENTA_ACCESS_ROLES_OVERLAY"
+            )
+        if slug in reserved:
+            raise ValueError(
+                f"AGENTA_ACCESS_ROLES_OVERLAY cannot patch reserved role "
+                f"'{slug}'; minima are platform-managed"
+            )
+        try:
+            entry = _RoleOverlayEntry.model_validate(patch)
+        except ValidationError as e:
+            raise ValueError(
+                f"Invalid AGENTA_ACCESS_ROLES_OVERLAY['project']['{slug}']: {e}"
+            ) from e
+        if entry.permissions is not None:
+            for perm in entry.permissions:
+                _validate_permission(perm)
+        entries[slug] = entry
+
+    return entries
+
+
+def _apply_roles_overlay(
+    roles: Dict[str, List[Dict[str, Any]]],
+    overlay: Dict[str, _RoleOverlayEntry],
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Apply the parsed overlay to the workspace and project scopes.
+
+    Returns a new dict; the input is not mutated. New roles (where the
+    slug doesn't already exist on the scope) require both ``description``
+    and ``permissions``.
+    """
+    result = {scope: [dict(entry) for entry in roles[scope]] for scope in roles}
+
+    for scope_name in ("workspace", "project"):
+        scope_entries = result[scope_name]
+        by_slug = {entry["role"]: idx for idx, entry in enumerate(scope_entries)}
+
+        for slug, patch in overlay.items():
+            if slug in by_slug:
+                # Patch existing role: per-field replace.
+                idx = by_slug[slug]
+                if patch.description is not None:
+                    scope_entries[idx]["description"] = patch.description
+                if patch.permissions is not None:
+                    scope_entries[idx]["permissions"] = list(patch.permissions)
+            else:
+                # New role: both fields must be present.
+                if patch.permissions is None:
+                    raise ValueError(
+                        f"AGENTA_ACCESS_ROLES_OVERLAY['project']['{slug}']: "
+                        f"new role requires 'permissions' (scope '{scope_name}' "
+                        "has no existing role with this slug to patch)"
+                    )
+                scope_entries.append(
+                    {
+                        "role": slug,
+                        "description": patch.description,
+                        "permissions": list(patch.permissions),
+                    }
+                )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Default-plan overlay
+# ---------------------------------------------------------------------------
+#
+# `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` lets self-hosted operators tweak individual
+# entitlement values on the default plan without restating the entire plan in
+# `AGENTA_ACCESS_PLANS`. Common cases: bumping trace retention, raising the
+# standard-throttle rate, flipping a flag.
+#
+# Shape mirrors a plan entry (same keys, same units) with one divergence:
+# `throttles` is a map keyed by category slug instead of a list, so per-
+# category patches don't require restating the whole list. Throttles that
+# combine multiple categories or use `endpoints` cannot be addressed via the
+# overlay — operators who need that should use `AGENTA_ACCESS_PLANS`.
+
+
+class _ThrottleOverlay(BaseModel):
+    """Partial throttle update keyed by a single category.
+
+    Every field is optional; only fields explicitly set on the overlay
+    replace the matching field on the existing throttle entry.
+    """
+
+    bucket: Optional[Dict[str, Any]] = None
+    mode: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class _DefaultPlanOverlay(BaseModel):
+    """Partial overlay for the default plan. Same shape as `_PlanOverride`
+    except `throttles` is a map keyed by category slug."""
+
+    description: Optional[str] = None
+    flags: Optional[Dict[str, bool]] = None
+    counters: Optional[Dict[str, Dict[str, Any]]] = None
+    gauges: Optional[Dict[str, Dict[str, Any]]] = None
+    throttles: Optional[Dict[str, _ThrottleOverlay]] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+def _merge_quota(existing: Optional[Quota], patch: Dict[str, Any]) -> Quota:
+    """Patch a Quota field-by-field, preserving fields the overlay didn't set."""
+    if existing is None:
+        # Patching an entitlement key that isn't defined on the base plan:
+        # treat the overlay as the full definition.
+        return Quota.model_validate(patch)
+    merged = existing.model_dump()
+    merged.update(patch)
+    return Quota.model_validate(merged)
+
+
+def _merge_throttle(existing: Throttle, patch: _ThrottleOverlay) -> Throttle:
+    """Patch one throttle entry. `bucket` is field-merged; `mode` replaces."""
+    base = existing.model_dump()
+    if patch.bucket is not None:
+        bucket = dict(base.get("bucket") or {})
+        bucket.update(patch.bucket)
+        base["bucket"] = bucket
+    if patch.mode is not None:
+        base["mode"] = patch.mode
+    return Throttle.model_validate(base)
+
+
+def _parse_default_plan_overlay(decoded: Any) -> _DefaultPlanOverlay:
+    if not isinstance(decoded, dict) or not decoded:
+        raise ValueError(
+            "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY must be a non-empty JSON object"
+        )
+    try:
+        overlay = _DefaultPlanOverlay.model_validate(decoded)
+    except ValidationError as e:
+        raise ValueError(f"Invalid AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY: {e}") from e
+
+    # Validate slugs upfront so the error message points at the bad key
+    # rather than failing inside the merge.
+    if overlay.flags is not None:
+        for key in overlay.flags:
+            _validate_flag_key(key)
+    if overlay.counters is not None:
+        for key in overlay.counters:
+            _validate_counter_key(key)
+    if overlay.gauges is not None:
+        for key in overlay.gauges:
+            _validate_gauge_key(key)
+    if overlay.throttles is not None:
+        valid_categories = {c.value for c in Category}
+        for key in overlay.throttles:
+            if key not in valid_categories:
+                raise ValueError(
+                    f"AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY.throttles['{key}'] is not a "
+                    f"valid throttle category. Allowed: {sorted(valid_categories)}."
+                )
+    return overlay
+
+
+def _apply_default_plan_overlay(
+    plans: Dict[str, Dict[Tracker, Any]],
+    descriptions: Dict[str, str],
+    overlay: _DefaultPlanOverlay,
+    default_plan_slug: str,
+) -> tuple[Dict[str, Dict[Tracker, Any]], Dict[str, str]]:
+    """Apply the overlay to the resolved default plan in-place (returning new dicts)."""
+    if default_plan_slug not in plans:
+        raise ValueError(
+            f"AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY targets the default plan "
+            f"'{default_plan_slug}', which is not in the effective plan set "
+            f"({sorted(plans.keys())}). Add the slug to AGENTA_ACCESS_PLANS or "
+            "unset AGENTA_DEFAULT_PLAN."
+        )
+
+    plans = {slug: dict(entry) for slug, entry in plans.items()}
+    descriptions = dict(descriptions)
+    entry = plans[default_plan_slug]
+
+    if overlay.description is not None:
+        descriptions[default_plan_slug] = overlay.description
+
+    if overlay.flags is not None:
+        flags = dict(entry.get(Tracker.FLAGS) or {})
+        for key, value in overlay.flags.items():
+            flags[Flag(key)] = bool(value)
+        entry[Tracker.FLAGS] = flags
+
+    if overlay.counters is not None:
+        counters = dict(entry.get(Tracker.COUNTERS) or {})
+        for key, patch in overlay.counters.items():
+            counter = Counter(key)
+            counters[counter] = _merge_quota(counters.get(counter), patch)
+        entry[Tracker.COUNTERS] = counters
+
+    if overlay.gauges is not None:
+        gauges = dict(entry.get(Tracker.GAUGES) or {})
+        for key, patch in overlay.gauges.items():
+            gauge = Gauge(key)
+            gauges[gauge] = _merge_quota(gauges.get(gauge), patch)
+        entry[Tracker.GAUGES] = gauges
+
+    if overlay.throttles is not None:
+        existing_throttles = list(entry.get(Tracker.THROTTLES) or [])
+
+        for category_key, patch in overlay.throttles.items():
+            category = Category(category_key)
+            # Find the single-category throttle entry that matches.
+            target_idx = next(
+                (
+                    idx
+                    for idx, t in enumerate(existing_throttles)
+                    if t.categories
+                    and len(t.categories) == 1
+                    and t.categories[0] == category
+                ),
+                None,
+            )
+            if target_idx is None:
+                raise ValueError(
+                    f"AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY.throttles['{category_key}']: "
+                    f"the default plan '{default_plan_slug}' has no single-"
+                    f"category throttle entry for '{category_key}'. Use "
+                    "AGENTA_ACCESS_PLANS to define multi-category or endpoint-"
+                    "keyed throttles."
+                )
+            existing_throttles[target_idx] = _merge_throttle(
+                existing_throttles[target_idx], patch
+            )
+        entry[Tracker.THROTTLES] = existing_throttles
+
+    plans[default_plan_slug] = entry
+    return plans, descriptions
+
+
+def _resolve_default_plan_slug(plans: Dict[str, Dict[Tracker, Any]]) -> str:
+    """Resolve the default plan slug for overlay targeting.
+
+    Mirrors `subscriptions.types.get_default_plan()` without importing it (to
+    avoid pulling subscription/Stripe code into the access-controls layer).
+    """
+    raw = env.access_controls.default_plan
+    if raw:
+        return raw
+    if env.stripe.enabled:
+        return DefaultPlan.CLOUD_V0_HOBBY.value
+    return DefaultPlan.SELF_HOSTED_ENTERPRISE.value
+
+
+# ---------------------------------------------------------------------------
 # Effective controls (built once at import time)
 # ---------------------------------------------------------------------------
 
@@ -339,6 +657,8 @@ def _build_controls() -> tuple[
 ]:
     plans_payload = env.access_controls.plans
     roles_payload = env.access_controls.roles
+    roles_overlay_payload = env.access_controls.roles_overlay
+    plan_overlay_payload = env.access_controls.default_plan_overlay
 
     if plans_payload is not None:
         plans, descriptions = _parse_plans_override(plans_payload)
@@ -348,12 +668,27 @@ def _build_controls() -> tuple[
         descriptions = dict(_DEFAULT_PLAN_DESCRIPTIONS)
         plans_source = "defaults"
 
+    plan_overlay_source = "none"
+    if plan_overlay_payload is not None:
+        plan_overlay = _parse_default_plan_overlay(plan_overlay_payload)
+        default_plan_slug = _resolve_default_plan_slug(plans)
+        plans, descriptions = _apply_default_plan_overlay(
+            plans, descriptions, plan_overlay, default_plan_slug
+        )
+        plan_overlay_source = f"env→{default_plan_slug}"
+
     if roles_payload is not None:
         roles = _parse_roles_override(roles_payload)
         roles_source = "env"
     else:
         roles = _default_roles()
         roles_source = "defaults"
+
+    roles_overlay_source = "none"
+    if roles_overlay_payload is not None:
+        roles_overlay = _parse_roles_overlay(roles_overlay_payload)
+        roles = _apply_roles_overlay(roles, roles_overlay)
+        roles_overlay_source = "env"
 
     payload = dumps(
         {
@@ -367,9 +702,11 @@ def _build_controls() -> tuple[
     controls_hash = hashlib.sha256(payload.encode()).hexdigest()[:12]
 
     log.info(
-        "[access-controls] plans=%s roles=%s hash=%s",
+        "[access-controls] plans=%s roles=%s plan_overlay=%s roles_overlay=%s hash=%s",
         plans_source,
         roles_source,
+        plan_overlay_source,
+        roles_overlay_source,
         controls_hash,
     )
 

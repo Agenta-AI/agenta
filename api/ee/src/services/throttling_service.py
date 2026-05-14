@@ -17,6 +17,7 @@ from ee.src.core.entitlements.types import (
     Tracker,
 )
 from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
+from ee.src.core.subscriptions.settings import get_free_plan
 from ee.src.core.meters.service import MetersService
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.dbs.postgres.meters.dao import MetersDAO
@@ -182,13 +183,35 @@ async def throttling_middleware(request: Request, call_next):
     plan = await _get_plan(str(organization_id))
 
     entitlements = get_plan_entitlements(plan) if plan else None
-    if not plan or not entitlements:
+
+    # Unknown plan or plan without enforced throttles: fall back to the free
+    # plan's throttle bucket so misconfigured / orphaned subscriptions still
+    # get rate-limited instead of bypassing throttling entirely.
+    if not plan or entitlements is None or not (entitlements.get(Tracker.THROTTLES)):
+        fallback_plan = get_free_plan()
+        fallback_entitlements = (
+            get_plan_entitlements(fallback_plan) if fallback_plan else None
+        )
+        fallback_throttles = (fallback_entitlements or {}).get(Tracker.THROTTLES) or []
+
+        if not fallback_throttles:
+            log.warning(
+                "[throttling] No throttles available for plan and free-plan "
+                "fallback also has none",
+                org=organization_id,
+                plan=plan,
+                fallback=fallback_plan,
+            )
+            return await call_next(request)
+
         log.warning(
-            "[throttling] Missing entitlements for plan",
+            "[throttling] Falling back to free-plan throttles",
             org=organization_id,
             plan=plan,
+            fallback=fallback_plan,
         )
-        return await call_next(request)
+        plan = fallback_plan
+        entitlements = fallback_entitlements or {}
 
     throttles: list[Throttle] = entitlements.get(Tracker.THROTTLES) or []
 

@@ -57,11 +57,13 @@ COPY ./ee/src/crons/meters.sh /meters.sh
 COPY ./ee/src/crons/meters.txt /etc/cron.d/meters-cron
 COPY ./ee/src/crons/spans.sh /spans.sh
 COPY ./ee/src/crons/spans.txt /etc/cron.d/spans-cron
+COPY ./ee/src/crons/events.sh /events.sh
+COPY ./ee/src/crons/events.txt /etc/cron.d/events-cron
 
-RUN chmod +x /queries.sh /meters.sh /spans.sh \
-    && chmod 0644 /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron \
-    && for f in /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron; do sed -i -e '$a\' "$f"; done \
-    && cat /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron \
+RUN chmod +x /queries.sh /meters.sh /spans.sh /events.sh \
+    && chmod 0644 /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron \
+    && for f in /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron; do sed -i -e '$a\' "$f"; done \
+    && cat /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron \
         | sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' \
         | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab \
     && chown agenta:agenta /app/crontab

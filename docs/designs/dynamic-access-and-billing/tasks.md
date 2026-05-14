@@ -1,92 +1,187 @@
 # Tasks: Env-Backed Plans and Entitlements
 
-## Controls Surface
+Status: complete. All initial tasks shipped; the post-initial sections
+record work that emerged after `scan-codebase` / `triage-findings` /
+`resolve-findings` and user-driven design changes.
 
-- [ ] Replace the closed `Plan` enum in `api/ee/src/core/subscriptions/types.py` with a runtime-valid plan slug type.
-- [ ] Move code-default plan slugs into `api/ee/src/core/entitlements/types.py`.
-- [ ] Update subscription, billing, throttling, and client imports to use the access plan slug type.
-- [ ] Add `AccessControls` to `api/oss/src/utils/env.py`.
-- [ ] Add `AGENTA_ACCESS_PLANS`.
-- [ ] Add `AGENTA_ACCESS_ROLES`.
-- [ ] Add billing settings to `api/oss/src/utils/env.py`.
-- [ ] Add `AGENTA_BILLING_CATALOG`.
-- [ ] Move Stripe line items from `STRIPE_PRICING` / `AGENTA_PRICING` to `AGENTA_BILLING_PRICING` and remove legacy usage from `StripeConfig`.
-- [ ] Add support for a free-plan marker in `AGENTA_BILLING_PRICING`.
-- [ ] Add `AGENTA_BILLING_TRIAL_PLAN`.
-- [ ] Add `AGENTA_BILLING_TRIAL_DAYS`.
-- [ ] Preserve current default-plan loading and fallback behavior: existing `AGENTA_DEFAULT_PLAN`, then current Stripe-enabled/disabled code fallback.
+## Controls Surface (initial)
 
-## Access and Billing Builders
+- [x] Replace the closed `Plan` enum in `api/ee/src/core/subscriptions/types.py` with a runtime-valid plan slug type.
+- [x] Move code-default plan slugs into `api/ee/src/core/entitlements/types.py` (`DefaultPlan` enum, used as fallback only).
+- [x] Update subscription, billing, throttling, and client imports to use the access plan slug type.
+- [x] Add `AccessControls` to `api/oss/src/utils/env.py`.
+- [x] Add `AGENTA_ACCESS_PLANS`.
+- [x] Add `AGENTA_ACCESS_ROLES`.
+- [x] Add billing settings to `api/oss/src/utils/env.py`.
+- [x] Add `AGENTA_BILLING_CATALOG`.
+- [x] Move Stripe line items from `STRIPE_PRICING` / `AGENTA_PRICING` to `AGENTA_BILLING_PRICING` and remove legacy usage from `StripeConfig`.
+- [x] Add support for a free-plan marker in `AGENTA_BILLING_PRICING`.
+- [x] Add `AGENTA_BILLING_TRIAL_PLAN`.
+- [x] Add `AGENTA_BILLING_TRIAL_DAYS`.
+- [x] Preserve current default-plan loading and fallback behavior (Stripe-on/off code fallback).
 
-- [ ] Create `api/ee/src/core/entitlements/controls.py` for access controls.
-- [ ] Create billing settings helpers in `api/ee/src/core/subscriptions/`.
-- [ ] Define Pydantic models for plans with optional descriptions and entitlement mappings, catalog entries, quotas, buckets, throttles, scoped roles, and full override payloads.
-- [ ] Implement startup parsing of `env.billing.catalog`, `env.billing.pricing`, `env.access_controls.plans`, and `env.access_controls.roles`.
-- [ ] Implement fallback to code defaults when catalog/pricing/plans JSON env vars are absent or empty.
-- [ ] Implement validation that env overrides provide consistent catalog, pricing, and plans.
-- [ ] Implement derivation of effective plan slugs from plan map keys.
-- [ ] Implement validation that catalog plan slugs exist in the effective plans map.
-- [ ] Implement complete effective controls construction from env or code defaults.
-- [ ] Expose `get_plans()`.
-- [ ] Expose `get_plan(slug)`.
-- [ ] Expose `get_plan_entitlements(slug)`.
-- [ ] Expose `get_plan_description(slug)`.
-- [ ] Expose `get_roles(scope)`.
-- [ ] Expose `get_role(scope, slug)`.
-- [ ] Expose `get_role_permissions(scope, slug)`.
-- [ ] Expose `get_role_description(scope, slug)`.
-- [ ] Add billing settings accessors in `api/ee/src/core/subscriptions/`: `get_catalog()`, `get_catalog_plan(slug)`, `get_pricing()`, `get_pricing_plan(slug)`, `get_stripe_line_items(slug)`, `get_free_plan()`, `get_trial_plan()`, and `get_trial_days()`.
-- [ ] Keep `get_default_plan()` where it is today.
-- [ ] Log whether defaults or env overrides are active, ideally with a stable controls hash.
+## Access and Billing Builders (initial)
 
-## Runtime Refactor
+- [x] Create `api/ee/src/core/entitlements/controls.py` for access controls.
+- [x] Create billing settings helpers in `api/ee/src/core/subscriptions/settings.py`.
+- [x] Define Pydantic models for plans (`_PlanOverride`), catalog entries (`_CatalogEntry`), roles (`_RoleOverride`).
+- [x] Implement startup parsing of `env.billing.catalog`, `env.billing.pricing`, `env.access_controls.plans`, `env.access_controls.roles`.
+- [x] Implement fallback to code defaults when catalog/pricing/plans JSON env vars are absent or empty.
+- [x] Implement validation that env overrides provide consistent catalog, pricing, and plans.
+- [x] Implement derivation of effective plan slugs from plan map keys.
+- [x] Implement validation that catalog plan slugs exist in the effective plans map.
+- [x] Expose `get_plans()`.
+- [x] Expose `get_plan(slug)`.
+- [x] Expose `get_plan_entitlements(slug)`.
+- [x] Expose `get_plan_description(slug)`.
+- [x] Expose `get_roles(scope)`.
+- [x] Expose `get_role(scope, slug)`.
+- [x] Expose `get_role_permissions(scope, slug)`.
+- [x] Expose `get_role_description(scope, slug)`.
+- [x] Add billing settings accessors: `get_catalog()`, `get_catalog_plan(slug)`, `get_pricing()`, `get_pricing_plan(slug)`, `get_stripe_line_items(slug)`, `get_stripe_meter_price(plan, meter)`, `get_free_plan()`, `get_trial_plan()`, `get_trial_days()`, `trial_enabled()`.
+- [x] Keep `get_default_plan()` (now reads from `env.access_controls.default_plan` — see post-initial section).
+- [x] Log whether defaults or env overrides are active with a stable controls hash.
 
-- [ ] Update `api/ee/src/apis/fastapi/billing/router.py` to use billing `get_catalog()` and access-control `get_plan_entitlements()`.
-- [ ] Update `api/ee/src/utils/entitlements.py` to use `get_plan_entitlements()`.
-- [ ] Update `api/ee/src/services/throttling_service.py` to use `get_plan_entitlements()`.
-- [ ] Update `api/ee/src/core/tracing/service.py` to use `get_plan_entitlements()`.
-- [ ] Update `api/ee/src/core/entitlements/service.py` to use controls accessors.
-- [ ] Update `api/ee/src/core/subscriptions/service.py` to use billing `get_free_plan()`, `get_trial_plan()`, and `get_trial_days()`.
-- [ ] Update `WorkspaceRole` runtime usage to accept access-control role slugs instead of a closed enum.
-- [ ] Update `Permission.default_permissions(role)` callers to use `get_role_permissions(role)`.
-- [ ] Update `WorkspaceRole.get_description(role)` callers to use `get_role_description(role)`.
-- [ ] Update role discovery APIs to return `get_roles()`.
-- [ ] Keep code defaults for catalog/plans/roles as the no-env fallback.
+## Runtime Refactor (initial)
 
-## Tests
+- [x] Update `api/ee/src/apis/fastapi/billing/router.py` to use billing `get_catalog()` and access-control `get_plan_entitlements()`.
+- [x] Update `api/ee/src/utils/entitlements.py` to use `get_plan_entitlements()`.
+- [x] Update `api/ee/src/services/throttling_service.py` to use `get_plan_entitlements()`.
+- [x] Update `api/ee/src/core/tracing/service.py` to use `get_plan_entitlements()` via `get_plans()` iteration.
+- [x] Update `api/ee/src/core/entitlements/service.py` to use controls accessors.
+- [x] Update `api/ee/src/core/subscriptions/service.py` to use billing `get_free_plan()`, `get_trial_plan()`, `get_trial_days()`.
+- [x] Update `WorkspaceRole` runtime usage to accept access-control role slugs instead of a closed enum.
+- [x] Update `Permission.default_permissions(role)` callers to use `get_role_permissions(scope, role)`.
+- [x] Update `WorkspaceRole.get_description(role)` callers to use `get_role_description(scope, role)`.
+- [x] Update role discovery APIs to return `get_roles()`.
+- [x] Keep code defaults for catalog/plans/roles as the no-env fallback.
 
-- [ ] Add controls unit tests for no env override.
-- [ ] Add integration-style settings tests for catalog/plans/pricing override.
-- [ ] Add settings tests proving catalog-only override fails validation.
-- [ ] Add settings tests proving plans-only override fails validation when billing catalog/pricing is required.
-- [ ] Add controls unit tests for invalid JSON.
-- [ ] Add controls unit tests for duplicate/empty plan slugs.
-- [ ] Add controls unit tests for catalog referencing a plan missing from plans.
-- [ ] Add controls unit tests for invalid tracker/key.
-- [ ] Add billing settings unit tests for free/trial env behavior.
-- [ ] Add controls unit tests for roles env override.
-- [ ] Add controls unit tests for roles env override with unknown permission.
-- [ ] Add controls unit tests for duplicate/empty role slugs.
-- [ ] Add controls unit tests for required owner/default role behavior.
-- [ ] Add or update billing router tests proving `/billing/plans` returns overridden catalog data.
-- [ ] Add or update checkout/switch tests proving Stripe line items are read from `AGENTA_BILLING_PRICING`.
-- [ ] Add or update checkout/switch tests proving paid plans without Stripe line items fail clearly.
-- [ ] Add or update usage tests proving limits come from effective entitlements.
-- [ ] Add or update access tests proving role discovery and member serialization use effective roles.
+## Tests (initial)
 
-## Frontend and Docs
+- [x] Controls unit tests for no env override.
+- [x] Integration-style settings tests for catalog/plans/pricing override (subprocess-driven).
+- [x] Settings tests proving catalog-only override fails validation.
+- [x] Settings tests proving plans-only override fails validation when billing catalog/pricing is required.
+- [x] Controls unit tests for invalid JSON.
+- [x] Controls unit tests for duplicate/empty plan slugs.
+- [x] Controls unit tests for catalog referencing a plan missing from plans.
+- [x] Controls unit tests for invalid tracker/key.
+- [x] Billing settings unit tests for free/trial env behavior.
+- [x] Controls unit tests for roles env override.
+- [x] Controls unit tests for roles env override with unknown permission.
+- [x] Controls unit tests for duplicate/empty role slugs.
+- [x] Controls unit tests for required owner/default role behavior.
+- [x] Billing router tests proving `/billing/plans` returns overridden catalog data (via subprocess override tests).
+- [x] Checkout/switch tests proving Stripe line items are read from `AGENTA_BILLING_PRICING`.
+- [x] Checkout/switch tests proving paid plans without Stripe line items fail clearly.
+- [x] Usage tests proving limits come from effective entitlements.
+- [x] Access tests proving role discovery and member serialization use effective roles.
 
-- [ ] Change frontend runtime billing plan fields to string plan slugs while keeping constants for known default plans.
-- [ ] Change frontend runtime role fields to string role slugs while keeping constants for known default roles.
-- [ ] Confirm the pricing modal handles overridden catalog fields without layout or behavior regressions.
-- [ ] Document `AGENTA_BILLING_CATALOG`, `AGENTA_BILLING_PRICING`, `AGENTA_ACCESS_PLANS`, and `AGENTA_ACCESS_ROLES` with examples.
-- [ ] Document that `AGENTA_BILLING_CATALOG` contains display metadata and `AGENTA_BILLING_PRICING` contains Stripe line items.
-- [ ] Document restart requirements for API and worker processes.
+## Frontend and Docs (initial)
+
+- [x] Change frontend runtime billing plan fields to string plan slugs while keeping `DefaultPlan` constants for known default plans.
+- [x] Change frontend runtime role fields to string role slugs.
+- [x] Confirm the pricing modal handles overridden catalog fields without layout or behavior regressions.
+- [x] Document `AGENTA_BILLING_CATALOG`, `AGENTA_BILLING_PRICING`, `AGENTA_ACCESS_PLANS`, `AGENTA_ACCESS_ROLES` with examples in
+  [docs/docs/self-host/04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx)
+  and
+  [docs/docs/self-host/05-dynamic-billing-settings.mdx](../../docs/self-host/05-dynamic-billing-settings.mdx).
+- [x] Document the catalog/pricing split.
+- [x] Document restart requirements for API and worker processes.
+
+## Findings Resolution (post-scan)
+
+`scan-codebase` surfaced 13 findings against the initial implementation
+([findings.md](findings.md)). All resolved on this branch:
+
+- [x] FIND-001 — `WorkspacePermission.role_name: str` (response models opened).
+- [x] FIND-002 — project scope mirrors workspace role default extras.
+- [x] FIND-003 — `workspace_router.update_user_roles` validates via `get_role("workspace", slug)`.
+- [x] FIND-004 — `db_manager_ee.get_all_workspace_roles` and `workspace_manager.get_all_workspace_roles` return `get_roles("workspace")`.
+- [x] FIND-005 — `get_free_plan()` fallback validated against effective plan set; fails startup when unreachable.
+- [x] FIND-006 — `get_default_plan()` validated against effective plan set at startup.
+- [x] FIND-007 — admin `start_plan` validates plan via `get_plans()`.
+- [x] FIND-008 — `AGENTA_BILLING_PRICING.stripe.meters` keys validated against `Counter` / `Gauge` enums.
+- [x] FIND-009 — `_CatalogEntry` Pydantic model with required fields + `type ∈ {standard, custom}`.
+- [x] FIND-010 — migration comments call out the operator constraint on `cloud_v0_hobby`; FIND-005 guard catches mismatches at startup.
+- [x] FIND-011 — plans with only a `description` (or empty entry) allowed; `fetch_usage` distinguishes unknown plan vs. empty entitlements.
+- [x] FIND-012 — closed as `wontfix`. Workspace `viewer` minima permissions are code-fixed by design and documented.
+- [x] FIND-013 — throttle middleware falls back to free-plan throttles on unknown plans.
+
+## Default-Plan Relocation + Overlay (post-initial)
+
+User-driven design change: ergonomic per-knob tweaks for self-hosted
+operators without requiring full plan overrides.
+
+- [x] Move `default_plan` from `env.agenta` to `env.access_controls`.
+- [x] Canonical env var name: `AGENTA_ACCESS_DEFAULT_PLAN`.
+- [x] Preserve legacy `AGENTA_DEFAULT_PLAN` as fallback read (canonical wins).
+- [x] Update all readers (`subscriptions/types.py`, `subscriptions/settings.py`, `controls.py`).
+- [x] Add `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` to `env.py`.
+- [x] Define `_DefaultPlanOverlay` Pydantic model in `controls.py`.
+- [x] Implement quota field-merge (`_merge_quota`).
+- [x] Implement throttle field-merge keyed by category (`_merge_throttle`, throttles-as-map shape).
+- [x] Apply overlay after base plan map is built; validate target plan and throttle-category presence.
+- [x] Tests for overlay parse + apply (unit) and end-to-end env wiring (subprocess).
+- [x] Document overlay shape, merge semantics, and examples in
+  [docs/docs/self-host/04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx).
+
+## Events Counter + Retention Split (post-initial)
+
+User-driven design change: events become a retainable domain; retention
+moves out of billing.
+
+- [x] Add `Counter.EVENTS` to `entitlements/types.py`.
+- [x] Add default `Quota(monthly=True)` (no retention) to all seven plans in `DEFAULT_ENTITLEMENTS`.
+- [x] Add `Counter.EVENTS` to `CONSTRAINTS[Constraint.READ_ONLY]`.
+- [x] New `EventsRetentionDAO` at `api/ee/src/dbs/postgres/events/dao.py` (independent from OSS `EventsDAO`).
+- [x] New `EventsRetentionService.flush_events` at `api/ee/src/core/events/retention.py`.
+- [x] New admin router `EventsAdminRouter` at `api/ee/src/apis/fastapi/events/router.py` → `POST /admin/events/flush`.
+- [x] Split spans admin handler out of `BillingRouter` into `SpansAdminRouter` at `api/ee/src/apis/fastapi/spans/router.py` → `POST /admin/spans/flush`.
+- [x] Hard cut on `POST /admin/billing/usage/flush` (no compat shim).
+- [x] Drop `tracing_service` constructor arg from `BillingRouter`.
+- [x] Mount two new admin routers in `ee/src/main.py`.
+- [x] Update `crons/spans.sh` URL to `/admin/spans/flush`.
+- [x] New `crons/events.sh` + `crons/events.txt` (schedule `7,37 * * * *`, offset from spans `0,30` and meters `15,45`).
+- [x] Dockerfile updates (`Dockerfile.dev`, `Dockerfile.gh`) to COPY + chmod the new files.
+- [x] `docker-compose.dev.yml` volume mount for `events.sh`.
+- [x] Tests: `test_events_retention.py` (service logic), `test_admin_retention_routers.py` (lock + handler).
+- [x] Doc updates:
+  - [docs/designs/data-retention/README.md](../data-retention/README.md)
+  - [docs/designs/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md)
+  - [docs/design/ee-self-hosting/research.md](../../design/ee-self-hosting/research.md)
+  - [docs/openapi-cleanup/endpoints.md](../../openapi-cleanup/endpoints.md)
+  - [docs/docs/self-host/04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx) (events counter row)
+
+## Roles Overlay (post-initial)
+
+User-driven design change: symmetric overlay for the role catalog so
+operators can tweak a single existing role (e.g. give `editor` one
+extra permission) or add a single new role without restating the full
+`AGENTA_ACCESS_ROLES` payload.
+
+- [x] Rename "legacy extras" → "default extras" everywhere (terminology
+  cleanup — the workspace roles are code defaults, not legacy).
+- [x] Add `AGENTA_ACCESS_ROLES_OVERLAY` field to `env.access_controls`.
+- [x] Define `_RoleOverlayEntry` Pydantic model in `controls.py`.
+- [x] Implement `_parse_roles_overlay` (only `project` key accepted; rejects
+  reserved minima slugs; validates permissions).
+- [x] Implement `_apply_roles_overlay` (patches both workspace and project
+  scopes from the same `project` payload; per-field replace for existing
+  roles; appends new roles when both fields supplied).
+- [x] Wire into `_build_controls`; log `roles_overlay=env|none` at startup.
+- [x] Tests: parser unit tests + apply unit tests + subprocess env-wired
+  end-to-end tests (16 new tests).
+- [x] Doc updates:
+  - [docs/docs/self-host/02-configuration.mdx](../../docs/self-host/02-configuration.mdx) (table row).
+  - [docs/docs/self-host/04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx) (new section with shape, merge table, examples).
+- [x] Env example files updated:
+  - [hosting/docker-compose/ee/env.ee.dev.example](../../../hosting/docker-compose/ee/env.ee.dev.example)
+  - [hosting/docker-compose/ee/env.ee.gh.example](../../../hosting/docker-compose/ee/env.ee.gh.example)
 
 ## Validation
 
-- [ ] Run `ruff format` from the repo root.
-- [ ] Run `ruff check --fix` from the repo root.
-- [ ] Run `pnpm run format-fix` from `web`.
-- [ ] Run `pnpm run lint-fix` from `web`.
-- [ ] Full unit/integration/acceptance suites in `api`, `sdk`, `services`, and `web` are run manually by the maintainer.
+- [x] `ruff format` clean.
+- [x] `ruff check` clean.
+- [x] EE unit suite green (156 tests).
+- [ ] Full unit/integration/acceptance suites in `api`, `sdk`, `services`, `web` — run manually by the maintainer.

@@ -2,145 +2,307 @@
 
 ## Goal
 
-Make plan descriptions, pricing copy, and entitlement limits configurable without rebuilding the API/frontend image. If no environment override exists, the product should keep using the code-defined defaults that are close to today’s behavior.
+Make plan slugs, entitlement limits, catalog copy, and role permissions
+configurable without rebuilding the API/frontend image. If no environment
+override exists, the product keeps using the code-defined defaults that
+match prior behavior.
 
-## Current System
+A secondary goal that emerged during implementation: self-hosted operators
+should be able to tweak individual values on the default plan (trace
+retention, a throttle rate, one flag) without having to restate the entire
+plan. That goal is served by `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`.
 
-Plan and entitlement controls are currently split across a few EE API modules:
+## Pre-existing System
+
+Before this work, plan and entitlement controls were split across a few EE
+modules with no env-driven layer:
 
 - `api/ee/src/core/subscriptions/types.py`
-  - Defines the `Plan` enum today, although a fixed enum conflicts with runtime-configured plan slugs.
-  - Defines hard-coded defaults:
-    - `FREE_PLAN = Plan.CLOUD_V0_HOBBY`
-    - `REVERSE_TRIAL_PLAN = Plan.CLOUD_V0_PRO`
-    - `REVERSE_TRIAL_DAYS = 14`
-  - Defines `get_default_plan()`, already backed by `env.agenta.default_plan` / `AGENTA_DEFAULT_PLAN`.
+  - Defined the `Plan` enum and the hard-coded constants
+    `FREE_PLAN = Plan.CLOUD_V0_HOBBY`, `REVERSE_TRIAL_PLAN = Plan.CLOUD_V0_PRO`,
+    `REVERSE_TRIAL_DAYS = 14`.
+  - Defined `get_default_plan()`, backed by `env.agenta.default_plan` /
+    `AGENTA_DEFAULT_PLAN`.
 - `api/ee/src/core/entitlements/types.py`
-  - Defines typed entitlement keys: `Flag`, `Counter`, `Gauge`, `Tracker`, `Quota`, `Throttle`, etc.
-  - Defines `CATALOG`, the billing plan metadata shown by `/billing/plans`.
-  - Defines `ENTITLEMENTS`, the authoritative server-side limits and feature flags.
-  - Defines `REPORTS` and `CONSTRAINTS`.
-  - This is the better long-term home for the plan identifier type and code-default plan slugs, because entitlement controls own the effective plan set.
+  - Defined typed entitlement keys: `Flag`, `Counter`, `Gauge`, `Tracker`,
+    `Quota`, `Throttle`.
+  - Defined `CATALOG` (now `DEFAULT_CATALOG`) and `ENTITLEMENTS`
+    (now `DEFAULT_ENTITLEMENTS`).
 - `api/ee/src/apis/fastapi/billing/router.py`
-  - Imports `CATALOG` and `ENTITLEMENTS` directly.
-  - `GET /billing/plans` filters `CATALOG`, returning all standard plans plus the current custom plan.
-  - `GET /billing/usage` reads limits from `ENTITLEMENTS`.
-  - Checkout and switching use `Plan` and `env.stripe.pricing`.
-- `api/ee/src/utils/entitlements.py`
-  - Imports `ENTITLEMENTS` directly.
-  - Performs feature checks, counter checks, gauge checks, DB meter adjustments, and meter cache updates.
-- `api/ee/src/services/throttling_service.py`
-  - Imports `ENTITLEMENTS` directly.
-  - Uses the configured throttle buckets for per-plan request throttling.
-- `api/ee/src/core/tracing/service.py`
-  - Imports `ENTITLEMENTS` directly.
-  - Uses trace quotas/retention while flushing/reporting usage.
+  - Imported `CATALOG` and `ENTITLEMENTS` directly.
+  - `GET /billing/plans` filtered `CATALOG`; `GET /billing/usage` read
+    limits from `ENTITLEMENTS`.
+  - Checkout and switching used the `Plan` enum and `env.stripe.pricing`.
+- `api/ee/src/utils/entitlements.py`, `services/throttling_service.py`,
+  `core/tracing/service.py` — all imported `ENTITLEMENTS` directly.
 - `api/ee/src/models/shared_models.py`
-  - Defines `WorkspaceRole` as a closed enum today.
-  - Defines `Permission` as a code-defined enum.
-  - Defines default role-to-permission mappings inside `Permission.default_permissions(role)`.
-- `api/ee/src/services/converters.py`
-  - Uses `WorkspaceRole.get_description(role)` and `Permission.default_permissions(role)` when serializing workspace members.
-  - Uses `getattr(WorkspaceRole, role_name.upper())`, which breaks for env-defined role slugs.
-- `api/ee/src/services/db_manager_ee.py`
-  - `get_all_workspace_roles()` returns `list(WorkspaceRole)`.
-  - Several membership flows already store role values as strings, so storage can likely tolerate custom role slugs once enum validation is removed.
+  - Defined `WorkspaceRole` as a closed enum.
+  - Defined `Permission.default_permissions(role)` as the static
+    role-to-permission map.
 - `web/ee/src/state/billing/atoms.ts`
-  - Fetches `/billing/plans` and caches results for 10 minutes.
-  - Frontend plan cards are already API-driven for titles, descriptions, price, and features.
+  - Fetched `/billing/plans` (cached 10 minutes). Frontend plan cards
+    already API-driven for title, description, price, features.
 
-## Existing Environment Pattern
+Span retention ran via a single admin endpoint at
+`POST /admin/billing/usage/flush` triggered by `crons/spans.sh`.
 
-The API already centralizes environment settings in `api/oss/src/utils/env.py` via the shared `env` object. The contributor guide explicitly says new API environment variables should be added there and feature code should avoid direct `os.getenv(...)`.
+## Environment Pattern
 
-Relevant existing examples:
+The API centralizes environment settings in `api/oss/src/utils/env.py` via
+the shared `env` object. The contributor guide requires new API env
+variables to be added there; feature code avoids direct `os.getenv(...)`.
 
-- `env.agenta.default_plan` from `AGENTA_DEFAULT_PLAN`, which should stay as-is.
-- `env.stripe.pricing`, used by checkout and subscription switching today. Target design should replace this with Stripe line items in `AGENTA_BILLING_PRICING`.
-- Nested Pydantic settings models under `EnvironSettings`.
+Relevant existing nesting on `EnvironSettings`:
 
-This means a plan/entitlement override should be exposed as a typed field on `env`, not read directly in billing or entitlement code.
+- `env.stripe.*` (Stripe credentials)
+- `env.agenta.*` (general Agenta config)
+- new: `env.access_controls.*` (this work)
+- new: `env.billing.*` (this work)
+
+All env-driven JSON is parsed at the env layer at process startup; downstream
+modules consume already-decoded dicts/lists.
 
 ## Important Distinctions
 
-There are two different control surfaces here:
+There are three control surfaces:
 
-1. Display catalog
-   - Titles, descriptions, feature bullets, prices, retention copy, and whether a plan is `standard` or `custom`.
-   - Used mostly by `/billing/plans` and the frontend pricing modal.
-   - Low operational risk if changed, but can mislead users if it diverges from enforcement.
+1. **Display catalog** (`/billing/plans` shape) — titles, descriptions,
+   feature bullets, prices, retention copy, `standard` vs `custom`.
+   Owned by **billing**.
+2. **Enforced entitlements** — flags, counters, gauges, quotas, retention,
+   throttles. Owned by **access controls**.
+3. **Workspace/project/organization roles** — slugs, descriptions, and
+   role-to-permission mappings. Owned by **access controls**. Permissions
+   themselves remain code-defined.
 
-2. Enforced entitlements
-   - Flags, counters, gauges, quotas, retention values, and throttles.
-   - Used by server-side authorization, quota enforcement, usage responses, tracing, and throttling.
-   - Higher operational risk because a malformed override can block users, loosen limits, break throttle behavior, or produce inconsistent usage displays.
+Catalog and plans must agree on the effective plan slug set (otherwise the
+UI advertises plans the server cannot enforce). Roles and plans are
+independent: changing one does not affect the other.
 
-3. Workspace roles
-   - Role slugs, descriptions, and role-to-permission assignments.
-   - Permissions should remain code-defined.
-   - Env-defined roles should only reference existing `Permission` values.
+## Coupling and Constraints
 
-The strongest implementation should keep these together in one validated controls surface. Even copy-only changes should provide a consistent catalog/plans set, so the UI and enforcement cannot drift silently.
+Plan identifiers were code-defined through the `Plan` enum living in
+subscription types. That conflicted with the goal of runtime-defined plan
+slugs. The shipped solution:
 
-## Current Coupling and Constraints
+- Plan identity moved to a string-based slug type in
+  `api/ee/src/core/entitlements/types.py` (with `DefaultPlan` enum kept as
+  code-default fallback).
+- `AGENTA_ACCESS_PLANS` defines the effective plan set; validation checks
+  catalog and pricing references against that set, not against a Python enum.
+- `subscriptions.types.SubscriptionDTO.plan: str` (no enum constraint),
+  validated at API boundaries against `get_plans()`.
 
-Plan identifiers are currently code-defined through the `Plan` enum, and the enum currently lives in subscription types. That is incompatible with the main reason to add plan env vars: operators need to define plan slugs at runtime.
+`env.stripe.pricing` (legacy `STRIPE_PRICING` / `AGENTA_PRICING`) was
+dropped. Stripe line items now live under `AGENTA_BILLING_PRICING` next to
+the display catalog. A converter script (`migrate_stripe_pricing.py` in
+this folder) translates legacy values to the new shape.
 
-For the requested goal, the environment override should define the effective list of plans. Validation should check catalog and entitlement references against `AGENTA_ACCESS_PLANS`, not against a hard-coded Python enum. If the env plan list is absent, the code-default plan list remains the fallback.
-
-The implementation should either replace `Plan` with a string-based plan slug type or keep a compatibility enum only for code defaults while making runtime subscription DTOs accept validated plan strings. `plans`, `catalog`, and `entitlements` are tightly coupled: each catalog entry must point at a known effective plan, and each entitlement entry must point at a known effective plan. If the override is incomplete or inconsistent, the API should reject it at startup rather than mixing custom pieces with code defaults.
-
-`env.stripe.pricing` is separate from `CATALOG.price` today. That split allows the UI to show prices that Stripe does not charge. The target design should keep display catalog and Stripe pricing separate but colocated under the billing namespace: `AGENTA_BILLING_CATALOG` for display metadata and `AGENTA_BILLING_PRICING` for checkout/switching mechanics.
-
-The frontend already consumes `/billing/plans`, so no rebuild is needed for text/price changes once the API returns env-backed data. However, the frontend caches plans for 10 minutes, and a running browser may not see changes immediately.
+The frontend already consumes `/billing/plans`, so no rebuild is needed
+for catalog changes. The 10-minute cache is unchanged; running browsers
+catch up after at most one cache cycle.
 
 ## Runtime Behavior
 
-Environment variables are read when the API process starts. Changing a Kubernetes/Railway/Docker env var usually requires restarting the API container, but not rebuilding or redeploying a new image. If the goal is live mutation without process restart, env vars are the wrong storage mechanism; a database or remote config service would be needed.
+JSON env vars are read once at process startup and validated immediately.
+Restarting the API container picks up changes; no image rebuild needed.
 
-## Recommended Override Shape
+`controls.py` and `settings.py` parse env at import time. Mutating
+`env.access_controls.*` / `env.billing.*` after import has no effect —
+this is why tests use subprocesses to exercise overrides.
 
-Use separate JSON environment variables for the coupled controls sections:
+If live mutation without process restart were ever required, env vars are
+the wrong storage; a database or remote config service would be needed.
 
-- `AGENTA_ACCESS_PLANS`
-  - Defines plan slugs and maps each plan to enforced flags, counters, gauges, quotas, retention, and throttles.
-  - May include internal/operator-facing descriptions for plans.
-- `AGENTA_BILLING_CATALOG`
-  - Defines user-facing display metadata for plan slugs in `/billing/plans`.
-- `AGENTA_ACCESS_ROLES`
-  - Defines effective organization, workspace, and project roles using code-defined permissions.
+## Shipped Override Surface
 
-Catalog and plans should be treated as one validated group. If both are absent or empty, use code defaults. If either is present, both must be present and internally consistent. The effective plan slugs are the keys of the plans map.
+### Access controls (`env.access_controls`)
 
-Roles are a parallel controls section. If `AGENTA_ACCESS_ROLES` is absent or empty, use code-default roles and default role permissions. If it is present, it becomes the effective role catalog and must reference only code-defined permissions.
+| Variable | Type | Purpose |
+| --- | --- | --- |
+| `AGENTA_ACCESS_PLANS` | JSON object | Plan slugs → entitlements (flags/counters/gauges/throttles). Effective plan set is the keys. |
+| `AGENTA_ACCESS_ROLES` | JSON object | Scope → list of custom roles. `owner` and `viewer` minima always present. |
+| `AGENTA_ACCESS_ROLES_OVERLAY` | JSON object | Per-role patch applied to workspace + project scopes (only `project` key accepted today). Add a single role or tweak an existing role's permissions/description without restating the catalog. |
+| `AGENTA_ACCESS_DEFAULT_PLAN` | string | Plan slug assigned to new orgs on signup. Falls back to legacy `AGENTA_DEFAULT_PLAN`, then to a code default. |
+| `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | JSON object | Partial entitlement patch applied to the default plan only. Same shape as a plan entry except `throttles` is a category-keyed map. |
 
-Separate small env vars can still be useful for high-value defaults:
+### Billing settings (`env.billing`)
 
-- existing `AGENTA_DEFAULT_PLAN`
-- free/downgrade plan marker in `AGENTA_BILLING_PRICING`
-- `AGENTA_BILLING_TRIAL_PLAN`
-- `AGENTA_BILLING_TRIAL_DAYS`
+| Variable | Type | Purpose |
+| --- | --- | --- |
+| `AGENTA_BILLING_CATALOG` | JSON array | Per-plan display metadata for `/billing/plans`. |
+| `AGENTA_BILLING_PRICING` | JSON object | Stripe line items, per-meter price IDs, free-plan marker. |
+| `AGENTA_BILLING_TRIAL_PLAN` | string | Plan slug for reverse-trial. |
+| `AGENTA_BILLING_TRIAL_DAYS` | integer | Trial length in days. Both trial vars must be set together. |
 
-For larger nested data, many scalar env vars would become brittle and harder to validate than JSON. The smaller defaults can remain separate env vars because they are single scalar choices that can be independently validated against the effective plans.
+### Pydantic representation
 
-## Validation Needs
+`env.access_controls.plans` is `dict | None`, `env.access_controls.roles`
+is `dict | None`, `env.access_controls.default_plan_overlay` is
+`dict | None`, `env.billing.catalog` is `list | None`, `env.billing.pricing`
+is `dict | None`. JSON is decoded at the env layer; downstream modules
+never re-parse strings.
 
-The override must validate:
+`AGENTA_ACCESS_DEFAULT_PLAN` reads canonical → legacy fallback:
 
-- Plan map keys are non-empty slugs and are unique in the effective plan set.
-- Plan descriptions in access controls are optional and internal; user-facing descriptions belong to billing catalog entries.
-- Every catalog plan exists in the effective plans map.
-- If `catalog` or `plans` is present in env controls, both sections are present and internally consistent.
-- Tracker names are valid: `flags`, `counters`, `gauges`, `throttles`.
-- Entitlement keys are valid for their tracker.
-- Quotas use numeric or null limits.
-- Throttles reference valid categories, modes, and methods.
-- Catalog entries have valid plan slugs and expected fields.
-- Catalog and entitlement plans stay aligned enough to avoid misleading users.
-- Role slugs are non-empty strings and unique within their scope.
-- Role permissions exist in the code-defined `Permission` enum.
-- Role scopes are known: `organization`, `workspace`, and `project`.
-- The effective roles preserve platform invariants per scope, especially `owner`.
-- Default/invite fallback roles, such as `viewer`, exist in the effective role set if code paths still depend on them.
+```python
+default_plan: str | None = (
+    os.getenv("AGENTA_ACCESS_DEFAULT_PLAN")
+    or os.getenv("AGENTA_DEFAULT_PLAN")
+    or None
+)
+```
 
-Invalid overrides should fail fast during API startup rather than silently running with partial enforcement.
+Canonical wins if both are set.
+
+### Default-plan overlay
+
+Targets whatever `get_default_plan()` resolves to. Shape mirrors a plan
+entry with one divergence: `throttles` is a map keyed by category slug so
+per-category patches don't require restating the whole throttle list.
+
+Merge semantics:
+
+- `description` replaces.
+- `flags` per-key replace.
+- `counters` / `gauges` per-quota field merge (overlay keeps existing
+  `free`/`limit`/`monthly`/`strict` if not specified).
+- `throttles[category]` looks up the existing single-category throttle and
+  field-merges its `bucket`. Multi-category or endpoint-keyed throttles
+  cannot be addressed via overlay — operators who need that use
+  `AGENTA_ACCESS_PLANS`.
+
+## Retention Job Split
+
+The original system had a single admin endpoint
+(`POST /admin/billing/usage/flush`) that flushed spans only. As `events`
+joined the entitlement system as a retainable counter, the endpoint moved
+out of `billing` because retention is not a billing concern.
+
+Shipped layout:
+
+- `POST /admin/spans/flush` — calls `TracingService.flush_spans()`.
+  Triggered by `crons/spans.sh` at `0,30 * * * *`. Lock namespace
+  `spans:flush`.
+- `POST /admin/events/flush` — calls
+  `EventsRetentionService.flush_events()`. Triggered by `crons/events.sh`
+  at `7,37 * * * *`. Lock namespace `events:flush`.
+
+Spans and events are completely independent retention domains: separate
+DAOs, separate services, separate endpoints, separate crons, separate
+Redis locks. The two flushes can run concurrently without blocking each
+other.
+
+## Validation (Shipped Behavior)
+
+All validation runs at API startup; failures are fail-fast.
+
+### `AGENTA_ACCESS_PLANS`
+
+- Must be a non-empty JSON object.
+- Plan map keys are non-empty unique slugs.
+- Plan entries may be empty (display-only plans with no enforced
+  entitlements are allowed).
+- Tracker names: `flags`, `counters`, `gauges`, `throttles`.
+- Flag / counter / gauge keys must be valid `Flag` / `Counter` / `Gauge`
+  enum members.
+- Throttles validated via Pydantic `Throttle` model (categories ∈
+  `Category` enum; modes ∈ `Mode` enum).
+- `description` is optional and operator-facing; user-facing descriptions
+  belong to the catalog.
+
+### `AGENTA_ACCESS_ROLES`
+
+- Must be a non-empty JSON object.
+- Scopes ∈ `{organization, workspace, project}`.
+- Each scope is a non-empty list of roles.
+- Role slugs are non-empty and unique within a scope.
+- Cannot redefine `owner` or `viewer` (platform synthesizes them).
+- Each permission slug must exist in `Permission` (or be the wildcard `*`).
+
+### `AGENTA_ACCESS_DEFAULT_PLAN`
+
+- If set, must reference a slug in the effective plan map. Validated in
+  `subscriptions/settings.py` at startup.
+
+### `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`
+
+- Non-empty JSON object.
+- Target plan slug must exist in the effective plan map.
+- Each flag / counter / gauge / throttle category key validated upfront.
+- Throttle overlay must match a single-category throttle on the base plan
+  (multi-category not supported via overlay).
+
+### `AGENTA_BILLING_CATALOG`
+
+- JSON array of entries.
+- Each entry validated via Pydantic `_CatalogEntry`: required `title`,
+  `description`, `type`, `features`; optional `plan`, `price`, `retention`.
+- `type` ∈ `{standard, custom}`.
+- `extra="allow"` — operators may add fields the frontend renders directly.
+- If `entry.plan` is set, it must exist in the effective plan map.
+
+### `AGENTA_BILLING_PRICING`
+
+- JSON object keyed by plan slug; every slug must be in the effective plan
+  map.
+- At most one entry marked `"free": true`.
+- `stripe.line_items` must be a list.
+- `stripe.meters` keys must be valid `Counter` or `Gauge` slugs.
+- Free plan derivation: pricing's `"free": true` entry → fallback to
+  `cloud_v0_hobby` only if it exists in the effective plan map (otherwise
+  startup fails).
+
+### Trial vars
+
+- `AGENTA_BILLING_TRIAL_PLAN` and `AGENTA_BILLING_TRIAL_DAYS` must be set
+  together (or both unset).
+- Trial plan must be in the effective plan map.
+- Trial days must be a positive integer.
+
+## Decisions Made During Implementation
+
+These weren't in the original research but emerged from `scan-codebase` /
+`resolve-findings`:
+
+- **Project scope inherits the workspace role default extras.** The closed
+  `WorkspaceRole` enum used to be the read-side source for project member
+  permissions. After the refactor, `controls._default_roles()["project"]`
+  exposes the same set so existing `project_members.role` values
+  (`admin`/`developer`/`editor`/`annotator`) keep resolving to their
+  historical permission sets. Env overrides on the project scope replace
+  those extras (preserving the minima).
+- **Description-only plans allowed.** `_PlanOverride` does not require any
+  of `flags`/`counters`/`gauges`/`throttles`. Display-only plans (custom /
+  self-hosted) with empty entitlement maps are valid. `fetch_usage`
+  distinguishes "unknown plan" (`None` → 404) from "plan exists but
+  enforces nothing" (`{}` → empty usage object).
+- **Free-plan fallback validated.** When `AGENTA_BILLING_PRICING` has no
+  `"free": true` entry, `get_free_plan()` falls back to `cloud_v0_hobby`
+  only if it exists in the effective plan map; otherwise the API refuses
+  to start (FIND-005).
+- **`get_default_plan()` validated against effective plan set** at startup
+  (FIND-006).
+- **Default plan moved out of `env.agenta`.** Previously
+  `env.agenta.default_plan`; now `env.access_controls.default_plan` since
+  it's part of the access-controls surface (used even when Stripe is
+  disabled).
+- **`Counter.EVENTS` added.** Events are not metered today (no write-path
+  hop), but the retention dimension applies. Default `Quota(monthly=True)`
+  on every plan — no retention by default to match pre-change behavior.
+- **Throttle middleware falls back to free-plan throttles** for unknown
+  plans instead of letting requests through unthrottled (FIND-013).
+
+## Frontend Implications
+
+No frontend rebuild required for catalog or plan-slug changes. The
+runtime `Plan` union widened to `string` ([web/ee/src/services/billing/types.d.ts](../../../web/ee/src/services/billing/types.d.ts));
+the `DefaultPlan` enum is preserved only for code-side conditionals
+(`plan === DefaultPlan.Hobby` etc.).
+
+Role serialization widened too: response models use `str` instead of the
+closed `WorkspaceRole` enum, so env-defined custom roles serialize
+cleanly.
+
+The browser-side 10-minute cache on `/billing/plans` means catalog changes
+take up to that long to appear in running tabs.

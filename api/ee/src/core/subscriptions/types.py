@@ -30,11 +30,13 @@ class SubscriptionDTO(BaseModel):
 def get_default_plan() -> str:
     """Returns the default plan slug for new organizations.
 
-    Reads from AGENTA_DEFAULT_PLAN env var. If not set, defaults to:
+    Reads from `AGENTA_ACCESS_DEFAULT_PLAN` (canonical) or the legacy
+    `AGENTA_DEFAULT_PLAN` env var (both surfaced via
+    `env.access_controls.default_plan`). If neither is set, defaults to:
     - self_hosted_enterprise when Stripe is disabled
     - cloud_v0_hobby when Stripe is enabled
     """
-    raw = env.agenta.default_plan
+    raw = env.access_controls.default_plan
     if raw:
         return raw
 

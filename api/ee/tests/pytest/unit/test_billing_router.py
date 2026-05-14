@@ -24,7 +24,6 @@ async def test_fetch_subscription_reads_periods_from_stripe_objects(monkeypatch)
     router = BillingRouter(
         subscription_service=subscription_service,
         meters_service=SimpleNamespace(),
-        tracing_service=SimpleNamespace(),
     )
 
     monkeypatch.setattr(billing_router_module.env.stripe, "api_key", "sk_test_123")
@@ -76,7 +75,6 @@ async def test_handle_events_reads_subscription_created_metadata_from_stripe_obj
     router = BillingRouter(
         subscription_service=subscription_service,
         meters_service=SimpleNamespace(),
-        tracing_service=SimpleNamespace(),
     )
     request = DummyRequest()
 
@@ -122,7 +120,6 @@ async def test_handle_events_reads_invoice_metadata_from_stripe_objects(monkeypa
     router = BillingRouter(
         subscription_service=subscription_service,
         meters_service=SimpleNamespace(),
-        tracing_service=SimpleNamespace(),
     )
     request = DummyRequest()
 

@@ -100,16 +100,9 @@ async def update_workspace(
     )
 
 
-async def get_all_workspace_roles() -> List[WorkspaceRole]:
-    """
-    Retrieve all workspace roles.
-
-    Returns:
-        List[WorkspaceRole]: A list of all workspace roles in the DB.
-    """
-
-    workspace_roles_from_db = await db_manager_ee.get_all_workspace_roles()
-    return workspace_roles_from_db
+async def get_all_workspace_roles() -> List[dict]:
+    """Return the effective workspace role catalog (env-overridable)."""
+    return await db_manager_ee.get_all_workspace_roles()
 
 
 async def get_all_workspace_permissions() -> List[Permission]:

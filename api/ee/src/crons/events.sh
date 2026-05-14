@@ -4,7 +4,7 @@ set -eu
 AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 
 echo "--------------------------------------------------------"
-echo "[$(date)] spans.sh running from cron"
+echo "[$(date)] events.sh running from cron"
 
 # Make POST request with 30 minute timeout (retention can be slow)
 RESPONSE=$(curl \
@@ -14,7 +14,7 @@ RESPONSE=$(curl \
     -w "\nHTTP_STATUS:%{http_code}\n" \
     -X POST \
     -H "Authorization: Access ${AGENTA_AUTH_KEY}" \
-    "http://api:8000/admin/spans/flush" 2>&1) || CURL_EXIT=$?
+    "http://api:8000/admin/events/flush" 2>&1) || CURL_EXIT=$?
 
 if [ -n "${CURL_EXIT:-}" ]; then
     echo "❌ CURL failed with exit code: ${CURL_EXIT}"
@@ -30,10 +30,10 @@ else
     echo "${RESPONSE}"
     HTTP_CODE=$(echo "${RESPONSE}" | grep "HTTP_STATUS:" | cut -d: -f2)
     if [ "${HTTP_CODE}" = "200" ]; then
-        echo "✅ Spans retention completed successfully"
+        echo "✅ Events retention completed successfully"
     else
-        echo "❌ Spans retention failed with HTTP ${HTTP_CODE}"
+        echo "❌ Events retention failed with HTTP ${HTTP_CODE}"
     fi
 fi
 
-echo "[$(date)] spans.sh done"
+echo "[$(date)] events.sh done"

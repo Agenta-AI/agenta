@@ -18,11 +18,33 @@ from ee.src.core.entitlements.types import DefaultPlan
 
 
 class TestParseCatalogOverride:
+    _FULL_ENTRY = {
+        "title": "T",
+        "description": "d",
+        "type": "standard",
+        "features": ["a"],
+        "plan": "p",
+    }
+
     def test_minimal_valid_catalog(self):
-        result = settings._parse_catalog_override(
-            [{"title": "T", "plan": "p", "type": "standard"}]
-        )
-        assert result == [{"title": "T", "plan": "p", "type": "standard"}]
+        result = settings._parse_catalog_override([self._FULL_ENTRY])
+        assert result == [self._FULL_ENTRY]
+
+    def test_extra_fields_passed_through(self):
+        entry = dict(self._FULL_ENTRY, custom_badge="new")
+        result = settings._parse_catalog_override([entry])
+        assert result[0]["custom_badge"] == "new"
+
+    def test_missing_required_field_rejected(self):
+        broken = dict(self._FULL_ENTRY)
+        del broken["title"]
+        with pytest.raises(ValueError, match="is invalid"):
+            settings._parse_catalog_override([broken])
+
+    def test_invalid_type_value_rejected(self):
+        broken = dict(self._FULL_ENTRY, type="garbage")
+        with pytest.raises(ValueError, match="type must be one of"):
+            settings._parse_catalog_override([broken])
 
     def test_non_list_rejected(self):
         with pytest.raises(ValueError, match="JSON array"):

@@ -1,91 +1,160 @@
 # Gap Analysis: Env-Backed Plans and Entitlements
 
+This document records the gaps the work set out to close. Each gap is
+annotated with a Resolution line pointing at the shipped fix. The gaps
+section freezes the pre-change state of the system.
+
 ## Functional Gaps
 
-- Runtime source of truth is hard-coded constants.
-  - `CATALOG` and `ENTITLEMENTS` are imported directly in multiple modules.
-  - There is no single accessor layer where env overrides can be applied safely.
+- Runtime source of truth was hard-coded constants.
+  - `CATALOG` and `ENTITLEMENTS` were imported directly in multiple modules.
+  - There was no single accessor layer where env overrides could be
+    applied safely.
+  - **Resolution:** introduced `ee.src.core.entitlements.controls` and
+    `ee.src.core.subscriptions.settings` as the accessor surfaces;
+    `CATALOG`/`ENTITLEMENTS` renamed to `DEFAULT_CATALOG`/
+    `DEFAULT_ENTITLEMENTS` and routed exclusively through accessors at
+    runtime.
 
-- Subscription defaults are only partially configurable.
-  - `AGENTA_DEFAULT_PLAN` exists today and should stay where it is.
-  - `FREE_PLAN`, `REVERSE_TRIAL_PLAN`, and `REVERSE_TRIAL_DAYS` are still hard-coded.
+- Subscription defaults were only partially configurable.
+  - `AGENTA_DEFAULT_PLAN` existed.
+  - `FREE_PLAN`, `REVERSE_TRIAL_PLAN`, `REVERSE_TRIAL_DAYS` were
+    hard-coded.
+  - **Resolution:** free plan now derived from `AGENTA_BILLING_PRICING`'s
+    `"free": true` marker; trial driven by `AGENTA_BILLING_TRIAL_PLAN` +
+    `AGENTA_BILLING_TRIAL_DAYS` (both required together).
+    `AGENTA_DEFAULT_PLAN` renamed canonically to
+    `AGENTA_ACCESS_DEFAULT_PLAN`, moved from `env.agenta` to
+    `env.access_controls`, legacy name still honored.
 
-- Plan identity is too static.
-  - The backend `Plan` enum lives in subscription types.
-  - A closed enum prevents env-defined plan slugs.
-  - Plans are the root identifiers for entitlements and catalog entries, so the effective plan set should come from the access-control plans map, with code defaults as fallback.
+- Plan identity was too static.
+  - Backend `Plan` enum in subscription types prevented env-defined slugs.
+  - **Resolution:** `SubscriptionDTO.plan: str`; runtime validation
+    against `get_plans()` at API boundaries; `DefaultPlan` enum retained
+    as code-default fallback only.
 
-- There is no effective access-controls consistency check.
-  - `catalog` and `plans` need to agree.
-  - `pricing` and `plans` also need to agree.
-  - The plan set should come from plan-map slugs, and each plan value should hold the entitlement mapping.
-  - A partial env override could otherwise make the UI and enforcement diverge.
+- No effective access-controls consistency check existed.
+  - Catalog/pricing/plans needed to agree but nothing enforced it.
+  - **Resolution:** `settings._build_settings()` validates that every
+    `AGENTA_BILLING_CATALOG[*].plan` and `AGENTA_BILLING_PRICING[slug]`
+    exists in the effective plan map; startup fails on mismatch.
 
-- Display pricing and Stripe pricing are separate today.
-  - `CATALOG.price` drives the UI.
-  - `env.stripe.pricing` drives checkout/switching.
-  - Env-based catalog changes can make the UI disagree with Stripe if operators are not careful.
-  - Target design should move Stripe line items into `AGENTA_BILLING_PRICING` and remove `STRIPE_PRICING` / `AGENTA_PRICING`.
+- Display pricing and Stripe pricing were separate.
+  - `CATALOG.price` (UI) and `env.stripe.pricing` (Stripe) could diverge.
+  - **Resolution:** `STRIPE_PRICING` / `AGENTA_PRICING` removed from
+    `StripeConfig`. Stripe line items now live under
+    `AGENTA_BILLING_PRICING`. Conversion script
+    `migrate_stripe_pricing.py` ships in this folder.
 
-- Frontend plan typing is slightly inconsistent.
-  - The frontend `Plan` union includes `cloud_v0_enterprise`.
-  - Runtime billing data should use string plan slugs so env-defined plans do not require a frontend rebuild.
+- Frontend plan typing was inconsistent.
+  - The `Plan` union included `cloud_v0_enterprise`.
+  - **Resolution:** runtime `Plan = string` in
+    `web/ee/src/services/billing/types.d.ts`; `DefaultPlan` enum kept
+    only as a labeled constant set for code conditionals.
 
-- Workspace roles are also too static.
-  - `WorkspaceRole` is a closed enum.
-  - `Permission` should remain code-defined, but role slugs, descriptions, and permission assignments can come from access controls.
-  - `Permission.default_permissions(role)` and `WorkspaceRole.get_description(role)` centralize static role assumptions.
-  - `get_all_workspace_roles()` returns `list(WorkspaceRole)`, so role discovery cannot expose env-defined roles today.
+- Workspace roles were too static.
+  - `WorkspaceRole` was a closed enum.
+  - `get_all_workspace_roles()` returned `list(WorkspaceRole)`.
+  - **Resolution:** role identity surfaced via `controls.get_roles(scope)`;
+    response models (`WorkspacePermission.role_name`, `InviteRequest.roles`)
+    widened to `str`; assignment validation uses
+    `controls.get_role("workspace", slug)`; `db_manager_ee` and
+    `workspace_manager` role-discovery functions return the effective
+    catalog. **Project scope inherits the workspace default extras** so
+    existing `project_members.role` values keep resolving to their
+    historical permission sets.
+
+- Span retention lived under `/admin/billing/usage/flush`.
+  - Billing is not the right owner; events were not retainable at all.
+  - **Resolution:** old endpoint removed (hard cut). Two independent
+    admin endpoints: `POST /admin/spans/flush` and
+    `POST /admin/events/flush`. Each owns its own service, DAO, cron,
+    and Redis lock namespace. `Counter.EVENTS` added to the entitlement
+    system; default `Quota(monthly=True)` on every plan preserves
+    pre-change behavior (no flush by default).
 
 ## Safety Gaps
 
-- No validation boundary exists for nested entitlement data.
-  - Moving `ENTITLEMENTS` to env without validation would be dangerous.
-  - Bad tracker names, bad plan slugs, or malformed throttles can break enforcement paths.
-  - Missing paired `catalog` or `plans` sections should fail when an env override is present.
+- No validation boundary for nested entitlement data.
+  - **Resolution:** `_PlanOverride` Pydantic model in `controls.py`
+    validates flag/counter/gauge/throttle keys against their enums and
+    rejects unknown fields (`extra="forbid"`).
 
-- No validation boundary exists for env-defined roles.
-  - Custom roles must reference only code-defined permissions.
-  - Special platform behavior around `owner` and default invite roles needs explicit handling.
+- No validation boundary for env-defined roles.
+  - **Resolution:** `_RoleOverride` Pydantic model; permissions must
+    exist in `Permission` enum or be the wildcard `*`; `owner` and
+    `viewer` minima cannot be redefined (platform-synthesized per scope).
 
-- Cache behavior can hide changes temporarily.
-  - Subscription plan cache is invalidated when subscriptions change.
-  - Entitlement controls would be process-local after startup.
-  - Frontend plan data is cached for 10 minutes.
+- Cache behavior could hide changes temporarily.
+  - **Resolution:** subscription plan cache invalidation unchanged;
+    entitlement controls parse once at import time (subprocess-driven
+    tests confirm); frontend 10-minute cache documented as expected
+    catch-up window.
 
-- Multi-process consistency is an operational concern.
-  - API workers, background workers, and throttling code may import controls separately.
-  - All running processes need the same env and restart cycle.
+- Multi-process consistency.
+  - **Resolution:** startup log `[access-controls] plans=... roles=...
+    overlay=... hash=...` exposes a 12-char hash of the effective
+    controls so operators can grep across worker logs to verify all
+    processes loaded the same config.
+
+- `get_default_plan()` did not validate against effective plan set.
+  - **Resolution:** validated in `_build_settings()` at startup
+    (FIND-006).
+
+- `get_free_plan()` fallback ignored effective plan set.
+  - **Resolution:** startup fails when no `"free": true` marker exists
+    and `cloud_v0_hobby` is missing from the effective plan map (FIND-005).
+
+- Throttle middleware passed unknown plans through unthrottled.
+  - **Resolution:** falls back to free-plan throttles when the org's
+    plan is unknown or carries no throttles (FIND-013).
 
 ## Product Gaps
 
-- Changing catalog copy is easy and low risk.
-- Changing enforced limits is higher risk because it affects:
-  - quota checks;
-  - metering;
-  - usage reporting;
-  - trace retention;
-  - request throttling;
-  - organization feature access.
+- Changing catalog copy is easy and low risk (UI-only).
+- Changing enforced limits is higher risk: quota checks, metering,
+  usage reporting, retention (spans + events), throttling, organization
+  feature access.
+- Changing roles is medium/high risk: invite flows, role update flows,
+  workspace member serialization, frontend permission checks,
+  owner/admin safety invariants.
 
-- Changing roles is medium/high risk because it affects:
-  - invite flows;
-  - role update flows;
-  - workspace member serialization;
-  - frontend permission checks;
-  - owner/admin safety invariants.
+- No operator-visible controls version.
+  - **Resolution:** controls hash logged at startup (above).
 
-- There is no operator-visible controls version.
-  - Debugging would be easier if logs exposed whether access controls came from defaults or env, plus a hash of the effective controls.
+- Self-hosted operators needed per-knob tweaks without restating the
+  whole plan.
+  - **Resolution:** `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` — partial
+    entitlement patch for the default plan only. Quotas field-merge,
+    flags per-key replace, throttles category-keyed per-entry merge.
 
 ## Testing Gaps
 
-- Existing tests appear focused on billing router behavior and billing periods.
-- There is no dedicated test surface for entitlement controls parsing/merging.
-- There is no clear regression test proving current defaults remain unchanged when no env override is present.
+- No dedicated test surface for entitlement controls parsing/merging.
+  - **Resolution:** `api/ee/tests/pytest/unit/test_access_controls.py`
+    (parser-level), `test_controls_env_override.py` (subprocess-driven
+    end-to-end env overrides), `test_billing_settings.py` (catalog +
+    pricing parsers), `test_events_retention.py` (events flush logic),
+    `test_admin_retention_routers.py` (spans + events admin endpoint
+    lock + handler).
+- No regression test proving defaults are stable when no env override is
+  present.
+  - **Resolution:** `TestNoOverride.test_no_env_uses_defaults` and
+    related defaults-state classes.
 
 ## Documentation Gaps
 
-- Operators do not have a documented JSON schema for access controls.
-- There is no paired billing schema documenting display catalog and Stripe pricing under one namespace.
-- There is no documented restart requirement for env changes.
+- Operators had no documented JSON schema.
+  - **Resolution:**
+    [docs/docs/self-host/04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx)
+    and
+    [docs/docs/self-host/05-dynamic-billing-settings.mdx](../../docs/self-host/05-dynamic-billing-settings.mdx).
+- No documented restart requirement.
+  - **Resolution:** restart warnings called out in both user-facing docs.
+- Retention split was undocumented.
+  - **Resolution:**
+    [docs/designs/data-retention/README.md](../data-retention/README.md)
+    and
+    [docs/designs/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md)
+    cover the two independent admin endpoints, crons, and lock
+    namespaces.

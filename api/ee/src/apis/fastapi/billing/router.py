@@ -33,7 +33,6 @@ from ee.src.core.subscriptions.settings import (
 )
 from ee.src.core.subscriptions.types import Event
 from ee.src.core.meters.service import MetersService
-from ee.src.core.tracing.service import TracingService
 from ee.src.core.subscriptions.service import (
     SubscriptionsService,
     SwitchException,
@@ -98,11 +97,9 @@ class BillingRouter:
         self,
         subscription_service: SubscriptionsService,
         meters_service: MetersService,
-        tracing_service: TracingService,
     ):
         self.subscription_service = subscription_service
         self.meters_service = meters_service
-        self.tracing_service = tracing_service
 
         # ROUTER
         self.router = APIRouter()
@@ -201,12 +198,6 @@ class BillingRouter:
         self.admin_router.add_api_route(
             "/usage/report/unlock",
             self.unlock_report_usage,
-            methods=["POST"],
-        )
-
-        self.admin_router.add_api_route(
-            "/usage/flush",
-            self.flush_usage,
             methods=["POST"],
         )
 
@@ -897,7 +888,10 @@ class BillingRouter:
 
         entitlements = get_plan_entitlements(plan)
 
-        if not entitlements:
+        # `None` means the plan is unknown — 404 the request. `{}` means the
+        # plan exists but defines no enforced trackers (description-only,
+        # display-only plan). In that case we return an empty usage map.
+        if entitlements is None:
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
                 content={"status": "error", "message": "Plan not found"},
@@ -1040,70 +1034,6 @@ class BillingRouter:
             status_code=status.HTTP_200_OK,
             content={"status": "noop", "released": False},
         )
-
-    @intercept_exceptions()
-    async def flush_usage(
-        self,
-    ):
-        log.info("[flush] [endpoint] Trigger")
-
-        try:
-            lock_owner = await acquire_lock(
-                namespace="spans:flush",
-                key={},
-                ttl=3600,  # 1 hour
-                strict=True,
-            )
-
-            if not lock_owner:
-                log.info("[flush] [endpoint] Skipped (ongoing)")
-                return JSONResponse(
-                    status_code=status.HTTP_200_OK,
-                    content={"status": "skipped"},
-                )
-
-            log.info("[flush] [endpoint] Lock acquired")
-
-            try:
-                log.info("[flush] [endpoint] Retention started")
-                await self.tracing_service.flush_spans()
-                log.info("[flush] [endpoint] Retention completed")
-
-                return JSONResponse(
-                    status_code=status.HTTP_200_OK,
-                    content={"status": "success"},
-                )
-
-            except Exception:
-                log.error(
-                    "[flush] [endpoint] Retention failed:",
-                    exc_info=True,
-                )
-                return JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    content={"status": "error", "message": "Retention failed"},
-                )
-
-            finally:
-                released = await release_lock(
-                    namespace="spans:flush",
-                    key={},
-                    owner=lock_owner,
-                )
-                if released:
-                    log.info("[flush] [endpoint] Lock released")
-                else:
-                    log.warn("[flush] [endpoint] Lock release skipped (expired/lost)")
-
-        except Exception:
-            log.error(
-                "[flush] [endpoint] Fatal error:",
-                exc_info=True,
-            )
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"status": "error", "message": "Fatal error"},
-            )
 
     # ROUTES
 

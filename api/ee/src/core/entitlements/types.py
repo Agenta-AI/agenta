@@ -16,9 +16,6 @@ class DefaultPlan(str, Enum):
     CLOUD_V0_PRO = "cloud_v0_pro"
     CLOUD_V0_BUSINESS = "cloud_v0_business"
     #
-    CLOUD_V0_HUMANITY_LABS = "cloud_v0_humanity_labs"
-    CLOUD_V0_X_LABS = "cloud_v0_x_labs"
-    #
     CLOUD_V0_AGENTA_AI = "cloud_v0_agenta_ai"
     #
     SELF_HOSTED_ENTERPRISE = "self_hosted_enterprise"
@@ -69,6 +66,7 @@ class Flag(str, Enum):
 
 class Counter(str, Enum):
     TRACES = "traces"
+    EVENTS = "events"
     EVALUATIONS = "evaluations"
     EVALUATORS = "evaluators"
     ANNOTATIONS = "annotations"
@@ -312,24 +310,6 @@ DEFAULT_CATALOG = [
         ],
     },
     {
-        "title": "Humanity Labs",
-        "description": "For Humanity Labs.",
-        "plan": DefaultPlan.CLOUD_V0_HUMANITY_LABS.value,
-        "type": "custom",
-        "features": [
-            "Everything in Enterprise",
-        ],
-    },
-    {
-        "title": "X Labs",
-        "description": "For X Labs.",
-        "plan": DefaultPlan.CLOUD_V0_X_LABS.value,
-        "type": "custom",
-        "features": [
-            "Everything in Enterprise",
-        ],
-    },
-    {
         "title": "Agenta",
         "description": "For Agenta.",
         "plan": DefaultPlan.CLOUD_V0_AGENTA_AI.value,
@@ -351,6 +331,12 @@ DEFAULT_ENTITLEMENTS = {
         },
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(
+                limit=5_000,
+                monthly=True,
+                free=5_000,
+                retention=Period.MONTHLY.value,
+            ),
+            Counter.EVENTS: Quota(
                 limit=5_000,
                 monthly=True,
                 free=5_000,
@@ -440,6 +426,12 @@ DEFAULT_ENTITLEMENTS = {
                 free=10_000,
                 retention=Period.QUARTERLY.value,
             ),
+            Counter.EVENTS: Quota(
+                limit=10_000,
+                monthly=True,
+                free=10_000,
+                retention=Period.QUARTERLY.value,
+            ),
             Counter.EVALUATIONS: Quota(
                 monthly=True,
                 strict=True,
@@ -522,6 +514,12 @@ DEFAULT_ENTITLEMENTS = {
                 free=1_000_000,
                 retention=Period.YEARLY.value,
             ),
+            Counter.EVENTS: Quota(
+                limit=1_000_000,
+                monthly=True,
+                free=1_000_000,
+                retention=Period.YEARLY.value,
+            ),
             Counter.EVALUATIONS: Quota(
                 monthly=True,
                 strict=True,
@@ -588,58 +586,6 @@ DEFAULT_ENTITLEMENTS = {
             ),
         ],
     },
-    DefaultPlan.CLOUD_V0_HUMANITY_LABS: {
-        Tracker.FLAGS: {
-            Flag.HOOKS: True,
-            Flag.RBAC: True,
-            Flag.ACCESS: True,
-            Flag.DOMAINS: True,
-            Flag.SSO: True,
-        },
-        Tracker.COUNTERS: {
-            Counter.TRACES: Quota(
-                monthly=True,
-            ),
-            Counter.EVALUATIONS: Quota(
-                monthly=True,
-                strict=True,
-            ),
-        },
-        Tracker.GAUGES: {
-            Gauge.USERS: Quota(
-                strict=True,
-            ),
-            Gauge.APPLICATIONS: Quota(
-                strict=True,
-            ),
-        },
-    },
-    DefaultPlan.CLOUD_V0_X_LABS: {
-        Tracker.FLAGS: {
-            Flag.HOOKS: False,
-            Flag.RBAC: False,
-            Flag.ACCESS: False,
-            Flag.DOMAINS: False,
-            Flag.SSO: False,
-        },
-        Tracker.COUNTERS: {
-            Counter.TRACES: Quota(
-                monthly=True,
-            ),
-            Counter.EVALUATIONS: Quota(
-                monthly=True,
-                strict=True,
-            ),
-        },
-        Tracker.GAUGES: {
-            Gauge.USERS: Quota(
-                strict=True,
-            ),
-            Gauge.APPLICATIONS: Quota(
-                strict=True,
-            ),
-        },
-    },
     DefaultPlan.CLOUD_V0_AGENTA_AI: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
@@ -650,6 +596,9 @@ DEFAULT_ENTITLEMENTS = {
         },
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(
+                monthly=True,
+            ),
+            Counter.EVENTS: Quota(
                 monthly=True,
             ),
             Counter.EVALUATIONS: Quota(
@@ -682,6 +631,9 @@ DEFAULT_ENTITLEMENTS = {
         },
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(
+                monthly=True,
+            ),
+            Counter.EVENTS: Quota(
                 monthly=True,
             ),
             Counter.EVALUATIONS: Quota(
@@ -718,6 +670,7 @@ CONSTRAINTS = {
     Constraint.READ_ONLY: {
         Tracker.COUNTERS: [
             Counter.TRACES,
+            Counter.EVENTS,
             Counter.EVALUATIONS,
         ],
     },

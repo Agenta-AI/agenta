@@ -29,7 +29,11 @@ from ee.src.dbs.postgres.meters.dbes import MeterDBE
 from ee.src.core.entitlements.types import Gauge
 
 # Point-in-time literal; the runtime free-plan slug is now resolved via
-# `ee.src.core.subscriptions.settings.get_free_plan()`.
+# `ee.src.core.subscriptions.settings.get_free_plan()`. Operators running
+# with a custom `AGENTA_ACCESS_PLANS` set must either keep this slug in
+# the effective plan set or declare a `"free": true` entry in
+# `AGENTA_BILLING_PRICING`. Startup validation in `settings.py` fails fast
+# when neither condition is met.
 FREE_PLAN = "cloud_v0_hobby"
 
 stripe.api_key = env.stripe.api_key

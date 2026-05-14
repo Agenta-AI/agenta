@@ -427,14 +427,28 @@ def _load_int_env(name: str) -> int | None:
 
 
 class AccessControls(BaseModel):
-    """Access controls configuration (plans + roles).
+    """Access controls configuration (plans + roles + default plan).
 
     JSON env vars are parsed here at startup. Schema validation happens in
     ``ee.src.core.entitlements.controls``.
+
+    `default_plan` lives here (not under `agenta`) because it's part of the
+    access-controls surface: it selects which entry of the effective plan
+    map a new organization is onboarded onto, even on Stripe-disabled
+    deployments. The legacy `AGENTA_DEFAULT_PLAN` env var is still honored.
     """
 
     plans: dict | None = _load_json_env_dict("AGENTA_ACCESS_PLANS")
     roles: dict | None = _load_json_env_dict("AGENTA_ACCESS_ROLES")
+    roles_overlay: dict | None = _load_json_env_dict("AGENTA_ACCESS_ROLES_OVERLAY")
+    default_plan: str | None = (
+        os.getenv("AGENTA_ACCESS_DEFAULT_PLAN")
+        or os.getenv("AGENTA_DEFAULT_PLAN")
+        or None
+    )
+    default_plan_overlay: dict | None = _load_json_env_dict(
+        "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY"
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -650,7 +664,6 @@ class AgentaConfig(BaseModel):
     ).lower() in _TRUTHY
 
     demos: str = os.getenv("AGENTA_DEMOS") or ""
-    default_plan: str | None = os.getenv("AGENTA_DEFAULT_PLAN") or None
 
     # None when unset/empty = unrestricted; non-empty set = only these emails can create orgs
     org_creation_allowlist: set | None = {

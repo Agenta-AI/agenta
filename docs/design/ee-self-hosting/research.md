@@ -137,7 +137,8 @@ api/ee/src/
 │       └── service.py               # flush_spans (retention enforcement)
 ├── crons/
 │   ├── meters.sh / meters.txt       # Cron: POST /admin/billing/usage/report
-│   └── spans.sh / spans.txt         # Cron: POST /admin/billing/usage/flush
+│   ├── spans.sh / spans.txt         # Cron: POST /admin/spans/flush
+│   └── events.sh / events.txt       # Cron: POST /admin/events/flush
 ├── dbs/postgres/
 │   ├── meters/                      # Meter DB entities + DAO
 │   ├── organizations/               # SSO providers DAO
@@ -518,9 +519,18 @@ Only `TRACES` and `USERS` are reported to Stripe (defined in `REPORTS` list).
 
 If Stripe is disabled, `MetersService.report()` returns early — no Stripe calls.
 
-### Span retention
+### Span and event retention
 
-A cron job calls `POST /admin/billing/usage/flush`. This deletes old spans based on the plan's retention period defined in the entitlement quotas (e.g., Hobby = 30 days, Pro = 90 days, Business = 365 days).
+Spans and events are independent retention domains; each has its own admin
+endpoint and its own cron schedule.
+
+- `POST /admin/spans/flush` deletes old spans based on the plan's
+  `Counter.TRACES.retention` (e.g., Hobby = 30 days, Pro = 90 days,
+  Business = 365 days). Triggered by `spans.sh` at `0,30 * * * *`.
+- `POST /admin/events/flush` deletes old events based on the plan's
+  `Counter.EVENTS.retention`. Default is no retention (kept forever);
+  opt in via overlay or full plan override. Triggered by `events.sh` at
+  `7,37 * * * *`.
 
 ### Observations for self-hosting
 
@@ -583,7 +593,8 @@ All billing endpoints are defined in `api/ee/src/apis/fastapi/billing/router.py`
 | POST | `/subscription/cancel` | Admin: cancel by org ID | Yes |
 | POST | `/usage/report` | Sync meters to Stripe (cron) | Yes (no-ops if disabled) |
 | POST | `/usage/report/unlock` | Force-release report lock | No |
-| POST | `/usage/flush` | Span retention cleanup (cron) | No |
+| POST | `/admin/spans/flush` | Span retention cleanup (cron) | No |
+| POST | `/admin/events/flush` | Event retention cleanup (cron) | No |
 
 ### OSS endpoints with entitlement coupling
 

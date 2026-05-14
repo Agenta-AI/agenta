@@ -85,7 +85,13 @@ Used by `counters` and `gauges` map values.
 
 ### Counter keys
 
-`traces`, `evaluations`, `evaluators`, `annotations`, `credits`.
+`traces`, `events`, `evaluations`, `evaluators`, `annotations`, `credits`.
+
+`traces` and `events` are independent: each has its own counter, its own
+retention period, its own admin flush endpoint (`/admin/spans/flush` and
+`/admin/events/flush`), and its own cron schedule. Setting one does not
+affect the other. The default for `events.retention` is `null` (kept
+forever); opt in by setting it via overlay or full plan override.
 
 ### Gauge keys
 
@@ -173,7 +179,7 @@ permission sets are code-defined:
 | Scope | `owner` | `viewer` |
 |-------|---------|----------|
 | `organization` | `["*"]` | `[]` (membership marker, no permissions) |
-| `workspace` | `["*"]` | Read-only set (sourced from the legacy `WorkspaceRole.VIEWER`) |
+| `workspace` | `["*"]` | Read-only set (sourced from the code-default `WorkspaceRole.VIEWER`) |
 | `project` | `["*"]` | Same read-only set |
 
 Org-scope `viewer` having no permissions is intentional: organizations don't
@@ -201,6 +207,187 @@ and organization scopes are untouched.
 
 The `permissions` array entries must be valid `Permission` enum members or
 the wildcard `"*"`. Unknown permissions fail startup.
+
+## `AGENTA_ACCESS_ROLES_OVERLAY`
+
+`AGENTA_ACCESS_ROLES` replaces the default extras within an overridden
+scope — useful when you want to define a completely custom role catalog.
+The overlay solves the smaller case: tweak one field on one existing role,
+or add a single new role, without restating everything else.
+
+### Targeting
+
+The overlay accepts **only the `project` scope key today**. The patch is
+applied to both the `workspace` and `project` scopes because they share
+the same default role set. Setting `workspace` or `organization` as a
+top-level key fails startup with a clear error — silent ignore would
+mislead operators.
+
+### Shape
+
+```text
+{
+  "project": {
+    "<role_slug>": {
+      "description": "string (optional)",
+      "permissions": ["...permission slugs..."]
+    },
+    ...
+  }
+}
+```
+
+### Merge semantics
+
+| Role exists on scope? | Behavior |
+|-----------------------|----------|
+| Yes (e.g. `editor`, `developer`, `annotator`, custom roles) | Per-field replace. Setting `permissions` swaps the array entirely; setting `description` swaps the string. Fields not set on the patch are preserved from the existing role. |
+| No (new role) | Appended. Both `description` and `permissions` must be supplied. |
+| `owner` / `viewer` minima | Rejected at startup — platform-managed. |
+
+### Examples
+
+Give the `editor` role one extra permission on top of its default set:
+
+```json
+{
+  "project": {
+    "editor": {
+      "permissions": ["edit_annotations", "view_evaluation_runs", "read_system", "view_billing"]
+    }
+  }
+}
+```
+
+(Note: `permissions` replaces the array; restate the full list you want.)
+
+Add a new `auditor` role to both workspace and project:
+
+```json
+{
+  "project": {
+    "auditor": {
+      "description": "Audit-only access.",
+      "permissions": ["read_system"]
+    }
+  }
+}
+```
+
+Rename the `annotator` description without touching its permissions:
+
+```json
+{
+  "project": {
+    "annotator": {
+      "description": "Annotates traces for evaluation."
+    }
+  }
+}
+```
+
+### Validation
+
+Failures at startup:
+
+- invalid JSON → fail
+- empty object → fail
+- top-level key other than `project` → fail
+- empty `project` object → fail
+- patching `owner` or `viewer` → fail
+- unknown permission slug → fail
+- new role without `permissions` → fail
+- extra fields on a patch entry → fail
+
+## `AGENTA_ACCESS_DEFAULT_PLAN`
+
+Plan slug assigned to new organizations on signup. Must resolve to one of the
+slugs in the effective plan map. When unset, falls back to:
+
+- `cloud_v0_hobby` when Stripe is enabled, or
+- `self_hosted_enterprise` when Stripe is disabled.
+
+The legacy `AGENTA_DEFAULT_PLAN` env var is still honored; the canonical form
+takes precedence when both are set.
+
+## `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`
+
+Self-hosted operators often want to tweak one or two entitlement values on
+the default plan (trace retention, a throttle rate, a flag) without restating
+the whole plan via `AGENTA_ACCESS_PLANS`. The overlay env var does exactly
+that.
+
+### Targeting
+
+The overlay applies **only** to whatever `AGENTA_ACCESS_DEFAULT_PLAN`
+resolves to. There is no multi-plan overlay; for cross-plan changes use
+`AGENTA_ACCESS_PLANS`.
+
+### Shape
+
+Same top-level keys and units as a plan entry in `AGENTA_ACCESS_PLANS`
+(`description`, `flags`, `counters`, `gauges`, `throttles`). Every field is
+optional; what you set replaces or merges into the base plan field-by-field.
+What you omit stays at the base plan's value.
+
+One divergence from the plan-entry shape: **`throttles` is a map keyed by
+category slug** (`"standard"`, `"core_fast"`, …) instead of a list. That makes
+per-category patches ergonomic. Throttles that combine multiple categories
+or use `endpoints` cannot be addressed via the overlay — operators who need
+that should use `AGENTA_ACCESS_PLANS`.
+
+### Merge semantics
+
+| Field | Merge behavior |
+|-------|----------------|
+| `description` | Replaces the base description. |
+| `flags` | Per-key replace (`{"hooks": true}` only changes `hooks`). |
+| `counters` / `gauges` | Per-quota field-merge: `{"traces": {"retention": X}}` keeps existing `free` / `limit` / `monthly` / `strict`. Pass `null` to clear a field. |
+| `throttles[category]` | Looks up the existing throttle whose `categories` is `[category]`, then field-merges `bucket` and replaces `mode`. Fails fast if no single-category throttle matches. |
+
+### Examples
+
+Bump trace retention to 30 days (43200 minutes):
+
+```json
+{
+  "counters": {
+    "traces": {"retention": 43200}
+  }
+}
+```
+
+Raise the STANDARD throttle's rate to 7200 tokens/minute without touching
+the capacity:
+
+```json
+{
+  "throttles": {
+    "standard": {"bucket": {"rate": 7200}}
+  }
+}
+```
+
+Both at once:
+
+```json
+{
+  "counters": {"traces": {"retention": 43200}},
+  "throttles": {"standard": {"bucket": {"rate": 7200}}}
+}
+```
+
+### Validation
+
+Failures at startup (same idiom as the other access-controls env vars):
+
+- invalid JSON → fail
+- empty object → fail
+- unknown flag / counter / gauge / throttle category slug → fail
+- target plan slug not in the effective plan set → fail
+- patching a single-category throttle that doesn't exist on the base plan
+  (e.g. overlaying `ai_services` on `self_hosted_enterprise`, which has no
+  AI-services throttle by default) → fail
 
 ## Operational guidance
 

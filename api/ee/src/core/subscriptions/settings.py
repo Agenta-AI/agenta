@@ -9,11 +9,22 @@ Pricing entries provide Stripe line items and the free-plan marker.
 
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, ConfigDict, ValidationError
+
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.entitlements.controls import get_plans
-from ee.src.core.entitlements.types import DEFAULT_CATALOG, DefaultPlan
+from ee.src.core.entitlements.types import (
+    DEFAULT_CATALOG,
+    Counter,
+    DefaultPlan,
+    Gauge,
+)
+
+
+_VALID_METER_KEYS: set[str] = {c.value for c in Counter} | {g.value for g in Gauge}
+_VALID_CATALOG_TYPES: set[str] = {"standard", "custom"}
 
 
 log = get_module_logger(__name__)
@@ -22,6 +33,26 @@ log = get_module_logger(__name__)
 # ---------------------------------------------------------------------------
 # Catalog
 # ---------------------------------------------------------------------------
+
+
+class _CatalogEntry(BaseModel):
+    """Schema-level validation for an entry in ``AGENTA_BILLING_CATALOG``.
+
+    The catalog is rendered by the frontend pricing modal; field shape drives
+    what the user sees. Extra fields are intentionally allowed so operators
+    can extend the catalog without backend changes — but the documented set
+    of required fields (title/description/type/features) is enforced.
+    """
+
+    title: str
+    description: str
+    type: str
+    features: List[str]
+    plan: Optional[str] = None
+    price: Optional[Dict[str, Any]] = None
+    retention: Optional[int] = None
+
+    model_config = ConfigDict(extra="allow")
 
 
 def _default_catalog() -> List[Dict[str, Any]]:
@@ -33,10 +64,21 @@ def _parse_catalog_override(decoded: Any) -> List[Dict[str, Any]]:
         raise ValueError("AGENTA_BILLING_CATALOG must be a JSON array")
 
     catalog: List[Dict[str, Any]] = []
-    for entry in decoded:
+    for idx, entry in enumerate(decoded):
         if not isinstance(entry, dict):
             raise ValueError("AGENTA_BILLING_CATALOG entries must be objects")
-        catalog.append(entry)
+        try:
+            parsed = _CatalogEntry.model_validate(entry)
+        except ValidationError as e:
+            raise ValueError(f"AGENTA_BILLING_CATALOG[{idx}] is invalid: {e}") from e
+        if parsed.type not in _VALID_CATALOG_TYPES:
+            raise ValueError(
+                f"AGENTA_BILLING_CATALOG[{idx}].type must be one of "
+                f"{sorted(_VALID_CATALOG_TYPES)}; got '{parsed.type}'."
+            )
+        # Round-trip through model_dump so extras (passed through to the
+        # frontend) survive but required fields are guaranteed present.
+        catalog.append(parsed.model_dump(exclude_none=True))
     return catalog
 
 
@@ -117,6 +159,12 @@ def _normalize_pricing_entry(slug: str, entry: Any) -> Dict[str, Any]:
                 f"AGENTA_BILLING_PRICING['{slug}'].stripe.meters must be an object"
             )
         for meter_key, meter_entry in meters.items():
+            if meter_key not in _VALID_METER_KEYS:
+                raise ValueError(
+                    f"AGENTA_BILLING_PRICING['{slug}'].stripe.meters['{meter_key}'] "
+                    "is not a valid Counter/Gauge slug. Allowed keys: "
+                    f"{sorted(_VALID_METER_KEYS)}."
+                )
             if not isinstance(meter_entry, dict) or "price" not in meter_entry:
                 raise ValueError(
                     f"AGENTA_BILLING_PRICING['{slug}'].stripe.meters['{meter_key}'] "
@@ -243,7 +291,37 @@ def _build_settings() -> tuple[
             free_plan = slug
             break
 
+    # If no env-driven free plan was declared, fall back to the legacy
+    # ``cloud_v0_hobby`` slug — but only when it actually exists in the
+    # effective plan set. Operators who restrict ``AGENTA_ACCESS_PLANS`` to
+    # a slug set without ``cloud_v0_hobby`` MUST mark one entry of
+    # ``AGENTA_BILLING_PRICING`` as ``"free": true``; otherwise we would
+    # silently write a non-existent plan to ``subscriptions.plan`` during
+    # cancel/downgrade, then 404 on every entitlement check.
+    if free_plan is None and DefaultPlan.CLOUD_V0_HOBBY.value not in plans:
+        raise ValueError(
+            "No free plan can be derived: AGENTA_BILLING_PRICING has no entry "
+            "marked '\"free\": true' and the default fallback slug "
+            f"'{DefaultPlan.CLOUD_V0_HOBBY.value}' is not in the effective "
+            "plan set. Add exactly one '\"free\": true' entry to "
+            "AGENTA_BILLING_PRICING for a plan slug present in "
+            "AGENTA_ACCESS_PLANS."
+        )
+
     trial_plan, trial_days = _resolve_trial(plans)
+
+    # If operators set AGENTA_ACCESS_DEFAULT_PLAN (or legacy
+    # AGENTA_DEFAULT_PLAN), it must reference an effective plan slug.
+    # Without this guard, signup onboards orgs onto a plan that never
+    # resolves at runtime and every entitlement check 404s.
+    default_plan_raw = env.access_controls.default_plan
+    if default_plan_raw and default_plan_raw not in plans:
+        raise ValueError(
+            f"AGENTA_ACCESS_DEFAULT_PLAN '{default_plan_raw}' is not in the "
+            "effective plans set. Set it to one of the slugs in "
+            "AGENTA_ACCESS_PLANS, or unset it to fall back to the code "
+            "defaults."
+        )
 
     log.info(
         "[billing-settings] catalog=%s pricing=%s free_plan=%s trial=%s",
