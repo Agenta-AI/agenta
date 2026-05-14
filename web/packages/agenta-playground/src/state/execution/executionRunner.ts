@@ -167,7 +167,7 @@ interface ExecutionSessionLifecycleCallbacks {
         chainResults?: RunResult["chainResults"]
     }) => void
     onComplete: (payload: {result: Partial<RunResult>}) => void
-    onFail: (payload: {error: {message: string; code?: string}; traceId?: string | null}) => void
+    onFail: (payload: {error: {message: string; code?: string; stacktrace?: string | string[]}; traceId?: string | null}) => void
     onCancel: () => void
 }
 
@@ -639,6 +639,7 @@ async function executeViaFetch(params: {
         if (!response.ok) {
             const errorText = await response.text()
             let errorMessage = `Request failed with status ${response.status}`
+            let errorStacktrace: string | string[] | undefined
             let traceId: string | null = null
 
             try {
@@ -646,8 +647,10 @@ async function executeViaFetch(params: {
                 traceId = extractTraceIdFromPayload(errorData)
                 if (errorData?.status?.message) {
                     errorMessage = errorData.status.message
+                    errorStacktrace = errorData.status.stacktrace
                 } else if (errorData?.detail?.message) {
                     errorMessage = errorData.detail.message
+                    errorStacktrace = errorData.detail.stacktrace
                 } else if (typeof errorData?.detail === "string") {
                     errorMessage = errorData.detail
                 }
@@ -660,7 +663,7 @@ async function executeViaFetch(params: {
                 status: "error",
                 startedAt,
                 completedAt: new Date().toISOString(),
-                error: {message: errorMessage},
+                error: {message: errorMessage, ...(errorStacktrace ? {stacktrace: errorStacktrace} : {})},
                 ...(traceId ? {trace: {id: traceId}} : {}),
             }
         }

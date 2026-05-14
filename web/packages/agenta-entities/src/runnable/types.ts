@@ -204,6 +204,7 @@ export interface ExecutionResult {
     error?: {
         message: string
         code?: string
+        stacktrace?: string | string[]
     }
     trace?: TraceInfo
     metrics?: ExecutionMetrics
@@ -226,6 +227,7 @@ export interface StageExecutionResult {
     error?: {
         message: string
         code?: string
+        stacktrace?: string | string[]
     }
     traceId: string | null
     metrics?: ExecutionMetrics

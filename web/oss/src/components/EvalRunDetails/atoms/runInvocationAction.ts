@@ -201,6 +201,9 @@ export const triggerRunInvocationAtom = atom(
             } else {
                 // Record failure in step result
                 const errorMessage = result.error?.message ?? "Invocation failed"
+                const errorStacktrace = Array.isArray(result.error?.stacktrace)
+                    ? result.error.stacktrace.join("\n")
+                    : result.error?.stacktrace
                 await upsertStepResultWithInvocation({
                     runId,
                     scenarioId,
@@ -208,7 +211,7 @@ export const triggerRunInvocationAtom = atom(
                     traceId: result.traceId ?? undefined,
                     status: "failure",
                     references,
-                    error: {message: errorMessage},
+                    error: {message: errorMessage, ...(errorStacktrace ? {stacktrace: errorStacktrace} : {})},
                 })
 
                 await updateScenarioStatus(scenarioId, EvaluationStatus.FAILURE)
