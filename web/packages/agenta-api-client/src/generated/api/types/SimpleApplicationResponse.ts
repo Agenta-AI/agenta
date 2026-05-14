@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Simple-application single-row response envelope.
+ */
 export interface SimpleApplicationResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` when the application was found, `0` otherwise. */
     count?: number | undefined;
+    /** The application with `variant_id`, `revision_id`, and the revision's `data` merged. `data.url` is the invocation URL. */
     application?: (AgentaApi.SimpleApplication | null) | undefined;
 }

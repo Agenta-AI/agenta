@@ -30,6 +30,9 @@ concurrency:
   group: application-unit-tests-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 
+env:
+  UV_VERSION: "0.11.14"
+
 jobs:
 
   run-web-unit-tests:
@@ -81,7 +84,7 @@ jobs:
 
       - name: Install uv
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
-        run: python -m pip install "uv==0.11.9"
+        run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Cache Python dependencies
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
@@ -137,7 +140,7 @@ jobs:
 
       - name: Install uv
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
-        run: python -m pip install "uv==0.11.9"
+        run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Cache Python dependencies
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
@@ -206,7 +209,7 @@ jobs:
 
       - name: Install uv
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
-        run: python -m pip install "uv==0.11.9"
+        run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Cache Python dependencies
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'

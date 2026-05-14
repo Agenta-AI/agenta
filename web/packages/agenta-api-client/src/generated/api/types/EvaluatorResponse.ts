@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Envelope for a single evaluator response.
+ */
 export interface EvaluatorResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** 1 when an evaluator is returned, 0 otherwise. */
     count?: number | undefined;
+    /** The evaluator artifact, or null when none matched. */
     evaluator?: (AgentaApi.Evaluator | null) | undefined;
 }

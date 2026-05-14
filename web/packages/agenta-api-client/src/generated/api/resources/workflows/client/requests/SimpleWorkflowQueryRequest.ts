@@ -7,8 +7,12 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface SimpleWorkflowQueryRequest {
+    /** Attribute filter on simple workflows (slug, slugs, flags, tags, meta). */
     workflow?: AgentaApi.SimpleWorkflowQuery | null;
+    /** Restrict results to workflows matching these references. */
     workflow_refs?: AgentaApi.Reference[] | null;
+    /** When true, include archived workflows. */
     include_archived?: boolean | null;
+    /** Cursor-based pagination controls. */
     windowing?: AgentaApi.Windowing | null;
 }

@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface WorkflowCatalogTypesResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of type definitions available. */
     count?: number | undefined;
+    /** Shared JSON Schema fragments shipped with the product. */
     types?: AgentaApi.WorkflowCatalogType[] | undefined;
 }

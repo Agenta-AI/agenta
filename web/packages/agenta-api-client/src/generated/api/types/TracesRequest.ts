@@ -2,6 +2,13 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Ingest payload in the canonical `Traces` list shape.
+ *
+ * Used by `POST /traces/ingest`. Each entry is one trace with its
+ * `trace_id` and a nested `spans` tree.
+ */
 export interface TracesRequest {
+    /** List of trace records. Each record is a `trace_id` plus the nested `spans` tree. Equivalent to the map-shaped payload accepted by `POST /tracing/spans/ingest`. */
     traces?: (AgentaApi.TraceInput[] | null) | undefined;
 }

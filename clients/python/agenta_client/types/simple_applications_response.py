@@ -9,10 +9,21 @@ from .simple_application import SimpleApplication
 
 
 class SimpleApplicationsResponse(UniversalBaseModel):
+    """
+    Paginated list of simple-application rows.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    applications: typing.Optional[typing.List[SimpleApplication]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of applications in this page.
+    """
+    
+    applications: typing.Optional[typing.List[SimpleApplication]] = pydantic.Field(default=None)
+    """
+    Applications with their current variant, revision, and `data` merged in.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

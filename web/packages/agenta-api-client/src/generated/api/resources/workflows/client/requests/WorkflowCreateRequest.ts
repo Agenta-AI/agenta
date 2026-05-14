@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface WorkflowCreateRequest {
+    /** Workflow artifact to create. Must include a project-unique `slug`; `name`, `description`, `flags`, `tags`, and `meta` are optional. */
     workflow: AgentaApi.WorkflowCreate;
 }

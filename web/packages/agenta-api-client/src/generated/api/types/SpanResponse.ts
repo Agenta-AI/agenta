@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface SpanResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` if a span was returned, `0` otherwise. */
     count?: number | undefined;
+    /** The matching span, or `null` if not found. */
     span?: (AgentaApi.SpanOutput | null) | undefined;
 }

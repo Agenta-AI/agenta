@@ -9,10 +9,21 @@ from .evaluator_template import EvaluatorTemplate
 
 
 class EvaluatorTemplatesResponse(UniversalBaseModel):
+    """
+    Envelope for a list of evaluator templates.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    templates: typing.Optional[typing.List[EvaluatorTemplate]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of templates in `templates`.
+    """
+    
+    templates: typing.Optional[typing.List[EvaluatorTemplate]] = pydantic.Field(default=None)
+    """
+    Built-in evaluator templates.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -5,7 +5,10 @@ import type * as AgentaApi from "../index.js";
 export interface WorkflowsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of workflows in this page. */
     count?: number | undefined;
+    /** Workflow artifacts matching the query. */
     workflows?: AgentaApi.Workflow[] | undefined;
+    /** Pagination cursor; pass `windowing.next` back to fetch the following page. */
     windowing?: (AgentaApi.Windowing | null) | undefined;
 }

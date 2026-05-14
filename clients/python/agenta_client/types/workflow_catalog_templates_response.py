@@ -11,8 +11,16 @@ from .workflow_catalog_template import WorkflowCatalogTemplate
 class WorkflowCatalogTemplatesResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    templates: typing.Optional[typing.List[WorkflowCatalogTemplate]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of templates returned.
+    """
+    
+    templates: typing.Optional[typing.List[WorkflowCatalogTemplate]] = pydantic.Field(default=None)
+    """
+    Workflow blueprints shipped with the product.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -7,10 +7,16 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface ApplicationRevisionResolveRequest {
+    /** Application reference. */
     application_ref?: AgentaApi.Reference | null;
+    /** Variant reference; resolves the latest revision on it. */
     application_variant_ref?: AgentaApi.Reference | null;
+    /** Revision reference; resolves that exact revision. */
     application_revision_ref?: AgentaApi.Reference | null;
+    /** Maximum nesting depth for embedded references. Protects against runaway recursion. Defaults to `10`. */
     max_depth?: number | null;
+    /** Maximum total number of embedded references to follow. Defaults to `100`. */
     max_embeds?: number | null;
+    /** How to handle resolution errors. `exception` (default) aborts; `placeholder` substitutes a marker; `keep` leaves the original reference untouched. */
     error_policy?: AgentaApi.ErrorPolicy | null;
 }

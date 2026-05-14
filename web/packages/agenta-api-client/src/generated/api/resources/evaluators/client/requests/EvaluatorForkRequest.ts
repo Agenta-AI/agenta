@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface EvaluatorForkRequest {
     evaluator_variant_id?: string | null;
+    /** Fork payload. References the source variant or revision and the target evaluator. */
     evaluator: AgentaApi.EvaluatorFork;
 }

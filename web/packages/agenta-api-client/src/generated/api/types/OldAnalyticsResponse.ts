@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Legacy analytics response with a fixed metric schema.
+ */
 export interface OldAnalyticsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of time buckets returned. */
     count?: number | undefined;
+    /** Time-bucketed aggregates with fixed fields (`total`, `errors`) holding `count`, `duration`, `costs`, and `tokens`. */
     buckets?: AgentaApi.Bucket[] | undefined;
 }

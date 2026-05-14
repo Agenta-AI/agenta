@@ -7,7 +7,10 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface SimpleTraceQueryRequest {
+    /** Filter fields on the trace itself — `origin`, `kind`, `channel`, `tags`, `meta`, `references`, and inbound `links`. Filtering by `trace.links.invocation` is the common pattern for finding annotations on a given span. */
     trace?: AgentaApi.SimpleTraceQuery | null;
+    /** Batch GET by the trace's own `(trace_id, span_id)`. Each entry matches the trace whose own identity equals the pair. Distinct from `trace.links`, which filters on inbound links. */
     links?: AgentaApi.OTelLinkInput[] | null;
+    /** Cursor pagination and time range. */
     windowing?: AgentaApi.Windowing | null;
 }

@@ -7,8 +7,12 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface TestsetQueryRequest {
+    /** Attribute filter (name, description, slug, flags, tags, meta, folder). */
     testset?: AgentaApi.TestsetQuery | null;
+    /** Restrict the query to specific testsets by reference (id or slug). */
     testset_refs?: AgentaApi.Reference[] | null;
+    /** Include soft-deleted testsets. */
     include_archived?: boolean | null;
+    /** Cursor-based pagination. See the Query Pattern guide. */
     windowing?: AgentaApi.Windowing | null;
 }

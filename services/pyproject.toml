@@ -1,6 +1,6 @@
 [project]
 name = "services"
-version = "0.99.6"
+version = "0.99.7"
 description = "Agenta Services (Chat & Completion)"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -8,11 +8,11 @@ authors = [
     { name = "Juan Vega", email = "jp@agenta.ai" },
 ]
 dependencies = [
-    "agenta>=0.99.2",
+    "agenta>=0.99.6",
     "uvicorn[standard]>=0.46,<0.47",
     "gunicorn>=26,<27",
     "structlog>=25,<26",
-    "newrelic>=12,<13",
+    "newrelic>=13,<14",
     "boto3>=1,<2",
     "google-cloud-aiplatform>=1,<2",
     "orjson>=3,<4",
@@ -32,3 +32,6 @@ dev = [
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+agenta = { path = "../sdks/python", editable = true }

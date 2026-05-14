@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Paginated list of application artifacts.
+ */
 export interface ApplicationsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of applications in this page. */
     count?: number | undefined;
+    /** Application artifacts matching the query. */
     applications?: AgentaApi.Application[] | undefined;
 }

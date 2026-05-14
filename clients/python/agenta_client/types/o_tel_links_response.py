@@ -9,11 +9,28 @@ from .o_tel_link_output import OTelLinkOutput
 
 
 class OTelLinksResponse(UniversalBaseModel):
+    """
+    Response from span ingestion.
+    
+    `count` reflects how many spans were successfully parsed and published
+    to the ingest stream. If you submitted N spans and see `count < N`,
+    some spans failed server-side validation and were not persisted (check
+    server logs for details). See [Tracing — Async write
+    contract](/reference/api-guide/tracing#async-write-contract-202) for
+    the full semantics of the `202 Accepted` response.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    links: typing.Optional[typing.List[OTelLinkOutput]] = None
-    dropped: typing.Optional[typing.List[OTelLinkOutput]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of spans that were accepted and published to the ingest stream. Compare against the number of spans you sent to detect partial failures.
+    """
+    
+    links: typing.Optional[typing.List[OTelLinkOutput]] = pydantic.Field(default=None)
+    """
+    List of `(trace_id, span_id)` pairs for the accepted spans, in submission order.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

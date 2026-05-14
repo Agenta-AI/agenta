@@ -1,16 +1,16 @@
 [project]
 name = "agenta"
-version = "0.99.6"
+version = "0.99.7"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
+license = "MIT"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
     { name = "Juan Vega", email = "jp@agenta.ai" },
 ]
 classifiers = [
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -33,7 +33,7 @@ dependencies = [
     "jinja2>=3,<4",
     "orjson>=3,<4",
     "python-jsonpath>=2,<3",
-    "daytona>=0.172,<0.173",
+    "daytona>=0.175,<0.176",
 ]
 
 [project.urls]
@@ -67,5 +67,5 @@ module-root = ""
 source-exclude = ["agenta/tests/*"]
 
 [build-system]
-requires = ["uv_build>=0.11.9,<0.12.0"]
+requires = ["uv_build>=0.11,<0.12"]
 build-backend = "uv_build"

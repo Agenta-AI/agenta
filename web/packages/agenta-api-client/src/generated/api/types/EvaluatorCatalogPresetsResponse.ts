@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Envelope for a list of catalog presets.
+ */
 export interface EvaluatorCatalogPresetsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of presets in `presets`. */
     count?: number | undefined;
+    /** Named parameter presets defined against a template. */
     presets?: AgentaApi.EvaluatorCatalogPreset[] | undefined;
 }

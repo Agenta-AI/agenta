@@ -42,32 +42,66 @@ const testWithPromptsFixtures = baseTest.extend<PromptsFixtures>({
             const createNewButton = page.getByRole("button", {name: /create new/i}).first()
             await createNewButton.click()
 
-            // Click "New prompt" in the dropdown menu
-            const newPromptItem = page.getByText("New prompt").first()
+            // Open "New prompt" submenu and pick an explicit prompt type.
+            const newPromptItem = page.getByRole("menuitem", {name: /new prompt/i}).first()
             await expect(newPromptItem).toBeVisible()
-            await newPromptItem.click()
+            await newPromptItem.hover()
 
-            // Verify the modal opened
-            const modal = page.getByRole("dialog").last()
-            await expect(modal).toBeVisible()
+            const completionItem = page.getByRole("menuitem", {name: /completion/i}).last()
+            await expect(completionItem).toBeVisible({timeout: 15000})
+            await completionItem.click()
 
-            const modalTitle = modal.getByText("Create New Prompt").first()
-            await expect(modalTitle).toBeVisible()
+            // The modern flow opens the app-create workflow drawer.
+            const drawer = page
+                .getByRole("dialog")
+                .filter({has: page.getByTestId("app-create-name-input")})
+                .last()
+            await expect(drawer).toBeVisible({timeout: 15000})
 
-            // Fill in the app name
-            const nameInput = modal.getByPlaceholder("Enter a name")
-            await expect(nameInput).toBeVisible()
-            await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', promptName)
+            const nameInput = page.getByTestId("app-create-name-input").first()
+            await expect(nameInput).toBeVisible({timeout: 15000})
+            await nameInput.click()
+            await nameInput.fill(promptName)
+            await nameInput.blur()
 
-            // Select the first available template card
-            const templateCards = modal.locator(".ant-card")
-            await expect(templateCards.first()).toBeVisible()
-            await templateCards.first().click()
+            const createPromptPromise = page.waitForResponse((response) => {
+                if (
+                    !response.url().includes("/workflows") ||
+                    response.url().includes("/query") ||
+                    response.url().includes("/variants") ||
+                    response.url().includes("/revisions") ||
+                    response.request().method() !== "POST"
+                ) {
+                    return false
+                }
 
-            // Submit creation
-            const createButton = modal.getByRole("button", {name: "Create New Prompt"})
-            await expect(createButton).toBeVisible()
+                const payload = response.request().postData() || ""
+                return payload.includes(promptName)
+            })
+
+            const createButton = drawer.getByRole("button", {name: "Create", exact: true}).first()
+            await expect(createButton).toBeVisible({timeout: 15000})
+            await expect(createButton).toBeEnabled({timeout: 15000})
             await createButton.click()
+
+            const confirmModal = page
+                .locator(".ant-modal-wrap")
+                .filter({has: page.locator(".ant-modal-footer")})
+                .last()
+            const confirmButton = confirmModal.locator(".ant-modal-footer").getByRole("button", {
+                name: "Create",
+                exact: true,
+            })
+            await expect(confirmModal).toBeVisible({timeout: 15000})
+            await expect(confirmButton).toBeVisible({timeout: 15000})
+            await expect(confirmButton).toBeEnabled({timeout: 15000})
+            await confirmButton.click({force: true})
+
+            const createPromptResponse = await createPromptPromise
+            expect(createPromptResponse.ok()).toBe(true)
+            await expect(page.locator(".ant-modal-wrap:visible")).toHaveCount(0, {
+                timeout: 15000,
+            })
         })
     },
 

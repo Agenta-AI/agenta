@@ -259,7 +259,7 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install uv
-        run: python -m pip install uv==0.11.9
+        run: python -m pip install uv==0.11.14
       - name: Install dependencies
         run: uv sync --locked
       - name: Run unit tests

@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * List of catalog templates.
+ */
 export interface ApplicationCatalogTemplatesResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of templates returned. */
     count?: number | undefined;
+    /** Built-in and custom templates an application can be created from. Each template carries a `key`, a `uri`, and the JSON Schemas that applications of that type expose. */
     templates?: AgentaApi.ApplicationCatalogTemplate[] | undefined;
 }

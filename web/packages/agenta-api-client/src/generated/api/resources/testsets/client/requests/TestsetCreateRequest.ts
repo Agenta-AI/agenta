@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface TestsetCreateRequest {
     testset_id?: string | null;
+    /** Testset artifact to create. The call only creates the artifact row; testcases are added by committing a revision (see /testsets/revisions/commit) or by using the /simple/testsets/ surface. */
     testset: AgentaApi.TestsetCreate;
 }

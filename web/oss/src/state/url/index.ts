@@ -27,7 +27,7 @@ export const urlAtom = eagerAtom<URLState>((get) => {
     const {projectId, appId} = snapshot
 
     const workspaceName = selectedOrg?.name ?? ""
-    const resolvedWorkspaceId = selectedOrg?.default_workspace?.id || ""
+    const resolvedWorkspaceId = selectedOrg?.default_workspace?.id || snapshot.workspaceId || ""
 
     const baseOrgURL = "/w"
     // Build URLs with workspace id (not name)

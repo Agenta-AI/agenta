@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface ApplicationVariantEditRequest {
     application_variant_id: string;
+    /** Full variant body. Edit replaces the artifact-level fields in a single PUT, so include every editable field even if its value is unchanged. `id` must match the `application_variant_id` in the URL path; `slug` is immutable. Configuration changes (prompt, model parameters) go through `/applications/revisions/commit`, not this endpoint. */
     application_variant: AgentaApi.ApplicationVariantEdit;
 }

@@ -9,10 +9,21 @@ from .application_variant import ApplicationVariant
 
 
 class ApplicationVariantsResponse(UniversalBaseModel):
+    """
+    Paginated list of application variants.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    application_variants: typing.Optional[typing.List[ApplicationVariant]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of variants in this page.
+    """
+    
+    application_variants: typing.Optional[typing.List[ApplicationVariant]] = pydantic.Field(default=None)
+    """
+    Application variants matching the query.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

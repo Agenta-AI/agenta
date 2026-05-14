@@ -59,6 +59,13 @@ class EvaluatorsClient:
     
     def list_evaluator_catalog_types(self, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogTypesResponse:
         """
+        List the JSON schema types the evaluator catalog understands.
+        
+        Types are static metadata shipped with the product. Use this when
+        rendering a catalog UI or validating that a template's schema is
+        supported. See the Evaluators guide for how the catalog relates
+        to user-owned evaluator artifacts.
+        
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
@@ -83,6 +90,14 @@ class EvaluatorsClient:
     
     def list_evaluator_catalog_templates(self, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogTemplatesResponse:
         """
+        List evaluator templates from the catalog.
+        
+        Templates are blueprints that describe an evaluator's handler
+        URI, JSON schemas, and default configuration. Pass
+        `include_archived=true` to include deprecated templates. Use the
+        returned `key` with `/catalog/templates/{template_key}/presets/`
+        to list its presets.
+        
         Parameters
         ----------
         include_archived : typing.Optional[bool]
@@ -109,6 +124,12 @@ class EvaluatorsClient:
     
     def fetch_evaluator_catalog_template(self, template_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogTemplateResponse:
         """
+        Fetch one evaluator template by key.
+        
+        Returns an empty envelope (`count: 0`) when no template matches
+        the key. Template keys come from
+        `GET /catalog/templates/`.
+        
         Parameters
         ----------
         template_key : str
@@ -137,6 +158,12 @@ class EvaluatorsClient:
     
     def list_evaluator_catalog_presets(self, template_key: str, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogPresetsResponse:
         """
+        List presets defined against one evaluator template.
+        
+        A preset is a named set of parameter values pre-filled against
+        the template. Use the returned `key` to fetch a specific preset
+        via `GET /catalog/templates/{template_key}/presets/{preset_key}`.
+        
         Parameters
         ----------
         template_key : str
@@ -167,6 +194,12 @@ class EvaluatorsClient:
     
     def fetch_evaluator_catalog_preset(self, template_key: str, preset_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogPresetResponse:
         """
+        Fetch one evaluator preset by template and preset key.
+        
+        Presets are not separate entities; they are metadata. Use the
+        returned preset payload as the starting point when creating a
+        new evaluator from a template. See the Evaluators guide.
+        
         Parameters
         ----------
         template_key : str
@@ -198,9 +231,18 @@ class EvaluatorsClient:
     
     def create_evaluator(self, *, evaluator: EvaluatorCreate, evaluator_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Create an evaluator artifact, its first variant, and its initial revision.
+        
+        Use this endpoint when you already know you want to manage the
+        artifact / variant / revision layers independently. For a
+        one-shot "create and forget" call that returns a flat record,
+        see `POST /simple/evaluators/`. See the Versioning guide for
+        commit semantics.
+        
         Parameters
         ----------
         evaluator : EvaluatorCreate
+            Evaluator payload (slug, name, flags, data). Slug is required and scoped to the project.
         
         evaluator_id : typing.Optional[str]
         
@@ -228,6 +270,12 @@ class EvaluatorsClient:
     
     def fetch_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Fetch an evaluator artifact by id.
+        
+        Returns the artifact-level record (slug, name, flags, lifecycle)
+        without variant or revision data. Use the variant and revision
+        endpoints to retrieve those layers.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -256,11 +304,19 @@ class EvaluatorsClient:
     
     def edit_evaluator(self, evaluator_id: str, *, evaluator: EvaluatorEdit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Edit an evaluator artifact's metadata.
+        
+        Edits are limited to metadata fields (description, tags, meta).
+        Renaming is temporarily disabled and returns 400. To change
+        evaluator behavior, commit a new revision on the variant — see
+        `/evaluators/revisions/commit`.
+        
         Parameters
         ----------
         evaluator_id : str
         
         evaluator : EvaluatorEdit
+            Evaluator edit payload. Requires the evaluator `id`. Renaming is temporarily disabled.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -287,6 +343,12 @@ class EvaluatorsClient:
     
     def archive_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Soft-delete an evaluator artifact.
+        
+        Sets `deleted_at` on the evaluator and hides it from subsequent
+        `/query` responses unless `include_archived=true`. Revision IDs
+        remain resolvable so historical traces stay intact.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -315,6 +377,11 @@ class EvaluatorsClient:
     
     def unarchive_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Restore a soft-deleted evaluator artifact.
+        
+        Clears `deleted_at` on the evaluator so it re-appears in `/query`
+        responses.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -343,15 +410,26 @@ class EvaluatorsClient:
     
     def query_evaluators(self, *, evaluator: typing.Optional[EvaluatorQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorsResponse:
         """
+        Query evaluator artifacts with filters and pagination.
+        
+        Returns artifact-level records only. The request body follows
+        the shared query pattern (filter + refs + windowing). Send `{}`
+        to list all evaluators in the project. See the Query Pattern
+        guide.
+        
         Parameters
         ----------
         evaluator : typing.Optional[EvaluatorQuery]
+            Filter on evaluator attributes (flags, tags, meta).
         
         evaluator_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to these evaluators. Accepts `id` or `slug` per reference.
         
         include_archived : typing.Optional[bool]
+            When true, include soft-deleted evaluators in the response.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination controls (limit, order, next, newest, oldest).
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -375,9 +453,16 @@ class EvaluatorsClient:
     
     def create_evaluator_variant(self, *, evaluator_variant: EvaluatorVariantCreate, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Create a new variant on an existing evaluator.
+        
+        A variant is a named branch of the evaluator's history. New
+        revisions committed to this variant do not touch other variants.
+        See the Versioning guide.
+        
         Parameters
         ----------
         evaluator_variant : EvaluatorVariantCreate
+            Variant payload. Requires the parent `evaluator_id`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -403,6 +488,12 @@ class EvaluatorsClient:
     
     def fetch_evaluator_variant(self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Fetch an evaluator variant by id.
+        
+        Returns the variant record (slug, flags, lifecycle) without the
+        committed revisions. Use `/evaluators/revisions/retrieve` to
+        read the variant's current revision payload.
+        
         Parameters
         ----------
         evaluator_variant_id : str
@@ -431,11 +522,18 @@ class EvaluatorsClient:
     
     def edit_evaluator_variant(self, evaluator_variant_id: str, *, evaluator_variant: EvaluatorVariantEdit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Edit a variant's metadata.
+        
+        Edits only touch variant-level metadata. To change evaluator
+        behavior commit a new revision via
+        `/evaluators/revisions/commit`.
+        
         Parameters
         ----------
         evaluator_variant_id : str
         
         evaluator_variant : EvaluatorVariantEdit
+            Variant edit payload. Requires the variant `id`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -462,6 +560,12 @@ class EvaluatorsClient:
     
     def archive_evaluator_variant(self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Soft-delete an evaluator variant.
+        
+        Sets `deleted_at` on the variant. Its revisions stay resolvable
+        by id; they are hidden from `/query` unless the caller sets
+        `include_archived=true`.
+        
         Parameters
         ----------
         evaluator_variant_id : str
@@ -490,6 +594,8 @@ class EvaluatorsClient:
     
     def unarchive_evaluator_variant(self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Restore a soft-deleted evaluator variant.
+        
         Parameters
         ----------
         evaluator_variant_id : str
@@ -518,6 +624,12 @@ class EvaluatorsClient:
     
     def query_evaluator_variants(self, *, evaluator_id: typing.Optional[str] = None, evaluator_ids: typing.Optional[typing.Sequence[str]] = None, evaluator_slug: typing.Optional[str] = None, evaluator_slugs: typing.Optional[typing.Sequence[str]] = None, evaluator_variant_id: typing.Optional[str] = None, evaluator_variant_ids: typing.Optional[typing.Sequence[str]] = None, evaluator_variant_slug: typing.Optional[str] = None, evaluator_variant_slugs: typing.Optional[typing.Sequence[str]] = None, name: typing.Optional[str] = None, description: typing.Optional[str] = None, flags: typing.Optional[str] = None, tags: typing.Optional[str] = None, meta: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, next: typing.Optional[str] = None, newest: typing.Optional[dt.datetime] = None, oldest: typing.Optional[dt.datetime] = None, limit: typing.Optional[int] = None, order: typing.Optional[QueryEvaluatorVariantsRequestOrder] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantsResponse:
         """
+        Query evaluator variants with filters, reference scoping, and pagination.
+        
+        Accepts parameters from both the query string and a JSON body;
+        the two are merged. Use `evaluator_refs` to scope to one or more
+        evaluators, or `evaluator_variant_refs` for specific variants.
+        
         Parameters
         ----------
         evaluator_id : typing.Optional[str]
@@ -580,9 +692,17 @@ class EvaluatorsClient:
     
     def fork_evaluator_variant(self, *, evaluator: EvaluatorFork, evaluator_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Fork an evaluator variant into a new variant.
+        
+        Creates a new branch whose initial revision is copied from the
+        source. Use this to experiment without touching the original.
+        The returned variant has a fresh id and slug but inherits
+        lineage metadata from its source.
+        
         Parameters
         ----------
         evaluator : EvaluatorFork
+            Fork payload. References the source variant or revision and the target evaluator.
         
         evaluator_variant_id : typing.Optional[str]
         
@@ -610,23 +730,41 @@ class EvaluatorsClient:
     
     def retrieve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Retrieve one evaluator revision, either directly or via an environment key.
+        
+        Provide one of:
+        an evaluator / variant / revision reference (returns that
+        revision, or the latest revision on the variant or evaluator),
+        or an environment reference plus `key` (returns the revision
+        currently pinned to that key). Supplying both forms returns 400.
+        Pass `resolve=true` to expand embedded references on the
+        returned payload.
+        
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
+            Retrieve the latest revision of this evaluator.
         
         evaluator_variant_ref : typing.Optional[Reference]
+            Retrieve the latest revision on this variant.
         
         evaluator_revision_ref : typing.Optional[Reference]
+            Retrieve this specific revision.
         
         environment_ref : typing.Optional[Reference]
+            Environment to resolve through. Requires `key`.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant to resolve through. Requires `key`.
         
         environment_revision_ref : typing.Optional[Reference]
+            Specific environment revision to resolve through. Requires `key`.
         
         key : typing.Optional[str]
+            Named deployment key inside the environment revision. Required with environment refs.
         
         resolve : typing.Optional[bool]
+            When true, resolve embedded references on the returned revision's `data`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -650,23 +788,40 @@ class EvaluatorsClient:
     
     def deploy_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, message: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Pin an evaluator revision into an environment revision under a key.
+        
+        Requires an evaluator ref (`evaluator_ref`,
+        `evaluator_variant_ref`, or `evaluator_revision_ref`) and an
+        environment ref. When `key` is omitted it defaults to
+        `<evaluator_slug>.revision`. The deployment is recorded as a
+        new commit on the environment revision. See the Evaluators
+        guide for the deployment model.
+        
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
+            Evaluator to deploy (latest revision).
         
         evaluator_variant_ref : typing.Optional[Reference]
+            Variant to deploy (latest revision on this variant).
         
         evaluator_revision_ref : typing.Optional[Reference]
+            Specific revision to deploy.
         
         environment_ref : typing.Optional[Reference]
+            Target environment.
         
         environment_variant_ref : typing.Optional[Reference]
+            Target environment variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Target environment revision.
         
         key : typing.Optional[str]
+            Named key under which the revision is pinned. Defaults to `<evaluator_slug>.revision`.
         
         message : typing.Optional[str]
+            Commit message stored on the environment revision that records the deployment.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -690,9 +845,16 @@ class EvaluatorsClient:
     
     def create_evaluator_revision(self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Create a new revision on an evaluator variant.
+        
+        Prefer `/evaluators/revisions/commit` for the standard commit
+        flow. This endpoint exists for internal create paths that need
+        to insert a revision without the commit semantics.
+        
         Parameters
         ----------
         evaluator_revision : EvaluatorRevisionCreate
+            Revision payload. Requires the parent `evaluator_variant_id` and a `data` object.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -718,6 +880,13 @@ class EvaluatorsClient:
     
     def fetch_evaluator_revision(self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Fetch a specific evaluator revision by id.
+        
+        Returns the full revision including `data` (handler uri,
+        schemas, and parameters). To pick the latest revision on a
+        variant without knowing its id, use
+        `/evaluators/revisions/retrieve`.
+        
         Parameters
         ----------
         evaluator_revision_id : str
@@ -746,11 +915,18 @@ class EvaluatorsClient:
     
     def edit_evaluator_revision(self, evaluator_revision_id: str, *, evaluator_revision: EvaluatorRevisionEdit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Edit a revision's metadata.
+        
+        Revision `data` is immutable once committed. This endpoint is
+        for metadata fields only (description, tags, meta). To change
+        evaluator behavior, commit a new revision instead.
+        
         Parameters
         ----------
         evaluator_revision_id : str
         
         evaluator_revision : EvaluatorRevisionEdit
+            Revision edit payload. Requires the revision `id`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -777,6 +953,11 @@ class EvaluatorsClient:
     
     def archive_evaluator_revision(self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Soft-delete an evaluator revision.
+        
+        Archived revisions remain resolvable by id but are excluded from
+        revision logs and queries unless `include_archived=true`.
+        
         Parameters
         ----------
         evaluator_revision_id : str
@@ -805,6 +986,8 @@ class EvaluatorsClient:
     
     def unarchive_evaluator_revision(self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Restore a soft-deleted evaluator revision.
+        
         Parameters
         ----------
         evaluator_revision_id : str
@@ -833,21 +1016,35 @@ class EvaluatorsClient:
     
     def query_evaluator_revisions(self, *, evaluator_revision: typing.Optional[EvaluatorRevisionQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
         """
+        Query evaluator revisions with filters, reference scoping, and pagination.
+        
+        Returns revision payloads. Use `evaluator_refs`,
+        `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
+        the query. Pass `resolve=true` to expand embedded references on
+        each revision's `data`.
+        
         Parameters
         ----------
         evaluator_revision : typing.Optional[EvaluatorRevisionQuery]
+            Filter on revision attributes.
         
         evaluator_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to revisions under these evaluators.
         
         evaluator_variant_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to revisions under these variants.
         
         evaluator_revision_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to these specific revisions.
         
         include_archived : typing.Optional[bool]
+            When true, include soft-deleted revisions.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination controls.
         
         resolve : typing.Optional[bool]
+            When true, resolve embedded references on each returned revision's `data`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -871,9 +1068,16 @@ class EvaluatorsClient:
     
     def commit_evaluator_revision(self, *, evaluator_revision_commit: EvaluatorRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Commit a new revision on an evaluator variant.
+        
+        The commit body carries the target `evaluator_variant_id`, an
+        optional `message`, and the revision `data` (handler uri,
+        schemas, parameters). A committed revision is immutable.
+        
         Parameters
         ----------
         evaluator_revision_commit : EvaluatorRevisionCommit
+            Commit payload carrying the `evaluator_variant_id`, optional commit `message`, and the revision `data`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -899,9 +1103,16 @@ class EvaluatorsClient:
     
     def log_evaluator_revisions(self, *, evaluator: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
         """
+        List the revision log of an evaluator variant.
+        
+        Returns revisions in commit order. Scope the log by supplying
+        an evaluator, variant, or revision reference. Use the retrieve
+        endpoint to fetch a specific revision's full payload.
+        
         Parameters
         ----------
         evaluator : EvaluatorRevisionsLog
+            Log request scoped to an evaluator / variant / revision by id, slug, or version.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -927,19 +1138,32 @@ class EvaluatorsClient:
     
     def resolve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResolveResponse:
         """
+        Resolve embedded references on an evaluator revision's `data`.
+        
+        Walks embedded references (for example, references to other
+        revisions or to secrets) up to `max_depth` and `max_embeds`.
+        The response includes a `resolution_info` block with counts,
+        depth reached, and errors according to `error_policy`.
+        
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
+            Resolve the latest revision of this evaluator.
         
         evaluator_variant_ref : typing.Optional[Reference]
+            Resolve the latest revision on this variant.
         
         evaluator_revision_ref : typing.Optional[Reference]
+            Resolve this specific revision.
         
         max_depth : typing.Optional[int]
+            Maximum recursion depth when following embedded references. Defaults to 10.
         
         max_embeds : typing.Optional[int]
+            Maximum number of embeds to resolve. Defaults to 100.
         
         error_policy : typing.Optional[ErrorPolicy]
+            How to handle embed-resolution errors (`exception` or `fallback`).
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -963,9 +1187,17 @@ class EvaluatorsClient:
     
     def create_simple_evaluator(self, *, evaluator: SimpleEvaluatorCreate, evaluator_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Create an evaluator via the simple surface.
+        
+        Creates the artifact, its first variant, and its initial
+        revision in one call. Returns the flat evaluator record
+        (latest revision merged into `data`). Use this when you do not
+        need to manage variants or revisions directly.
+        
         Parameters
         ----------
         evaluator : SimpleEvaluatorCreate
+            Simple evaluator payload (slug, name, flags, and `data` with `uri` + `parameters`).
         
         evaluator_id : typing.Optional[str]
         
@@ -993,9 +1225,12 @@ class EvaluatorsClient:
     
     def list_evaluator_templates(self, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorTemplatesResponse:
         """
-        Returns the list of built-in evaluator templates.
+        List the legacy built-in evaluator templates.
         
-        These are static evaluator type definitions (not user-created configs).
+        Returns static evaluator-type definitions shipped with the
+        product. Prefer the `/evaluators/catalog/*` endpoints for new
+        integrations; this endpoint is kept for older clients. Pass
+        `include_archived=true` to include deprecated templates.
         
         Parameters
         ----------
@@ -1023,6 +1258,11 @@ class EvaluatorsClient:
     
     def fetch_simple_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Fetch one evaluator via the simple surface.
+        
+        Returns the flat evaluator record including its current variant
+        and revision ids and the merged `data` payload.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -1051,11 +1291,18 @@ class EvaluatorsClient:
     
     def edit_simple_evaluator(self, evaluator_id: str, *, evaluator: SimpleEvaluatorEdit, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Edit an evaluator via the simple surface.
+        
+        Touches metadata and (when `data` is supplied) commits a new
+        revision on the evaluator's variant. Renaming is temporarily
+        disabled and returns 400.
+        
         Parameters
         ----------
         evaluator_id : str
         
         evaluator : SimpleEvaluatorEdit
+            Simple evaluator edit payload. Requires the evaluator `id`. Renaming is temporarily disabled.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1082,6 +1329,11 @@ class EvaluatorsClient:
     
     def archive_simple_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Soft-delete an evaluator via the simple surface.
+        
+        Archives the underlying artifact. Historical traces that
+        reference specific revision ids remain resolvable.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -1110,6 +1362,8 @@ class EvaluatorsClient:
     
     def unarchive_simple_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Restore a soft-deleted evaluator via the simple surface.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -1138,15 +1392,26 @@ class EvaluatorsClient:
     
     def query_simple_evaluators(self, *, evaluator: typing.Optional[SimpleEvaluatorQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorsResponse:
         """
+        Query evaluators via the simple surface with filters and pagination.
+        
+        Returns flat evaluator records (one per artifact with its
+        latest variant and revision merged into `data`). Send `{}` to
+        list all evaluators in the project. See the Query Pattern
+        guide.
+        
         Parameters
         ----------
         evaluator : typing.Optional[SimpleEvaluatorQuery]
+            Filter on evaluator attributes (slug, slugs, flags, meta).
         
         evaluator_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to these evaluators.
         
         include_archived : typing.Optional[bool]
+            When true, include soft-deleted evaluators.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination controls.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1184,6 +1449,13 @@ class AsyncEvaluatorsClient:
     
     async def list_evaluator_catalog_types(self, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogTypesResponse:
         """
+        List the JSON schema types the evaluator catalog understands.
+        
+        Types are static metadata shipped with the product. Use this when
+        rendering a catalog UI or validating that a template's schema is
+        supported. See the Evaluators guide for how the catalog relates
+        to user-owned evaluator artifacts.
+        
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
@@ -1216,6 +1488,14 @@ class AsyncEvaluatorsClient:
     
     async def list_evaluator_catalog_templates(self, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogTemplatesResponse:
         """
+        List evaluator templates from the catalog.
+        
+        Templates are blueprints that describe an evaluator's handler
+        URI, JSON schemas, and default configuration. Pass
+        `include_archived=true` to include deprecated templates. Use the
+        returned `key` with `/catalog/templates/{template_key}/presets/`
+        to list its presets.
+        
         Parameters
         ----------
         include_archived : typing.Optional[bool]
@@ -1250,6 +1530,12 @@ class AsyncEvaluatorsClient:
     
     async def fetch_evaluator_catalog_template(self, template_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogTemplateResponse:
         """
+        Fetch one evaluator template by key.
+        
+        Returns an empty envelope (`count: 0`) when no template matches
+        the key. Template keys come from
+        `GET /catalog/templates/`.
+        
         Parameters
         ----------
         template_key : str
@@ -1286,6 +1572,12 @@ class AsyncEvaluatorsClient:
     
     async def list_evaluator_catalog_presets(self, template_key: str, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogPresetsResponse:
         """
+        List presets defined against one evaluator template.
+        
+        A preset is a named set of parameter values pre-filled against
+        the template. Use the returned `key` to fetch a specific preset
+        via `GET /catalog/templates/{template_key}/presets/{preset_key}`.
+        
         Parameters
         ----------
         template_key : str
@@ -1324,6 +1616,12 @@ class AsyncEvaluatorsClient:
     
     async def fetch_evaluator_catalog_preset(self, template_key: str, preset_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorCatalogPresetResponse:
         """
+        Fetch one evaluator preset by template and preset key.
+        
+        Presets are not separate entities; they are metadata. Use the
+        returned preset payload as the starting point when creating a
+        new evaluator from a template. See the Evaluators guide.
+        
         Parameters
         ----------
         template_key : str
@@ -1363,9 +1661,18 @@ class AsyncEvaluatorsClient:
     
     async def create_evaluator(self, *, evaluator: EvaluatorCreate, evaluator_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Create an evaluator artifact, its first variant, and its initial revision.
+        
+        Use this endpoint when you already know you want to manage the
+        artifact / variant / revision layers independently. For a
+        one-shot "create and forget" call that returns a flat record,
+        see `POST /simple/evaluators/`. See the Versioning guide for
+        commit semantics.
+        
         Parameters
         ----------
         evaluator : EvaluatorCreate
+            Evaluator payload (slug, name, flags, data). Slug is required and scoped to the project.
         
         evaluator_id : typing.Optional[str]
         
@@ -1401,6 +1708,12 @@ class AsyncEvaluatorsClient:
     
     async def fetch_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Fetch an evaluator artifact by id.
+        
+        Returns the artifact-level record (slug, name, flags, lifecycle)
+        without variant or revision data. Use the variant and revision
+        endpoints to retrieve those layers.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -1437,11 +1750,19 @@ class AsyncEvaluatorsClient:
     
     async def edit_evaluator(self, evaluator_id: str, *, evaluator: EvaluatorEdit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Edit an evaluator artifact's metadata.
+        
+        Edits are limited to metadata fields (description, tags, meta).
+        Renaming is temporarily disabled and returns 400. To change
+        evaluator behavior, commit a new revision on the variant — see
+        `/evaluators/revisions/commit`.
+        
         Parameters
         ----------
         evaluator_id : str
         
         evaluator : EvaluatorEdit
+            Evaluator edit payload. Requires the evaluator `id`. Renaming is temporarily disabled.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1476,6 +1797,12 @@ class AsyncEvaluatorsClient:
     
     async def archive_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Soft-delete an evaluator artifact.
+        
+        Sets `deleted_at` on the evaluator and hides it from subsequent
+        `/query` responses unless `include_archived=true`. Revision IDs
+        remain resolvable so historical traces stay intact.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -1512,6 +1839,11 @@ class AsyncEvaluatorsClient:
     
     async def unarchive_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorResponse:
         """
+        Restore a soft-deleted evaluator artifact.
+        
+        Clears `deleted_at` on the evaluator so it re-appears in `/query`
+        responses.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -1548,15 +1880,26 @@ class AsyncEvaluatorsClient:
     
     async def query_evaluators(self, *, evaluator: typing.Optional[EvaluatorQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorsResponse:
         """
+        Query evaluator artifacts with filters and pagination.
+        
+        Returns artifact-level records only. The request body follows
+        the shared query pattern (filter + refs + windowing). Send `{}`
+        to list all evaluators in the project. See the Query Pattern
+        guide.
+        
         Parameters
         ----------
         evaluator : typing.Optional[EvaluatorQuery]
+            Filter on evaluator attributes (flags, tags, meta).
         
         evaluator_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to these evaluators. Accepts `id` or `slug` per reference.
         
         include_archived : typing.Optional[bool]
+            When true, include soft-deleted evaluators in the response.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination controls (limit, order, next, newest, oldest).
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1588,9 +1931,16 @@ class AsyncEvaluatorsClient:
     
     async def create_evaluator_variant(self, *, evaluator_variant: EvaluatorVariantCreate, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Create a new variant on an existing evaluator.
+        
+        A variant is a named branch of the evaluator's history. New
+        revisions committed to this variant do not touch other variants.
+        See the Versioning guide.
+        
         Parameters
         ----------
         evaluator_variant : EvaluatorVariantCreate
+            Variant payload. Requires the parent `evaluator_id`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1624,6 +1974,12 @@ class AsyncEvaluatorsClient:
     
     async def fetch_evaluator_variant(self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Fetch an evaluator variant by id.
+        
+        Returns the variant record (slug, flags, lifecycle) without the
+        committed revisions. Use `/evaluators/revisions/retrieve` to
+        read the variant's current revision payload.
+        
         Parameters
         ----------
         evaluator_variant_id : str
@@ -1660,11 +2016,18 @@ class AsyncEvaluatorsClient:
     
     async def edit_evaluator_variant(self, evaluator_variant_id: str, *, evaluator_variant: EvaluatorVariantEdit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Edit a variant's metadata.
+        
+        Edits only touch variant-level metadata. To change evaluator
+        behavior commit a new revision via
+        `/evaluators/revisions/commit`.
+        
         Parameters
         ----------
         evaluator_variant_id : str
         
         evaluator_variant : EvaluatorVariantEdit
+            Variant edit payload. Requires the variant `id`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1699,6 +2062,12 @@ class AsyncEvaluatorsClient:
     
     async def archive_evaluator_variant(self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Soft-delete an evaluator variant.
+        
+        Sets `deleted_at` on the variant. Its revisions stay resolvable
+        by id; they are hidden from `/query` unless the caller sets
+        `include_archived=true`.
+        
         Parameters
         ----------
         evaluator_variant_id : str
@@ -1735,6 +2104,8 @@ class AsyncEvaluatorsClient:
     
     async def unarchive_evaluator_variant(self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Restore a soft-deleted evaluator variant.
+        
         Parameters
         ----------
         evaluator_variant_id : str
@@ -1771,6 +2142,12 @@ class AsyncEvaluatorsClient:
     
     async def query_evaluator_variants(self, *, evaluator_id: typing.Optional[str] = None, evaluator_ids: typing.Optional[typing.Sequence[str]] = None, evaluator_slug: typing.Optional[str] = None, evaluator_slugs: typing.Optional[typing.Sequence[str]] = None, evaluator_variant_id: typing.Optional[str] = None, evaluator_variant_ids: typing.Optional[typing.Sequence[str]] = None, evaluator_variant_slug: typing.Optional[str] = None, evaluator_variant_slugs: typing.Optional[typing.Sequence[str]] = None, name: typing.Optional[str] = None, description: typing.Optional[str] = None, flags: typing.Optional[str] = None, tags: typing.Optional[str] = None, meta: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, next: typing.Optional[str] = None, newest: typing.Optional[dt.datetime] = None, oldest: typing.Optional[dt.datetime] = None, limit: typing.Optional[int] = None, order: typing.Optional[QueryEvaluatorVariantsRequestOrder] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantsResponse:
         """
+        Query evaluator variants with filters, reference scoping, and pagination.
+        
+        Accepts parameters from both the query string and a JSON body;
+        the two are merged. Use `evaluator_refs` to scope to one or more
+        evaluators, or `evaluator_variant_refs` for specific variants.
+        
         Parameters
         ----------
         evaluator_id : typing.Optional[str]
@@ -1841,9 +2218,17 @@ class AsyncEvaluatorsClient:
     
     async def fork_evaluator_variant(self, *, evaluator: EvaluatorFork, evaluator_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
+        Fork an evaluator variant into a new variant.
+        
+        Creates a new branch whose initial revision is copied from the
+        source. Use this to experiment without touching the original.
+        The returned variant has a fresh id and slug but inherits
+        lineage metadata from its source.
+        
         Parameters
         ----------
         evaluator : EvaluatorFork
+            Fork payload. References the source variant or revision and the target evaluator.
         
         evaluator_variant_id : typing.Optional[str]
         
@@ -1879,23 +2264,41 @@ class AsyncEvaluatorsClient:
     
     async def retrieve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Retrieve one evaluator revision, either directly or via an environment key.
+        
+        Provide one of:
+        an evaluator / variant / revision reference (returns that
+        revision, or the latest revision on the variant or evaluator),
+        or an environment reference plus `key` (returns the revision
+        currently pinned to that key). Supplying both forms returns 400.
+        Pass `resolve=true` to expand embedded references on the
+        returned payload.
+        
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
+            Retrieve the latest revision of this evaluator.
         
         evaluator_variant_ref : typing.Optional[Reference]
+            Retrieve the latest revision on this variant.
         
         evaluator_revision_ref : typing.Optional[Reference]
+            Retrieve this specific revision.
         
         environment_ref : typing.Optional[Reference]
+            Environment to resolve through. Requires `key`.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant to resolve through. Requires `key`.
         
         environment_revision_ref : typing.Optional[Reference]
+            Specific environment revision to resolve through. Requires `key`.
         
         key : typing.Optional[str]
+            Named deployment key inside the environment revision. Required with environment refs.
         
         resolve : typing.Optional[bool]
+            When true, resolve embedded references on the returned revision's `data`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1927,23 +2330,40 @@ class AsyncEvaluatorsClient:
     
     async def deploy_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, message: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Pin an evaluator revision into an environment revision under a key.
+        
+        Requires an evaluator ref (`evaluator_ref`,
+        `evaluator_variant_ref`, or `evaluator_revision_ref`) and an
+        environment ref. When `key` is omitted it defaults to
+        `<evaluator_slug>.revision`. The deployment is recorded as a
+        new commit on the environment revision. See the Evaluators
+        guide for the deployment model.
+        
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
+            Evaluator to deploy (latest revision).
         
         evaluator_variant_ref : typing.Optional[Reference]
+            Variant to deploy (latest revision on this variant).
         
         evaluator_revision_ref : typing.Optional[Reference]
+            Specific revision to deploy.
         
         environment_ref : typing.Optional[Reference]
+            Target environment.
         
         environment_variant_ref : typing.Optional[Reference]
+            Target environment variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Target environment revision.
         
         key : typing.Optional[str]
+            Named key under which the revision is pinned. Defaults to `<evaluator_slug>.revision`.
         
         message : typing.Optional[str]
+            Commit message stored on the environment revision that records the deployment.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1975,9 +2395,16 @@ class AsyncEvaluatorsClient:
     
     async def create_evaluator_revision(self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Create a new revision on an evaluator variant.
+        
+        Prefer `/evaluators/revisions/commit` for the standard commit
+        flow. This endpoint exists for internal create paths that need
+        to insert a revision without the commit semantics.
+        
         Parameters
         ----------
         evaluator_revision : EvaluatorRevisionCreate
+            Revision payload. Requires the parent `evaluator_variant_id` and a `data` object.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2011,6 +2438,13 @@ class AsyncEvaluatorsClient:
     
     async def fetch_evaluator_revision(self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Fetch a specific evaluator revision by id.
+        
+        Returns the full revision including `data` (handler uri,
+        schemas, and parameters). To pick the latest revision on a
+        variant without knowing its id, use
+        `/evaluators/revisions/retrieve`.
+        
         Parameters
         ----------
         evaluator_revision_id : str
@@ -2047,11 +2481,18 @@ class AsyncEvaluatorsClient:
     
     async def edit_evaluator_revision(self, evaluator_revision_id: str, *, evaluator_revision: EvaluatorRevisionEdit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Edit a revision's metadata.
+        
+        Revision `data` is immutable once committed. This endpoint is
+        for metadata fields only (description, tags, meta). To change
+        evaluator behavior, commit a new revision instead.
+        
         Parameters
         ----------
         evaluator_revision_id : str
         
         evaluator_revision : EvaluatorRevisionEdit
+            Revision edit payload. Requires the revision `id`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2086,6 +2527,11 @@ class AsyncEvaluatorsClient:
     
     async def archive_evaluator_revision(self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Soft-delete an evaluator revision.
+        
+        Archived revisions remain resolvable by id but are excluded from
+        revision logs and queries unless `include_archived=true`.
+        
         Parameters
         ----------
         evaluator_revision_id : str
@@ -2122,6 +2568,8 @@ class AsyncEvaluatorsClient:
     
     async def unarchive_evaluator_revision(self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Restore a soft-deleted evaluator revision.
+        
         Parameters
         ----------
         evaluator_revision_id : str
@@ -2158,21 +2606,35 @@ class AsyncEvaluatorsClient:
     
     async def query_evaluator_revisions(self, *, evaluator_revision: typing.Optional[EvaluatorRevisionQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
         """
+        Query evaluator revisions with filters, reference scoping, and pagination.
+        
+        Returns revision payloads. Use `evaluator_refs`,
+        `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
+        the query. Pass `resolve=true` to expand embedded references on
+        each revision's `data`.
+        
         Parameters
         ----------
         evaluator_revision : typing.Optional[EvaluatorRevisionQuery]
+            Filter on revision attributes.
         
         evaluator_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to revisions under these evaluators.
         
         evaluator_variant_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to revisions under these variants.
         
         evaluator_revision_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to these specific revisions.
         
         include_archived : typing.Optional[bool]
+            When true, include soft-deleted revisions.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination controls.
         
         resolve : typing.Optional[bool]
+            When true, resolve embedded references on each returned revision's `data`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2204,9 +2666,16 @@ class AsyncEvaluatorsClient:
     
     async def commit_evaluator_revision(self, *, evaluator_revision_commit: EvaluatorRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
+        Commit a new revision on an evaluator variant.
+        
+        The commit body carries the target `evaluator_variant_id`, an
+        optional `message`, and the revision `data` (handler uri,
+        schemas, parameters). A committed revision is immutable.
+        
         Parameters
         ----------
         evaluator_revision_commit : EvaluatorRevisionCommit
+            Commit payload carrying the `evaluator_variant_id`, optional commit `message`, and the revision `data`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2240,9 +2709,16 @@ class AsyncEvaluatorsClient:
     
     async def log_evaluator_revisions(self, *, evaluator: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
         """
+        List the revision log of an evaluator variant.
+        
+        Returns revisions in commit order. Scope the log by supplying
+        an evaluator, variant, or revision reference. Use the retrieve
+        endpoint to fetch a specific revision's full payload.
+        
         Parameters
         ----------
         evaluator : EvaluatorRevisionsLog
+            Log request scoped to an evaluator / variant / revision by id, slug, or version.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2276,19 +2752,32 @@ class AsyncEvaluatorsClient:
     
     async def resolve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResolveResponse:
         """
+        Resolve embedded references on an evaluator revision's `data`.
+        
+        Walks embedded references (for example, references to other
+        revisions or to secrets) up to `max_depth` and `max_embeds`.
+        The response includes a `resolution_info` block with counts,
+        depth reached, and errors according to `error_policy`.
+        
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
+            Resolve the latest revision of this evaluator.
         
         evaluator_variant_ref : typing.Optional[Reference]
+            Resolve the latest revision on this variant.
         
         evaluator_revision_ref : typing.Optional[Reference]
+            Resolve this specific revision.
         
         max_depth : typing.Optional[int]
+            Maximum recursion depth when following embedded references. Defaults to 10.
         
         max_embeds : typing.Optional[int]
+            Maximum number of embeds to resolve. Defaults to 100.
         
         error_policy : typing.Optional[ErrorPolicy]
+            How to handle embed-resolution errors (`exception` or `fallback`).
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2320,9 +2809,17 @@ class AsyncEvaluatorsClient:
     
     async def create_simple_evaluator(self, *, evaluator: SimpleEvaluatorCreate, evaluator_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Create an evaluator via the simple surface.
+        
+        Creates the artifact, its first variant, and its initial
+        revision in one call. Returns the flat evaluator record
+        (latest revision merged into `data`). Use this when you do not
+        need to manage variants or revisions directly.
+        
         Parameters
         ----------
         evaluator : SimpleEvaluatorCreate
+            Simple evaluator payload (slug, name, flags, and `data` with `uri` + `parameters`).
         
         evaluator_id : typing.Optional[str]
         
@@ -2358,9 +2855,12 @@ class AsyncEvaluatorsClient:
     
     async def list_evaluator_templates(self, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorTemplatesResponse:
         """
-        Returns the list of built-in evaluator templates.
+        List the legacy built-in evaluator templates.
         
-        These are static evaluator type definitions (not user-created configs).
+        Returns static evaluator-type definitions shipped with the
+        product. Prefer the `/evaluators/catalog/*` endpoints for new
+        integrations; this endpoint is kept for older clients. Pass
+        `include_archived=true` to include deprecated templates.
         
         Parameters
         ----------
@@ -2396,6 +2896,11 @@ class AsyncEvaluatorsClient:
     
     async def fetch_simple_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Fetch one evaluator via the simple surface.
+        
+        Returns the flat evaluator record including its current variant
+        and revision ids and the merged `data` payload.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -2432,11 +2937,18 @@ class AsyncEvaluatorsClient:
     
     async def edit_simple_evaluator(self, evaluator_id: str, *, evaluator: SimpleEvaluatorEdit, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Edit an evaluator via the simple surface.
+        
+        Touches metadata and (when `data` is supplied) commits a new
+        revision on the evaluator's variant. Renaming is temporarily
+        disabled and returns 400.
+        
         Parameters
         ----------
         evaluator_id : str
         
         evaluator : SimpleEvaluatorEdit
+            Simple evaluator edit payload. Requires the evaluator `id`. Renaming is temporarily disabled.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2471,6 +2983,11 @@ class AsyncEvaluatorsClient:
     
     async def archive_simple_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Soft-delete an evaluator via the simple surface.
+        
+        Archives the underlying artifact. Historical traces that
+        reference specific revision ids remain resolvable.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -2507,6 +3024,8 @@ class AsyncEvaluatorsClient:
     
     async def unarchive_simple_evaluator(self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
         """
+        Restore a soft-deleted evaluator via the simple surface.
+        
         Parameters
         ----------
         evaluator_id : str
@@ -2543,15 +3062,26 @@ class AsyncEvaluatorsClient:
     
     async def query_simple_evaluators(self, *, evaluator: typing.Optional[SimpleEvaluatorQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorsResponse:
         """
+        Query evaluators via the simple surface with filters and pagination.
+        
+        Returns flat evaluator records (one per artifact with its
+        latest variant and revision merged into `data`). Send `{}` to
+        list all evaluators in the project. See the Query Pattern
+        guide.
+        
         Parameters
         ----------
         evaluator : typing.Optional[SimpleEvaluatorQuery]
+            Filter on evaluator attributes (slug, slugs, flags, meta).
         
         evaluator_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to these evaluators.
         
         include_archived : typing.Optional[bool]
+            When true, include soft-deleted evaluators.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination controls.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.

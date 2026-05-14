@@ -15,5 +15,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface SimpleTraceCreateRequest {
+    /** The trace to create. Must include `data` (the payload being recorded) and typically `origin`, `kind`, and `channel` to describe where it came from. Optional `references` link the trace to Agenta entities (app, variant, revision, evaluator, testset, etc.). */
     trace: AgentaApi.SimpleTraceCreate;
 }

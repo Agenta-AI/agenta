@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict
 from opentelemetry.trace import SpanKind
 
@@ -10,6 +11,14 @@ log = get_module_logger(__name__)
 
 
 def litellm_handler():
+    if ag.tracing is None:
+        warnings.warn(
+            "ag.callbacks.litellm_handler() called before ag.init(). "
+            "Tracing will be disabled. Call ag.init() before setting up litellm callbacks.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
     try:
         from litellm.integrations.custom_logger import (  # pylint: disable=import-outside-toplevel
             CustomLogger as LitellmCustomLogger,

@@ -27,6 +27,17 @@ export class LegacyClient {
     }
 
     /**
+     * Aggregate span metrics using the fixed legacy schema.
+     *
+     * Returns time-bucketed aggregates with a fixed set of fields
+     * (`count`, `duration`, `costs`, `tokens`) split into `total` and
+     * `errors`. The shape predates `specs`-driven analytics and is kept
+     * for the existing observability dashboards that consume it.
+     *
+     * New integrations should prefer `POST /tracing/analytics/query`,
+     * which accepts `specs` and can summarize arbitrary span attributes,
+     * not just the four fixed metrics.
+     *
      * @param {AgentaApi.FetchLegacyAnalyticsRequest} request
      * @param {LegacyClient.RequestOptions} requestOptions - Request-specific configuration.
      *

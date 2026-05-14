@@ -74,8 +74,28 @@ const NewEvaluationModalInner = ({
 }: NewEvaluationModalInnerProps) => {
     // Use appIdentifiersAtom directly to get the URL-derived appId without fallback to stale values
     const {appId} = useAtomValue(appIdentifiersAtom)
+    // Phase 6.1.3 defensive guard: if a preselect ID matches an evaluator
+    // workflow, ignore it. Belt-and-suspenders with the Phase 6.1.2 fix that
+    // hides RunEvaluationButton for evaluators — but covers any other call site
+    // (e.g., a stale cache or programmatic open) that might still pass an
+    // evaluator ID. Without this, the modal silently defaults to "no app
+    // selected" which is confusing.
+    const evaluatorWorkflows = useAtomValue(evaluatorsListDataAtom)
+    const sanitizedPreSelectedAppId = useMemo(() => {
+        if (!preSelectedAppId) return undefined
+        const isEvaluator = evaluatorWorkflows.some((e) => e.id === preSelectedAppId)
+        if (isEvaluator) {
+            if (process.env.NODE_ENV !== "production") {
+                console.warn(
+                    `[NewEvaluationModal] preSelectedAppId resolves to an evaluator workflow (${preSelectedAppId}) — ignoring.`,
+                )
+            }
+            return undefined
+        }
+        return preSelectedAppId
+    }, [preSelectedAppId, evaluatorWorkflows])
     // Consider pre-selected app ID from playground, fallback to URL-derived appId
-    const effectiveAppId = preSelectedAppId || appId || ""
+    const effectiveAppId = sanitizedPreSelectedAppId || appId || ""
     const isAppScoped = Boolean(effectiveAppId)
     const {apps: availableApps = []} = useAppsData()
     const [selectedAppId, setSelectedAppId] = useState<string>(effectiveAppId)
