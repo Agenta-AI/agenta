@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="47" failures="0" errors="0" time="0.054542142">
+    <testsuite name="tests/unit/draft-state.test.ts" timestamp="2026-05-13T10:25:45.909Z" hostname="Kaosisos-MacBook-Pro.local" tests="17" failures="0" errors="0" skipped="0" time="0.023995217">
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; initial state (no draft) &gt; hasDraft is false when no draft has been set" time="0.006482838">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; initial state (no draft) &gt; isDirty is false when no draft has been set" time="0.000612095">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; initial state (no draft) &gt; withDraft returns the server entity when no draft exists" time="0.00101702">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; initial state (no draft) &gt; withDraft returns null when the entity does not exist" time="0.000517065">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; after applying an update &gt; hasDraft becomes true" time="0.003378332">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; after applying an update &gt; isDirty becomes true" time="0.001143518">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; after applying an update &gt; withDraft returns the merged entity (draft wins)" time="0.000598383">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; after applying an update &gt; the raw draft atom holds the full merged draftable data" time="0.000651737">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; smart draft clearing &gt; clears the draft automatically when updates bring values back to server state" time="0.001464088">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; discarding a draft &gt; clears the draft and restores server state" time="0.000786452">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; discarding a draft &gt; discard is a no-op when there is no draft" time="0.000460828">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; update when entity is null &gt; does nothing when the entity does not exist in the store" time="0.00022232">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; excludeFields &gt; does not count excluded fields when checking isDirty" time="0.000358307">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; excludeFields &gt; still detects dirty when a non-excluded field changes" time="0.000353304">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; custom isDirty function &gt; uses the provided isDirty function instead of the default" time="0.00028086">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; partial field update &gt; only changes the specified fields, leaving others intact" time="0.000549801">
+        </testcase>
+        <testcase classname="tests/unit/draft-state.test.ts" name="createEntityDraftState &gt; partial field update &gt; accumulates updates across multiple calls" time="0.000389552">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/loadable-store.test.ts" timestamp="2026-05-13T10:25:45.919Z" hostname="Kaosisos-MacBook-Pro.local" tests="12" failures="0" errors="0" skipped="0" time="0.017251667">
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; default state &gt; mode is &apos;local&apos; when no source is connected" time="0.003869683">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; default state &gt; columns default to an empty array" time="0.00096694">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; default state &gt; execution results default to an empty object" time="0.000652593">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; default state &gt; connected source defaults to all-null" time="0.001203132">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; default state &gt; linked runnable defaults to all-null" time="0.000854145">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; default state &gt; output mappings default to an empty array" time="0.000623488">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; mode &gt; switches to &apos;connected&apos; when connectedSourceId is set" time="0.002140833">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; mode &gt; returns to &apos;local&apos; when connectedSourceId is cleared" time="0.000397307">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; connected source &gt; reflects updated connected source information" time="0.001054609">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; instance isolation &gt; two loadable IDs do not share state" time="0.000657227">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; output mappings &gt; reflects output mappings written to state" time="0.000500733">
+        </testcase>
+        <testcase classname="tests/unit/loadable-store.test.ts" name="loadable store &gt; linked runnable &gt; reflects the linked runnable when set" time="0.000500189">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/normalize.test.ts" timestamp="2026-05-13T10:25:45.922Z" hostname="Kaosisos-MacBook-Pro.local" tests="18" failures="0" errors="0" skipped="0" time="0.013295258">
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; empty and nullish values &gt; returns &apos;&apos; for null" time="0.004016235">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; empty and nullish values &gt; returns &apos;&apos; for undefined" time="0.000333862">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; empty and nullish values &gt; returns &apos;&apos; for empty string" time="0.000211735">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; plain strings &gt; returns the string unchanged when it is not valid JSON" time="0.000300141">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; plain strings &gt; returns the string unchanged when it contains special characters" time="0.000321668">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; JSON strings (key-order normalisation) &gt; sorts keys so {b,a} and {a,b} are equal" time="0.000360975">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; JSON strings (key-order normalisation) &gt; returns canonical JSON with keys sorted alphabetically" time="0.000368067">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; JSON strings (key-order normalisation) &gt; handles nested objects — sorts keys at every level" time="0.000287394">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; JSON strings (key-order normalisation) &gt; handles arrays of objects inside JSON strings" time="0.000722083">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; JSON strings (key-order normalisation) &gt; treats a JSON string and the equivalent object as equal" time="0.000291741">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; objects &gt; serializes a plain object with sorted keys" time="0.000268162">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; objects &gt; handles empty object" time="0.000143236">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; objects &gt; handles nested objects" time="0.000145277">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; objects &gt; handles arrays" time="0.000124048">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; primitives &gt; converts numbers to string" time="0.000123184">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; primitives &gt; converts true to string" time="0.000399742">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; primitives &gt; converts false to string" time="0.000138354">
+        </testcase>
+        <testcase classname="tests/unit/normalize.test.ts" name="normalizeValueForComparison &gt; primitives &gt; converts 0 to string" time="0.00012387">
+        </testcase>
+    </testsuite>
+</testsuites>
