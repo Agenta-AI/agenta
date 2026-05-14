@@ -10,7 +10,7 @@ from oss.src.models.api.workspace_models import Workspace
 
 if is_ee():
     from ee.src.utils.permissions import check_rbac_permission
-    from ee.src.models.api.workspace_models import WorkspaceRole
+    from ee.src.models.shared_models import WorkspaceRole
     from ee.src.services.selectors import get_user_org_and_workspace_id
     from ee.src.services import db_manager_ee, workspace_manager
     from ee.src.core.entitlements.controls import get_roles
