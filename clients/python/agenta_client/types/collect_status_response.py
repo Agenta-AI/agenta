@@ -8,9 +8,16 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
 class CollectStatusResponse(UniversalBaseModel):
+    """
+    OTLP endpoint readiness response.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    status: str
+    status: str = pydantic.Field()
+    """
+    Readiness string. `ready` means the router is mounted and accepts OTLP ingest.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

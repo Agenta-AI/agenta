@@ -10,7 +10,17 @@ from .trace_input import TraceInput
 
 
 class TracesRequest(UniversalBaseModel):
-    traces: typing.Optional[typing.List[TraceInput]] = None
+    """
+    Ingest payload in the canonical `Traces` list shape.
+    
+    Used by `POST /traces/ingest`. Each entry is one trace with its
+    `trace_id` and a nested `spans` tree.
+    """
+    traces: typing.Optional[typing.List[TraceInput]] = pydantic.Field(default=None)
+    """
+    List of trace records. Each record is a `trace_id` plus the nested `spans` tree. Equivalent to the map-shaped payload accepted by `POST /tracing/spans/ingest`.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

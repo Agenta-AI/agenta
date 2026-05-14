@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface TestsetVariantEditRequest {
     testset_variant_id: string;
+    /** Variant fields to update. The `id` in the body must match the `testset_variant_id` in the path. */
     testset_variant: AgentaApi.TestsetVariantEdit;
 }

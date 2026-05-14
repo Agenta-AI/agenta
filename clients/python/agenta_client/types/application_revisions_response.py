@@ -9,10 +9,21 @@ from .application_revision import ApplicationRevision
 
 
 class ApplicationRevisionsResponse(UniversalBaseModel):
+    """
+    Paginated list of application revisions.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    application_revisions: typing.Optional[typing.List[ApplicationRevision]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of revisions in this page.
+    """
+    
+    application_revisions: typing.Optional[typing.List[ApplicationRevision]] = pydantic.Field(default=None)
+    """
+    Application revisions matching the query or log.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

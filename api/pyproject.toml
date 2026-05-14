@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.99.6"
+version = "0.99.7"
 description = "Agenta API"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -8,7 +8,7 @@ authors = [
     { name = "Juan Vega", email = "jp@agenta.ai" },
 ]
 dependencies = [
-    "agenta>=0.99.2",
+    "agenta>=0.99.6",
     "fastapi>=0.136,<0.137",
     "pydantic[email]>=2,<3",
     "uvicorn[standard]>=0.46,<0.47",
@@ -16,7 +16,7 @@ dependencies = [
     "httpx>=0.28,<0.29",
     "structlog>=25,<26",
     "python-dotenv>=1,<2",
-    "python-multipart>=0.0.27,<0.0.28",
+    "python-multipart>=0.0.28,<0.0.29",
     "cryptography>=48,<49",
     "sqlalchemy>=2,<3",
     "sqlalchemy-utils>=0.42,<0.43",
@@ -27,7 +27,7 @@ dependencies = [
     "jsonschema>=4,<5",
     "genson>=1,<2",
     "python-jsonpath>=2,<3",
-    "uuid-utils>=0.14,<0.15",
+    "uuid-utils>=0.15,<0.16",
     "taskiq>=0.12,<0.13",
     "taskiq-redis>=1,<2",
     "redis>=7,<8",
@@ -37,7 +37,7 @@ dependencies = [
     "sendgrid>=6,<7",
     "stripe>=15,<16",
     "posthog>=7,<8",
-    "newrelic>=12,<13",
+    "newrelic>=13,<14",
     "dnspython>=2,<3",
     "opentelemetry-proto>=1,<2",
 ]
@@ -56,3 +56,6 @@ dev = [
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+agenta = { path = "../sdks/python", editable = true }

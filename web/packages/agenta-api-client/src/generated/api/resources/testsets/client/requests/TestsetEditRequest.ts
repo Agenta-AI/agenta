@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface TestsetEditRequest {
     testset_id: string;
+    /** Testset artifact fields to update. The `id` in the body must match the `testset_id` in the path. */
     testset: AgentaApi.TestsetEdit;
 }

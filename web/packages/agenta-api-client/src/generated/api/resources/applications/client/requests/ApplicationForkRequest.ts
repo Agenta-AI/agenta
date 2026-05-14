@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface ApplicationForkRequest {
     application_variant_id?: string | null;
+    /** Fork payload. Must include the source `application_variant_id` (or `application_revision_id`) plus a `variant` object describing the new branch and a `revision` object for the new tip commit. */
     application: AgentaApi.ApplicationFork;
 }

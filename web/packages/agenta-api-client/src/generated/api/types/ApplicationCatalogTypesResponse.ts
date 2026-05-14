@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * List of catalog types.
+ */
 export interface ApplicationCatalogTypesResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of types returned. */
     count?: number | undefined;
+    /** Shared JSON Schema building blocks referenced by templates (for example `message`, `prompt-template`). */
     types?: AgentaApi.ApplicationCatalogType[] | undefined;
 }

@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleTestsetCreateRequest {
     testset_id?: string | null;
+    /** Simple testset to create. `data.testcases` is committed as the first revision on a single variant in one call. */
     testset: AgentaApi.SimpleTestsetCreate;
 }

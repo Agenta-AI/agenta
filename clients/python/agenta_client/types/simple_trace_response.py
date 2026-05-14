@@ -9,10 +9,21 @@ from .simple_trace import SimpleTrace
 
 
 class SimpleTraceResponse(UniversalBaseModel):
+    """
+    Response from a single-trace create/fetch/edit.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    trace: typing.Optional[SimpleTrace] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` if the trace was returned, `0` otherwise.
+    """
+    
+    trace: typing.Optional[SimpleTrace] = pydantic.Field(default=None)
+    """
+    The created or fetched trace, including server-assigned `trace_id` and `span_id`.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

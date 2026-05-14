@@ -3,6 +3,7 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {
     createEvaluatorFromTemplate,
     type EvaluatorCatalogTemplate,
+    hasFullPagePlaygroundUX,
     invalidateEvaluatorsListCache,
     workflowMolecule,
 } from "@agenta/entities/workflow"
@@ -24,9 +25,10 @@ import {
     onboardingWidgetActivationAtom,
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
-import {useQueryParamState} from "@/oss/state/appState"
+import {appIdentifiersAtom, useQueryParamState} from "@/oss/state/appState"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {getProjectValues} from "@/oss/state/project"
+import {recentEvaluatorIdAtom} from "@/oss/state/workflow"
 
 import {DEFAULT_EVALUATOR_TAB, EVALUATOR_TABS} from "./assets/constants"
 import type {EvaluatorCategory} from "./assets/types"
@@ -67,6 +69,33 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
     const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
     const openHumanDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
     const setNavigationIds = useSetAtom(workflowRevisionDrawerNavigationIdsAtom)
+
+    // Phase 5: full-page navigation for evaluator EDIT (drawer remains for
+    // human + create + the per-row "Quick edit" action). Writes
+    // recentEvaluatorIdAtom alongside the navigation push.
+    const {workspaceId, projectId} = useAtomValue(appIdentifiersAtom)
+    const setRecentEvaluatorId = useSetAtom(recentEvaluatorIdAtom)
+    const navigateToEvaluatorPage = useCallback(
+        (evaluatorId: string, options?: {revisionId?: string}) => {
+            if (!workspaceId || !projectId || !evaluatorId) return false
+            setRecentEvaluatorId(evaluatorId)
+            // Pin the destination to a specific revision when provided.
+            // Required for post-create navigation: without `?revisions=`, the
+            // playground page defaults to the v0 (empty initial) revision
+            // and the user's just-committed v1 — which holds the prompt /
+            // schema — never gets selected. Row-click navigation can omit
+            // this and let the playground fall back to "latest" naturally.
+            const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(
+                projectId,
+            )}/apps/${encodeURIComponent(evaluatorId)}/playground`
+            const href = options?.revisionId
+                ? `${base}?revisions=${encodeURIComponent(options.revisionId)}`
+                : base
+            void router.push(href)
+            return true
+        },
+        [router, workspaceId, projectId, setRecentEvaluatorId],
+    )
 
     const controllerParams = useMemo(
         () => ({
@@ -198,7 +227,19 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             openEvaluatorDrawer({
                 entityId: localId,
                 mode: "create",
-                onEvaluatorCreated: () => refetchAll(),
+                // The post-create routing (playground vs stay on /evaluators)
+                // is owned by `useDrawerCreateCommitCallback` in the drawer
+                // wrapper now — it reads the just-committed revision's URI /
+                // flags from the API response and pushes the playground URL
+                // *inside the wrapper effect*, matching what the app-create
+                // path already does. Keeping the navigation closure here as
+                // well would re-introduce the stale-closure / Fast-Refresh
+                // race that produced "first attempt didn't redirect" reports.
+                // We only refresh the list cache so the new evaluator appears
+                // in the registry on the user's next visit.
+                onWorkflowCreated: () => {
+                    refetchAll()
+                },
             })
         },
         [openEvaluatorDrawer, refetchAll],
@@ -207,13 +248,45 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
     const handleRowClick = useCallback(
         (record: EvaluatorTableRow) => {
             if (activeTab === "human") {
+                // Human evaluators don't have a full-page playground; keep the
+                // existing drawer-edit flow.
                 openHumanEvaluator(record)
                 return
             }
 
-            openAutomaticEvaluator(record)
+            // Archived evaluators stay in the drawer-only flow.
+            if (isArchived) {
+                openAutomaticEvaluator(record)
+                return
+            }
+
+            // Only prompt/code-authored evaluators open in the full-page
+            // playground. Declarative classifiers (match, contains, regex,
+            // json_multi_field_match, …) fall back to the drawer-edit flow —
+            // their config is a handful of form fields and the playground
+            // page would surface misleading envelope variable inputs.
+            const entity = record.revisionId ? workflowMolecule.get.data(record.revisionId) : null
+            const shouldNavigateToFullPage = Boolean(
+                record.workflowId &&
+                entity &&
+                hasFullPagePlaygroundUX(entity as Parameters<typeof hasFullPagePlaygroundUX>[0]),
+            )
+
+            const navigated =
+                shouldNavigateToFullPage && record.workflowId
+                    ? navigateToEvaluatorPage(record.workflowId)
+                    : false
+            if (!navigated) {
+                openAutomaticEvaluator(record)
+            }
         },
-        [activeTab, openAutomaticEvaluator, openHumanEvaluator],
+        [
+            activeTab,
+            isArchived,
+            navigateToEvaluatorPage,
+            openAutomaticEvaluator,
+            openHumanEvaluator,
+        ],
     )
 
     const handleRestore = useCallback(async (record: EvaluatorTableRow) => {

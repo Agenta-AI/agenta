@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleEvaluatorEditRequest {
     evaluator_id: string;
+    /** Simple evaluator edit payload. Requires the evaluator `id`. Renaming is temporarily disabled. */
     evaluator: AgentaApi.SimpleEvaluatorEdit;
 }

@@ -11,8 +11,16 @@ from .testset_revision import TestsetRevision
 class TestsetRevisionsResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    testset_revisions: typing.Optional[typing.List[TestsetRevision]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of revisions returned.
+    """
+    
+    testset_revisions: typing.Optional[typing.List[TestsetRevision]] = pydantic.Field(default=None)
+    """
+    Testset revisions matching the query, in the requested order.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

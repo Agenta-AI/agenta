@@ -2,10 +2,21 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Response from span ingestion.
+ *
+ * `count` reflects how many spans were successfully parsed and published
+ * to the ingest stream. If you submitted N spans and see `count < N`,
+ * some spans failed server-side validation and were not persisted (check
+ * server logs for details). See [Tracing — Async write
+ * contract](/reference/api-guide/tracing#async-write-contract-202) for
+ * the full semantics of the `202 Accepted` response.
+ */
 export interface OTelLinksResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of spans that were accepted and published to the ingest stream. Compare against the number of spans you sent to detect partial failures. */
     count?: number | undefined;
+    /** List of `(trace_id, span_id)` pairs for the accepted spans, in submission order. */
     links?: (AgentaApi.OTelLinkOutput[] | null) | undefined;
-    dropped?: (AgentaApi.OTelLinkOutput[] | null) | undefined;
 }

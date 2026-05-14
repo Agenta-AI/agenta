@@ -2,6 +2,10 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Ingest or edit payload for a single canonical `Trace`.
+ */
 export interface TraceRequest {
+    /** A single trace record (trace_id plus nested spans). The `trace_id` must match the path parameter on edit endpoints. */
     trace?: (AgentaApi.TraceInput | null) | undefined;
 }

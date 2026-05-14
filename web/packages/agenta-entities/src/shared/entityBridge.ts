@@ -277,6 +277,13 @@ export interface RunnablePort {
     type: string
     required?: boolean
     schema?: unknown
+    /**
+     * Optional plain-language description of what this port represents,
+     * surfaced as the info-tooltip next to the variable header. Should be
+     * authored for end users (SMEs), not engineers — explain *what data this
+     * holds* and *how to reference it in the prompt template*.
+     */
+    helpText?: string
 }
 
 // ============================================================================

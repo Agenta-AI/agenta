@@ -5,7 +5,10 @@ import type * as AgentaApi from "../index.js";
 export interface TestcasesResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of testcases returned on this page. */
     count?: number | undefined;
+    /** Testcase blobs matching the query, in revision-order when scoped by a revision reference. */
     testcases?: AgentaApi.TestcaseOutput[] | undefined;
+    /** Cursor for the next page, if more results exist. */
     windowing?: (AgentaApi.Windowing | null) | undefined;
 }

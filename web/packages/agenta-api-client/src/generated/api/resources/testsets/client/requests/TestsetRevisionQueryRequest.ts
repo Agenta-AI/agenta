@@ -7,11 +7,18 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface TestsetRevisionQueryRequest {
+    /** Attribute filter on the revision (name, description, slug, author, date, message). */
     testset_revision?: AgentaApi.TestsetRevisionQuery | null;
+    /** Scope revisions to these testsets. */
     testset_refs?: AgentaApi.Reference[] | null;
+    /** Scope revisions to these variants. */
     testset_variant_refs?: AgentaApi.Reference[] | null;
+    /** Restrict to specific revisions by reference (id, slug, or version). */
     testset_revision_refs?: AgentaApi.Reference[] | null;
+    /** Include soft-deleted revisions. */
     include_archived?: boolean | null;
+    /** Include full testcase objects for each returned revision. Defaults to true. */
     include_testcases?: boolean | null;
+    /** Cursor-based pagination. See the Query Pattern guide. */
     windowing?: AgentaApi.Windowing | null;
 }

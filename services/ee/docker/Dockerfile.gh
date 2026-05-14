@@ -1,4 +1,4 @@
-ARG UV_VERSION=0.11.9
+ARG UV_VERSION=0.11.14
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
 FROM python:3.13-slim-trixie AS builder
@@ -16,9 +16,14 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 COPY --from=uv /uv /uvx /bin/
 
-COPY ./pyproject.toml ./uv.lock* /app/
+# Build context is `application/` so `uv sync` can resolve the local-path source
+# `agenta = { path = "../sdks/python", editable = true }` declared in services/pyproject.toml.
+COPY ./services/pyproject.toml ./services/uv.lock* /app/
+COPY ./sdks/python /sdks/python/
+COPY ./clients/python /clients/python/
 
-# Create clean venv, install app deps, strip heavy unused deps
+# Install full deps (including the editable local SDK + client) in one pass,
+# then strip heavy unused transitives.
 # Merged into one layer so stripped files don't persist in a previous layer.
 # Stripped:
 # - hf_xet: transitive, never imported
@@ -28,26 +33,16 @@ COPY ./pyproject.toml ./uv.lock* /app/
 # Kept: newrelic — used for observability
 RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
     --mount=type=cache,id=uv-services,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project \
+    UV_HTTP_TIMEOUT=300 uv sync --locked --no-dev \
     && SITE=$(/opt/venv/bin/python -c 'import site; print(site.getsitepackages()[0])') \
     && rm -rf \
         ${SITE}/hf_xet* \
         ${SITE}/shapely* \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
-# Copy and install SDK first (changes less frequently than app code)
-COPY ./sdks/python /sdks/python/
-COPY ./clients/python /clients/python/
-
-RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
-    --mount=type=cache,id=uv-services,target=/root/.cache/uv \
-    if [ -f /sdks/python/pyproject.toml ]; then \
-        uv pip install --python /opt/venv/bin/python --editable /sdks/python; \
-    fi
-
 # Copy app code last (changes more frequently)
-COPY ./oss /app/oss/
-COPY ./entrypoints /app/entrypoints/
+COPY ./services/oss /app/oss/
+COPY ./services/entrypoints /app/entrypoints/
 
 
 FROM python:3.13-slim-trixie AS runner

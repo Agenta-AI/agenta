@@ -88,16 +88,22 @@ class TestcasesClient:
         Parameters
         ----------
         testcase_ids : typing.Optional[typing.Sequence[str]]
+            Explicit list of testcase IDs to fetch. Combine with `testset_id` or testset references to scope the lookup.
         
         testset_id : typing.Optional[str]
+            Return all testcases stored in this testset. The testset owns its testcases as a content-addressed bag; a revision references a subset of these.
         
         testset_ref : typing.Optional[Reference]
+            Testset reference used to resolve the latest revision on the default variant. The revision's ordered testcase IDs are used for the lookup and pagination.
         
         testset_variant_ref : typing.Optional[Reference]
+            Testset variant reference used to resolve the latest revision on that variant.
         
         testset_revision_ref : typing.Optional[Reference]
+            Specific testset revision reference. The revision's ordered testcase IDs drive the lookup and cursor pagination.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. When a revision reference is used, the cursor walks the revision's deterministic testcase ID list.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -210,16 +216,22 @@ class AsyncTestcasesClient:
         Parameters
         ----------
         testcase_ids : typing.Optional[typing.Sequence[str]]
+            Explicit list of testcase IDs to fetch. Combine with `testset_id` or testset references to scope the lookup.
         
         testset_id : typing.Optional[str]
+            Return all testcases stored in this testset. The testset owns its testcases as a content-addressed bag; a revision references a subset of these.
         
         testset_ref : typing.Optional[Reference]
+            Testset reference used to resolve the latest revision on the default variant. The revision's ordered testcase IDs are used for the lookup and pagination.
         
         testset_variant_ref : typing.Optional[Reference]
+            Testset variant reference used to resolve the latest revision on that variant.
         
         testset_revision_ref : typing.Optional[Reference]
+            Specific testset revision reference. The revision's ordered testcase IDs drive the lookup and cursor pagination.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. When a revision reference is used, the cursor walks the revision's deterministic testcase ID list.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.

@@ -161,17 +161,32 @@ export const openWorkflowRevisionDrawerAtom = atom(null, (get, set, params: Open
     }
 })
 
+/**
+ * When set, the wrapper's drawer-close effect skips the `setQueryRevision(null)`
+ * URL cleanup for the next close. Used when the caller is about to (or already
+ * did) `router.push` to a different URL — the close-time cleanup would
+ * otherwise rebuild the URL against the stale pre-push pathname and cancel
+ * the in-flight navigation.
+ */
+export const suppressDrawerCloseUrlCleanupAtom = atom<boolean>(false)
+
 /** Close the drawer and clean up */
-export const closeWorkflowRevisionDrawerAtom = atom(null, (_get, set) => {
-    set(workflowRevisionDrawerOpenAtom, false)
-    set(workflowRevisionDrawerEntityIdAtom, RESET)
-    set(workflowRevisionDrawerExpandedAtom, RESET)
-    set(workflowRevisionDrawerContextAtom, RESET)
-    set(workflowRevisionDrawerStackedAtom, RESET)
-    set(workflowRevisionDrawerNavigationIdsAtom, RESET)
-    set(workflowRevisionDrawerCallbackAtom, undefined)
-    set(workflowRevisionDrawerViewModeAtom, RESET)
-})
+export const closeWorkflowRevisionDrawerAtom = atom(
+    null,
+    (_get, set, options?: {skipUrlCleanup?: boolean}) => {
+        if (options?.skipUrlCleanup) {
+            set(suppressDrawerCloseUrlCleanupAtom, true)
+        }
+        set(workflowRevisionDrawerOpenAtom, false)
+        set(workflowRevisionDrawerEntityIdAtom, RESET)
+        set(workflowRevisionDrawerExpandedAtom, RESET)
+        set(workflowRevisionDrawerContextAtom, RESET)
+        set(workflowRevisionDrawerStackedAtom, RESET)
+        set(workflowRevisionDrawerNavigationIdsAtom, RESET)
+        set(workflowRevisionDrawerCallbackAtom, undefined)
+        set(workflowRevisionDrawerViewModeAtom, RESET)
+    },
+)
 
 /** Navigate to a specific entity ID within the drawer */
 export const navigateWorkflowRevisionDrawerAtom = atom(null, (_get, set, entityId: string) => {

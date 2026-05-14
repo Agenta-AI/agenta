@@ -9,10 +9,21 @@ from .application_catalog_preset import ApplicationCatalogPreset
 
 
 class ApplicationCatalogPresetResponse(UniversalBaseModel):
+    """
+    Single preset response envelope.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    preset: typing.Optional[ApplicationCatalogPreset] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` when found, `0` otherwise.
+    """
+    
+    preset: typing.Optional[ApplicationCatalogPreset] = pydantic.Field(default=None)
+    """
+    Catalog preset definition.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

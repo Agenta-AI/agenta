@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Envelope for a single catalog preset.
+ */
 export interface EvaluatorCatalogPresetResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** 1 when a preset is returned, 0 otherwise. */
     count?: number | undefined;
+    /** The catalog preset, or null when none matched. */
     preset?: (AgentaApi.EvaluatorCatalogPreset | null) | undefined;
 }

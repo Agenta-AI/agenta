@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Paginated list of application variants.
+ */
 export interface ApplicationVariantsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of variants in this page. */
     count?: number | undefined;
+    /** Application variants matching the query. */
     application_variants?: AgentaApi.ApplicationVariant[] | undefined;
 }

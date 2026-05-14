@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Paginated list of application revisions.
+ */
 export interface ApplicationRevisionsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of revisions in this page. */
     count?: number | undefined;
+    /** Application revisions matching the query or log. */
     application_revisions?: AgentaApi.ApplicationRevision[] | undefined;
 }

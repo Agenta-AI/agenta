@@ -11,8 +11,29 @@ from .spans_tree_input import SpansTreeInput
 
 
 class OTelTracingRequest(UniversalBaseModel):
-    spans: typing.Optional[typing.List[SpanInput]] = None
-    traces: typing.Optional[typing.Dict[str, typing.Optional[SpansTreeInput]]] = None
+    """
+    Ingest or query payload for OpenTelemetry-style spans.
+    
+    Exactly one of `spans` or `traces` should be provided. Use `spans`
+    for a flat list (parent/child linked via `parent_id`); use `traces`
+    for a nested tree (keyed by `trace_id` then by span name, children
+    hanging off each node's `spans` field). The two shapes are
+    interchangeable and the query endpoint returns the `traces` shape by
+    default.
+    
+    See [Tracing](/reference/api-guide/tracing) for the full attribute
+    namespace and the async ingest contract.
+    """
+    spans: typing.Optional[typing.List[SpanInput]] = pydantic.Field(default=None)
+    """
+    Flat list of spans. Use this when you already have a flat list and parent/child relationships are expressed via each span's `parent_id`.
+    """
+    
+    traces: typing.Optional[typing.Dict[str, typing.Optional[SpansTreeInput]]] = pydantic.Field(default=None)
+    """
+    Nested tree of spans keyed by `trace_id` → span name, with children under each node's `spans` field. This matches the shape returned by `POST /tracing/spans/query` with `focus="trace"`.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

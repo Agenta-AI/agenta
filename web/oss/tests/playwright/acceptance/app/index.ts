@@ -12,7 +12,7 @@ import {
 import {expect} from "@agenta/web-tests/utils"
 
 import {AppType} from "./assets/types"
-import {test as baseTest} from "./test"
+import {openCreateAppDrawerForType, test as baseTest} from "./test"
 import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
@@ -126,16 +126,7 @@ const tests = () => {
             await scenarios.when(
                 'the user opens the create-app dropdown and picks "Chat"',
                 async () => {
-                    const trigger = page.getByTestId("create-app-dropdown-trigger").first()
-                    await expect(trigger).toBeVisible({timeout: 15000})
-                    await trigger.click()
-
-                    const chatItem = page.getByTestId("create-app-dropdown-chat").first()
-                    await expect(chatItem).toBeVisible({timeout: 15000})
-                    await chatItem.click()
-
-                    const drawer = page.getByRole("dialog").last()
-                    await expect(drawer).toBeVisible({timeout: 15000})
+                    await openCreateAppDrawerForType(page, AppType.CHAT_PROMPT)
                     // Confirm the editable name input is present (drawer fully mounted)
                     await expect(page.getByTestId("app-create-name-input").first()).toBeVisible({
                         timeout: 15000,

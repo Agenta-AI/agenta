@@ -3,6 +3,8 @@
 export interface FolderIdResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` if a folder was deleted, `0` if no folder matched. */
     count?: number | undefined;
+    /** Id of the deleted folder. Omitted when nothing was deleted. */
     id?: (string | null) | undefined;
 }

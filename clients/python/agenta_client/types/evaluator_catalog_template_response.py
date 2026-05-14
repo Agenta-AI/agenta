@@ -9,10 +9,21 @@ from .evaluator_catalog_template import EvaluatorCatalogTemplate
 
 
 class EvaluatorCatalogTemplateResponse(UniversalBaseModel):
+    """
+    Envelope for a single catalog template.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    template: typing.Optional[EvaluatorCatalogTemplate] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    1 when a template is returned, 0 otherwise.
+    """
+    
+    template: typing.Optional[EvaluatorCatalogTemplate] = pydantic.Field(default=None)
+    """
+    The catalog template, or null when none matched.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

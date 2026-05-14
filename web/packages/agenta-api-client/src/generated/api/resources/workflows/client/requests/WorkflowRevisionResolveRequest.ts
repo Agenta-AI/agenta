@@ -7,11 +7,18 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface WorkflowRevisionResolveRequest {
+    /** Workflow artifact; resolves against its latest revision. */
     workflow_ref?: AgentaApi.Reference | null;
+    /** Workflow variant; resolves against its latest revision. */
     workflow_variant_ref?: AgentaApi.Reference | null;
+    /** Specific workflow revision to resolve. */
     workflow_revision_ref?: AgentaApi.Reference | null;
+    /** Resolve the references embedded in this revision payload directly, without fetching it first. */
     workflow_revision?: AgentaApi.WorkflowRevisionInput | null;
+    /** Maximum recursive depth for nested `@ag.references`. */
     max_depth?: number | null;
+    /** Maximum number of embeds to resolve in one call. */
     max_embeds?: number | null;
+    /** How to handle unresolved references: `EXCEPTION` or `IGNORE`. */
     error_policy?: AgentaApi.ErrorPolicy | null;
 }

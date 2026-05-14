@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface WorkflowResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` when a workflow is returned, `0` when none matched. */
     count?: number | undefined;
+    /** The workflow artifact. */
     workflow?: (AgentaApi.Workflow | null) | undefined;
 }

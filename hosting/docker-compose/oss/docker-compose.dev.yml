@@ -5,8 +5,8 @@ services:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-api:latest
         build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.dev
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -26,8 +26,8 @@ services:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-services:latest
         build:
-            context: ../../../services
-            dockerfile: oss/docker/Dockerfile.dev
+            context: ../../..
+            dockerfile: services/oss/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
