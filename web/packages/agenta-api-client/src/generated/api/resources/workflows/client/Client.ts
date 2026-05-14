@@ -27,6 +27,14 @@ export class WorkflowsClient {
     }
 
     /**
+     * List the shared JSON Schema fragments available to workflow schemas.
+     *
+     * Workflow input/output schemas reference these via `x-ag-type-ref` (for
+     * example, `message` or `prompt`). Use this endpoint to discover what
+     * type keys exist before building a schema.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @example
@@ -83,6 +91,12 @@ export class WorkflowsClient {
     }
 
     /**
+     * Return the JSON Schema for a single shared type key.
+     *
+     * Returns 404 when the `ag_type` is not part of the shipped catalog.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
      * @param {AgentaApi.FetchWorkflowCatalogTypeRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -160,6 +174,14 @@ export class WorkflowsClient {
     }
 
     /**
+     * List workflow blueprints shipped with the product.
+     *
+     * Filter by domain with `is_application`, `is_evaluator`, or
+     * `is_snippet`. Archived templates are hidden unless `include_archived`
+     * is true. Templates are global and read-only.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
      * @param {AgentaApi.ListWorkflowCatalogTemplatesRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -241,6 +263,13 @@ export class WorkflowsClient {
     }
 
     /**
+     * Return a single workflow template by its key.
+     *
+     * Returns `count=0` when the template is not found. Templates are global
+     * metadata and are not scoped to a project.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
      * @param {AgentaApi.FetchWorkflowCatalogTemplateRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -318,6 +347,14 @@ export class WorkflowsClient {
     }
 
     /**
+     * List presets defined against a template.
+     *
+     * Presets are named parameter sets that can be committed as the first
+     * revision of a new variant. Returns an empty list when a template has
+     * no canned presets.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
      * @param {AgentaApi.ListWorkflowCatalogPresetsRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -398,6 +435,12 @@ export class WorkflowsClient {
     }
 
     /**
+     * Return a single preset for a template by key.
+     *
+     * Returns `count=0` when the preset is not defined.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
      * @param {AgentaApi.FetchWorkflowCatalogPresetRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -476,6 +519,16 @@ export class WorkflowsClient {
     }
 
     /**
+     * Create a workflow artifact.
+     *
+     * Creates the top-level container only; commit a revision on a variant
+     * before the workflow can be retrieved or invoked. Use when you need the
+     * lower-level primitive — pick `/applications/` for serving logic or
+     * `/evaluators/` for scoring logic.
+     *
+     * See: [Workflows](/reference/api-guide/workflows),
+     * [Versioning](/reference/api-guide/versioning).
+     *
      * @param {AgentaApi.WorkflowCreateRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -547,6 +600,14 @@ export class WorkflowsClient {
     }
 
     /**
+     * Fetch a workflow artifact by ID.
+     *
+     * Returns the artifact only — variants and revisions are not included.
+     * Use `/workflows/variants/query` and `/workflows/revisions/query` for
+     * the child entities.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
      * @param {AgentaApi.FetchWorkflowRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -616,6 +677,15 @@ export class WorkflowsClient {
     }
 
     /**
+     * Update artifact-level fields on a workflow.
+     *
+     * The `id` in the body must match the path parameter. Only supplied
+     * fields are modified. Configuration (parameters, URL, schemas) lives on
+     * revisions — commit a new revision to change those.
+     *
+     * See: [Workflows](/reference/api-guide/workflows),
+     * [Versioning](/reference/api-guide/versioning).
+     *
      * @param {AgentaApi.WorkflowEditRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -689,6 +759,14 @@ export class WorkflowsClient {
     }
 
     /**
+     * Archive a workflow artifact (soft delete).
+     *
+     * Sets `deleted_at` on the workflow and its variants. Archived
+     * workflows are hidden from queries unless `include_archived=true`.
+     * Revision IDs remain resolvable so historical traces stay intact.
+     *
+     * See: [Versioning](/reference/api-guide/versioning).
+     *
      * @param {AgentaApi.ArchiveWorkflowRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -763,6 +841,13 @@ export class WorkflowsClient {
     }
 
     /**
+     * Restore a previously archived workflow.
+     *
+     * Clears `deleted_at` on the workflow. Archived variants and revisions
+     * are restored with the workflow.
+     *
+     * See: [Versioning](/reference/api-guide/versioning).
+     *
      * @param {AgentaApi.UnarchiveWorkflowRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -837,6 +922,14 @@ export class WorkflowsClient {
     }
 
     /**
+     * Query workflow artifacts with filters and pagination.
+     *
+     * Accepts the same filters as query parameters or in the request body;
+     * body fields win when both are supplied. Results are ordered by
+     * creation time; pass `windowing.next` back for the following page.
+     *
+     * See: [Query Pattern](/reference/api-guide/query-pattern).
+     *
      * @param {AgentaApi.QueryWorkflowsRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -937,6 +1030,14 @@ export class WorkflowsClient {
     }
 
     /**
+     * Create a new variant under an existing workflow.
+     *
+     * Variants are branches of an artifact's history; each maintains its own
+     * revision log. Variant slugs are unique within the project — reuse of a
+     * slug already in use returns a 409 conflict.
+     *
+     * See: [Versioning](/reference/api-guide/versioning).
+     *
      * @param {AgentaApi.WorkflowVariantCreateRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1008,6 +1109,14 @@ export class WorkflowsClient {
     }
 
     /**
+     * Fetch a workflow variant by ID.
+     *
+     * Returns the variant metadata only — use
+     * `/workflows/revisions/retrieve` or `/workflows/revisions/log` for the
+     * variant's revisions.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
      * @param {AgentaApi.FetchWorkflowVariantRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1082,6 +1191,13 @@ export class WorkflowsClient {
     }
 
     /**
+     * Update metadata on a workflow variant.
+     *
+     * The `id` in the body must match the path parameter. Revisions on the
+     * variant are not affected — commit a new revision to change data.
+     *
+     * See: [Versioning](/reference/api-guide/versioning).
+     *
      * @param {AgentaApi.WorkflowVariantEditRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1160,6 +1276,12 @@ export class WorkflowsClient {
     }
 
     /**
+     * Archive a workflow variant.
+     *
+     * Soft-deletes the variant and its revisions. Archived variants are
+     * hidden from queries unless `include_archived=true`. See
+     * [Versioning](/reference/api-guide/versioning).
+     *
      * @param {AgentaApi.ArchiveWorkflowVariantRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1234,6 +1356,11 @@ export class WorkflowsClient {
     }
 
     /**
+     * Restore a previously archived workflow variant.
+     *
+     * Clears `deleted_at` on the variant and its revisions. See
+     * [Versioning](/reference/api-guide/versioning).
+     *
      * @param {AgentaApi.UnarchiveWorkflowVariantRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1308,6 +1435,14 @@ export class WorkflowsClient {
     }
 
     /**
+     * Query workflow variants with filters and pagination.
+     *
+     * Scope the query by `workflow_refs` (parent artifact) or
+     * `workflow_variant_refs` (specific variants). Accepts the same fields
+     * as query parameters or in the request body.
+     *
+     * See: [Query Pattern](/reference/api-guide/query-pattern).
+     *
      * @param {AgentaApi.QueryWorkflowVariantsRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *

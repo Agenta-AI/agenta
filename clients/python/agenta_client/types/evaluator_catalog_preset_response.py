@@ -9,10 +9,21 @@ from .evaluator_catalog_preset import EvaluatorCatalogPreset
 
 
 class EvaluatorCatalogPresetResponse(UniversalBaseModel):
+    """
+    Envelope for a single catalog preset.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    preset: typing.Optional[EvaluatorCatalogPreset] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    1 when a preset is returned, 0 otherwise.
+    """
+    
+    preset: typing.Optional[EvaluatorCatalogPreset] = pydantic.Field(default=None)
+    """
+    The catalog preset, or null when none matched.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

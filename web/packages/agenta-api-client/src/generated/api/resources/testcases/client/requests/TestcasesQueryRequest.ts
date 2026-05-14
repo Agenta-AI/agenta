@@ -7,10 +7,16 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface TestcasesQueryRequest {
+    /** Explicit list of testcase IDs to fetch. Combine with `testset_id` or testset references to scope the lookup. */
     testcase_ids?: string[] | null;
+    /** Return all testcases stored in this testset. The testset owns its testcases as a content-addressed bag; a revision references a subset of these. */
     testset_id?: string | null;
+    /** Testset reference used to resolve the latest revision on the default variant. The revision's ordered testcase IDs are used for the lookup and pagination. */
     testset_ref?: AgentaApi.Reference | null;
+    /** Testset variant reference used to resolve the latest revision on that variant. */
     testset_variant_ref?: AgentaApi.Reference | null;
+    /** Specific testset revision reference. The revision's ordered testcase IDs drive the lookup and cursor pagination. */
     testset_revision_ref?: AgentaApi.Reference | null;
+    /** Cursor-based pagination. When a revision reference is used, the cursor walks the revision's deterministic testcase ID list. */
     windowing?: AgentaApi.Windowing | null;
 }

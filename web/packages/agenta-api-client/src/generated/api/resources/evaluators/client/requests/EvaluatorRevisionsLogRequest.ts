@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface EvaluatorRevisionsLogRequest {
+    /** Log request scoped to an evaluator / variant / revision by id, slug, or version. */
     evaluator: AgentaApi.EvaluatorRevisionsLog;
 }

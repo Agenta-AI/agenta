@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * List of catalog presets scoped to one template.
+ */
 export interface ApplicationCatalogPresetsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of presets returned. */
     count?: number | undefined;
+    /** Named parameter sets for the template. Use a preset's `data` as the first revision when creating an application from a template. */
     presets?: AgentaApi.ApplicationCatalogPreset[] | undefined;
 }

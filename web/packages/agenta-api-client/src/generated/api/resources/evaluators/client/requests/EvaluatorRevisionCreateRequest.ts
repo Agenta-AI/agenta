@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface EvaluatorRevisionCreateRequest {
+    /** Revision payload. Requires the parent `evaluator_variant_id` and a `data` object. */
     evaluator_revision: AgentaApi.EvaluatorRevisionCreate;
 }

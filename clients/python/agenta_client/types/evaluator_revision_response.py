@@ -10,11 +10,26 @@ from .resolution_info import ResolutionInfo
 
 
 class EvaluatorRevisionResponse(UniversalBaseModel):
+    """
+    Envelope for a single evaluator revision.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    evaluator_revision: typing.Optional[EvaluatorRevision] = None
-    resolution_info: typing.Optional[ResolutionInfo] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    1 when a revision is returned, 0 otherwise.
+    """
+    
+    evaluator_revision: typing.Optional[EvaluatorRevision] = pydantic.Field(default=None)
+    """
+    The evaluator revision, or null when none matched.
+    """
+    
+    resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)
+    """
+    Embed-resolution metadata. Populated when `resolve=true` was requested.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -25,7 +25,7 @@ import {inspectWorkflow} from "../api"
 import type {EvaluatorCatalogPresetsResponse} from "../api/templates"
 import {fetchEvaluatorCatalogPresets} from "../api/templates"
 import type {Workflow} from "../core"
-import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
+import {buildWorkflowUri, hasFullPagePlaygroundUX, parseWorkflowKeyFromUri} from "../core"
 
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
 import {buildServiceUrlFromUri} from "./helpers"
@@ -104,6 +104,42 @@ export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
     const query = get(evaluatorsListQueryAtom)
     const refs = query.data?.refs ?? []
     return refs.filter((ref) => !ref.deleted_at) as Workflow[]
+})
+
+/**
+ * Non-archived evaluators whose latest revision has the full-page playground
+ * UX (prompt-authored — `auto_ai_critique` / `llm` — or code-authored —
+ * `auto_custom_code_run` / `code`). Declarative classifiers (match,
+ * exact_match, contains_*, json_*) and human (`is_feedback`) evaluators are
+ * filtered out: they can only be configured via the drawer, so surfacing
+ * them in the sidebar workflow switcher routes the user to an app-level
+ * destination (/apps/[id]/...) that the route guard then redirects back to
+ * /evaluators — visually inconsistent and confusing.
+ *
+ * Resolves the URI / type flags from each evaluator's latest revision (the
+ * workflow LIST response carries no `data.uri`, and `is_llm` / `is_code` /
+ * `is_feedback` live on the revision, not the parent artifact). Latest-
+ * revision queries are batched + cached by `workflowLatestRevisionQuery`,
+ * so calling this per-evaluator inside a single derived atom is cheap.
+ *
+ * Returns the parent `Workflow` records (same shape as
+ * `nonArchivedEvaluatorsAtom`), so callers can use it as a drop-in filter.
+ */
+export const fullPagePlaygroundEvaluatorsAtom = atom<Workflow[]>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    return evaluators.filter((evaluator) => {
+        if (!evaluator.id) return false
+        const revisionQuery = get(workflowLatestRevisionQueryAtomFamily(evaluator.id))
+        const revision = revisionQuery.data
+        if (!revision) return false
+        if (revision.flags?.is_feedback) return false
+        return hasFullPagePlaygroundUX({
+            flags: revision.flags as Record<string, unknown> | null,
+            data: revision.data as {uri?: string | null} | null,
+            meta: revision.meta as Record<string, unknown> | null,
+            slug: revision.slug ?? evaluator.slug ?? null,
+        })
+    })
 })
 
 /**

@@ -27,9 +27,19 @@ class RawFoldersClient:
     
     def create_folder(self, *, folder: FolderCreate, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[FolderResponse]:
         """
+        Create a folder.
+        
+        The folder name must match `[\\w -]+` (letters, digits, underscore,
+        space, hyphen); other characters return `400`. The resulting path
+        (the slug joined to the parent's path with a dot) must be unique
+        within the project, otherwise the call returns `409`. Passing a
+        `parent_id` that does not exist returns `404`. Paths are capped at
+        10 levels of nesting and slugs at 64 characters.
+        
         Parameters
         ----------
         folder : FolderCreate
+            Folder to create. `slug` is required; `parent_id` nests the new folder under an existing one.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -74,6 +84,11 @@ class RawFoldersClient:
     
     def fetch_folder(self, folder_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[FolderResponse]:
         """
+        Fetch one folder by id.
+        
+        Returns a single `folder` envelope. If the folder does not exist in
+        the caller's project, `count` is `0` and `folder` is omitted.
+        
         Parameters
         ----------
         folder_id : str
@@ -114,11 +129,20 @@ class RawFoldersClient:
     
     def edit_folder(self, folder_id: str, *, folder: FolderEdit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[FolderResponse]:
         """
+        Rename or move a folder.
+        
+        Use this endpoint to change a folder's `slug`, `name`, or
+        `parent_id`. The `id` in the request body must match the path
+        parameter or the call returns `400`. Name and path-uniqueness rules
+        from create apply: invalid names return `400`, a path collision
+        returns `409`, and a missing `parent_id` returns `404`.
+        
         Parameters
         ----------
         folder_id : str
         
         folder : FolderEdit
+            Folder edit payload. `id` must match the path parameter. Only fields present in the payload are changed.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -163,6 +187,14 @@ class RawFoldersClient:
     
     def delete_folder(self, folder_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[FolderIdResponse]:
         """
+        Delete a folder and every descendant.
+        
+        Removes the folder identified by `folder_id` together with every
+        folder beneath it, in a single transaction. Deletion is
+        unconditional; there is no archive or unarchive step. Resources
+        that were assigned to any of the removed folders continue to
+        exist and are no longer reachable through the deleted folder.
+        
         Parameters
         ----------
         folder_id : str
@@ -203,9 +235,20 @@ class RawFoldersClient:
     
     def query_folders(self, *, folder: FolderQuery, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[FoldersResponse]:
         """
+        Filter folders inside the caller's project.
+        
+        Follows the general response envelope described in the
+        [Query Pattern](/reference/api-guide/query-pattern) guide, but
+        does not accept `windowing` or `include_archived` — folders are
+        hard-deleted and the response always returns the full filtered
+        set. Filters include `id`/`ids`, `slug`/`slugs`, `kind`/`kinds`,
+        `parent_id`/`parent_ids` (use `parent_id: null` for root folders),
+        `path`/`paths`, and `prefix`/`prefixes` for subtree lookup.
+        
         Parameters
         ----------
         folder : FolderQuery
+            Filter object. Any combination of `id`/`ids`, `slug`/`slugs`, `kind`/`kinds`, `parent_id`/`parent_ids`, `path`/`paths`, and `prefix`/`prefixes` narrows the result.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -253,9 +296,19 @@ class AsyncRawFoldersClient:
     
     async def create_folder(self, *, folder: FolderCreate, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[FolderResponse]:
         """
+        Create a folder.
+        
+        The folder name must match `[\\w -]+` (letters, digits, underscore,
+        space, hyphen); other characters return `400`. The resulting path
+        (the slug joined to the parent's path with a dot) must be unique
+        within the project, otherwise the call returns `409`. Passing a
+        `parent_id` that does not exist returns `404`. Paths are capped at
+        10 levels of nesting and slugs at 64 characters.
+        
         Parameters
         ----------
         folder : FolderCreate
+            Folder to create. `slug` is required; `parent_id` nests the new folder under an existing one.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -300,6 +353,11 @@ class AsyncRawFoldersClient:
     
     async def fetch_folder(self, folder_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[FolderResponse]:
         """
+        Fetch one folder by id.
+        
+        Returns a single `folder` envelope. If the folder does not exist in
+        the caller's project, `count` is `0` and `folder` is omitted.
+        
         Parameters
         ----------
         folder_id : str
@@ -340,11 +398,20 @@ class AsyncRawFoldersClient:
     
     async def edit_folder(self, folder_id: str, *, folder: FolderEdit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[FolderResponse]:
         """
+        Rename or move a folder.
+        
+        Use this endpoint to change a folder's `slug`, `name`, or
+        `parent_id`. The `id` in the request body must match the path
+        parameter or the call returns `400`. Name and path-uniqueness rules
+        from create apply: invalid names return `400`, a path collision
+        returns `409`, and a missing `parent_id` returns `404`.
+        
         Parameters
         ----------
         folder_id : str
         
         folder : FolderEdit
+            Folder edit payload. `id` must match the path parameter. Only fields present in the payload are changed.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -389,6 +456,14 @@ class AsyncRawFoldersClient:
     
     async def delete_folder(self, folder_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[FolderIdResponse]:
         """
+        Delete a folder and every descendant.
+        
+        Removes the folder identified by `folder_id` together with every
+        folder beneath it, in a single transaction. Deletion is
+        unconditional; there is no archive or unarchive step. Resources
+        that were assigned to any of the removed folders continue to
+        exist and are no longer reachable through the deleted folder.
+        
         Parameters
         ----------
         folder_id : str
@@ -429,9 +504,20 @@ class AsyncRawFoldersClient:
     
     async def query_folders(self, *, folder: FolderQuery, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[FoldersResponse]:
         """
+        Filter folders inside the caller's project.
+        
+        Follows the general response envelope described in the
+        [Query Pattern](/reference/api-guide/query-pattern) guide, but
+        does not accept `windowing` or `include_archived` — folders are
+        hard-deleted and the response always returns the full filtered
+        set. Filters include `id`/`ids`, `slug`/`slugs`, `kind`/`kinds`,
+        `parent_id`/`parent_ids` (use `parent_id: null` for root folders),
+        `path`/`paths`, and `prefix`/`prefixes` for subtree lookup.
+        
         Parameters
         ----------
         folder : FolderQuery
+            Filter object. Any combination of `id`/`ids`, `slug`/`slugs`, `kind`/`kinds`, `parent_id`/`parent_ids`, `path`/`paths`, and `prefix`/`prefixes` narrows the result.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.

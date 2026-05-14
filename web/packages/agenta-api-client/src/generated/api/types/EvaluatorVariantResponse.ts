@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Envelope for a single evaluator variant.
+ */
 export interface EvaluatorVariantResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** 1 when a variant is returned, 0 otherwise. */
     count?: number | undefined;
+    /** The evaluator variant, or null when none matched. */
     evaluator_variant?: (AgentaApi.EvaluatorVariant | null) | undefined;
 }

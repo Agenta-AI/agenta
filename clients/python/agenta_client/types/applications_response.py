@@ -9,10 +9,21 @@ from .application import Application
 
 
 class ApplicationsResponse(UniversalBaseModel):
+    """
+    Paginated list of application artifacts.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    applications: typing.Optional[typing.List[Application]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of applications in this page.
+    """
+    
+    applications: typing.Optional[typing.List[Application]] = pydantic.Field(default=None)
+    """
+    Application artifacts matching the query.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -5,7 +5,10 @@ import type * as AgentaApi from "../index.js";
 export interface WorkflowRevisionResolveResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` when a revision is returned, `0` when none matched. */
     count?: number | undefined;
+    /** The workflow revision with `@ag.references` replaced by their resolved payloads. */
     workflow_revision?: (AgentaApi.WorkflowRevisionOutput | null) | undefined;
+    /** Metadata describing which references were resolved, depth reached, and errors. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
 }

@@ -11,8 +11,16 @@ from .workflow import Workflow
 class WorkflowResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    workflow: typing.Optional[Workflow] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` when a workflow is returned, `0` when none matched.
+    """
+    
+    workflow: typing.Optional[Workflow] = pydantic.Field(default=None)
+    """
+    The workflow artifact.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

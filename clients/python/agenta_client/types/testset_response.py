@@ -11,8 +11,16 @@ from .testset import Testset
 class TestsetResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    testset: typing.Optional[Testset] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    1 if a testset was returned, 0 otherwise.
+    """
+    
+    testset: typing.Optional[Testset] = pydantic.Field(default=None)
+    """
+    The testset artifact. Does not include testcases.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

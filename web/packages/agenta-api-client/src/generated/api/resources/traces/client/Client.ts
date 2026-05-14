@@ -27,6 +27,14 @@ export class TracesClient {
     }
 
     /**
+     * Fetch multiple traces by known IDs.
+     *
+     * Point lookup endpoint. Accepts either repeated query params
+     * (`?trace_id=a&trace_id=b`) or a comma-separated single param
+     * (`?trace_ids=a,b`). Results are deduplicated. Returns `400` when
+     * no IDs are supplied. Use `POST /traces/query` for filter-based
+     * retrieval.
+     *
      * @param {AgentaApi.FetchTracesRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -98,6 +106,21 @@ export class TracesClient {
     }
 
     /**
+     * Create a single trace from the canonical `Trace` shape.
+     *
+     * Accepts one trace (`trace_id` plus a nested `spans` tree) and
+     * returns the resulting `trace_id`. The payload is internally
+     * normalized into the same ingest pipeline as
+     * `POST /tracing/spans/ingest`.
+     *
+     * Returns `202 Accepted`. The async write contract applies — see
+     * [Tracing — Async write
+     * contract](/reference/api-guide/tracing#async-write-contract-202).
+     *
+     * Use this when you want to operate on whole traces in the
+     * list-shaped `Trace` payload. For flat-list ingestion or multiple
+     * traces in one call, use `POST /traces/ingest` (plural).
+     *
      * @param {AgentaApi.TraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -167,6 +190,30 @@ export class TracesClient {
     }
 
     /**
+     * Query traces as a list of canonical `Trace` records.
+     *
+     * Thin wrapper over the shared span-query backend that forces
+     * `focus = "trace"` and returns the list-shaped `Traces` payload
+     * (one entry per trace, each with its nested `spans` tree). Use this
+     * to build a table of runs, where each row is a trace.
+     *
+     * ## Request body
+     *
+     * - `filtering` — span-level conditions, same dialect as
+     *   `POST /spans/query`. A trace matches when any of its spans
+     *   matches.
+     * - `windowing` — cursor pagination and time range.
+     * - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+     *   filters and windowing from a saved query revision. If the
+     *   revision's stored `formatting.focus` is `span`, this endpoint
+     *   returns `409` — call `POST /spans/query` instead.
+     *
+     * ## Response
+     *
+     * Returns `{count, traces: [...]}`. For the per-trace map shape
+     * keyed by `trace_id`, call `POST /tracing/spans/query` with
+     * `focus="trace"`.
+     *
      * @param {AgentaApi.TracesQueryRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -236,6 +283,13 @@ export class TracesClient {
     }
 
     /**
+     * Fetch a single trace by `trace_id` in the canonical `Trace` shape.
+     *
+     * Returns `{count: 1, trace}` when found and `{count: 0}` otherwise.
+     * `trace_id` must be a 32-char hex UUID; any other format returns
+     * `400`. The reserved path segments `query` and `ingest` return
+     * `405` to disambiguate from the sibling query/ingest endpoints.
+     *
      * @param {AgentaApi.FetchTraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -305,6 +359,16 @@ export class TracesClient {
     }
 
     /**
+     * Replace a trace's spans using the canonical `Trace` shape.
+     *
+     * Path `trace_id` must match the `trace_id` inside the payload's
+     * `trace.trace_id`. Mismatches return `400`. The payload must
+     * describe exactly one trace.
+     *
+     * Edit re-ingests the spans through the same stream as
+     * `POST /tracing/spans/ingest`. Returns `202 Accepted` once the
+     * spans are queued. The worker reconciles the trace asynchronously.
+     *
      * @param {AgentaApi.EditTraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -447,6 +511,16 @@ export class TracesClient {
     }
 
     /**
+     * Fetch spans by known IDs.
+     *
+     * Point lookup endpoint. At least one of `trace_id` or `span_id`
+     * must be present. Both accept either repeated query params
+     * (`?trace_id=a&trace_id=b`) or a comma-separated single param
+     * (`?trace_ids=a,b`); results are deduplicated.
+     *
+     * Returns `400` when neither IDs nor trace IDs are supplied.
+     * For filter-based retrieval, use `POST /spans/query`.
+     *
      * @param {AgentaApi.FetchSpansRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -520,6 +594,30 @@ export class TracesClient {
     }
 
     /**
+     * Query spans as a flat list.
+     *
+     * Thin wrapper over the shared span-query backend that forces
+     * `focus = "span"`. Use this when you want a paged list of spans
+     * regardless of trace hierarchy — for example, to surface all LLM
+     * calls across traces or to stream spans into an external system.
+     *
+     * ## Request body
+     *
+     * - `filtering` — span-level conditions (fields on `Span` and
+     *   `attributes` paths).
+     * - `windowing` — cursor pagination and time range (see
+     *   [Query Pattern](/reference/api-guide/query-pattern#windowing)).
+     * - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+     *   filtering and windowing from a saved query revision. If the
+     *   revision's stored `formatting.focus` is `trace`, this endpoint
+     *   returns `409` — call `POST /traces/query` for that revision.
+     *
+     * ## Response
+     *
+     * Returns `{count, spans}`. For the nested per-trace shape, call
+     * `POST /traces/query` or `POST /tracing/spans/query` with
+     * `focus="trace"` instead.
+     *
      * @param {AgentaApi.SpansQueryRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -804,6 +902,12 @@ export class TracesClient {
     }
 
     /**
+     * Fetch a single span by `trace_id` + `span_id`.
+     *
+     * Returns `{count: 1, span}` when found and `{count: 0}` otherwise.
+     * Both IDs are required path parameters. Use this to drill in on one
+     * span from a trace waterfall without pulling the full tree.
+     *
      * @param {AgentaApi.FetchSpanRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -874,6 +978,46 @@ export class TracesClient {
     }
 
     /**
+     * Create a single-span "simple" trace.
+     *
+     * This endpoint is a higher-level helper for the common case of
+     * recording one self-contained event — an evaluator output, a human
+     * annotation, a feedback entry, a manually-logged inference. It
+     * creates one span under a fresh `trace_id` and returns the resulting
+     * handle.
+     *
+     * ## When to use this vs. `/tracing/spans/ingest`
+     *
+     * - **Use this endpoint** when you have a single payload to record
+     *   with no internal hierarchy: evaluation results, human feedback,
+     *   manual annotations, or a standalone completion. It takes care of
+     *   `trace_id`/`span_id` generation, attribute namespacing, and link
+     *   wiring for you.
+     * - **Use `POST /tracing/spans/ingest`** when you need multi-span
+     *   traces (e.g. an agent run with nested tool calls and LLM spans),
+     *   precise control over IDs, timings, or parent/child relationships,
+     *   or when forwarding traces from another OTel-compatible source.
+     *
+     * ## Request body
+     *
+     * Send a `trace` object with:
+     *
+     * - `origin` — who produced the trace (`human`, `auto`, `custom`).
+     * - `kind` — intent (`adhoc`, `eval`, `play`).
+     * - `channel` — transport that produced it (`sdk`, `api`, `web`, `otlp`).
+     * - `data` — required dict carrying the actual payload (inputs,
+     *   outputs, or evaluator results).
+     * - `tags`, `meta` — optional free-form dicts for filtering and
+     *   metadata.
+     * - `references` — optional links to Agenta entities (application,
+     *   variant, revision, evaluator, testset, etc.).
+     * - `links` — optional OTel-style links to other traces/spans.
+     *
+     * Use `PATCH /preview/tracing/traces/{trace_id}` to update fields
+     * later, `GET` to fetch, and `DELETE` to remove. See
+     * [Tracing — References and links](/reference/api-guide/tracing#references-and-entity-linking)
+     * for when to use `references` vs. `links`.
+     *
      * @param {AgentaApi.SimpleTraceCreateRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -951,6 +1095,14 @@ export class TracesClient {
     }
 
     /**
+     * Fetch a single "simple" trace by `trace_id`.
+     *
+     * Returns the high-level `SimpleTrace` view (origin, kind, channel,
+     * data, references, links) rather than the raw OTel span shape. Use
+     * this for evaluation results, feedback entries, and annotations
+     * created via `POST /simple/traces/`. For the span-level view of the
+     * same trace, call `GET /tracing/traces/{trace_id}`.
+     *
      * @param {AgentaApi.FetchSimpleTraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1020,6 +1172,14 @@ export class TracesClient {
     }
 
     /**
+     * Delete a "simple" trace.
+     *
+     * Removes the single-span trace created via
+     * `POST /simple/traces/`. Returns the `(trace_id, span_id)` pair
+     * that was removed, for logging or downstream cleanup. Use
+     * `DELETE /tracing/traces/{trace_id}` when operating on a
+     * multi-span trace.
+     *
      * @param {AgentaApi.DeleteSimpleTraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1089,6 +1249,17 @@ export class TracesClient {
     }
 
     /**
+     * Update an existing "simple" trace.
+     *
+     * Supplied fields overwrite the existing trace. Fields not present
+     * in the request body are left unchanged. `data` is required (the
+     * payload being recorded); `tags`, `meta`, `references`, and
+     * `links` are optional.
+     *
+     * This endpoint is intended for annotations and feedback entries,
+     * where the `data.outputs` is the part that typically gets revised.
+     * For span-level edits, use `PUT /tracing/traces/{trace_id}`.
+     *
      * @param {AgentaApi.SimpleTraceEditRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1164,6 +1335,20 @@ export class TracesClient {
     }
 
     /**
+     * Query "simple" traces.
+     *
+     * Filter annotations and feedback by `origin`, `kind`, `channel`,
+     * `tags`, `meta`, `references`, and `links`. The shape of the
+     * request body is described in the
+     * [Simple Endpoints](/reference/api-guide/simple-endpoints#query-traces)
+     * guide, including the distinction between filtering via
+     * `trace.links` (inbound links on the trace) and the top-level
+     * `links` (batch GET by the trace's own IDs).
+     *
+     * Use this endpoint when building feedback or annotation UIs.
+     * For span-level queries across all trace types, use
+     * `POST /tracing/spans/query`.
+     *
      * @param {AgentaApi.SimpleTraceQueryRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *

@@ -7,8 +7,12 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface ApplicationQueryRequest {
+    /** Attribute filter. Accepts `slug`, `slugs`, `flags`, `tags`, `meta`. All fields are AND-ed. */
     application?: AgentaApi.ApplicationQuery | null;
+    /** Restrict the query to specific applications by `id` or `slug`. Combined with the `application` filter with AND semantics. */
     application_refs?: AgentaApi.Reference[] | null;
+    /** When `true`, include soft-deleted applications. Defaults to `false`. */
     include_archived?: boolean | null;
+    /** Cursor pagination and time-range controls. */
     windowing?: AgentaApi.Windowing | null;
 }

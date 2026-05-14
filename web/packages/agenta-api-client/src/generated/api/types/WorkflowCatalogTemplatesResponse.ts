@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface WorkflowCatalogTemplatesResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of templates returned. */
     count?: number | undefined;
+    /** Workflow blueprints shipped with the product. */
     templates?: AgentaApi.WorkflowCatalogTemplate[] | undefined;
 }

@@ -11,8 +11,16 @@ from .folder import Folder
 class FoldersResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    folders: typing.Optional[typing.List[Folder]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of folders in `folders`.
+    """
+    
+    folders: typing.Optional[typing.List[Folder]] = pydantic.Field(default=None)
+    """
+    Matching folders for the query. Ordering is not guaranteed.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

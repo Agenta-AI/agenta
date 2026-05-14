@@ -16,7 +16,10 @@ export interface Folder {
     deleted_by_id?: (string | null) | undefined;
     slug?: (string | null) | undefined;
     id?: (string | null) | undefined;
+    /** Resource family this folder organizes. Only `applications` is defined today, and it also covers workflows, evaluators, and testsets (they share the artifact table). */
     kind?: (AgentaApi.FolderKind | null) | undefined;
+    /** Dot-separated materialized path built from the folder's slug and its ancestors' slugs. Read-only; derived by the server. */
     path?: (string | null) | undefined;
+    /** Id of the parent folder, or `null` for a root folder. */
     parent_id?: (string | null) | undefined;
 }

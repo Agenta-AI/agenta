@@ -9,10 +9,21 @@ from .application_catalog_template import ApplicationCatalogTemplate
 
 
 class ApplicationCatalogTemplateResponse(UniversalBaseModel):
+    """
+    Single template response envelope.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    template: typing.Optional[ApplicationCatalogTemplate] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` when found, `0` otherwise.
+    """
+    
+    template: typing.Optional[ApplicationCatalogTemplate] = pydantic.Field(default=None)
+    """
+    Catalog template definition.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

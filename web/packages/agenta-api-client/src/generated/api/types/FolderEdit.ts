@@ -10,6 +10,8 @@ export interface FolderEdit {
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
     id?: (string | null) | undefined;
+    /** Resource family. Must match the current folder's kind; defaults to `applications`. */
     kind?: (AgentaApi.FolderKind | null) | undefined;
+    /** New parent folder id. Include the key with a `null` value to move the folder to the root; omit the key to keep the existing parent. */
     parent_id?: (string | null) | undefined;
 }

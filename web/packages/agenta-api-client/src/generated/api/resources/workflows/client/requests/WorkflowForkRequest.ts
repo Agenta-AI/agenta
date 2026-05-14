@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface WorkflowForkRequest {
+    /** Fork payload. Identify the source by `workflow_id` and `workflow_variant_id` (or equivalent slugs), supply a new `workflow_variant.slug` for the forked branch. */
     workflow: AgentaApi.WorkflowFork;
 }

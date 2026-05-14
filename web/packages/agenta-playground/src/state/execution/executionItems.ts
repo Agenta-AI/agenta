@@ -1244,7 +1244,36 @@ function buildExecutionItem(
                           parsedInputs !== null &&
                           typeof parsedInputs === "object" &&
                           !Array.isArray(parsedInputs)
-                      dataObj.inputs = isEnvelope ? (parsedInputs as Record<string, unknown>) : iv
+                      // Field ports extracted from `{{$.inputs.<field>}}` /
+                      // `{{<field>}}` references in the evaluator prompt arrive
+                      // as siblings of `inputs`/`outputs` in `iv`. Merge them
+                      // into `data.inputs` so the SDK's resolver context has
+                      // both the catch-all envelope (`inputs` cell) and the
+                      // per-field values addressable via the same paths the
+                      // prompt uses. Field values win on key collisions —
+                      // they're the more-specific user intent.
+                      //
+                      // `prediction` is preserved as the legacy alias for the
+                      // outputs envelope (it maps to `iv.outputs` below) and
+                      // also excluded from the merge.
+                      const fieldOverrides: Record<string, unknown> = {}
+                      for (const [key, value] of Object.entries(iv)) {
+                          if (key === "inputs" || key === "outputs" || key === "prediction") {
+                              continue
+                          }
+                          fieldOverrides[key] = parseIfJsonObject(value)
+                      }
+                      const baseInputs = isEnvelope
+                          ? (parsedInputs as Record<string, unknown>)
+                          : ({} as Record<string, unknown>)
+                      const mergedInputs = {...baseInputs, ...fieldOverrides}
+                      // Preserve the legacy "iv as-is" fallback when there's
+                      // no envelope cell AND no field ports — happens for
+                      // pre-WP-B1 evaluator chains where `iv` was the whole
+                      // testcase row.
+                      const hasAnyInputContent =
+                          isEnvelope || Object.keys(fieldOverrides).length > 0
+                      dataObj.inputs = hasAnyInputContent ? mergedInputs : iv
                       // Set data.outputs from the upstream output value.
                       // Schema-driven inputs use "outputs" key; legacy uses "prediction".
                       const upstreamOutputValueRaw = iv.outputs ?? iv.prediction

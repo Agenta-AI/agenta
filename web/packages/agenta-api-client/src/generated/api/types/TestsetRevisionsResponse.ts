@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface TestsetRevisionsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of revisions returned. */
     count?: number | undefined;
+    /** Testset revisions matching the query, in the requested order. */
     testset_revisions?: AgentaApi.TestsetRevision[] | undefined;
 }

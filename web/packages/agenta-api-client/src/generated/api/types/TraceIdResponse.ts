@@ -3,6 +3,8 @@
 export interface TraceIdResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` if a `trace_id` was returned, `0` otherwise. */
     count?: number | undefined;
+    /** 32-char hex UUID identifying the trace that was created or edited. */
     trace_id?: (string | null) | undefined;
 }
