@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface WorkflowRevisionCreateRequest {
+    /** Revision to create on an existing variant. The revision is immutable once persisted; to change the payload, commit a new revision. */
     workflow_revision: AgentaApi.WorkflowRevisionCreate;
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import typing
 
 import pydantic
@@ -10,8 +11,18 @@ from .trace_output import TraceOutput
 
 
 class TracesResponse(UniversalBaseModel):
-    count: typing.Optional[int] = None
-    traces: typing.Optional[typing.List[TraceOutput]] = None
+    support_id: typing.Optional[str] = None
+    support_ts: typing.Optional[dt.datetime] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Total number of matching traces in the window.
+    """
+    
+    traces: typing.Optional[typing.List[TraceOutput]] = pydantic.Field(default=None)
+    """
+    List of traces in the canonical `Traces` shape. For the map-shaped payload keyed by `trace_id`, call `POST /tracing/spans/query` with `focus="trace"`.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

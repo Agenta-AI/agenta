@@ -26,6 +26,13 @@ export class TestsetsClient {
     }
 
     /**
+     * Create an empty testset artifact.
+     *
+     * Only creates the artifact row (name, slug, metadata). No variant or
+     * revision is created; add testcases by committing a revision with
+     * `/testsets/revisions/commit`, or use `/simple/testsets/` to create
+     * a testset with seed rows in a single call.
+     *
      * @param {AgentaApi.TestsetCreateRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -101,6 +108,12 @@ export class TestsetsClient {
     }
 
     /**
+     * Fetch a testset artifact by ID.
+     *
+     * Returns the artifact row only; testcases are stored on revisions and
+     * must be fetched via `/testsets/revisions/retrieve` or
+     * `/testcases/query`.
+     *
      * @param {AgentaApi.FetchTestsetRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -170,6 +183,12 @@ export class TestsetsClient {
     }
 
     /**
+     * Update metadata on a testset artifact.
+     *
+     * Only artifact-level fields (name, description, slug, flags, tags,
+     * meta, folder) are editable here. Testcase changes are committed as
+     * new revisions via `/testsets/revisions/commit`.
+     *
      * @param {AgentaApi.TestsetEditRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -243,6 +262,12 @@ export class TestsetsClient {
     }
 
     /**
+     * Soft-delete a testset artifact.
+     *
+     * Sets `deleted_at` on the testset. Archived testsets are excluded
+     * from `/testsets/query` unless `include_archived` is true. Use
+     * `/testsets/{testset_id}/unarchive` to restore.
+     *
      * @param {AgentaApi.ArchiveTestsetRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -317,6 +342,10 @@ export class TestsetsClient {
     }
 
     /**
+     * Restore a previously archived testset artifact.
+     *
+     * Clears `deleted_at` on the testset so it shows up in queries again.
+     *
      * @param {AgentaApi.UnarchiveTestsetRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -391,6 +420,13 @@ export class TestsetsClient {
     }
 
     /**
+     * List and filter testset artifacts.
+     *
+     * Follows the shared query pattern: attribute filters on the testset
+     * body, optional `testset_refs` to restrict by id/slug, cursor-based
+     * pagination via `windowing`. Only artifact rows are returned — no
+     * testcases. See the Query Pattern guide for the full body shape.
+     *
      * @param {AgentaApi.TestsetQueryRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -460,6 +496,12 @@ export class TestsetsClient {
     }
 
     /**
+     * Create a variant (history branch) on a testset.
+     *
+     * Most testsets only need one variant. Create additional variants to
+     * maintain parallel revision histories (for example, a staging branch
+     * separate from the main one).
+     *
      * @param {AgentaApi.TestsetVariantCreateRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -531,6 +573,12 @@ export class TestsetsClient {
     }
 
     /**
+     * Fetch a variant by ID.
+     *
+     * Returns the variant row (branch metadata). Use
+     * `/testsets/revisions/retrieve` to get the latest revision on this
+     * variant.
+     *
      * @param {AgentaApi.FetchTestsetVariantRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -605,6 +653,11 @@ export class TestsetsClient {
     }
 
     /**
+     * Update metadata on a testset variant.
+     *
+     * Variants hold only branch-level metadata (name, description, slug,
+     * flags, tags, meta). Testcase content belongs to revisions.
+     *
      * @param {AgentaApi.TestsetVariantEditRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -683,6 +736,12 @@ export class TestsetsClient {
     }
 
     /**
+     * Soft-delete a testset variant.
+     *
+     * Archiving a variant excludes it from `/testsets/variants/query`
+     * unless `include_archived` is true. Its revisions stay in place and
+     * can still be retrieved by ID.
+     *
      * @param {AgentaApi.ArchiveTestsetVariantRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -757,6 +816,8 @@ export class TestsetsClient {
     }
 
     /**
+     * Restore a previously archived testset variant.
+     *
      * @param {AgentaApi.UnarchiveTestsetVariantRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -831,6 +892,11 @@ export class TestsetsClient {
     }
 
     /**
+     * List and filter testset variants.
+     *
+     * Use `testset_refs` to scope to one or more parent testsets. Use
+     * `testset_variant_refs` to restrict by specific variant id/slug.
+     *
      * @param {AgentaApi.TestsetVariantQueryRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -900,6 +966,12 @@ export class TestsetsClient {
     }
 
     /**
+     * Create a new revision on an existing variant.
+     *
+     * Creates a revision row without committing content. Most callers
+     * instead use `/testsets/revisions/commit`, which writes the
+     * testcases and the revision together.
+     *
      * @param {AgentaApi.TestsetRevisionCreateRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.
      *

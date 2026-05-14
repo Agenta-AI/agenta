@@ -13,5 +13,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleTraceEditRequest {
     trace_id: string;
+    /** The fields to update. `data` is required. `tags`, `meta`, `references`, and `links` overwrite their current values when present. */
     trace: AgentaApi.SimpleTraceEdit;
 }

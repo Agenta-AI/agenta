@@ -113,19 +113,20 @@ jobs:
           - amd64
           - arm64
         include:
-          # Per-service config (build context, Dockerfile, SDK injection)
+          # Per-service config (build context, Dockerfile).
+          # api + services share the repo root as context so the editable local
+          # SDK source (`[tool.uv.sources] agenta = { path = "../sdks/python" }`
+          # in api/pyproject.toml and services/pyproject.toml) resolves inside
+          # the Docker build without a separate inject step.
           - image_name: agenta-api
-            context: api
+            context: .
             dockerfile: api/oss/docker/Dockerfile.gh
-            needs_sdk: true
           - image_name: agenta-web
             context: web
             dockerfile: web/oss/docker/Dockerfile.gh
-            needs_sdk: false
           - image_name: agenta-services
-            context: services
+            context: .
             dockerfile: services/oss/docker/Dockerfile.gh
-            needs_sdk: true
           # Per-arch config (runner + platform string)
           - arch: amd64
             runner: ubuntu-24.04
@@ -145,14 +146,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
-
-      - name: Inject SDK into build context
-        if: matrix.needs_sdk
-        run: |
-          rm -rf "${{ matrix.context }}/sdks"
-          cp -R sdks "${{ matrix.context }}/sdks"
-          rm -rf "${{ matrix.context }}/clients"
-          cp -R clients "${{ matrix.context }}/clients"
 
       - name: Build and push per-arch image
         uses: docker/build-push-action@v6

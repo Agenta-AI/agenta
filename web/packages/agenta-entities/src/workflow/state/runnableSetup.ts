@@ -443,6 +443,42 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             // Only include interface when invoking by URI (not when using data.url directly)
             const iface = uri && !url ? {uri} : undefined
 
+            // Build trace-attribution references. Mirrors the app-workflow branch
+            // below so a standalone evaluator run (depth-0 in the playground)
+            // produces traces that the Observability page can filter by
+            // "Application ID" — the workflow's artifact id is what the filter
+            // matches against (`references.application.id`). Without this the
+            // trace lands with `references: undefined` and the user sees an
+            // empty Observability page for their evaluator.
+            const evaluatorWorkflowId = entity.workflow_id ?? null
+            const isLocal = isLocalDraftId(workflowId)
+            const isDirty = get(workflowIsDirtyAtomFamily(workflowId))
+            const references: Record<string, Record<string, string | undefined>> = {}
+            if (evaluatorWorkflowId) {
+                references.application = {id: evaluatorWorkflowId}
+            }
+            if (isLocal) {
+                const localData = get(workflowLocalServerDataAtomFamily(workflowId)) as
+                    | (Record<string, unknown> & {_sourceRevisionId?: string})
+                    | null
+                const sourceRevisionId = localData?._sourceRevisionId
+                const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+                if (variantId) {
+                    references.application_variant = {id: variantId}
+                }
+                if (sourceRevisionId) {
+                    references.application_revision = {id: sourceRevisionId}
+                }
+            } else if (!isDirty) {
+                const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+                if (variantId) {
+                    references.application_variant = {id: variantId}
+                }
+                if (entity.id) {
+                    references.application_revision = {id: entity.id}
+                }
+            }
+
             return {
                 __rawBody: true,
                 ...(iface ? {interface: iface} : {}),
@@ -451,6 +487,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
                     outputs: {},
                     parameters,
                 },
+                references: Object.keys(references).length > 0 ? references : undefined,
             }
         }
 

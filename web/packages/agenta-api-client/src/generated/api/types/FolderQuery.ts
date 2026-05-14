@@ -8,20 +8,35 @@ export interface FolderQuery {
     meta?: (Record<string, AgentaApi.FullJsonInput | null> | null) | undefined;
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
+    /** Match a single folder id. */
     id?: (string | null) | undefined;
+    /** Match any of the given folder ids. */
     ids?: (string[] | null) | undefined;
+    /** Match a folder by slug, regardless of its position in the tree. */
     slug?: (string | null) | undefined;
+    /** Match folders whose slug is in the given list. */
     slugs?: (string[] | null) | undefined;
+    /** Match folders of a single resource family. */
     kind?: (AgentaApi.FolderKind | null) | undefined;
+    /** Filter by presence of a kind. `false` returns folders with no kind, `true` returns folders where `kind` is set, and an array restricts to the given kinds. */
     kinds?: (FolderQuery.Kinds | null) | undefined;
+    /** Match folders whose parent is this id. Send `null` to return only root folders. */
     parent_id?: (string | null) | undefined;
+    /** Match folders whose parent is any of the given ids. */
     parent_ids?: (string[] | null) | undefined;
+    /** Exact match on the materialized `path` (e.g. `support.prod`). */
     path?: (string | null) | undefined;
+    /** Exact match on any of the given paths. */
     paths?: (string[] | null) | undefined;
+    /** Subtree lookup: returns the folder at this path and every descendant. */
     prefix?: (string | null) | undefined;
+    /** Subtree lookup across multiple prefixes, OR-ed together. */
     prefixes?: (string[] | null) | undefined;
 }
 
 export namespace FolderQuery {
+    /**
+     * Filter by presence of a kind. `false` returns folders with no kind, `true` returns folders where `kind` is set, and an array restricts to the given kinds.
+     */
     export type Kinds = boolean | AgentaApi.FolderKind[];
 }

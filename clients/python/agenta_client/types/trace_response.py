@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import typing
 
 import pydantic
@@ -10,8 +11,18 @@ from .trace_output import TraceOutput
 
 
 class TraceResponse(UniversalBaseModel):
-    count: typing.Optional[int] = None
-    trace: typing.Optional[TraceOutput] = None
+    support_id: typing.Optional[str] = None
+    support_ts: typing.Optional[dt.datetime] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` if a trace was returned, `0` otherwise.
+    """
+    
+    trace: typing.Optional[TraceOutput] = pydantic.Field(default=None)
+    """
+    The trace in the canonical `Trace` shape (`trace_id` + nested `spans` tree).
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

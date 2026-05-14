@@ -55,9 +55,17 @@ class TestsetsClient:
     
     def create_testset(self, *, testset: TestsetCreate, testset_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Create an empty testset artifact.
+        
+        Only creates the artifact row (name, slug, metadata). No variant or
+        revision is created; add testcases by committing a revision with
+        `/testsets/revisions/commit`, or use `/simple/testsets/` to create
+        a testset with seed rows in a single call.
+        
         Parameters
         ----------
         testset : TestsetCreate
+            Testset artifact to create. The call only creates the artifact row; testcases are added by committing a revision (see /testsets/revisions/commit) or by using the /simple/testsets/ surface.
         
         testset_id : typing.Optional[str]
         
@@ -85,6 +93,12 @@ class TestsetsClient:
     
     def fetch_testset(self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Fetch a testset artifact by ID.
+        
+        Returns the artifact row only; testcases are stored on revisions and
+        must be fetched via `/testsets/revisions/retrieve` or
+        `/testcases/query`.
+        
         Parameters
         ----------
         testset_id : str
@@ -113,11 +127,18 @@ class TestsetsClient:
     
     def edit_testset(self, testset_id: str, *, testset: TestsetEdit, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Update metadata on a testset artifact.
+        
+        Only artifact-level fields (name, description, slug, flags, tags,
+        meta, folder) are editable here. Testcase changes are committed as
+        new revisions via `/testsets/revisions/commit`.
+        
         Parameters
         ----------
         testset_id : str
         
         testset : TestsetEdit
+            Testset artifact fields to update. The `id` in the body must match the `testset_id` in the path.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -144,6 +165,12 @@ class TestsetsClient:
     
     def archive_testset(self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Soft-delete a testset artifact.
+        
+        Sets `deleted_at` on the testset. Archived testsets are excluded
+        from `/testsets/query` unless `include_archived` is true. Use
+        `/testsets/{testset_id}/unarchive` to restore.
+        
         Parameters
         ----------
         testset_id : str
@@ -172,6 +199,10 @@ class TestsetsClient:
     
     def unarchive_testset(self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Restore a previously archived testset artifact.
+        
+        Clears `deleted_at` on the testset so it shows up in queries again.
+        
         Parameters
         ----------
         testset_id : str
@@ -200,15 +231,26 @@ class TestsetsClient:
     
     def query_testsets(self, *, testset: typing.Optional[TestsetQuery] = OMIT, testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetsResponse:
         """
+        List and filter testset artifacts.
+        
+        Follows the shared query pattern: attribute filters on the testset
+        body, optional `testset_refs` to restrict by id/slug, cursor-based
+        pagination via `windowing`. Only artifact rows are returned — no
+        testcases. See the Query Pattern guide for the full body shape.
+        
         Parameters
         ----------
         testset : typing.Optional[TestsetQuery]
+            Attribute filter (name, description, slug, flags, tags, meta, folder).
         
         testset_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to specific testsets by reference (id or slug).
         
         include_archived : typing.Optional[bool]
+            Include soft-deleted testsets.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. See the Query Pattern guide.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -232,9 +274,16 @@ class TestsetsClient:
     
     def create_testset_variant(self, *, testset_variant: TestsetVariantCreate, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Create a variant (history branch) on a testset.
+        
+        Most testsets only need one variant. Create additional variants to
+        maintain parallel revision histories (for example, a staging branch
+        separate from the main one).
+        
         Parameters
         ----------
         testset_variant : TestsetVariantCreate
+            Variant to create on an existing testset. Pass `testset_id` to identify the parent artifact.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -260,6 +309,12 @@ class TestsetsClient:
     
     def fetch_testset_variant(self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Fetch a variant by ID.
+        
+        Returns the variant row (branch metadata). Use
+        `/testsets/revisions/retrieve` to get the latest revision on this
+        variant.
+        
         Parameters
         ----------
         testset_variant_id : str
@@ -288,11 +343,17 @@ class TestsetsClient:
     
     def edit_testset_variant(self, testset_variant_id: str, *, testset_variant: TestsetVariantEdit, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Update metadata on a testset variant.
+        
+        Variants hold only branch-level metadata (name, description, slug,
+        flags, tags, meta). Testcase content belongs to revisions.
+        
         Parameters
         ----------
         testset_variant_id : str
         
         testset_variant : TestsetVariantEdit
+            Variant fields to update. The `id` in the body must match the `testset_variant_id` in the path.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -319,6 +380,12 @@ class TestsetsClient:
     
     def archive_testset_variant(self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Soft-delete a testset variant.
+        
+        Archiving a variant excludes it from `/testsets/variants/query`
+        unless `include_archived` is true. Its revisions stay in place and
+        can still be retrieved by ID.
+        
         Parameters
         ----------
         testset_variant_id : str
@@ -347,6 +414,8 @@ class TestsetsClient:
     
     def unarchive_testset_variant(self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Restore a previously archived testset variant.
+        
         Parameters
         ----------
         testset_variant_id : str
@@ -375,17 +444,27 @@ class TestsetsClient:
     
     def query_testset_variants(self, *, testset_variant: typing.Optional[TestsetVariantQuery] = OMIT, testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, testset_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantsResponse:
         """
+        List and filter testset variants.
+        
+        Use `testset_refs` to scope to one or more parent testsets. Use
+        `testset_variant_refs` to restrict by specific variant id/slug.
+        
         Parameters
         ----------
         testset_variant : typing.Optional[TestsetVariantQuery]
+            Attribute filter on the variant (name, description, slug, flags, tags, meta).
         
         testset_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope to variants whose parent testset matches one of these references.
         
         testset_variant_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to specific variants by reference (id or slug).
         
         include_archived : typing.Optional[bool]
+            Include soft-deleted variants.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. See the Query Pattern guide.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -409,11 +488,19 @@ class TestsetsClient:
     
     def create_testset_revision(self, *, testset_revision: TestsetRevisionCreate, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
         """
+        Create a new revision on an existing variant.
+        
+        Creates a revision row without committing content. Most callers
+        instead use `/testsets/revisions/commit`, which writes the
+        testcases and the revision together.
+        
         Parameters
         ----------
         testset_revision : TestsetRevisionCreate
+            Revision to create on an existing variant. Typically used to seed an empty revision; use /testsets/revisions/commit to set testcases.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects in the response. Defaults to true when the response would carry revision data.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -475,8 +562,10 @@ class TestsetsClient:
         testset_revision_id : str
         
         testset_revision : TestsetRevisionEdit
+            Revision fields to update. The `id` in the body must match the `testset_revision_id` in the path. Only metadata fields are editable; content is committed as a new revision.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects in the response.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -631,18 +720,25 @@ class TestsetsClient:
         Parameters
         ----------
         testset_revision : typing.Optional[TestsetRevisionQuery]
+            Attribute filter on the revision (name, description, slug, author, date, message).
         
         testset_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope revisions to these testsets.
         
         testset_variant_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope revisions to these variants.
         
         testset_revision_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to specific revisions by reference (id, slug, or version).
         
         include_archived : typing.Optional[bool]
+            Include soft-deleted revisions.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects for each returned revision. Defaults to true.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. See the Query Pattern guide.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -669,8 +765,10 @@ class TestsetsClient:
         Parameters
         ----------
         testset_revision_commit : TestsetRevisionCommit
+            New revision to commit. Pass either `data` (full replacement of the testcase list) or `delta` (add/remove/replace operations against the base revision) — not both.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects in the response.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -699,16 +797,22 @@ class TestsetsClient:
         Parameters
         ----------
         testset_ref : typing.Optional[Reference]
+            Testset reference. If only the testset is provided, the latest revision on its default variant is returned.
         
         testset_variant_ref : typing.Optional[Reference]
+            Variant reference. Returns the latest revision on that variant.
         
         testset_revision_ref : typing.Optional[Reference]
+            Revision reference. Returns that specific revision.
         
         include_testcase_ids : typing.Optional[bool]
+            Include the ordered list of testcase IDs. Defaults to true (opt-out).
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects. Defaults to true (opt-out). Note: this opt-out default is the opposite of `/queries/revisions/retrieve`, where trace materialization is opt-in.
         
         windowing : typing.Optional[Windowing]
+            Windowing applied to the testcases list when materialized.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -735,8 +839,10 @@ class TestsetsClient:
         Parameters
         ----------
         testset_revision : TestsetRevisionsLog
+            Scope for the log: one of `testset_id`, `testset_variant_id`, or `testset_revision_id`. Optional `depth` limits how far back to walk.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects for each returned revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -765,6 +871,7 @@ class TestsetsClient:
         Parameters
         ----------
         testset : SimpleTestsetCreate
+            Simple testset to create. `data.testcases` is committed as the first revision on a single variant in one call.
         
         testset_id : typing.Optional[str]
         
@@ -825,6 +932,7 @@ class TestsetsClient:
         testset_id : str
         
         testset : SimpleTestsetEdit
+            Simple testset fields to update. If `data.testcases` is provided, a new revision is committed with those testcases.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -983,12 +1091,16 @@ class TestsetsClient:
         Parameters
         ----------
         testset : typing.Optional[SimpleTestsetQuery]
+            Attribute filter on the testset (flags, tags, meta).
         
         testset_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to specific testsets.
         
         include_archived : typing.Optional[bool]
+            Include soft-deleted testsets.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. See the Query Pattern guide.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1065,9 +1177,17 @@ class AsyncTestsetsClient:
     
     async def create_testset(self, *, testset: TestsetCreate, testset_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Create an empty testset artifact.
+        
+        Only creates the artifact row (name, slug, metadata). No variant or
+        revision is created; add testcases by committing a revision with
+        `/testsets/revisions/commit`, or use `/simple/testsets/` to create
+        a testset with seed rows in a single call.
+        
         Parameters
         ----------
         testset : TestsetCreate
+            Testset artifact to create. The call only creates the artifact row; testcases are added by committing a revision (see /testsets/revisions/commit) or by using the /simple/testsets/ surface.
         
         testset_id : typing.Optional[str]
         
@@ -1103,6 +1223,12 @@ class AsyncTestsetsClient:
     
     async def fetch_testset(self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Fetch a testset artifact by ID.
+        
+        Returns the artifact row only; testcases are stored on revisions and
+        must be fetched via `/testsets/revisions/retrieve` or
+        `/testcases/query`.
+        
         Parameters
         ----------
         testset_id : str
@@ -1139,11 +1265,18 @@ class AsyncTestsetsClient:
     
     async def edit_testset(self, testset_id: str, *, testset: TestsetEdit, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Update metadata on a testset artifact.
+        
+        Only artifact-level fields (name, description, slug, flags, tags,
+        meta, folder) are editable here. Testcase changes are committed as
+        new revisions via `/testsets/revisions/commit`.
+        
         Parameters
         ----------
         testset_id : str
         
         testset : TestsetEdit
+            Testset artifact fields to update. The `id` in the body must match the `testset_id` in the path.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1178,6 +1311,12 @@ class AsyncTestsetsClient:
     
     async def archive_testset(self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Soft-delete a testset artifact.
+        
+        Sets `deleted_at` on the testset. Archived testsets are excluded
+        from `/testsets/query` unless `include_archived` is true. Use
+        `/testsets/{testset_id}/unarchive` to restore.
+        
         Parameters
         ----------
         testset_id : str
@@ -1214,6 +1353,10 @@ class AsyncTestsetsClient:
     
     async def unarchive_testset(self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetResponse:
         """
+        Restore a previously archived testset artifact.
+        
+        Clears `deleted_at` on the testset so it shows up in queries again.
+        
         Parameters
         ----------
         testset_id : str
@@ -1250,15 +1393,26 @@ class AsyncTestsetsClient:
     
     async def query_testsets(self, *, testset: typing.Optional[TestsetQuery] = OMIT, testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetsResponse:
         """
+        List and filter testset artifacts.
+        
+        Follows the shared query pattern: attribute filters on the testset
+        body, optional `testset_refs` to restrict by id/slug, cursor-based
+        pagination via `windowing`. Only artifact rows are returned — no
+        testcases. See the Query Pattern guide for the full body shape.
+        
         Parameters
         ----------
         testset : typing.Optional[TestsetQuery]
+            Attribute filter (name, description, slug, flags, tags, meta, folder).
         
         testset_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to specific testsets by reference (id or slug).
         
         include_archived : typing.Optional[bool]
+            Include soft-deleted testsets.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. See the Query Pattern guide.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1290,9 +1444,16 @@ class AsyncTestsetsClient:
     
     async def create_testset_variant(self, *, testset_variant: TestsetVariantCreate, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Create a variant (history branch) on a testset.
+        
+        Most testsets only need one variant. Create additional variants to
+        maintain parallel revision histories (for example, a staging branch
+        separate from the main one).
+        
         Parameters
         ----------
         testset_variant : TestsetVariantCreate
+            Variant to create on an existing testset. Pass `testset_id` to identify the parent artifact.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1326,6 +1487,12 @@ class AsyncTestsetsClient:
     
     async def fetch_testset_variant(self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Fetch a variant by ID.
+        
+        Returns the variant row (branch metadata). Use
+        `/testsets/revisions/retrieve` to get the latest revision on this
+        variant.
+        
         Parameters
         ----------
         testset_variant_id : str
@@ -1362,11 +1529,17 @@ class AsyncTestsetsClient:
     
     async def edit_testset_variant(self, testset_variant_id: str, *, testset_variant: TestsetVariantEdit, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Update metadata on a testset variant.
+        
+        Variants hold only branch-level metadata (name, description, slug,
+        flags, tags, meta). Testcase content belongs to revisions.
+        
         Parameters
         ----------
         testset_variant_id : str
         
         testset_variant : TestsetVariantEdit
+            Variant fields to update. The `id` in the body must match the `testset_variant_id` in the path.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1401,6 +1574,12 @@ class AsyncTestsetsClient:
     
     async def archive_testset_variant(self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Soft-delete a testset variant.
+        
+        Archiving a variant excludes it from `/testsets/variants/query`
+        unless `include_archived` is true. Its revisions stay in place and
+        can still be retrieved by ID.
+        
         Parameters
         ----------
         testset_variant_id : str
@@ -1437,6 +1616,8 @@ class AsyncTestsetsClient:
     
     async def unarchive_testset_variant(self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
         """
+        Restore a previously archived testset variant.
+        
         Parameters
         ----------
         testset_variant_id : str
@@ -1473,17 +1654,27 @@ class AsyncTestsetsClient:
     
     async def query_testset_variants(self, *, testset_variant: typing.Optional[TestsetVariantQuery] = OMIT, testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, testset_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantsResponse:
         """
+        List and filter testset variants.
+        
+        Use `testset_refs` to scope to one or more parent testsets. Use
+        `testset_variant_refs` to restrict by specific variant id/slug.
+        
         Parameters
         ----------
         testset_variant : typing.Optional[TestsetVariantQuery]
+            Attribute filter on the variant (name, description, slug, flags, tags, meta).
         
         testset_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope to variants whose parent testset matches one of these references.
         
         testset_variant_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to specific variants by reference (id or slug).
         
         include_archived : typing.Optional[bool]
+            Include soft-deleted variants.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. See the Query Pattern guide.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1515,11 +1706,19 @@ class AsyncTestsetsClient:
     
     async def create_testset_revision(self, *, testset_revision: TestsetRevisionCreate, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
         """
+        Create a new revision on an existing variant.
+        
+        Creates a revision row without committing content. Most callers
+        instead use `/testsets/revisions/commit`, which writes the
+        testcases and the revision together.
+        
         Parameters
         ----------
         testset_revision : TestsetRevisionCreate
+            Revision to create on an existing variant. Typically used to seed an empty revision; use /testsets/revisions/commit to set testcases.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects in the response. Defaults to true when the response would carry revision data.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1597,8 +1796,10 @@ class AsyncTestsetsClient:
         testset_revision_id : str
         
         testset_revision : TestsetRevisionEdit
+            Revision fields to update. The `id` in the body must match the `testset_revision_id` in the path. Only metadata fields are editable; content is committed as a new revision.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects in the response.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1793,18 +1994,25 @@ class AsyncTestsetsClient:
         Parameters
         ----------
         testset_revision : typing.Optional[TestsetRevisionQuery]
+            Attribute filter on the revision (name, description, slug, author, date, message).
         
         testset_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope revisions to these testsets.
         
         testset_variant_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope revisions to these variants.
         
         testset_revision_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to specific revisions by reference (id, slug, or version).
         
         include_archived : typing.Optional[bool]
+            Include soft-deleted revisions.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects for each returned revision. Defaults to true.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. See the Query Pattern guide.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1839,8 +2047,10 @@ class AsyncTestsetsClient:
         Parameters
         ----------
         testset_revision_commit : TestsetRevisionCommit
+            New revision to commit. Pass either `data` (full replacement of the testcase list) or `delta` (add/remove/replace operations against the base revision) — not both.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects in the response.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1877,16 +2087,22 @@ class AsyncTestsetsClient:
         Parameters
         ----------
         testset_ref : typing.Optional[Reference]
+            Testset reference. If only the testset is provided, the latest revision on its default variant is returned.
         
         testset_variant_ref : typing.Optional[Reference]
+            Variant reference. Returns the latest revision on that variant.
         
         testset_revision_ref : typing.Optional[Reference]
+            Revision reference. Returns that specific revision.
         
         include_testcase_ids : typing.Optional[bool]
+            Include the ordered list of testcase IDs. Defaults to true (opt-out).
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects. Defaults to true (opt-out). Note: this opt-out default is the opposite of `/queries/revisions/retrieve`, where trace materialization is opt-in.
         
         windowing : typing.Optional[Windowing]
+            Windowing applied to the testcases list when materialized.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1921,8 +2137,10 @@ class AsyncTestsetsClient:
         Parameters
         ----------
         testset_revision : TestsetRevisionsLog
+            Scope for the log: one of `testset_id`, `testset_variant_id`, or `testset_revision_id`. Optional `depth` limits how far back to walk.
         
         include_testcases : typing.Optional[bool]
+            Include full testcase objects for each returned revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1959,6 +2177,7 @@ class AsyncTestsetsClient:
         Parameters
         ----------
         testset : SimpleTestsetCreate
+            Simple testset to create. `data.testcases` is committed as the first revision on a single variant in one call.
         
         testset_id : typing.Optional[str]
         
@@ -2035,6 +2254,7 @@ class AsyncTestsetsClient:
         testset_id : str
         
         testset : SimpleTestsetEdit
+            Simple testset fields to update. If `data.testcases` is provided, a new revision is committed with those testcases.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2233,12 +2453,16 @@ class AsyncTestsetsClient:
         Parameters
         ----------
         testset : typing.Optional[SimpleTestsetQuery]
+            Attribute filter on the testset (flags, tags, meta).
         
         testset_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to specific testsets.
         
         include_archived : typing.Optional[bool]
+            Include soft-deleted testsets.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination. See the Query Pattern guide.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.

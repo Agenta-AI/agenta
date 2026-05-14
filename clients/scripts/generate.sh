@@ -355,7 +355,7 @@ module-name = "agenta_client"
 module-root = ""
 
 [build-system]
-requires = ["uv_build>=0.11.9,<0.12.0"]
+requires = ["uv_build>=0.11,<0.12"]
 build-backend = "uv_build"
 EOF
 

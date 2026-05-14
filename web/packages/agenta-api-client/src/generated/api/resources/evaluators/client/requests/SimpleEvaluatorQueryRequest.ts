@@ -7,8 +7,12 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface SimpleEvaluatorQueryRequest {
+    /** Filter on evaluator attributes (slug, slugs, flags, meta). */
     evaluator?: AgentaApi.SimpleEvaluatorQuery | null;
+    /** Restrict to these evaluators. */
     evaluator_refs?: AgentaApi.Reference[] | null;
+    /** When true, include soft-deleted evaluators. */
     include_archived?: boolean | null;
+    /** Cursor-based pagination controls. */
     windowing?: AgentaApi.Windowing | null;
 }

@@ -7,11 +7,18 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface ApplicationRevisionQueryRequest {
+    /** Attribute filter. Includes standard fields (`slug`, `slugs`, `flags`) plus revision-specific ones (`author`, `authors`, `date`, `dates`, `message`). */
     application_revision?: AgentaApi.ApplicationRevisionQuery | null;
+    /** Scope to revisions belonging to these applications. */
     application_refs?: AgentaApi.Reference[] | null;
+    /** Scope to revisions belonging to these variants. */
     application_variant_refs?: AgentaApi.Reference[] | null;
+    /** Restrict to specific revisions by `id` or by `slug` + `version`. */
     application_revision_refs?: AgentaApi.Reference[] | null;
+    /** When `true`, include archived revisions. Defaults to `false`. */
     include_archived?: boolean | null;
+    /** Cursor pagination and time-range controls. */
     windowing?: AgentaApi.Windowing | null;
+    /** When `true`, resolve embedded references in each returned revision's `data` (for example, snippet references). Defaults to `false`. */
     resolve?: boolean | null;
 }

@@ -60,6 +60,14 @@ class WorkflowsClient:
     
     def list_workflow_catalog_types(self, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTypesResponse:
         """
+        List the shared JSON Schema fragments available to workflow schemas.
+        
+        Workflow input/output schemas reference these via `x-ag-type-ref` (for
+        example, `message` or `prompt`). Use this endpoint to discover what
+        type keys exist before building a schema.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
@@ -84,6 +92,12 @@ class WorkflowsClient:
     
     def fetch_workflow_catalog_type(self, ag_type: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTypeResponse:
         """
+        Return the JSON Schema for a single shared type key.
+        
+        Returns 404 when the `ag_type` is not part of the shipped catalog.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         ag_type : str
@@ -112,6 +126,14 @@ class WorkflowsClient:
     
     def list_workflow_catalog_templates(self, *, include_archived: typing.Optional[bool] = None, is_application: typing.Optional[bool] = None, is_evaluator: typing.Optional[bool] = None, is_snippet: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTemplatesResponse:
         """
+        List workflow blueprints shipped with the product.
+        
+        Filter by domain with `is_application`, `is_evaluator`, or
+        `is_snippet`. Archived templates are hidden unless `include_archived`
+        is true. Templates are global and read-only.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         include_archived : typing.Optional[bool]
@@ -144,6 +166,13 @@ class WorkflowsClient:
     
     def fetch_workflow_catalog_template(self, template_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTemplateResponse:
         """
+        Return a single workflow template by its key.
+        
+        Returns `count=0` when the template is not found. Templates are global
+        metadata and are not scoped to a project.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         template_key : str
@@ -172,6 +201,14 @@ class WorkflowsClient:
     
     def list_workflow_catalog_presets(self, template_key: str, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogPresetsResponse:
         """
+        List presets defined against a template.
+        
+        Presets are named parameter sets that can be committed as the first
+        revision of a new variant. Returns an empty list when a template has
+        no canned presets.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         template_key : str
@@ -202,6 +239,12 @@ class WorkflowsClient:
     
     def fetch_workflow_catalog_preset(self, template_key: str, preset_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogPresetResponse:
         """
+        Return a single preset for a template by key.
+        
+        Returns `count=0` when the preset is not defined.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         template_key : str
@@ -233,9 +276,20 @@ class WorkflowsClient:
     
     def create_workflow(self, *, workflow: WorkflowCreate, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Create a workflow artifact.
+        
+        Creates the top-level container only; commit a revision on a variant
+        before the workflow can be retrieved or invoked. Use when you need the
+        lower-level primitive — pick `/applications/` for serving logic or
+        `/evaluators/` for scoring logic.
+        
+        See: [Workflows](/reference/api-guide/workflows),
+        [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow : WorkflowCreate
+            Workflow artifact to create. Must include a project-unique `slug`; `name`, `description`, `flags`, `tags`, and `meta` are optional.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -261,6 +315,14 @@ class WorkflowsClient:
     
     def fetch_workflow(self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Fetch a workflow artifact by ID.
+        
+        Returns the artifact only — variants and revisions are not included.
+        Use `/workflows/variants/query` and `/workflows/revisions/query` for
+        the child entities.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         workflow_id : str
@@ -289,11 +351,21 @@ class WorkflowsClient:
     
     def edit_workflow(self, workflow_id: str, *, workflow: WorkflowEdit, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Update artifact-level fields on a workflow.
+        
+        The `id` in the body must match the path parameter. Only supplied
+        fields are modified. Configuration (parameters, URL, schemas) lives on
+        revisions — commit a new revision to change those.
+        
+        See: [Workflows](/reference/api-guide/workflows),
+        [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_id : str
         
         workflow : WorkflowEdit
+            Workflow fields to update. `id` is required and must match the path parameter; only supplied fields are modified.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -320,6 +392,14 @@ class WorkflowsClient:
     
     def archive_workflow(self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Archive a workflow artifact (soft delete).
+        
+        Sets `deleted_at` on the workflow and its variants. Archived
+        workflows are hidden from queries unless `include_archived=true`.
+        Revision IDs remain resolvable so historical traces stay intact.
+        
+        See: [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_id : str
@@ -348,6 +428,13 @@ class WorkflowsClient:
     
     def unarchive_workflow(self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Restore a previously archived workflow.
+        
+        Clears `deleted_at` on the workflow. Archived variants and revisions
+        are restored with the workflow.
+        
+        See: [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_id : str
@@ -376,6 +463,14 @@ class WorkflowsClient:
     
     def query_workflows(self, *, workflow_id: typing.Optional[str] = None, workflow_ids: typing.Optional[typing.Sequence[str]] = None, workflow_slug: typing.Optional[str] = None, workflow_slugs: typing.Optional[typing.Sequence[str]] = None, name: typing.Optional[str] = None, description: typing.Optional[str] = None, flags: typing.Optional[str] = None, tags: typing.Optional[str] = None, meta: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, next: typing.Optional[str] = None, newest: typing.Optional[dt.datetime] = None, oldest: typing.Optional[dt.datetime] = None, limit: typing.Optional[int] = None, order: typing.Optional[QueryWorkflowsRequestOrder] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowsResponse:
         """
+        Query workflow artifacts with filters and pagination.
+        
+        Accepts the same filters as query parameters or in the request body;
+        body fields win when both are supplied. Results are ordered by
+        creation time; pass `windowing.next` back for the following page.
+        
+        See: [Query Pattern](/reference/api-guide/query-pattern).
+        
         Parameters
         ----------
         workflow_id : typing.Optional[str]
@@ -430,9 +525,18 @@ class WorkflowsClient:
     
     def create_workflow_variant(self, *, workflow_variant: WorkflowVariantCreate, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Create a new variant under an existing workflow.
+        
+        Variants are branches of an artifact's history; each maintains its own
+        revision log. Variant slugs are unique within the project — reuse of a
+        slug already in use returns a 409 conflict.
+        
+        See: [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_variant : WorkflowVariantCreate
+            Variant to create under an existing workflow. Requires `workflow_id` (the artifact) and a project-unique `slug`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -458,6 +562,14 @@ class WorkflowsClient:
     
     def fetch_workflow_variant(self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Fetch a workflow variant by ID.
+        
+        Returns the variant metadata only — use
+        `/workflows/revisions/retrieve` or `/workflows/revisions/log` for the
+        variant's revisions.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         workflow_variant_id : str
@@ -486,11 +598,19 @@ class WorkflowsClient:
     
     def edit_workflow_variant(self, workflow_variant_id: str, *, workflow_variant: WorkflowVariantEdit, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Update metadata on a workflow variant.
+        
+        The `id` in the body must match the path parameter. Revisions on the
+        variant are not affected — commit a new revision to change data.
+        
+        See: [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_variant_id : str
         
         workflow_variant : WorkflowVariantEdit
+            Variant fields to update. `id` is required and must match the path parameter.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -517,6 +637,12 @@ class WorkflowsClient:
     
     def archive_workflow_variant(self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Archive a workflow variant.
+        
+        Soft-deletes the variant and its revisions. Archived variants are
+        hidden from queries unless `include_archived=true`. See
+        [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_variant_id : str
@@ -545,6 +671,11 @@ class WorkflowsClient:
     
     def unarchive_workflow_variant(self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Restore a previously archived workflow variant.
+        
+        Clears `deleted_at` on the variant and its revisions. See
+        [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_variant_id : str
@@ -573,6 +704,14 @@ class WorkflowsClient:
     
     def query_workflow_variants(self, *, workflow_id: typing.Optional[str] = None, workflow_ids: typing.Optional[typing.Sequence[str]] = None, workflow_slug: typing.Optional[str] = None, workflow_slugs: typing.Optional[typing.Sequence[str]] = None, workflow_variant_id: typing.Optional[str] = None, workflow_variant_ids: typing.Optional[typing.Sequence[str]] = None, workflow_variant_slug: typing.Optional[str] = None, workflow_variant_slugs: typing.Optional[typing.Sequence[str]] = None, name: typing.Optional[str] = None, description: typing.Optional[str] = None, flags: typing.Optional[str] = None, tags: typing.Optional[str] = None, meta: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, next: typing.Optional[str] = None, newest: typing.Optional[dt.datetime] = None, oldest: typing.Optional[dt.datetime] = None, limit: typing.Optional[int] = None, order: typing.Optional[QueryWorkflowVariantsRequestOrder] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantsResponse:
         """
+        Query workflow variants with filters and pagination.
+        
+        Scope the query by `workflow_refs` (parent artifact) or
+        `workflow_variant_refs` (specific variants). Accepts the same fields
+        as query parameters or in the request body.
+        
+        See: [Query Pattern](/reference/api-guide/query-pattern).
+        
         Parameters
         ----------
         workflow_id : typing.Optional[str]
@@ -638,6 +777,7 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow : WorkflowFork
+            Fork payload. Identify the source by `workflow_id` and `workflow_variant_id` (or equivalent slugs), supply a new `workflow_variant.slug` for the forked branch.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -666,20 +806,28 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow_ref : typing.Optional[Reference]
+            Return the latest revision across all variants of this workflow.
         
         workflow_variant_ref : typing.Optional[Reference]
+            Return the latest revision of this variant.
         
         workflow_revision_ref : typing.Optional[Reference]
+            Return this exact revision (by `id`, or by `slug` + `version`).
         
         environment_ref : typing.Optional[Reference]
+            Environment artifact backing the deployment to resolve from.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant backing the deployment to resolve from.
         
         environment_revision_ref : typing.Optional[Reference]
+            Specific environment revision to resolve from.
         
         key : typing.Optional[str]
+            Key into the environment revision's reference map. Required when retrieving via environment refs.
         
         resolve : typing.Optional[bool]
+            When true, resolve `@ag.references` tokens embedded in the revision configuration before returning it.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -706,20 +854,28 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow_ref : typing.Optional[Reference]
+            Workflow artifact to deploy. One of the workflow refs is required.
         
         workflow_variant_ref : typing.Optional[Reference]
+            Workflow variant to deploy. Resolves to the latest revision of this variant.
         
         workflow_revision_ref : typing.Optional[Reference]
+            Specific workflow revision to deploy.
         
         environment_ref : typing.Optional[Reference]
+            Target environment artifact. One of the environment refs is required.
         
         environment_variant_ref : typing.Optional[Reference]
+            Target environment variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Target environment revision.
         
         key : typing.Optional[str]
+            Reference key to set on the environment revision. Defaults to `<workflow_slug>.revision` when omitted.
         
         message : typing.Optional[str]
+            Commit message recorded on the resulting environment revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -746,6 +902,7 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow_revision : WorkflowRevisionCreate
+            Revision to create on an existing variant. The revision is immutable once persisted; to change the payload, commit a new revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -804,6 +961,7 @@ class WorkflowsClient:
         workflow_revision_id : str
         
         workflow_revision : WorkflowRevisionEdit
+            Revision fields to update (lifecycle metadata only). Data and configuration are immutable — commit a new revision to change them.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -963,6 +1121,7 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow_revision : WorkflowRevisionCommit
+            Revision to append to a variant's history. Requires `workflow_variant_id` and optional `message`; `data` carries the new configuration.
         
         workflow_variant_id : typing.Optional[str]
         
@@ -993,6 +1152,7 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow : WorkflowRevisionsLog
+            Log query. Supply `workflow_id`, `workflow_variant_id`, or `workflow_revision_id` to scope the log, and an optional `depth`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1028,18 +1188,25 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow_ref : typing.Optional[Reference]
+            Workflow artifact; resolves against its latest revision.
         
         workflow_variant_ref : typing.Optional[Reference]
+            Workflow variant; resolves against its latest revision.
         
         workflow_revision_ref : typing.Optional[Reference]
+            Specific workflow revision to resolve.
         
         workflow_revision : typing.Optional[WorkflowRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first.
         
         max_depth : typing.Optional[int]
+            Maximum recursive depth for nested `@ag.references`.
         
         max_embeds : typing.Optional[int]
+            Maximum number of embeds to resolve in one call.
         
         error_policy : typing.Optional[ErrorPolicy]
+            How to handle unresolved references: `EXCEPTION` or `IGNORE`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1066,6 +1233,7 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow : SimpleWorkflowCreate
+            Simple-workflow create payload. Creates the artifact, a default variant, and an initial revision in one call.
         
         workflow_id : typing.Optional[str]
         
@@ -1126,6 +1294,7 @@ class WorkflowsClient:
         workflow_id : str
         
         workflow : SimpleWorkflowEdit
+            Simple-workflow edit payload. Updates artifact-level fields and commits a new revision when `data` changes.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1211,12 +1380,16 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow : typing.Optional[SimpleWorkflowQuery]
+            Attribute filter on simple workflows (slug, slugs, flags, tags, meta).
         
         workflow_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict results to workflows matching these references.
         
         include_archived : typing.Optional[bool]
+            When true, include archived workflows.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination controls.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1254,6 +1427,14 @@ class AsyncWorkflowsClient:
     
     async def list_workflow_catalog_types(self, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTypesResponse:
         """
+        List the shared JSON Schema fragments available to workflow schemas.
+        
+        Workflow input/output schemas reference these via `x-ag-type-ref` (for
+        example, `message` or `prompt`). Use this endpoint to discover what
+        type keys exist before building a schema.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
@@ -1286,6 +1467,12 @@ class AsyncWorkflowsClient:
     
     async def fetch_workflow_catalog_type(self, ag_type: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTypeResponse:
         """
+        Return the JSON Schema for a single shared type key.
+        
+        Returns 404 when the `ag_type` is not part of the shipped catalog.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         ag_type : str
@@ -1322,6 +1509,14 @@ class AsyncWorkflowsClient:
     
     async def list_workflow_catalog_templates(self, *, include_archived: typing.Optional[bool] = None, is_application: typing.Optional[bool] = None, is_evaluator: typing.Optional[bool] = None, is_snippet: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTemplatesResponse:
         """
+        List workflow blueprints shipped with the product.
+        
+        Filter by domain with `is_application`, `is_evaluator`, or
+        `is_snippet`. Archived templates are hidden unless `include_archived`
+        is true. Templates are global and read-only.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         include_archived : typing.Optional[bool]
@@ -1362,6 +1557,13 @@ class AsyncWorkflowsClient:
     
     async def fetch_workflow_catalog_template(self, template_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTemplateResponse:
         """
+        Return a single workflow template by its key.
+        
+        Returns `count=0` when the template is not found. Templates are global
+        metadata and are not scoped to a project.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         template_key : str
@@ -1398,6 +1600,14 @@ class AsyncWorkflowsClient:
     
     async def list_workflow_catalog_presets(self, template_key: str, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogPresetsResponse:
         """
+        List presets defined against a template.
+        
+        Presets are named parameter sets that can be committed as the first
+        revision of a new variant. Returns an empty list when a template has
+        no canned presets.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         template_key : str
@@ -1436,6 +1646,12 @@ class AsyncWorkflowsClient:
     
     async def fetch_workflow_catalog_preset(self, template_key: str, preset_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogPresetResponse:
         """
+        Return a single preset for a template by key.
+        
+        Returns `count=0` when the preset is not defined.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         template_key : str
@@ -1475,9 +1691,20 @@ class AsyncWorkflowsClient:
     
     async def create_workflow(self, *, workflow: WorkflowCreate, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Create a workflow artifact.
+        
+        Creates the top-level container only; commit a revision on a variant
+        before the workflow can be retrieved or invoked. Use when you need the
+        lower-level primitive — pick `/applications/` for serving logic or
+        `/evaluators/` for scoring logic.
+        
+        See: [Workflows](/reference/api-guide/workflows),
+        [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow : WorkflowCreate
+            Workflow artifact to create. Must include a project-unique `slug`; `name`, `description`, `flags`, `tags`, and `meta` are optional.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1511,6 +1738,14 @@ class AsyncWorkflowsClient:
     
     async def fetch_workflow(self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Fetch a workflow artifact by ID.
+        
+        Returns the artifact only — variants and revisions are not included.
+        Use `/workflows/variants/query` and `/workflows/revisions/query` for
+        the child entities.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         workflow_id : str
@@ -1547,11 +1782,21 @@ class AsyncWorkflowsClient:
     
     async def edit_workflow(self, workflow_id: str, *, workflow: WorkflowEdit, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Update artifact-level fields on a workflow.
+        
+        The `id` in the body must match the path parameter. Only supplied
+        fields are modified. Configuration (parameters, URL, schemas) lives on
+        revisions — commit a new revision to change those.
+        
+        See: [Workflows](/reference/api-guide/workflows),
+        [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_id : str
         
         workflow : WorkflowEdit
+            Workflow fields to update. `id` is required and must match the path parameter; only supplied fields are modified.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1586,6 +1831,14 @@ class AsyncWorkflowsClient:
     
     async def archive_workflow(self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Archive a workflow artifact (soft delete).
+        
+        Sets `deleted_at` on the workflow and its variants. Archived
+        workflows are hidden from queries unless `include_archived=true`.
+        Revision IDs remain resolvable so historical traces stay intact.
+        
+        See: [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_id : str
@@ -1622,6 +1875,13 @@ class AsyncWorkflowsClient:
     
     async def unarchive_workflow(self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowResponse:
         """
+        Restore a previously archived workflow.
+        
+        Clears `deleted_at` on the workflow. Archived variants and revisions
+        are restored with the workflow.
+        
+        See: [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_id : str
@@ -1658,6 +1918,14 @@ class AsyncWorkflowsClient:
     
     async def query_workflows(self, *, workflow_id: typing.Optional[str] = None, workflow_ids: typing.Optional[typing.Sequence[str]] = None, workflow_slug: typing.Optional[str] = None, workflow_slugs: typing.Optional[typing.Sequence[str]] = None, name: typing.Optional[str] = None, description: typing.Optional[str] = None, flags: typing.Optional[str] = None, tags: typing.Optional[str] = None, meta: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, next: typing.Optional[str] = None, newest: typing.Optional[dt.datetime] = None, oldest: typing.Optional[dt.datetime] = None, limit: typing.Optional[int] = None, order: typing.Optional[QueryWorkflowsRequestOrder] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowsResponse:
         """
+        Query workflow artifacts with filters and pagination.
+        
+        Accepts the same filters as query parameters or in the request body;
+        body fields win when both are supplied. Results are ordered by
+        creation time; pass `windowing.next` back for the following page.
+        
+        See: [Query Pattern](/reference/api-guide/query-pattern).
+        
         Parameters
         ----------
         workflow_id : typing.Optional[str]
@@ -1720,9 +1988,18 @@ class AsyncWorkflowsClient:
     
     async def create_workflow_variant(self, *, workflow_variant: WorkflowVariantCreate, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Create a new variant under an existing workflow.
+        
+        Variants are branches of an artifact's history; each maintains its own
+        revision log. Variant slugs are unique within the project — reuse of a
+        slug already in use returns a 409 conflict.
+        
+        See: [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_variant : WorkflowVariantCreate
+            Variant to create under an existing workflow. Requires `workflow_id` (the artifact) and a project-unique `slug`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1756,6 +2033,14 @@ class AsyncWorkflowsClient:
     
     async def fetch_workflow_variant(self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Fetch a workflow variant by ID.
+        
+        Returns the variant metadata only — use
+        `/workflows/revisions/retrieve` or `/workflows/revisions/log` for the
+        variant's revisions.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
         Parameters
         ----------
         workflow_variant_id : str
@@ -1792,11 +2077,19 @@ class AsyncWorkflowsClient:
     
     async def edit_workflow_variant(self, workflow_variant_id: str, *, workflow_variant: WorkflowVariantEdit, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Update metadata on a workflow variant.
+        
+        The `id` in the body must match the path parameter. Revisions on the
+        variant are not affected — commit a new revision to change data.
+        
+        See: [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_variant_id : str
         
         workflow_variant : WorkflowVariantEdit
+            Variant fields to update. `id` is required and must match the path parameter.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1831,6 +2124,12 @@ class AsyncWorkflowsClient:
     
     async def archive_workflow_variant(self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Archive a workflow variant.
+        
+        Soft-deletes the variant and its revisions. Archived variants are
+        hidden from queries unless `include_archived=true`. See
+        [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_variant_id : str
@@ -1867,6 +2166,11 @@ class AsyncWorkflowsClient:
     
     async def unarchive_workflow_variant(self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
+        Restore a previously archived workflow variant.
+        
+        Clears `deleted_at` on the variant and its revisions. See
+        [Versioning](/reference/api-guide/versioning).
+        
         Parameters
         ----------
         workflow_variant_id : str
@@ -1903,6 +2207,14 @@ class AsyncWorkflowsClient:
     
     async def query_workflow_variants(self, *, workflow_id: typing.Optional[str] = None, workflow_ids: typing.Optional[typing.Sequence[str]] = None, workflow_slug: typing.Optional[str] = None, workflow_slugs: typing.Optional[typing.Sequence[str]] = None, workflow_variant_id: typing.Optional[str] = None, workflow_variant_ids: typing.Optional[typing.Sequence[str]] = None, workflow_variant_slug: typing.Optional[str] = None, workflow_variant_slugs: typing.Optional[typing.Sequence[str]] = None, name: typing.Optional[str] = None, description: typing.Optional[str] = None, flags: typing.Optional[str] = None, tags: typing.Optional[str] = None, meta: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, next: typing.Optional[str] = None, newest: typing.Optional[dt.datetime] = None, oldest: typing.Optional[dt.datetime] = None, limit: typing.Optional[int] = None, order: typing.Optional[QueryWorkflowVariantsRequestOrder] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantsResponse:
         """
+        Query workflow variants with filters and pagination.
+        
+        Scope the query by `workflow_refs` (parent artifact) or
+        `workflow_variant_refs` (specific variants). Accepts the same fields
+        as query parameters or in the request body.
+        
+        See: [Query Pattern](/reference/api-guide/query-pattern).
+        
         Parameters
         ----------
         workflow_id : typing.Optional[str]
@@ -1976,6 +2288,7 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow : WorkflowFork
+            Fork payload. Identify the source by `workflow_id` and `workflow_variant_id` (or equivalent slugs), supply a new `workflow_variant.slug` for the forked branch.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2012,20 +2325,28 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow_ref : typing.Optional[Reference]
+            Return the latest revision across all variants of this workflow.
         
         workflow_variant_ref : typing.Optional[Reference]
+            Return the latest revision of this variant.
         
         workflow_revision_ref : typing.Optional[Reference]
+            Return this exact revision (by `id`, or by `slug` + `version`).
         
         environment_ref : typing.Optional[Reference]
+            Environment artifact backing the deployment to resolve from.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant backing the deployment to resolve from.
         
         environment_revision_ref : typing.Optional[Reference]
+            Specific environment revision to resolve from.
         
         key : typing.Optional[str]
+            Key into the environment revision's reference map. Required when retrieving via environment refs.
         
         resolve : typing.Optional[bool]
+            When true, resolve `@ag.references` tokens embedded in the revision configuration before returning it.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2060,20 +2381,28 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow_ref : typing.Optional[Reference]
+            Workflow artifact to deploy. One of the workflow refs is required.
         
         workflow_variant_ref : typing.Optional[Reference]
+            Workflow variant to deploy. Resolves to the latest revision of this variant.
         
         workflow_revision_ref : typing.Optional[Reference]
+            Specific workflow revision to deploy.
         
         environment_ref : typing.Optional[Reference]
+            Target environment artifact. One of the environment refs is required.
         
         environment_variant_ref : typing.Optional[Reference]
+            Target environment variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Target environment revision.
         
         key : typing.Optional[str]
+            Reference key to set on the environment revision. Defaults to `<workflow_slug>.revision` when omitted.
         
         message : typing.Optional[str]
+            Commit message recorded on the resulting environment revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2108,6 +2437,7 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow_revision : WorkflowRevisionCreate
+            Revision to create on an existing variant. The revision is immutable once persisted; to change the payload, commit a new revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2182,6 +2512,7 @@ class AsyncWorkflowsClient:
         workflow_revision_id : str
         
         workflow_revision : WorkflowRevisionEdit
+            Revision fields to update (lifecycle metadata only). Data and configuration are immutable — commit a new revision to change them.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2373,6 +2704,7 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow_revision : WorkflowRevisionCommit
+            Revision to append to a variant's history. Requires `workflow_variant_id` and optional `message`; `data` carries the new configuration.
         
         workflow_variant_id : typing.Optional[str]
         
@@ -2411,6 +2743,7 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow : WorkflowRevisionsLog
+            Log query. Supply `workflow_id`, `workflow_variant_id`, or `workflow_revision_id` to scope the log, and an optional `depth`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2454,18 +2787,25 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow_ref : typing.Optional[Reference]
+            Workflow artifact; resolves against its latest revision.
         
         workflow_variant_ref : typing.Optional[Reference]
+            Workflow variant; resolves against its latest revision.
         
         workflow_revision_ref : typing.Optional[Reference]
+            Specific workflow revision to resolve.
         
         workflow_revision : typing.Optional[WorkflowRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first.
         
         max_depth : typing.Optional[int]
+            Maximum recursive depth for nested `@ag.references`.
         
         max_embeds : typing.Optional[int]
+            Maximum number of embeds to resolve in one call.
         
         error_policy : typing.Optional[ErrorPolicy]
+            How to handle unresolved references: `EXCEPTION` or `IGNORE`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2500,6 +2840,7 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow : SimpleWorkflowCreate
+            Simple-workflow create payload. Creates the artifact, a default variant, and an initial revision in one call.
         
         workflow_id : typing.Optional[str]
         
@@ -2576,6 +2917,7 @@ class AsyncWorkflowsClient:
         workflow_id : str
         
         workflow : SimpleWorkflowEdit
+            Simple-workflow edit payload. Updates artifact-level fields and commits a new revision when `data` changes.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2685,12 +3027,16 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow : typing.Optional[SimpleWorkflowQuery]
+            Attribute filter on simple workflows (slug, slugs, flags, tags, meta).
         
         workflow_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict results to workflows matching these references.
         
         include_archived : typing.Optional[bool]
+            When true, include archived workflows.
         
         windowing : typing.Optional[Windowing]
+            Cursor-based pagination controls.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.

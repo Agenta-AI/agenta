@@ -17,8 +17,16 @@ class FolderEdit(UniversalBaseModel):
     description: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
-    kind: typing.Optional[FolderKind] = None
-    parent_id: typing.Optional[str] = None
+    kind: typing.Optional[FolderKind] = pydantic.Field(default=None)
+    """
+    Resource family. Must match the current folder's kind; defaults to `applications`.
+    """
+    
+    parent_id: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    New parent folder id. Include the key with a `null` value to move the folder to the root; omit the key to keep the existing parent.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
