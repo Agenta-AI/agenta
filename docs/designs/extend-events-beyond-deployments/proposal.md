@@ -121,14 +121,10 @@ Stable workflow revision APIs exist at `/workflows/revisions/*`, but they are in
 Environment note:
 
 - `api/oss/src/apis/fastapi/environments/router.py::EnvironmentsRouter` has the same revision retrieve/fetch/query/commit shape as the other Git-style domains.
-- The intended stable API surface is `/environments/revisions/*`, not `/preview/environments/revisions/*`.
-- Emission is implemented at the route handler boundary, so the same handler instrumentation applies once the router is mounted at the non-preview path.
-- In the current mount table, the domain-style router is still mounted only at `/preview/environments`; that should be treated as a mounting gap to fix, not as an exclusion of environments from tracking.
-- The existing non-preview `/environments` mount points to `api/oss/src/routers/environment_router.py`, which is legacy and only exposes deployment behavior, not revision retrieve/fetch/query/commit.
-- Do not add revision read tracking to any preview environments endpoint.
+- `EnvironmentsRouter` is mounted at both `/environments` and `/preview/environments` from a single instance (`api/entrypoints/routers.py`). Both prefixes share the same handler object, so each request emits exactly once regardless of which prefix is hit.
+- Emission is implemented at the route handler boundary; both mounts therefore inherit the same instrumentation automatically.
 - Environments remain in scope as a major entity.
 - The existing `environments.revisions.committed` producer in `core/environments/service.py` is the commit-event precedent.
-- Environment revision read tracking should be wired to `/environments/revisions/*`, not to `/preview/environments/revisions/*`.
 
 Create and Commit Note
 
@@ -205,13 +201,13 @@ Rules:
 
 ## Emission Design
 
-Shared utilities live in `api/oss/src/core/events/utils.py`:
+Shared utilities live in `api/oss/src/core/events/utils.py`. All helpers use keyword-only arguments:
 
-- `publish_trace_fetched(request, count, trace_id=..., trace_ids=...)`
-- `publish_trace_queried(request, count, trace_ids=...)`
-- `publish_testcase_fetched(request, count, testcase_id=..., testcase_ids=...)`
-- `publish_testcase_queried(request, count, testcase_ids=...)`
-- `publish_revision_event(domain, action, revision|revisions, ..., request=... | project_id/user_id explicit)`
+- `publish_trace_fetched(*, request, count, trace_id=None, trace_ids=None)`
+- `publish_trace_queried(*, request, count, trace_ids=None)`
+- `publish_testcase_fetched(*, request, count, testcase_id=None, testcase_ids=None)`
+- `publish_testcase_queried(*, request, count, testcase_ids=None)`
+- `publish_revision_event(*, request=None, organization_id=None, project_id=None, user_id=None, domain, action, revision=None, revisions=None, count=None, message=None, extra=None)`
 
 Behavior:
 

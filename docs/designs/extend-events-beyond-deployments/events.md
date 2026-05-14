@@ -171,6 +171,8 @@ For remove delta commits:
 
 ## Revision Payload Pattern
 
+Read events (`retrieved` / `fetched` / `queried` / `logged`) always include `count`. Commit events (`committed`) omit `count` — the helper drops it automatically. Per-event examples below reflect this; the generic shapes in this section apply to read events.
+
 Single revision read events use domain-specific `references`:
 
 ```json

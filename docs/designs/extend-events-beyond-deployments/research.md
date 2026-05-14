@@ -140,10 +140,9 @@ Stable mounted revision APIs:
 
 Environment caveat:
 
-- The domain-style environments router with revision retrieve/query/commit is mounted at `/preview/environments`.
-- A separate legacy environments router is mounted at `/environments`; it does not expose revision retrieve/fetch/query/commit endpoints.
-- `environments.revisions.committed` is already emitted from `core/environments/service.py`, even though the domain-style router is preview-mounted.
-- Environments remain in scope as a major entity. The current preview-only mount should be treated as a mounting gap; tracking should target non-preview `/environments/revisions/*`.
+- The domain-style `EnvironmentsRouter` (with revision retrieve/fetch/query/log/commit) is mounted at both `/environments` and `/preview/environments` from a single shared instance, so each request emits exactly once.
+- `environments.revisions.committed` is already emitted from `core/environments/service.py`, matching the read-router / write-service split used by every other domain.
+- Environments remain in scope as a major entity.
 
 Create route caveat:
 
