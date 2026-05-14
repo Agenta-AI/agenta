@@ -263,6 +263,33 @@ interface ScenarioStepsKey {
     scenarioId: string
 }
 
+function normalizeString(value: unknown): string | null {
+    if (typeof value !== "string") return null
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+}
+
+function getReferenceValue(
+    step: EvaluationRunDataStep,
+    refName: string,
+    key: "id" | "slug",
+): string | null {
+    return normalizeString(step.references?.[refName]?.[key])
+}
+
+function stripOutputSuffix(value: string | null): string | null {
+    if (!value) return null
+    const parts = value.split(".").filter(Boolean)
+    if (parts.length < 2) return value
+    return parts.slice(0, -1).join(".") || value
+}
+
+function lastSegment(value: string | null): string | null {
+    if (!value) return null
+    const parts = value.split(".").filter(Boolean)
+    return parts.at(-1) ?? value
+}
+
 // ============================================================================
 // CONVENIENCE SELECTORS (compound derived data)
 // ============================================================================
@@ -278,7 +305,23 @@ export interface AnnotationColumnDef {
     columnKind: string | null
     path: string | null
     evaluatorId: string | null
+    evaluatorRevisionId: string | null
     evaluatorSlug: string | null
+}
+
+function getAnnotationEvaluatorSlug(
+    step: EvaluationRunDataStep,
+    mapping: EvaluationRunDataMapping,
+): string | null {
+    const candidates = [
+        getReferenceValue(step, "evaluator", "slug"),
+        getReferenceValue(step, "evaluator_variant", "slug"),
+        lastSegment(normalizeString(step.key)),
+        stripOutputSuffix(normalizeString(mapping.column?.name)),
+        getReferenceValue(step, "evaluator_revision", "slug"),
+    ]
+
+    return candidates.find((candidate) => Boolean(candidate)) ?? null
 }
 
 /**
@@ -301,8 +344,9 @@ const annotationColumnDefsAtomFamily = atomFamily((runId: string) =>
                     columnName: m.column?.name ?? null,
                     columnKind: m.column?.kind ?? null,
                     path: m.step!.path ?? null,
-                    evaluatorId: step.references?.evaluator?.id ?? null,
-                    evaluatorSlug: step.references?.evaluator?.slug ?? null,
+                    evaluatorId: getReferenceValue(step, "evaluator", "id"),
+                    evaluatorRevisionId: getReferenceValue(step, "evaluator_revision", "id"),
+                    evaluatorSlug: getAnnotationEvaluatorSlug(step, m),
                 }
             })
     }),

@@ -780,3 +780,49 @@ export function remapTargetRowsToBaseRevision(params: {
         droppedRowCount,
     }
 }
+
+export function buildExistingTestsetRowOperations(params: {
+    rows: TestsetSyncRow[]
+    baseRows: BaseRevisionTestcaseRow[]
+}): {
+    replace?: {id: string; data: Record<string, unknown>}[]
+    add?: {data: Record<string, unknown>}[]
+} {
+    const baseRowIds = new Set<string>()
+    const baseRowIdByDedup = new Map<string, string>()
+
+    for (const row of params.baseRows) {
+        if (row.id) {
+            baseRowIds.add(row.id)
+        }
+
+        const dedupId = getTestcaseDedupId(row.data)
+        if (row.id && dedupId) {
+            baseRowIdByDedup.set(dedupId, row.id)
+        }
+    }
+
+    const replace: {id: string; data: Record<string, unknown>}[] = []
+    const add: {data: Record<string, unknown>}[] = []
+
+    for (const row of params.rows) {
+        if (baseRowIds.has(row.rowId)) {
+            replace.push({id: row.rowId, data: row.data})
+            continue
+        }
+
+        const dedupId = getTestcaseDedupId(row.data)
+        const mappedRowId = dedupId ? baseRowIdByDedup.get(dedupId) : null
+        if (mappedRowId) {
+            replace.push({id: mappedRowId, data: row.data})
+            continue
+        }
+
+        add.push({data: row.data})
+    }
+
+    return {
+        ...(replace.length > 0 ? {replace} : {}),
+        ...(add.length > 0 ? {add} : {}),
+    }
+}

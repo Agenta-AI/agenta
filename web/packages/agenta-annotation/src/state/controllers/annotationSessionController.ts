@@ -75,6 +75,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {
     buildTestcaseExportRows,
     buildTraceTestsetRows,
+    buildExistingTestsetRowOperations,
     buildTestsetSyncOperations,
     buildTestsetSyncPreview,
     getTestsetSyncEvaluatorColumnKey,
@@ -82,6 +83,7 @@ import {
     selectQueueScopedAnnotation,
     type CompletedScenarioRef,
     type TestsetSyncEvaluator,
+    type TestsetSyncRow,
 } from "../testsetSync"
 import {getTraceInputDisplayKeys} from "../traceInputDisplay"
 import type {
@@ -506,6 +508,12 @@ const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     return get(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
 })
 
+function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): string | null {
+    if (!stepKey) return null
+    const parts = stepKey.split(".").filter(Boolean)
+    return parts.at(-1) ?? null
+}
+
 /**
  * Ordered evaluator references from annotation steps.
  * Each entry preserves the queue's pinned evaluator revision while keeping the
@@ -524,6 +532,8 @@ const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
             revisionId: step.references?.evaluator_revision?.id ?? null,
             slug:
                 step.references?.evaluator?.slug ??
+                step.references?.evaluator_variant?.slug ??
+                deriveEvaluatorSlugFromStepKey(step.key) ??
                 step.references?.evaluator_revision?.slug ??
                 null,
             stepKey: step.key ?? null,
@@ -545,6 +555,8 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
         const name = evaluatorEntity?.name?.trim() || null
         const slug =
             step.references?.evaluator?.slug ??
+            step.references?.evaluator_variant?.slug ??
+            deriveEvaluatorSlugFromStepKey(step.key) ??
             evaluatorEntity?.slug ??
             step.references?.evaluator_revision?.slug ??
             workflowId
@@ -753,11 +765,14 @@ const META_KEYS = new Set(["tags", "meta"])
 type TestcaseColumnGroup = "input" | "output" | "expected"
 
 function getAnnotationDisplayTitle(get: Getter, def: AnnotationColumnDef): string {
-    const evaluator = def.evaluatorId ? get(workflowMolecule.selectors.data(def.evaluatorId)) : null
+    const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId
+    const evaluator = evaluatorLookupId
+        ? get(workflowMolecule.selectors.data(evaluatorLookupId))
+        : null
     return (
         evaluator?.name?.trim() ||
-        evaluator?.slug?.trim() ||
         def.evaluatorSlug?.trim() ||
+        evaluator?.slug?.trim() ||
         def.columnName?.trim() ||
         def.stepKey?.trim() ||
         ""
@@ -3027,15 +3042,31 @@ const addScenariosToTestsetAtom = atom(
 
                     const rowsForCommit = remapRowsToExistingLeafColumns(rows, existingColumns)
 
+                    const baseRows =
+                        queueKind === "testcases"
+                            ? await fetchBaseRevisionRows({
+                                  projectId,
+                                  revisionId: latestRevision.id,
+                              })
+                            : []
+
+                    // Testcase exports replace rows present in the target revision and add
+                    // rows that came from another source testset. Trace exports are always new rows.
+                    const operations =
+                        queueKind === "testcases"
+                            ? buildExistingTestsetRowOperations({
+                                  rows: rowsForCommit as TestsetSyncRow[],
+                                  baseRows,
+                              })
+                            : {
+                                  add: rowsForCommit.map((row) => ({data: row.data})),
+                              }
+
                     const patchResult = await patchRevision({
                         projectId,
                         testsetId: targetTestsetId,
                         baseRevisionId: latestRevision.id,
-                        operations: {
-                            rows: {
-                                add: rowsForCommit.map((row) => ({data: row.data})),
-                            },
-                        },
+                        operations: {rows: operations},
                         message: payload.commitMessage,
                     })
                     committedRevisionId = patchResult?.testset_revision?.id
