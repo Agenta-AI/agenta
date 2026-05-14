@@ -11,6 +11,7 @@
 import {fetchWorkflowRevisionById} from "@agenta/entities/workflow"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {executeWorkflowRevision} from "@agenta/playground"
+import {normalizeStacktrace} from "@agenta/playground/utils"
 import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
@@ -201,9 +202,7 @@ export const triggerRunInvocationAtom = atom(
             } else {
                 // Record failure in step result
                 const errorMessage = result.error?.message ?? "Invocation failed"
-                const errorStacktrace = Array.isArray(result.error?.stacktrace)
-                    ? result.error.stacktrace.join("\n")
-                    : result.error?.stacktrace
+                const errorStacktrace = normalizeStacktrace(result.error?.stacktrace)
                 await upsertStepResultWithInvocation({
                     runId,
                     scenarioId,

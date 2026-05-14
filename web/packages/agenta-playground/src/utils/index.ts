@@ -13,3 +13,4 @@ export {
     type ToolCallView,
 } from "./assistantDisplay"
 export {getEvaluatorVerdictFromOutput, type EvaluatorVerdict} from "./evaluatorVerdict"
+export {parseHttpErrorBody, normalizeStacktrace, type HttpErrorBody} from "./parseHttpError"

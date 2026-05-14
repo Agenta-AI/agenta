@@ -23,6 +23,7 @@ import {
     resultsByKeyAtomFamily,
 } from "./atoms"
 import {createExecutionItemHandle} from "./executionItems"
+import {parseHttpErrorBody} from "../../utils/parseHttpError"
 import {extractSpanIdFromPayload, extractTraceIdFromPayload} from "./trace"
 import type {ExecutionSession, RunResult, SessionExecutionOptions} from "./types"
 
@@ -638,24 +639,16 @@ async function executeViaFetch(params: {
 
         if (!response.ok) {
             const errorText = await response.text()
-            let errorMessage = `Request failed with status ${response.status}`
-            let errorStacktrace: string | string[] | undefined
+            const {message: errorMessage, stacktrace: errorStacktrace} = parseHttpErrorBody(
+                errorText,
+                `Request failed with status ${response.status}`,
+            )
             let traceId: string | null = null
 
             try {
-                const errorData = JSON.parse(errorText)
-                traceId = extractTraceIdFromPayload(errorData)
-                if (errorData?.status?.message) {
-                    errorMessage = errorData.status.message
-                    errorStacktrace = errorData.status.stacktrace
-                } else if (errorData?.detail?.message) {
-                    errorMessage = errorData.detail.message
-                    errorStacktrace = errorData.detail.stacktrace
-                } else if (typeof errorData?.detail === "string") {
-                    errorMessage = errorData.detail
-                }
+                traceId = extractTraceIdFromPayload(JSON.parse(errorText))
             } catch {
-                if (errorText) errorMessage = errorText
+                // non-JSON body — no trace ID available
             }
 
             return {

@@ -8,7 +8,9 @@
     "scripts": {
         "build": "tsc --noEmit",
         "types:check": "tsc --noEmit",
-        "lint": "eslint --config ../eslint.config.mjs src/"
+        "lint": "eslint --config ../eslint.config.mjs src/",
+        "test": "vitest run",
+        "test:watch": "vitest"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -35,6 +37,7 @@
         "@types/node": "^20.8.10",
         "@types/react": "^19.0.10",
         "jotai-family": "^1.0.1",
-        "typescript": "5.8.3"
+        "typescript": "5.8.3",
+        "vitest": "^2.1.9"
     }
 }
