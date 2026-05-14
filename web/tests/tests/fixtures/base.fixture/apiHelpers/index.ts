@@ -1,6 +1,6 @@
 import {existsSync, readFileSync} from "fs"
 
-import {expect, Locator, Page, Response} from "@playwright/test"
+import {expect, Page, Response} from "@playwright/test"
 
 import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
 import {SnakeToCamelCaseKeys, testset} from "../../../../../oss/src/lib/Types"
@@ -11,6 +11,7 @@ import {FixtureContext} from "../types"
 import type {ApiHandlerOptions, ApiHelpers, CreateTestsetInput, CreatedTestset} from "./types"
 
 type APP_TYPE = "completion" | "chat" | "custom"
+type CREATABLE_APP_TYPE = Exclude<APP_TYPE, "custom">
 
 interface ListAppsItem {
     id: string
@@ -40,12 +41,6 @@ interface ApiVariant {
     } | null
     created_at: string | null
     updated_at: string | null
-}
-
-const APP_TYPE_LABELS: Record<APP_TYPE, string> = {
-    completion: "Completion",
-    chat: "Chat",
-    custom: "Custom Prompt",
 }
 
 const latestRevisionIdByAppId = new Map<string, string>()
@@ -201,86 +196,120 @@ const waitForMatchingResponses = async (
     })
 }
 
-const selectCreatePromptType = async (dialog: Locator, appTypeLabel: string) => {
-    await expect(dialog.getByText("Choose the prompt type", {exact: true})).toBeVisible({
-        timeout: 15000,
+const confirmCreateEntityModal = async (page: Page) => {
+    const confirmModal = page
+        .locator(".ant-modal-wrap")
+        .filter({
+            has: page.locator(".ant-modal-footer"),
+        })
+        .last()
+    const confirmButton = confirmModal.locator(".ant-modal-footer").getByRole("button", {
+        name: "Create",
+        exact: true,
     })
 
-    const appTypeCards = dialog.locator(".ant-card")
-    await expect(appTypeCards.first()).toBeVisible({timeout: 15000})
-
-    const matchingCards = appTypeCards.filter({hasText: new RegExp(appTypeLabel, "i")})
-    await expect.poll(async () => await matchingCards.count(), {timeout: 15000}).toBeGreaterThan(0)
-
-    const appTypeCard = matchingCards.first()
-    await expect(appTypeCard).toBeVisible({timeout: 15000})
-
-    const appTypeRadio = appTypeCard.locator('input[type="radio"]').first()
-    const isSelected = async () => {
-        if ((await appTypeRadio.count().catch(() => 0)) > 0) {
-            return await appTypeRadio.isChecked().catch(() => false)
-        }
-
-        const checkedRadio = appTypeCard.locator(".ant-radio-checked").first()
-        return await checkedRadio.isVisible().catch(() => false)
-    }
-
-    if (!(await isSelected())) {
-        await appTypeCard.click()
-    }
-
-    await expect.poll(isSelected, {timeout: 15000}).toBe(true)
+    await expect(confirmModal).toBeVisible({timeout: 15000})
+    await expect(confirmButton).toBeVisible({timeout: 15000})
+    await expect(confirmButton).toBeEnabled({timeout: 15000})
+    await confirmButton.click({force: true})
 }
 
-async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
-    await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
-    await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
+// Dropdown testIds for the CreateAppDropdown popover (apps table header / empty state)
+const TYPE_DROPDOWN_TESTIDS: Record<CREATABLE_APP_TYPE, string> = {
+    completion: "create-app-dropdown-completion",
+    chat: "create-app-dropdown-chat",
+}
 
-    const appName = `e2e-${type}-${Date.now()}`
-    const dialog = page.getByRole("dialog").last()
+// Modal testIds for the CreateAppTypeModal (welcome card "Create a prompt" entry)
+const TYPE_MODAL_TESTIDS: Record<CREATABLE_APP_TYPE, string> = {
+    completion: "create-app-type-modal-completion",
+    chat: "create-app-type-modal-chat",
+}
+
+const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) => {
+    const dropdownTypeTestId = TYPE_DROPDOWN_TESTIDS[type]
+    const modalTypeTestId = TYPE_MODAL_TESTIDS[type]
     const createEntryPoints = [
-        page.getByRole("button", {name: "Create New Prompt"}).first(),
-        page.getByRole("button", {name: /Click here to create your first prompt/i}).first(),
+        page.getByTestId("create-app-dropdown-trigger").first(),
         page.getByText("Create a prompt", {exact: true}).first(),
     ]
 
     await expect
         .poll(
             async () => {
-                for (const entryPoint of createEntryPoints) {
-                    if (await entryPoint.isVisible().catch(() => false)) {
-                        return true
-                    }
+                for (const ep of createEntryPoints) {
+                    if (await ep.isVisible().catch(() => false)) return true
                 }
-
                 return false
             },
             {timeout: 15000},
         )
         .toBe(true)
 
-    let dialogVisible = false
-    for (const entryPoint of createEntryPoints) {
-        const entryPointVisible = await entryPoint.isVisible().catch(() => false)
-        if (!entryPointVisible) {
-            continue
-        }
+    const typeSelector = page
+        .getByTestId(dropdownTypeTestId)
+        .or(page.getByTestId(modalTypeTestId))
+        .first()
 
-        await entryPoint.click()
-        dialogVisible = await dialog.isVisible({timeout: 5000}).catch(() => false)
-        if (dialogVisible) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        for (const ep of createEntryPoints) {
+            if (!(await ep.isVisible().catch(() => false))) continue
+
+            await ep.scrollIntoViewIfNeeded().catch(() => undefined)
+            await ep.click({force: attempt > 0})
             break
         }
+
+        const opened = await typeSelector
+            .waitFor({state: "visible", timeout: 3000})
+            .then(() => true)
+            .catch(() => false)
+
+        if (opened) {
+            await typeSelector.click()
+            const drawer = page
+                .getByRole("dialog")
+                .filter({has: page.getByTestId("app-create-name-input")})
+                .last()
+            await expect(drawer).toBeVisible({timeout: 15000})
+            return drawer
+        }
+
+        await page.keyboard.press("Escape").catch(() => undefined)
     }
 
-    await expect(dialog).toBeVisible({timeout: 15000})
+    await expect(typeSelector).toBeVisible({timeout: 15000})
+    await typeSelector.click()
+    const drawer = page
+        .getByRole("dialog")
+        .filter({has: page.getByTestId("app-create-name-input")})
+        .last()
+    await expect(drawer).toBeVisible({timeout: 15000})
+    return drawer
+}
+
+async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
+    if (type === "custom") {
+        throw new Error(`App creation is not implemented for app type 'custom'.`)
+    }
+
+    await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
+    await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
+
+    const appName = `e2e-${type}-${Date.now()}`
+    const drawer = await openCreateAppDrawerForType(page, type)
+
+    // The app name is entered via the inline input in the drawer header.
+    const nameInput = page.getByTestId("app-create-name-input").first()
+    await expect(nameInput).toBeVisible({timeout: 15000})
+
     let nameFilled = false
     for (let attempt = 0; attempt < 3; attempt += 1) {
-        const nameInput = dialog.getByRole("textbox", {name: "Enter a name"})
-        await expect(nameInput).toBeVisible({timeout: 15000})
-
         try {
+            await nameInput.click()
             await nameInput.fill(appName)
+            // Blur so the workflow draft picks up the new name via the onBlur handler.
+            await nameInput.blur()
             nameFilled = true
             break
         } catch (error) {
@@ -291,13 +320,6 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     }
 
     expect(nameFilled).toBe(true)
-
-    const appTypeLabel = APP_TYPE_LABELS[type]
-    if (!appTypeLabel) {
-        throw new Error(`App creation is not implemented for app type '${type}'.`)
-    }
-
-    await selectCreatePromptType(dialog, appTypeLabel)
 
     // 1. POST /workflows/ — create the workflow
     const createWorkflowPromise = page.waitForResponse((response) => {
@@ -334,12 +356,17 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         2,
     )
 
-    const submitButton = dialog.getByRole("button", {
-        name: "Create New Prompt",
-    })
-    await expect(submitButton).toBeVisible({timeout: 15000})
-    await expect(submitButton).toBeEnabled({timeout: 15000})
-    await submitButton.click()
+    // CommitVariantChangesButton shows "Create" (not "Commit") for ephemeral local-* entities.
+    // Use exact:true + drawer scope to avoid matching "Create New Prompt" in the background.
+    const createButton = drawer.getByRole("button", {name: "Create", exact: true}).first()
+    await expect(createButton).toBeVisible({timeout: 15000})
+    await expect(createButton).toBeEnabled({timeout: 15000})
+    await createButton.click()
+
+    // Clicking "Create" opens CommitVariantChangesModal (EntityCommitModal with
+    // actionLabel="Create"). Wait for the modal submit button before clicking:
+    // Locator.isVisible() is an immediate snapshot and can race the antd modal render.
+    await confirmCreateEntityModal(page)
 
     // Wait for workflow creation
     const workflowResponse = await createWorkflowPromise

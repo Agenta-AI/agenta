@@ -15,6 +15,7 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import {
     registerWorkflowCommitCallbacks,
     getWorkflowCommitCallbacks,
+    hasFullPagePlaygroundUX,
     parseEvaluatorKeyFromUri,
     evaluatorTemplatesMapAtom,
     workflowMolecule,
@@ -47,6 +48,7 @@ import {
     workflowRevisionDrawerOpenAtom,
     workflowRevisionDrawerViewModeAtom,
     WorkflowRevisionDrawer,
+    suppressDrawerCloseUrlCleanupAtom,
     type DrawerProviders,
 } from "@agenta/playground-ui/workflow-revision-drawer"
 import {EnvironmentTag} from "@agenta/ui"
@@ -450,11 +452,57 @@ const useDrawerCreateCommitCallback = () => {
                 await previousOnNewRevision?.(result, params)
 
                 if (isEvaluatorCreate) {
+                    const newWorkflow = result.workflow as
+                        | {
+                              workflow_id?: string
+                              id?: string
+                              slug?: string
+                              flags?: Record<string, unknown> | null
+                              data?: {uri?: string | null} | null
+                              meta?: Record<string, unknown> | null
+                          }
+                        | undefined
+                    const newAppId = newWorkflow?.workflow_id ?? newWorkflow?.id ?? undefined
+                    const newRevisionId = result.newRevisionId
+
                     drawerCallbackRef.current?.({
-                        configId: result.newRevisionId,
-                        newRevisionId: result.newRevisionId,
+                        configId: newRevisionId,
+                        newAppId,
+                        newRevisionId,
                     })
-                    closeDrawerRef.current()
+
+                    message.success("Evaluator created successfully")
+
+                    // Close the drawer immediately and fire-and-forget the
+                    // navigation. We pass `skipUrlCleanup: true` so the
+                    // drawer-close effect doesn't run `setQueryRevision(null)`
+                    // against the stale pathname — that race would cancel the
+                    // in-flight `router.push` to the new playground.
+                    //
+                    // (`Router.pathname` only flips on `routeChangeComplete`,
+                    // so a synchronous close after `router.push` would patch
+                    // the still-current `/evaluators` URL and push back to it.)
+                    let eligibleForPlayground = false
+                    if (newAppId && newRevisionId && newWorkflow) {
+                        eligibleForPlayground = hasFullPagePlaygroundUX({
+                            flags: newWorkflow.flags ?? null,
+                            data: newWorkflow.data ?? null,
+                            meta: newWorkflow.meta ?? null,
+                            slug: newWorkflow.slug ?? null,
+                        })
+                    }
+
+                    if (eligibleForPlayground && newAppId && newRevisionId) {
+                        const url = `${baseAppURLRef.current}/${encodeURIComponent(
+                            newAppId,
+                        )}/playground?revisions=${encodeURIComponent(newRevisionId)}`
+                        closeDrawerRef.current({skipUrlCleanup: true})
+                        void routerRef.current.push(url).catch((err) => {
+                            console.error("[evaluator-create] router.push failed", err)
+                        })
+                    } else {
+                        closeDrawerRef.current()
+                    }
                 } else if (isAppCreate) {
                     const newWorkflow = result.workflow as
                         | {workflow_id?: string; id?: string}
@@ -469,22 +517,28 @@ const useDrawerCreateCommitCallback = () => {
                     // paginated store.
                     void invalidateAppManagementWorkflowQueries()
 
-                    // Fire the user callback first so any analytics/hooks
-                    // see the result. Then handle navigation + close inside
-                    // the wrapper itself — owning the routing here keeps the
-                    // contract simple for callers and avoids brittleness from
-                    // a callback closure capturing stale router references.
                     drawerCallbackRef.current?.({
                         newAppId,
                         newRevisionId,
                     })
 
+                    message.success("App created successfully")
+
+                    // Close immediately and fire-and-forget navigation. See
+                    // the evaluator-create branch above for why we use
+                    // `skipUrlCleanup` instead of awaiting `router.push`.
                     if (newAppId && newRevisionId) {
-                        routerRef.current.push(
-                            `${baseAppURLRef.current}/${newAppId}/playground?revisions=${newRevisionId}`,
-                        )
+                        closeDrawerRef.current({skipUrlCleanup: true})
+                        void routerRef.current
+                            .push(
+                                `${baseAppURLRef.current}/${newAppId}/playground?revisions=${newRevisionId}`,
+                            )
+                            .catch((err) => {
+                                console.error("[app-create] router.push failed", err)
+                            })
+                    } else {
+                        closeDrawerRef.current()
                     }
-                    closeDrawerRef.current()
                 } else {
                     // In evaluator-view mode, the selection change callback
                     // skips updating the drawer entity ID (because the drawer
@@ -493,15 +547,8 @@ const useDrawerCreateCommitCallback = () => {
                     // so the drawer displays the newly committed revision.
                     const store = getDefaultStore()
                     store.set(workflowRevisionDrawerEntityIdAtom, result.newRevisionId)
+                    message.success("Evaluator committed successfully")
                 }
-
-                message.success(
-                    isAppCreate
-                        ? "App created successfully"
-                        : isEvaluatorCreate
-                          ? "Evaluator created successfully"
-                          : "Evaluator committed successfully",
-                )
             },
         })
 
@@ -610,14 +657,26 @@ const WorkflowRevisionDrawerWrapper = () => {
     useDrawerCloseCleanup()
     useUnsavedDrawerWarning()
 
-    // Clear revisionId from URL when drawer closes
+    // Clear revisionId from URL when drawer closes.
+    //
+    // When `closeWorkflowRevisionDrawerAtom` is invoked with
+    // `{skipUrlCleanup: true}` (e.g. from the create-callbacks immediately
+    // before kicking off `router.push` to a different page), skip this
+    // cleanup. Otherwise the cleanup runs against the still-stale pathname
+    // (`Router.pathname` only flips on `routeChangeComplete`), rebuilds the
+    // current URL without `revisionId`, and pushes it — which cancels the
+    // in-flight navigation to the new playground.
+    const [suppressUrlCleanup, setSuppressUrlCleanup] = useAtom(suppressDrawerCloseUrlCleanupAtom)
     const prevOpenRef = useRef(isOpen)
     useEffect(() => {
         if (prevOpenRef.current && !isOpen) {
-            setQueryRevision(null, {shallow: true})
+            if (!suppressUrlCleanup) {
+                setQueryRevision(null, {shallow: true})
+            }
+            setSuppressUrlCleanup(false)
         }
         prevOpenRef.current = isOpen
-    }, [isOpen, setQueryRevision])
+    }, [isOpen, setQueryRevision, suppressUrlCleanup, setSuppressUrlCleanup])
 
     // Update URL when prev/next navigation occurs.
     const setQueryRevisionRef = useRef(setQueryRevision)

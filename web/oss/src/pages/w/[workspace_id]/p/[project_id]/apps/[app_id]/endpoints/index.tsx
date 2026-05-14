@@ -30,6 +30,7 @@ import invokeLlmAppcURLCode from "@/oss/code_snippets/endpoints/invoke_llm_app/c
 import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app/python"
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import DynamicCodeBlock from "@/oss/components/DynamicCodeBlock/DynamicCodeBlock"
+import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {isDemo} from "@/oss/lib/helpers/utils"
@@ -135,7 +136,7 @@ export const createParams = (
     return JSON.stringify(params, null, 2)
 }
 
-export default function VariantEndpoint() {
+function VariantEndpointContent() {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
@@ -333,5 +334,13 @@ export default function VariantEndpoint() {
                 />
             )}
         </div>
+    )
+}
+
+export default function VariantEndpoint() {
+    return (
+        <RequireWorkflowKind allowed={["app"]} currentRoute="endpoints">
+            <VariantEndpointContent />
+        </RequireWorkflowKind>
     )
 }

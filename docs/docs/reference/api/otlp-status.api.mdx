@@ -1,11 +1,11 @@
 ---
 id: otlp-status
 title: "Status check for OTLP"
-description: "Status check for OTLP"
+description: "Return the OTLP endpoint liveness status."
 sidebar_label: "Status check for OTLP"
 hide_title: true
 hide_table_of_contents: true
-api: eJyNU8Fu2zAM/ZWAZ61Od/RpwTBsQQckWLNTYBSszMRqZUmV6GCe4X8fKKdGmqHDfLElvscnv0cNwHhMUO5hE8jtyFJLHHuoFPhAEdl4t66hBM82PCRG7hIoiJSCd4kSlAN8XC7lVVPS0QRhQAn3ndaU0qGzix9nMCjQ3jE5FjiGYI3OAsVTEs4ASTfUonyFKPJsJoXUheAjP5g6M12/OUC5H4D7QFBC4mjcEUY177jOWhgrBWzYUj5O7rBY1zCquR+nf/VTcPCxRYYSamT6wKal/xLZpSwymVX+3XbGT4hxVK8Q//hEmrPBL52JVEsy50YXQp+9taR54s/2jvKo6xwyZqEb0s+Lg4+Lze77FhS0xI2XYI8kegG5gRIKibk43RYcUZMknSieKKZsTxetYDCYbMO0bJhDWRTWa7SNTzyVK2HqLhruM3W1Xd9R/42wpgjlvroE3EvqU9BvYbNzGMwd9aDAYSvrVceNj+Z3nh5QYORPm4klFhh38Jl+9mt1JMe4WG3XcO3Pm5KMJ+o8nq9KuQzq4mdTWRSYt2/QFKCAWjRSZML201yRERDnJpnlze3NUraCT9yiu5B4L6E355ytYPrFRbBonHTLpxrO6e3zJQUFp1sZsinBSoGkItVheMREP6MdR9l+6ShKOJWCE0aDj2LVvhrVq5OS2zP14oLWFGRMTmi7KZCryyt5ziP19csOxvEP32B69Q==
+api: eJzdlE2P0zAQhv+KNWeT7HLMiRVCUIG0KyintmJdZ9oYHNvYk0KI8t/R2G1pF4Q4c8mH5+Mdzzz2BKT2CZoV3Ad0S7TYI8URNhJaTDqaQMY7aOA90hCdoA7F/fLdg0DXBm8cCWsO6DAlkUjRkKq1W7t3Zt/RN+SniKhakx1C9FusRMmUxOO0hhKzhkasgR3HNcyP4luHbu1YKvqBMAqTRO8HR9hWYuEIXYut2PkoOlSWOqE71F+S2EXfi/sl2rXT3lrU5GMSW9z5iFz5yDVGEvg9+EjG7QVFpTFVIMEHjIr3umihAU82fCrFgYSIKXiXMEEzwfObG35dd+fDoDWmtBuseH90Bgnac63E7ioEa3QWqD8njpkg6Q57xV8hsjyZopCGwPV9Mm2OdOP9DprVBDQGhAYSReP2MMvzihushXkjgQxZzOXkDGLRwizP+Sj9LZ+EnY+9ImigVYTPyPT4TyLLlEVKs5rf0579T+18CtaJjxJRicdMwqPoUbkk/oiBUK4VSmsMlAqPxu0xUQXzLE8V+O1n1JTn93UwEVvG/FjnxT5eFlRKeRfTuy7zGvpfUJ/YYOWZxXukzjNDe2TtoKiDBmomqj7c1oU4kJAwHjCmPIkhWvZRweSOl9+OKDR1bb1WtvOJinnDkXqIhsYceveweIvjG1QtRmhWm0uHDwxYYera7TwkFcxbHEGCUz3/3w3U+Wh+ZFBBguGtdyWKN2fczufwY+/u9uhIibuHxW8NuzLxSVA6n4STUjaDvNhsaupa5eVKmRokYK8MGwlV/+JsYdq4c0Xmprqtbngp+ES9chcSZaLlcsi3Bc/waZ3Tr1P6399xx6ETfqc6WGUc9y33fzpyuso3H0g43LJ/YXUjgflj6zRtVcKP0c4zL38dMDKGGwkHFY3aMhSrzSxPzDChX3DkeefDypmVHQp6T25EJvd8eF6/WsI8/wQf60/z
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -37,7 +37,11 @@ import Translate from "@docusaurus/Translate";
 
 
 
-Status check for OTLP
+Return the OTLP endpoint liveness status.
+
+Lightweight readiness probe. Returns `{"status": "ready"}` when
+the router is mounted. Intended for health checks from OTel
+collectors before they start exporting traces.
 
 <ParamsDetails
   parameters={undefined}

@@ -1,12 +1,22 @@
-import React, {useCallback, useEffect, useMemo, useRef} from "react"
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
-import {isJsonString} from "@agenta/shared/utils"
 import {getCollapseStyle} from "@agenta/ui/components/presentational"
-import {TOGGLE_MARKDOWN_VIEW, EditorProvider, useLexicalComposerContext} from "@agenta/ui/editor"
+import {
+    DrillInProvider,
+    TOGGLE_MARKDOWN_VIEW,
+    EditorProvider,
+    $getRoot,
+    $isCodeBlockNode,
+    $createCodeBlockNode,
+    createHighlightedNodes,
+    $wrapLinesInSegments,
+    useLexicalComposerContext,
+} from "@agenta/ui/editor"
 import type {EditorProps} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {InputNumber, Switch, Typography} from "antd"
+import {Code, Info, TextAa} from "@phosphor-icons/react"
+import {Button, InputNumber, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -57,35 +67,37 @@ const MarkdownToggleRegistrar: React.FC<{
 }
 
 /**
- * Focuses the Lexical editor on mount when `armedRef.current` is true, then
- * disarms. Used so that a mode-flip-triggered remount (paste or Cmd+A+Delete)
- * returns focus to the newly-mounted editor — preserving the user's editing
- * context across the swap.
- */
-const FocusOnMountWhenArmed: React.FC<{
-    armedRef: React.MutableRefObject<boolean>
-}> = ({armedRef}) => {
-    const [editor] = useLexicalComposerContext()
-    useEffect(() => {
-        if (!armedRef.current) return
-        armedRef.current = false
-        editor.focus()
-    }, [editor, armedRef])
-    return null
-}
-
-/**
  * Shared header for all variable control types.
- * Renders the variable name label and optional header actions.
+ * Renders the variable name label, an optional info-tooltip explaining what
+ * the variable represents, and any header actions (JSON/text toggle, copy,
+ * markdown toggle, collapse) on the right.
+ *
+ * The info icon lives on the left next to the name — not in the right-hand
+ * action cluster — so it stays visible (no hover-gate) without conflicting
+ * with the hover-revealed action buttons. It's only rendered when the port
+ * carries a `helpText` (currently set by `buildEvaluatorEnvelopePorts` to
+ * distinguish evaluator envelope variables from app field variables).
  */
 const VariableHeader: React.FC<{
     name: string | undefined
     headerActions?: React.ReactNode
-}> = ({name, headerActions}) => (
+    helpText?: string
+}> = ({name, headerActions, helpText}) => (
     <div className="w-full flex items-start justify-between gap-2">
-        <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
-            {name}
-        </Typography>
+        <div className="flex items-center gap-1 min-w-0">
+            <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono truncate">
+                {name}
+            </Typography>
+            {helpText ? (
+                <Tooltip title={helpText} placement="topLeft" overlayStyle={{maxWidth: 360}}>
+                    <Info
+                        size={12}
+                        className="text-gray-400 hover:text-gray-600 shrink-0 cursor-help"
+                        aria-label={`About ${name ?? "this variable"}`}
+                    />
+                </Tooltip>
+            ) : null}
+        </div>
         {headerActions ? (
             <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
                 {headerActions}
@@ -93,6 +105,245 @@ const VariableHeader: React.FC<{
         ) : null}
     </div>
 )
+
+/**
+ * Inline JSON code editor used by the schema-typed branch of
+ * `VariableControlAdapter`. Mirrors `JsonEditorWithLocalState`'s composition
+ * exactly (EditorProvider with codeOnly+json wrapping SharedEditor with
+ * showLineNumbers, disableLongText, syncWithInitialValueChanges, and local
+ * state that swallows invalid JSON instead of propagating it) — but accepts
+ * a `header` slot so we can render the standard `VariableHeader` (blue mono
+ * label + action buttons) above the editor surface, and a `footer` slot for
+ * the schema shape hint.
+ */
+/**
+ * Seeds the JSON editor with a 3-line `{ \n \n }` skeleton on mount so an
+ * empty cell visually invites the user to type fields inside the braces
+ * instead of presenting a blank box. The cell value tracks the editor's
+ * onChange — once the editor renders `"{\n\n}"`, the cell value matches,
+ * which parses to `{}` at submission (the SDK's `parseIfJsonObject`
+ * round-trips identically).
+ *
+ * Why we don't use `INITIAL_CONTENT_COMMAND`: that handler runs
+ * `JSON.stringify(JSON5.parse(content), null, 2)` on language=json
+ * payloads. An empty object stringifies to single-line `"{}"`, collapsing
+ * the multi-line skeleton. We build the Lexical node tree directly to
+ * preserve the exact visual.
+ *
+ * Deferred to the next animation frame because this component mounts as
+ * a sibling of `SharedEditor`. React fires sibling effects in document
+ * order, so a synchronous edit here would run before `SharedEditor` had
+ * a chance to initialize the Lexical state. Deferring lets the editor
+ * settle first.
+ *
+ * Mounted as a sibling plugin inside the JSON editor's `EditorProvider`.
+ * Fires once per editor instance.
+ */
+const EmptyCodeBlockSeed: React.FC<{shouldSeed: boolean}> = ({shouldSeed}) => {
+    const [editor] = useLexicalComposerContext()
+    const seededRef = useRef(false)
+    useEffect(() => {
+        if (!shouldSeed || seededRef.current) return
+        let cancelled = false
+        let attempts = 0
+        const maxAttempts = 10
+        const trySeed = () => {
+            if (cancelled || seededRef.current) return
+            attempts += 1
+            let seeded = false
+            editor.update(() => {
+                const root = $getRoot()
+                // Bail when the editor already holds *non-empty* user
+                // content — we never clobber typed JSON. But the
+                // CodeEditorPlugin may have already created a single-line
+                // `{}` CodeBlockNode from the stale `"{}"` initial value
+                // before our deferred effect runs; that block parses to an
+                // empty object and we *do* want to replace it with the
+                // 3-line skeleton. The `shouldSeed` gate upstream already
+                // confirmed the cell is effectively empty (either truly
+                // empty or `{}`-equivalent), so reaching here means it's
+                // safe to rebuild.
+                const existing = root.getChildren().find($isCodeBlockNode)
+                if (existing) {
+                    const text = existing.getTextContent().trim()
+                    if (text) {
+                        try {
+                            const parsed = JSON.parse(text)
+                            const isEmptyObject =
+                                parsed &&
+                                typeof parsed === "object" &&
+                                !Array.isArray(parsed) &&
+                                Object.keys(parsed).length === 0
+                            if (!isEmptyObject) {
+                                seeded = true
+                                return
+                            }
+                        } catch {
+                            // Invalid JSON the user typed — don't clobber.
+                            seeded = true
+                            return
+                        }
+                    }
+                }
+                root.clear()
+                const codeBlock = $createCodeBlockNode("json")
+                // Use the editor's own `createHighlightedNodes` helper so the
+                // resulting `CodeLineNode`s contain properly-tokenized
+                // `CodeHighlightNode` + `CodeTabNode` children. A naive
+                // `$createTextNode` approach renders the right glyphs but
+                // the syntax-highlight transform pipeline doesn't recognise
+                // plain `TextNode`s as canonical code content and ends up
+                // pruning my middle/close lines on the next tick.
+                //
+                // `createHighlightedNodes` skips its JSON reformat path
+                // when the input has `\n  ` (multi-line indent), so the
+                // 3-line skeleton survives intact. The two-space indent on
+                // the middle line becomes a `CodeTabNode` so the user's
+                // typed content lands nested inside the braces.
+                const highlighted = createHighlightedNodes("{\n  \n}", "json", true)
+                $wrapLinesInSegments(highlighted).forEach((node) => {
+                    codeBlock.append(node)
+                })
+                root.append(codeBlock)
+                seeded = true
+            })
+            if (seeded) {
+                seededRef.current = true
+                return
+            }
+            if (attempts < maxAttempts) {
+                requestAnimationFrame(trySeed)
+            } else {
+                seededRef.current = true
+            }
+        }
+        const id = requestAnimationFrame(trySeed)
+        return () => {
+            cancelled = true
+            cancelAnimationFrame(id)
+        }
+    }, [editor, shouldSeed])
+    return null
+}
+
+const JsonVariableEditor: React.FC<{
+    editorKey: string
+    initialValue: string
+    onValidChange: (value: string) => void
+    readOnly?: boolean
+    header?: React.ReactNode
+    footer?: React.ReactNode
+    containerRef?: React.RefObject<HTMLDivElement | null>
+    collapsed?: boolean
+    placeholder?: string
+}> = ({
+    editorKey,
+    initialValue,
+    onValidChange,
+    readOnly,
+    header,
+    footer,
+    containerRef,
+    collapsed,
+    placeholder,
+}) => {
+    // Empty cells render with a 3-line `{ \n \n }` skeleton on mount via
+    // `EmptyCodeBlockSeed` below — gives the user a JSON-shaped invitation
+    // instead of a blank box. We previously seeded the cell *value* with
+    // `"{}"` for the same purpose, but that surfaced as a single-line
+    // artifact (QA: "Inputs always start with `{}`, why??"). The direct
+    // Lexical mutation preserves the multi-line visual.
+    //
+    // "Effectively empty" covers both truly empty cells (no value yet) AND
+    // cells whose value parses to an empty object/array. The latter happens
+    // when a stale `"{}"` value is still in the testcase store from earlier
+    // builds of this code; we want the new skeleton to apply there too,
+    // not show single-line `{}` lingering from the old default. The cell
+    // value then tracks the editor's onChange, becoming `"{\n\n}"` after
+    // the seed runs — which parses to the same `{}` at submit time.
+    const [localValue, setLocalValue] = useState(initialValue)
+    const shouldSeedEmptyLine = useMemo(() => {
+        if (!initialValue) return true
+        try {
+            const parsed = JSON.parse(initialValue)
+            if (
+                parsed &&
+                typeof parsed === "object" &&
+                !Array.isArray(parsed) &&
+                Object.keys(parsed).length === 0
+            ) {
+                return true
+            }
+        } catch {
+            // Invalid JSON — leave alone; the user has content that doesn't
+            // parse and we'd rather not clobber whatever they typed.
+        }
+        return false
+    }, [initialValue])
+
+    useEffect(() => {
+        setLocalValue(initialValue)
+    }, [initialValue])
+
+    const handleChange = useCallback(
+        (value: string) => {
+            setLocalValue(value)
+            try {
+                JSON.parse(value)
+                onValidChange(value)
+            } catch {
+                // Invalid JSON — keep local state but don't sync to parent.
+            }
+        },
+        [onValidChange],
+    )
+
+    return (
+        <div
+            ref={containerRef}
+            className="w-full flex flex-col gap-1"
+            style={collapsed ? getCollapseStyle(collapsed) : undefined}
+        >
+            <DrillInProvider value={{enabled: false, decodeEscapedJsonStrings: false}}>
+                <EditorProvider key={editorKey} codeOnly language="json" showToolbar={false}>
+                    <EmptyCodeBlockSeed shouldSeed={shouldSeedEmptyLine} />
+                    <SharedEditor
+                        key={`${editorKey}-shared`}
+                        initialValue={localValue}
+                        handleChange={readOnly ? undefined : handleChange}
+                        // Pass the header THROUGH SharedEditor so it renders
+                        // inside the bordered container — matches the string
+                        // branch's layout exactly. Rendering the header in a
+                        // sibling div above the editor produces the "label
+                        // outside, body inside" visual the user flagged as
+                        // inconsistent with the other variable rows.
+                        header={header}
+                        placeholder={placeholder}
+                        editorType="border"
+                        // Match the string-branch JSON spacing (`!pt-[11px]
+                        // !pb-0 [&_.agenta-editor-wrapper]:!mb-0`) so the
+                        // label's top offset is identical to the text-editor
+                        // case. Without these overrides the header sits
+                        // slightly higher in the JSON branch.
+                        className="min-h-[60px] overflow-hidden !pt-[11px] !pb-0 [&_.agenta-editor-wrapper]:!mb-0"
+                        disableDebounce
+                        noProvider
+                        syncWithInitialValueChanges
+                        disabled={readOnly}
+                        state={readOnly ? "readOnly" : undefined}
+                        editorProps={{
+                            codeOnly: true,
+                            language: "json",
+                            showLineNumbers: true,
+                            disableLongText: true,
+                        }}
+                    />
+                </EditorProvider>
+            </DrillInProvider>
+            {footer}
+        </div>
+    )
+}
 
 /**
  * VariableControlAdapter
@@ -141,10 +392,37 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     // of the raw path. The key stays unchanged for request-payload identity.
     const schemaMap = useAtomValue(executionItemController.selectors.inputPortSchemaMap) as Record<
         string,
-        {type: string; name?: string; schema?: unknown}
+        {type: string; name?: string; schema?: unknown; helpText?: string}
     >
-    const portType = schemaMap[variableKey]?.type ?? "string"
+    const declaredPortType = schemaMap[variableKey]?.type ?? "string"
     const portSchema = schemaMap[variableKey]?.schema
+    const helpText = schemaMap[variableKey]?.helpText
+
+    // Explicit text/JSON toggle. The button lives in the variable header
+    // (see `composedHeaderActions` below) and lets the user flip between
+    // editor surfaces — JSON code editor (line numbers + syntax) vs. plain
+    // text — for any port whose declared type is `string`, `object`, or
+    // `array`. Both surfaces edit the same stored string value; the
+    // runtime's `parseIfJsonObject` round-trips JSON-shaped strings either
+    // way. We deliberately don't auto-detect from content: swapping
+    // editors mid-keystroke yanks the user's caret.
+    //
+    // `forceMode` is the per-session user override. When unset, the
+    // editor surface follows the declared port type: `object`/`array`
+    // start in JSON; `string` starts as text. Numeric/boolean ports route
+    // through dedicated controls (InputNumber/Switch) below and never
+    // hit this toggle path.
+    const [forceMode, setForceMode] = useState<"json" | "text" | null>(null)
+    const declaredIsJson = declaredPortType === "object" || declaredPortType === "array"
+    const declaredIsToggleable = declaredIsJson || declaredPortType === "string"
+    const effectiveSurface: "json" | "text" = forceMode ?? (declaredIsJson ? "json" : "text")
+    // `portType` retains the full type union for the number/boolean/array
+    // branches below; we only override it when the user has explicitly
+    // flipped the surface via the JSON/text toggle.
+    const portType: string =
+        forceMode === "json" ? "object" : forceMode === "text" ? "string" : declaredPortType
+    const canToggleJson = declaredIsToggleable
+
     const name = useMemo(
         () =>
             variableKeys.includes(variableKey)
@@ -186,39 +464,14 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         return JSON.stringify(obj)
     }, [portType, portSchema])
 
-    // Detect whether the value looks like JSON. Derived during render (no
-    // useState + useEffect indirection) so the mode is correct on the very
-    // first render after a paste/edit — avoids a flicker where the content
-    // briefly appears in the wrong editor before an effect-driven sync runs.
-    //
-    // Sticky during character-by-character edits: once detected as JSON, a
-    // single-keystroke change that transiently breaks the JSON shape (e.g.
-    // deleting the closing `}`) keeps the editor in JSON mode rather than
-    // remounting Lexical mid-edit. Bulk replacements (paste, Cmd+A+Delete,
-    // programmatic resets) skip stickiness because their length delta exceeds
-    // 1 — they re-detect freshly from the new value.
-    //
-    // The EditorProvider downstream is keyed on this flag, so every flip
-    // triggers a clean Lexical remount (avoiding the MarkdownShortcuts
-    // dependency crash that earlier blocked downgrades on the same instance).
-    const valStr = typeof value === "string" ? value : ""
-    const prevValueRef = useRef<string>("")
-    const prevDetectedRef = useRef<boolean>(false)
-    let detectedAsJson: boolean
-    if (!valStr) {
-        detectedAsJson = false
-    } else if (isJsonString(valStr)) {
-        detectedAsJson = true
-    } else {
-        const isCharEdit = Math.abs(valStr.length - prevValueRef.current.length) <= 1
-        detectedAsJson = isCharEdit && prevDetectedRef.current
-    }
-    useEffect(() => {
-        prevValueRef.current = valStr
-        prevDetectedRef.current = detectedAsJson
-    })
-
-    const isJsonEditor = isJsonType || detectedAsJson
+    // Editor mode is controlled exclusively by `portType` (= the declared
+    // port type, optionally overridden via the explicit JSON/text toggle
+    // button in the header — see `forceMode` / `composedHeaderActions`).
+    // The previous content-sniffing "sticky" behaviour (`detectedAsJson`
+    // flip based on whether the value started with `{`/`[`) was removed
+    // in favour of explicit user action so the editor never swaps out
+    // from under the user mid-keystroke.
+    const isJsonEditor = isJsonType
     const isCellEmpty = !value || value === ""
     // The editor reflects the actual cell content. Earlier the empty cell was
     // back-filled with a schema-derived default for display only, but that
@@ -257,70 +510,12 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     )
 
     // Intercept Cmd/Ctrl+A followed by Delete/Backspace — the most common
-    // "nuke everything and retype" flow — so the mode flip happens without
-    // the old editor briefly painting its cleared state. We track a ref that
-    // arms on select-all keydown and fires on the next delete/backspace.
-    // Any other key resets the arm. This doesn't cover backspace-until-empty
-    // (each keystroke individually can't reliably predict the final empty
-    // state without reading editor internals), so that flow still flashes
-    // for 1 frame — acceptable tradeoff for the uncommon path.
-    const selectAllArmedRef = useRef(false)
-    const handleKeyDownCapture = useCallback(
-        (e: React.KeyboardEvent<HTMLDivElement>) => {
-            const key = e.key.toLowerCase()
-            if ((e.metaKey || e.ctrlKey) && key === "a") {
-                selectAllArmedRef.current = true
-                return
-            }
-            if (selectAllArmedRef.current && (key === "delete" || key === "backspace")) {
-                selectAllArmedRef.current = false
-                // Only preempt if the clear would actually flip the mode —
-                // for plain-text cells already in text mode, let the editor
-                // handle the delete normally (no flash to avoid).
-                if (isJsonEditor) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    shouldFocusAfterMountRef.current = true
-                    handleChange("")
-                }
-                return
-            }
-            selectAllArmedRef.current = false
-        },
-        [handleChange, isJsonEditor],
-    )
-
-    // Armed when we take over an input action that causes a mode flip, so the
-    // newly-mounted editor can steal focus back from the unmounted one. Without
-    // this, any interception (paste, Cmd+A+Delete) that flips the mode would
-    // leave the user without a focused editor — frustrating mid-edit.
-    const shouldFocusAfterMountRef = useRef(false)
-
-    // Intercept paste at the container (capture phase, before Lexical sees it)
-    // when the pasted content would cause a mode flip (text ↔ JSON). The old
-    // editor then never receives the paste event and never shows the pasted
-    // content in the wrong mode — we route it straight to the cell, and the
-    // EditorProvider remounts in the correct mode with the pasted value as
-    // the initial content. For same-mode pastes we let the editor handle the
-    // event normally so cursor/selection/IME behavior is preserved.
-    const handlePasteCapture = useCallback(
-        (e: React.ClipboardEvent<HTMLDivElement>) => {
-            // Schema-typed fields (object/array) are pinned to JSON mode —
-            // no paste can cause a mode flip, so let Lexical handle it normally
-            // (preserves cursor position and avoids clobbering existing JSON).
-            if (isJsonType) return
-            const pasted = e.clipboardData?.getData("text")
-            if (!pasted) return
-            const pastedLooksLikeJson = isJsonString(pasted)
-            if (pastedLooksLikeJson === detectedAsJson) return
-            // Cross-mode paste — bypass the editor.
-            e.preventDefault()
-            e.stopPropagation()
-            shouldFocusAfterMountRef.current = true
-            handleChange(pasted)
-        },
-        [isJsonType, detectedAsJson, handleChange],
-    )
+    // Content-driven mode-flip helpers (`handleKeyDownCapture`,
+    // `handlePasteCapture`, `shouldFocusAfterMountRef`) were removed
+    // alongside the `detectedAsJson` magic. Editor mode is now toggled only
+    // by the explicit JSON/Text button in the header, so paste and select-
+    // all-delete never need to bypass Lexical to coordinate a swap —
+    // Lexical's own paste / keyboard handling is correct in single-mode.
 
     const {isComparisonView} = useAtomValue(
         useMemo(() => playgroundController.selectors.playgroundLayout(), []),
@@ -334,6 +529,43 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     )
 
     const isEffectivelyDisabled = disabled || disableForCustom
+
+    // Compose the variable header's actions: prepend our JSON/text toggle
+    // ahead of whatever actions the parent passed in. Mirrors the markdown
+    // toggle pattern from `ChatMessage` — explicit user control over the
+    // editor surface, no content-sniffing magic. Visible for every port
+    // type; clicking flips between JSON code editor (line numbers +
+    // syntax) and plain text editor surfaces. Both edit the same stored
+    // string value.
+    const isCurrentlyJson = effectiveSurface === "json"
+    const composedHeaderActions = useMemo(() => {
+        if (!canToggleJson) return headerActions
+        const toggle = (
+            <Tooltip
+                key="json-toggle"
+                title={isCurrentlyJson ? "Switch to text editor" : "Switch to JSON editor"}
+            >
+                <Button
+                    type="text"
+                    size="small"
+                    icon={isCurrentlyJson ? <TextAa size={14} /> : <Code size={14} />}
+                    onClick={() => setForceMode(isCurrentlyJson ? "text" : "json")}
+                    aria-label={
+                        isCurrentlyJson
+                            ? "Switch variable to text editor"
+                            : "Switch variable to JSON editor"
+                    }
+                />
+            </Tooltip>
+        )
+        if (!headerActions) return toggle
+        return (
+            <>
+                {toggle}
+                {headerActions}
+            </>
+        )
+    }, [canToggleJson, isCurrentlyJson, headerActions])
 
     // Number/integer type → InputNumber
     if (portType === "number" || portType === "integer") {
@@ -354,7 +586,13 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                         className,
                     )}
                 >
-                    {!hideLabel && <VariableHeader name={name} headerActions={headerActions} />}
+                    {!hideLabel && (
+                        <VariableHeader
+                            name={name}
+                            headerActions={composedHeaderActions}
+                            helpText={helpText}
+                        />
+                    )}
                     <InputNumber
                         value={numValue != null && !isNaN(numValue) ? numValue : undefined}
                         onChange={(v) => handleChange(v != null ? String(v) : "")}
@@ -386,7 +624,13 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                         className,
                     )}
                 >
-                    {!hideLabel && <VariableHeader name={name} headerActions={headerActions} />}
+                    {!hideLabel && (
+                        <VariableHeader
+                            name={name}
+                            headerActions={composedHeaderActions}
+                            helpText={helpText}
+                        />
+                    )}
                     <Switch
                         checked={value === "true"}
                         onChange={(checked) => handleChange(String(checked))}
@@ -409,14 +653,53 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     // pre-filling the editor with a value that wouldn't get submitted.
     const showShapeHint = isJsonType && isCellEmpty && !!shapeHint
 
+    // Schema-typed JSON (object/array): render the same editor stack the
+    // DrillIn / Testcase JSON editors use — code-only Lexical with line
+    // numbers and syntax highlighting. Inlined (not delegated to
+    // `JsonEditorWithLocalState`) so we can preserve the variable header
+    // and route the change handler through the testcase cell store directly.
+    // The string-typed branch below stays as-is for detected-JSON sticky
+    // mode flips, which only the rich-text editor surface supports.
+    //
+    // We deliberately keep the parent's `className` away from this branch —
+    // generation rows pass `*:!border-none overflow-hidden` for the rich-text
+    // cell strip, and applying it here strips the SharedEditor's own border
+    // and the line-number gutter.
+    if (isJsonType) {
+        return (
+            <JsonVariableEditor
+                editorKey={editorId}
+                initialValue={effectiveValue ?? ""}
+                onValidChange={handleChange}
+                readOnly={isEffectivelyDisabled}
+                placeholder={effectivePlaceholder}
+                header={
+                    !hideLabel ? (
+                        <VariableHeader
+                            name={name}
+                            headerActions={composedHeaderActions}
+                            helpText={helpText}
+                        />
+                    ) : null
+                }
+                footer={
+                    showShapeHint ? (
+                        <Typography.Text
+                            type="secondary"
+                            className="block mt-1 px-1 text-[11px] font-mono"
+                        >
+                            Expected shape: <code>{shapeHint}</code>
+                        </Typography.Text>
+                    ) : null
+                }
+                containerRef={containerRef}
+                collapsed={collapsed}
+            />
+        )
+    }
+
     return (
-        <div
-            ref={containerRef}
-            className="w-full"
-            style={getCollapseStyle(collapsed)}
-            onPasteCapture={handlePasteCapture}
-            onKeyDownCapture={handleKeyDownCapture}
-        >
+        <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
             <EditorProvider
                 // Stable across user keystrokes (cell value changes don't
                 // remount — preserves cursor position). Flips only when the
@@ -432,14 +715,17 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 enableTokens={!isJsonEditor && !editorProps?.codeOnly}
                 disabled={isEffectivelyDisabled}
             >
-                <FocusOnMountWhenArmed armedRef={shouldFocusAfterMountRef} />
                 <MarkdownToggleRegistrar onMarkdownToggleReady={onMarkdownToggleReady} />
                 <SharedEditor
                     id={editorId}
                     noProvider
                     header={
                         !hideLabel ? (
-                            <VariableHeader name={name} headerActions={headerActions} />
+                            <VariableHeader
+                                name={name}
+                                headerActions={composedHeaderActions}
+                                helpText={helpText}
+                            />
                         ) : undefined
                     }
                     key={variableKey}

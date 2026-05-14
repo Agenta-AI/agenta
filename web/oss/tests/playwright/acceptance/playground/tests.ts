@@ -55,9 +55,6 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
             const scopedPrefixMatch = currentPathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)
             const scopedPrefix = scopedPrefixMatch?.[1] ?? ""
             const appsUrl = scopedPrefix ? `${scopedPrefix}/apps` : "/apps"
-            const overviewUrl = scopedPrefix
-                ? `${scopedPrefix}/apps/${appId}/overview`
-                : `/apps/${appId}/overview`
             const playgroundUrl = scopedPrefix
                 ? `${scopedPrefix}/apps/${appId}/playground`
                 : `/apps/${appId}/playground`
@@ -65,16 +62,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
             await page.goto(appsUrl, {waitUntil: "domcontentloaded"})
             await uiHelpers.expectPath("/apps")
 
-            // Enter the app through its scoped overview route, then switch to Playground
-            // from the in-app sidebar. Direct Playground entry is still flaky on this branch.
-            await page.goto(overviewUrl, {waitUntil: "domcontentloaded"})
-            await uiHelpers.expectPath(`/apps/${appId}/overview`)
-            // await page.waitForLoadState("networkidle") // TODO: Re-enable when ready
-
-            const playgroundLink = page.getByRole("link", {name: "Playground"}).first()
-            await expect(playgroundLink).toBeVisible({timeout: 10000})
-            await playgroundLink.click()
-
+            await page.goto(playgroundUrl, {waitUntil: "domcontentloaded"})
             await uiHelpers.expectPath(`/apps/${appId}/playground`)
 
             const latestRevisionId = getKnownLatestRevisionId(appId)

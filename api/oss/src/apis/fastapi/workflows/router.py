@@ -426,6 +426,15 @@ class WorkflowsRouter:
     async def list_workflow_catalog_types(
         self,
     ) -> WorkflowCatalogTypesResponse:
+        """
+        List the shared JSON Schema fragments available to workflow schemas.
+
+        Workflow input/output schemas reference these via `x-ag-type-ref` (for
+        example, `message` or `prompt`). Use this endpoint to discover what
+        type keys exist before building a schema.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
         types = get_workflow_catalog_types()
 
         return WorkflowCatalogTypesResponse(
@@ -439,6 +448,13 @@ class WorkflowsRouter:
         *,
         ag_type: str,
     ) -> WorkflowCatalogTypeResponse:
+        """
+        Return the JSON Schema for a single shared type key.
+
+        Returns 404 when the `ag_type` is not part of the shipped catalog.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
         workflow_type = get_workflow_catalog_type(ag_type=ag_type)
 
         if workflow_type is None:
@@ -464,6 +480,15 @@ class WorkflowsRouter:
         is_evaluator: Optional[bool] = None,
         is_snippet: Optional[bool] = None,
     ) -> WorkflowCatalogTemplatesResponse:
+        """
+        List workflow blueprints shipped with the product.
+
+        Filter by domain with `is_application`, `is_evaluator`, or
+        `is_snippet`. Archived templates are hidden unless `include_archived`
+        is true. Templates are global and read-only.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
         entries = get_filtered_workflow_catalog_templates(
             is_application=is_application,
             is_evaluator=is_evaluator,
@@ -490,6 +515,14 @@ class WorkflowsRouter:
         *,
         template_key: str,
     ) -> WorkflowCatalogTemplateResponse:
+        """
+        Return a single workflow template by its key.
+
+        Returns `count=0` when the template is not found. Templates are global
+        metadata and are not scoped to a project.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
         template = get_workflow_catalog_template(template_key=template_key)
 
         return WorkflowCatalogTemplateResponse(
@@ -507,6 +540,15 @@ class WorkflowsRouter:
         template_key: str,
         include_archived: Optional[bool] = None,
     ) -> WorkflowCatalogPresetsResponse:
+        """
+        List presets defined against a template.
+
+        Presets are named parameter sets that can be committed as the first
+        revision of a new variant. Returns an empty list when a template has
+        no canned presets.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
         presets = [
             preset
             for preset in get_filtered_workflow_catalog_presets(
@@ -530,6 +572,13 @@ class WorkflowsRouter:
         template_key: str,
         preset_key: str,
     ) -> WorkflowCatalogPresetResponse:
+        """
+        Return a single preset for a template by key.
+
+        Returns `count=0` when the preset is not defined.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
         preset = get_workflow_catalog_preset(
             template_key=template_key,
             preset_key=preset_key,
@@ -549,6 +598,17 @@ class WorkflowsRouter:
         *,
         workflow_create_request: WorkflowCreateRequest,
     ) -> WorkflowResponse:
+        """
+        Create a workflow artifact.
+
+        Creates the top-level container only; commit a revision on a variant
+        before the workflow can be retrieved or invoked. Use when you need the
+        lower-level primitive — pick `/applications/` for serving logic or
+        `/evaluators/` for scoring logic.
+
+        See: [Workflows](/reference/api-guide/workflows),
+        [Versioning](/reference/api-guide/versioning).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -582,6 +642,15 @@ class WorkflowsRouter:
         *,
         workflow_id: UUID,
     ) -> WorkflowResponse:
+        """
+        Fetch a workflow artifact by ID.
+
+        Returns the artifact only — variants and revisions are not included.
+        Use `/workflows/variants/query` and `/workflows/revisions/query` for
+        the child entities.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -612,6 +681,16 @@ class WorkflowsRouter:
         #
         workflow_edit_request: WorkflowEditRequest,
     ) -> WorkflowResponse:
+        """
+        Update artifact-level fields on a workflow.
+
+        The `id` in the body must match the path parameter. Only supplied
+        fields are modified. Configuration (parameters, URL, schemas) lives on
+        revisions — commit a new revision to change those.
+
+        See: [Workflows](/reference/api-guide/workflows),
+        [Versioning](/reference/api-guide/versioning).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -644,6 +723,15 @@ class WorkflowsRouter:
         *,
         workflow_id: UUID,
     ) -> WorkflowResponse:
+        """
+        Archive a workflow artifact (soft delete).
+
+        Sets `deleted_at` on the workflow and its variants. Archived
+        workflows are hidden from queries unless `include_archived=true`.
+        Revision IDs remain resolvable so historical traces stay intact.
+
+        See: [Versioning](/reference/api-guide/versioning).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -676,6 +764,14 @@ class WorkflowsRouter:
         *,
         workflow_id: UUID,
     ) -> WorkflowResponse:
+        """
+        Restore a previously archived workflow.
+
+        Clears `deleted_at` on the workflow. Archived variants and revisions
+        are restored with the workflow.
+
+        See: [Versioning](/reference/api-guide/versioning).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -711,6 +807,15 @@ class WorkflowsRouter:
             parse_workflow_query_request_from_params
         ),
     ) -> WorkflowsResponse:
+        """
+        Query workflow artifacts with filters and pagination.
+
+        Accepts the same filters as query parameters or in the request body;
+        body fields win when both are supplied. Results are ordered by
+        creation time; pass `windowing.next` back for the following page.
+
+        See: [Query Pattern](/reference/api-guide/query-pattern).
+        """
         body_json = None
         query_request_body = None
 
@@ -772,6 +877,15 @@ class WorkflowsRouter:
         *,
         workflow_variant_create_request: WorkflowVariantCreateRequest,
     ) -> WorkflowVariantResponse:
+        """
+        Create a new variant under an existing workflow.
+
+        Variants are branches of an artifact's history; each maintains its own
+        revision log. Variant slugs are unique within the project — reuse of a
+        slug already in use returns a 409 conflict.
+
+        See: [Versioning](/reference/api-guide/versioning).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -805,6 +919,15 @@ class WorkflowsRouter:
         *,
         workflow_variant_id: UUID,
     ) -> WorkflowVariantResponse:
+        """
+        Fetch a workflow variant by ID.
+
+        Returns the variant metadata only — use
+        `/workflows/revisions/retrieve` or `/workflows/revisions/log` for the
+        variant's revisions.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -835,6 +958,14 @@ class WorkflowsRouter:
         #
         workflow_variant_edit_request: WorkflowVariantEditRequest,
     ) -> WorkflowVariantResponse:
+        """
+        Update metadata on a workflow variant.
+
+        The `id` in the body must match the path parameter. Revisions on the
+        variant are not affected — commit a new revision to change data.
+
+        See: [Versioning](/reference/api-guide/versioning).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -869,6 +1000,13 @@ class WorkflowsRouter:
         *,
         workflow_variant_id: UUID,
     ) -> WorkflowVariantResponse:
+        """
+        Archive a workflow variant.
+
+        Soft-deletes the variant and its revisions. Archived variants are
+        hidden from queries unless `include_archived=true`. See
+        [Versioning](/reference/api-guide/versioning).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -901,6 +1039,12 @@ class WorkflowsRouter:
         *,
         workflow_variant_id: UUID,
     ) -> WorkflowVariantResponse:
+        """
+        Restore a previously archived workflow variant.
+
+        Clears `deleted_at` on the variant and its revisions. See
+        [Versioning](/reference/api-guide/versioning).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -936,6 +1080,15 @@ class WorkflowsRouter:
             parse_workflow_variant_query_request_from_params
         ),
     ) -> WorkflowVariantsResponse:
+        """
+        Query workflow variants with filters and pagination.
+
+        Scope the query by `workflow_refs` (parent artifact) or
+        `workflow_variant_refs` (specific variants). Accepts the same fields
+        as query parameters or in the request body.
+
+        See: [Query Pattern](/reference/api-guide/query-pattern).
+        """
         body_json = None
         query_request_body = None
 

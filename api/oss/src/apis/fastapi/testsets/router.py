@@ -526,6 +526,13 @@ class TestsetsRouter:
         #
         testset_create_request: TestsetCreateRequest,
     ) -> TestsetResponse:
+        """Create an empty testset artifact.
+
+        Only creates the artifact row (name, slug, metadata). No variant or
+        revision is created; add testcases by committing a revision with
+        `/testsets/revisions/commit`, or use `/simple/testsets/` to create
+        a testset with seed rows in a single call.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -558,6 +565,12 @@ class TestsetsRouter:
         *,
         testset_id: UUID,
     ) -> TestsetResponse:
+        """Fetch a testset artifact by ID.
+
+        Returns the artifact row only; testcases are stored on revisions and
+        must be fetched via `/testsets/revisions/retrieve` or
+        `/testcases/query`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -588,6 +601,12 @@ class TestsetsRouter:
         #
         testset_edit_request: TestsetEditRequest,
     ) -> TestsetResponse:
+        """Update metadata on a testset artifact.
+
+        Only artifact-level fields (name, description, slug, flags, tags,
+        meta, folder) are editable here. Testcase changes are committed as
+        new revisions via `/testsets/revisions/commit`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -620,6 +639,12 @@ class TestsetsRouter:
         *,
         testset_id: UUID,
     ) -> TestsetResponse:
+        """Soft-delete a testset artifact.
+
+        Sets `deleted_at` on the testset. Archived testsets are excluded
+        from `/testsets/query` unless `include_archived` is true. Use
+        `/testsets/{testset_id}/unarchive` to restore.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -649,6 +674,10 @@ class TestsetsRouter:
         *,
         testset_id: UUID,
     ) -> TestsetResponse:
+        """Restore a previously archived testset artifact.
+
+        Clears `deleted_at` on the testset so it shows up in queries again.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -679,6 +708,13 @@ class TestsetsRouter:
         *,
         testset_query_request: TestsetQueryRequest,
     ) -> TestsetsResponse:
+        """List and filter testset artifacts.
+
+        Follows the shared query pattern: attribute filters on the testset
+        body, optional `testset_refs` to restrict by id/slug, cursor-based
+        pagination via `windowing`. Only artifact rows are returned — no
+        testcases. See the Query Pattern guide for the full body shape.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -722,6 +758,12 @@ class TestsetsRouter:
         *,
         testset_variant_create_request: TestsetVariantCreateRequest,
     ) -> TestsetVariantResponse:
+        """Create a variant (history branch) on a testset.
+
+        Most testsets only need one variant. Create additional variants to
+        maintain parallel revision histories (for example, a staging branch
+        separate from the main one).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -749,6 +791,12 @@ class TestsetsRouter:
     async def fetch_testset_variant(
         self, request: Request, *, testset_variant_id: UUID
     ) -> TestsetVariantResponse:
+        """Fetch a variant by ID.
+
+        Returns the variant row (branch metadata). Use
+        `/testsets/revisions/retrieve` to get the latest revision on this
+        variant.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -779,6 +827,11 @@ class TestsetsRouter:
         #
         testset_variant_edit_request: TestsetVariantEditRequest,
     ) -> TestsetVariantResponse:
+        """Update metadata on a testset variant.
+
+        Variants hold only branch-level metadata (name, description, slug,
+        flags, tags, meta). Testcase content belongs to revisions.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -813,6 +866,12 @@ class TestsetsRouter:
         *,
         testset_variant_id: UUID,
     ) -> TestsetVariantResponse:
+        """Soft-delete a testset variant.
+
+        Archiving a variant excludes it from `/testsets/variants/query`
+        unless `include_archived` is true. Its revisions stay in place and
+        can still be retrieved by ID.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -842,6 +901,7 @@ class TestsetsRouter:
         *,
         testset_variant_id: UUID,
     ) -> TestsetVariantResponse:
+        """Restore a previously archived testset variant."""
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -872,6 +932,11 @@ class TestsetsRouter:
         *,
         testset_variant_query_request: TestsetVariantQueryRequest,
     ) -> TestsetVariantsResponse:
+        """List and filter testset variants.
+
+        Use `testset_refs` to scope to one or more parent testsets. Use
+        `testset_variant_refs` to restrict by specific variant id/slug.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -909,6 +974,12 @@ class TestsetsRouter:
         *,
         testset_revision_create_request: TestsetRevisionCreateRequest,
     ) -> TestsetRevisionResponse:
+        """Create a new revision on an existing variant.
+
+        Creates a revision row without committing content. Most callers
+        instead use `/testsets/revisions/commit`, which writes the
+        testcases and the revision together.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
