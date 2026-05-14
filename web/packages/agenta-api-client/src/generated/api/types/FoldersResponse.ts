@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface FoldersResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     /** Number of folders in `folders`. */
     count?: number | undefined;
     /** Matching folders for the query. Ordering is not guaranteed. */
