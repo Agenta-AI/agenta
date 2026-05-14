@@ -14,6 +14,7 @@ import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {parseHttpErrorBody} from "../../utils/parseHttpError"
 import type {OutputConnection, PlaygroundNode} from "../types"
 
 import {
@@ -23,7 +24,6 @@ import {
     resultsByKeyAtomFamily,
 } from "./atoms"
 import {createExecutionItemHandle} from "./executionItems"
-import {parseHttpErrorBody} from "../../utils/parseHttpError"
 import {extractSpanIdFromPayload, extractTraceIdFromPayload} from "./trace"
 import type {ExecutionSession, RunResult, SessionExecutionOptions} from "./types"
 
@@ -168,7 +168,10 @@ interface ExecutionSessionLifecycleCallbacks {
         chainResults?: RunResult["chainResults"]
     }) => void
     onComplete: (payload: {result: Partial<RunResult>}) => void
-    onFail: (payload: {error: {message: string; code?: string; stacktrace?: string | string[]}; traceId?: string | null}) => void
+    onFail: (payload: {
+        error: {message: string; code?: string; stacktrace?: string | string[]}
+        traceId?: string | null
+    }) => void
     onCancel: () => void
 }
 
@@ -656,7 +659,10 @@ async function executeViaFetch(params: {
                 status: "error",
                 startedAt,
                 completedAt: new Date().toISOString(),
-                error: {message: errorMessage, ...(errorStacktrace ? {stacktrace: errorStacktrace} : {})},
+                error: {
+                    message: errorMessage,
+                    ...(errorStacktrace ? {stacktrace: errorStacktrace} : {}),
+                },
                 ...(traceId ? {trace: {id: traceId}} : {}),
             }
         }
