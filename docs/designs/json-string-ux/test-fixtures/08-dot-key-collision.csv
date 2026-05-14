@@ -1,6 +1,0 @@
-country,geo.region,geo.subregion,correct_answer,outputs,geo,user.profile.name,user.profile.role,user
-Tuvalu,Polynesia,Western Polynesia,The capital of Tuvalu is Funafuti.,Funafuti,,,,
-Kiribati,,,The capital of Kiribati is Tarawa.,"{""countryName"": ""Kiribati"", ""capital"": ""South Tarawa""}","{""region"": ""Micronesia"", ""subregion"": ""Central Pacific""}",,,
-Comoros,Africa,,The capital of Comoros is Moroni.,Moroni,"{""subregion"": ""Eastern Africa""}",,,
-Vanuatu,LITERAL_DOT_VALUE,,The capital of Vanuatu is Port Vila.,Port Vila,"{""region"": ""NESTED_PATH_VALUE"", ""subregion"": ""Melanesia""}",,,
-Nauru,,,"Nauru does not have an official capital, but Yaren is the de facto capital.",Yaren,,guest,viewer,"{""profile"": {""name"": ""explicit_nested_name"", ""preferences"": {""theme"": ""dark""}}}"
