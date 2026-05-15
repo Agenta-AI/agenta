@@ -1,43 +1,43 @@
 /**
  * Secret Entity — Transforms
  *
- * Pure transform helpers between the wire shape (StandardSecretDTO /
- * CustomSecretDTO) and the in-app `LlmProvider` shape that consumers and
+ * Pure helpers between the Fern wire shapes (`SecretResponseDto` /
+ * `CreateSecretDto`) and the in-app `LlmProvider` shape that consumers and
  * UI components work with.
  *
- * These are vault-domain-specific. The generic `LlmProvider` type and the
- * canonical provider catalog (`llmAvailableProviders`,
- * `llmAvailableProvidersToken`) live in `@agenta/shared` so non-secret
- * consumers (e.g. `@agenta/ui/select-llm-provider`) can use them without
- * pulling in this entity package.
+ * The generic `LlmProvider` type and the canonical provider catalog
+ * (`llmAvailableProviders`, `llmAvailableProvidersToken`) live in
+ * `@agenta/shared` so non-secret consumers (e.g.
+ * `@agenta/ui/select-llm-provider`) can use them without pulling in this
+ * entity package.
  */
 
 import type {LlmProvider} from "@agenta/shared/types"
 
 import {
-    type CustomSecretDTO,
     PROVIDER_KINDS,
-    type StandardSecretDTO,
-    SecretDTOKind,
-    SecretDTOProvider,
+    SecretKind,
+    StandardProviderKind,
+    type CreateSecretDto,
+    type CustomProviderDto,
+    type SecretResponseDto,
+    type StandardProviderDto,
 } from "./types"
 
 /**
- * Transform raw `/vault/v1/secrets/` response items into the `LlmProvider`
- * shape used throughout the app. Standard provider secrets and custom
- * provider secrets have different wire shapes; both collapse into the
- * common `LlmProvider` representation here.
+ * Transform raw `/secrets/` response items into the `LlmProvider` shape
+ * used throughout the app. Standard provider secrets and custom provider
+ * secrets have different wire shapes; both collapse into the common
+ * `LlmProvider` representation here.
  */
-export const transformSecret = (
-    secrets: CustomSecretDTO[] | StandardSecretDTO[],
-): LlmProvider[] => {
-    return secrets.reduce((acc, curr) => {
-        if (curr.kind == SecretDTOKind.PROVIDER_KEY) {
-            const secret = curr as StandardSecretDTO
+export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {
+    return secrets.reduce((acc, secret) => {
+        if (secret.kind === SecretKind.ProviderKey) {
+            const data = secret.data as StandardProviderDto
 
-            const name = secret.data.kind
-            const key = secret.data.provider.key
-            const provider = secret.data.kind
+            const provider = data.kind
+            const name = provider
+            const key = data.provider.key
 
             const envNameMap: Record<string, string> = {
                 openai: "OPENAI_API_KEY",
@@ -58,32 +58,34 @@ export const transformSecret = (
 
             acc.push({
                 title: name || "",
-                key: key,
+                key,
                 name: envNameMap[provider] || "",
-                id: secret.id,
+                id: secret.id ?? undefined,
                 type: secret.kind,
-                created_at: secret.lifecycle.created_at,
+                created_at: secret.lifecycle?.created_at ?? undefined,
             })
-        } else if (curr.kind === SecretDTOKind.CUSTOM_PROVIDER_KEY) {
-            const secret = curr as CustomSecretDTO
+        } else if (secret.kind === SecretKind.CustomProvider) {
+            const data = secret.data as CustomProviderDto
+            const extras = (data.provider.extras ?? {}) as Record<string, string | undefined>
+
             acc.push({
-                name: secret.header.name || "",
-                id: secret.id,
+                name: secret.header.name ?? "",
+                id: secret.id ?? undefined,
                 type: secret.kind,
-                provider: secret.data?.kind,
-                apiKey: secret.data.provider.extras?.api_key || "",
-                apiBaseUrl: secret.data.provider.url || "",
-                region: secret.data.provider.extras?.aws_region_name || "",
-                vertexProject: secret.data.provider.extras?.vertex_ai_project || "",
-                vertexLocation: secret.data.provider.extras?.vertex_ai_location || "",
-                vertexCredentials: secret.data.provider.extras?.vertex_ai_credentials || "",
-                accessKeyId: secret.data.provider.extras?.aws_access_key_id || "",
-                accessKey: secret.data.provider.extras?.aws_secret_access_key || "",
-                sessionToken: secret.data.provider.extras?.aws_session_token || "",
-                models: secret?.data.models.map((model) => model.slug),
-                modelKeys: secret?.data.model_keys,
-                version: secret.data.provider?.version || "",
-                created_at: secret.lifecycle?.created_at || "",
+                provider: data.kind,
+                apiKey: extras.api_key || "",
+                apiBaseUrl: data.provider.url ?? "",
+                region: extras.aws_region_name || "",
+                vertexProject: extras.vertex_ai_project || "",
+                vertexLocation: extras.vertex_ai_location || "",
+                vertexCredentials: extras.vertex_ai_credentials || "",
+                accessKeyId: extras.aws_access_key_id || "",
+                accessKey: extras.aws_secret_access_key || "",
+                sessionToken: extras.aws_session_token || "",
+                models: data.models.map((model) => model.slug),
+                modelKeys: data.model_keys ?? undefined,
+                version: data.provider.version ?? "",
+                created_at: secret.lifecycle?.created_at ?? "",
             })
         }
         return acc
@@ -91,12 +93,10 @@ export const transformSecret = (
 }
 
 /**
- * Transform a form-shaped `LlmProvider` into a `CustomSecretDTO<"payload">`
- * suitable for POST/PUT against `/vault/v1/secrets/`.
+ * Transform a form-shaped `LlmProvider` into a `CreateSecretDto` suitable
+ * for POST/PUT against `/secrets/`.
  */
-export const transformCustomProviderPayloadData = (
-    values: LlmProvider,
-): CustomSecretDTO<"payload"> => {
+export const transformCustomProviderPayloadData = (values: LlmProvider): CreateSecretDto => {
     const providerInput = values.provider?.trim() ?? ""
     const providerKind = providerInput
         ? (PROVIDER_KINDS[providerInput] ??
@@ -110,9 +110,9 @@ export const transformCustomProviderPayloadData = (
             description: values.name,
         },
         secret: {
-            kind: SecretDTOKind.CUSTOM_PROVIDER_KEY,
+            kind: SecretKind.CustomProvider,
             data: {
-                kind: providerKind,
+                kind: providerKind as CustomProviderDto["kind"],
                 provider: {
                     url: values.apiBaseUrl,
                     version: values.version,
@@ -127,34 +127,34 @@ export const transformCustomProviderPayloadData = (
                         aws_session_token: values.sessionToken,
                     },
                 },
-                models: values.models?.map((slug) => ({slug})),
-            },
+                models: values.models?.map((slug) => ({slug})) ?? [],
+            } as CustomProviderDto,
         },
-    } as CustomSecretDTO<"payload">
+    }
 }
 
 /**
  * Map the env-var name (e.g. `OPENAI_API_KEY`) used by `LlmProvider.name`
- * back to the canonical `SecretDTOProvider` enum value used when creating
+ * back to the canonical `StandardProviderKind` value used when creating
  * a standard provider secret.
  *
  * Returns `undefined` for unknown env-var names; the caller is expected
  * to throw a domain error in that case.
  */
-export const getEnvNameMap = (): Record<string, SecretDTOProvider> => ({
-    OPENAI_API_KEY: SecretDTOProvider.OPENAI,
-    COHERE_API_KEY: SecretDTOProvider.COHERE,
-    ANYSCALE_API_KEY: SecretDTOProvider.ANYSCALE,
-    DEEPINFRA_API_KEY: SecretDTOProvider.DEEPINFRA,
-    ALEPHALPHA_API_KEY: SecretDTOProvider.ALEPHALPHA,
-    GROQ_API_KEY: SecretDTOProvider.GROQ,
-    MISTRAL_API_KEY: SecretDTOProvider.MISTRAL,
+export const getEnvNameMap = (): Record<string, StandardProviderKind> => ({
+    OPENAI_API_KEY: StandardProviderKind.Openai,
+    COHERE_API_KEY: StandardProviderKind.Cohere,
+    ANYSCALE_API_KEY: StandardProviderKind.Anyscale,
+    DEEPINFRA_API_KEY: StandardProviderKind.Deepinfra,
+    ALEPHALPHA_API_KEY: StandardProviderKind.Alephalpha,
+    GROQ_API_KEY: StandardProviderKind.Groq,
+    MISTRAL_API_KEY: StandardProviderKind.Mistral,
     // Backward-compatible mapping for legacy Mistral provider name
-    MISTRALAI_API_KEY: SecretDTOProvider.MISTRAL,
-    ANTHROPIC_API_KEY: SecretDTOProvider.ANTHROPIC,
-    PERPLEXITYAI_API_KEY: SecretDTOProvider.PERPLEXITYAI,
-    TOGETHERAI_API_KEY: SecretDTOProvider.TOGETHERAI,
-    OPENROUTER_API_KEY: SecretDTOProvider.OPENROUTER,
-    GEMINI_API_KEY: SecretDTOProvider.GEMINI,
-    MINIMAX_API_KEY: SecretDTOProvider.MINIMAX,
+    MISTRALAI_API_KEY: StandardProviderKind.Mistral,
+    ANTHROPIC_API_KEY: StandardProviderKind.Anthropic,
+    PERPLEXITYAI_API_KEY: StandardProviderKind.Perplexityai,
+    TOGETHERAI_API_KEY: StandardProviderKind.TogetherAi,
+    OPENROUTER_API_KEY: StandardProviderKind.Openrouter,
+    GEMINI_API_KEY: StandardProviderKind.Gemini,
+    MINIMAX_API_KEY: StandardProviderKind.Minimax,
 })

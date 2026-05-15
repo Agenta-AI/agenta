@@ -1,58 +1,56 @@
 /**
  * Secret Entity — Domain Types
  *
- * The vault stores LLM provider keys (and, in the future, other secrets) for
- * each project. These types describe the wire shape of the `/vault/v1/secrets/`
- * API and the in-app representation used by `useVaultSecret`.
+ * All wire shapes come from the Fern-generated client
+ * (`@agentaai/api-client`) so this package stays aligned with the backend
+ * OpenAPI definition. The hand-rolled DTOs that used to live here have
+ * been removed; consumers should import the Fern names directly.
  *
- * The canonical home for these types is here. They are re-exported from
- * `@/oss/lib/Types` so existing OSS consumers (e.g. `ConfigureProviderDrawer`)
- * keep working without an import sweep.
+ * What stays:
+ *   - `PROVIDER_LABELS` / `PROVIDER_KINDS` — app-level provider catalog
+ *     (rendering, slug normalization). No wire equivalent.
+ *   - `STANDARD_PROVIDER_KINDS` — the standard provider list minus the
+ *     legacy `"mistralai"` alias (kept in Fern for backwards compat but
+ *     not shown in OSS provider pickers).
+ *   - `VaultMigrationStatus` — UI state for the one-time localStorage
+ *     migration; not a wire shape.
  */
 
-export interface HeaderDTO {
-    name?: string | null
-    description?: string | null
-}
+import {AgentaApi} from "@agentaai/api-client"
 
-export interface StandardSecret {
-    kind: SecretDTOProvider
-    provider: {
-        key: string
-    }
-}
+// ---------------------------------------------------------------------------
+// Fern type aliases
+// ---------------------------------------------------------------------------
 
-export type StandardSecretDTO<T extends "payload" | "response" = "response"> = {
-    header: HeaderDTO
-} & (T extends "payload"
-    ? {secret: {data: StandardSecret; kind: SecretDTOKind.PROVIDER_KEY}}
-    : {
-          kind: SecretDTOKind.PROVIDER_KEY
-          data: StandardSecret
-          id: string
-          lifecycle: {created_at: string}
-      })
+export type Header = AgentaApi.Header
+export type LegacyLifecycleDto = AgentaApi.LegacyLifecycleDto
 
-export enum SecretDTOKind {
-    PROVIDER_KEY = "provider_key",
-    CUSTOM_PROVIDER_KEY = "custom_provider",
-}
+export type SecretDto = AgentaApi.SecretDto
+export type SecretResponseDto = AgentaApi.SecretResponseDto
+export type CreateSecretDto = AgentaApi.CreateSecretDto
+export type UpdateSecretDto = AgentaApi.UpdateSecretDto
 
-export enum SecretDTOProvider {
-    OPENAI = "openai",
-    COHERE = "cohere",
-    ANYSCALE = "anyscale",
-    DEEPINFRA = "deepinfra",
-    ALEPHALPHA = "alephalpha",
-    GROQ = "groq",
-    MISTRAL = "mistral",
-    ANTHROPIC = "anthropic",
-    PERPLEXITYAI = "perplexityai",
-    TOGETHERAI = "together_ai",
-    OPENROUTER = "openrouter",
-    GEMINI = "gemini",
-    MINIMAX = "minimax",
-}
+export type StandardProviderDto = AgentaApi.StandardProviderDto
+export type StandardProviderSettingsDto = AgentaApi.StandardProviderSettingsDto
+export type CustomProviderDto = AgentaApi.CustomProviderDto
+export type CustomProviderSettingsDto = AgentaApi.CustomProviderSettingsDto
+export type CustomModelSettingsDto = AgentaApi.CustomModelSettingsDto
+
+// `SecretKind` / `StandardProviderKind` / `CustomProviderKind` are Fern
+// const-asserted objects. Re-export both the value and the derived type
+// so callers can use them like an enum (`SecretKind.ProviderKey`).
+export const SecretKind = AgentaApi.SecretKind
+export type SecretKind = AgentaApi.SecretKind
+
+export const StandardProviderKind = AgentaApi.StandardProviderKind
+export type StandardProviderKind = AgentaApi.StandardProviderKind
+
+export const CustomProviderKind = AgentaApi.CustomProviderKind
+export type CustomProviderKind = AgentaApi.CustomProviderKind
+
+// ---------------------------------------------------------------------------
+// App-level catalog (no wire equivalent)
+// ---------------------------------------------------------------------------
 
 export const PROVIDER_LABELS: Record<string, string> = {
     openai: "OpenAI",
@@ -88,43 +86,20 @@ export const PROVIDER_KINDS: Record<string, string> = {
     mistralai: "mistral",
 }
 
-export interface VaultModels {
-    slug: string
-}
+/**
+ * Standard provider kinds shown in the OSS provider picker.
+ *
+ * Fern includes both `"mistral"` and `"mistralai"` in `StandardProviderKind`
+ * for backwards compatibility, but the OSS UI only shows the canonical
+ * `"mistral"` entry — filter the alias out here.
+ */
+export const STANDARD_PROVIDER_KINDS: StandardProviderKind[] = (
+    Object.values(StandardProviderKind) as StandardProviderKind[]
+).filter((kind) => kind !== StandardProviderKind.Mistralai)
 
-export interface VaultProvider {
-    url: string
-    version: string
-    extras: {
-        aws_access_key_id?: string
-        aws_secret_access_key?: string
-        aws_session_token?: string
-        aws_region_name?: string
-        vertex_ai_project?: string
-        vertex_ai_location?: string
-        vertex_ai_credentials?: string
-        api_key?: string
-    }
-}
-
-export interface VaultData {
-    kind: string
-    provider: VaultProvider
-    models: VaultModels[]
-    model_keys: string[]
-    provider_slug: string
-}
-
-export type CustomSecretDTO<T extends "payload" | "response" = "response"> = {
-    header: HeaderDTO
-} & (T extends "payload"
-    ? {secret: {kind: SecretDTOKind.CUSTOM_PROVIDER_KEY; data: VaultData}}
-    : {
-          kind: SecretDTOKind.CUSTOM_PROVIDER_KEY
-          data: VaultData
-          id: string
-          lifecycle: {created_at: string}
-      })
+// ---------------------------------------------------------------------------
+// Migration status (UI state, not wire)
+// ---------------------------------------------------------------------------
 
 /**
  * Migration status for the legacy localStorage → vault migration.

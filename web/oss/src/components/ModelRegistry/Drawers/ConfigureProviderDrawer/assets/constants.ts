@@ -1,4 +1,4 @@
-import {SecretDTOProvider} from "@agenta/entities/secret"
+import {STANDARD_PROVIDER_KINDS} from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
 
 export const PROVIDER_FIELDS: {
@@ -21,7 +21,7 @@ export const PROVIDER_FIELDS: {
         label: "API key",
         placeholder: "Enter API key",
         note: "This secret will be encrypted in transit and at rest.",
-        model: ["azure", "custom", ...Object.values(SecretDTOProvider)],
+        model: ["azure", "custom", ...STANDARD_PROVIDER_KINDS],
         required: false,
     },
     {

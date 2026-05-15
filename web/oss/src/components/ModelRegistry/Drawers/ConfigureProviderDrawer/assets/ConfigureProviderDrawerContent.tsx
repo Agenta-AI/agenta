@@ -3,7 +3,7 @@ import React, {useEffect, useMemo, useState} from "react"
 import {
     PROVIDER_KINDS,
     PROVIDER_LABELS,
-    SecretDTOProvider,
+    STANDARD_PROVIDER_KINDS,
     useVaultSecret,
 } from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
@@ -107,7 +107,7 @@ const ConfigureProviderDrawerContent = ({
     const [errorMessage, setErrorMessage] = useState("")
     const {handleModifyCustomVaultSecret} = useVaultSecret()
 
-    const standardProviders = useMemo(() => [...Object.values(SecretDTOProvider)], [])
+    const standardProviders = useMemo(() => [...STANDARD_PROVIDER_KINDS], [])
     const customProviders = useMemo(() => ["azure", "bedrock", "vertex_ai", "custom"], [])
     const validProviders = useMemo(
         () => [...customProviders, ...standardProviders],

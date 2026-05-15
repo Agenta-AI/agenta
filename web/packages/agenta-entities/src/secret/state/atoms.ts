@@ -43,7 +43,7 @@ import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
 import {getEnvNameMap, transformCustomProviderPayloadData} from "../core/transforms"
-import {SecretDTOKind, type VaultMigrationStatus} from "../core/types"
+import {SecretKind, type VaultMigrationStatus} from "../core/types"
 
 /**
  * Atom for tracking vault key migration status.
@@ -118,7 +118,7 @@ export const customSecretsAtom = atom((get) => {
     const queryResult = get(vaultSecretsQueryAtom)
     const data = queryResult.data || []
 
-    return data.filter((secret) => secret.type === SecretDTOKind.CUSTOM_PROVIDER_KEY)
+    return data.filter((secret) => secret.type === SecretKind.CustomProvider)
 })
 
 /**
@@ -197,7 +197,7 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
                 name: provider.title,
             },
             secret: {
-                kind: SecretDTOKind.PROVIDER_KEY,
+                kind: SecretKind.ProviderKey,
                 data: {
                     kind: providerKind,
                     provider: {

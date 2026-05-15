@@ -19,7 +19,6 @@
 import type {LlmProvider} from "@agenta/shared/types"
 
 import {transformSecret} from "../core/transforms"
-import type {CustomSecretDTO, StandardSecretDTO} from "../core/types"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
 
@@ -32,7 +31,7 @@ export const fetchVaultSecret = async ({
     projectId: string
 }): Promise<LlmProvider[]> => {
     const result = await getSecretsClient().listSecrets(projectScopedRequest(projectId))
-    return transformSecret(result as unknown as StandardSecretDTO[] | CustomSecretDTO[])
+    return transformSecret(result)
 }
 
 export const createVaultSecret = async <T>({

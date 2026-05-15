@@ -30,24 +30,30 @@
 // ============================================================================
 
 export type {
-    HeaderDTO,
-    StandardSecret,
-    StandardSecretDTO,
-    VaultModels,
-    VaultProvider,
-    VaultData,
-    CustomSecretDTO,
+    CreateSecretDto,
+    CustomModelSettingsDto,
+    CustomProviderDto,
+    CustomProviderSettingsDto,
+    Header,
+    LegacyLifecycleDto,
+    SecretDto,
+    SecretResponseDto,
+    StandardProviderDto,
+    StandardProviderSettingsDto,
+    UpdateSecretDto,
     VaultMigrationStatus,
 } from "./core"
 
 export {
-    SecretDTOKind,
-    SecretDTOProvider,
-    PROVIDER_LABELS,
+    CustomProviderKind,
     PROVIDER_KINDS,
-    transformSecret,
-    transformCustomProviderPayloadData,
+    PROVIDER_LABELS,
+    STANDARD_PROVIDER_KINDS,
+    SecretKind,
+    StandardProviderKind,
     getEnvNameMap,
+    transformCustomProviderPayloadData,
+    transformSecret,
 } from "./core"
 
 // ============================================================================

@@ -1,14 +1,25 @@
 export type {
-    HeaderDTO,
-    StandardSecret,
-    StandardSecretDTO,
-    VaultModels,
-    VaultProvider,
-    VaultData,
-    CustomSecretDTO,
+    CreateSecretDto,
+    CustomModelSettingsDto,
+    CustomProviderDto,
+    CustomProviderSettingsDto,
+    Header,
+    LegacyLifecycleDto,
+    SecretDto,
+    SecretResponseDto,
+    StandardProviderDto,
+    StandardProviderSettingsDto,
+    UpdateSecretDto,
     VaultMigrationStatus,
 } from "./types"
 
-export {SecretDTOKind, SecretDTOProvider, PROVIDER_LABELS, PROVIDER_KINDS} from "./types"
+export {
+    CustomProviderKind,
+    PROVIDER_KINDS,
+    PROVIDER_LABELS,
+    STANDARD_PROVIDER_KINDS,
+    SecretKind,
+    StandardProviderKind,
+} from "./types"
 
 export {transformSecret, transformCustomProviderPayloadData, getEnvNameMap} from "./transforms"
