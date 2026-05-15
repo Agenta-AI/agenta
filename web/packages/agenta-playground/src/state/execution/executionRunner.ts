@@ -642,17 +642,17 @@ async function executeViaFetch(params: {
 
         if (!response.ok) {
             const errorText = await response.text()
+            let parsedErrorBody: unknown = null
+            try {
+                parsedErrorBody = JSON.parse(errorText)
+            } catch {
+                // non-JSON body
+            }
             const {message: errorMessage, stacktrace: errorStacktrace} = parseHttpErrorBody(
-                errorText,
+                parsedErrorBody ?? errorText,
                 `Request failed with status ${response.status}`,
             )
-            let traceId: string | null = null
-
-            try {
-                traceId = extractTraceIdFromPayload(JSON.parse(errorText))
-            } catch {
-                // non-JSON body — no trace ID available
-            }
+            const traceId = extractTraceIdFromPayload(parsedErrorBody)
 
             return {
                 executionId,

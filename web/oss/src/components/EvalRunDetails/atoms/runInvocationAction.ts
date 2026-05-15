@@ -210,7 +210,10 @@ export const triggerRunInvocationAtom = atom(
                     traceId: result.traceId ?? undefined,
                     status: "failure",
                     references,
-                    error: {message: errorMessage, ...(errorStacktrace ? {stacktrace: errorStacktrace} : {})},
+                    error: {
+                        message: errorMessage,
+                        ...(errorStacktrace ? {stacktrace: errorStacktrace} : {}),
+                    },
                 })
 
                 await updateScenarioStatus(scenarioId, EvaluationStatus.FAILURE)

@@ -9,29 +9,41 @@ export interface HttpErrorBody {
 
 const DEFAULT_MESSAGE = "Request failed"
 
-export function parseHttpErrorBody(text: string, fallbackMessage = DEFAULT_MESSAGE): HttpErrorBody {
-    if (!text) return {message: fallbackMessage}
-    try {
-        const data = JSON.parse(text)
-        if (data?.status?.message) {
-            return {
-                message: data.status.message,
-                ...(data.status.stacktrace != null ? {stacktrace: data.status.stacktrace} : {}),
-            }
+function extractFromParsed(data: unknown, fallbackMessage: string): HttpErrorBody {
+    const obj = data as Record<string, unknown> | null
+    if (obj?.status && typeof (obj.status as Record<string, unknown>)?.message === "string") {
+        const s = obj.status as Record<string, unknown>
+        return {
+            message: s.message as string,
+            ...(s.stacktrace != null ? {stacktrace: s.stacktrace as string | string[]} : {}),
         }
-        if (data?.detail?.message) {
-            return {
-                message: data.detail.message,
-                ...(data.detail.stacktrace != null ? {stacktrace: data.detail.stacktrace} : {}),
-            }
-        }
-        if (typeof data?.detail === "string") {
-            return {message: data.detail}
-        }
-        return {message: fallbackMessage}
-    } catch {
-        return {message: text}
     }
+    if (obj?.detail && typeof (obj.detail as Record<string, unknown>)?.message === "string") {
+        const d = obj.detail as Record<string, unknown>
+        return {
+            message: d.message as string,
+            ...(d.stacktrace != null ? {stacktrace: d.stacktrace as string | string[]} : {}),
+        }
+    }
+    if (typeof obj?.detail === "string") {
+        return {message: obj.detail}
+    }
+    return {message: fallbackMessage}
+}
+
+export function parseHttpErrorBody(
+    input: string | unknown,
+    fallbackMessage = DEFAULT_MESSAGE,
+): HttpErrorBody {
+    if (input === null || input === undefined || input === "") return {message: fallbackMessage}
+    if (typeof input === "string") {
+        try {
+            return extractFromParsed(JSON.parse(input), fallbackMessage)
+        } catch {
+            return {message: input}
+        }
+    }
+    return extractFromParsed(input, fallbackMessage)
 }
 
 /**

@@ -56,13 +56,19 @@ export interface ExecuteWorkflowRevisionParams {
     abortSignal?: AbortSignal
 }
 
+export interface ExecuteWorkflowRevisionError {
+    message: string
+    code?: string
+    stacktrace?: string | string[]
+}
+
 export interface ExecuteWorkflowRevisionResult {
     status: "success" | "error" | "cancelled"
     output?: unknown
     structuredOutput?: unknown
     traceId?: string | null
     spanId?: string | null
-    error?: {message: string; code?: string; stacktrace?: string | string[]}
+    error?: ExecuteWorkflowRevisionError
 }
 
 // ============================================================================

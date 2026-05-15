@@ -87,6 +87,7 @@ export type {ChainExecutionResult, ChainNodeInfo} from "./state"
 
 export {executeWorkflowRevision} from "./executeWorkflowRevision"
 export type {
+    ExecuteWorkflowRevisionError,
     ExecuteWorkflowRevisionParams,
     ExecuteWorkflowRevisionResult,
 } from "./executeWorkflowRevision"
