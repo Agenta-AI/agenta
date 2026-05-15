@@ -58,3 +58,20 @@ export const getAgentaApiUrl = (): string => {
 
     return apiUrl
 }
+
+/**
+ * Get the Agenta Web URL.
+ * Falls back to current origin if not configured.
+ */
+export const getAgentaWebUrl = (): string => {
+    const webUrl = getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")
+
+    if (!webUrl) {
+        const runtimeLocation = (globalThis as RuntimeGlobal).location
+        if (runtimeLocation?.protocol && runtimeLocation?.hostname) {
+            return `${runtimeLocation.protocol}//${runtimeLocation.hostname}`
+        }
+    }
+
+    return webUrl
+}
