@@ -56,7 +56,7 @@ Each span also declares its role through `ag.type.span`:
 | `chat`, `completion` | Chat-completion or completion calls. |
 | `embedding`, `query`, `rerank` | Index and retrieval calls. |
 
-## References
+## References {#references-and-entity-linking}
 
 A reference links a trace (or a span) back to the Agenta entity that produced or triggered it. References live under `ag.references.<key>` and each value names an entity revision:
 
@@ -125,7 +125,7 @@ The Agenta-native ingest endpoints `POST /tracing/spans/ingest` and `POST /trace
 
 :::
 
-### How ingest works
+### How ingest works {#async-write-contract-202}
 
 Every ingest endpoint returns `202 Accepted` *before* the spans are persisted. The router parses the payload, hands the spans off to an async worker, and responds immediately. This keeps the ingest buffer fast, so instrumented apps do not block on telemetry.
 
