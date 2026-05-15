@@ -2647,6 +2647,82 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             return _queues
 
     @suppress_exceptions()
+    async def archive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(EvaluationQueueDBE)
+                .filter(
+                    EvaluationQueueDBE.project_id == project_id,
+                    EvaluationQueueDBE.id == queue_id,
+                )
+                .limit(1)
+            )
+            queue_dbe = (await session.execute(stmt)).scalars().first()
+            if queue_dbe is None:
+                return None
+
+            run_flags = await _get_run_flags(
+                session=session,
+                project_id=project_id,
+                run_id=queue_dbe.run_id,  # type: ignore
+            )
+            if run_flags.get("is_closed", False):
+                raise EvaluationClosedConflict(
+                    run_id=queue_dbe.run_id,
+                    queue_id=queue_dbe.id,  # type: ignore
+                )
+
+            queue_dbe.deleted_at = datetime.now(timezone.utc)
+            queue_dbe.deleted_by_id = user_id
+            await session.commit()
+            return create_dto_from_dbe(DTO=EvaluationQueue, dbe=queue_dbe)
+
+    @suppress_exceptions()
+    async def unarchive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(EvaluationQueueDBE)
+                .filter(
+                    EvaluationQueueDBE.project_id == project_id,
+                    EvaluationQueueDBE.id == queue_id,
+                )
+                .limit(1)
+            )
+            queue_dbe = (await session.execute(stmt)).scalars().first()
+            if queue_dbe is None:
+                return None
+
+            run_flags = await _get_run_flags(
+                session=session,
+                project_id=project_id,
+                run_id=queue_dbe.run_id,  # type: ignore
+            )
+            if run_flags.get("is_closed", False):
+                raise EvaluationClosedConflict(
+                    run_id=queue_dbe.run_id,
+                    queue_id=queue_dbe.id,  # type: ignore
+                )
+
+            queue_dbe.deleted_at = None
+            queue_dbe.deleted_by_id = None
+            queue_dbe.updated_at = datetime.now(timezone.utc)
+            queue_dbe.updated_by_id = user_id
+            await session.commit()
+            return create_dto_from_dbe(DTO=EvaluationQueue, dbe=queue_dbe)
+
+    @suppress_exceptions()
     async def delete_queue(
         self,
         *,
@@ -2725,6 +2801,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
+
+            if not queue or not queue.include_archived:
+                stmt = stmt.filter(EvaluationQueueDBE.deleted_at.is_(None))
 
             if queue is not None:
                 if queue.ids is not None:

@@ -122,7 +122,7 @@ This says whether a run warrants a default queue when queues are conditional.
 
 ### Global lifecycle policy
 
-An env-backed setting determines whether default queues are unconditional for all runs, for example:
+A global policy toggle determines whether default queues are unconditional for all runs, for example:
 
 ```text
 EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS

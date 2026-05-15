@@ -12,10 +12,12 @@ def _has_reference(step: EvaluationStep, token: str) -> bool:
 def _input_family(step: EvaluationStep) -> Optional[str]:
     if _has_reference(step, "query"):
         return "query"
-    if _has_reference(step, "testset") or _has_reference(step, "testcase"):
+    if _has_reference(step, "testset"):
         return "testset"
     if _has_reference(step, "trace"):
         return "trace"
+    if _has_reference(step, "testcase"):
+        return "testcase"
     return None
 
 
@@ -29,9 +31,10 @@ def classify_steps_topology(
     *,
     steps: List[EvaluationStep],
     is_live: bool = False,
-    is_queue: bool = False,
     has_queries: bool = False,
     has_testsets: bool = False,
+    has_traces: bool = False,
+    has_testcases: bool = False,
     has_evaluators: bool = False,
 ) -> TopologyDecision:
     input_steps = _steps_of_type(steps, "input")
@@ -43,7 +46,8 @@ def classify_steps_topology(
     }
     has_queries = has_queries or "query" in input_families
     has_testsets = has_testsets or "testset" in input_families
-    has_traces = "trace" in input_families
+    has_traces = has_traces or "trace" in input_families
+    has_testcases = has_testcases or "testcase" in input_families
     has_applications = bool(application_steps)
     has_evaluators = has_evaluators or bool(evaluator_steps)
 
@@ -76,19 +80,19 @@ def classify_steps_topology(
             dispatch="live_query",
         )
 
-    if is_queue and has_evaluators and not has_applications:
-        if has_testsets:
+    if has_evaluators and not has_applications:
+        if has_testcases:
             return TopologyDecision(
                 status="supported",
-                label="queue testcases -> evaluator",
-                reason="queue testcase batches are worker-dispatched",
+                label="direct testcases -> evaluator",
+                reason="direct testcase batches are worker-dispatched",
                 dispatch="queue_testcases",
             )
-        if has_queries or has_traces:
+        if has_traces:
             return TopologyDecision(
                 status="supported",
-                label="queue traces -> evaluator",
-                reason="queue trace batches are worker-dispatched",
+                label="direct traces -> evaluator",
+                reason="direct trace batches are worker-dispatched",
                 dispatch="queue_traces",
             )
 
@@ -103,7 +107,7 @@ def classify_steps_topology(
             ),
         )
 
-    if has_testsets and has_evaluators and not has_applications and not is_queue:
+    if has_testsets and has_evaluators and not has_applications:
         return TopologyDecision(
             status="potential",
             label="testset -> evaluator",

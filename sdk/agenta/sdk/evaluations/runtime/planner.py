@@ -22,11 +22,12 @@ def effective_is_split(
     *,
     is_split: bool,
     is_live: bool = False,
-    is_queue: bool = False,
+    has_traces: bool = False,
+    has_testcases: bool = False,
     has_application_steps: bool = False,
     has_evaluator_steps: bool = False,
 ) -> bool:
-    if is_live or is_queue:
+    if is_live or has_traces or has_testcases:
         return False
     if not has_application_steps or not has_evaluator_steps:
         return False
@@ -46,7 +47,8 @@ class EvaluationPlanner:
         repeats: Optional[int] = None,
         is_split: bool = False,
         is_live: bool = False,
-        is_queue: bool = False,
+        has_traces: bool = False,
+        has_testcases: bool = False,
     ) -> ExecutionPlan:
         return self.plan_bindings(
             run_id=run_id,
@@ -60,7 +62,8 @@ class EvaluationPlanner:
             repeats=repeats,
             is_split=is_split,
             is_live=is_live,
-            is_queue=is_queue,
+            has_traces=has_traces,
+            has_testcases=has_testcases,
         )
 
     def plan_bindings(
@@ -72,7 +75,8 @@ class EvaluationPlanner:
         repeats: Optional[int] = None,
         is_split: bool = False,
         is_live: bool = False,
-        is_queue: bool = False,
+        has_traces: bool = False,
+        has_testcases: bool = False,
     ) -> ExecutionPlan:
         repeat_indices = build_repeat_indices(repeats)
 
@@ -83,7 +87,8 @@ class EvaluationPlanner:
             repeat_indices=repeat_indices,
             is_split=is_split,
             is_live=is_live,
-            is_queue=is_queue,
+            has_traces=has_traces,
+            has_testcases=has_testcases,
             has_application_steps=bool(application_steps),
             has_evaluator_steps=bool(evaluator_steps),
         )
@@ -140,14 +145,16 @@ class EvaluationPlanner:
         repeat_indices: List[int],
         is_split: bool,
         is_live: bool,
-        is_queue: bool,
+        has_traces: bool,
+        has_testcases: bool,
         has_application_steps: bool,
         has_evaluator_steps: bool,
     ) -> List[int]:
         split = effective_is_split(
             is_split=is_split,
             is_live=is_live,
-            is_queue=is_queue,
+            has_traces=has_traces,
+            has_testcases=has_testcases,
             has_application_steps=has_application_steps,
             has_evaluator_steps=has_evaluator_steps,
         )

@@ -253,6 +253,16 @@ class EvaluationsRouter:
             operation_id="open_run",
         )
 
+        # GET /api/evaluations/runs/{run_id}/default-queue
+        self.router.add_api_route(
+            path="/runs/{run_id}/default-queue",
+            methods=["GET"],
+            endpoint=self.fetch_default_queue,
+            response_model=EvaluationQueueResponse,
+            response_model_exclude_none=True,
+            operation_id="fetch_default_queue",
+        )
+
         # EVALUATION SCENARIOS -------------------------------------------------
 
         # POST /api/evaluations/scenarios/
@@ -521,6 +531,26 @@ class EvaluationsRouter:
             operation_id="delete_queue",
         )
 
+        # POST /api/evaluations/queues/{queue_id}/archive
+        self.router.add_api_route(
+            path="/queues/{queue_id}/archive",
+            methods=["POST"],
+            endpoint=self.archive_queue,
+            response_model=EvaluationQueueResponse,
+            response_model_exclude_none=True,
+            operation_id="archive_queue",
+        )
+
+        # POST /api/evaluations/queues/{queue_id}/unarchive
+        self.router.add_api_route(
+            path="/queues/{queue_id}/unarchive",
+            methods=["POST"],
+            endpoint=self.unarchive_queue,
+            response_model=EvaluationQueueResponse,
+            response_model_exclude_none=True,
+            operation_id="unarchive_queue",
+        )
+
         # POST /api/evaluations/queues/{queue_id}/scenarios/query
         self.router.add_api_route(
             path="/queues/{queue_id}/scenarios/query",
@@ -779,6 +809,29 @@ class EvaluationsRouter:
         )
 
         return run_response
+
+    # GET /evaluations/runs/{run_id}/default-queue
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationQueueResponse(), exclude=[HTTPException])
+    async def fetch_default_queue(
+        self,
+        request: Request,
+        *,
+        run_id: UUID,
+    ) -> EvaluationQueueResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.evaluations_service.fetch_default_queue(
+            project_id=UUID(request.state.project_id),
+            run_id=run_id,
+        )
+        return EvaluationQueueResponse(count=1 if queue else 0, queue=queue)
 
     # PATCH /evaluations/runs/{run_id}
     @intercept_exceptions()
@@ -1700,6 +1753,54 @@ class EvaluationsRouter:
         )
 
         return queue_response
+
+    # POST /evaluations/queues/{queue_id}/archive
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def archive_queue(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+    ) -> EvaluationQueueResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.evaluations_service.archive_queue(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            queue_id=queue_id,
+        )
+        return EvaluationQueueResponse(count=1 if queue else 0, queue=queue)
+
+    # POST /evaluations/queues/{queue_id}/unarchive
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def unarchive_queue(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+    ) -> EvaluationQueueResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.evaluations_service.unarchive_queue(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            queue_id=queue_id,
+        )
+        return EvaluationQueueResponse(count=1 if queue else 0, queue=queue)
 
     # DELETE /evaluations/queues/{queue_id}
     @intercept_exceptions()

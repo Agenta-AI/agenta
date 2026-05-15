@@ -82,12 +82,14 @@ class EvaluationRunFlags(BaseModel):
     is_live: bool = False  # Indicates if the run has live queries
     is_active: bool = False  # Indicates if the run is currently active
     is_closed: bool = False  # Indicates if the run is modifiable
-    is_queue: bool = False  # Indicates this run belongs to a simple annotation queue
+    is_queue: bool = False  # Indicates active default queue + active human work
     is_cached: bool = False  # Indicates the run should reuse traces by hash
     is_split: bool = False  # Indicates repeats fan out at the application step
     #
-    has_queries: bool = False  # Indicates if the run has queries
-    has_testsets: bool = False  # Indicates if the run has testsets
+    has_queries: bool = False  # Indicates if the run has query-backed inputs
+    has_testsets: bool = False  # Indicates if the run has testset-backed inputs
+    has_traces: bool = False  # Indicates if the run has direct trace inputs
+    has_testcases: bool = False  # Indicates if the run has direct testcase inputs
     has_evaluators: bool = False  # Indicates if the run has evaluators
     #
     has_custom: bool = False  # Indicates if the run has custom evaluators
@@ -100,13 +102,19 @@ class EvaluationRunQueryFlags(BaseModel):
     is_active: Optional[bool] = None  # Indicates if the run is currently active
     is_closed: Optional[bool] = None  # Indicates if the run is modifiable
     is_queue: Optional[bool] = (
-        None  # Indicates this run belongs to a simple annotation queue
+        None  # Indicates active default queue + active human work
     )
     is_cached: Optional[bool] = None  # Indicates the run should reuse traces by hash
     is_split: Optional[bool] = None  # Indicates repeats fan out at the application step
     #
-    has_queries: Optional[bool] = None  # Indicates if the run has queries
-    has_testsets: Optional[bool] = None  # Indicates if the run has testsets
+    has_queries: Optional[bool] = None  # Indicates if the run has query-backed inputs
+    has_testsets: Optional[bool] = (
+        None  # Indicates if the run has testset-backed inputs
+    )
+    has_traces: Optional[bool] = None  # Indicates if the run has direct trace inputs
+    has_testcases: Optional[bool] = (
+        None  # Indicates if the run has direct testcase inputs
+    )
     has_evaluators: Optional[bool] = None  # Indicates if the run has evaluators
     #
     has_custom: Optional[bool] = None  # Indicates if the run has custom evaluators
@@ -394,10 +402,12 @@ class EvaluationMetricsSpecsRefresh(BaseModel):
 
 class EvaluationQueueFlags(BaseModel):
     is_sequential: bool = False
+    is_default: bool = False
 
 
 class EvaluationQueueQueryFlags(BaseModel):
     is_sequential: Optional[bool] = None
+    is_default: Optional[bool] = None
 
 
 class EvaluationQueueData(BaseModel):
@@ -473,6 +483,7 @@ class EvaluationQueueEdit(Identifier, Header, Metadata):
 
 class EvaluationQueueQuery(Header, Metadata):
     flags: Optional[EvaluationQueueQueryFlags] = None  # type: ignore
+    include_archived: Optional[bool] = None
 
     user_id: Optional[UUID] = None
     user_ids: Optional[List[UUID]] = None
@@ -542,6 +553,8 @@ class SimpleEvaluationQuery(Header, Metadata):
 
 
 class SimpleQueueKind(str, Enum):
+    QUERIES = "queries"
+    TESTSETS = "testsets"
     TRACES = "traces"
     TESTCASES = "testcases"
 
@@ -639,6 +652,15 @@ class SimpleQueueData(BaseModel):
 
         if not has_kind and not has_queries and not has_testsets:
             raise ValueError("simple queue requires kind, queries, or testsets")
+
+        if has_queries and self.kind not in (None, SimpleQueueKind.QUERIES):
+            raise ValueError("query-backed queues must use kind='queries'")
+        if has_testsets and self.kind not in (None, SimpleQueueKind.TESTSETS):
+            raise ValueError("testset-backed queues must use kind='testsets'")
+        if self.kind == SimpleQueueKind.QUERIES and not has_queries:
+            raise ValueError("kind='queries' requires query sources")
+        if self.kind == SimpleQueueKind.TESTSETS and not has_testsets:
+            raise ValueError("kind='testsets' requires testset sources")
 
         return self
 

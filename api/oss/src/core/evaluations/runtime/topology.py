@@ -19,9 +19,10 @@ def classify_run_topology(run: EvaluationRun) -> TopologyDecision:
     decision = classify_steps_topology(
         steps=normalize_steps(steps),
         is_live=bool(flags and flags.is_live),
-        is_queue=bool(flags and flags.is_queue),
         has_queries=bool(flags and flags.has_queries),
         has_testsets=bool(flags and flags.has_testsets),
+        has_traces=bool(flags and flags.has_traces),
+        has_testcases=bool(flags and flags.has_testcases),
         has_evaluators=bool(flags and flags.has_evaluators),
     )
 

@@ -110,7 +110,7 @@ def test_repeat_and_fanout_planning_helpers_follow_split_rules():
     assert (
         effective_is_split(
             is_split=True,
-            is_queue=True,
+            has_traces=True,
             has_application_steps=True,
             has_evaluator_steps=True,
         )

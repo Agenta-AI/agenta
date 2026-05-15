@@ -93,6 +93,8 @@ def _make_run_flags(
 
     flags.has_queries = False
     flags.has_testsets = False
+    flags.has_traces = False
+    flags.has_testcases = False
     flags.has_evaluators = False
     #
     flags.has_custom = False
@@ -103,13 +105,15 @@ def _make_run_flags(
         if _step.type == "input":
             _references = _step.references or dict()
 
-            if flags.is_queue and not _references:
+            if not _references:
                 step_key = (_step.key or "").lower()
 
-                if "query" in step_key:
-                    flags.has_queries = True
-                if "testset" in step_key:
-                    flags.has_testsets = True
+                # Direct source inputs are explicit source families. Legacy
+                # direct keys remain recognized for old rows.
+                if step_key in {"traces", "query-direct"}:
+                    flags.has_traces = True
+                if step_key in {"testcases", "testset-direct"}:
+                    flags.has_testcases = True
 
             for _key in _references.keys():
                 step_key = str(_key).lower()

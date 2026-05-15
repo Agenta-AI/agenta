@@ -213,7 +213,9 @@ async def process_evaluation_source_slice(
         )
         if not run:
             raise ValueError(f"Evaluation run with id {run_id} not found!")
-        if require_queue and (not run.flags or not run.flags.is_queue):
+        if require_queue and (
+            not run.flags or not (run.flags.has_traces or run.flags.has_testcases)
+        ):
             raise ValueError(
                 f"Evaluation run with id {run_id} is not configured for ad-hoc batching!"
             )
@@ -525,7 +527,7 @@ async def process_evaluation_source_slice(
     if (
         update_run_status
         and run.flags
-        and run.flags.is_queue
+        and (run.flags.has_traces or run.flags.has_testcases)
         and run_status != EvaluationStatus.FAILURE
     ):
         severity = {

@@ -370,11 +370,12 @@ def effective_is_split(
     *,
     is_split: bool,
     is_live: bool = False,
-    is_queue: bool = False,
+    has_traces: bool = False,
+    has_testcases: bool = False,
     has_application_steps: bool = False,
     has_evaluator_steps: bool = False,
 ) -> bool:
-    if is_live or is_queue:
+    if is_live or has_traces or has_testcases:
         return False
     if not has_application_steps or not has_evaluator_steps:
         return False

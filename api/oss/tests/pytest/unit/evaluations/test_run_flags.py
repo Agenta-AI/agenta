@@ -56,3 +56,56 @@ def test_evaluation_run_query_flags_include_cache_and_split_when_explicit():
         "is_cached": False,
         "is_split": False,
     }
+
+
+def test_create_run_flags_keeps_direct_source_families_distinct_from_backed_sources():
+    direct_run = EvaluationRun(
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="traces",
+                    type="input",
+                    origin="custom",
+                    references={},
+                ),
+                EvaluationRunDataStep(
+                    key="testcases",
+                    type="input",
+                    origin="custom",
+                    references={},
+                ),
+            ]
+        )
+    )
+    backed_run = EvaluationRun(
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="query-main",
+                    type="input",
+                    origin="custom",
+                    references={"query_revision": {"id": str(uuid4())}},
+                ),
+                EvaluationRunDataStep(
+                    key="testset-main",
+                    type="input",
+                    origin="custom",
+                    references={"testset_revision": {"id": str(uuid4())}},
+                ),
+            ]
+        )
+    )
+
+    direct_flags = create_run_flags(direct_run)
+    backed_flags = create_run_flags(backed_run)
+
+    assert direct_flags is not None
+    assert direct_flags.has_traces is True
+    assert direct_flags.has_testcases is True
+    assert direct_flags.has_queries is False
+    assert direct_flags.has_testsets is False
+    assert backed_flags is not None
+    assert backed_flags.has_queries is True
+    assert backed_flags.has_testsets is True
+    assert backed_flags.has_traces is False
+    assert backed_flags.has_testcases is False

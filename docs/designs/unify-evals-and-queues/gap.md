@@ -52,14 +52,13 @@ Needs clarification or adjustment:
 
 - `is_queue` currently distinguishes simple queue-created runs from simple evaluations
 - linked default queues should not require ordinary evaluation runs to become queue-ingest runs
-- the meaning of `is_queue` should stay technical, not become the signal that a run has a default queue
+- the old meaning of `is_queue` must be replaced by persisted simple-queue eligibility
 
 ## Configuration
 
 Missing from current state:
 
-- no application configuration for unconditional default queues
-- no env-backed setting in `api/oss/src/utils/env.py`
+- no global policy toggle for unconditional default queues
 - no shared policy helper for deciding default-queue lifecycle mode
 
 ## Tests

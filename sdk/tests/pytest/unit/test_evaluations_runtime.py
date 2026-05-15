@@ -135,6 +135,20 @@ def test_sdk_runtime_topology_classifier_matches_batch_inference_shape():
     assert decision.dispatch == "batch_invocation"
 
 
+def test_sdk_runtime_topology_classifier_distinguishes_direct_testcases_from_testsets():
+    decision = classify_steps_topology(
+        steps=[
+            EvaluationStep(key="testcases", type="input"),
+            EvaluationStep(key="evaluator-human", type="annotation", origin="human"),
+        ],
+        has_testcases=True,
+        has_evaluators=True,
+    )
+
+    assert decision.status == "supported"
+    assert decision.dispatch == "queue_testcases"
+
+
 def test_sdk_runtime_topology_classifier_keeps_deferred_query_to_application_shape():
     decision = classify_steps_topology(
         steps=[

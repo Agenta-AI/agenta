@@ -74,7 +74,8 @@ class EvaluationPlanner:
             repeats=run.data.repeats if run.data else None,
             is_split=bool(flags and flags.is_split),
             is_live=bool(flags and flags.is_live),
-            is_queue=bool(flags and flags.is_queue),
+            has_traces=bool(flags and flags.has_traces),
+            has_testcases=bool(flags and flags.has_testcases),
         )
 
         return ExecutionPlan(
