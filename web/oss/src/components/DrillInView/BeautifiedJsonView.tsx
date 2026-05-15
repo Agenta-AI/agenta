@@ -174,7 +174,7 @@ const simplifyValue = (value: unknown): unknown => {
     if (!Array.isArray(value)) {
         const keys = Object.keys(rec)
         const noiseKeys = keys.filter((k) => METADATA_NOISE_KEYS.has(k))
-        if (noiseKeys.length > 0 && noiseKeys.length < keys.length) {
+        if (noiseKeys.length > 0) {
             const cleaned: Record<string, unknown> = {}
             for (const k of keys) {
                 if (!METADATA_NOISE_KEYS.has(k)) {
@@ -332,22 +332,26 @@ const ScalarValue = ({value}: {value: unknown}) => {
 
 const CopyButton = ({value}: {value: unknown}) => {
     const [copied, setCopied] = useState(false)
-    const timerRef = useRef<ReturnType<typeof setTimeout>>()
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    useEffect(() => () => clearTimeout(timerRef.current), [])
+    useEffect(
+        () => () => {
+            if (timerRef.current !== null) clearTimeout(timerRef.current)
+        },
+        [],
+    )
 
     const handleCopy = useCallback(
-        (e: React.MouseEvent) => {
+        async (e: React.MouseEvent) => {
             e.stopPropagation()
             const text = typeof value === "string" ? value : JSON.stringify(value, null, 2) || ""
-            navigator.clipboard
-                ?.writeText(text)
-                ?.then(() => {
-                    setCopied(true)
-                    clearTimeout(timerRef.current)
-                    timerRef.current = setTimeout(() => setCopied(false), 1200)
-                })
-                ?.catch(() => {})
+            if (!navigator.clipboard) return
+            try {
+                await navigator.clipboard.writeText(text)
+                setCopied(true)
+                if (timerRef.current !== null) clearTimeout(timerRef.current)
+                timerRef.current = window.setTimeout(() => setCopied(false), 1200)
+            } catch {}
         },
         [value],
     )
@@ -547,7 +551,18 @@ const RecursiveNode = memo(function RecursiveNode({
     const nodePrefix = `${keyPrefix}-${name}`
 
     const chatResult = useMemo(() => shallowExtractChatMessages(value), [value])
-    if (chatResult) {
+
+    const siblingEntries = useMemo(() => {
+        if (!chatResult?.viaKey || !value || typeof value !== "object" || Array.isArray(value))
+            return null
+        const entries = Object.entries(value as Record<string, unknown>).filter(
+            ([k]) =>
+                k !== chatResult.viaKey && (chatResult.viaKey !== "choices" || k !== "choices"),
+        )
+        return entries.length > 0 ? entries : null
+    }, [chatResult, value])
+
+    if (chatResult && !chatResult.viaKey) {
         const normalized = normalizeChatMessages(chatResult.messages)
         return (
             <NodeRow
@@ -563,6 +578,60 @@ const RecursiveNode = memo(function RecursiveNode({
                             <MessageNodeRow key={i} msg={msg} index={i} keyPrefix={nodePrefix} />
                         ))}
                     </div>
+                }
+            />
+        )
+    }
+
+    if (chatResult && chatResult.viaKey) {
+        const normalized = normalizeChatMessages(chatResult.messages)
+        const chatKey = chatResult.viaKey
+        const entries: [string, unknown][] = value
+            ? Object.entries(value as Record<string, unknown>)
+            : []
+        const count = entries.length
+        const meta = `{${count} ${count === 1 ? "key" : "keys"}}`
+        return (
+            <NodeRow
+                keyLabel={keyLabel}
+                meta={meta}
+                collapsible
+                defaultOpen={depth < expandDepth}
+                value={value}
+                isSection={isSection}
+                body={
+                    <>
+                        <NodeRow
+                            keyLabel={chatKey}
+                            meta={`${normalized.length} ${normalized.length === 1 ? "message" : "messages"}`}
+                            collapsible
+                            defaultOpen={depth + 1 < expandDepth}
+                            value={chatResult.messages}
+                            body={
+                                <div className="flex flex-col gap-0.5 py-0.5">
+                                    {normalized.map((msg, i) => (
+                                        <MessageNodeRow
+                                            key={i}
+                                            msg={msg}
+                                            index={i}
+                                            keyPrefix={`${nodePrefix}-${chatKey}`}
+                                        />
+                                    ))}
+                                </div>
+                            }
+                        />
+                        {siblingEntries?.map(([k, v]) => (
+                            <RecursiveNode
+                                key={k}
+                                name={k}
+                                value={v}
+                                keyPrefix={nodePrefix}
+                                depth={depth + 1}
+                                maxDepth={maxDepth}
+                                expandDepth={expandDepth}
+                            />
+                        ))}
+                    </>
                 }
             />
         )
@@ -715,7 +784,18 @@ export const BeautifiedJsonView = memo(function BeautifiedJsonView({
         return keys.size > 0 ? keys : null
     }, [data])
 
-    if (topChatResult) {
+    const topSiblingEntries = useMemo(() => {
+        if (!topChatResult?.viaKey || !data || typeof data !== "object" || Array.isArray(data))
+            return null
+        const entries = Object.entries(data as Record<string, unknown>).filter(
+            ([k]) =>
+                k !== topChatResult.viaKey &&
+                (topChatResult.viaKey !== "choices" || k !== "choices"),
+        )
+        return entries.length > 0 ? entries : null
+    }, [topChatResult, data])
+
+    if (topChatResult && !topChatResult.viaKey) {
         const normalized = normalizeChatMessages(topChatResult.messages)
         return (
             <div className="text-[13px] p-2 px-3 pb-4">
@@ -724,6 +804,50 @@ export const BeautifiedJsonView = memo(function BeautifiedJsonView({
                         <MessageNodeRow key={i} msg={msg} index={i} keyPrefix={keyPrefix} />
                     ))}
                 </div>
+            </div>
+        )
+    }
+
+    if (topChatResult && topChatResult.viaKey) {
+        const normalized = normalizeChatMessages(topChatResult.messages)
+        const chatKey = topChatResult.viaKey
+        return (
+            <div className="text-[13px] p-2 px-3 pb-4">
+                <NodeRow
+                    keyLabel={chatKey}
+                    meta={`${normalized.length} ${normalized.length === 1 ? "message" : "messages"}`}
+                    collapsible
+                    defaultOpen
+                    value={topChatResult.messages}
+                    isSection
+                    body={
+                        <div className="flex flex-col gap-0.5 py-0.5">
+                            {normalized.map((msg, i) => (
+                                <MessageNodeRow
+                                    key={i}
+                                    msg={msg}
+                                    index={i}
+                                    keyPrefix={`${keyPrefix}-${chatKey}`}
+                                />
+                            ))}
+                        </div>
+                    }
+                />
+                {topSiblingEntries?.map(([key, value]) => (
+                    <RecursiveNode
+                        key={key}
+                        name={key}
+                        value={value}
+                        keyPrefix={keyPrefix}
+                        depth={0}
+                        expandDepth={
+                            agDataExpandKeys?.has(key)
+                                ? DEFAULT_MAX_RENDER_DEPTH
+                                : DEFAULT_EXPAND_DEPTH
+                        }
+                        isSection
+                    />
+                ))}
             </div>
         )
     }
