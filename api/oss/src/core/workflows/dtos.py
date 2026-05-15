@@ -3,6 +3,7 @@ from uuid import UUID, uuid4  # noqa: F401
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
 )
 
@@ -54,8 +55,12 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceStreamResponse,  # noqa: F401
     #
     JsonSchemas,  # noqa: F401
-    WorkflowRevisionData,
+    WorkflowRevisionData as BaseWorkflowRevisionData,
 )
+
+
+class WorkflowRevisionData(BaseWorkflowRevisionData):
+    model_config = ConfigDict(extra="forbid")
 
 # aliases ----------------------------------------------------------------------
 

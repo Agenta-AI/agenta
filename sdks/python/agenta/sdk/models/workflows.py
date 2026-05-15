@@ -119,6 +119,8 @@ class WorkflowQueryFlags(BaseModel):
 
 
 class WorkflowRevisionData(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     uri: Optional[str] = None
 
     url: Optional[str] = None

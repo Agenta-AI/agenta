@@ -177,6 +177,35 @@ class TestApplicationVariantsAndRevisions:
             == body["application_revision"]["id"]
         )
 
+    def test_commit_application_revision_rejects_unknown_data_field(self, authed_api):
+        """Issue #4315: before fix unknown data was dropped silently; now 422 on ag_config."""
+        application, variant = _create_application_with_variant(
+            authed_api, marker=uuid4().hex[:8]
+        )
+
+        response = authed_api(
+            "POST",
+            "/applications/revisions/commit",
+            json={
+                "application_revision_commit": {
+                    "application_id": application["id"],
+                    "application_variant_id": variant["id"],
+                    "data": {
+                        "ag_config": {
+                            "prompt": {
+                                "messages": [
+                                    {"role": "system", "content": "hi"}
+                                ]
+                            }
+                        }
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 422
+        assert "ag_config" in str(response.json()["detail"])
+
     def test_query_applications_excludes_evaluators_by_default(self, authed_api):
         marker = uuid4().hex[:8]
         application, _variant = _create_application_with_variant(
