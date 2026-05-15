@@ -3,9 +3,11 @@ import {useCallback, useState} from "react"
 import {
     connectionDrawerAtom,
     executionDrawerAtom,
+    isConnectionActive,
+    isConnectionValid,
     useConnectionActions,
     useConnectionQuery,
-    type ConnectionItem,
+    type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
 import {dayjs} from "@agenta/shared/utils"
@@ -16,7 +18,7 @@ import {useAtom, useSetAtom} from "jotai"
 
 import ConnectionStatusBadge from "../components/ConnectionStatusBadge"
 
-function formatCreatedAt(value: string | undefined): string {
+function formatCreatedAt(value: string | null | undefined): string {
     if (!value) return "-"
     const parsed = dayjs.utc(value)
     return parsed.isValid() ? parsed.format("YYYY-MM-DD HH:mm") : "-"
@@ -37,7 +39,7 @@ export default function ConnectionManagerDrawer() {
     }, [setState])
 
     const setConnectionInCache = useCallback(
-        (nextConnection: ConnectionItem | null) => {
+        (nextConnection: ToolConnection | null) => {
             if (!connectionId) return
             queryClient.setQueryData(["tools", "connections", connectionId], {
                 count: nextConnection ? 1 : 0,
@@ -155,14 +157,14 @@ export default function ConnectionManagerDrawer() {
     const onTest = useCallback(() => {
         if (!connection) return
         setExecution({
-            connectionId: connection.id,
-            connectionSlug: connection.slug,
+            connectionId: connection.id ?? "",
+            connectionSlug: connection.slug ?? "",
             integrationKey: connection.integration_key,
         })
     }, [connection, setExecution])
 
-    const isActive = connection?.flags?.is_active ?? false
-    const isValid = connection?.flags?.is_valid ?? false
+    const isActive = isConnectionActive(connection)
+    const isValid = isConnectionValid(connection)
 
     return (
         <Drawer

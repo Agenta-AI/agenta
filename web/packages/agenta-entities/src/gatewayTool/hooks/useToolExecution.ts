@@ -4,13 +4,13 @@ import {buildGatewayToolSlug} from "@agenta/shared/utils"
 import {v4 as uuidv4} from "uuid"
 
 import {executeToolCall} from "../api"
-import type {ToolCallResult} from "../core/types"
+import type {ToolResult} from "../core/types"
 
 export const buildToolSlug = buildGatewayToolSlug
 
 export const useToolExecution = () => {
     const [isExecuting, setIsExecuting] = useState(false)
-    const [result, setResult] = useState<ToolCallResult | null>(null)
+    const [result, setResult] = useState<ToolResult | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     const execute = useCallback(

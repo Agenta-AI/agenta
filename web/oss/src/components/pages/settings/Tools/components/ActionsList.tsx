@@ -1,15 +1,15 @@
 import {useMemo} from "react"
 
-import type {ActionItem} from "@agenta/entities/gatewayTool"
+import type {ToolCatalogAction} from "@agenta/entities/gatewayTool"
 import {Table, Tag, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
 interface Props {
-    actions: ActionItem[]
+    actions: ToolCatalogAction[]
 }
 
 export default function ActionsList({actions}: Props) {
-    const columns: ColumnsType<ActionItem> = useMemo(
+    const columns: ColumnsType<ToolCatalogAction> = useMemo(
         () => [
             {
                 title: "Name",
@@ -42,7 +42,7 @@ export default function ActionsList({actions}: Props) {
     )
 
     return (
-        <Table<ActionItem>
+        <Table<ToolCatalogAction>
             dataSource={actions}
             columns={columns}
             rowKey="key"

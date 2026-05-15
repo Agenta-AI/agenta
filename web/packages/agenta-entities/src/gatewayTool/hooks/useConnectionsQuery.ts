@@ -2,12 +2,9 @@ import {useAtomValue} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryConnections} from "../api"
-import type {ConnectionItem} from "../core/types"
+import type {ToolConnectionsResponse} from "../core/types"
 
-export const connectionsQueryAtom = atomWithQuery<{
-    count: number
-    connections: ConnectionItem[]
-}>(() => ({
+export const connectionsQueryAtom = atomWithQuery<ToolConnectionsResponse>(() => ({
     queryKey: ["tools", "connections"],
     queryFn: () => queryConnections(),
     staleTime: 30_000,

@@ -4,7 +4,13 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithInfiniteQuery} from "jotai-tanstack-query"
 
 import {fetchIntegrations} from "../api"
-import type {IntegrationItem, IntegrationsResponse} from "../core/types"
+import type {
+    ToolCatalogIntegration,
+    ToolCatalogIntegrationDetails,
+    ToolCatalogIntegrationsResponse,
+} from "../core/types"
+
+type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDetails
 
 const DEFAULT_PROVIDER = "composio"
 const CHUNK_SIZE = 10
@@ -13,8 +19,8 @@ const PREFETCH = 2
 // Server-side search atom — set by the drawer, drives the query
 export const integrationsSearchAtom = atom("")
 
-export const catalogIntegrationsInfiniteAtom = atomWithInfiniteQuery<IntegrationsResponse>(
-    (get) => {
+export const catalogIntegrationsInfiniteAtom =
+    atomWithInfiniteQuery<ToolCatalogIntegrationsResponse>((get) => {
         const search = get(integrationsSearchAtom)
 
         return {
@@ -30,21 +36,20 @@ export const catalogIntegrationsInfiniteAtom = atomWithInfiniteQuery<Integration
             staleTime: 5 * 60_000,
             refetchOnWindowFocus: false,
         }
-    },
-)
+    })
 
 export const useCatalogIntegrations = () => {
     const query = useAtomValue(catalogIntegrationsInfiniteAtom)
     const setSearch = useSetAtom(integrationsSearchAtom)
 
-    const integrations = useMemo<IntegrationItem[]>(() => {
+    const integrations = useMemo<CatalogIntegrationItem[]>(() => {
         const pages = query.data?.pages ?? []
-        return pages.flatMap((p) => p.integrations)
+        return pages.flatMap((p) => p.integrations ?? [])
     }, [query.data?.pages])
 
     const total = useMemo(() => {
         const pages = query.data?.pages ?? []
-        return pages.length > 0 ? pages[0].total : 0
+        return pages.length > 0 ? (pages[0].total ?? 0) : 0
     }, [query.data?.pages])
 
     // --- Prefetch logic ---

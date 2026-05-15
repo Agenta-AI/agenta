@@ -5,11 +5,13 @@ import {
     catalogDrawerOpenAtom,
     executionDrawerAtom,
     integrationsSearchAtom,
+    isConnectionActive,
     useCatalogActions,
     useCatalogIntegrations,
     useIntegrationConnections,
-    type ConnectionItem,
-    type IntegrationItem,
+    type ToolCatalogIntegration,
+    type ToolCatalogIntegrationDetails,
+    type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
@@ -32,6 +34,8 @@ import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
 import ConnectDrawer from "./ConnectDrawer"
+
+type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDetails
 
 // ---------------------------------------------------------------------------
 // Expandable description — 2-line clamp with inline "see more" / "see less"
@@ -63,8 +67,12 @@ interface Props {
 
 export default function CatalogDrawer({onConnectionCreated}: Props) {
     const [open, setOpen] = useAtom(catalogDrawerOpenAtom)
-    const [selectedIntegration, setSelectedIntegration] = useState<IntegrationItem | null>(null)
-    const [connectIntegration, setConnectIntegration] = useState<IntegrationItem | null>(null)
+    const [selectedIntegration, setSelectedIntegration] = useState<CatalogIntegrationItem | null>(
+        null,
+    )
+    const [connectIntegration, setConnectIntegration] = useState<CatalogIntegrationItem | null>(
+        null,
+    )
 
     const setIntegrationsSearch = useSetAtom(integrationsSearchAtom)
     const setActionsSearch = useSetAtom(actionsSearchAtom)
@@ -82,7 +90,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
         setActionsSearch("")
     }, [setActionsSearch])
 
-    const handleConnect = useCallback((integration: IntegrationItem) => {
+    const handleConnect = useCallback((integration: CatalogIntegrationItem) => {
         setConnectIntegration(integration)
     }, [])
 
@@ -124,8 +132,8 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
                     open={!!connectIntegration}
                     integrationKey={connectIntegration.key}
                     integrationName={connectIntegration.name}
-                    integrationLogo={connectIntegration.logo}
-                    integrationDescription={connectIntegration.description}
+                    integrationLogo={connectIntegration.logo ?? undefined}
+                    integrationDescription={connectIntegration.description ?? undefined}
                     authSchemes={connectIntegration.auth_schemes ?? []}
                     onClose={() => setConnectIntegration(null)}
                     onSuccess={handleConnectionSuccess}
@@ -139,7 +147,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
 // Integrations view (sticky header + scrollable content)
 // ---------------------------------------------------------------------------
 
-function IntegrationsView({onSelect}: {onSelect: (integration: IntegrationItem) => void}) {
+function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegrationItem) => void}) {
     const setAtom = useSetAtom(integrationsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -278,7 +286,7 @@ function ActionsView({
     onBack,
     onConnect,
 }: {
-    integration: IntegrationItem
+    integration: CatalogIntegrationItem
     onBack: () => void
     onConnect: () => void
 }) {
@@ -289,13 +297,13 @@ function ActionsView({
     const {connections} = useIntegrationConnections(integration.key)
 
     const handleOpenConnection = useCallback(
-        (conn: ConnectionItem) => {
+        (conn: ToolConnection) => {
             setExecutionDrawer({
-                connectionId: conn.id,
-                connectionSlug: conn.slug,
+                connectionId: conn.id ?? "",
+                connectionSlug: conn.slug ?? "",
                 integrationKey: conn.integration_key,
                 integrationName: integration.name,
-                integrationLogo: integration.logo,
+                integrationLogo: integration.logo ?? undefined,
             })
         },
         [setExecutionDrawer, integration.name, integration.logo],
@@ -304,11 +312,11 @@ function ActionsView({
     const connectMenuItems = useMemo<MenuProps["items"]>(
         () =>
             connections.map((conn) => ({
-                key: conn.id,
+                key: conn.id ?? conn.slug ?? "",
                 label: (
                     <div className="flex items-center gap-2">
                         <span className="truncate">{conn.name || conn.slug}</span>
-                        {conn.flags?.is_active && (
+                        {isConnectionActive(conn) && (
                             <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
                         )}
                     </div>

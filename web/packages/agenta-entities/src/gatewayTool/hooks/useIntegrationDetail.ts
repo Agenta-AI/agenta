@@ -3,12 +3,12 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchIntegrationDetail} from "../api"
-import type {IntegrationDetailResponse} from "../core/types"
+import type {ToolCatalogIntegrationResponse} from "../core/types"
 
 const DEFAULT_PROVIDER = "composio"
 
 export const integrationDetailQueryFamily = atomFamily((integrationKey: string) =>
-    atomWithQuery<IntegrationDetailResponse>(() => ({
+    atomWithQuery<ToolCatalogIntegrationResponse>(() => ({
         queryKey: ["tools", "catalog", "integrationDetail", DEFAULT_PROVIDER, integrationKey],
         queryFn: () => fetchIntegrationDetail(DEFAULT_PROVIDER, integrationKey),
         staleTime: 5 * 60_000,

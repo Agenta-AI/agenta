@@ -5,12 +5,12 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryConnections} from "../api"
-import type {ConnectionItem, ConnectionsQueryResponse} from "../core/types"
+import type {ToolConnection, ToolConnectionsResponse} from "../core/types"
 
 const DEFAULT_PROVIDER = "composio"
 
 export const integrationConnectionsAtomFamily = atomFamily((integrationKey: string) =>
-    atomWithQuery<ConnectionsQueryResponse>(() => ({
+    atomWithQuery<ToolConnectionsResponse>(() => ({
         queryKey: ["tools", "connections", DEFAULT_PROVIDER, integrationKey],
         queryFn: () =>
             queryConnections({
@@ -26,7 +26,7 @@ export const integrationConnectionsAtomFamily = atomFamily((integrationKey: stri
 export const useIntegrationConnections = (integrationKey: string) => {
     const query = useAtomValue(integrationConnectionsAtomFamily(integrationKey))
 
-    const connections = useMemo<ConnectionItem[]>(
+    const connections = useMemo<ToolConnection[]>(
         () => query.data?.connections ?? [],
         [query.data?.connections],
     )

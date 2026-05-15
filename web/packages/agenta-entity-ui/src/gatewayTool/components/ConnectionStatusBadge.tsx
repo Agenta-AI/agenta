@@ -1,9 +1,13 @@
-import type {ConnectionItem} from "@agenta/entities/gatewayTool"
+import {
+    isConnectionActive,
+    isConnectionValid,
+    type ToolConnection,
+} from "@agenta/entities/gatewayTool"
 import {Tag} from "antd"
 
-export default function ConnectionStatusBadge({connection}: {connection: ConnectionItem}) {
-    const isActive = connection.flags?.is_active ?? false
-    const isValid = connection.flags?.is_valid ?? false
+export default function ConnectionStatusBadge({connection}: {connection: ToolConnection}) {
+    const isActive = isConnectionActive(connection)
+    const isValid = isConnectionValid(connection)
 
     if (isValid && isActive) {
         return <Tag color="success">Connected</Tag>

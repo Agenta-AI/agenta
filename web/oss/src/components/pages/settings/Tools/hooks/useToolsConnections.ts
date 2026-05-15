@@ -4,7 +4,7 @@ import {
     createConnection,
     deleteToolConnection,
     refreshToolConnection,
-    type ConnectionCreateRequest,
+    type ToolConnectionCreatePayload,
 } from "@agenta/entities/gatewayTool"
 import {queryClient} from "@agenta/shared/api"
 
@@ -36,7 +36,7 @@ export const useToolsConnections = (integrationKey: string) => {
 
     const handleCreate = useCallback(
         async (payload: CreateConnectionInput) => {
-            const request: ConnectionCreateRequest = {
+            const request: ToolConnectionCreatePayload = {
                 connection: {
                     slug: payload.slug,
                     name: payload.name,

@@ -7,7 +7,8 @@ import {
     useCatalogActions,
     useIntegrationDetail,
     useToolExecution,
-    type ActionItem,
+    type ToolCatalogAction,
+    type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
@@ -40,6 +41,8 @@ import ResultViewer from "../components/ResultViewer"
 import type {SchemaFormHandle} from "../components/SchemaForm"
 import SchemaForm from "../components/SchemaForm"
 
+type CatalogActionItem = ToolCatalogAction | ToolCatalogActionDetails
+
 const DEFAULT_PROVIDER = "composio"
 
 // ---------------------------------------------------------------------------
@@ -49,7 +52,7 @@ const DEFAULT_PROVIDER = "composio"
 export default function ToolExecutionDrawer() {
     const [state, setState] = useAtom(executionDrawerAtom)
     const open = !!state
-    const [selectedAction, setSelectedAction] = useState<ActionItem | null>(null)
+    const [selectedAction, setSelectedAction] = useState<CatalogActionItem | null>(null)
     const setActionsSearch = useSetAtom(actionsSearchAtom)
 
     // Fetch integration info as fallback when name/logo not in state
@@ -72,7 +75,7 @@ export default function ToolExecutionDrawer() {
         setActionsSearch("")
     }, [setActionsSearch])
 
-    const handleSelectAction = useCallback((action: ActionItem) => {
+    const handleSelectAction = useCallback((action: CatalogActionItem) => {
         setSelectedAction(action)
     }, [])
 
@@ -99,7 +102,7 @@ export default function ToolExecutionDrawer() {
                     <ActionPickerStep
                         integrationKey={state.integrationKey || ""}
                         integrationName={integrationName || ""}
-                        integrationLogo={integrationLogo}
+                        integrationLogo={integrationLogo ?? undefined}
                         connectionSlug={state.connectionSlug || ""}
                         onSelectAction={handleSelectAction}
                     />
@@ -107,7 +110,7 @@ export default function ToolExecutionDrawer() {
                     <ActionDetailStep
                         integrationKey={state.integrationKey || ""}
                         integrationName={integrationName || ""}
-                        integrationLogo={integrationLogo}
+                        integrationLogo={integrationLogo ?? undefined}
                         connectionSlug={state.connectionSlug || ""}
                         actionKey={activeActionKey}
                         actionName={selectedAction?.name}
@@ -134,7 +137,7 @@ function ActionPickerStep({
     integrationName?: string
     integrationLogo?: string
     connectionSlug: string
-    onSelectAction: (action: ActionItem) => void
+    onSelectAction: (action: CatalogActionItem) => void
 }) {
     const setAtom = useSetAtom(actionsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
@@ -298,8 +301,13 @@ function ActionDetailStep({
     const {execute, isExecuting, result, error} = useToolExecution()
     const [viewMode, setViewMode] = useState<"form" | "json">("form")
 
-    const inputSchema = action?.schemas?.inputs ?? null
-    const outputSchema = action?.schemas?.outputs ?? null
+    // The fetch endpoint always returns the detailed variant; narrow so we
+    // can reach `schemas`. The wider union exists because Fern reuses the
+    // response wrapper between list/detail endpoints.
+    const detailedAction =
+        action && "schemas" in action ? (action as ToolCatalogActionDetails) : null
+    const inputSchema = detailedAction?.schemas?.inputs ?? null
+    const outputSchema = detailedAction?.schemas?.outputs ?? null
     const displayName = action?.name ?? actionName ?? actionKey
     const jsonMode = viewMode === "json"
 

@@ -1,14 +1,17 @@
 import {
     fetchIntegrations,
-    type IntegrationItem,
-    type IntegrationsResponse,
+    type ToolCatalogIntegration,
+    type ToolCatalogIntegrationDetails,
+    type ToolCatalogIntegrationsResponse,
 } from "@agenta/entities/gatewayTool"
 import {useAtomValue} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 const DEFAULT_PROVIDER = "composio"
 
-export const integrationsQueryAtom = atomWithQuery<IntegrationsResponse>(() => ({
+type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDetails
+
+export const integrationsQueryAtom = atomWithQuery<ToolCatalogIntegrationsResponse>(() => ({
     queryKey: ["tools", "integrations", DEFAULT_PROVIDER],
     queryFn: () => fetchIntegrations(DEFAULT_PROVIDER),
     staleTime: 5 * 60_000,
@@ -17,7 +20,7 @@ export const integrationsQueryAtom = atomWithQuery<IntegrationsResponse>(() => (
 
 export const useToolsIntegrations = () => {
     const query = useAtomValue(integrationsQueryAtom)
-    const integrations: IntegrationItem[] = query.data?.integrations ?? []
+    const integrations: CatalogIntegrationItem[] = query.data?.integrations ?? []
 
     return {
         integrations,

@@ -2,38 +2,37 @@
  * Gateway-tool API functions.
  *
  * Thin wrappers over the Fern-generated `tools` resource client that
- * preserve the call signatures the existing hooks/UI rely on. Each wrapper
- * casts the Fern response to the domain type defined in `../core/types`
- * (runtime payload is identical — Fern's generated types are just wider).
+ * preserve the call signatures the existing hooks/UI rely on. Return
+ * types are the Fern wire shapes verbatim — we no longer maintain a
+ * parallel set of DTOs.
  */
 
 import type {
-    ActionDetailResponse,
-    ActionsListResponse,
-    ConnectionCreateRequest,
-    ConnectionResponse,
-    ConnectionsQueryResponse,
-    IntegrationDetailResponse,
-    IntegrationsResponse,
-    ProvidersResponse,
-    ToolCallRequest,
+    ToolCall,
     ToolCallResponse,
+    ToolCatalogActionResponse,
+    ToolCatalogActionsResponse,
+    ToolCatalogIntegrationResponse,
+    ToolCatalogIntegrationsResponse,
+    ToolCatalogProvidersResponse,
+    ToolConnectionCreatePayload,
+    ToolConnectionResponse,
+    ToolConnectionsResponse,
 } from "../core/types"
 
 import {getToolsClient, projectScopedRequest} from "./client"
 
 // --- Catalog browse ---
 
-export const fetchProviders = async (): Promise<ProvidersResponse> => {
-    const result = await getToolsClient().listToolProviders({}, projectScopedRequest())
-    return result as unknown as ProvidersResponse
+export const fetchProviders = async (): Promise<ToolCatalogProvidersResponse> => {
+    return getToolsClient().listToolProviders({}, projectScopedRequest())
 }
 
 export const fetchIntegrations = async (
     providerKey: string,
     params?: {search?: string; sort_by?: string; limit?: number; cursor?: string},
-): Promise<IntegrationsResponse> => {
-    const result = await getToolsClient().listToolIntegrations(
+): Promise<ToolCatalogIntegrationsResponse> => {
+    return getToolsClient().listToolIntegrations(
         {
             provider_key: providerKey,
             search: params?.search,
@@ -43,18 +42,16 @@ export const fetchIntegrations = async (
         },
         projectScopedRequest(),
     )
-    return result as unknown as IntegrationsResponse
 }
 
 export const fetchIntegrationDetail = async (
     providerKey: string,
     integrationKey: string,
-): Promise<IntegrationDetailResponse> => {
-    const result = await getToolsClient().fetchToolIntegration(
+): Promise<ToolCatalogIntegrationResponse> => {
+    return getToolsClient().fetchToolIntegration(
         {provider_key: providerKey, integration_key: integrationKey},
         projectScopedRequest(),
     )
-    return result as unknown as IntegrationDetailResponse
 }
 
 export const fetchActions = async (
@@ -67,8 +64,8 @@ export const fetchActions = async (
         cursor?: string
         important?: boolean
     },
-): Promise<ActionsListResponse> => {
-    const result = await getToolsClient().listToolActions(
+): Promise<ToolCatalogActionsResponse> => {
+    return getToolsClient().listToolActions(
         {
             provider_key: providerKey,
             integration_key: integrationKey,
@@ -79,15 +76,14 @@ export const fetchActions = async (
         },
         projectScopedRequest(),
     )
-    return result as unknown as ActionsListResponse
 }
 
 export const fetchActionDetail = async (
     providerKey: string,
     integrationKey: string,
     actionKey: string,
-): Promise<ActionDetailResponse> => {
-    const result = await getToolsClient().fetchToolAction(
+): Promise<ToolCatalogActionResponse> => {
+    return getToolsClient().fetchToolAction(
         {
             provider_key: providerKey,
             integration_key: integrationKey,
@@ -95,7 +91,6 @@ export const fetchActionDetail = async (
         },
         projectScopedRequest(),
     )
-    return result as unknown as ActionDetailResponse
 }
 
 // --- Connections ---
@@ -103,33 +98,32 @@ export const fetchActionDetail = async (
 export const queryConnections = async (params?: {
     provider_key?: string
     integration_key?: string
-}): Promise<ConnectionsQueryResponse> => {
-    const result = await getToolsClient().queryToolConnections(
+}): Promise<ToolConnectionsResponse> => {
+    return getToolsClient().queryToolConnections(
         {
             provider_key: params?.provider_key,
             integration_key: params?.integration_key,
         },
         projectScopedRequest(),
     )
-    return result as unknown as ConnectionsQueryResponse
 }
 
-export const fetchConnection = async (connectionId: string): Promise<ConnectionResponse> => {
-    const result = await getToolsClient().fetchToolConnection(
+export const fetchConnection = async (connectionId: string): Promise<ToolConnectionResponse> => {
+    return getToolsClient().fetchToolConnection(
         {connection_id: connectionId},
         projectScopedRequest(),
     )
-    return result as unknown as ConnectionResponse
 }
 
 export const createConnection = async (
-    payload: ConnectionCreateRequest,
-): Promise<ConnectionResponse> => {
-    const result = await getToolsClient().createToolConnection(
+    payload: ToolConnectionCreatePayload,
+): Promise<ToolConnectionResponse> => {
+    // Cast through Parameters<...> because Fern's typed payload doesn't
+    // model the legacy `credentials` field that the backend still accepts.
+    return getToolsClient().createToolConnection(
         payload as Parameters<ReturnType<typeof getToolsClient>["createToolConnection"]>[0],
         projectScopedRequest(),
     )
-    return result as unknown as ConnectionResponse
 }
 
 export const deleteToolConnection = async (connectionId: string): Promise<void> => {
@@ -142,28 +136,24 @@ export const deleteToolConnection = async (connectionId: string): Promise<void> 
 export const refreshToolConnection = async (
     connectionId: string,
     force?: boolean,
-): Promise<ConnectionResponse> => {
-    const result = await getToolsClient().refreshToolConnection(
+): Promise<ToolConnectionResponse> => {
+    return getToolsClient().refreshToolConnection(
         {connection_id: connectionId, force},
         projectScopedRequest(),
     )
-    return result as unknown as ConnectionResponse
 }
 
-export const revokeToolConnection = async (connectionId: string): Promise<ConnectionResponse> => {
-    const result = await getToolsClient().revokeToolConnection(
+export const revokeToolConnection = async (
+    connectionId: string,
+): Promise<ToolConnectionResponse> => {
+    return getToolsClient().revokeToolConnection(
         {connection_id: connectionId},
         projectScopedRequest(),
     )
-    return result as unknown as ConnectionResponse
 }
 
 // --- Tool execution ---
 
-export const executeToolCall = async (payload: ToolCallRequest): Promise<ToolCallResponse> => {
-    const result = await getToolsClient().callTool(
-        payload as Parameters<ReturnType<typeof getToolsClient>["callTool"]>[0],
-        projectScopedRequest(),
-    )
-    return result as unknown as ToolCallResponse
+export const executeToolCall = async (payload: ToolCall): Promise<ToolCallResponse> => {
+    return getToolsClient().callTool(payload, projectScopedRequest())
 }

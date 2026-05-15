@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import type {ConnectionItem} from "@agenta/entities/gatewayTool"
+import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Table, Tooltip, Typography} from "antd"
@@ -13,10 +13,10 @@ import {useToolsConnections} from "../hooks/useToolsConnections"
 
 interface Props {
     integrationKey: string
-    connections: ConnectionItem[]
+    connections: ToolConnection[]
 }
 
-const getRedirectUrl = (connection: ConnectionItem | null | undefined): string | undefined => {
+const getRedirectUrl = (connection: ToolConnection | null | undefined): string | undefined => {
     if (!connection) return undefined
     const dataRedirect = connection.data?.redirect_url
     return typeof dataRedirect === "string" && dataRedirect ? dataRedirect : undefined
@@ -25,7 +25,7 @@ const getRedirectUrl = (connection: ConnectionItem | null | undefined): string |
 export default function ConnectionsList({integrationKey, connections}: Props) {
     const {handleDelete, handleRefresh, invalidate} = useToolsConnections(integrationKey)
 
-    const confirmDelete = (connection: ConnectionItem) => {
+    const confirmDelete = (connection: ToolConnection) => {
         if (!connection.id) return
         AlertPopup({
             title: "Delete Connection",
@@ -35,7 +35,7 @@ export default function ConnectionsList({integrationKey, connections}: Props) {
         })
     }
 
-    const onRefresh = async (connection: ConnectionItem) => {
+    const onRefresh = async (connection: ToolConnection) => {
         if (!connection.id) return
 
         const result = await handleRefresh(connection.id)
@@ -60,7 +60,7 @@ export default function ConnectionsList({integrationKey, connections}: Props) {
         }, 1000)
     }
 
-    const columns: ColumnsType<ConnectionItem> = useMemo(
+    const columns: ColumnsType<ToolConnection> = useMemo(
         () => [
             {
                 title: "Name",
@@ -120,7 +120,7 @@ export default function ConnectionsList({integrationKey, connections}: Props) {
     )
 
     return (
-        <Table<ConnectionItem>
+        <Table<ToolConnection>
             dataSource={connections}
             columns={columns}
             rowKey="slug"

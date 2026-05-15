@@ -5,7 +5,13 @@ import {atomFamily} from "jotai/utils"
 import {atomWithInfiniteQuery} from "jotai-tanstack-query"
 
 import {fetchActions} from "../api"
-import type {ActionItem, ActionsListResponse} from "../core/types"
+import type {
+    ToolCatalogAction,
+    ToolCatalogActionDetails,
+    ToolCatalogActionsResponse,
+} from "../core/types"
+
+type CatalogActionItem = ToolCatalogAction | ToolCatalogActionDetails
 
 const DEFAULT_PROVIDER = "composio"
 const CHUNK_SIZE = 10
@@ -15,7 +21,7 @@ const PREFETCH = 2
 export const actionsSearchAtom = atom("")
 
 export const catalogActionsInfiniteFamily = atomFamily((integrationKey: string) =>
-    atomWithInfiniteQuery<ActionsListResponse>((get) => {
+    atomWithInfiniteQuery<ToolCatalogActionsResponse>((get) => {
         const search = get(actionsSearchAtom)
 
         return {
@@ -39,14 +45,14 @@ export const useCatalogActions = (integrationKey: string) => {
     const query = useAtomValue(catalogActionsInfiniteFamily(integrationKey))
     const setSearch = useSetAtom(actionsSearchAtom)
 
-    const actions = useMemo<ActionItem[]>(() => {
+    const actions = useMemo<CatalogActionItem[]>(() => {
         const pages = query.data?.pages ?? []
-        return pages.flatMap((p) => p.actions)
+        return pages.flatMap((p) => p.actions ?? [])
     }, [query.data?.pages])
 
     const total = useMemo(() => {
         const pages = query.data?.pages ?? []
-        return pages.length > 0 ? pages[0].total : 0
+        return pages.length > 0 ? (pages[0].total ?? 0) : 0
     }, [query.data?.pages])
 
     // --- Prefetch logic ---

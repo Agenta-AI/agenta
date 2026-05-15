@@ -5,7 +5,7 @@ import {
     catalogDrawerOpenAtom,
     executionDrawerAtom,
     useIntegrationDetail,
-    type ConnectionItem,
+    type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {
     CatalogDrawer,
@@ -28,7 +28,7 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
 
     // Group connections by integration
     const grouped = useMemo(() => {
-        const map: Record<string, ConnectionItem[]> = {}
+        const map: Record<string, ToolConnection[]> = {}
         for (const conn of connections) {
             const key = conn.integration_key
             if (!map[key]) map[key] = []
@@ -83,15 +83,16 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
                             <div className="flex flex-col gap-1">
                                 {grouped[integrationKey].map((conn) => (
                                     <ConnectionRow
-                                        key={conn.id}
+                                        key={conn.id ?? conn.slug ?? ""}
                                         connection={conn}
-                                        onTest={() =>
+                                        onTest={() => {
+                                            if (!conn.id || !conn.slug) return
                                             setExecutionDrawer({
                                                 connectionId: conn.id,
                                                 connectionSlug: conn.slug,
                                                 integrationKey: conn.integration_key,
                                             })
-                                        }
+                                        }}
                                     />
                                 ))}
                             </div>
@@ -133,7 +134,7 @@ function IntegrationSectionLabel({integrationKey}: {integrationKey: string}) {
     )
 }
 
-function ConnectionRow({connection, onTest}: {connection: ConnectionItem; onTest: () => void}) {
+function ConnectionRow({connection, onTest}: {connection: ToolConnection; onTest: () => void}) {
     const isReady = connection.flags?.is_active && connection.flags?.is_valid
     const {integration} = useIntegrationDetail(connection.integration_key)
     const label = integration?.name || connection.integration_key.replace(/_/g, " ")

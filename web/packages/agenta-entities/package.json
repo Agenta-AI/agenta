@@ -45,6 +45,7 @@
         "./shared/invalidation": "./src/shared/invalidation/index.ts"
     },
     "dependencies": {
+        "@agentaai/api-client": "workspace:../agenta-api-client",
         "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",

@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import type {ToolCallResult} from "@agenta/entities/gatewayTool"
+import type {ToolResult} from "@agenta/entities/gatewayTool"
 import {
     buildFormFieldsFromData,
     buildFormFieldsFromSchema,
@@ -11,7 +11,7 @@ import {CopySimple} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, InputNumber, message, Typography} from "antd"
 
 interface Props {
-    result: ToolCallResult | null
+    result: ToolResult | null
     error?: string | null
     outputSchema?: Record<string, unknown> | null
     jsonMode?: boolean

@@ -1,169 +1,106 @@
-// Domain types for the gateway-tool entity.
-//
-// Lifted from `web/oss/src/services/tools/api/types.ts` so consumers can
-// migrate off the OSS service-layer without changing shapes. Mirrors the
-// FastAPI models in `api/oss/src/apis/fastapi/tools/models.py`.
-//
-// These hand-written shapes intentionally differ from the Fern-generated
-// `ToolConnection` / `ToolCatalogIntegration` types in two ways:
-//   1. They are tighter (e.g. `flags?: {is_active?: boolean; is_valid?: boolean}`
-//      vs Fern's wider `Record<string, LabelJsonOutput | null>`).
-//   2. They use camelCase nowhere — every key matches the wire format.
-// The runtime payload is identical, so api/api.ts casts Fern responses
-// to these types at the boundary.
+/**
+ * Gateway-tool domain types.
+ *
+ * All wire shapes are taken directly from the Fern-generated client
+ * (`@agentaai/api-client`) so that this package never drifts from the
+ * backend OpenAPI definition. We re-export them under their Fern names so
+ * downstream consumers can import everything from one place
+ * (`@agenta/entities/gatewayTool`) without reaching into the api-client.
+ *
+ * Two small helpers (`isConnectionActive`, `isConnectionValid`) bridge the
+ * gap between Fern's loosely-typed `ToolConnection.flags`
+ * (`Record<string, LabelJsonOutput | null>`) and the boolean values the
+ * backend actually puts in it.
+ */
+
+import type {AgentaApi} from "@agentaai/api-client"
 
 // ---------------------------------------------------------------------------
 // Catalog browse
 // ---------------------------------------------------------------------------
 
-export interface ProviderItem {
-    key: string
-    name: string
-    description?: string
-    integrations_count?: number
-}
+export type ToolCatalogProvider = AgentaApi.ToolCatalogProvider
+export type ToolCatalogProviderDetails = AgentaApi.ToolCatalogProviderDetails
+export type ToolCatalogProviderResponse = AgentaApi.ToolCatalogProviderResponse
+export type ToolCatalogProvidersResponse = AgentaApi.ToolCatalogProvidersResponse
 
-export interface ProvidersResponse {
-    count: number
-    providers: ProviderItem[]
-}
+export type ToolAuthScheme = AgentaApi.ToolAuthScheme
+export type ToolProviderKind = AgentaApi.ToolProviderKind
 
-export type ToolAuthScheme = "oauth" | "api_key"
+export type ToolCatalogIntegration = AgentaApi.ToolCatalogIntegration
+export type ToolCatalogIntegrationDetails = AgentaApi.ToolCatalogIntegrationDetails
+export type ToolCatalogIntegrationResponse = AgentaApi.ToolCatalogIntegrationResponse
+export type ToolCatalogIntegrationsResponse = AgentaApi.ToolCatalogIntegrationsResponse
 
-export interface IntegrationItem {
-    key: string
-    name: string
-    description?: string
-    logo?: string
-    url?: string
-    actions_count?: number
-    categories: string[]
-    auth_schemes?: ToolAuthScheme[]
-}
-
-export interface IntegrationsResponse {
-    count: number
-    total: number
-    cursor?: string | null
-    integrations: IntegrationItem[]
-}
-
-export interface IntegrationDetailResponse {
-    count: number
-    integration: IntegrationItem | null
-}
-
-export interface ActionItem {
-    key: string
-    name: string
-    description?: string
-    categories?: string[]
-    logo?: string
-}
-
-export interface ActionDetailItem extends ActionItem {
-    schemas?: {
-        inputs?: Record<string, unknown>
-        outputs?: Record<string, unknown>
-    }
-    scopes?: string[]
-}
-
-export interface ActionsListResponse {
-    count: number
-    total: number
-    cursor?: string | null
-    actions: ActionItem[]
-}
-
-export interface ActionDetailResponse {
-    count: number
-    action: ActionDetailItem | null
-}
+export type ToolCatalogAction = AgentaApi.ToolCatalogAction
+export type ToolCatalogActionDetails = AgentaApi.ToolCatalogActionDetails
+export type ToolCatalogActionResponse = AgentaApi.ToolCatalogActionResponse
+export type ToolCatalogActionsResponse = AgentaApi.ToolCatalogActionsResponse
 
 // ---------------------------------------------------------------------------
 // Connections
 // ---------------------------------------------------------------------------
 
-export interface ConnectionItem {
-    id: string
-    slug: string
-    name?: string
-    description?: string
-    provider_key: string
-    integration_key: string
-    flags?: {is_active?: boolean; is_valid?: boolean}
-    status?: Record<string, unknown>
-    data?: Record<string, unknown>
-    created_at?: string
-    updated_at?: string
-}
-
-export interface ConnectionCreateRequest {
-    connection: {
-        slug: string
-        name?: string
-        description?: string
-        provider_key: string
-        integration_key: string
-        data?: {
-            auth_scheme?: ToolAuthScheme
-            credentials?: Record<string, string>
-        }
-    }
-}
-
-export interface ConnectionResponse {
-    count: number
-    connection: ConnectionItem | null
-}
-
-export interface ConnectionsQueryResponse {
-    count: number
-    connections: ConnectionItem[]
-}
+export type ToolConnection = AgentaApi.ToolConnection
+export type ToolConnectionCreate = AgentaApi.ToolConnectionCreate
+export type ToolConnectionCreateData = AgentaApi.ToolConnectionCreateData
+export type ToolConnectionResponse = AgentaApi.ToolConnectionResponse
+export type ToolConnectionsResponse = AgentaApi.ToolConnectionsResponse
+export type ToolConnectionStatus = AgentaApi.ToolConnectionStatus
 
 // ---------------------------------------------------------------------------
 // Tool execution
 // ---------------------------------------------------------------------------
 
-export interface ToolCallFunction {
-    name: string // slug: tools__{provider}__{integration}__{action}__{connection}
-    arguments: string | Record<string, unknown> // JSON string (as LLM returns) or parsed dict
+export type ToolCall = AgentaApi.ToolCall
+export type ToolCallData = AgentaApi.ToolCallData
+export type ToolCallFunction = AgentaApi.ToolCallFunction
+export type ToolCallResponse = AgentaApi.ToolCallResponse
+export type ToolResult = AgentaApi.ToolResult
+export type ToolResultData = AgentaApi.ToolResultData
+export type Status = AgentaApi.Status
+
+// ---------------------------------------------------------------------------
+// Legacy API extension
+//
+// The backend accepts an additional `credentials` field inside the create-
+// connection payload's `data` object (used by the API-key auth path), but
+// the OpenAPI spec used by Fern doesn't model it yet. We extend the Fern
+// type so existing flows compile; when the spec is updated this alias can
+// be removed.
+// ---------------------------------------------------------------------------
+
+export type ToolConnectionCreatePayloadData = ToolConnectionCreateData & {
+    credentials?: Record<string, string>
 }
 
-export interface ToolCallData {
-    id: string // LLM call ID (e.g. "call_zEoV...")
-    type?: string
-    function: ToolCallFunction
+export interface ToolConnectionCreatePayload {
+    connection: Omit<ToolConnectionCreate, "data"> & {
+        data?: ToolConnectionCreatePayloadData | null
+    }
 }
 
-/** Request — wraps the raw OpenAI tool call verbatim. */
-export interface ToolCallRequest {
-    data: ToolCallData
+// ---------------------------------------------------------------------------
+// Connection flag accessors
+//
+// Fern types `ToolConnection.flags` as `Record<string, LabelJsonOutput | null>`
+// because the backend model is open-ended. In practice the server only stores
+// booleans there; these helpers do the cast in one place so call sites stay
+// readable.
+// ---------------------------------------------------------------------------
+
+function readConnectionFlag(
+    connection: ToolConnection | null | undefined,
+    flag: string,
+): boolean | undefined {
+    const value = (connection?.flags as Record<string, unknown> | null | undefined)?.[flag]
+    return typeof value === "boolean" ? value : undefined
 }
 
-export interface ToolResultData {
-    role: string // "tool"
-    tool_call_id: string // echoed from ToolCallData.id
-    content: string // execution result as JSON string
+export function isConnectionActive(connection: ToolConnection | null | undefined): boolean {
+    return readConnectionFlag(connection, "is_active") ?? false
 }
 
-export interface Status {
-    timestamp: string // ISO datetime
-    type: string // "ok" | "error"
-    code?: string
-    message?: string
-    stacktrace?: string
-}
-
-/** Response — Agenta envelope with identity, status, and the OpenAI tool message. */
-export interface ToolCallResult {
-    id?: string // Agenta UUID
-    status?: Status
-    data?: ToolResultData
-}
-
-export interface ToolCallResponse {
-    call: ToolCallResult
+export function isConnectionValid(connection: ToolConnection | null | undefined): boolean {
+    return readConnectionFlag(connection, "is_valid") ?? false
 }

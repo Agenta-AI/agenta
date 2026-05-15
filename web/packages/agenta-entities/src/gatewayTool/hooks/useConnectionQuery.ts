@@ -5,17 +5,17 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchConnection} from "../api"
-import type {ConnectionResponse} from "../core/types"
+import type {ToolConnectionResponse} from "../core/types"
 
 interface ConnectionQueryState {
-    data?: ConnectionResponse
+    data?: ToolConnectionResponse
     isPending: boolean
     error: unknown
     refetch: () => Promise<unknown>
 }
 
 export const connectionQueryAtomFamily = atomFamily((connectionId: string) =>
-    atomWithQuery<ConnectionResponse>(() => ({
+    atomWithQuery<ToolConnectionResponse>(() => ({
         queryKey: ["tools", "connections", connectionId],
         queryFn: () => fetchConnection(connectionId),
         enabled: !!connectionId,
@@ -25,7 +25,7 @@ export const connectionQueryAtomFamily = atomFamily((connectionId: string) =>
 )
 
 const emptyConnectionQueryAtom = atom<ConnectionQueryState>({
-    data: undefined as ConnectionResponse | undefined,
+    data: undefined as ToolConnectionResponse | undefined,
     isPending: false,
     error: null,
     refetch: async () => ({}),
