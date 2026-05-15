@@ -5,7 +5,7 @@
  */
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, stringStorage} from "@agenta/shared/state"
 import {atom} from "jotai"
 import type {Atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -29,6 +29,7 @@ export const testsetsSearchTermAtom = atom<string>("")
 export const testsetsExportFormatAtom = atomWithStorage<"csv" | "json">(
     "agenta:testsets:export-format",
     "csv",
+    stringStorage as Parameters<typeof atomWithStorage>[2],
 )
 
 /**
