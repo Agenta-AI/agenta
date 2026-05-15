@@ -11,6 +11,7 @@ import {FixtureContext} from "../types"
 import type {ApiHandlerOptions, ApiHelpers, CreateTestsetInput, CreatedTestset} from "./types"
 
 type APP_TYPE = "completion" | "chat" | "custom"
+type CREATABLE_APP_TYPE = Exclude<APP_TYPE, "custom">
 
 interface ListAppsItem {
     id: string
@@ -214,20 +215,20 @@ const confirmCreateEntityModal = async (page: Page) => {
 }
 
 // Dropdown testIds for the CreateAppDropdown popover (apps table header / empty state)
-const TYPE_DROPDOWN_TESTIDS: Partial<Record<APP_TYPE, string>> = {
+const TYPE_DROPDOWN_TESTIDS: Record<CREATABLE_APP_TYPE, string> = {
     completion: "create-app-dropdown-completion",
     chat: "create-app-dropdown-chat",
 }
 
 // Modal testIds for the CreateAppTypeModal (welcome card "Create a prompt" entry)
-const TYPE_MODAL_TESTIDS: Partial<Record<APP_TYPE, string>> = {
+const TYPE_MODAL_TESTIDS: Record<CREATABLE_APP_TYPE, string> = {
     completion: "create-app-type-modal-completion",
     chat: "create-app-type-modal-chat",
 }
 
-const openCreateAppDrawerForType = async (page: Page, type: APP_TYPE) => {
-    const dropdownTypeTestId = TYPE_DROPDOWN_TESTIDS[type]!
-    const modalTypeTestId = TYPE_MODAL_TESTIDS[type]!
+const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) => {
+    const dropdownTypeTestId = TYPE_DROPDOWN_TESTIDS[type]
+    const modalTypeTestId = TYPE_MODAL_TESTIDS[type]
     const createEntryPoints = [
         page.getByTestId("create-app-dropdown-trigger").first(),
         page.getByText("Create a prompt", {exact: true}).first(),

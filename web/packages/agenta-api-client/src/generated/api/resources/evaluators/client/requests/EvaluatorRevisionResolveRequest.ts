@@ -7,10 +7,16 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface EvaluatorRevisionResolveRequest {
+    /** Resolve the latest revision of this evaluator. */
     evaluator_ref?: AgentaApi.Reference | null;
+    /** Resolve the latest revision on this variant. */
     evaluator_variant_ref?: AgentaApi.Reference | null;
+    /** Resolve this specific revision. */
     evaluator_revision_ref?: AgentaApi.Reference | null;
+    /** Maximum recursion depth when following embedded references. Defaults to 10. */
     max_depth?: number | null;
+    /** Maximum number of embeds to resolve. Defaults to 100. */
     max_embeds?: number | null;
+    /** How to handle embed-resolution errors (`exception` or `fallback`). */
     error_policy?: AgentaApi.ErrorPolicy | null;
 }

@@ -7,12 +7,20 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface EvaluatorRevisionRetrieveRequest {
+    /** Retrieve the latest revision of this evaluator. */
     evaluator_ref?: AgentaApi.Reference | null;
+    /** Retrieve the latest revision on this variant. */
     evaluator_variant_ref?: AgentaApi.Reference | null;
+    /** Retrieve this specific revision. */
     evaluator_revision_ref?: AgentaApi.Reference | null;
+    /** Environment to resolve through. Requires `key`. */
     environment_ref?: AgentaApi.Reference | null;
+    /** Environment variant to resolve through. Requires `key`. */
     environment_variant_ref?: AgentaApi.Reference | null;
+    /** Specific environment revision to resolve through. Requires `key`. */
     environment_revision_ref?: AgentaApi.Reference | null;
+    /** Named deployment key inside the environment revision. Required with environment refs. */
     key?: string | null;
+    /** When true, resolve embedded references on the returned revision's `data`. */
     resolve?: boolean | null;
 }

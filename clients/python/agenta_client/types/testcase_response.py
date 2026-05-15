@@ -11,8 +11,16 @@ from .testcase_output import TestcaseOutput
 class TestcaseResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    testcase: typing.Optional[TestcaseOutput] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    1 if a testcase was returned, 0 otherwise.
+    """
+    
+    testcase: typing.Optional[TestcaseOutput] = pydantic.Field(default=None)
+    """
+    The testcase blob. `data` carries the user-defined columns; `testcase_dedup_id` (inside `data`) is the caller-supplied dedup key when present.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

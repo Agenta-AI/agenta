@@ -7,12 +7,20 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface ApplicationRevisionRetrieveRequest {
+    /** Application reference. When only an application is supplied, the latest revision of its default variant is returned. */
     application_ref?: AgentaApi.Reference | null;
+    /** Variant reference. Returns the latest revision on that variant. */
     application_variant_ref?: AgentaApi.Reference | null;
+    /** Revision reference. Returns that exact revision. */
     application_revision_ref?: AgentaApi.Reference | null;
+    /** Environment reference. Returns the revision currently deployed to that environment under the given `key`. */
     environment_ref?: AgentaApi.Reference | null;
+    /** Environment variant reference; used together with `environment_ref`. */
     environment_variant_ref?: AgentaApi.Reference | null;
+    /** Environment revision reference; used to pin to a specific environment commit instead of the current tip. */
     environment_revision_ref?: AgentaApi.Reference | null;
+    /** Deployment key inside the environment revision. When omitted and `application_ref` is supplied, the server derives it as `{application_slug}.revision`. */
     key?: string | null;
+    /** When `true`, resolve embedded references in the returned revision's `data` (for example, snippet references). */
     resolve?: boolean | null;
 }

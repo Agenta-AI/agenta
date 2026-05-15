@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface ApplicationCreateRequest {
     application_id?: string | null;
+    /** Artifact-level fields for the new application: `slug`, `name`, `description`, `flags`, `tags`, `meta`. The `slug` must be unique within the project. */
     application: AgentaApi.ApplicationCreate;
 }

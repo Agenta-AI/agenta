@@ -11,8 +11,16 @@ from .span_output import SpanOutput
 class SpanResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    span: typing.Optional[SpanOutput] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` if a span was returned, `0` otherwise.
+    """
+    
+    span: typing.Optional[SpanOutput] = pydantic.Field(default=None)
+    """
+    The matching span, or `null` if not found.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

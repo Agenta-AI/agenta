@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import HTTPException
 
 from oss.src.utils.exceptions import Support
@@ -15,30 +15,57 @@ from oss.src.core.folders.types import (
 
 
 class FolderCreateRequest(BaseModel):
-    folder: FolderCreate
+    folder: FolderCreate = Field(
+        ...,
+        description="Folder to create. `slug` is required; `parent_id` nests the new folder under an existing one.",
+    )
 
 
 class FolderEditRequest(BaseModel):
-    folder: FolderEdit
+    folder: FolderEdit = Field(
+        ...,
+        description="Folder edit payload. `id` must match the path parameter. Only fields present in the payload are changed.",
+    )
 
 
 class FolderQueryRequest(BaseModel):
-    folder: FolderQuery
+    folder: FolderQuery = Field(
+        ...,
+        description="Filter object. Any combination of `id`/`ids`, `slug`/`slugs`, `kind`/`kinds`, `parent_id`/`parent_ids`, `path`/`paths`, and `prefix`/`prefixes` narrows the result.",
+    )
 
 
 class FolderResponse(Support):
-    count: int = 0
-    folder: Optional[Folder] = None
+    count: int = Field(
+        default=0,
+        description="Number of folders returned (`0` or `1`).",
+    )
+    folder: Optional[Folder] = Field(
+        default=None,
+        description="The folder, when found. Omitted when `count` is `0`.",
+    )
 
 
 class FoldersResponse(Support):
-    count: int = 0
-    folders: List[Folder] = []
+    count: int = Field(
+        default=0,
+        description="Number of folders in `folders`.",
+    )
+    folders: List[Folder] = Field(
+        default_factory=list,
+        description="Matching folders for the query. Ordering is not guaranteed.",
+    )
 
 
 class FolderIdResponse(Support):
-    count: int = 0
-    id: Optional[UUID] = None
+    count: int = Field(
+        default=0,
+        description="`1` if a folder was deleted, `0` if no folder matched.",
+    )
+    id: Optional[UUID] = Field(
+        default=None,
+        description="Id of the deleted folder. Omitted when nothing was deleted.",
+    )
 
 
 class FolderNameInvalidException(HTTPException):

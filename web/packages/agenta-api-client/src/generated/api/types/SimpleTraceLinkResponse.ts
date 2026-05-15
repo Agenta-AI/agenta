@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Response from `DELETE /simple/traces/{trace_id}`.
+ */
 export interface SimpleTraceLinkResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` if a trace was removed, `0` otherwise. */
     count?: number | undefined;
+    /** The `(trace_id, span_id)` pair that was removed. */
     link?: (AgentaApi.OTelLinkOutput | null) | undefined;
 }

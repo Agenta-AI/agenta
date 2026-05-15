@@ -10,7 +10,14 @@ from .trace_input import TraceInput
 
 
 class TraceRequest(UniversalBaseModel):
-    trace: typing.Optional[TraceInput] = None
+    """
+    Ingest or edit payload for a single canonical `Trace`.
+    """
+    trace: typing.Optional[TraceInput] = pydantic.Field(default=None)
+    """
+    A single trace record (trace_id plus nested spans). The `trace_id` must match the path parameter on edit endpoints.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

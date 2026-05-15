@@ -12,9 +12,21 @@ from .windowing import Windowing
 class TestcasesResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    testcases: typing.Optional[typing.List[TestcaseOutput]] = None
-    windowing: typing.Optional[Windowing] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of testcases returned on this page.
+    """
+    
+    testcases: typing.Optional[typing.List[TestcaseOutput]] = pydantic.Field(default=None)
+    """
+    Testcase blobs matching the query, in revision-order when scoped by a revision reference.
+    """
+    
+    windowing: typing.Optional[Windowing] = pydantic.Field(default=None)
+    """
+    Cursor for the next page, if more results exist.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

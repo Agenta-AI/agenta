@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Paginated list of simple-application rows.
+ */
 export interface SimpleApplicationsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of applications in this page. */
     count?: number | undefined;
+    /** Applications with their current variant, revision, and `data` merged in. */
     applications?: AgentaApi.SimpleApplication[] | undefined;
 }

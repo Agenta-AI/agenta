@@ -11,8 +11,16 @@ from .workflow_catalog_type import WorkflowCatalogType
 class WorkflowCatalogTypesResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    types: typing.Optional[typing.List[WorkflowCatalogType]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of type definitions available.
+    """
+    
+    types: typing.Optional[typing.List[WorkflowCatalogType]] = pydantic.Field(default=None)
+    """
+    Shared JSON Schema fragments shipped with the product.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

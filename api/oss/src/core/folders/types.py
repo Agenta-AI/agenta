@@ -2,6 +2,8 @@ from typing import Optional, List, Union
 from enum import Enum
 from uuid import UUID
 
+from pydantic import Field
+
 from oss.src.core.shared.dtos import (
     Identifier,
     Slug,
@@ -16,45 +18,102 @@ class FolderKind(str, Enum):
 
 
 class Folder(Identifier, Slug, Lifecycle, Header, Metadata):
-    kind: Optional[FolderKind] = None
+    kind: Optional[FolderKind] = Field(
+        default=None,
+        description="Resource family this folder organizes. Only `applications` is defined today, and it also covers workflows, evaluators, and testsets (they share the artifact table).",
+    )
 
-    path: Optional[str] = None
+    path: Optional[str] = Field(
+        default=None,
+        description="Dot-separated materialized path built from the folder's slug and its ancestors' slugs. Read-only; derived by the server.",
+    )
 
-    parent_id: Optional[UUID] = None
+    parent_id: Optional[UUID] = Field(
+        default=None,
+        description="Id of the parent folder, or `null` for a root folder.",
+    )
 
 
 class FolderCreate(Slug, Header, Metadata):
-    kind: Optional[FolderKind] = None
+    kind: Optional[FolderKind] = Field(
+        default=None,
+        description="Resource family the folder organizes. Defaults to `applications` when omitted.",
+    )
 
-    parent_id: Optional[UUID] = None
+    parent_id: Optional[UUID] = Field(
+        default=None,
+        description="Id of the parent folder. Omit or set to `null` to create a root folder.",
+    )
 
 
 class FolderEdit(Identifier, Slug, Header, Metadata):
-    kind: Optional[FolderKind] = None
+    kind: Optional[FolderKind] = Field(
+        default=None,
+        description="Resource family. Must match the current folder's kind; defaults to `applications`.",
+    )
 
-    parent_id: Optional[UUID] = None
+    parent_id: Optional[UUID] = Field(
+        default=None,
+        description="New parent folder id. Include the key with a `null` value to move the folder to the root; omit the key to keep the existing parent.",
+    )
 
 
 class FolderQuery(Header, Metadata):
     # scope
-    id: Optional[UUID] = None
-    ids: Optional[List[UUID]] = None
+    id: Optional[UUID] = Field(
+        default=None,
+        description="Match a single folder id.",
+    )
+    ids: Optional[List[UUID]] = Field(
+        default=None,
+        description="Match any of the given folder ids.",
+    )
 
-    slug: Optional[str] = None
-    slugs: Optional[List[str]] = None
+    slug: Optional[str] = Field(
+        default=None,
+        description="Match a folder by slug, regardless of its position in the tree.",
+    )
+    slugs: Optional[List[str]] = Field(
+        default=None,
+        description="Match folders whose slug is in the given list.",
+    )
 
-    kind: Optional[FolderKind] = None
+    kind: Optional[FolderKind] = Field(
+        default=None,
+        description="Match folders of a single resource family.",
+    )
     # kinds filter supports: bool (False=is None, True=is not None) or list of FolderKind values
-    kinds: Optional[Union[bool, List[FolderKind]]] = None
+    kinds: Optional[Union[bool, List[FolderKind]]] = Field(
+        default=None,
+        description="Filter by presence of a kind. `false` returns folders with no kind, `true` returns folders where `kind` is set, and an array restricts to the given kinds.",
+    )
 
-    parent_id: Optional[UUID] = None
-    parent_ids: Optional[List[UUID]] = None
+    parent_id: Optional[UUID] = Field(
+        default=None,
+        description="Match folders whose parent is this id. Send `null` to return only root folders.",
+    )
+    parent_ids: Optional[List[UUID]] = Field(
+        default=None,
+        description="Match folders whose parent is any of the given ids.",
+    )
 
-    path: Optional[str] = None
-    paths: Optional[List[str]] = None
+    path: Optional[str] = Field(
+        default=None,
+        description="Exact match on the materialized `path` (e.g. `support.prod`).",
+    )
+    paths: Optional[List[str]] = Field(
+        default=None,
+        description="Exact match on any of the given paths.",
+    )
 
-    prefix: Optional[str] = None
-    prefixes: Optional[List[str]] = None
+    prefix: Optional[str] = Field(
+        default=None,
+        description="Subtree lookup: returns the folder at this path and every descendant.",
+    )
+    prefixes: Optional[List[str]] = Field(
+        default=None,
+        description="Subtree lookup across multiple prefixes, OR-ed together.",
+    )
 
 
 class FolderNameInvalid(Exception):

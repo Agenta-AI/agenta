@@ -10,8 +10,16 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 class TraceIdsResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    trace_ids: typing.Optional[typing.List[str]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of distinct trace IDs in this response.
+    """
+    
+    trace_ids: typing.Optional[typing.List[str]] = pydantic.Field(default=None)
+    """
+    32-char hex UUIDs of the traces that were ingested. Compare against the number you submitted to detect partial failures.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

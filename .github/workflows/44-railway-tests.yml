@@ -160,6 +160,9 @@ concurrency:
   group: railway-preview-tests-${{ inputs.agenta_web_url }}-${{ inputs.packages }}
   cancel-in-progress: true
 
+env:
+  UV_VERSION: "0.11.14"
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -348,7 +351,7 @@ jobs:
 
       - name: Install API dependencies
         run: |
-          pip install "uv==0.11.9"
+          pip install "uv==${UV_VERSION}"
           cd api
           uv sync --locked --python 3.13
           uv pip install --python .venv/bin/python --editable ../sdks/python/
@@ -449,7 +452,7 @@ jobs:
 
       - name: Install SDK dependencies
         run: |
-          pip install "uv==0.11.9"
+          pip install "uv==${UV_VERSION}"
           cd sdks/python
           uv sync --locked --python 3.13
 
@@ -550,7 +553,7 @@ jobs:
 
       - name: Install services dependencies
         run: |
-          pip install "uv==0.11.9"
+          pip install "uv==${UV_VERSION}"
           cd services
           uv sync --locked --python 3.13
           uv pip install --python .venv/bin/python --editable ../sdks/python/

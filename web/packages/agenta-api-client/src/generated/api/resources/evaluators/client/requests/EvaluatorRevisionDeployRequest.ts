@@ -7,12 +7,20 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface EvaluatorRevisionDeployRequest {
+    /** Evaluator to deploy (latest revision). */
     evaluator_ref?: AgentaApi.Reference | null;
+    /** Variant to deploy (latest revision on this variant). */
     evaluator_variant_ref?: AgentaApi.Reference | null;
+    /** Specific revision to deploy. */
     evaluator_revision_ref?: AgentaApi.Reference | null;
+    /** Target environment. */
     environment_ref?: AgentaApi.Reference | null;
+    /** Target environment variant. */
     environment_variant_ref?: AgentaApi.Reference | null;
+    /** Target environment revision. */
     environment_revision_ref?: AgentaApi.Reference | null;
+    /** Named key under which the revision is pinned. Defaults to `<evaluator_slug>.revision`. */
     key?: string | null;
+    /** Commit message stored on the environment revision that records the deployment. */
     message?: string | null;
 }

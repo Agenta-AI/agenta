@@ -9,10 +9,21 @@ from .application_variant import ApplicationVariant
 
 
 class ApplicationVariantResponse(UniversalBaseModel):
+    """
+    Single-variant response envelope.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    application_variant: typing.Optional[ApplicationVariant] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` when a variant was found, `0` otherwise.
+    """
+    
+    application_variant: typing.Optional[ApplicationVariant] = pydantic.Field(default=None)
+    """
+    The application variant, or `null`.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

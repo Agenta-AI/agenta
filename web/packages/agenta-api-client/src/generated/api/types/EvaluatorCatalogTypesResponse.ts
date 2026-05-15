@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Envelope for a list of catalog types.
+ */
 export interface EvaluatorCatalogTypesResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of types in `types`. */
     count?: number | undefined;
+    /** JSON schema types the evaluator catalog understands. */
     types?: AgentaApi.EvaluatorCatalogType[] | undefined;
 }

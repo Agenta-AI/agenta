@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Single template response envelope.
+ */
 export interface ApplicationCatalogTemplateResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` when found, `0` otherwise. */
     count?: number | undefined;
+    /** Catalog template definition. */
     template?: (AgentaApi.ApplicationCatalogTemplate | null) | undefined;
 }

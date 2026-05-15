@@ -24,9 +24,21 @@ class Folder(UniversalBaseModel):
     deleted_by_id: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
-    kind: typing.Optional[FolderKind] = None
-    path: typing.Optional[str] = None
-    parent_id: typing.Optional[str] = None
+    kind: typing.Optional[FolderKind] = pydantic.Field(default=None)
+    """
+    Resource family this folder organizes. Only `applications` is defined today, and it also covers workflows, evaluators, and testsets (they share the artifact table).
+    """
+    
+    path: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Dot-separated materialized path built from the folder's slug and its ancestors' slugs. Read-only; derived by the server.
+    """
+    
+    parent_id: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Id of the parent folder, or `null` for a root folder.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -11,6 +11,8 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface TestsetRevisionEditRequest {
     testset_revision_id: string;
+    /** Revision fields to update. The `id` in the body must match the `testset_revision_id` in the path. Only metadata fields are editable; content is committed as a new revision. */
     testset_revision: AgentaApi.TestsetRevisionEdit;
+    /** Include full testcase objects in the response. */
     include_testcases?: boolean | null;
 }

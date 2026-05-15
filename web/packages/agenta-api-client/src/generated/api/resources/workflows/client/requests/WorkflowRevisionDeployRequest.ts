@@ -7,12 +7,20 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface WorkflowRevisionDeployRequest {
+    /** Workflow artifact to deploy. One of the workflow refs is required. */
     workflow_ref?: AgentaApi.Reference | null;
+    /** Workflow variant to deploy. Resolves to the latest revision of this variant. */
     workflow_variant_ref?: AgentaApi.Reference | null;
+    /** Specific workflow revision to deploy. */
     workflow_revision_ref?: AgentaApi.Reference | null;
+    /** Target environment artifact. One of the environment refs is required. */
     environment_ref?: AgentaApi.Reference | null;
+    /** Target environment variant. */
     environment_variant_ref?: AgentaApi.Reference | null;
+    /** Target environment revision. */
     environment_revision_ref?: AgentaApi.Reference | null;
+    /** Reference key to set on the environment revision. Defaults to `<workflow_slug>.revision` when omitted. */
     key?: string | null;
+    /** Commit message recorded on the resulting environment revision. */
     message?: string | null;
 }
