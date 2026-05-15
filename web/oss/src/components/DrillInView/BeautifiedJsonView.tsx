@@ -1,4 +1,4 @@
-import {memo, useEffect, useLayoutEffect, useMemo} from "react"
+import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
 import {
     Editor as EditorWrapper,
@@ -7,7 +7,7 @@ import {
     SET_MARKDOWN_VIEW,
 } from "@agenta/ui"
 import {
-    extractChatMessages,
+    isChatMessagesArray,
     normalizeChatMessages,
     ROLE_COLOR_CLASSES,
     DEFAULT_ROLE_COLOR_CLASS,
@@ -16,36 +16,91 @@ import {
 /**
  * "Beautified JSON" view.
  *
- * ## What this mode does
- *
  * Reshapes data for readability and renders it OUTSIDE the JSON editor as a
  * component tree:
  *
- * - chat-like arrays and single messages → chat bubbles (role label + content
+ * - chat-like arrays and single messages -> chat bubbles (role label + content
  *   editor with markdown support)
- * - plain objects → per-key labeled variable fields (recursive; short leaves
- *   inline as `key: value`)
+ * - plain objects -> per-key labeled fields with collapse/expand, count badges,
+ *   indent guides, and hover-to-copy
+ * - short leaf values (null, bool, number, short string) inline as
+ *   `key: value` with type-colored values
  * - known envelope patterns (AI SDK `{type: "text"|"tool-call"|"tool-result"}`)
  *   are unwrapped into their payload
- * - noisy provider-metadata keys (`providerOptions`, `rawHeaders`, `rawCall`,
- *   `rawResponse`, `logprobs`, etc.) are stripped from objects
+ * - noisy provider-metadata keys (`providerOptions`, `rawHeaders`, etc.) are
+ *   stripped from objects
  *
- * ## What this mode is NOT
- *
- * "Beautified JSON" is not JSON — it hides fields, restructures values, and
+ * "Beautified JSON" is not JSON -- it hides fields, restructures values, and
  * renders via custom React components. When the exact shape of the wire data
  * matters, use "JSON" (faithful) or "Decoded JSON" (faithful shape with
  * string decoding, see `decodedJsonHelpers.ts`).
- *
- * This mode is the default when `viewModePreset="message"`, because that
- * preset is used specifically for chat-style data where the reshape is
- * desirable. Everywhere else, "Decoded JSON" is the default.
- *
- * ## Authoritative reference
- *
- * `VIEW_MODES.md` in this folder documents every view mode and the rules
- * for choosing a default. Keep it in sync when you change behavior here.
  */
+
+// Keep in sync with MESSAGE_KEY_HINTS in messagePanels.ts
+const CHAT_ARRAY_KEYS = new Set([
+    "prompt",
+    "input_messages",
+    "completion",
+    "output_messages",
+    "responses",
+    "messages",
+    "message_history",
+    "history",
+    "chat",
+    "conversation",
+    "logs",
+])
+
+// Matches isChatEntry in @agenta/ui/cell-renderers — accept the same role
+// aliases (sender, author) and content aliases (text, message, parts, etc.)
+const isSingleMessage = (value: unknown): boolean => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false
+    const obj = value as Record<string, unknown>
+    const hasRole =
+        typeof obj.role === "string" ||
+        typeof obj.sender === "string" ||
+        typeof obj.author === "string"
+    if (!hasRole) return false
+    return (
+        obj.content !== undefined ||
+        obj.text !== undefined ||
+        obj.message !== undefined ||
+        Array.isArray(obj.content) ||
+        Array.isArray(obj.parts) ||
+        Array.isArray(obj.tool_calls) ||
+        typeof (obj.delta as Record<string, unknown>)?.content === "string"
+    )
+}
+
+const shallowExtractChatMessages = (
+    value: unknown,
+): {messages: unknown[]; viaKey?: string} | null => {
+    if (Array.isArray(value) && isChatMessagesArray(value)) {
+        return {messages: value}
+    }
+    if (isSingleMessage(value)) {
+        return {messages: [value]}
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+        const obj = value as Record<string, unknown>
+        for (const key of CHAT_ARRAY_KEYS) {
+            const arr = obj[key]
+            if (Array.isArray(arr) && isChatMessagesArray(arr)) {
+                return {messages: arr, viaKey: key}
+            }
+        }
+        // OpenAI choices format: {choices: [{message: {role, content}}, ...]}
+        if (Array.isArray(obj.choices)) {
+            const extracted = (obj.choices as Record<string, unknown>[])
+                .map((c) => c?.message ?? c?.delta)
+                .filter(Boolean)
+            if (extracted.length > 0 && isChatMessagesArray(extracted)) {
+                return {messages: extracted, viaKey: "choices"}
+            }
+        }
+    }
+    return null
+}
 
 const METADATA_NOISE_KEYS = new Set([
     "providerOptions",
@@ -59,26 +114,27 @@ const METADATA_NOISE_KEYS = new Set([
     "logprobs",
 ])
 
-const EDITOR_RESET_CLASSES =
-    "!min-h-0 [&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-inner]:!min-h-0 [&_.editor-container]:!bg-transparent [&_.editor-container]:!min-h-0 [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-0 [&_.editor-input]:!py-0 [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.agenta-editor-wrapper]:!min-h-0"
+const EDITOR_RESET_CLASSES = [
+    "!min-h-0",
+    "[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-inner]:!min-h-0",
+    "[&_.editor-container]:!bg-transparent [&_.editor-container]:!min-h-0",
+    "[&_.editor-input]:!min-h-0 [&_.editor-input]:!px-0 [&_.editor-input]:!py-0",
+    "[&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0",
+    "[&_.agenta-editor-wrapper]:!min-h-0",
+].join(" ")
 
 const DEFAULT_MAX_RENDER_DEPTH = 5
+const DEFAULT_EXPAND_DEPTH = 2
 
-/**
- * Simplify a value by unwrapping known envelope patterns.
- * Returns the simplified value, or the original if no simplification applies.
- */
 const simplifyValue = (value: unknown): unknown => {
     if (!value || typeof value !== "object") return value
 
     const rec = value as Record<string, unknown>
 
-    // AI SDK text part: {type: "text", text: "hello"} → "hello"
     if (rec.type === "text" && typeof rec.text === "string") {
         return rec.text
     }
 
-    // AI SDK tool-call: {type: "tool-call", toolName: "fn", input: {...}} → "fn({...})"
     if (rec.type === "tool-call" && typeof rec.toolName === "string") {
         const args = rec.input ?? rec.args
         if (!args || (typeof args === "object" && Object.keys(args as object).length === 0)) {
@@ -91,7 +147,6 @@ const simplifyValue = (value: unknown): unknown => {
         }
     }
 
-    // AI SDK tool-result envelope: {type: "tool-result", output: {type: "json", value: X}} → X
     if (rec.type === "tool-result" && rec.output !== undefined) {
         const output = rec.output as Record<string, unknown> | undefined
         if (output && typeof output === "object" && output.value !== undefined) {
@@ -100,13 +155,11 @@ const simplifyValue = (value: unknown): unknown => {
         return rec.output
     }
 
-    // Single-element array of a simplifiable item
     if (Array.isArray(value) && value.length === 1) {
         const simplified = simplifyValue(value[0])
         if (simplified !== value[0]) return simplified
     }
 
-    // Multi-element array: simplify each element
     if (Array.isArray(value) && value.length > 1) {
         const simplified = value.map(simplifyValue)
         const changed = simplified.some((s, i) => s !== value[i])
@@ -118,7 +171,6 @@ const simplifyValue = (value: unknown): unknown => {
         }
     }
 
-    // Strip metadata noise keys from objects
     if (!Array.isArray(value)) {
         const keys = Object.keys(rec)
         const noiseKeys = keys.filter((k) => METADATA_NOISE_KEYS.has(k))
@@ -129,10 +181,6 @@ const simplifyValue = (value: unknown): unknown => {
                     cleaned[k] = rec[k]
                 }
             }
-            const cleanedKeys = Object.keys(cleaned)
-            if (cleanedKeys.length === 1) {
-                return cleaned[cleanedKeys[0]]
-            }
             return cleaned
         }
     }
@@ -140,33 +188,12 @@ const simplifyValue = (value: unknown): unknown => {
     return value
 }
 
-const formatLabel = (key: string): string =>
-    key
-        .replace(/_/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-
 const isShortLeaf = (value: unknown): boolean => {
     if (value === null || value === undefined) return true
     if (typeof value === "boolean" || typeof value === "number") return true
     if (typeof value === "string" && value.length <= 120 && !value.includes("\n")) return true
     return false
 }
-
-const InlineKeyValue = memo(function InlineKeyValue({
-    label,
-    value,
-}: {
-    label: string
-    value: string
-}) {
-    return (
-        <div className="flex items-baseline gap-2 min-h-[20px]">
-            <span className="text-xs text-[var(--ant-color-text-tertiary)] shrink-0">{label}</span>
-            <span className="font-mono text-[var(--ant-color-text)] break-all">{value || "—"}</span>
-        </div>
-    )
-})
 
 const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
     const [editor] = useLexicalComposerContext()
@@ -233,53 +260,6 @@ const getMessageText = (content: unknown): string => {
     }
 }
 
-const RenderedChatMessages = memo(function RenderedChatMessages({
-    messages,
-    keyPrefix,
-}: {
-    messages: unknown[]
-    keyPrefix: string
-}) {
-    const normalized = useMemo(() => normalizeChatMessages(messages), [messages])
-
-    return (
-        <div className="flex flex-col gap-2">
-            {normalized.map((msg, i) => {
-                const roleColor =
-                    ROLE_COLOR_CLASSES[msg.role.toLowerCase()] ?? DEFAULT_ROLE_COLOR_CLASS
-                const text = getMessageText(msg.content)
-                const editorId = `${keyPrefix}-msg-${i}`
-
-                return (
-                    <div key={editorId} className="flex flex-col gap-0.5">
-                        <span className={`text-xs font-medium capitalize ${roleColor}`}>
-                            {msg.role}
-                        </span>
-                        <EditorProvider
-                            id={editorId}
-                            initialValue={text}
-                            showToolbar={false}
-                            enableTokens={false}
-                            readOnly
-                            className={EDITOR_RESET_CLASSES}
-                        >
-                            <MarkdownModeSync isMarkdownView={false} />
-                            <EditorWrapper
-                                initialValue={text}
-                                disabled
-                                showToolbar={false}
-                                noProvider
-                                readOnly
-                                boundHeight={false}
-                            />
-                        </EditorProvider>
-                    </div>
-                )
-            })}
-        </div>
-    )
-})
-
 const valueToString = (value: unknown): string => {
     if (value === null || value === undefined) return ""
     if (typeof value === "string") return value
@@ -291,70 +271,224 @@ const valueToString = (value: unknown): string => {
     }
 }
 
-const ReadOnlyVariableField = memo(function ReadOnlyVariableField({
-    label,
-    value,
-    editorId,
-}: {
-    label: string
-    value: string
-    editorId: string
-}) {
+// ── Icons (static, no props — defined as elements to skip component overhead) ─
+
+const CHEVRON_ICON = (
+    <svg
+        viewBox="0 0 24 24"
+        className="w-2.5 h-2.5 stroke-current fill-none"
+        strokeWidth={2.25}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+    >
+        <polyline points="9 6 15 12 9 18" />
+    </svg>
+)
+
+const COPY_ICON = (
+    <svg
+        viewBox="0 0 24 24"
+        className="w-3 h-3 stroke-current fill-none"
+        strokeWidth={1.7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+    >
+        <rect x="9" y="9" width="13" height="13" rx="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+)
+
+// ── Small components ────────────────────────────────────────────────────
+
+const ScalarValue = ({value}: {value: unknown}) => {
+    if (value === null || value === undefined) {
+        return (
+            <span className="font-mono text-[12.5px] text-[var(--ant-color-text-quaternary)] italic">
+                null
+            </span>
+        )
+    }
+    if (typeof value === "boolean") {
+        return (
+            <span className={`font-mono text-[12.5px] ${value ? "text-green-7" : "text-orange-6"}`}>
+                {String(value)}
+            </span>
+        )
+    }
+    if (typeof value === "number") {
+        return (
+            <span className="font-mono text-[12.5px] text-blue-7 tabular-nums">
+                {String(value)}
+            </span>
+        )
+    }
+    if (typeof value === "string") {
+        return <span className="font-mono text-[12.5px] text-[var(--ant-color-text)]">{value}</span>
+    }
+    return null
+}
+
+const CopyButton = ({value}: {value: unknown}) => {
+    const [copied, setCopied] = useState(false)
+    const timerRef = useRef<ReturnType<typeof setTimeout>>()
+
+    useEffect(() => () => clearTimeout(timerRef.current), [])
+
+    const handleCopy = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation()
+            const text = typeof value === "string" ? value : JSON.stringify(value, null, 2) || ""
+            navigator.clipboard
+                ?.writeText(text)
+                ?.then(() => {
+                    setCopied(true)
+                    clearTimeout(timerRef.current)
+                    timerRef.current = setTimeout(() => setCopied(false), 1200)
+                })
+                ?.catch(() => {})
+        },
+        [value],
+    )
+
     return (
-        <EditorProvider
-            id={editorId}
-            initialValue={value}
-            showToolbar={false}
-            enableTokens={false}
-            readOnly
-            className={EDITOR_RESET_CLASSES}
+        <button
+            type="button"
+            aria-label={copied ? "Copied" : "Copy to clipboard"}
+            className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto border border-transparent rounded-sm text-[var(--ant-color-text-quaternary)] cursor-pointer shrink-0 hover:text-[var(--ant-color-text)] hover:bg-[var(--ant-color-bg-container)] hover:border-[var(--ant-color-border)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none"
+            onClick={handleCopy}
         >
-            <MarkdownModeSync isMarkdownView={false} />
-            <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-[var(--ant-color-text-tertiary)]">
-                    {label}
+            {copied ? (
+                <span className="text-[11px] text-green-6 font-medium">Copied</span>
+            ) : (
+                COPY_ICON
+            )}
+        </button>
+    )
+}
+
+// ── NodeRow: unified row structure ──────────────────────────────────────
+//
+// Every row has the same layout:
+//   [chevron 14px] [key (mono)] [meta or inline value] [copy-on-hover]
+// so keys align in a single column at every depth. Containers get an
+// interactive chevron; leaves get an invisible 14px spacer.
+
+const NodeRow = memo(function NodeRow({
+    keyLabel,
+    meta,
+    inlineValue,
+    body,
+    collapsible,
+    defaultOpen = true,
+    value,
+    isSection,
+    isMessage,
+}: {
+    keyLabel: React.ReactNode
+    meta?: string
+    inlineValue?: React.ReactNode
+    body?: React.ReactNode
+    collapsible?: boolean
+    defaultOpen?: boolean
+    value?: unknown
+    isSection?: boolean
+    isMessage?: boolean
+}) {
+    const [open, setOpen] = useState(defaultOpen)
+    const toggle = useCallback(() => setOpen((o) => !o), [])
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            setOpen((o) => !o)
+        }
+    }, [])
+
+    return (
+        <div className={isSection ? "pt-1 first:pt-0" : ""}>
+            <div
+                className={`group/row flex items-baseline gap-2 py-1 px-1 rounded-sm min-h-[24px] select-none ${collapsible ? "cursor-pointer" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
+                onClick={collapsible ? toggle : undefined}
+                role={collapsible ? "button" : undefined}
+                tabIndex={collapsible ? 0 : undefined}
+                aria-expanded={collapsible ? open : undefined}
+                onKeyDown={collapsible ? handleKeyDown : undefined}
+            >
+                <span
+                    className={`inline-flex items-center justify-center w-3.5 h-3.5 shrink-0 relative top-px text-[var(--ant-color-text-quaternary)] ${!collapsible ? "invisible" : ""}`}
+                >
+                    {collapsible && (
+                        <span
+                            className={`inline-flex motion-safe:transition-transform motion-safe:duration-150 ${open ? "rotate-90" : ""}`}
+                        >
+                            {CHEVRON_ICON}
+                        </span>
+                    )}
                 </span>
-                <EditorWrapper
-                    initialValue={value}
-                    disabled
-                    showToolbar={false}
-                    noProvider
-                    readOnly
-                    boundHeight={false}
-                />
+
+                {isMessage ? (
+                    <span className="whitespace-nowrap shrink-0 text-xs">{keyLabel}</span>
+                ) : (
+                    <span
+                        className={`font-mono whitespace-nowrap shrink-0 text-[var(--ant-color-text)] ${isSection ? "font-medium text-[13px]" : "text-[12.5px]"}`}
+                    >
+                        {keyLabel}
+                    </span>
+                )}
+
+                {meta ? (
+                    <span className="text-[11px] text-[var(--ant-color-text-quaternary)] font-mono shrink-0 whitespace-nowrap">
+                        {meta}
+                    </span>
+                ) : null}
+
+                {inlineValue ? (
+                    <span className="font-mono text-[12.5px] break-all ml-1 min-w-0">
+                        {inlineValue}
+                    </span>
+                ) : null}
+
+                {value !== undefined ? <CopyButton value={value} /> : null}
             </div>
-        </EditorProvider>
+
+            {body && open ? (
+                // border-0 then border-l then border-solid: Ant Design's CSS layer
+                // overrides Tailwind preflight, so border-style must be set explicitly.
+                <div className="ml-[7px] pl-3.5 border-0 border-l border-solid border-[var(--ant-color-border-secondary)] flex flex-col mt-0.5 mb-1">
+                    {body}
+                </div>
+            ) : null}
+        </div>
     )
 })
 
-const RenderedValueBlock = memo(function RenderedValueBlock({
-    value: rawValue,
+// ── MessageNodeRow ──────────────────────────────────────────────────────
+
+const MessageNodeRow = memo(function MessageNodeRow({
+    msg,
+    index,
     keyPrefix,
-    depth = 0,
-    maxDepth = DEFAULT_MAX_RENDER_DEPTH,
 }: {
-    value: unknown
+    msg: {role: string; content: unknown}
+    index: number
     keyPrefix: string
-    depth?: number
-    maxDepth?: number
 }) {
-    const value = useMemo(() => simplifyValue(rawValue), [rawValue])
+    const role = (msg.role || "").toLowerCase()
+    const roleColor = ROLE_COLOR_CLASSES[role] ?? DEFAULT_ROLE_COLOR_CLASS
+    const text = getMessageText(msg.content)
+    const editorId = `${keyPrefix}-msg-${index}`
 
-    const chatMessages = useMemo(() => extractChatMessages(value), [value])
+    const label = useMemo(
+        () => <span className={`font-medium capitalize ${roleColor}`}>{msg.role || "—"}</span>,
+        [msg.role, roleColor],
+    )
 
-    if (chatMessages && chatMessages.length > 0) {
-        return <RenderedChatMessages messages={chatMessages} keyPrefix={keyPrefix} />
-    }
-
-    if (value === null || value === undefined) {
-        return <span className="text-[#758391]">—</span>
-    }
-
-    if (typeof value === "string") {
-        return (
+    const body = useMemo(
+        () => (
             <EditorProvider
-                id={keyPrefix}
-                initialValue={value}
+                id={editorId}
+                initialValue={text}
                 showToolbar={false}
                 enableTokens={false}
                 readOnly
@@ -362,7 +496,7 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
             >
                 <MarkdownModeSync isMarkdownView={false} />
                 <EditorWrapper
-                    initialValue={value}
+                    initialValue={text}
                     disabled
                     showToolbar={false}
                     noProvider
@@ -370,157 +504,182 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
                     boundHeight={false}
                 />
             </EditorProvider>
+        ),
+        [editorId, text],
+    )
+
+    return (
+        <NodeRow
+            keyLabel={label}
+            meta={`${text.length} chars`}
+            isMessage
+            collapsible
+            defaultOpen
+            value={text}
+            body={body}
+        />
+    )
+})
+
+// ── RecursiveNode ───────────────────────────────────────────────────────
+
+const RecursiveNode = memo(function RecursiveNode({
+    name,
+    value: rawValue,
+    keyPrefix,
+    depth = 0,
+    maxDepth = DEFAULT_MAX_RENDER_DEPTH,
+    expandDepth = DEFAULT_EXPAND_DEPTH,
+    parentIsArray = false,
+    isSection = false,
+}: {
+    name: string | number
+    value: unknown
+    keyPrefix: string
+    depth?: number
+    maxDepth?: number
+    expandDepth?: number
+    parentIsArray?: boolean
+    isSection?: boolean
+}) {
+    const value = useMemo(() => simplifyValue(rawValue), [rawValue])
+    const keyLabel = parentIsArray ? `[${name}]` : String(name)
+    const nodePrefix = `${keyPrefix}-${name}`
+
+    const chatResult = useMemo(() => shallowExtractChatMessages(value), [value])
+    if (chatResult) {
+        const normalized = normalizeChatMessages(chatResult.messages)
+        return (
+            <NodeRow
+                keyLabel={keyLabel}
+                meta={`${normalized.length} ${normalized.length === 1 ? "message" : "messages"}`}
+                collapsible
+                defaultOpen={depth < expandDepth}
+                value={value}
+                isSection={isSection}
+                body={
+                    <div className="flex flex-col gap-0.5 py-0.5">
+                        {normalized.map((msg, i) => (
+                            <MessageNodeRow key={i} msg={msg} index={i} keyPrefix={nodePrefix} />
+                        ))}
+                    </div>
+                }
+            />
         )
     }
 
-    if (Array.isArray(value) && value.length === 0) {
-        return <span className="text-[#758391]">—</span>
-    }
-
-    if (
-        depth < maxDepth &&
-        Array.isArray(value) &&
-        value.length > 0 &&
-        value.some((item) => item && typeof item === "object")
-    ) {
+    if (isShortLeaf(value)) {
         return (
-            <div className="flex flex-col gap-2">
-                {value.map((item, i) => {
-                    const simplified = simplifyValue(item)
-                    if (
-                        typeof simplified === "string" ||
-                        typeof simplified === "number" ||
-                        typeof simplified === "boolean"
-                    ) {
-                        return (
-                            <ReadOnlyVariableField
-                                key={i}
-                                label={`${i + 1}`}
-                                value={String(simplified)}
-                                editorId={`${keyPrefix}-${i}`}
-                            />
-                        )
-                    }
-                    if (simplified && typeof simplified === "object") {
-                        return (
-                            <div key={i} className="flex flex-col gap-1">
-                                <div className="pl-3">
-                                    <RenderedValueBlock
-                                        value={simplified}
-                                        keyPrefix={`${keyPrefix}-${i}`}
-                                        depth={depth + 1}
-                                        maxDepth={maxDepth}
-                                    />
-                                </div>
-                            </div>
-                        )
-                    }
-                    return (
-                        <ReadOnlyVariableField
-                            key={i}
-                            label={`${i + 1}`}
-                            value={valueToString(simplified)}
-                            editorId={`${keyPrefix}-${i}`}
-                        />
-                    )
-                })}
-            </div>
+            <NodeRow
+                keyLabel={keyLabel}
+                inlineValue={<ScalarValue value={value} />}
+                collapsible={false}
+                value={value}
+                isSection={isSection}
+            />
         )
     }
 
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-        const entries = Object.entries(value as Record<string, unknown>)
+    if (typeof value === "string") {
         return (
-            <div className="flex flex-col gap-1">
-                {entries.map(([k, v]) => {
-                    const simplified = simplifyValue(v)
-                    const nestedChat = extractChatMessages(simplified)
-                    if (nestedChat && nestedChat.length > 0) {
-                        return (
-                            <div key={k} className="flex flex-col gap-1">
-                                <span className="text-xs font-medium text-[var(--ant-color-text-tertiary)]">
-                                    {formatLabel(k)}
-                                </span>
-                                <RenderedChatMessages
-                                    messages={nestedChat}
-                                    keyPrefix={`${keyPrefix}-${k}`}
-                                />
-                            </div>
-                        )
-                    }
-
-                    if (isShortLeaf(simplified)) {
-                        return (
-                            <InlineKeyValue
-                                key={k}
-                                label={formatLabel(k)}
-                                value={
-                                    simplified === null || simplified === undefined
-                                        ? "—"
-                                        : String(simplified)
-                                }
-                            />
-                        )
-                    }
-
-                    if (depth < maxDepth && simplified && typeof simplified === "object") {
-                        return (
-                            <div key={k} className="flex flex-col gap-0.5 mt-1">
-                                <span className="text-xs font-medium text-[var(--ant-color-text-tertiary)]">
-                                    {formatLabel(k)}
-                                </span>
-                                <div className="pl-3">
-                                    <RenderedValueBlock
-                                        value={simplified}
-                                        keyPrefix={`${keyPrefix}-${k}`}
-                                        depth={depth + 1}
-                                        maxDepth={maxDepth}
-                                    />
-                                </div>
-                            </div>
-                        )
-                    }
-
-                    return (
-                        <ReadOnlyVariableField
-                            key={k}
-                            label={formatLabel(k)}
-                            value={valueToString(simplified)}
-                            editorId={`${keyPrefix}-${k}`}
+            <NodeRow
+                keyLabel={keyLabel}
+                meta={`${value.length} chars`}
+                collapsible
+                defaultOpen={depth < expandDepth}
+                value={value}
+                isSection={isSection}
+                body={
+                    <EditorProvider
+                        id={nodePrefix}
+                        initialValue={value}
+                        showToolbar={false}
+                        enableTokens={false}
+                        readOnly
+                        className={EDITOR_RESET_CLASSES}
+                    >
+                        <MarkdownModeSync isMarkdownView={false} />
+                        <EditorWrapper
+                            initialValue={value}
+                            disabled
+                            showToolbar={false}
+                            noProvider
+                            readOnly
+                            boundHeight={false}
                         />
-                    )
-                })}
-            </div>
+                    </EditorProvider>
+                }
+            />
+        )
+    }
+
+    if (value && typeof value === "object") {
+        const isArray = Array.isArray(value)
+        const entries: [string, unknown][] = isArray
+            ? value.map((v, i) => [String(i), v])
+            : Object.entries(value as Record<string, unknown>)
+        const count = entries.length
+        const meta = isArray
+            ? `[${count} ${count === 1 ? "item" : "items"}]`
+            : `{${count} ${count === 1 ? "key" : "keys"}}`
+
+        if (depth >= maxDepth) {
+            return (
+                <NodeRow
+                    keyLabel={keyLabel}
+                    meta={meta}
+                    collapsible={false}
+                    value={value}
+                    isSection={isSection}
+                />
+            )
+        }
+
+        return (
+            <NodeRow
+                keyLabel={keyLabel}
+                meta={meta}
+                collapsible={count > 0}
+                defaultOpen={depth < expandDepth}
+                value={value}
+                isSection={isSection}
+                body={
+                    count > 0
+                        ? entries.map(([k, v]) => (
+                              <RecursiveNode
+                                  key={k}
+                                  name={k}
+                                  value={v}
+                                  keyPrefix={nodePrefix}
+                                  depth={depth + 1}
+                                  maxDepth={maxDepth}
+                                  expandDepth={expandDepth}
+                                  parentIsArray={isArray}
+                              />
+                          ))
+                        : undefined
+                }
+            />
         )
     }
 
     return (
-        <EditorProvider
-            id={keyPrefix}
-            initialValue={valueToString(value)}
-            showToolbar={false}
-            enableTokens={false}
-            readOnly
-            className={EDITOR_RESET_CLASSES}
-        >
-            <MarkdownModeSync isMarkdownView={false} />
-            <EditorWrapper
-                initialValue={valueToString(value)}
-                disabled
-                showToolbar={false}
-                noProvider
-                readOnly
-                boundHeight={false}
-            />
-        </EditorProvider>
+        <NodeRow
+            keyLabel={keyLabel}
+            inlineValue={
+                <span className="font-mono text-[12.5px] text-[var(--ant-color-text)]">
+                    {valueToString(value)}
+                </span>
+            }
+            collapsible={false}
+            value={value}
+            isSection={isSection}
+        />
     )
 })
 
-/**
- * Beautified JSON view: renders a value as per-key fields or chat messages
- * (opt-in display mode; do not use as the default when faithful JSON is
- * required — use the JSON code viewer for that).
- */
+// ── Top-level entry point ───────────────────────────────────────────────
+
 export const BeautifiedJsonView = memo(function BeautifiedJsonView({
     data: rawData,
     keyPrefix,
@@ -529,61 +688,80 @@ export const BeautifiedJsonView = memo(function BeautifiedJsonView({
     keyPrefix: string
 }) {
     const data = useMemo(() => simplifyValue(rawData), [rawData])
+    const topChatResult = useMemo(() => shallowExtractChatMessages(data), [data])
 
-    const isDirectChat = useMemo(() => {
-        if (typeof data === "string") return false
-        if (Array.isArray(data)) return !!extractChatMessages(data)
-        if (data && typeof data === "object" && "role" in (data as Record<string, unknown>)) {
-            return !!extractChatMessages(data)
-        }
-        return false
-    }, [data])
-    const directChatMessages = useMemo(
-        () => (isDirectChat ? extractChatMessages(data) : null),
-        [isDirectChat, data],
-    )
-
-    const entries = useMemo(() => {
-        if (typeof data === "string") return null
-        if (isDirectChat) return null
+    const agDataExpandKeys = useMemo(() => {
         if (!data || typeof data !== "object" || Array.isArray(data)) return null
-        return Object.entries(data as Record<string, unknown>)
-    }, [data, isDirectChat])
+        const rec = data as Record<string, unknown>
+        const keys = new Set<string>()
+        const hasNestedData = (obj: unknown): boolean => {
+            if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false
+            const o = obj as Record<string, unknown>
+            return o.data !== undefined && typeof o.data === "object" && !Array.isArray(o.data)
+        }
+        if (rec.ag && hasNestedData(rec.ag)) {
+            keys.add("ag")
+        }
+        if (
+            rec.attributes &&
+            typeof rec.attributes === "object" &&
+            !Array.isArray(rec.attributes)
+        ) {
+            const attrs = rec.attributes as Record<string, unknown>
+            if (attrs.ag && hasNestedData(attrs.ag)) {
+                keys.add("attributes")
+            }
+        }
+        return keys.size > 0 ? keys : null
+    }, [data])
+
+    if (topChatResult) {
+        const normalized = normalizeChatMessages(topChatResult.messages)
+        return (
+            <div className="text-[13px] p-2 px-3 pb-4">
+                <div className="flex flex-col gap-0.5">
+                    {normalized.map((msg, i) => (
+                        <MessageNodeRow key={i} msg={msg} index={i} keyPrefix={keyPrefix} />
+                    ))}
+                </div>
+            </div>
+        )
+    }
 
     if (typeof data === "string") {
         return (
-            <div className="p-4">
-                <RenderedValueBlock value={data} keyPrefix={keyPrefix} />
+            <div className="text-[13px] p-2 px-3 pb-4">
+                <RecursiveNode name="root" value={data} keyPrefix={keyPrefix} depth={0} isSection />
             </div>
         )
     }
 
-    if (isDirectChat && directChatMessages && directChatMessages.length > 0) {
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+        const entries = Object.entries(data as Record<string, unknown>)
         return (
-            <div className="p-4">
-                <RenderedChatMessages messages={directChatMessages} keyPrefix={keyPrefix} />
-            </div>
-        )
-    }
-
-    if (entries) {
-        return (
-            <div className="flex flex-col gap-4 p-4">
+            <div className="text-[13px] p-2 px-3 pb-4">
                 {entries.map(([key, value]) => (
-                    <div key={key} className="flex flex-col gap-1.5">
-                        <span className="text-xs font-semibold text-[#758391]">{key}</span>
-                        <RenderedValueBlock value={value} keyPrefix={`${keyPrefix}-${key}`} />
-                    </div>
+                    <RecursiveNode
+                        key={key}
+                        name={key}
+                        value={value}
+                        keyPrefix={keyPrefix}
+                        depth={0}
+                        expandDepth={
+                            agDataExpandKeys?.has(key)
+                                ? DEFAULT_MAX_RENDER_DEPTH
+                                : DEFAULT_EXPAND_DEPTH
+                        }
+                        isSection
+                    />
                 ))}
             </div>
         )
     }
 
     return (
-        <div className="p-4">
-            <RenderedValueBlock value={data} keyPrefix={keyPrefix} />
+        <div className="text-[13px] p-2 px-3 pb-4">
+            <RecursiveNode name="root" value={data} keyPrefix={keyPrefix} depth={0} isSection />
         </div>
     )
 })
-
-BeautifiedJsonView.displayName = "BeautifiedJsonView"
