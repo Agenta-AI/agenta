@@ -1,10 +1,9 @@
 import React, {useCallback, useState} from "react"
 
+import {executeToolCall} from "@agenta/entities/gatewayTool"
 import {CaretDown, Lightning} from "@phosphor-icons/react"
 import {Dropdown, message as antMessage} from "antd"
 import {v4 as uuidv4} from "uuid"
-
-import {executeToolCall} from "@/oss/services/tools/api"
 
 // Gateway tool function name format: tools__{provider}__{integration}__{action}__{connection}
 // Double-underscore is used because LLM providers forbid dots in function names.

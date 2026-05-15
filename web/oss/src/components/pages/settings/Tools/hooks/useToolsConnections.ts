@@ -1,12 +1,12 @@
 import {useCallback} from "react"
 
-import {queryClient} from "@/oss/lib/api/queryClient"
 import {
     createConnection,
     deleteToolConnection,
     refreshToolConnection,
-} from "@/oss/services/tools/api"
-import type {ConnectionCreateRequest} from "@/oss/services/tools/api/types"
+    type ConnectionCreateRequest,
+} from "@agenta/entities/gatewayTool"
+import {queryClient} from "@agenta/shared/api"
 
 const DEFAULT_PROVIDER = "composio"
 

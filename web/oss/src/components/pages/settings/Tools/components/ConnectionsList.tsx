@@ -1,16 +1,15 @@
 import {useMemo} from "react"
 
+import type {ConnectionItem} from "@agenta/entities/gatewayTool"
+import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Table, Tooltip, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import type {ConnectionItem} from "@/oss/services/tools/api/types"
 
 import {useToolsConnections} from "../hooks/useToolsConnections"
-
-import ConnectionStatusBadge from "./ConnectionStatusBadge"
 
 interface Props {
     integrationKey: string

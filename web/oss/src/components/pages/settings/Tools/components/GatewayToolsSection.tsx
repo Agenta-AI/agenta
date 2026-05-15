@@ -1,5 +1,18 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {
+    useConnectionsQuery,
+    useConnectionActions,
+    catalogDrawerOpenAtom,
+    executionDrawerAtom,
+    fetchConnection,
+    type ConnectionItem,
+} from "@agenta/entities/gatewayTool"
+import {
+    CatalogDrawer,
+    ConnectionStatusBadge,
+    ToolExecutionDrawer,
+} from "@agenta/entity-ui/gatewayTool"
 import {MoreOutlined} from "@ant-design/icons"
 import {ArrowClockwise, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Table, Tag, Tooltip, Typography} from "antd"
@@ -7,20 +20,8 @@ import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {
-    useConnectionsQuery,
-    useConnectionActions,
-    catalogDrawerOpenAtom,
-    executionDrawerAtom,
-} from "@/oss/features/gateway-tools"
-import CatalogDrawer from "@/oss/features/gateway-tools/drawers/CatalogDrawer"
-import ToolExecutionDrawer from "@/oss/features/gateway-tools/drawers/ToolExecutionDrawer"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {fetchConnection} from "@/oss/services/tools/api"
-import type {ConnectionItem} from "@/oss/services/tools/api/types"
-
-import ConnectionStatusBadge from "./ConnectionStatusBadge"
 
 export default function GatewayToolsSection() {
     const {connections, isLoading, refetch} = useConnectionsQuery()

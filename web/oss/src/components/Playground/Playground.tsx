@@ -1,7 +1,9 @@
 import {type FC, useCallback, useEffect, useMemo} from "react"
 
+import {executeToolCall} from "@agenta/entities/gatewayTool"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
+import {CatalogDrawer} from "@agenta/entity-ui/gatewayTool"
 import {GatewayToolAssistantActions, type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
@@ -9,8 +11,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
-import CatalogDrawer from "@/oss/features/gateway-tools/drawers/CatalogDrawer"
-import {executeToolCall} from "@/oss/services/tools/api"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
 import PlaygroundMainView from "./Components/MainLayout"

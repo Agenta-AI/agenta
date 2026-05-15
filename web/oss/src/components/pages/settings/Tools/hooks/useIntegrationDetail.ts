@@ -1,10 +1,13 @@
+import {
+    fetchActions,
+    integrationDetailQueryFamily,
+    queryConnections,
+    type ActionsListResponse,
+    type ConnectionsQueryResponse,
+} from "@agenta/entities/gatewayTool"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
-
-import {integrationDetailQueryFamily} from "@/oss/features/gateway-tools/hooks/useIntegrationDetail"
-import {fetchActions, queryConnections} from "@/oss/services/tools/api"
-import type {ActionsListResponse, ConnectionsQueryResponse} from "@/oss/services/tools/api/types"
 
 const DEFAULT_PROVIDER = "composio"
 

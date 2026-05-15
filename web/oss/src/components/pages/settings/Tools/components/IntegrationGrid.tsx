@@ -1,10 +1,9 @@
 import {useState, useMemo} from "react"
 
+import type {IntegrationItem} from "@agenta/entities/gatewayTool"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {Card, Empty, Input, Spin, Typography} from "antd"
 import Image from "next/image"
-
-import type {IntegrationItem} from "@/oss/services/tools/api/types"
 
 import {useToolsIntegrations} from "../hooks/useToolsIntegrations"
 

@@ -1,20 +1,21 @@
 import {useMemo} from "react"
 
-import {Play, Plus} from "@phosphor-icons/react"
-import {Button, Collapse, Empty, Spin, Tag, Tooltip, Typography} from "antd"
-import {useSetAtom} from "jotai"
-import Image from "next/image"
-
-import ConnectionStatusBadge from "@/oss/components/pages/settings/Tools/components/ConnectionStatusBadge"
 import {
     useConnectionsQuery,
     catalogDrawerOpenAtom,
     executionDrawerAtom,
     useIntegrationDetail,
-} from "@/oss/features/gateway-tools"
-import CatalogDrawer from "@/oss/features/gateway-tools/drawers/CatalogDrawer"
-import ToolExecutionDrawer from "@/oss/features/gateway-tools/drawers/ToolExecutionDrawer"
-import type {ConnectionItem} from "@/oss/services/tools/api/types"
+    type ConnectionItem,
+} from "@agenta/entities/gatewayTool"
+import {
+    CatalogDrawer,
+    ConnectionStatusBadge,
+    ToolExecutionDrawer,
+} from "@agenta/entity-ui/gatewayTool"
+import {Play, Plus} from "@phosphor-icons/react"
+import {Button, Collapse, Empty, Spin, Tag, Tooltip, Typography} from "antd"
+import {useSetAtom} from "jotai"
+import Image from "next/image"
 
 interface GatewayToolsPanelProps {
     mountDrawers?: boolean

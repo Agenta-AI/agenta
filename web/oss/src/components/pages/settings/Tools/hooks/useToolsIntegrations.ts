@@ -1,8 +1,10 @@
+import {
+    fetchIntegrations,
+    type IntegrationItem,
+    type IntegrationsResponse,
+} from "@agenta/entities/gatewayTool"
 import {useAtomValue} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
-
-import {fetchIntegrations} from "@/oss/services/tools/api"
-import type {IntegrationItem, IntegrationsResponse} from "@/oss/services/tools/api/types"
 
 const DEFAULT_PROVIDER = "composio"
 

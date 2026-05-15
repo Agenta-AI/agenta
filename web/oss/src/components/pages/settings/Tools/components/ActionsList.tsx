@@ -1,9 +1,8 @@
 import {useMemo} from "react"
 
+import type {ActionItem} from "@agenta/entities/gatewayTool"
 import {Table, Tag, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
-
-import type {ActionItem} from "@/oss/services/tools/api/types"
 
 interface Props {
     actions: ActionItem[]

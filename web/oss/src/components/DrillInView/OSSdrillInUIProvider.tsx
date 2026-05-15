@@ -23,21 +23,21 @@
 
 import {useMemo, type ReactNode} from "react"
 
+import {
+    buildToolSlug,
+    catalogDrawerOpenAtom,
+    fetchActionDetail as fetchToolActionDetail,
+    useCatalogActions,
+    useConnectionsQuery,
+    useIntegrationDetail,
+} from "@agenta/entities/gatewayTool"
 import {DrillInUIProvider, type GatewayToolsBridge} from "@agenta/entity-ui/drill-in"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {useSetAtom} from "jotai"
 
-import {
-    buildToolSlug,
-    catalogDrawerOpenAtom,
-    useCatalogActions,
-    useConnectionsQuery,
-    useIntegrationDetail,
-} from "@/oss/features/gateway-tools"
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
 import {isToolsEnabled} from "@/oss/lib/helpers/isEE"
-import {fetchActionDetail as fetchToolActionDetail} from "@/oss/services/tools/api"
 
 interface OSSdrillInUIProviderProps {
     children: ReactNode
