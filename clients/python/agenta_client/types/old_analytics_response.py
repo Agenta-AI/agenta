@@ -9,10 +9,21 @@ from .bucket import Bucket
 
 
 class OldAnalyticsResponse(UniversalBaseModel):
+    """
+    Legacy analytics response with a fixed metric schema.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    buckets: typing.Optional[typing.List[Bucket]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of time buckets returned.
+    """
+    
+    buckets: typing.Optional[typing.List[Bucket]] = pydantic.Field(default=None)
+    """
+    Time-bucketed aggregates with fixed fields (`total`, `errors`) holding `count`, `duration`, `costs`, and `tokens`.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

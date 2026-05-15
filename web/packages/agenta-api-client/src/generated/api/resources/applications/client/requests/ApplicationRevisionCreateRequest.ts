@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface ApplicationRevisionCreateRequest {
+    /** Revision fields. Must reference the parent variant. */
     application_revision: AgentaApi.ApplicationRevisionCreate;
 }

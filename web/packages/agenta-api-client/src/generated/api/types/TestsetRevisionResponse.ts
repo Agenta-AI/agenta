@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface TestsetRevisionResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** 1 if a revision was returned, 0 otherwise. */
     count?: number | undefined;
+    /** The testset revision. `data.testcase_ids` is the ordered list of testcase IDs; `data.testcases` is populated when `include_testcases` is true. */
     testset_revision?: (AgentaApi.TestsetRevision | null) | undefined;
 }

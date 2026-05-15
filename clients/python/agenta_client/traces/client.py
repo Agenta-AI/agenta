@@ -48,6 +48,14 @@ class TracesClient:
     
     def fetch_traces(self, *, trace_id: typing.Optional[typing.Sequence[str]] = None, trace_ids: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> TracesResponse:
         """
+        Fetch multiple traces by known IDs.
+        
+        Point lookup endpoint. Accepts either repeated query params
+        (`?trace_id=a&trace_id=b`) or a comma-separated single param
+        (`?trace_ids=a,b`). Results are deduplicated. Returns `400` when
+        no IDs are supplied. Use `POST /traces/query` for filter-based
+        retrieval.
+        
         Parameters
         ----------
         trace_id : typing.Optional[typing.Sequence[str]]
@@ -76,9 +84,25 @@ class TracesClient:
     
     def create_trace(self, *, trace: typing.Optional[TraceInput] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TraceIdResponse:
         """
+        Create a single trace from the canonical `Trace` shape.
+        
+        Accepts one trace (`trace_id` plus a nested `spans` tree) and
+        returns the resulting `trace_id`. The payload is internally
+        normalized into the same ingest pipeline as
+        `POST /tracing/spans/ingest`.
+        
+        Returns `202 Accepted`. The async write contract applies — see
+        [Tracing — Async write
+        contract](/reference/api-guide/tracing#async-write-contract-202).
+        
+        Use this when you want to operate on whole traces in the
+        list-shaped `Trace` payload. For flat-list ingestion or multiple
+        traces in one call, use `POST /traces/ingest` (plural).
+        
         Parameters
         ----------
         trace : typing.Optional[TraceInput]
+            A single trace record (trace_id plus nested spans). The `trace_id` must match the path parameter on edit endpoints.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -102,17 +126,46 @@ class TracesClient:
     
     def query_traces(self, *, filtering: typing.Optional[FilteringInput] = OMIT, windowing: typing.Optional[Windowing] = OMIT, query_ref: typing.Optional[Reference] = OMIT, query_variant_ref: typing.Optional[Reference] = OMIT, query_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TracesResponse:
         """
+        Query traces as a list of canonical `Trace` records.
+        
+        Thin wrapper over the shared span-query backend that forces
+        `focus = "trace"` and returns the list-shaped `Traces` payload
+        (one entry per trace, each with its nested `spans` tree). Use this
+        to build a table of runs, where each row is a trace.
+        
+        ## Request body
+        
+        - `filtering` — span-level conditions, same dialect as
+          `POST /spans/query`. A trace matches when any of its spans
+          matches.
+        - `windowing` — cursor pagination and time range.
+        - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+          filters and windowing from a saved query revision. If the
+          revision's stored `formatting.focus` is `span`, this endpoint
+          returns `409` — call `POST /spans/query` instead.
+        
+        ## Response
+        
+        Returns `{count, traces: [...]}`. For the per-trace map shape
+        keyed by `trace_id`, call `POST /tracing/spans/query` with
+        `focus="trace"`.
+        
         Parameters
         ----------
         filtering : typing.Optional[FilteringInput]
+            Span-level conditions. A trace matches when any of its spans matches.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range (see [Query Pattern](/reference/api-guide/query-pattern#windowing)).
         
         query_ref : typing.Optional[Reference]
+            Resolve filtering/windowing from a saved query by `id`/`slug`. Only one of the three `query_*_ref` fields is needed.
         
         query_variant_ref : typing.Optional[Reference]
+            Resolve from the latest revision of a specific query variant.
         
         query_revision_ref : typing.Optional[Reference]
+            Resolve from a specific query revision. Returns `409` when the revision's stored `formatting.focus` is `span`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -136,6 +189,13 @@ class TracesClient:
     
     def fetch_trace(self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TraceResponse:
         """
+        Fetch a single trace by `trace_id` in the canonical `Trace` shape.
+        
+        Returns `{count: 1, trace}` when found and `{count: 0}` otherwise.
+        `trace_id` must be a 32-char hex UUID; any other format returns
+        `400`. The reserved path segments `query` and `ingest` return
+        `405` to disambiguate from the sibling query/ingest endpoints.
+        
         Parameters
         ----------
         trace_id : str
@@ -164,11 +224,22 @@ class TracesClient:
     
     def edit_trace(self, trace_id: str, *, trace: typing.Optional[TraceInput] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TraceIdResponse:
         """
+        Replace a trace's spans using the canonical `Trace` shape.
+        
+        Path `trace_id` must match the `trace_id` inside the payload's
+        `trace.trace_id`. Mismatches return `400`. The payload must
+        describe exactly one trace.
+        
+        Edit re-ingests the spans through the same stream as
+        `POST /tracing/spans/ingest`. Returns `202 Accepted` once the
+        spans are queued. The worker reconciles the trace asynchronously.
+        
         Parameters
         ----------
         trace_id : str
         
         trace : typing.Optional[TraceInput]
+            A single trace record (trace_id plus nested spans). The `trace_id` must match the path parameter on edit endpoints.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -222,6 +293,16 @@ class TracesClient:
     
     def fetch_spans(self, *, trace_id: typing.Optional[typing.Sequence[str]] = None, trace_ids: typing.Optional[str] = None, span_id: typing.Optional[typing.Sequence[str]] = None, span_ids: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SpansResponse:
         """
+        Fetch spans by known IDs.
+        
+        Point lookup endpoint. At least one of `trace_id` or `span_id`
+        must be present. Both accept either repeated query params
+        (`?trace_id=a&trace_id=b`) or a comma-separated single param
+        (`?trace_ids=a,b`); results are deduplicated.
+        
+        Returns `400` when neither IDs nor trace IDs are supplied.
+        For filter-based retrieval, use `POST /spans/query`.
+        
         Parameters
         ----------
         trace_id : typing.Optional[typing.Sequence[str]]
@@ -254,17 +335,46 @@ class TracesClient:
     
     def query_spans(self, *, filtering: typing.Optional[FilteringInput] = OMIT, windowing: typing.Optional[Windowing] = OMIT, query_ref: typing.Optional[Reference] = OMIT, query_variant_ref: typing.Optional[Reference] = OMIT, query_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SpansResponse:
         """
+        Query spans as a flat list.
+        
+        Thin wrapper over the shared span-query backend that forces
+        `focus = "span"`. Use this when you want a paged list of spans
+        regardless of trace hierarchy — for example, to surface all LLM
+        calls across traces or to stream spans into an external system.
+        
+        ## Request body
+        
+        - `filtering` — span-level conditions (fields on `Span` and
+          `attributes` paths).
+        - `windowing` — cursor pagination and time range (see
+          [Query Pattern](/reference/api-guide/query-pattern#windowing)).
+        - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+          filtering and windowing from a saved query revision. If the
+          revision's stored `formatting.focus` is `trace`, this endpoint
+          returns `409` — call `POST /traces/query` for that revision.
+        
+        ## Response
+        
+        Returns `{count, spans}`. For the nested per-trace shape, call
+        `POST /traces/query` or `POST /tracing/spans/query` with
+        `focus="trace"` instead.
+        
         Parameters
         ----------
         filtering : typing.Optional[FilteringInput]
+            Span-level conditions.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range.
         
         query_ref : typing.Optional[Reference]
+            Resolve filtering/windowing from a saved query.
         
         query_variant_ref : typing.Optional[Reference]
+            Resolve from the latest revision of a specific query variant.
         
         query_revision_ref : typing.Optional[Reference]
+            Resolve from a specific query revision. Returns `409` when the revision's stored `formatting.focus` is `trace`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -331,8 +441,10 @@ class TracesClient:
         Parameters
         ----------
         realtime : typing.Optional[bool]
+            When `true`, paginate by `last_active` (reflects ongoing activity but can shift between pages). When `false` or unset, paginate by the stable `first_active` cursor.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range. Pass the returned `windowing.next` on subsequent calls to continue iteration.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -359,8 +471,10 @@ class TracesClient:
         Parameters
         ----------
         realtime : typing.Optional[bool]
+            When `true`, paginate by `last_active`. When `false` or unset, paginate by the stable `first_active` cursor.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -384,6 +498,12 @@ class TracesClient:
     
     def fetch_span(self, trace_id: str, span_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SpanResponse:
         """
+        Fetch a single span by `trace_id` + `span_id`.
+        
+        Returns `{count: 1, span}` when found and `{count: 0}` otherwise.
+        Both IDs are required path parameters. Use this to drill in on one
+        span from a trace waterfall without pulling the full tree.
+        
         Parameters
         ----------
         trace_id : str
@@ -415,9 +535,50 @@ class TracesClient:
     
     def create_simple_trace(self, *, trace: SimpleTraceCreate, request_options: typing.Optional[RequestOptions] = None) -> SimpleTraceResponse:
         """
+        Create a single-span "simple" trace.
+        
+        This endpoint is a higher-level helper for the common case of
+        recording one self-contained event — an evaluator output, a human
+        annotation, a feedback entry, a manually-logged inference. It
+        creates one span under a fresh `trace_id` and returns the resulting
+        handle.
+        
+        ## When to use this vs. `/tracing/spans/ingest`
+        
+        - **Use this endpoint** when you have a single payload to record
+          with no internal hierarchy: evaluation results, human feedback,
+          manual annotations, or a standalone completion. It takes care of
+          `trace_id`/`span_id` generation, attribute namespacing, and link
+          wiring for you.
+        - **Use `POST /tracing/spans/ingest`** when you need multi-span
+          traces (e.g. an agent run with nested tool calls and LLM spans),
+          precise control over IDs, timings, or parent/child relationships,
+          or when forwarding traces from another OTel-compatible source.
+        
+        ## Request body
+        
+        Send a `trace` object with:
+        
+        - `origin` — who produced the trace (`human`, `auto`, `custom`).
+        - `kind` — intent (`adhoc`, `eval`, `play`).
+        - `channel` — transport that produced it (`sdk`, `api`, `web`, `otlp`).
+        - `data` — required dict carrying the actual payload (inputs,
+          outputs, or evaluator results).
+        - `tags`, `meta` — optional free-form dicts for filtering and
+          metadata.
+        - `references` — optional links to Agenta entities (application,
+          variant, revision, evaluator, testset, etc.).
+        - `links` — optional OTel-style links to other traces/spans.
+        
+        Use `PATCH /preview/tracing/traces/{trace_id}` to update fields
+        later, `GET` to fetch, and `DELETE` to remove. See
+        [Tracing — References and links](/reference/api-guide/tracing#references-and-entity-linking)
+        for when to use `references` vs. `links`.
+        
         Parameters
         ----------
         trace : SimpleTraceCreate
+            The trace to create. Must include `data` (the payload being recorded) and typically `origin`, `kind`, and `channel` to describe where it came from. Optional `references` link the trace to Agenta entities (app, variant, revision, evaluator, testset, etc.).
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -452,6 +613,14 @@ class TracesClient:
     
     def fetch_simple_trace(self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleTraceResponse:
         """
+        Fetch a single "simple" trace by `trace_id`.
+        
+        Returns the high-level `SimpleTrace` view (origin, kind, channel,
+        data, references, links) rather than the raw OTel span shape. Use
+        this for evaluation results, feedback entries, and annotations
+        created via `POST /simple/traces/`. For the span-level view of the
+        same trace, call `GET /tracing/traces/{trace_id}`.
+        
         Parameters
         ----------
         trace_id : str
@@ -480,6 +649,14 @@ class TracesClient:
     
     def delete_simple_trace(self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleTraceLinkResponse:
         """
+        Delete a "simple" trace.
+        
+        Removes the single-span trace created via
+        `POST /simple/traces/`. Returns the `(trace_id, span_id)` pair
+        that was removed, for logging or downstream cleanup. Use
+        `DELETE /tracing/traces/{trace_id}` when operating on a
+        multi-span trace.
+        
         Parameters
         ----------
         trace_id : str
@@ -508,11 +685,23 @@ class TracesClient:
     
     def edit_simple_trace(self, trace_id: str, *, trace: SimpleTraceEdit, request_options: typing.Optional[RequestOptions] = None) -> SimpleTraceResponse:
         """
+        Update an existing "simple" trace.
+        
+        Supplied fields overwrite the existing trace. Fields not present
+        in the request body are left unchanged. `data` is required (the
+        payload being recorded); `tags`, `meta`, `references`, and
+        `links` are optional.
+        
+        This endpoint is intended for annotations and feedback entries,
+        where the `data.outputs` is the part that typically gets revised.
+        For span-level edits, use `PUT /tracing/traces/{trace_id}`.
+        
         Parameters
         ----------
         trace_id : str
         
         trace : SimpleTraceEdit
+            The fields to update. `data` is required. `tags`, `meta`, `references`, and `links` overwrite their current values when present.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -541,13 +730,30 @@ class TracesClient:
     
     def query_simple_traces(self, *, trace: typing.Optional[SimpleTraceQuery] = OMIT, links: typing.Optional[typing.Sequence[OTelLinkInput]] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SimpleTracesResponse:
         """
+        Query "simple" traces.
+        
+        Filter annotations and feedback by `origin`, `kind`, `channel`,
+        `tags`, `meta`, `references`, and `links`. The shape of the
+        request body is described in the
+        [Simple Endpoints](/reference/api-guide/simple-endpoints#query-traces)
+        guide, including the distinction between filtering via
+        `trace.links` (inbound links on the trace) and the top-level
+        `links` (batch GET by the trace's own IDs).
+        
+        Use this endpoint when building feedback or annotation UIs.
+        For span-level queries across all trace types, use
+        `POST /tracing/spans/query`.
+        
         Parameters
         ----------
         trace : typing.Optional[SimpleTraceQuery]
+            Filter fields on the trace itself — `origin`, `kind`, `channel`, `tags`, `meta`, `references`, and inbound `links`. Filtering by `trace.links.invocation` is the common pattern for finding annotations on a given span.
         
         links : typing.Optional[typing.Sequence[OTelLinkInput]]
+            Batch GET by the trace's own `(trace_id, span_id)`. Each entry matches the trace whose own identity equals the pair. Distinct from `trace.links`, which filters on inbound links.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -585,6 +791,14 @@ class AsyncTracesClient:
     
     async def fetch_traces(self, *, trace_id: typing.Optional[typing.Sequence[str]] = None, trace_ids: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> TracesResponse:
         """
+        Fetch multiple traces by known IDs.
+        
+        Point lookup endpoint. Accepts either repeated query params
+        (`?trace_id=a&trace_id=b`) or a comma-separated single param
+        (`?trace_ids=a,b`). Results are deduplicated. Returns `400` when
+        no IDs are supplied. Use `POST /traces/query` for filter-based
+        retrieval.
+        
         Parameters
         ----------
         trace_id : typing.Optional[typing.Sequence[str]]
@@ -621,9 +835,25 @@ class AsyncTracesClient:
     
     async def create_trace(self, *, trace: typing.Optional[TraceInput] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TraceIdResponse:
         """
+        Create a single trace from the canonical `Trace` shape.
+        
+        Accepts one trace (`trace_id` plus a nested `spans` tree) and
+        returns the resulting `trace_id`. The payload is internally
+        normalized into the same ingest pipeline as
+        `POST /tracing/spans/ingest`.
+        
+        Returns `202 Accepted`. The async write contract applies — see
+        [Tracing — Async write
+        contract](/reference/api-guide/tracing#async-write-contract-202).
+        
+        Use this when you want to operate on whole traces in the
+        list-shaped `Trace` payload. For flat-list ingestion or multiple
+        traces in one call, use `POST /traces/ingest` (plural).
+        
         Parameters
         ----------
         trace : typing.Optional[TraceInput]
+            A single trace record (trace_id plus nested spans). The `trace_id` must match the path parameter on edit endpoints.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -655,17 +885,46 @@ class AsyncTracesClient:
     
     async def query_traces(self, *, filtering: typing.Optional[FilteringInput] = OMIT, windowing: typing.Optional[Windowing] = OMIT, query_ref: typing.Optional[Reference] = OMIT, query_variant_ref: typing.Optional[Reference] = OMIT, query_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TracesResponse:
         """
+        Query traces as a list of canonical `Trace` records.
+        
+        Thin wrapper over the shared span-query backend that forces
+        `focus = "trace"` and returns the list-shaped `Traces` payload
+        (one entry per trace, each with its nested `spans` tree). Use this
+        to build a table of runs, where each row is a trace.
+        
+        ## Request body
+        
+        - `filtering` — span-level conditions, same dialect as
+          `POST /spans/query`. A trace matches when any of its spans
+          matches.
+        - `windowing` — cursor pagination and time range.
+        - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+          filters and windowing from a saved query revision. If the
+          revision's stored `formatting.focus` is `span`, this endpoint
+          returns `409` — call `POST /spans/query` instead.
+        
+        ## Response
+        
+        Returns `{count, traces: [...]}`. For the per-trace map shape
+        keyed by `trace_id`, call `POST /tracing/spans/query` with
+        `focus="trace"`.
+        
         Parameters
         ----------
         filtering : typing.Optional[FilteringInput]
+            Span-level conditions. A trace matches when any of its spans matches.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range (see [Query Pattern](/reference/api-guide/query-pattern#windowing)).
         
         query_ref : typing.Optional[Reference]
+            Resolve filtering/windowing from a saved query by `id`/`slug`. Only one of the three `query_*_ref` fields is needed.
         
         query_variant_ref : typing.Optional[Reference]
+            Resolve from the latest revision of a specific query variant.
         
         query_revision_ref : typing.Optional[Reference]
+            Resolve from a specific query revision. Returns `409` when the revision's stored `formatting.focus` is `span`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -697,6 +956,13 @@ class AsyncTracesClient:
     
     async def fetch_trace(self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TraceResponse:
         """
+        Fetch a single trace by `trace_id` in the canonical `Trace` shape.
+        
+        Returns `{count: 1, trace}` when found and `{count: 0}` otherwise.
+        `trace_id` must be a 32-char hex UUID; any other format returns
+        `400`. The reserved path segments `query` and `ingest` return
+        `405` to disambiguate from the sibling query/ingest endpoints.
+        
         Parameters
         ----------
         trace_id : str
@@ -733,11 +999,22 @@ class AsyncTracesClient:
     
     async def edit_trace(self, trace_id: str, *, trace: typing.Optional[TraceInput] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TraceIdResponse:
         """
+        Replace a trace's spans using the canonical `Trace` shape.
+        
+        Path `trace_id` must match the `trace_id` inside the payload's
+        `trace.trace_id`. Mismatches return `400`. The payload must
+        describe exactly one trace.
+        
+        Edit re-ingests the spans through the same stream as
+        `POST /tracing/spans/ingest`. Returns `202 Accepted` once the
+        spans are queued. The worker reconciles the trace asynchronously.
+        
         Parameters
         ----------
         trace_id : str
         
         trace : typing.Optional[TraceInput]
+            A single trace record (trace_id plus nested spans). The `trace_id` must match the path parameter on edit endpoints.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -807,6 +1084,16 @@ class AsyncTracesClient:
     
     async def fetch_spans(self, *, trace_id: typing.Optional[typing.Sequence[str]] = None, trace_ids: typing.Optional[str] = None, span_id: typing.Optional[typing.Sequence[str]] = None, span_ids: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SpansResponse:
         """
+        Fetch spans by known IDs.
+        
+        Point lookup endpoint. At least one of `trace_id` or `span_id`
+        must be present. Both accept either repeated query params
+        (`?trace_id=a&trace_id=b`) or a comma-separated single param
+        (`?trace_ids=a,b`); results are deduplicated.
+        
+        Returns `400` when neither IDs nor trace IDs are supplied.
+        For filter-based retrieval, use `POST /spans/query`.
+        
         Parameters
         ----------
         trace_id : typing.Optional[typing.Sequence[str]]
@@ -847,17 +1134,46 @@ class AsyncTracesClient:
     
     async def query_spans(self, *, filtering: typing.Optional[FilteringInput] = OMIT, windowing: typing.Optional[Windowing] = OMIT, query_ref: typing.Optional[Reference] = OMIT, query_variant_ref: typing.Optional[Reference] = OMIT, query_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SpansResponse:
         """
+        Query spans as a flat list.
+        
+        Thin wrapper over the shared span-query backend that forces
+        `focus = "span"`. Use this when you want a paged list of spans
+        regardless of trace hierarchy — for example, to surface all LLM
+        calls across traces or to stream spans into an external system.
+        
+        ## Request body
+        
+        - `filtering` — span-level conditions (fields on `Span` and
+          `attributes` paths).
+        - `windowing` — cursor pagination and time range (see
+          [Query Pattern](/reference/api-guide/query-pattern#windowing)).
+        - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+          filtering and windowing from a saved query revision. If the
+          revision's stored `formatting.focus` is `trace`, this endpoint
+          returns `409` — call `POST /traces/query` for that revision.
+        
+        ## Response
+        
+        Returns `{count, spans}`. For the nested per-trace shape, call
+        `POST /traces/query` or `POST /tracing/spans/query` with
+        `focus="trace"` instead.
+        
         Parameters
         ----------
         filtering : typing.Optional[FilteringInput]
+            Span-level conditions.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range.
         
         query_ref : typing.Optional[Reference]
+            Resolve filtering/windowing from a saved query.
         
         query_variant_ref : typing.Optional[Reference]
+            Resolve from the latest revision of a specific query variant.
         
         query_revision_ref : typing.Optional[Reference]
+            Resolve from a specific query revision. Returns `409` when the revision's stored `formatting.focus` is `trace`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -940,8 +1256,10 @@ class AsyncTracesClient:
         Parameters
         ----------
         realtime : typing.Optional[bool]
+            When `true`, paginate by `last_active` (reflects ongoing activity but can shift between pages). When `false` or unset, paginate by the stable `first_active` cursor.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range. Pass the returned `windowing.next` on subsequent calls to continue iteration.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -976,8 +1294,10 @@ class AsyncTracesClient:
         Parameters
         ----------
         realtime : typing.Optional[bool]
+            When `true`, paginate by `last_active`. When `false` or unset, paginate by the stable `first_active` cursor.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1009,6 +1329,12 @@ class AsyncTracesClient:
     
     async def fetch_span(self, trace_id: str, span_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SpanResponse:
         """
+        Fetch a single span by `trace_id` + `span_id`.
+        
+        Returns `{count: 1, span}` when found and `{count: 0}` otherwise.
+        Both IDs are required path parameters. Use this to drill in on one
+        span from a trace waterfall without pulling the full tree.
+        
         Parameters
         ----------
         trace_id : str
@@ -1048,9 +1374,50 @@ class AsyncTracesClient:
     
     async def create_simple_trace(self, *, trace: SimpleTraceCreate, request_options: typing.Optional[RequestOptions] = None) -> SimpleTraceResponse:
         """
+        Create a single-span "simple" trace.
+        
+        This endpoint is a higher-level helper for the common case of
+        recording one self-contained event — an evaluator output, a human
+        annotation, a feedback entry, a manually-logged inference. It
+        creates one span under a fresh `trace_id` and returns the resulting
+        handle.
+        
+        ## When to use this vs. `/tracing/spans/ingest`
+        
+        - **Use this endpoint** when you have a single payload to record
+          with no internal hierarchy: evaluation results, human feedback,
+          manual annotations, or a standalone completion. It takes care of
+          `trace_id`/`span_id` generation, attribute namespacing, and link
+          wiring for you.
+        - **Use `POST /tracing/spans/ingest`** when you need multi-span
+          traces (e.g. an agent run with nested tool calls and LLM spans),
+          precise control over IDs, timings, or parent/child relationships,
+          or when forwarding traces from another OTel-compatible source.
+        
+        ## Request body
+        
+        Send a `trace` object with:
+        
+        - `origin` — who produced the trace (`human`, `auto`, `custom`).
+        - `kind` — intent (`adhoc`, `eval`, `play`).
+        - `channel` — transport that produced it (`sdk`, `api`, `web`, `otlp`).
+        - `data` — required dict carrying the actual payload (inputs,
+          outputs, or evaluator results).
+        - `tags`, `meta` — optional free-form dicts for filtering and
+          metadata.
+        - `references` — optional links to Agenta entities (application,
+          variant, revision, evaluator, testset, etc.).
+        - `links` — optional OTel-style links to other traces/spans.
+        
+        Use `PATCH /preview/tracing/traces/{trace_id}` to update fields
+        later, `GET` to fetch, and `DELETE` to remove. See
+        [Tracing — References and links](/reference/api-guide/tracing#references-and-entity-linking)
+        for when to use `references` vs. `links`.
+        
         Parameters
         ----------
         trace : SimpleTraceCreate
+            The trace to create. Must include `data` (the payload being recorded) and typically `origin`, `kind`, and `channel` to describe where it came from. Optional `references` link the trace to Agenta entities (app, variant, revision, evaluator, testset, etc.).
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1093,6 +1460,14 @@ class AsyncTracesClient:
     
     async def fetch_simple_trace(self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleTraceResponse:
         """
+        Fetch a single "simple" trace by `trace_id`.
+        
+        Returns the high-level `SimpleTrace` view (origin, kind, channel,
+        data, references, links) rather than the raw OTel span shape. Use
+        this for evaluation results, feedback entries, and annotations
+        created via `POST /simple/traces/`. For the span-level view of the
+        same trace, call `GET /tracing/traces/{trace_id}`.
+        
         Parameters
         ----------
         trace_id : str
@@ -1129,6 +1504,14 @@ class AsyncTracesClient:
     
     async def delete_simple_trace(self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleTraceLinkResponse:
         """
+        Delete a "simple" trace.
+        
+        Removes the single-span trace created via
+        `POST /simple/traces/`. Returns the `(trace_id, span_id)` pair
+        that was removed, for logging or downstream cleanup. Use
+        `DELETE /tracing/traces/{trace_id}` when operating on a
+        multi-span trace.
+        
         Parameters
         ----------
         trace_id : str
@@ -1165,11 +1548,23 @@ class AsyncTracesClient:
     
     async def edit_simple_trace(self, trace_id: str, *, trace: SimpleTraceEdit, request_options: typing.Optional[RequestOptions] = None) -> SimpleTraceResponse:
         """
+        Update an existing "simple" trace.
+        
+        Supplied fields overwrite the existing trace. Fields not present
+        in the request body are left unchanged. `data` is required (the
+        payload being recorded); `tags`, `meta`, `references`, and
+        `links` are optional.
+        
+        This endpoint is intended for annotations and feedback entries,
+        where the `data.outputs` is the part that typically gets revised.
+        For span-level edits, use `PUT /tracing/traces/{trace_id}`.
+        
         Parameters
         ----------
         trace_id : str
         
         trace : SimpleTraceEdit
+            The fields to update. `data` is required. `tags`, `meta`, `references`, and `links` overwrite their current values when present.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1206,13 +1601,30 @@ class AsyncTracesClient:
     
     async def query_simple_traces(self, *, trace: typing.Optional[SimpleTraceQuery] = OMIT, links: typing.Optional[typing.Sequence[OTelLinkInput]] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SimpleTracesResponse:
         """
+        Query "simple" traces.
+        
+        Filter annotations and feedback by `origin`, `kind`, `channel`,
+        `tags`, `meta`, `references`, and `links`. The shape of the
+        request body is described in the
+        [Simple Endpoints](/reference/api-guide/simple-endpoints#query-traces)
+        guide, including the distinction between filtering via
+        `trace.links` (inbound links on the trace) and the top-level
+        `links` (batch GET by the trace's own IDs).
+        
+        Use this endpoint when building feedback or annotation UIs.
+        For span-level queries across all trace types, use
+        `POST /tracing/spans/query`.
+        
         Parameters
         ----------
         trace : typing.Optional[SimpleTraceQuery]
+            Filter fields on the trace itself — `origin`, `kind`, `channel`, `tags`, `meta`, `references`, and inbound `links`. Filtering by `trace.links.invocation` is the common pattern for finding annotations on a given span.
         
         links : typing.Optional[typing.Sequence[OTelLinkInput]]
+            Batch GET by the trace's own `(trace_id, span_id)`. Each entry matches the trace whose own identity equals the pair. Distinct from `trace.links`, which filters on inbound links.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time range.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.

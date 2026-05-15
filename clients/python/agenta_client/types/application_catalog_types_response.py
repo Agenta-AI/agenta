@@ -9,10 +9,21 @@ from .application_catalog_type import ApplicationCatalogType
 
 
 class ApplicationCatalogTypesResponse(UniversalBaseModel):
+    """
+    List of catalog types.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    types: typing.Optional[typing.List[ApplicationCatalogType]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of types returned.
+    """
+    
+    types: typing.Optional[typing.List[ApplicationCatalogType]] = pydantic.Field(default=None)
+    """
+    Shared JSON Schema building blocks referenced by templates (for example `message`, `prompt-template`).
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

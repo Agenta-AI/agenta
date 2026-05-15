@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Single-application response envelope.
+ */
 export interface ApplicationResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` when the application was found, `0` otherwise. */
     count?: number | undefined;
+    /** The application artifact, or `null` if not found. */
     application?: (AgentaApi.Application | null) | undefined;
 }

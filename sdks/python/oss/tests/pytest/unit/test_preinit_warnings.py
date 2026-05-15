@@ -88,7 +88,9 @@ class TestInstrumentDecoratorPreInitWarning:
                     pass
 
         runtime_warnings = [w for w in caught if issubclass(w.category, RuntimeWarning)]
-        assert len(runtime_warnings) >= 1, "Expected RuntimeWarning but none were emitted"
+        assert len(runtime_warnings) >= 1, (
+            "Expected RuntimeWarning but none were emitted"
+        )
         assert "ag.init()" in str(runtime_warnings[0].message)
 
     def test_instrument_no_warning_after_init(self):

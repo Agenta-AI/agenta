@@ -9,18 +9,66 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 class EvaluatorTemplate(UniversalBaseModel):
     """
     Static evaluator template definition (built-in evaluator types).
+    
+    Templates are shipped with the product and describe the available
+    evaluator types. They are read-only and separate from user-owned
+    evaluator artifacts.
     """
-    name: str
-    key: str
-    direct_use: bool
-    settings_presets: typing.Optional[typing.List[typing.Dict[str, typing.Any]]] = None
-    settings_template: typing.Dict[str, typing.Any]
-    outputs_schema: typing.Optional[typing.Dict[str, typing.Any]] = None
-    description: typing.Optional[str] = None
-    oss: typing.Optional[bool] = None
-    requires_llm_api_keys: typing.Optional[bool] = None
-    tags: typing.Optional[typing.List[str]] = None
-    archived: typing.Optional[bool] = None
+    name: str = pydantic.Field()
+    """
+    Human-readable template name.
+    """
+    
+    key: str = pydantic.Field()
+    """
+    Stable template identifier, used to create evaluators from the template.
+    """
+    
+    direct_use: bool = pydantic.Field()
+    """
+    Whether the template can be used without further configuration.
+    """
+    
+    settings_presets: typing.Optional[typing.List[typing.Dict[str, typing.Any]]] = pydantic.Field(default=None)
+    """
+    Preset parameter configurations shipped with the template.
+    """
+    
+    settings_template: typing.Dict[str, typing.Any] = pydantic.Field()
+    """
+    JSON Schema describing the template's configurable parameters.
+    """
+    
+    outputs_schema: typing.Optional[typing.Dict[str, typing.Any]] = pydantic.Field(default=None)
+    """
+    JSON Schema describing the template's evaluator output shape.
+    """
+    
+    description: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Template description.
+    """
+    
+    oss: typing.Optional[bool] = pydantic.Field(default=None)
+    """
+    True when the template is available in OSS builds.
+    """
+    
+    requires_llm_api_keys: typing.Optional[bool] = pydantic.Field(default=None)
+    """
+    True when the template calls an LLM provider and requires an API key.
+    """
+    
+    tags: typing.Optional[typing.List[str]] = pydantic.Field(default=None)
+    """
+    Tags for grouping templates.
+    """
+    
+    archived: typing.Optional[bool] = pydantic.Field(default=None)
+    """
+    True when the template is deprecated. Hidden unless `include_archived=true`.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

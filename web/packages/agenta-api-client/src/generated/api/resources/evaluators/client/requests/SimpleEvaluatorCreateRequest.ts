@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleEvaluatorCreateRequest {
     evaluator_id?: string | null;
+    /** Simple evaluator payload (slug, name, flags, and `data` with `uri` + `parameters`). */
     evaluator: AgentaApi.SimpleEvaluatorCreate;
 }

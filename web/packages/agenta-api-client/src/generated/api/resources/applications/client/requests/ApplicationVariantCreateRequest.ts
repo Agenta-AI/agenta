@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface ApplicationVariantCreateRequest {
+    /** Variant fields. Must include `application_id` (the artifact the variant belongs to) and a `slug` unique within the project. */
     application_variant: AgentaApi.ApplicationVariantCreate;
 }

@@ -2,10 +2,21 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Response from span/trace queries.
+ *
+ * Exactly one of `spans` or `traces` is populated, controlled by the
+ * `focus` field in the request (`"span"` for flat lists, `"trace"` for
+ * nested trees). The shapes here match what the ingest endpoint accepts,
+ * so you can round-trip data between environments.
+ */
 export interface OTelTracingResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Total number of matching traces or spans in the window. */
     count?: number | undefined;
+    /** Flat list of spans, populated when the query was run with `focus="span"`. */
     spans?: (AgentaApi.SpanOutput[] | null) | undefined;
+    /** Nested tree of spans keyed by `trace_id` → span name, populated when the query was run with `focus="trace"` (default). */
     traces?: (Record<string, AgentaApi.SpansTreeOutput | null> | null) | undefined;
 }

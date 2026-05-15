@@ -20,6 +20,7 @@ import {useMemo} from "react"
 import type {RunnablePort} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController} from "@agenta/playground"
+import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import type {TokenPathSuggestion} from "@agenta/ui/editor"
 import {atom, useAtomValue} from "jotai"
 
@@ -85,6 +86,18 @@ export function useInputsSource(scopedEntityId: string | null = null): EnvelopeS
                             if (rootKey === "testcase_dedup_id") continue
                             roots.add(rootKey)
                         }
+                    }
+                    // Strip envelope-slot names — they're envelope identifiers,
+                    // not field names inside the inputs envelope. Evaluators
+                    // surface envelope-level ports keyed `inputs`/`outputs`
+                    // (see `buildEvaluatorEnvelopePorts`), so without this
+                    // filter the typeahead would offer `$.inputs.inputs` /
+                    // `$.inputs.outputs` — self-referential / cross-envelope
+                    // paths the SDK runtime can't resolve. Users should be
+                    // guided to `{{$.inputs}}` / `{{$.outputs}}` or to a
+                    // specific field like `{{$.inputs.country}}` instead.
+                    for (const slot of KNOWN_ENVELOPE_SLOTS) {
+                        roots.delete(slot)
                     }
                     const out: TokenPathSuggestion[] = []
                     for (const r of roots) {

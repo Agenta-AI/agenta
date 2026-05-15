@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface WorkflowCatalogPresetsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of presets returned. */
     count?: number | undefined;
+    /** Named parameter sets defined against a template. */
     presets?: AgentaApi.WorkflowCatalogPreset[] | undefined;
 }

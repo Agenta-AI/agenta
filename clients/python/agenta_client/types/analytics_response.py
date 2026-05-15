@@ -13,12 +13,31 @@ from .tracing_query import TracingQuery
 
 
 class AnalyticsResponse(UniversalBaseModel):
+    """
+    Analytics response with user-specified metric specs.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    buckets: typing.Optional[typing.List[MetricsBucket]] = None
-    query: typing.Optional[TracingQuery] = None
-    specs: typing.Optional[typing.List[MetricSpec]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of time buckets returned.
+    """
+    
+    buckets: typing.Optional[typing.List[MetricsBucket]] = pydantic.Field(default=None)
+    """
+    Time-bucketed aggregates. Each bucket's `metrics` dict is keyed by the dotted `path` of the corresponding `MetricSpec`.
+    """
+    
+    query: typing.Optional[TracingQuery] = pydantic.Field(default=None)
+    """
+    The resolved query used to compute the buckets.
+    """
+    
+    specs: typing.Optional[typing.List[MetricSpec]] = pydantic.Field(default=None)
+    """
+    The resolved metric specs applied in each bucket.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

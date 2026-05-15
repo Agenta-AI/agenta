@@ -98,6 +98,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
             setShouldRender(false)
         }
     }, [])
+    const handleClose = useCallback(() => closeDrawer(), [closeDrawer])
 
     if (!shouldRender) return null
 
@@ -106,7 +107,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
             open={isOpen}
             closable={false}
             mask={showBlurredMask ? {blur: true} : false}
-            onClose={closeDrawer}
+            onClose={handleClose}
             destroyOnHidden
             afterOpenChange={handleAfterOpenChange}
             styles={{

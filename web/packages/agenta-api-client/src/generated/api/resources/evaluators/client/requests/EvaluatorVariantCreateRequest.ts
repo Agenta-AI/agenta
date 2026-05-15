@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface EvaluatorVariantCreateRequest {
+    /** Variant payload. Requires the parent `evaluator_id`. */
     evaluator_variant: AgentaApi.EvaluatorVariantCreate;
 }

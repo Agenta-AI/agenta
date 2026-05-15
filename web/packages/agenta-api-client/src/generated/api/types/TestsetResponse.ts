@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface TestsetResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** 1 if a testset was returned, 0 otherwise. */
     count?: number | undefined;
+    /** The testset artifact. Does not include testcases. */
     testset?: (AgentaApi.Testset | null) | undefined;
 }

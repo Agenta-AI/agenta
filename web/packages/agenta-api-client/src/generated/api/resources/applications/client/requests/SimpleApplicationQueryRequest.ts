@@ -7,8 +7,12 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface SimpleApplicationQueryRequest {
+    /** Attribute filter. Supports `slug`, `slugs`, `flags`, and `meta`. `flags` filter both artifact flags (`is_application`, etc.) and revision flags (`is_chat`, `has_url`, etc.). */
     application?: AgentaApi.SimpleApplicationQuery | null;
+    /** Restrict to specific applications by `id` or `slug`. */
     application_refs?: AgentaApi.Reference[] | null;
+    /** When `true`, include archived applications. Defaults to `false`. */
     include_archived?: boolean | null;
+    /** Cursor pagination and time-range controls. */
     windowing?: AgentaApi.Windowing | null;
 }

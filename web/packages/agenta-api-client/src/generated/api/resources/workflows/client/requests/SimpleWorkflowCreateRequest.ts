@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleWorkflowCreateRequest {
     workflow_id?: string | null;
+    /** Simple-workflow create payload. Creates the artifact, a default variant, and an initial revision in one call. */
     workflow: AgentaApi.SimpleWorkflowCreate;
 }

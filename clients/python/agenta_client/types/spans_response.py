@@ -11,8 +11,16 @@ from .span_output import SpanOutput
 class SpansResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    spans: typing.Optional[typing.List[SpanOutput]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Total number of matching spans in the window.
+    """
+    
+    spans: typing.Optional[typing.List[SpanOutput]] = pydantic.Field(default=None)
+    """
+    Flat list of matching spans.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

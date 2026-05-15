@@ -109,13 +109,16 @@ export function extractLastPathSegment(key: string): string {
 /**
  * Format a key as a human-readable name.
  * Strips path syntax (JSONPath / JSON Pointer / dot notation) to the last
- * segment, then converts snake_case and camelCase to Title Case.
+ * segment, then splits snake_case and camelCase into spaces.
+ *
+ * Does NOT auto-capitalize the first letter — user-authored keys preserve
+ * their original casing. `outputs` stays `outputs`; the only mechanical
+ * transformations applied are path stripping and word splitting.
  */
 export function formatKeyAsName(key: string): string {
     return extractLastPathSegment(key)
         .replace(/_/g, " ")
         .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/^./, (str) => str.toUpperCase())
 }
 
 // ============================================================================
@@ -370,7 +373,7 @@ export function extractOutputPortsFromSchema(schema: unknown): RunnablePort[] {
         return [
             {
                 key: "output",
-                name: "Output",
+                name: "output",
                 type: s.type as string,
                 schema,
             },
@@ -383,7 +386,7 @@ export function extractOutputPortsFromSchema(schema: unknown): RunnablePort[] {
         return [
             {
                 key: "output",
-                name: "Output",
+                name: "output",
                 type: "unknown",
                 schema,
             },
