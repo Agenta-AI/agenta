@@ -1,0 +1,1 @@
+{"parameters":[{"name":"query_variant_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Query Variant Id"}}]}

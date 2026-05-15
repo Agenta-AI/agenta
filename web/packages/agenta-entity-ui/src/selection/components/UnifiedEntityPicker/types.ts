@@ -135,6 +135,11 @@ export interface CascadingVariantProps<
      * Null entries are skipped.
      */
     initialSelections?: (string | null)[]
+
+    /**
+     * Called when the user actively clears the selection (e.g., clicks 'x').
+     */
+    onDeselect?: () => void
 }
 
 // ============================================================================

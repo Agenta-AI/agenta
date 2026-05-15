@@ -44,6 +44,15 @@ export type {
     TypedPathInfo,
 } from "./pathUtils"
 
+// Template variable validation (envelope-slot aware)
+export {
+    KNOWN_ENVELOPE_SLOTS,
+    extractTemplateExpression,
+    isValidTemplateVariable,
+    validateTemplateVariable,
+} from "./templateVariable"
+export type {TemplateVariableValidation} from "./templateVariable"
+
 // Type narrowing utilities
 export {asRecord, safeStringify} from "./typeNarrowing"
 

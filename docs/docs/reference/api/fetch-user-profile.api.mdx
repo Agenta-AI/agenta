@@ -5,7 +5,7 @@ description: "User Profile"
 sidebar_label: "User Profile"
 hide_title: true
 hide_table_of_contents: true
-api: eJxdUsFu2zAM/ZXgnQU729Gn5TBsQS/B2p4Co2AVptZmW6pEBcsM//tAO0kb6yJIfCQf3+MAHziSON9vD6hwZLHNS04cX0L0R9cyDCKn4PvECdWAr+u1XgdONrqgiajwmK3llI65Xf26gGFgfS/ci8IphNbZqU/5O2nOgGQb7gjVMOoxi5LPieNqd+PQsTReGb6xwCCQNKhQfpBMHE8cE6r9gBxbDVJwGM312YiEVJUl58K2Ph8KeuNeqCA3A2utYXN0cp6KbHbbBz7/ZDpwRLWvPwMelfqsxz1sgJwDowIF98BnGPTU6XuTpfHR/ZskgIHTGZs5S4d3/dFP6U7aCT+RW212WxjoYLMq6+JLscZSqzuwqk52Uv3aewrDLIS4zQ8D7shpTJi6bx8BZRZ8ko76T/UW1txxuQkg/FfK0JLrMV46Dxfb9rjaVhs0Pol+DcMrJX6O7Tjq93vmqD7UBieKjl5VlX09mqtoatEfPut41nLQpThRm2ftF8um1t0W6Mf3J4zjf+TUAlU=
+api: eJxdUj2P2zAM/SvBm4U47aipGYo2uCXo9SbDOPAUJtbVtlSJDuoa/u8F7UuaxIshPlJ8HxohdMqwJV4yp4zKIEROJD50uwMsjiyufu0zp9eYwtE3DIPEOYYuc4Yd8Xmz0d+Bs0s+6iAsnnvnOOdj36x+fDTDwIVOuBNtpxgb7+Y9xXvWmRHZ1dwS7DjpZx6uVIKr/ZVDy1IHZXhigUEkqWFR/CeZOZ1Vki1H9KlRkKLHZC7HWiTaomiCo6YOWRa40knXJy/DPLrd7554+M504ARbVrcNz0p4ceG+bYQMkWFB0T/xAIOOWj1ve6lD8n9n4TDwqqxeplSy745hHvfSzP0n7oRW2/0Oj37cQeosudnZy6YZhrkRm21R0Fxeky9gwC15BYWp/XJFMBmoc8uazfrTeqOlGLK01N2seEjkjt7VAeE/UsSGfKeXzGTGj7RKXNKqDDQBLY3jG2V+Sc00afl3z0mDqAzOlDy9qS1lNZmLa5rRLx5UsXMc9S2cqekX8x/emGZ3fTffvv7ENP0DJwoEjA==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ User Profile
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./fetch-user-profile.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+  {...require("./fetch-user-profile.StatusCodes.json")}
 >
   
 </StatusCodes>

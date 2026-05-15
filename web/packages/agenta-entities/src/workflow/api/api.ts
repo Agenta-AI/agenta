@@ -91,6 +91,7 @@ export async function queryWorkflows({
     projectId,
     name,
     flags,
+    workflowRefs,
     folderId,
     includeArchived = false,
     windowing,
@@ -116,6 +117,7 @@ export async function queryWorkflows({
         `${getAgentaApiUrl()}/workflows/query`,
         {
             workflow: workflowQuery,
+            workflow_refs: workflowRefs,
             include_archived: includeArchived,
             windowing: windowing ?? undefined,
         },
@@ -936,7 +938,7 @@ export interface CommitWorkflowRevisionPayload {
     slug?: string
     name?: string
     data: NonNullable<UpdateWorkflowPayload["data"]>
-    message?: string
+    message?: string | null
 }
 
 export async function commitWorkflowRevisionApi(

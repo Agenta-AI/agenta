@@ -96,7 +96,14 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
                     console.error("Failed to remove unsupported drawer query params:", error)
                 })
             }
-            clearVariantDrawerState()
+            // Only close the drawer if it was originally opened via URL.
+            // Programmatically opened drawers (e.g. from the trace span
+            // "Open in Playground" button on observability) must survive
+            // unrelated route events on routes that don't natively support
+            // the drawer.
+            if (currentOpen && drawerOpenedViaUrl) {
+                clearVariantDrawerState()
+            }
             return
         }
 

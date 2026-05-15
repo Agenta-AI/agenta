@@ -416,6 +416,8 @@ def _maybe_xfail_for_llm_provider_error(
         "Incorrect API key provided",
         "api_key client option must be set",
         "OPENAI_API_KEY environment variable",
+        "OPENAI_API_KEY",
+        "Missing credentials",
         "invalid_api_key",
     )
     if resp.status_code in {400, 401, 424, 429, 500} and any(
@@ -671,6 +673,20 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
 # ---------------------------------------------------------------------------
 
 
+# Parallel list with the webhook xfail mark stripped, used to override
+# parametrization on tests that don't actually call the webhook (e.g.
+# inspect-only). Keeps the param-level xfail correct for invoke tests
+# while letting webhook-independent tests pass cleanly without XPASS.
+_CASES_WITHOUT_WEBHOOK_XFAIL = [
+    pytest.param(
+        p.values[0],
+        id=p.id,
+        marks=[m for m in p.marks if m.name != "xfail"],
+    )
+    for p in MANAGED_WORKFLOW_CASES
+]
+
+
 @pytest.mark.parametrize("case", MANAGED_WORKFLOW_CASES)
 class TestManagedWorkflowLifecycle:
     """Full lifecycle for each managed workflow: catalog → create → deploy → invoke×3."""
@@ -706,18 +722,6 @@ class TestManagedWorkflowLifecycle:
             allow_llm_failure=ctx.get("requires_llm", False),
         )
         _assert_invoke_response(resp, case_id=ctx["template_key"])
-
-    def test_inspect_direct_returns_canonical_revision(self):
-        """POST {services}/{service_path}/inspect — direct mount returns canonical URI."""
-        ctx = self._ctx
-        resp = self._mod_services_api(
-            "POST",
-            f"{ctx['service_path']}/inspect",
-            json={},
-        )
-        assert resp.status_code == 200, resp.text
-        payload = resp.json()
-        assert payload["data"]["revision"]["data"]["uri"] == ctx["uri"]
 
     def test_invoke_inline(self):
         """POST /invoke with URI + parameters inline — dispatcher routes by URI, no DB lookup."""
@@ -788,6 +792,31 @@ class TestManagedWorkflowLifecycle:
         )
         payload = _assert_invoke_response(resp, case_id=ctx["template_key"])
         _assert_case_outputs(payload, case=ctx)
+
+
+# ---------------------------------------------------------------------------
+# Inspect coverage for the parametrized lifecycle cases.
+# Lives outside the class so we can use the case list with the webhook xfail
+# stripped — inspect doesn't call the webhook, so it should pass cleanly for
+# every template_key (no XPASS).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("case", _CASES_WITHOUT_WEBHOOK_XFAIL)
+def test_inspect_direct_returns_canonical_revision(case, mod_api, mod_services_api):
+    """POST {services}/{service_path}/inspect — direct mount returns canonical URI."""
+    key = case["template_key"]
+    if key not in _LIFECYCLE_CACHE:
+        _LIFECYCLE_CACHE[key] = _lifecycle_setup(case, mod_api, mod_services_api)
+    ctx = _LIFECYCLE_CACHE[key]
+    resp = mod_services_api(
+        "POST",
+        f"{ctx['service_path']}/inspect",
+        json={},
+    )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["data"]["revision"]["data"]["uri"] == ctx["uri"]
 
 
 # ---------------------------------------------------------------------------

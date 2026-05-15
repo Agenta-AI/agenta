@@ -112,7 +112,13 @@ export function nestEvaluatorConfiguration(
                 return primaryData
             }
 
-            // Flat schema path: detect hidden and advanced keys from flat schema props
+            // Flat schema path: detect hidden and advanced keys from flat schema props.
+            // Treat the schema as an allowlist — keys not present in the schema (e.g.
+            // legacy preset fields like `requires_llm_api_keys`, `correct_answer_key`
+            // that aren't declared on the schema) are dropped from the rendered data.
+            // The reverse transform (`flattenEvaluatorConfiguration`) preserves them
+            // via `originalFlat` so commits round-trip cleanly.
+            const allowedKeys = new Set(Object.keys(schemaProps))
             const hiddenKeys = Object.entries(schemaProps)
                 .filter(([, prop]) => prop["x-ag-type"] === "hidden")
                 .map(([key]) => key)
@@ -121,28 +127,27 @@ export function nestEvaluatorConfiguration(
                     ([, prop]) => prop["x-advanced"] === true || prop["x-ag-ui-advanced"] === true,
                 )
                 .map(([key]) => key)
-            if (hiddenKeys.length > 0 || advancedKeys.length > 0) {
-                const primaryData: Record<string, unknown> = {}
-                const advancedData: Record<string, unknown> = {}
-                for (const [key, value] of Object.entries(flat)) {
-                    if (hiddenKeys.includes(key)) continue
-                    if (advancedKeys.includes(key)) {
-                        advancedData[key] = value
-                    } else {
-                        primaryData[key] = value
-                    }
+            const primaryData: Record<string, unknown> = {}
+            const advancedData: Record<string, unknown> = {}
+            for (const [key, value] of Object.entries(flat)) {
+                if (!allowedKeys.has(key)) continue
+                if (hiddenKeys.includes(key)) continue
+                if (advancedKeys.includes(key)) {
+                    advancedData[key] = value
+                } else {
+                    primaryData[key] = value
                 }
-                // When all visible fields are advanced (no primary), schema also renders them flat
-                // (nestNonLlmEvaluatorSchema uses the same "all-advanced → flat" rule).
-                // Return advancedData directly so hidden keys are dropped.
-                if (Object.keys(primaryData).length === 0 && Object.keys(advancedData).length > 0) {
-                    return advancedData
-                }
-                if (Object.keys(advancedData).length > 0) {
-                    return {...primaryData, advanced_settings: advancedData}
-                }
-                return primaryData
             }
+            // When all visible fields are advanced (no primary), schema also renders them flat
+            // (nestNonLlmEvaluatorSchema uses the same "all-advanced → flat" rule).
+            // Return advancedData directly so hidden keys are dropped.
+            if (Object.keys(primaryData).length === 0 && Object.keys(advancedData).length > 0) {
+                return advancedData
+            }
+            if (Object.keys(advancedData).length > 0) {
+                return {...primaryData, advanced_settings: advancedData}
+            }
+            return primaryData
         }
 
         return flat
@@ -168,20 +173,35 @@ export function nestEvaluatorConfiguration(
         ...(json_schema ? {json_schema} : {}),
     }
 
-    const result = {
+    // Mirror `nestEvaluatorSchema`'s rule for emitting `advanced_config`:
+    // only include the section when the schema actually declares advanced
+    // fields. Emitting it unconditionally produced ghost "Advanced Config"
+    // sections with no schema properties for evaluators whose SDK interface
+    // doesn't carry `correct_answer_key` / `threshold` (e.g. `auto_ai_critique_v0`).
+    // Handles both flat schema (top-level `correct_answer_key` / `threshold`)
+    // and already-nested schema (`advanced_config` present).
+    const schemaProps = (schema?.properties ?? undefined) as Record<string, unknown> | undefined
+    const schemaHasAdvanced =
+        !!schemaProps?.correct_answer_key ||
+        !!schemaProps?.threshold ||
+        !!schemaProps?.advanced_config
+
+    const result: Record<string, unknown> = {
         prompt: {
             messages: prompt_template,
             llm_config: {
                 model,
             },
         },
-        // Feedback configuration as a top-level section (matches schema)
         feedback_config: feedbackConfig,
-        // Store evaluator-specific fields in a named section
-        advanced_config: {
-            correct_answer_key: _correctAnswerKey,
-            threshold: _threshold,
-        },
+        ...(schemaHasAdvanced
+            ? {
+                  advanced_config: {
+                      correct_answer_key: _correctAnswerKey,
+                      threshold: _threshold,
+                  },
+              }
+            : {}),
         ...rest,
     }
     return result

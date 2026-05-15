@@ -5,7 +5,7 @@ description: "Handle Events"
 sidebar_label: "Handle Events"
 hide_title: true
 hide_table_of_contents: true
-api: eJxdUk2PmzAQ/SvRO1uQ9sipqVRpoz002rSnCFUTMxu8a4xrm6gU8d+rgZBu4IJsv5l5HzMg0SWiOOGrsda4C0qF1nOgZFq3r1CgJldZ/sVXdilCIXD0rYscUQz4vN3Kr+Kog/FSgwLHTmuO8bWzm5cbGAq6dYldEjh5b42eRuRvUWoGRF1zQyiGUT61avk0kdh8W0g0nOpW2Pk2Jih4SjUK5OdZRR5TMJ7zmXQOhcjhykGUDuiCFSx5g1EtxzolH4s85y7Ttu2qjC7sEmVkZmApPXQXTOqnJrvD/pn7J6aKA4pT+RFwFC2zQY+wAan3jALkzTP3UHDUyHnXpboN5u/kCRSMiK7nKnHDuNd2KjfJTviJ3GZ32ENBhM02bbNP2RZr8x7AEgPpKYZl9vQMtTLirh8K3JCRt8TUfPn/IMwkgIbch37rrB7I3B1I/Cfl3pJxGG+jh1uMJ9xilNymIIXC0k42tJbUixOG4UyRfwY7jnL9u+Mg6ZQKVwqGzuLVqRzVYqUE9869iNaavWzOlWw3J7LaSQn0vmaH78cfGMd/jeUT9g==
+api: eJxdUsGOGjEM/RXkc0RojzmVSpUW7aFoaU8IVSZ4mbSZJJt4UKej+ffKGQYBcxnFfraf3/MAjOcCZg9fnfcunOGgICbKyC6GzQkMNBhOnn7RhQIXUJCppBgKFTADfF6t5HeiYrNLUgMGdp21VMp75xdvVzAosDEwBRY4puSdrSP07yI1AxTbUItghlE+9dTypZJYfJtJtMRNFHYpFgYFCbkBA/o4baELZ5dIT6Q1KCiUL5Rl0wG67AWLycGo5mfDnIzWPlr0TSw8pQ9SabvsuK+l6+3mlfoXwhNlMPvDPWAnG0yyPMIG4D4RGMDkXqkHBQFbea87bmJ2/6oSoMDJqs1UJRq48B5ruWNf8WcKjIv1dgPPAj2kRGq0Vep5Uk2Dulu2GK2xhpfoRCJq0UmSCdsvtwyMCkS5acxq+Wm5kpDo3mK4G/Fs0QO/mwRMf1knjy5Il8pmuLq3h6t7Ylf1T0jN7eQwxRfBDcMRC/3Mfhwl/NFRFnsOCi6YHR5FrP1hVLOW4twf6kUHaynJwVzQd5MlT6cojt6ua/t99wPG8T8U/BDG
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Handle Events
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./handle-events.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+  {...require("./handle-events.StatusCodes.json")}
 >
   
 </StatusCodes>

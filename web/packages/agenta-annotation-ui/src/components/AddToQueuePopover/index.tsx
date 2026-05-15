@@ -14,6 +14,7 @@ import {Plus} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {useAnnotationNavigationSafe} from "../../context"
 import {
     createQueueDrawerOpenAtom,
     createQueueDrawerDefaultKindAtom,
@@ -60,6 +61,8 @@ const QueueListContent = ({
     onClose: () => void
     onItemsAdded?: () => void
 }) => {
+    const navigation = useAnnotationNavigationSafe()
+    const navigateToQueue = navigation?.navigateToQueue
     const listQueues = useAtomValue(simpleQueuesListDataAtom)
     const listQuery = useAtomValue(simpleQueuesListQueryAtom)
     const paginatedState = useAtomValue(
@@ -103,9 +106,21 @@ const QueueListContent = ({
                         : await addTestcases(queue.id, itemIds)
 
                 if (result) {
-                    message.success(
-                        `Added ${itemIds.length} ${itemType === "traces" ? "trace" : "test case"}${itemIds.length > 1 ? "s" : ""} to "${queue.name || "Untitled"}"`,
-                    )
+                    const count = itemIds.length
+                    const entityLabel = `${itemType === "traces" ? "trace" : "test case"}${count > 1 ? "s" : ""}`
+                    const queueName = queue.name || "Untitled"
+                    const projectURL =
+                        window.location.pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
+                    message.success({
+                        content: `Added ${count} ${entityLabel} to "${queueName}".`,
+                        onNavigate: navigateToQueue ? () => navigateToQueue(queue.id) : undefined,
+                        url:
+                            !navigateToQueue && projectURL
+                                ? `${projectURL}/annotations/${queue.id}`
+                                : undefined,
+                        linkText: "View queue",
+                        duration: 5,
+                    })
                     onItemsAdded?.()
                     onClose()
                 }
@@ -117,7 +132,7 @@ const QueueListContent = ({
                 setSubmittingId(null)
             }
         },
-        [itemIds, itemType, addTraces, addTestcases, onClose, onItemsAdded],
+        [itemIds, itemType, addTraces, addTestcases, onClose, onItemsAdded, navigateToQueue],
     )
 
     const handleNewQueue = useCallback(

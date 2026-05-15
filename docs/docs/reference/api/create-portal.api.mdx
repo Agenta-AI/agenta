@@ -5,7 +5,7 @@ description: "Create Portal User Route"
 sidebar_label: "Create Portal User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJx9kkGP2jAQhf8KemeL0B5zKu2laA9FS/eEUDWYWeLWiV17gkqj/PdqHKALh80lSvxm/OZ9M0DomFFv8dl577ojdgYhciJxoVsdUMMmJuEfMSQhD4PEOYYuc0Y94ONioa8DZ5tc1BrU2PTWcs6vvZ89X8QwsKET7kTlFKN3tlxR/cxaMyDbhltCPYz6mIeWX4qJ2bqYmL1kTrPn0Iv2bVmaoEZjyAKDSNKgRrWfBqqyJBe5mvznCgaZ04mTTj2gT17FFB1Gc/1sRGKuq4r7ufWhP8zpyJ3QnNwk3GkP2ycn59JkuV498fkr04ET6u3urWCjc01h3csGyDkyalB0T3yGQUetfi97aUJyf0s+MHAaQDNVaTKuew2l3Ikv+mJutlyvYKCDTZEt5h/mCzwGeSdWJGQLkuvd5RjmIYjb/DDglpyeCVP76f+BOlMCLXVv+r3D7c7XLQzhP1JFT67DeHExXJBucUGqCAtUpT1hhYFubqMrUG8xDHvK/JL8OOrv3z0nJbUzOFFytNfctrvRXGNViL/4rAFYy1HX6ES+n+g87KrCve3c+tvmO8bxHxoHHME=
+api: eJx9kkGP2jAQhf8KemeL0B5zKu2laA9FS/eEUDWYWeLWiV17gkqj/PdqHEDAoblE9rzxzHxvBggdM+otPjvvXXfEziBETiQudKsDatjEJPwjhiTkYZA4x9BlzqgHfFws9HfgbJOLmoMam95azvm997PXixgGNnTCnaicYvTOlhLVz6w5A7JtuCXUw6ifeXryS2liti5NzN4yp9lr6EXfbVmaoI3GkAUGkaRBjWo/DVRlSS5yNfWfKxhkTidOOvWAPnkVU3QYzfXYiMS6qnyw5JuQZQrvNNP2ycm5pC7Xqxc+f2U6cEK93d0LNjrNhOhRNkDOkVGDonvhMww6avW87KUJyf0tVGDgdOxmylIernsPJd2JL/ojd0Kz5XqFZ1gPIcVOtmC/ViphmLthc11VVK7n5BQRt+Q0KEztp1sEo4GSm8os5h/mC71S8C11dyX+Y9dDqzcawn+kip5cpw+WxoaLk1tcnFTnipdq8uQmDHRh1SMVDsOeMr8lP456/bvnpFbtDE6UHO0V3HY3mitXdfEXn5WJtRx1e07k+8mepxVVd2+rtv62+Y5x/AdTJxmR
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Create Portal User Route
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./create-portal.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+  {...require("./create-portal.StatusCodes.json")}
 >
   
 </StatusCodes>

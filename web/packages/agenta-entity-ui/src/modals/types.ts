@@ -284,7 +284,7 @@ export interface CommitSubmitResult {
 
 export interface CommitSubmitParams {
     entity: EntityReference
-    message: string
+    message: string | null
     mode?: string
     /** The entity name (may have been edited by the user in the modal) */
     entityName?: string

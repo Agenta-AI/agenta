@@ -17,7 +17,8 @@
         "./modals": "./src/modals/index.ts",
         "./selection": "./src/selection/index.ts",
         "./testcase": "./src/testcase/index.ts",
-        "./variant": "./src/variant/index.ts"
+        "./variant": "./src/variant/index.ts",
+        "./workflow": "./src/workflow/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
@@ -26,10 +27,10 @@
         "@phosphor-icons/react": "^2.1.10",
         "clsx": "^2.1.1",
         "js-yaml": "^4.1.1",
-        "lodash": ">=4.17.23",
+        "lodash": ">=4.18.0",
         "lucide-react": "^0.479.0",
-        "uuid": ">=9.0.0",
-        "zod": ">=3.0.0"
+        "uuid": "^11.1.1",
+        "zod": "^4.0.0"
     },
     "devDependencies": {
         "@floating-ui/react": "^0.26.0",
@@ -51,7 +52,6 @@
         "@types/prismjs": "^1.26.0",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.0",
-        "@types/uuid": "^9.0.8",
         "ajv": "^8.18.0",
         "fast-deep-equal": "^3.1.3",
         "jsonrepair": "^3.13.2",
@@ -78,7 +78,7 @@
         "@tanstack/react-query": ">=5.0.0",
         "@tanstack/react-virtual": ">=3.0.0",
         "antd": ">=5.0.0",
-        "axios": ">=1.13.5",
+        "axios": ">=1.13.5 <2.0.0",
         "clsx": ">=2.0.0",
         "fast-deep-equal": ">=3.0.0",
         "immer": ">=10.0.0",
@@ -90,6 +90,6 @@
         "react": ">=18.0.0",
         "usehooks-ts": ">=3.0.0",
         "uuid": ">=9.0.0",
-        "zod": ">=3.0.0"
+        "zod": "^4.0.0"
     }
 }

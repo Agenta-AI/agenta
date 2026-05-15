@@ -58,14 +58,14 @@ const EditableColumnHeader = ({
 
     const handleRename = useCallback(() => {
         if (newName.trim() && newName !== columnName) {
-            const success = onRename(columnName, newName.trim())
+            const success = onRename(columnKey, newName.trim())
             if (success) {
                 setIsRenameModalOpen(false)
             }
         } else {
             setIsRenameModalOpen(false)
         }
-    }, [newName, columnName, onRename])
+    }, [newName, columnKey, columnName, onRename])
 
     const openDeleteModal = useCallback(() => {
         setIsDeleteModalOpen(true)

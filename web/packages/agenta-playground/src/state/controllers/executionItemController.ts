@@ -54,6 +54,7 @@ import {
     rowVariableKeysWithContextAtom,
     schemaInputKeysAtom,
     inputPortSchemaMapAtom,
+    outputPortSchemaMapAtom,
     repetitionCountAtom,
     repetitionIndexAtomFamily,
     allRowsCollapsedAtom,
@@ -186,6 +187,14 @@ export const executionItemController = {
 
         /** Input port schema map — variable key → { type, schema } for schema-aware rendering */
         inputPortSchemaMap: inputPortSchemaMapAtom,
+
+        /**
+         * Output port schema map — mirrors `inputPortSchemaMap` but for
+         * output fields. Feeds the prompt editor's typeahead so evaluator
+         * prompts can suggest `$.outputs.<field>` based on declared /
+         * inferred output schemas.
+         */
+        outputPortSchemaMap: outputPortSchemaMapAtom,
 
         // ----------------------------------------------------------------
         // Direct testcase entity access (bypasses loadable indirection)

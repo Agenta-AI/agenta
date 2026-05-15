@@ -7,7 +7,7 @@
 - [x] PR #3441: API fixes for OpenAPI generation (MERGED to main)
 - [x] PR #3442: SDK local tracing types (MERGED to release/v0.78.1)
 - [x] PR #3563: SDK generation update (base PR)
-- [x] Updated `sdk/scripts/setup_fern.sh` (fully automated, includes ruff format)
+- [x] Updated `sdk/scripts/setup.sh` (fully automated, includes ruff format)
 - [x] Regenerated SDK from https://cloud.agenta.ai/api/openapi.json
 - [x] Applied recursive type fixes automatically
 - [x] Updated `sdk/agenta/client/__init__.py` (simplified re-export)

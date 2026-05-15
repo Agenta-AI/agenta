@@ -29,7 +29,7 @@ export const createApiKey = (
     const finalProjectId = projectId ?? storeProjectId
 
     return axios.post(
-        `${getAgentaApiUrl()}/keys?workspace_id=${workspaceId}&project_id=${finalProjectId}`,
+        `${getAgentaApiUrl()}/keys/?workspace_id=${workspaceId}&project_id=${finalProjectId}`,
         undefined,
         {
             _ignoreError: ignoreAxiosError,

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.20
-FROM node:20.18.0-slim AS base
+FROM node:24-slim AS base
 
 WORKDIR /app
 
@@ -31,6 +31,10 @@ RUN chmod +x /usr/local/bin/run-turbo-build.sh
 COPY oss/package.json ./oss/package.json
 COPY --parents packages/*/package.json ./
 
+# agenta-api-client builds its dist/ via a `prepare` script during install,
+# so its source must be present before `pnpm install` runs.
+COPY packages/agenta-api-client/ ./packages/agenta-api-client/
+
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm fetch --frozen-lockfile
 
@@ -48,7 +52,7 @@ RUN --mount=type=cache,id=turbo-oss,target=/app/.turbo \
     /usr/local/bin/run-turbo-build.sh @agenta/oss
 
 
-FROM node:20.18.0-slim AS runner
+FROM node:24-slim AS runner
 
 ARG BUILD_DATE
 ARG VCS_REF

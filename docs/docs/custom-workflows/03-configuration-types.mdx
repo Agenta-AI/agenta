@@ -91,6 +91,7 @@ config = ModelConfig(
     temperature=0.7,
     max_tokens=500,
     top_p=1.0,
+    chat_template_kwargs={"enable_thinking": False},
     frequency_penalty=0.0,
     presence_penalty=0.0,
     response_format={"type": "json_object"}
@@ -105,10 +106,13 @@ config = ModelConfig(
 | `temperature`       | `float`     | `1.0`             | Sampling temperature (0-2)                        |
 | `max_tokens`        | `int`       | `None`            | Maximum tokens in response                        |
 | `top_p`             | `float`     | `None`            | Nucleus sampling                                  |
+| `chat_template_kwargs` | `dict`   | `None`            | Provider-specific chat template options passed through unchanged |
 | `frequency_penalty` | `float`     | `None`            | Frequency penalty (-2 to 2)                       |
 | `presence_penalty`  | `float`     | `None`            | Presence penalty (-2 to 2)                        |
 | `response_format`   | `dict`      | `None`            | Response format (e.g., `{"type": "json_object"}`) |
 | `stop`              | `List[str]` | `None`            | Stop sequences                                    |
+
+`chat_template_kwargs` is not prompt-formatted, so values such as `{{provider_flag}}` remain literal provider options. Use only keys supported by the selected model provider.
 
 ## Model selection dropdown
 

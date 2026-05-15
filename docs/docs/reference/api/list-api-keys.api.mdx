@@ -5,7 +5,7 @@ description: "List all API keys associated with the authenticated user."
 sidebar_label: "List Api Keys"
 hide_title: true
 hide_table_of_contents: true
-api: eJzdVE1v2zAM/SsCTxsgJN2OPs3Yiq1ogRX9OKVBwCpMrNaWVYnqmgX+7wNlx/kYtsOOyyGRRPLl8fFJW2BcRyhmUHqrLmkTYa5hSdEE69m2Dgq4spEV1rUqry/UM22iwhhbY5FpqX5YrhRXpDBxRY6tyccpUpg8uAdXhnUsHpxSSgV6SRRZvbvpF+8LdVeRss60jXXrMd4+PpHhXH1DnILbAQiRmXyV1xdC9Yaib12keaFKVQvLdpVJXv6JZKYFGlpPAaW9iyUUIKUL9HYhzYGGMOBGKLbw8exMfo4luU3GUIyrVKsdCdBgWsfkWNLR+1qksK2bPkWp2UI0FTUoK8vUZHAfhAlbGna0sm+y4o0nKCBysG4NGthyLQfXfUanwQSS1hbIf8v/3GepkqWmxsiLFMcqdJvvKyhmp/WdHk9cqmvo5nvEK4ys7uOISW/e9lIulsj0r7DnI4z6IjBdp3e5vR3yWF6SDbQUtw5SHelwyPJ3k8AeEUPAzYFKu5RsMDVehE4+GhriqhWbrElYeOQKCpgOXokUXinE3G4KtUTQ29xrv62YfSymU0oTU7dpOcE1OcYJ2j5xLhgmBcubDNLT/ka4pADFbH6YcCsO6r1ynDYKi95ekvTmsJF9mbhqg/2ZpQUNVtxb9VXSnHWrNpcPUpSZnFwi0CCN9X4/m3yYnMHpw3CULOZHk321++8cBn0ixNg/aKAGrcSYsPm0Dwgz30Zu0B3gHU/nhMx2f/v+xwdrGC/TG099jdaJnbOu28GRM3geXu+qjSz77fYRI92Huuvk+CVREIvNNbxisPgoA5/NO73zg7jvmTYyOWPIi9lfsU69rU6eM3HleDG+nt9B1/0CqHkoeg==
+api: eJzdVE1v2zAM/SsCTxtgxNmOPs3Yiq1ogRX9OKVBwCpMrFaWVYnu6gX+7wNlx00ybIcdl4Mj8UuPj0/aAeM2QrGAC+oiLDNYU9TBeDaNgwIuTWSF1qry6lw9URcVxthog0xr9cNwpbgihS1X5NjoZG4jhdm9u3dl2Mbi3imlVKDnliKrd9fD4n2hbitSxummNm47+ZuHR9Kcsq+J2+D2BQTIQj7l1blAvaboGxdpWahSWUHZbBLIiz+BTLAgg8ZTQGnvfA0FSOoKvVlJc5BBGOtGKHbwcT6Xv2NKblqtKcZNa9UeBGSgG8fkWMLReytUmMblj1FydhB1RTXKyjDVqbgPgoQNjTvamFdZcecJCogcjNtCBmzYiuFqiOgz0IGktRXy3+I/D1GqZMmxGHnVxikLXfd9A8XiNL/PJotrrYV++VbxEiOruzjVpFdvBipXa2T617JnUxn1Rcr0fbaPHeSQxvLcmkBrUepI1REPhyh/Fwm8VcQQsDtgaR+SBKZKb5KAoJdfBjVx1YhMtiQoPHIFBeSjViKFFwoxtdsGKx70JvU6bCtmX+S5bTTaqok8uJeSqdtguEupA9hvhGsKUCyWhwE3optBIcdhE53ozQVJRw5r2ZctV00wPxOhkIERzVZDlrRk3KZJ6SMB5ZYco1wdOL38Ry4ROOqknf1JyQ3ZQbOxyHNM5hmaHDKgGo04mbD+NHlkHsLccMx89mE2F5NvItfoDo44HsoJvt3bpfsf36lxvkyvnHuLxglFierdKMQFPI2PtohL9rvdA0a6C7bvxfzcUhCNLTN4wWDwQSa+WPbZXhAivyfqZJhakxeNv6BtB12dvGIiy+k+fD27hb7/Bc2bJBA=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -51,16 +52,13 @@ Returns:
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./list-api-keys.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"prefix":{"type":"string","title":"Prefix"},"created_at":{"type":"string","title":"Created At"},"last_used_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Last Used At"},"expiration_date":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Expiration Date"}},"type":"object","required":["prefix","created_at"],"title":"ListAPIKeysResponse"},"type":"array","title":"Response List Api Keys"}}}}}}
+  {...require("./list-api-keys.StatusCodes.json")}
 >
   
 </StatusCodes>

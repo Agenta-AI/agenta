@@ -121,7 +121,7 @@ export function createPromptsColumns(actions: PromptsColumnActions) {
                 },
                 {
                     key: "delete_app",
-                    label: "Delete",
+                    label: "Archive",
                     icon: <Trash size={16} />,
                     danger: true,
                     onClick: (record) => actions.onDeleteApp(record),

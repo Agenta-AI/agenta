@@ -42,14 +42,17 @@ import {
 } from "../../runnable/evaluatorTransforms"
 import {
     extractInputPortsFromSchema,
+    extractLastPathSegment,
     extractOutputPortsFromSchema,
     extractSystemFieldNames,
     formatKeyAsName,
+    groupTemplateVariables,
 } from "../../runnable/portHelpers"
 import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
-import {extractVariablesFromConfig} from "../../runnable/utils"
+import {extractTemplateVariables, extractVariablesFromConfig} from "../../runnable/utils"
 import type {RunnablePort, StoreOptions} from "../../shared"
 import {isLocalDraftId, isPlaceholderId} from "../../shared"
+import {archiveWorkflow, unarchiveWorkflow} from "../api"
 import type {Workflow} from "../core"
 import {
     toEvaluatorDefinitionFromWorkflow,
@@ -64,7 +67,7 @@ import {
 } from "../core/schema"
 
 import {workflowsListDataAtom, nonArchivedWorkflowsAtom} from "./allWorkflows"
-import {evaluatorTemplatesDataAtom} from "./evaluatorUtils"
+import {evaluatorTemplatesDataAtom, invalidateEvaluatorsListCache} from "./evaluatorUtils"
 import {
     executionModeAtomFamily as runnableExecutionModeAtomFamily,
     invocationUrlAtomFamily as runnableInvocationUrlAtomFamily,
@@ -90,6 +93,8 @@ import {
     discardWorkflowDraftAtom,
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    invalidateWorkflowVariantsCache,
+    invalidateWorkflowRevisionsByWorkflowCache,
     agTypeSchemaAtomFamily,
 } from "./store"
 
@@ -99,6 +104,22 @@ import {
 
 function getStore(options?: StoreOptions) {
     return options?.store ?? getDefaultStore()
+}
+
+type WorkflowLifecycleOptions = StoreOptions & {
+    projectId?: string | null
+}
+
+function getLifecycleProjectId(options?: WorkflowLifecycleOptions) {
+    return options?.projectId ?? getStore(options).get(workflowProjectIdAtom)
+}
+
+function invalidateWorkflowLifecycleCaches(workflowId: string, options?: StoreOptions) {
+    invalidateWorkflowsListCache(options)
+    invalidateEvaluatorsListCache()
+    invalidateWorkflowCache(workflowId, options)
+    invalidateWorkflowVariantsCache(workflowId, options)
+    invalidateWorkflowRevisionsByWorkflowCache(workflowId, options)
 }
 
 // ============================================================================
@@ -637,6 +658,197 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 )
 
 /**
+ * Infer a lightweight JSON Schema from a sample value. Used to turn the
+ * observed envelope (e.g. `{country: "Azerbaijan", correct_answer: "..."}`)
+ * into a property list the drill-in renderer can expand. Returns an open-ended
+ * object schema when the sample is missing or not a plain object.
+ */
+function inferEnvelopeSchema(sample: unknown): Record<string, unknown> {
+    if (!sample || typeof sample !== "object" || Array.isArray(sample)) {
+        return {type: "object", additionalProperties: true}
+    }
+    const properties: Record<string, Record<string, unknown>> = {}
+    for (const [key, value] of Object.entries(sample as Record<string, unknown>)) {
+        const valueType = Array.isArray(value)
+            ? "array"
+            : value === null
+              ? "null"
+              : typeof value === "object"
+                ? "object"
+                : typeof value
+        properties[key] = {type: valueType}
+    }
+    return {
+        type: "object",
+        properties,
+        additionalProperties: true,
+    }
+}
+
+/**
+ * Build envelope ports for an evaluator workflow: `inputs` (graded testset
+ * row) and `outputs` (graded app output). When meta carries a sample envelope
+ * (e.g. span-opened ephemerals), the observed shape is surfaced as the
+ * sub-schema so drill-in shows the real fields.
+ *
+ * Port types:
+ * - `inputs` is always a structured testcase row → `object` (JSON editor).
+ * - `outputs` can be a string, number, or object depending on the upstream
+ *   app → `string` so the editor picks mode from the observed value
+ *   (auto-detects JSON, falls back to plain text). Forcing `object` here
+ *   would lock the editor into JSON mode even when the user wants to enter
+ *   a plain-text output (e.g. for Exact Match).
+ *
+ * Why both are always returned (don't gate on prompt template references):
+ * every evaluator handler signature reads at least one of `inputs`/`outputs`,
+ * and most (json_multi_field_match, exact_match, levenshtein, json_diff, …)
+ * raise `MissingInputV0Error` if `inputs[correct_answer_key]` is absent. The
+ * envelope ports are the only way for the user to populate those keys when
+ * the evaluator isn't chained downstream of an app. Gating on template
+ * variables only works for `auto_ai_critique_v0` and silently breaks the
+ * classifier handlers; per-handler variable extraction belongs in a follow-up.
+ */
+/**
+ * Set of envelope-slot names. Field ports keyed by these collide with the
+ * envelope ports themselves (or with cross-envelope slots) and can't be
+ * meaningfully filled as a `data.inputs.<key>` value — the SDK's
+ * `_reject_reserved_input_keys` also rejects `data.inputs.inputs`. Used to
+ * filter out invalid template-variable extractions like `{{$.inputs.inputs}}`
+ * or `{{$.inputs.outputs}}` before building field ports.
+ */
+const RESERVED_FIELD_KEYS = new Set([
+    "inputs",
+    "outputs",
+    "parameters",
+    "testcase",
+    "trace",
+    "revision",
+])
+
+/**
+ * Extract template variables referenced in the evaluator's prompt and convert
+ * them into per-field ports under the `inputs` envelope. Only variables that
+ * resolve to a specific field (`$.inputs.<field>`, `{{language}}`, etc.) are
+ * surfaced — bare envelope refs like `{{inputs}}` or `{{outputs}}` are
+ * already covered by the envelope ports below.
+ *
+ * Returns deduped ports keyed by `<field>`. Keys colliding with envelope slot
+ * names (`inputs`, `outputs`, `parameters`, …) are filtered out — those are
+ * either self-referential (`{{$.inputs.inputs}}`) or cross-envelope
+ * (`{{$.inputs.outputs}}`) and don't represent actual fields the user fills.
+ */
+function buildEvaluatorFieldPortsFromTemplate(entity: Workflow | null | undefined): RunnablePort[] {
+    const params = (entity?.data?.parameters as Record<string, unknown> | undefined) ?? undefined
+    if (!params) return []
+
+    // The UI stores evaluator config in nested form
+    // (`parameters.prompt.messages`) while the wire format is flat
+    // (`parameters.prompt_template`). `nestEvaluatorConfiguration` /
+    // `flattenEvaluatorConfiguration` round-trip between the two — but
+    // during editing the draft sits in the nested form, so we read both
+    // shapes (nested first, flat fallback). `template_format` also moves
+    // into the prompt object once nested.
+    const prompt = params.prompt as Record<string, unknown> | undefined
+    const nestedMessages = prompt?.messages
+    const flatTemplate = params.prompt_template
+    const messages: Record<string, unknown>[] | null = Array.isArray(nestedMessages)
+        ? (nestedMessages as Record<string, unknown>[])
+        : Array.isArray(flatTemplate)
+          ? (flatTemplate as Record<string, unknown>[])
+          : null
+    if (!messages || messages.length === 0) return []
+
+    const rawFmt =
+        (prompt?.template_format as string | undefined) ??
+        (params.template_format as string | undefined)
+    const fmt = rawFmt === "fstring" || rawFmt === "jinja2" ? rawFmt : "curly"
+
+    const placeholders: string[] = []
+    for (const message of messages) {
+        const content = message?.content
+        if (typeof content !== "string") continue
+        for (const v of extractTemplateVariables(content, fmt)) {
+            if (!placeholders.includes(v)) placeholders.push(v)
+        }
+    }
+
+    const groups = groupTemplateVariables(placeholders)
+    const ports: RunnablePort[] = []
+    const seen = new Set<string>()
+    for (const group of groups) {
+        // Only materialize inputs-envelope sub-fields. The `outputs` envelope
+        // is a scalar/string surfaced via its own envelope port; other slots
+        // (`parameters`, `trace`, `testcase`, `revision`) are runtime-resolved
+        // by the SDK and don't get UI controls.
+        if (group.envelope !== "inputs") continue
+        if (!group.key) continue
+        if (RESERVED_FIELD_KEYS.has(group.key)) continue
+        if (seen.has(group.key)) continue
+        seen.add(group.key)
+        ports.push({
+            key: group.key,
+            name: group.key,
+            type: group.type,
+            helpText: `Field referenced in your prompt as \`{{$.inputs.${group.key}}}\`${
+                group.type === "string" ? ` or \`{{${group.key}}}\`` : ""
+            }. Note: this value is merged into the \`inputs\` envelope at runtime, so it also appears inside \`{{inputs}}\` if your prompt renders the whole envelope.`,
+            ...(group.subPaths && group.subPaths.length > 0
+                ? {
+                      schema: {
+                          type: "object",
+                          properties: Object.fromEntries(
+                              group.subPaths.map((sp) => [sp, {type: "string"}]),
+                          ),
+                      },
+                  }
+                : {}),
+        })
+    }
+    return ports
+}
+
+function buildEvaluatorEnvelopePorts(entity: Workflow | null | undefined): RunnablePort[] {
+    const meta = entity?.meta as Record<string, unknown> | null | undefined
+    const envelope = meta?.envelope as Record<string, unknown> | undefined
+    const envelopeInputs = envelope?.inputs as Record<string, unknown> | undefined
+    const envelopeOutputs = envelope?.outputs
+
+    // Extracted field ports for any `{{$.inputs.<field>}}` or `{{<field>}}`
+    // references in the prompt — surfaced individually so SMEs see a control
+    // for each variable their template uses. The envelope `inputs` port stays
+    // below as the catch-all for anything not extracted; field values override
+    // the envelope at request-build time.
+    const fieldPorts = buildEvaluatorFieldPortsFromTemplate(entity)
+
+    // Keep the variable header label as the runtime key (`inputs`/`outputs`)
+    // so it matches the config the user authors against. The distinction
+    // between an evaluator's envelope variables and an app's field
+    // variables is surfaced via the `helpText` tooltip and the one-time
+    // callout above the variables list — not by renaming.
+    return [
+        ...fieldPorts,
+        {
+            key: "inputs",
+            name: "inputs",
+            helpText:
+                "The full inputs received by the application being evaluated. Reference in your prompt as `{{inputs}}` to render the whole JSON — this includes any fields you filled individually above. Use `{{$.inputs.<field>}}` (e.g. `{{$.inputs.country}}`) to reference a single field without the rest of the bag.",
+            type: "object",
+            required: true,
+            schema: inferEnvelopeSchema(envelopeInputs),
+        },
+        {
+            key: "outputs",
+            name: "outputs",
+            helpText:
+                "What the application being evaluated returned. Reference in your prompt as `{{outputs}}` or `{{$.outputs}}`. This is the data being judged — not the evaluator's own output.",
+            type: "string",
+            required: true,
+            schema: inferEnvelopeSchema(envelopeOutputs),
+        },
+    ]
+}
+
+/**
  * Input ports selector.
  * Derives ports from schema, prompt template variables, or ephemeral trace metadata.
  */
@@ -645,13 +857,34 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
         const entity = get(workflowEntityAtomFamily(workflowId))
         if (!entity) return []
 
-        // Ephemeral workflow: derive from template variables, then trace inputs
+        // Evaluators always consume the {inputs, outputs} envelope at runtime.
+        // Their `schemas.inputs` is an open-ended object (no declared properties),
+        // so generic schema-driven port extraction yields nothing useful — we
+        // must surface the envelope structure explicitly. This applies to both
+        // ephemerals (span-opened) and server-backed revisions.
+        if (entity.flags?.is_evaluator) {
+            return buildEvaluatorEnvelopePorts(entity)
+        }
+
+        // Ephemeral workflow: derive from template variables, then trace inputs.
+        // Template placeholders addressing non-`inputs` envelopes (e.g.
+        // `{{$.outputs.score}}` in evaluator prompts) resolve from runtime-
+        // populated envelope slots at invocation time — they don't need a
+        // testcase column, so we filter them out here.
         if (entity.flags?.is_base) {
             const params = resolveParameters(entity.data)
             if (params) {
                 const vars = extractVariablesFromConfig(params as Record<string, unknown>)
                 if (vars.length > 0) {
-                    return vars.map((key) => ({key, name: key, type: "string", required: true}))
+                    return groupTemplateVariables(vars)
+                        .filter((group) => group.envelope === "inputs")
+                        .map((group) => ({
+                            key: group.key,
+                            name: group.name,
+                            type: group.type,
+                            required: true,
+                            ...(group.subPaths ? {schema: buildSubPathSchema(group.subPaths)} : {}),
+                        }))
                 }
             }
             // Fallback: derive from trace inputs stored in meta
@@ -662,7 +895,12 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                 const inputKeys = Object.keys(inputs).filter(
                     (key) => !(isChat && key === "messages"),
                 )
-                return inputKeys.map((key) => ({key, name: key, type: "string", required: false}))
+                return inputKeys.map((key) => ({
+                    key,
+                    name: extractLastPathSegment(key),
+                    type: "string",
+                    required: false,
+                }))
             }
             return []
         }
@@ -682,12 +920,44 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                 (key) => !systemFields.has(key),
             )
             if (vars.length > 0) {
-                return vars.map((key) => ({key, name: key, type: "string", required: true}))
+                return groupTemplateVariables(vars)
+                    .filter((group) => group.envelope === "inputs")
+                    .map((group) => ({
+                        key: group.key,
+                        name: group.name,
+                        type: group.type,
+                        required: true,
+                        ...(group.subPaths ? {schema: buildSubPathSchema(group.subPaths)} : {}),
+                    }))
             }
         }
         return []
     }),
 )
+
+/**
+ * Build a synthetic JSON Schema describing the known sub-paths of a grouped
+ * object variable. Used only as a UI shape hint (seeds the JSON editor's
+ * default so users see which keys the template references).
+ *
+ * Nested paths (`a.b.c`) are flattened to their top-level segment here —
+ * deeper structure is communicated via `_pathHints` for the adapter to
+ * optionally render, without imposing nesting on the default value.
+ */
+function buildSubPathSchema(subPaths: string[]): {
+    type: "object"
+    properties: Record<string, {type: "string"}>
+    _pathHints: string[]
+} {
+    const topLevelKeys = new Set<string>()
+    for (const sp of subPaths) {
+        const first = sp.split(/[.[\]/]/).filter(Boolean)[0]
+        if (first) topLevelKeys.add(first)
+    }
+    const properties: Record<string, {type: "string"}> = {}
+    for (const k of topLevelKeys) properties[k] = {type: "string"}
+    return {type: "object", properties, _pathHints: subPaths}
+}
 
 /**
  * Output ports selector.
@@ -709,7 +979,7 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
                     type: "string",
                 }))
             }
-            return [{key: "output", name: "Output", type: "string"}]
+            return [{key: "output", name: "output", type: "string"}]
         }
 
         const schemaOutputs = extractOutputPortsFromSchema(entity?.data?.schemas?.outputs)
@@ -766,7 +1036,7 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
         }
 
         if (schemaOutputs.length > 0) return schemaOutputs
-        return [{key: "output", name: "Output", type: "string"}]
+        return [{key: "output", name: "output", type: "string"}]
     }),
 )
 
@@ -1132,6 +1402,28 @@ export const workflowMolecule = {
     cache: {
         invalidateList: invalidateWorkflowsListCache,
         invalidateDetail: invalidateWorkflowCache,
+    },
+
+    // ========================================================================
+    // LIFECYCLE (thin API mutation layer)
+    // ========================================================================
+    lifecycle: {
+        archive: async (workflowId: string, options?: WorkflowLifecycleOptions) => {
+            const projectId = getLifecycleProjectId(options)
+            if (!workflowId) throw new Error("workflowId is required")
+            if (!projectId) throw new Error("projectId is required to archive workflow")
+
+            await archiveWorkflow(projectId, workflowId)
+            invalidateWorkflowLifecycleCaches(workflowId, options)
+        },
+        unarchive: async (workflowId: string, options?: WorkflowLifecycleOptions) => {
+            const projectId = getLifecycleProjectId(options)
+            if (!workflowId) throw new Error("workflowId is required")
+            if (!projectId) throw new Error("projectId is required to unarchive workflow")
+
+            await unarchiveWorkflow(projectId, workflowId)
+            invalidateWorkflowLifecycleCaches(workflowId, options)
+        },
     },
 
     // ========================================================================

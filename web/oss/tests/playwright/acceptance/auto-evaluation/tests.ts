@@ -336,7 +336,7 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
                 evaluationName,
             )
 
-            await goToAutoEvaluationStep(modal, "Variant")
+            await goToAutoEvaluationStep(modal, "Revision")
             for (const variant of variants) {
                 await selectAutoEvaluationModalTableInput({
                     rowText: variant,

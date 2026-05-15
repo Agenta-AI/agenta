@@ -46,9 +46,11 @@ export {
     // Evaluator-specific utilities (for evaluator-type workflows)
     getEvaluatorColor,
     type EvaluatorColor,
+    getAppTypeColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
     isOnlineCapableEvaluator,
+    hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
     // Output schema utilities
     resolveInputSchema,

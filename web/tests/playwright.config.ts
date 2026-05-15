@@ -33,7 +33,10 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,
     workers: 1, // Temporarily disabled parallel worker
-    reporter: [["html", {outputFolder: getReportDir()}]],
+    reporter: [
+        ["html", {outputFolder: getReportDir()}],
+        [require.resolve("./playwright/live-reporter.ts")],
+    ],
     outputDir: getOutputDir(),
     globalSetup: require.resolve("./playwright/global-setup"),
     globalTeardown: require.resolve("./playwright/global-teardown"),

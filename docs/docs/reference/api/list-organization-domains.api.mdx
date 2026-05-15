@@ -1,11 +1,11 @@
 ---
 id: list-organization-domains
-title: "List Organization Domains"
-description: "List all domains for an organization."
-sidebar_label: "List Organization Domains"
+title: "List Domains"
+description: "List all domains for the organization."
+sidebar_label: "List Domains"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVMFu2zAM/RWDpw0QkqzYyacFa7EF7dCi7XYJgoK1mVidbKmSXDQz9O8DZTu2m7bYTrakxyfqkY8N5OQyK42XuoIULqTzCSqV5LpEWblkq22CVaLtDiv5Bxk2AwHakI2LVQ4pKOn83Rhy14WDAIMWS/JkHaTrBiosCVKYgGUOAiRfb9AXIMDSYy0t5ZB6W5MAlxVUIqQN+L3hcOetrHYgwEuveONyxJescghhwzTO6MqR48iTxYI/0+fe1FlGzm1rlVx3YBCQ6cpT5RmOxiiZRdr5g+OYZsgmhBAEfD45OSb+hUrmbTZn1mr7H6xgLKvrZZt3Th6l4j/pqXTHAKWzySlW+8tt1HoqVhCHHVl52pGFsAmi30NrcT9S9EK3CUIQULrde+L/IOdwR3AgexsaxUhu+TRwzU0dBemPV3EjCMj884hG3z9Q5kc0X1nLZw9hyP+AGZpnHbVp0+9wm4FjKFFbobelOG1L8NplPeT77e3VEWHbHyX5QrNLduSjH3wBKczHDnDz5oUhwnxwkCP71NuntoqD0chYz3ZZeG9cOp9TPcuUrvMZ7qjyOEPZAjfMkdVW+n0kWV6tzmn/nTAnC+l6MwbccBu2jTWFHYqBRp4Ty9NZeVn7Qtsu9d7IRRsVYpG3elzjZUwuWV6tQAA/rHXMYvZptgDxwkcTMDsIs9gw/d3xGMQLIQ7vBwFURvuAJyy/DAecmdHOl1iN+OL4m8yS00MZJok1g53/eWZ2+nHjzo1CGa0VE2+6rlhP5iJfmh4Pyr4xNgIK7TxHNc09OvppVQi8/ViT5UpvBDyhlXjPuq8byKXj/xzSLSpH7zzpw3Vnoo/JW4n33VBxKzyhqnkFAn7T/pX5HidN0Xdc06GWWUbGj+KPBiO35sFA385uIYS/UZ5M6Q==
+api: eJydVU1v2zAM/SsGz1qc7ejTgmUfQYe1WNtTEBSszcRqZcuV6GJe4P8+UP6onXbF1hySWOQjqfdI+giMBw/JFs7dAUv9G1nb0sNOQUY+dbqSZ0jgu/YcoTFRZgvUpY/21kWcU2QnuAUosBW58LDJIAGjPd9MXW56PChw5CtbevKQHOHDcik/86SXdZqS9/vaRD97Z1CQ2pKpZHHHqjI6DYHjOy+YI/g0pwLln2YqQvDKSVWsu1Q6k29uKoIEPDtdHkDB3roCGRKoa52BAtZsxGGTQavAm/rwEmrwuhR7q6DEgkJhZXO+h2R7imjVeFLWxkC7e4rxQ7DtCfFvC7WehGgV7E0Q+QiYZVoO0VxMKGFXkxpi2ds7SnlytS8B3Cpge09vrugqgFsFqSNkym6QX1UhQ6Z3rAuaVPKpg0YrlkB1lU0C/a2mF0O+Vuh1F7ZPMmvd/2uc6UBF0kXtc44dPdTaUSYDGMChz/o2mnfCoOKgw4zJGRvPq969XNU6jOJksubTNxiiwmZkwsBjP/4LeLoMOofN5N4jLKyMGQvrfvZb+SgoiHMrW+JAUnWFnEMC8bR6H/f7IhZyyD2S80Hl2hnxxUoHNbvHnLlK4tjYFE1uPXfmnSDT2mluAnR1sTmj5hthRg6S7W7qcCnLo1sTc7dRd6z0GTWDRgmsas6t68sFBVqoyzuUXFKXexvgPT2rA5WM0epi84zwmUm2HKaht4dMwSxaj5f1SRxjOF6gFoqoQC1GJiw+jhZRS5jr0iwX7xdLOaqs5wLLSYog2Xrc0CebaFy8//426Elj+sVxZVCHFRDqP/Z6b2fdGrKO+aVxRUfxOh5v0dO1M20rxw81OZFzp+ARncZbIXe7a9XAvSh9T43wlqZUSYM9oqk7CU/eGtIBYzN+/XwFbfsHxNptNQ==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,17 +18,18 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"List Organization Domains"}
+  children={"List Domains"}
 >
 </Heading>
 
 <MethodEndpoint
   method={"get"}
-  path={"/organizations/{organization_id}/domains"}
+  path={"/organizations/domains/"}
   context={"endpoint"}
 >
   
@@ -36,33 +37,22 @@ import Heading from "@theme/Heading";
 
 
 
-List all domains for an organization.
-
-<Heading
-  id={"request"}
-  as={"h2"}
-  className={"openapi-tabs__heading"}
-  children={"Request"}
->
-</Heading>
+List all domains for the organization.
 
 <ParamsDetails
-  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}}]}
+  parameters={undefined}
 >
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./list-organization-domains.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  {...require("./list-organization-domains.StatusCodes.json")}
 >
   
 </StatusCodes>

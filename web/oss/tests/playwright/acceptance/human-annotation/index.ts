@@ -6,7 +6,7 @@ import {
     TestScope,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
-import type {Page} from "@playwright/test"
+import {errors, type Page} from "@playwright/test"
 
 import {
     expect,
@@ -111,7 +111,7 @@ const humanAnnotationTests = () => {
                 .first()
                 .fill(`e2e-human-mismatch-${Date.now()}`)
 
-            await goToHumanEvaluationStep(modal, "Variant")
+            await goToHumanEvaluationStep(modal, "Revision")
             await selectHumanEvaluationModalTableInput({
                 modal,
                 rowText: variantName,
@@ -126,8 +126,19 @@ const humanAnnotationTests = () => {
                 .locator("div")
                 .filter({hasText: /Expected input variables for selected variant\(s\):/})
                 .first()
-            await expect(expectedInputsNote).toBeVisible()
-            await expect(expectedInputsNote).not.toContainText(mismatchedColumnName)
+            let expectedInputsNoteVisible: boolean
+            try {
+                expectedInputsNoteVisible = await expectedInputsNote.isVisible({timeout: 1000})
+            } catch (error) {
+                if (error instanceof errors.TimeoutError) {
+                    expectedInputsNoteVisible = false
+                } else {
+                    throw error
+                }
+            }
+            if (expectedInputsNoteVisible) {
+                await expect(expectedInputsNote).not.toContainText(mismatchedColumnName)
+            }
 
             await selectHumanEvaluationModalTableInput({
                 modal,

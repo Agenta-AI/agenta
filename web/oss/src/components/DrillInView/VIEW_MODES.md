@@ -40,8 +40,7 @@ out as a YAML string containing stringified JSON. Intended for readability only.
 
 ### `decoded-json` — Decoded
 
-**This is the default for non-message data.** Same JSON code editor as `json`,
-but the source is passed through the pipeline in
+Same JSON code editor as `json`, but the source is passed through the pipeline in
 [decodedJsonHelpers.ts](./decodedJsonHelpers.ts) before pretty-printing:
 
 1. If the raw value is a string, use its structure-parsed form —
@@ -70,9 +69,9 @@ is now `decoded-json`. Do not reintroduce the old name.
 
 ### `beautified-json` — Reshaped
 
-**This is the default for `viewModePreset="message"`.** Not JSON at all —
-renders via [BeautifiedJsonView](./BeautifiedJsonView.tsx), which uses a
-custom React layout:
+**This is the default for structured JSON data.** Not JSON at all — renders via
+[BeautifiedJsonView](./BeautifiedJsonView.tsx), which uses a custom React
+layout:
 
 - Chat-like arrays and single messages → chat bubbles (role label + content
   editor with markdown support).
@@ -103,8 +102,7 @@ string is markdown-formatted (headings, lists, code fences).
 
 Both panels use the same default-selection logic:
 
-- If `viewModePreset === "message"` and `beautified-json` is available,
-  default to `beautified-json`.
+- If `beautified-json` is available, default to `beautified-json`.
 - Otherwise, if `decoded-json` is available, default to `decoded-json`.
 - Otherwise the first available mode wins (in practice `text` for plain
   strings that do not parse as JSON).

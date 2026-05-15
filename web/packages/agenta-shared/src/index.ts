@@ -187,7 +187,13 @@ export type {
 export {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA, CHAT_MESSAGES_ARRAY_SCHEMA} from "./schemas"
 
 // Hooks
-export {useDebounceInput, useLazyEffect, useSelectionState, useRunAllShortcut} from "./hooks"
+export {
+    useDebounceInput,
+    useLazyEffect,
+    useSelectionState,
+    useRunAllShortcut,
+    useModifierKey,
+} from "./hooks"
 export type {UseSelectionStateResult} from "./hooks"
 export type {UseRunAllShortcutParams} from "./hooks"
 export {useReducerAtom} from "./hooks"

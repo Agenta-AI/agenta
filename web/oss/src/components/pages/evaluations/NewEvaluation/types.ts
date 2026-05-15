@@ -59,7 +59,7 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     setAdvanceSettings: Dispatch<SetStateAction<EvaluationConcurrencySettings>>
     appOptions: NewEvaluationAppOption[]
     selectedAppId: string
-    onSelectApp: (value: string) => void
+    onSelectApp: (value: string, meta?: {label?: string; isEvaluator?: boolean}) => void
     appSelectionDisabled?: boolean
     allowTestsetAutoAdvance?: boolean
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */

@@ -7,6 +7,7 @@ export {
     // Revision
     fetchRevision,
     fetchRevisionWithTestcases,
+    fetchLatestRevisionWithTestcases,
     fetchRevisionsList,
     fetchLatestRevision,
     fetchLatestRevisionsBatch,
@@ -26,6 +27,7 @@ export {
     updateTestsetMetadata,
     cloneTestset,
     archiveTestsets,
+    unarchiveTestset,
     // Revision mutations
     patchRevision,
     commitRevision,

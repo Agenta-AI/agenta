@@ -73,14 +73,14 @@ const tests = () => {
                 await appRow.hover()
                 await appRow.getByRole("button").click()
                 await page.getByRole("menuitem", {name: "Archive"}).click()
-                await uiHelpers.confirmModal("Yes")
+                await uiHelpers.confirmModal("Archive")
                 // confirmModal only clicks the button; the modal stays open while the archive
                 // API call runs. Wait for it to close before moving to the Then step, otherwise
                 // expectNoText finds 2 matches (table row + modal body text) causing a strict
                 // mode violation.
                 await page
                     .locator(".ant-modal")
-                    .filter({hasText: "Are you sure"})
+                    .filter({hasText: "Archive prompt?"})
                     .waitFor({state: "hidden", timeout: 15000})
             })
 

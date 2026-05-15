@@ -165,28 +165,24 @@ class BillingRouter:
             "/stripe/portals/",
             self.create_portal_admin_route,
             methods=["POST"],
-            operation_id="admin_create_portal",
         )
 
         self.admin_router.add_api_route(
             "/stripe/checkouts/",
             self.create_checkout_admin_route,
             methods=["POST"],
-            operation_id="admin_create_checkout",
         )
 
         self.admin_router.add_api_route(
             "/plans/switch",
             self.switch_plans_admin_route,
             methods=["POST"],
-            operation_id="admin_switch_plans",
         )
 
         self.admin_router.add_api_route(
             "/subscription/cancel",
             self.cancel_subscription_admin_route,
             methods=["POST"],
-            operation_id="admin_cancel_subscription",
         )
 
         # DOESN'T REQUIRE 'organization_id'
@@ -194,21 +190,18 @@ class BillingRouter:
             "/usage/report",
             self.report_usage,
             methods=["POST"],
-            operation_id="admin_report_usage",
         )
 
         self.admin_router.add_api_route(
             "/usage/report/unlock",
             self.unlock_report_usage,
             methods=["POST"],
-            operation_id="admin_unlock_report_usage",
         )
 
         self.admin_router.add_api_route(
             "/usage/flush",
             self.flush_usage,
             methods=["POST"],
-            operation_id="admin_flush_usage",
         )
 
     async def _reset_organization_flags(self, organization_id: str) -> None:

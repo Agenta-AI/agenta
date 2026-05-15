@@ -5,7 +5,7 @@ description: "Handle OAuth callback from Composio."
 sidebar_label: "Callback Connection"
 hide_title: true
 hide_table_of_contents: true
-api: eJy1VVFvGjEM/isnP0fAqj3xNMSqFXVTq8H2UiEUcgbS5i7XxFeVnfLfJyccHDAk9tAnuOTzZ8f+bDdAcu1h+AQza42HuYAcvXK6Im1LGMKdLHOD2cOopk2mpDFLqV6ylbNFNrZFZb22PRBgK3SSTSY5DKHFLchas1C2LFFFPgGVdLJAQsdOGyhlgWyQIJgvpFK2LmmhcxCgOYLXGt0WBDh8rbXDHIYraTwK8GqDhYRhA7LcPqwiH20r5vPkdLmGIPYnZW0MhLkA0mT4YNy6zEbJZTbJIbDFLiZPkmr/wVFMk5OuX3TOukWB3ss1frD7W/aV/dj5On39R3ufRh+Bjxz6ypYePXPdDAb8cyzEaa0Uer+qTfZzBwbBwiEsKUZQVUarKML+s2eb5hBfCCEI+Hxzc078WxqdR7MspuM/WKFyLHzSKe4cSWrD/zRh4c8Bxqqj2yuSpkvCNToI8yDaM+mc5HK0efxuU4AQBBR+zczHfAfovtQt2WVo0saMbwProKpjQtrrSTwIAhS9d2js8hkVwVGfEb4Ti+sMc9DTU8xNCn+H6wjlUKJUocup+JpK8C9nLeRuNns8I0z6KJA2lgfYGinOKtrAEPo8xXz/MMZ8vx1wIMCje2unWe0M42WlYwnT54ao8sN+H+ueMrbOe3KNJcme1Ak4Zw5VO03bSDJ6nNzj9g5ljg6GT/MuYMrKS1o6hu3zLyt9j5yRXR/z3LZO/5G7+Rv7eZOsQqzrynbLOorBZaPHCQjgh6UmGfQ+9QZwuhyOwNw0UkWNtL7jNYiTROzfDwKwiB0DhLL4crjgyCrrqZBlh2/crp9xd6MchdQcevfa1bVLHIu0XxmpYxvFiJudAp4gKiC9sdUAf7UqmAvYWE+MbJql9PjLmRD4OE1OLmuuvVyazux8we3lzfcmTc1RRR1dMN0vqGvAp1vlWgfH2Dl/OM3gKE3RSolfmIxGSmFFHauzCcos+077djuDEP4CF7LnJg==
+api: eJy1VcFu2zAM/RWDZ6Huip18WtAVa9ANK9ZslyIIWJlJ1MmWJ9FDs0D/PlCKE6dZge7QU2LqkY8iH6ktMK4CVPcwc84GmCuoKWhvOjauhQqusa0tFV8nPa8LjdY+oP5ZLL1rikvXdC4YdwYKXEcexWVaQwUDbsHO2YV2bUs6xVPQoceGmLyQbqHFhsQhQ6heoNaub3lhalBgJINfPfkNKPD0qzeeaqiWaAMpCHpNDUK1BWw3X5cpHm86iRfYm3YFUe0tbW8txLkCNmzFcDlQFpNMWUxriOKxyykwch/eOIu7TDLmJe+dXzQUAq7ojemvhKv4suN6fvu3Zr9LHFFMnkLn2kBBYl2cn8vPsRDveq0phGVvi287MCgRDlPLKYOus0YnEZaPQXy2h/xijFHB+4uL08A/0Jo6uRWpHP8RFTovwmeT866J0Vj5Z5iacAqwTh+dvqJopmVakYc4j2qwofco7Rjq+NnlBCEqaMJKIh/HO0D3rR6CvQzN2pjJaRQddH0qyHA8TYaoQPPTKIx7eCTNcDRnTE8s4jrBHPR0n2qT09/hRkI5tCh36OVSfMwt+BfZALmezW5PAmZ9NMRrJwtsRZx2Fa+hglK2WCgPayyUw4IDBYH872Gb9d4KHjuTWpg/18xdVZbWabRrFzgfz8VT997wJrlObqc3tLkmrMlDdT8fA+5Eb1lBx7B91bEzNyR12E2vbGvnzR/cbd00xevsFVM3l27czMmKWsZicjuF5w/A0ZEMBuqkg4EpHYMaXTZUZYnJfIamBAXUpLEAJmw+7E+ki1K5THN+9u7sXEydC9xgO6K4HF6dy/FDcpTl9jCyr32xdpUTbZadRZOmJ11iu2v8PaTG52sPrZevoflzBdJQQW63Dxjou7cxijkvTOlrbQI+2NHK/Emblx+832h7ySrJ5wXX/bv0GvDzx+S1BMfYuXx4I+CkTTVoSW6YnSZaU8cjr5PFKVH2A/bpagYx/gUVt+P2
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -42,27 +43,24 @@ Handle OAuth callback from Composio.
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
-  children={"Request"}
 >
+  <Translate id="theme.openapi.request.title">Request</Translate>
 </Heading>
 
 <ParamsDetails
-  parameters={[{"name":"connected_account_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Connected Account Id"}},{"name":"status","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Status"}},{"name":"error_message","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Error Message"}},{"name":"state","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"State"}}]}
+  {...require("./callback-tool-connection.ParamsDetails.json")}
 >
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./callback-tool-connection.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  {...require("./callback-tool-connection.StatusCodes.json")}
 >
   
 </StatusCodes>

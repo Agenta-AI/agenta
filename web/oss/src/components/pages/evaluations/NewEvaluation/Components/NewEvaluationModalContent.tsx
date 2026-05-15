@@ -18,7 +18,7 @@ import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
-const SelectAppSection = dynamic(() => import("./SelectAppSection"), {ssr: false})
+const SelectWorkflowSection = dynamic(() => import("./SelectWorkflowSection"), {ssr: false})
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -145,9 +145,9 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 ),
                 children: (
                     <div className="flex flex-col gap-2">
-                        <SelectAppSection
-                            selectedAppId={selectedAppId}
-                            onSelectApp={onSelectApp}
+                        <SelectWorkflowSection
+                            selectedWorkflowId={selectedAppId}
+                            onSelectWorkflow={onSelectApp}
                             disabled={appSelectionDisabled}
                         />
                         {!appSelectionComplete && !appSelectionDisabled ? (
@@ -161,7 +161,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "variantPanel",
                 label: (
-                    <TabLabel tabTitle="Variant" completed={selectedVariants.length > 0}>
+                    <TabLabel tabTitle="Revision" completed={selectedVariants.length > 0}>
                         {selectedVariants.map((v) => (
                             <Tag
                                 key={v.id}

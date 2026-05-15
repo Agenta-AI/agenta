@@ -37,39 +37,53 @@
 
 import type {Annotation} from "@agenta/entities/annotation"
 import {queryAnnotations} from "@agenta/entities/annotation"
-import {evaluationRunMolecule} from "@agenta/entities/evaluationRun"
+import {
+    evaluationRunMolecule,
+    queryEvaluationResults,
+    type EvaluationResult,
+    type EvaluationRunDataStep,
+} from "@agenta/entities/evaluationRun"
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {fetchTestcase, fetchTestcasesBatch} from "@agenta/entities/testcase"
+import {fetchTestcase, fetchTestcasesBatch, SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import type {Testcase} from "@agenta/entities/testcase"
 import {
+    createTestset,
     fetchLatestRevisionsBatch,
+    fetchLatestRevisionWithTestcases,
     fetchRevisionWithTestcases,
+    fetchTestsetsBatch,
     patchRevision,
 } from "@agenta/entities/testset"
 import {
     traceEntityAtomFamily,
     traceInputsAtomFamily,
+    traceOutputsAtomFamily,
     traceRootSpanAtomFamily,
     type TraceSpan,
 } from "@agenta/entities/trace"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {axios} from "@agenta/shared/api"
+import {axios, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {atom, type Getter, type Setter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {
+    buildTestcaseExportRows,
+    buildTraceTestsetRows,
     buildTestsetSyncOperations,
     buildTestsetSyncPreview,
+    getTestsetSyncEvaluatorColumnKey,
     remapTargetRowsToBaseRevision,
     selectQueueScopedAnnotation,
     type CompletedScenarioRef,
     type TestsetSyncEvaluator,
 } from "../testsetSync"
+import {getTraceInputDisplayKeys} from "../traceInputDisplay"
 import type {
     AnnotationColumnDef,
     ScenarioListColumnDef,
@@ -211,6 +225,82 @@ const activeSessionViewAtom = atom<SessionView>("annotate")
 
 const hideCompletedInFocusAtom = atom<boolean>(false)
 const focusAutoNextAtom = atom<boolean>(true)
+
+export type AddToTestsetScope = "single" | "selected" | "all" | "complete"
+
+export interface AddToTestsetExportJob {
+    id: string
+    status: "idle" | "preparing" | "committing" | "success" | "error"
+    total: number
+    processed: number
+    targetTestsetId?: string
+    targetRevisionId?: string
+    targetTestsetName?: string
+    error?: string
+}
+
+interface AddScenariosToTestsetPayload {
+    targetMode: "existing" | "new"
+    commitMessage: string
+    newTestsetName?: string
+    newTestsetSlug?: string
+}
+
+const lastUsedTestsetByProjectAtom = atom<Record<string, string | null>>({})
+
+const lastUsedTestsetIdAtom = atom(
+    (get) => {
+        const projectId = get(projectIdAtom)
+        if (!projectId) return null
+        return get(lastUsedTestsetByProjectAtom)[projectId] ?? null
+    },
+    (get, set, testsetId: string | null) => {
+        const projectId = get(projectIdAtom)
+        if (!projectId) return
+        const byProject = get(lastUsedTestsetByProjectAtom)
+        set(lastUsedTestsetByProjectAtom, {...byProject, [projectId]: testsetId})
+    },
+)
+
+const defaultTargetTestsetQueryAtom = atomWithQuery((get) => {
+    const projectId = get(projectIdAtom)
+    const testsetId = get(lastUsedTestsetIdAtom)
+
+    return {
+        queryKey: ["annotation-default-target-testset", projectId, testsetId],
+        queryFn: async () => {
+            if (!projectId || !testsetId) return null
+            const testsets = await fetchTestsetsBatch(projectId, [testsetId])
+            return testsets.get(testsetId) ?? null
+        },
+        enabled: Boolean(projectId && testsetId),
+        staleTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+    }
+})
+
+const defaultTargetTestsetNameAtom = atom<string | null>((get) => {
+    const query = get(defaultTargetTestsetQueryAtom)
+    return query.data?.name ?? null
+})
+
+const addToTestsetModalOpenAtom = atom<boolean>(false)
+const addToTestsetScopeAtom = atom<AddToTestsetScope>("all")
+const addToTestsetScenarioIdsAtom = atom<string[]>([])
+const pendingTestsetSelectionAtom = atom<string | null>(null)
+const pendingTestsetSelectionNameAtom = atom<string | null>(null)
+const selectedScenarioIdsAtom = atom<string[]>([])
+const addToTestsetExportJobAtom = atom<AddToTestsetExportJob>({
+    id: "",
+    status: "idle",
+    total: 0,
+    processed: 0,
+})
+
+const isAddToTestsetExportingAtom = atom<boolean>((get) => {
+    const status = get(addToTestsetExportJobAtom).status
+    return status === "preparing" || status === "committing"
+})
 
 const syncScenarioOrderAtom = atom(null, (get, set) => {
     const nextIds = get(rawScenarioRecordsAtom)
@@ -511,7 +601,7 @@ const traceInputKeysAtom = atom<string[]>((get) => {
     const inputs = get(traceInputsAtomFamily(traceId))
     if (!inputs) return []
 
-    return Object.keys(inputs)
+    return getTraceInputDisplayKeys(inputs)
 })
 
 /**
@@ -674,6 +764,37 @@ function getAnnotationDisplayTitle(get: Getter, def: AnnotationColumnDef): strin
     )
 }
 
+function getAnnotationGroupKey(get: Getter, def: AnnotationColumnDef): string {
+    return (
+        def.evaluatorId?.trim() ||
+        def.evaluatorSlug?.trim() ||
+        getAnnotationDisplayTitle(get, def).trim().toLowerCase() ||
+        def.stepKey
+    )
+}
+
+function stripOutputPathPrefix(path: string): string {
+    for (const prefix of ["attributes.ag.data.outputs.", "data.outputs.", "outputs."]) {
+        if (path.startsWith(prefix)) {
+            return path.slice(prefix.length)
+        }
+    }
+    return path
+}
+
+function getAnnotationChildTitle(def: AnnotationColumnDef): string {
+    const path = def.path?.trim()
+    if (path) {
+        const stripped = stripOutputPathPrefix(path)
+        if (stripped && stripped !== path) return stripped
+
+        const leaf = stripped.split(".").filter(Boolean).at(-1)
+        if (leaf && leaf !== "outputs") return leaf
+    }
+
+    return def.columnName?.trim() || def.stepKey
+}
+
 /**
  * Analyze scenario records to discover dynamic testcase columns.
  * Returns column definitions grouped by input/output/expected.
@@ -716,68 +837,6 @@ function discoverTestcaseColumns(
         title: key.startsWith("meta.") ? key.slice(5) : key,
         group,
     }))
-}
-
-// ============================================================================
-// EVALUATOR OUTPUT KEY HELPERS
-// ============================================================================
-
-/** Safely access a nested path on an object */
-function getNestedValue(obj: unknown, ...keys: string[]): unknown {
-    let current: unknown = obj
-    for (const key of keys) {
-        if (!current || typeof current !== "object") return undefined
-        current = (current as Record<string, unknown>)[key]
-    }
-    return current
-}
-
-/**
- * Resolve output schema from evaluator data, checking multiple legacy paths.
- * Returns the `properties` keys from the first valid output schema found.
- */
-/**
- * Resolve output schema properties from evaluator data.
- * Returns the full properties object (key → schema) so callers can inspect types.
- */
-function resolveOutputProperties(
-    data: Record<string, unknown> | null | undefined,
-): Record<string, Record<string, unknown>> | null {
-    if (!data) return null
-    const candidates = [
-        getNestedValue(data, "schemas", "outputs"),
-        getNestedValue(data, "service", "format", "properties", "outputs"),
-        getNestedValue(data, "service", "configuration", "outputs"),
-        getNestedValue(data, "configuration", "outputs"),
-        getNestedValue(data, "service", "configuration", "format", "properties", "outputs"),
-        getNestedValue(data, "configuration", "format", "properties", "outputs"),
-    ]
-    for (const candidate of candidates) {
-        if (candidate && typeof candidate === "object") {
-            const properties = (candidate as Record<string, unknown>).properties
-            if (properties && typeof properties === "object") {
-                return properties as Record<string, Record<string, unknown>>
-            }
-        }
-    }
-    return null
-}
-
-/** Output schema types that are not aggregatable in list view (string, free text) */
-const NON_AGGREGATABLE_OUTPUT_TYPES = new Set(["string"])
-
-function isAggregatableOutputProperty(schema: Record<string, unknown>): boolean {
-    const type = schema.type
-    if (typeof type === "string" && NON_AGGREGATABLE_OUTPUT_TYPES.has(type)) return false
-    return true
-}
-
-function resolveOutputKeys(data: Record<string, unknown> | null | undefined): string[] {
-    const properties = resolveOutputProperties(data)
-    if (!properties) return []
-    return Object.entries(properties)
-        .filter(([, schema]) => isAggregatableOutputProperty(schema))
-        .map(([key]) => key)
 }
 
 // ============================================================================
@@ -936,26 +995,55 @@ const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
         }
     }
 
-    // Annotation columns — resolve output keys from evaluator entity data
-    const annotationColumns: ScenarioListColumnDef[] = annotationDefs.map((def) => {
-        let outputKeys: string[] = []
-        if (def.evaluatorId) {
-            const evaluator = get(workflowMolecule.selectors.data(def.evaluatorId))
-            outputKeys = resolveOutputKeys(evaluator?.data as Record<string, unknown> | null)
-        }
+    // Annotation columns — group mapping columns under their evaluator parent.
+    const annotationGroups = new Map<
+        string,
+        {title: string; defs: AnnotationColumnDef[]; fallbackDataKey: string | null}
+    >()
+    for (const def of annotationDefs) {
         const displayTitle = getAnnotationDisplayTitle(get, def)
-        const fallbackDataKey = mergedFallbackKeys.get(displayTitle.trim().toLowerCase()) ?? null
-        const subColumnCount = outputKeys.length > 1 ? outputKeys.length : 1
-        return {
-            columnType: "annotation" as const,
-            key: `__annot_${def.stepKey}`,
-            title: displayTitle || def.columnName || def.evaluatorSlug || def.stepKey,
-            width: 150 * subColumnCount,
-            annotationDef: def,
-            outputKeys,
-            fallbackDataKey,
+        const groupKey = getAnnotationGroupKey(get, def)
+        const existing = annotationGroups.get(groupKey)
+
+        if (existing) {
+            existing.defs.push(def)
+            continue
         }
-    })
+
+        annotationGroups.set(groupKey, {
+            title: displayTitle || def.columnName || def.evaluatorSlug || def.stepKey,
+            defs: [def],
+            fallbackDataKey: mergedFallbackKeys.get(displayTitle.trim().toLowerCase()) ?? null,
+        })
+    }
+
+    const annotationColumns: ScenarioListColumnDef[] = Array.from(annotationGroups.entries()).map(
+        ([groupKey, group]) => {
+            const childTitleCounts = new Map<string, number>()
+            const outputColumns = group.defs.map((def) => {
+                const title = getAnnotationChildTitle(def)
+                const count = childTitleCounts.get(title) ?? 0
+                childTitleCounts.set(title, count + 1)
+
+                return {
+                    key: `__annot_${groupKey}_${title}_${count}`,
+                    title,
+                    annotationDef: def,
+                }
+            })
+
+            return {
+                columnType: "annotation" as const,
+                key: `__annot_${groupKey}`,
+                title: group.title,
+                width: 150 * Math.max(outputColumns.length, 1),
+                annotationDef: group.defs[0],
+                outputKeys: outputColumns.map((column) => column.title),
+                outputColumns,
+                fallbackDataKey: group.fallbackDataKey,
+            }
+        },
+    )
 
     // Trailing: review status + actions
     const trailing: ScenarioListColumnDef[] = [
@@ -1058,88 +1146,82 @@ const scenarioRootSpanAtomFamily = atomFamily((scenarioId: string) =>
 const scenarioAnnotationTraceIdsAtomFamily = atomFamily((scenarioId: string) =>
     atom<string[]>((get) => {
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) {
-            console.log(
-                `[annot-debug] traceIds(${scenarioId?.slice(0, 8)}): no runId or scenarioId`,
-            )
-            return []
-        }
+        if (!runId || !scenarioId) return []
 
         // Get annotation step info from the run definition
         const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
-        if (annotationSteps.length === 0) {
-            console.log(
-                `[annot-debug] traceIds(${scenarioId.slice(0, 8)}): no annotation steps in run definition`,
-            )
-            return []
-        }
-
-        // Build matchers for step result keys.
-        // Step results can be keyed as:
-        //   - The annotation step's own key (e.g., "evaluator-dcd4d73d6fab")
-        //   - Or "{invocationStepKey}.{idSuffix}" (e.g., "query-direct.dcd4d73d6fab")
-        // The id suffix can be the evaluator slug ("quality-rating"), the short hash
-        // ("dcd4d73d6fab"), or the suffix from the annotation step key itself.
-        const annotationStepKeys = new Set(annotationSteps.map((s) => s.key))
-        const suffixMatchers = new Set<string>()
-        for (const step of annotationSteps) {
-            // Add evaluator slug (e.g., "quality-rating")
-            const slug = step.references?.evaluator?.slug
-            if (slug) suffixMatchers.add(slug)
-            // Add suffix from the annotation step key itself (e.g., "dcd4d73d6fab" from "evaluator-dcd4d73d6fab")
-            if (step.key) {
-                const dashIdx = step.key.indexOf("-")
-                if (dashIdx >= 0) suffixMatchers.add(step.key.slice(dashIdx + 1))
-            }
-        }
+        if (annotationSteps.length === 0) return []
 
         // Get scenario step results (evaluation results)
         const stepsQuery = get(evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}))
         const steps = stepsQuery.data ?? []
 
-        console.log(
-            `[annot-debug] traceIds(${scenarioId.slice(0, 8)}): stepKeys=[${[...annotationStepKeys]}], suffixes=[${[...suffixMatchers]}], isPending=${stepsQuery.isPending}, steps=`,
-            steps.map((s) => ({step_key: s.step_key, trace_id: s.trace_id?.slice(0, 8)})),
-        )
-
-        // Extract trace_ids from annotation step results
-        const traceIds: string[] = []
-        for (const step of steps) {
-            if (!step.step_key || !step.trace_id) continue
-
-            // Match by exact annotation step key
-            if (annotationStepKeys.has(step.step_key)) {
-                console.log(
-                    `[annot-debug]   matched exact: ${step.step_key} → ${step.trace_id.slice(0, 8)}`,
-                )
-                traceIds.push(step.trace_id)
-                continue
-            }
-
-            // Match by "{anything}.{suffix}" where suffix is evaluator slug or ID hash
-            const dotIdx = step.step_key.lastIndexOf(".")
-            if (dotIdx >= 0) {
-                const suffix = step.step_key.slice(dotIdx + 1)
-                if (suffixMatchers.has(suffix)) {
-                    console.log(
-                        `[annot-debug]   matched suffix: ${step.step_key} (suffix=${suffix}) → ${step.trace_id.slice(0, 8)}`,
-                    )
-                    traceIds.push(step.trace_id)
-                } else {
-                    console.log(
-                        `[annot-debug]   no match: ${step.step_key} (suffix=${suffix} not in [${[...suffixMatchers]}])`,
-                    )
-                }
-            } else {
-                console.log(`[annot-debug]   no match: ${step.step_key} (no dot, not in stepKeys)`)
-            }
-        }
-        console.log(
-            `[annot-debug] traceIds(${scenarioId.slice(0, 8)}): result=[${traceIds.map((t) => t.slice(0, 8))}]`,
-        )
-        return traceIds
+        return extractAnnotationTraceIdsFromSteps({annotationSteps, steps})
     }),
 )
+
+function buildAnnotationStepMatchers(annotationSteps: EvaluationRunDataStep[]) {
+    const stepKeys = new Set<string>()
+    const suffixes = new Set<string>()
+
+    for (const step of annotationSteps) {
+        if (step.key) {
+            stepKeys.add(step.key)
+
+            const dashIdx = step.key.indexOf("-")
+            if (dashIdx >= 0) suffixes.add(step.key.slice(dashIdx + 1))
+        }
+
+        const evaluatorSlug = step.references?.evaluator?.slug
+        if (evaluatorSlug) suffixes.add(evaluatorSlug)
+    }
+
+    return {stepKeys, suffixes}
+}
+
+function extractAnnotationTraceIdsFromSteps({
+    annotationSteps,
+    steps,
+}: {
+    annotationSteps: EvaluationRunDataStep[]
+    steps: EvaluationResult[]
+}): string[] {
+    const {stepKeys, suffixes} = buildAnnotationStepMatchers(annotationSteps)
+    const traceIds = new Set<string>()
+
+    for (const step of steps) {
+        if (!step.step_key || !step.trace_id) continue
+
+        if (stepKeys.has(step.step_key)) {
+            traceIds.add(step.trace_id)
+            continue
+        }
+
+        const dotIdx = step.step_key.lastIndexOf(".")
+        if (dotIdx < 0) continue
+
+        const suffix = step.step_key.slice(dotIdx + 1)
+        if (suffixes.has(suffix)) {
+            traceIds.add(step.trace_id)
+        }
+    }
+
+    return Array.from(traceIds)
+}
+
+function mergeAnnotationsByTraceSpan(
+    primary: Annotation[],
+    fallback: Annotation[] = [],
+): Annotation[] {
+    const byKey = new Map<string, Annotation>()
+
+    for (const annotation of [...primary, ...fallback]) {
+        if (!annotation?.trace_id || !annotation?.span_id) continue
+        byKey.set(`${annotation.trace_id}:${annotation.span_id}`, annotation)
+    }
+
+    return Array.from(byKey.values())
+}
 
 interface ScenarioAnnotationsKey {
     scenarioId: string
@@ -1803,21 +1885,40 @@ const scenarioMetricForEvaluatorAtomFamily = atomFamily(
  * 2. Refetch annotation queries (awaited) — uses fresh trace_ids from step 1
  * 3. Refresh metrics (fire-and-forget) — independent, can run in background
  */
-async function invalidateScenarioAnnotations(scenarioId: string) {
+async function invalidateScenarioAnnotations(
+    scenarioId: string,
+    fallbackAnnotations: Annotation[] = [],
+) {
     const store = getStore()
     const runId = store.get(activeRunIdAtom)
+    const projectId = store.get(projectIdAtom)
+    let freshSteps: EvaluationResult[] | null = null
 
     // Step 1: Refetch scenario steps FIRST (awaited).
     // The new annotation creates a new step result with the annotation's trace_id.
     // We must wait for this to complete so scenarioAnnotationTraceIdsAtomFamily
     // derives the correct trace IDs for step 2.
-    if (runId) {
+    if (projectId && runId) {
+        try {
+            freshSteps = await queryEvaluationResults({
+                projectId,
+                runId,
+                scenarioIds: [scenarioId],
+            })
+            queryClient.setQueryData(["scenarioSteps", runId, scenarioId], freshSteps)
+        } catch {
+            freshSteps = null
+        }
+    }
+
+    if (runId && !freshSteps) {
         const stepsQuery = store.get(
             evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}),
         )
         if (stepsQuery?.refetch) {
             try {
-                await stepsQuery.refetch()
+                const result = await stepsQuery.refetch()
+                freshSteps = Array.isArray(result.data) ? result.data : null
             } catch {
                 // Non-critical — fallback link-based query will catch these
             }
@@ -1826,23 +1927,80 @@ async function invalidateScenarioAnnotations(scenarioId: string) {
 
     // Step 2: Refetch annotation queries (awaited).
     // Now that steps are updated, scenarioAnnotationTraceIdsAtomFamily has fresh data.
-    const traceIds = store.get(scenarioAnnotationTraceIdsAtomFamily(scenarioId))
-    if (traceIds.length > 0) {
+    const annotationSteps = runId
+        ? store.get(evaluationRunMolecule.selectors.annotationSteps(runId))
+        : []
+    const traceIds =
+        freshSteps && annotationSteps.length > 0
+            ? extractAnnotationTraceIdsFromSteps({annotationSteps, steps: freshSteps})
+            : store.get(scenarioAnnotationTraceIdsAtomFamily(scenarioId))
+
+    if (projectId && traceIds.length > 0) {
         const annotationTraceIds = traceIds.join("|")
-        const query = store.get(
-            scenarioAnnotationsQueryAtomFamily({scenarioId, annotationTraceIds}),
-        )
-        if (query?.refetch) {
+        try {
+            const response = await queryAnnotations({
+                projectId,
+                annotationLinks: traceIds.map((traceId) => ({trace_id: traceId})),
+            })
+            const annotations = mergeAnnotationsByTraceSpan(
+                response.annotations ?? [],
+                fallbackAnnotations,
+            )
+            queryClient.setQueryData(
+                ["scenarioAnnotations", scenarioId, annotationTraceIds],
+                annotations,
+            )
+        } catch {
+            const query = store.get(
+                scenarioAnnotationsQueryAtomFamily({scenarioId, annotationTraceIds}),
+            )
+            if (query?.refetch) {
+                try {
+                    await query.refetch()
+                } catch {
+                    // Will fall through to link-based query
+                }
+            }
+        }
+    } else if (projectId) {
+        const testcaseRef = store.get(scenarioTestcaseRefAtomFamily(scenarioId))
+        if (testcaseRef.testcaseId) {
             try {
-                await query.refetch()
+                const response = await queryAnnotations({
+                    projectId,
+                    annotation: {
+                        references: {
+                            testcase: {id: testcaseRef.testcaseId},
+                        },
+                    },
+                })
+                const annotations = mergeAnnotationsByTraceSpan(
+                    response.annotations ?? [],
+                    fallbackAnnotations,
+                )
+                queryClient.setQueryData(
+                    ["scenarioAnnotationsByTestcase", scenarioId, testcaseRef.testcaseId],
+                    annotations,
+                )
             } catch {
-                // Will fall through to link-based query
+                const query = store.get(
+                    scenarioAnnotationsByTestcaseQueryAtomFamily({
+                        scenarioId,
+                        testcaseId: testcaseRef.testcaseId,
+                    }),
+                )
+                if (query?.refetch) {
+                    try {
+                        await query.refetch()
+                    } catch {
+                        // Non-critical — callers still invalidate broader annotation caches.
+                    }
+                }
             }
         }
     }
 
     // Step 3: Trigger metrics refresh then refetch (fire-and-forget, independent)
-    const projectId = store.get(projectIdAtom)
     if (projectId && runId) {
         axios
             .post(
@@ -2173,6 +2331,18 @@ const closeSessionAtom = atom(null, (get, set) => {
     set(activeSessionViewAtom, "annotate")
     set(hideCompletedInFocusAtom, false)
     set(focusAutoNextAtom, true)
+    set(addToTestsetModalOpenAtom, false)
+    set(addToTestsetScopeAtom, "all")
+    set(addToTestsetScenarioIdsAtom, [])
+    set(pendingTestsetSelectionAtom, null)
+    set(pendingTestsetSelectionNameAtom, null)
+    set(selectedScenarioIdsAtom, [])
+    set(addToTestsetExportJobAtom, {
+        id: "",
+        status: "idle",
+        total: 0,
+        processed: 0,
+    })
 
     // Notify callback
     _onSessionClosed?.()
@@ -2209,6 +2379,705 @@ async function fetchBaseRevisionRows(params: {projectId: string; revisionId: str
     }[]
 }
 
+interface QueryStateLike {
+    isPending?: boolean
+    isFetching?: boolean
+    data?: unknown
+    error?: unknown
+}
+
+interface LatestRevisionWithRows {
+    id: string
+    data?: {
+        testcases?: {
+            id?: string | null
+            data?: Record<string, unknown> | null
+        }[]
+    } | null
+}
+
+const TRACE_OUTPUT_COLUMN_PREFERENCES = ["correct_answer", "output", "outputs", "answer"]
+
+function createExportJobId() {
+    return typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function isQuerySettledForExport(value: QueryStateLike | null | undefined): boolean {
+    return Boolean(
+        !value?.isPending && !value?.isFetching && (value?.data !== undefined || value?.error),
+    )
+}
+
+function isQuerySettledOrNullForExport(value: QueryStateLike | null | undefined): boolean {
+    return !value || isQuerySettledForExport(value)
+}
+
+async function waitForStoreAtomValue<T>(
+    atomToWatch: unknown,
+    isReady: (value: T) => boolean,
+    timeoutMs = 5000,
+): Promise<T> {
+    const store = getStore()
+    const atomRef = atomToWatch as unknown as Parameters<typeof store.get>[0]
+    const subRef = atomToWatch as unknown as Parameters<typeof store.sub>[0]
+    const current = store.get(atomRef) as T
+    if (isReady(current)) return current
+
+    return await new Promise<T>((resolve) => {
+        const timeout = setTimeout(() => {
+            unsubscribe()
+            resolve(store.get(atomRef) as T)
+        }, timeoutMs)
+
+        const unsubscribe = store.sub(subRef, () => {
+            const next = store.get(atomRef) as T
+            if (isReady(next)) {
+                clearTimeout(timeout)
+                unsubscribe()
+                resolve(next)
+            }
+        })
+    })
+}
+
+function resolveScenarioIdsForAddToTestset(get: Getter): string[] {
+    const scope = get(addToTestsetScopeAtom)
+
+    if (scope === "all") {
+        return get(scenarioIdsAtom)
+    }
+
+    if (scope === "complete") {
+        const completed = get(completedScenarioIdsAtom)
+        const records = get(scenarioRecordsAtom)
+        return get(scenarioIdsAtom).filter((id) => isScenarioCompleted(id, completed, records))
+    }
+
+    return get(addToTestsetScenarioIdsAtom)
+}
+
+function extractExistingColumns(
+    rows: {data?: Record<string, unknown> | null}[] | null | undefined,
+): Set<string> {
+    const columns = new Set<string>()
+
+    for (const row of rows ?? []) {
+        collectDataColumnKeys(row.data ?? {}, columns)
+    }
+
+    return columns
+}
+
+function collectRowColumns(rows: {data: Record<string, unknown>}[]): Set<string> {
+    const columns = new Set<string>()
+
+    for (const row of rows) {
+        collectDataColumnKeys(row.data, columns)
+    }
+
+    return columns
+}
+
+function getColumnLeafName(columnKey: string): string {
+    return columnKey.split(".").at(-1) ?? columnKey
+}
+
+function buildColumnPathsByLeaf(columns: Set<string>): Map<string, string[]> {
+    const pathsByLeaf = new Map<string, string[]>()
+
+    for (const column of columns) {
+        const leaf = getColumnLeafName(column)
+        pathsByLeaf.set(leaf, [...(pathsByLeaf.get(leaf) ?? []), column])
+    }
+
+    return pathsByLeaf
+}
+
+function buildColumnLeafCounts(columns: Set<string>): Map<string, number> {
+    const counts = new Map<string, number>()
+
+    for (const column of columns) {
+        const leaf = getColumnLeafName(column)
+        counts.set(leaf, (counts.get(leaf) ?? 0) + 1)
+    }
+
+    return counts
+}
+
+function resolveExistingColumnPath(params: {
+    exportedColumn: string
+    exportedLeafCounts: Map<string, number>
+    existingColumns: Set<string>
+    existingPathsByLeaf: Map<string, string[]>
+}): string {
+    if (params.existingColumns.has(params.exportedColumn)) return params.exportedColumn
+
+    const leaf = getColumnLeafName(params.exportedColumn)
+    if ((params.exportedLeafCounts.get(leaf) ?? 0) !== 1) return params.exportedColumn
+
+    const existingMatches = params.existingPathsByLeaf.get(leaf) ?? []
+    return existingMatches.length === 1 ? existingMatches[0] : params.exportedColumn
+}
+
+function setColumnPathValue(data: Record<string, unknown>, columnPath: string, value: unknown) {
+    const parts = columnPath.split(".").filter(Boolean)
+    if (parts.length === 0) return
+
+    let cursor = data
+    for (let index = 0; index < parts.length - 1; index++) {
+        const part = parts[index]
+        const next = cursor[part]
+
+        if (!next || typeof next !== "object" || Array.isArray(next)) {
+            cursor[part] = {}
+        }
+
+        cursor = cursor[part] as Record<string, unknown>
+    }
+
+    cursor[parts[parts.length - 1]] = value
+}
+
+function collectColumnPathValues(
+    data: Record<string, unknown>,
+    values: {path: string; value: unknown}[],
+    parentKey?: string,
+) {
+    for (const [key, value] of Object.entries(data)) {
+        if (!parentKey && SYSTEM_FIELDS.has(key)) continue
+
+        const columnKey = parentKey ? `${parentKey}.${key}` : key
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+            collectColumnPathValues(value as Record<string, unknown>, values, columnKey)
+            continue
+        }
+
+        values.push({path: columnKey, value})
+    }
+}
+
+function remapRowsToExistingLeafColumns<T extends {data: Record<string, unknown>}>(
+    rows: T[],
+    existingColumns: Set<string>,
+): T[] {
+    if (existingColumns.size === 0) return rows
+
+    const exportedColumns = collectRowColumns(rows)
+    const exportedLeafCounts = buildColumnLeafCounts(exportedColumns)
+    const existingPathsByLeaf = buildColumnPathsByLeaf(existingColumns)
+
+    return rows.map((row) => {
+        const values: {path: string; value: unknown}[] = []
+        collectColumnPathValues(row.data, values)
+
+        const data: Record<string, unknown> = {}
+        for (const {path, value} of values) {
+            const targetPath = resolveExistingColumnPath({
+                exportedColumn: path,
+                exportedLeafCounts,
+                existingColumns,
+                existingPathsByLeaf,
+            })
+            setColumnPathValue(data, targetPath, value)
+        }
+
+        return {...row, data}
+    })
+}
+
+function collectDataColumnKeys(
+    data: Record<string, unknown>,
+    columns: Set<string>,
+    parentKey?: string,
+) {
+    for (const [key, value] of Object.entries(data)) {
+        if (!parentKey && SYSTEM_FIELDS.has(key)) continue
+
+        const columnKey = parentKey ? `${parentKey}.${key}` : key
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+            collectDataColumnKeys(value as Record<string, unknown>, columns, columnKey)
+            continue
+        }
+
+        columns.add(columnKey)
+    }
+}
+
+function resolveTraceOutputColumnName(params: {
+    targetMode: "existing" | "new"
+    existingColumns: Set<string>
+}): string {
+    if (params.targetMode === "new") return "outputs"
+
+    const existingPathsByLeaf = buildColumnPathsByLeaf(params.existingColumns)
+
+    for (const columnName of TRACE_OUTPUT_COLUMN_PREFERENCES) {
+        if (params.existingColumns.has(columnName)) return columnName
+
+        const existingMatches = existingPathsByLeaf.get(columnName) ?? []
+        if (existingMatches.length === 1) return existingMatches[0]
+    }
+
+    return "output"
+}
+
+async function fetchLatestRevisionWithRows(params: {
+    projectId: string
+    testsetId: string
+}): Promise<LatestRevisionWithRows> {
+    const latestRevision = await fetchLatestRevisionWithTestcases({
+        projectId: params.projectId,
+        testsetId: params.testsetId,
+        testcaseLimit: 1,
+    })
+    if (!latestRevision?.id) {
+        throw new Error("The latest revision for the selected testset could not be resolved.")
+    }
+
+    return latestRevision as LatestRevisionWithRows
+}
+
+function buildTraceAnnotationOutputs(params: {
+    annotations: Annotation[]
+    evaluators: TestsetSyncEvaluator[]
+    queueId: string
+}): Record<string, Record<string, unknown>> {
+    const result: Record<string, Record<string, unknown>> = {}
+
+    for (const evaluator of params.evaluators) {
+        const selection = selectQueueScopedAnnotation({
+            annotations: params.annotations,
+            queueId: params.queueId,
+            evaluatorSlug: evaluator.slug,
+            evaluatorWorkflowId: evaluator.workflowId,
+        })
+
+        if (!selection.annotation || selection.conflictCode) continue
+
+        const outputs = selection.annotation.data?.outputs
+        if (!outputs || typeof outputs !== "object" || Array.isArray(outputs)) continue
+
+        const columnKey = getTestsetSyncEvaluatorColumnKey({
+            evaluator,
+            annotation: selection.annotation,
+        })
+        if (!columnKey) continue
+
+        result[columnKey] = outputs as Record<string, unknown>
+    }
+
+    return result
+}
+
+async function fetchTraceAnnotationOutputsForExport(params: {
+    projectId: string
+    scenarioId: string
+    queueId: string
+    evaluators: TestsetSyncEvaluator[]
+}): Promise<Record<string, Record<string, unknown>>> {
+    const store = getStore()
+    const runId = store.get(activeRunIdAtom)
+
+    if (runId) {
+        const annotationSteps = store.get(evaluationRunMolecule.selectors.annotationSteps(runId))
+        if (annotationSteps.length > 0) {
+            const steps = await queryEvaluationResults({
+                projectId: params.projectId,
+                runId,
+                scenarioIds: [params.scenarioId],
+            })
+            const annotationTraceIds = extractAnnotationTraceIdsFromSteps({
+                annotationSteps,
+                steps,
+            })
+
+            if (annotationTraceIds.length > 0) {
+                const response = await queryAnnotations({
+                    projectId: params.projectId,
+                    annotationLinks: annotationTraceIds.map((traceId) => ({trace_id: traceId})),
+                })
+
+                return buildTraceAnnotationOutputs({
+                    annotations: response.annotations ?? [],
+                    evaluators: params.evaluators,
+                    queueId: params.queueId,
+                })
+            }
+        }
+    }
+
+    return buildTraceAnnotationOutputs({
+        annotations: store.get(scenarioAnnotationsAtomFamily(params.scenarioId)),
+        evaluators: params.evaluators,
+        queueId: params.queueId,
+    })
+}
+
+async function prepareTraceExportRows(params: {
+    projectId: string
+    scenarioIds: string[]
+    outputColumnName: string
+    queueId: string
+    evaluators: TestsetSyncEvaluator[]
+    requireAnnotationOutputScenarioIds: Set<string>
+    setProcessed: (processed: number) => void
+}) {
+    const traceInputsByScenario = new Map<string, Record<string, unknown>>()
+    const traceOutputsByScenario = new Map<string, unknown>()
+    const annotationsByScenario = new Map<string, Record<string, Record<string, unknown>>>()
+    const exportableScenarioIds: string[] = []
+    let processed = 0
+
+    for (const scenarioId of params.scenarioIds) {
+        const traceRef = getStore().get(scenarioTraceRefAtomFamily(scenarioId))
+        if (!traceRef.traceId) {
+            processed += 1
+            params.setProcessed(processed)
+            continue
+        }
+
+        const traceQueryAtom = traceEntityAtomFamily(traceRef.traceId)
+        const traceQuery = await waitForStoreAtomValue<QueryStateLike | null | undefined>(
+            traceQueryAtom,
+            isQuerySettledOrNullForExport,
+        )
+        if (!isQuerySettledForExport(traceQuery)) {
+            throw new Error("Timed out loading trace data for export")
+        }
+        if (traceQuery?.error) {
+            throw new Error(extractApiErrorMessage(traceQuery.error))
+        }
+
+        exportableScenarioIds.push(scenarioId)
+        traceInputsByScenario.set(
+            scenarioId,
+            getStore().get(traceInputsAtomFamily(traceRef.traceId)) ?? {},
+        )
+        traceOutputsByScenario.set(
+            scenarioId,
+            getStore().get(traceOutputsAtomFamily(traceRef.traceId)),
+        )
+
+        const stepsQueryAtom = scenarioStepsQueryStateAtomFamily(scenarioId)
+        await waitForStoreAtomValue<QueryStateLike | null | undefined>(
+            stepsQueryAtom,
+            isQuerySettledOrNullForExport,
+        )
+
+        const annotationsQueryAtom = scenarioAnnotationsQueryStateAtomFamily(scenarioId)
+        await waitForStoreAtomValue<QueryStateLike | null | undefined>(
+            annotationsQueryAtom,
+            isQuerySettledOrNullForExport,
+            2500,
+        )
+
+        const annotationOutputs = await fetchTraceAnnotationOutputsForExport({
+            projectId: params.projectId,
+            scenarioId,
+            queueId: params.queueId,
+            evaluators: params.evaluators,
+        })
+
+        if (
+            params.requireAnnotationOutputScenarioIds.has(scenarioId) &&
+            params.evaluators.length > 0 &&
+            Object.keys(annotationOutputs).length === 0
+        ) {
+            throw new Error(
+                "Could not load annotation data for one or more completed scenarios. Please try again.",
+            )
+        }
+
+        annotationsByScenario.set(scenarioId, annotationOutputs)
+
+        processed += 1
+        params.setProcessed(processed)
+    }
+
+    return buildTraceTestsetRows({
+        scenarioIds: exportableScenarioIds,
+        traceInputsByScenario,
+        traceOutputsByScenario,
+        annotationsByScenario,
+        outputColumnName: params.outputColumnName,
+    })
+}
+
+async function prepareTestcaseExportRows(params: {
+    projectId: string
+    scenarioIds: string[]
+    queueId: string
+    evaluators: TestsetSyncEvaluator[]
+    setProcessed: (processed: number) => void
+}) {
+    const testcaseIdByScenarioId = new Map<string, string>()
+    const testcaseIds: string[] = []
+
+    for (const scenarioId of params.scenarioIds) {
+        const testcaseId = getStore().get(scenarioTestcaseRefAtomFamily(scenarioId)).testcaseId
+        if (!testcaseId) continue
+        testcaseIdByScenarioId.set(scenarioId, testcaseId)
+        testcaseIds.push(testcaseId)
+    }
+
+    const uniqueTestcaseIds = Array.from(new Set(testcaseIds))
+    const fetchedTestcases = await fetchTestcasesBatch({
+        projectId: params.projectId,
+        testcaseIds: uniqueTestcaseIds,
+    })
+    const testcasesByScenarioId = new Map<string, Testcase>()
+    const annotationsByTestcaseId = new Map<string, Annotation[]>()
+    let processed = 0
+
+    for (const scenarioId of params.scenarioIds) {
+        const testcaseId = testcaseIdByScenarioId.get(scenarioId)
+        if (!testcaseId) {
+            processed += 1
+            params.setProcessed(processed)
+            continue
+        }
+
+        const testcase = fetchedTestcases.get(testcaseId)
+        if (testcase) {
+            testcasesByScenarioId.set(scenarioId, testcase)
+        }
+
+        const response = await queryAnnotations({
+            projectId: params.projectId,
+            annotation: {
+                references: {
+                    testcase: {id: testcaseId},
+                },
+            },
+        })
+        annotationsByTestcaseId.set(testcaseId, response.annotations ?? [])
+
+        processed += 1
+        params.setProcessed(processed)
+    }
+
+    return buildTestcaseExportRows({
+        scenarioIds: params.scenarioIds,
+        testcasesByScenarioId,
+        annotationsByTestcaseId,
+        evaluators: params.evaluators,
+        queueId: params.queueId,
+    })
+}
+
+const openAddToTestsetModalAtom = atom(
+    null,
+    (
+        get,
+        set,
+        payload: {
+            scope: AddToTestsetScope
+            scenarioIds?: string[]
+        },
+    ) => {
+        if (get(isAddToTestsetExportingAtom)) return
+
+        set(addToTestsetScopeAtom, payload.scope)
+        set(addToTestsetScenarioIdsAtom, payload.scenarioIds ?? [])
+        set(pendingTestsetSelectionAtom, get(lastUsedTestsetIdAtom))
+        set(pendingTestsetSelectionNameAtom, get(defaultTargetTestsetNameAtom))
+        set(addToTestsetExportJobAtom, {
+            id: "",
+            status: "idle",
+            total: 0,
+            processed: 0,
+        })
+        set(addToTestsetModalOpenAtom, true)
+    },
+)
+
+const setPendingTestsetSelectionAtom = atom(
+    null,
+    (_get, set, payload: {testsetId: string | null; testsetName?: string | null}) => {
+        set(pendingTestsetSelectionAtom, payload.testsetId)
+        set(pendingTestsetSelectionNameAtom, payload.testsetName ?? null)
+    },
+)
+
+const closeAddToTestsetModalAtom = atom(null, (_get, set) => {
+    set(addToTestsetModalOpenAtom, false)
+    set(pendingTestsetSelectionAtom, null)
+    set(pendingTestsetSelectionNameAtom, null)
+})
+
+const setSelectedScenarioIdsAtom = atom(null, (_get, set, scenarioIds: string[]) => {
+    set(selectedScenarioIdsAtom, scenarioIds)
+})
+
+const addScenariosToTestsetAtom = atom(
+    null,
+    async (get, set, payload: AddScenariosToTestsetPayload): Promise<{jobId: string}> => {
+        if (get(isAddToTestsetExportingAtom)) {
+            throw new Error("A testset export is already running")
+        }
+
+        const projectId = getStore().get(projectIdAtom)
+        if (!projectId) throw new Error("No project ID")
+
+        const queueId = get(activeQueueIdAtom)
+        if (!queueId) throw new Error("No active queue")
+
+        const scenarioIds = resolveScenarioIdsForAddToTestset(get)
+        if (scenarioIds.length === 0) throw new Error("No scenarios selected for export")
+
+        const targetTestsetId =
+            payload.targetMode === "existing" ? get(pendingTestsetSelectionAtom) : null
+        if (payload.targetMode === "existing" && !targetTestsetId) {
+            throw new Error("Select a testset before exporting")
+        }
+
+        if (payload.targetMode === "new" && !payload.newTestsetName?.trim()) {
+            throw new Error("Enter a testset name before exporting")
+        }
+
+        const targetTestsetName =
+            payload.targetMode === "existing"
+                ? get(pendingTestsetSelectionNameAtom) ||
+                  get(defaultTargetTestsetNameAtom) ||
+                  "selected testset"
+                : payload.newTestsetName?.trim() || "new testset"
+        const jobId = createExportJobId()
+
+        set(addToTestsetExportJobAtom, {
+            id: jobId,
+            status: "preparing",
+            total: scenarioIds.length,
+            processed: 0,
+            targetTestsetId: targetTestsetId ?? undefined,
+            targetTestsetName,
+        })
+
+        const runExport = async () => {
+            let latestRevision: LatestRevisionWithRows | null = null
+            let existingColumns = new Set<string>()
+            let committedTestsetId = targetTestsetId ?? undefined
+            let committedTestsetName = targetTestsetName
+
+            try {
+                if (payload.targetMode === "existing" && targetTestsetId) {
+                    latestRevision = await fetchLatestRevisionWithRows({
+                        projectId,
+                        testsetId: targetTestsetId,
+                    })
+                    existingColumns = extractExistingColumns(latestRevision.data?.testcases)
+                }
+
+                const queueKind = get(queueKindAtom)
+                const evaluators = get(testsetSyncEvaluatorsAtom)
+                const setProcessed = (processed: number) => {
+                    set(addToTestsetExportJobAtom, (prev) =>
+                        prev.id === jobId ? {...prev, processed} : prev,
+                    )
+                }
+
+                const rows =
+                    queueKind === "traces"
+                        ? await prepareTraceExportRows({
+                              projectId,
+                              scenarioIds,
+                              outputColumnName: resolveTraceOutputColumnName({
+                                  targetMode: payload.targetMode,
+                                  existingColumns,
+                              }),
+                              queueId,
+                              evaluators,
+                              requireAnnotationOutputScenarioIds: new Set(),
+                              setProcessed,
+                          })
+                        : await prepareTestcaseExportRows({
+                              projectId,
+                              scenarioIds,
+                              queueId,
+                              evaluators,
+                              setProcessed,
+                          })
+
+                if (rows.length === 0) {
+                    throw new Error("No exportable rows were found for the selected scenarios")
+                }
+
+                set(addToTestsetExportJobAtom, (prev) =>
+                    prev.id === jobId ? {...prev, status: "committing"} : prev,
+                )
+
+                let committedRevisionId: string | undefined
+
+                if (payload.targetMode === "new") {
+                    const result = await createTestset({
+                        projectId,
+                        name: payload.newTestsetName?.trim() || "Annotation queue export",
+                        slug: payload.newTestsetSlug,
+                        testcases: rows.map((row) => row.data),
+                        commitMessage: payload.commitMessage,
+                    })
+                    committedTestsetId = result?.testset?.id
+                    committedRevisionId = result?.revisionId
+                    committedTestsetName = result?.testset?.name ?? committedTestsetName
+                } else {
+                    if (!targetTestsetId || !latestRevision) {
+                        throw new Error("The selected testset could not be prepared")
+                    }
+
+                    const rowsForCommit = remapRowsToExistingLeafColumns(rows, existingColumns)
+
+                    const patchResult = await patchRevision({
+                        projectId,
+                        testsetId: targetTestsetId,
+                        baseRevisionId: latestRevision.id,
+                        operations: {
+                            rows: {
+                                add: rowsForCommit.map((row) => ({data: row.data})),
+                            },
+                        },
+                        message: payload.commitMessage,
+                    })
+                    committedRevisionId = patchResult?.testset_revision?.id
+                }
+
+                if (committedTestsetId) {
+                    set(lastUsedTestsetIdAtom, committedTestsetId)
+                }
+                queryClient.invalidateQueries({queryKey: ["testsets-list"]})
+                if (committedTestsetId) {
+                    queryClient.invalidateQueries({queryKey: ["testset"], exact: false})
+                    queryClient.invalidateQueries({queryKey: ["latest-revision"], exact: false})
+                    queryClient.invalidateQueries({queryKey: ["revisions-list"], exact: false})
+                }
+                set(selectedScenarioIdsAtom, [])
+                set(addToTestsetExportJobAtom, {
+                    id: jobId,
+                    status: "success",
+                    total: scenarioIds.length,
+                    processed: rows.length,
+                    targetTestsetId: committedTestsetId,
+                    targetRevisionId: committedRevisionId,
+                    targetTestsetName: committedTestsetName,
+                })
+            } catch (error) {
+                set(addToTestsetExportJobAtom, {
+                    id: jobId,
+                    status: "error",
+                    total: scenarioIds.length,
+                    processed: get(addToTestsetExportJobAtom).processed,
+                    targetTestsetId: committedTestsetId,
+                    targetTestsetName: committedTestsetName,
+                    error: extractApiErrorMessage(error),
+                })
+            }
+        }
+
+        void runExport()
+        return {jobId}
+    },
+)
+
 // ============================================================================
 // SYNC TO TESTSET
 // ============================================================================
@@ -2224,6 +3093,11 @@ const canSyncToTestsetAtom = atom<boolean>((get) => {
     const completed = get(completedScenarioIdsAtom)
     const records = get(scenarioRecordsAtom)
     return ids.some((id) => isScenarioCompleted(id, completed, records))
+})
+
+const canAddToTestsetAtom = atom<boolean>((get) => {
+    const ids = get(scenarioIdsAtom)
+    return ids.length > 0
 })
 
 async function buildTestsetSyncPreviewForSession(get: Getter) {
@@ -2444,6 +3318,22 @@ export const annotationSessionController = {
         queueKind: () => queueKindAtom,
         /** Queue description */
         queueDescription: () => queueDescriptionAtom,
+        /** Default target testset name for add-to-testset flows */
+        defaultTargetTestsetName: () => defaultTargetTestsetNameAtom,
+        /** Current pending target testset selection */
+        pendingTestsetSelection: () => pendingTestsetSelectionAtom,
+        /** Current pending target testset name */
+        pendingTestsetSelectionName: () => pendingTestsetSelectionNameAtom,
+        /** Add-to-testset modal open state */
+        isAddToTestsetModalOpen: () => addToTestsetModalOpenAtom,
+        /** Scenario IDs selected in the all-annotations table */
+        selectedScenarioIds: () => selectedScenarioIdsAtom,
+        /** Current add-to-testset background export job */
+        addToTestsetExportJob: () => addToTestsetExportJobAtom,
+        /** Whether an add-to-testset export is currently running */
+        isAddToTestsetExporting: () => isAddToTestsetExportingAtom,
+        /** Whether the current session has exportable data */
+        canAddToTestset: () => canAddToTestsetAtom,
         /** Evaluator workflow IDs from evaluation run annotation steps */
         evaluatorIds: () => evaluatorIdsAtom,
         /** Evaluator revision IDs from evaluation run annotation steps */
@@ -2524,6 +3414,16 @@ export const annotationSessionController = {
         syncToTestsets: syncToTestsetsAtom,
         /** Sync annotated data back to source testset as new revision */
         syncToTestset: syncToTestsetsAtom,
+        /** Open the add-to-testset commit modal */
+        openAddToTestsetModal: openAddToTestsetModalAtom,
+        /** Close the add-to-testset commit modal */
+        closeAddToTestsetModal: closeAddToTestsetModalAtom,
+        /** Set the pending target testset selected in the modal */
+        setPendingTestsetSelection: setPendingTestsetSelectionAtom,
+        /** Set selected rows in the all-annotations table */
+        setSelectedScenarioIds: setSelectedScenarioIdsAtom,
+        /** Start a background add-to-testset export job */
+        addScenariosToTestset: addScenariosToTestsetAtom,
     },
 
     // ========================================================================
@@ -2547,6 +3447,14 @@ export const annotationSessionController = {
         queueName: () => getStore().get(queueNameAtom),
         queueKind: () => getStore().get(queueKindAtom),
         queueDescription: () => getStore().get(queueDescriptionAtom),
+        defaultTargetTestsetName: () => getStore().get(defaultTargetTestsetNameAtom),
+        pendingTestsetSelection: () => getStore().get(pendingTestsetSelectionAtom),
+        pendingTestsetSelectionName: () => getStore().get(pendingTestsetSelectionNameAtom),
+        isAddToTestsetModalOpen: () => getStore().get(addToTestsetModalOpenAtom),
+        selectedScenarioIds: () => getStore().get(selectedScenarioIdsAtom),
+        addToTestsetExportJob: () => getStore().get(addToTestsetExportJobAtom),
+        isAddToTestsetExporting: () => getStore().get(isAddToTestsetExportingAtom),
+        canAddToTestset: () => getStore().get(canAddToTestsetAtom),
         scenarioStatuses: () => getStore().get(scenarioStatusesAtom),
         evaluatorIds: () => getStore().get(evaluatorIdsAtom),
         evaluatorRevisionIds: () => getStore().get(evaluatorRevisionIdsAtom),
@@ -2602,6 +3510,17 @@ export const annotationSessionController = {
             getStore().set(applyRouteStateAtom, payload),
         syncToTestsets: () => getStore().set(syncToTestsetsAtom),
         syncToTestset: () => getStore().set(syncToTestsetsAtom),
+        openAddToTestsetModal: (payload: {scope: AddToTestsetScope; scenarioIds?: string[]}) =>
+            getStore().set(openAddToTestsetModalAtom, payload),
+        closeAddToTestsetModal: () => getStore().set(closeAddToTestsetModalAtom),
+        setPendingTestsetSelection: (payload: {
+            testsetId: string | null
+            testsetName?: string | null
+        }) => getStore().set(setPendingTestsetSelectionAtom, payload),
+        setSelectedScenarioIds: (scenarioIds: string[]) =>
+            getStore().set(setSelectedScenarioIdsAtom, scenarioIds),
+        addScenariosToTestset: (payload: AddScenariosToTestsetPayload) =>
+            getStore().set(addScenariosToTestsetAtom, payload),
     },
 
     // ========================================================================

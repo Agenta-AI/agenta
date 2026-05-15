@@ -43,6 +43,16 @@ export function useDrillIn<TEntity = unknown>(): DrillInContextValue<TEntity> {
     return ctx as DrillInContextValue<TEntity>
 }
 
+/**
+ * Safe variant of {@link useDrillIn} that returns `null` when called outside a
+ * DrillInProvider. Useful for controls that may be rendered both inside and
+ * outside the drill-in tree (e.g. shared schema controls).
+ */
+export function useOptionalDrillIn<TEntity = unknown>(): DrillInContextValue<TEntity> | null {
+    const ctx = useContext(DrillInContext)
+    return ctx as DrillInContextValue<TEntity> | null
+}
+
 // ============================================================================
 // PROVIDER PROPS
 // ============================================================================

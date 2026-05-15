@@ -23,6 +23,8 @@ const AnnotationQueuesPage = () => {
             navigateToQueueList: () => router.push(`${projectURL}/annotations`),
             navigateToResults: (runId: string) =>
                 router.push(`${projectURL}/evaluations/results/${runId}`),
+            navigateToTestset: (testsetId: string) =>
+                router.push(`${projectURL}/testsets/${encodeURIComponent(testsetId)}`),
         }),
         [router, projectURL],
     )

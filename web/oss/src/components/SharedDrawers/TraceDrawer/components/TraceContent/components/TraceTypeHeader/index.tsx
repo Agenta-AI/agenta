@@ -1,6 +1,7 @@
-import {useCallback, useMemo} from "react"
+import {type ReactNode, useCallback, useMemo} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
+import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {DeleteOutlined} from "@ant-design/icons"
 import {Play, SidebarSimple} from "@phosphor-icons/react"
@@ -12,6 +13,7 @@ import dynamic from "next/dynamic"
 import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {openTraceInPlaygroundAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/openInPlayground"
+import {closeTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useAppNavigation} from "@/oss/state/appState"
 import {urlAtom} from "@/oss/state/url"
@@ -27,7 +29,20 @@ const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
 })
 
 /**
- * Check if a workflow span has an app reference (application or application_revision).
+ * Span types whose inputs match the app's root input schema — the unit the
+ * playground can replay. Covers the three SDK-`SERVER` types (`agent`,
+ * `chain`, `workflow`; see `parse_span_kind` at
+ * `sdk/agenta/sdk/engines/tracing/conventions.py:31`) plus `task`, which is
+ * the default `type` for `@ag.instrument()` and therefore the root span of
+ * every workflow decorated without an explicit `type=`.
+ *
+ * Span-type enum source: `sdk/agenta/sdk/models/tracing.py:29`
+ * (re-exported by `api/oss/src/core/tracing/dtos.py:25`).
+ */
+const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
+
+/**
+ * Check if a span has an app reference (application or application_revision).
  * Checks ag.references (dict format) and top-level references array.
  */
 function hasAppReference(span: TraceSpanNode): boolean {
@@ -57,6 +72,8 @@ const TraceTypeHeader = ({
 }: TraceTypeHeaderProps) => {
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
     const setOpenInPlayground = useSetAtom(openTraceInPlaygroundAtom)
+    const openWorkflowRevisionDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
+    const closeTraceDrawer = useSetAtom(closeTraceDrawerAtom)
     const url = useAtomValue(urlAtom)
     const navigation = useAppNavigation()
     const spanIds = useMemo(() => {
@@ -64,44 +81,121 @@ const TraceTypeHeader = ({
         return [activeTrace.span_id]
     }, [activeTrace?.span_id])
 
-    const canOpenInPlayground = useMemo(() => {
-        if (!activeTrace) return false
+    const openInPlaygroundState = useMemo<{enabled: boolean; reason?: ReactNode}>(() => {
+        if (!activeTrace) {
+            return {enabled: false, reason: "No trace span is selected."}
+        }
         const spanType = activeTrace.span_type
-
-        if (spanType === "chat") {
-            const agData = extractAgData(activeTrace)
-            return Boolean(agData?.inputs)
+        if (!spanType) {
+            return {
+                enabled: false,
+                reason: (
+                    <>
+                        The type of this span (<code>ag.type</code> namespace) is not set.{" "}
+                        <a
+                            href="https://agenta.ai/docs/observability/trace-with-opentelemetry/semantic-conventions#agtype"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            Learn more
+                        </a>
+                        .
+                    </>
+                ),
+            }
         }
 
-        if (spanType === "workflow") {
-            return hasAppReference(activeTrace)
-        }
+        const agData = extractAgData(activeTrace)
+        const hasExtractableData = Boolean(agData?.inputs || agData?.parameters)
+        const hasApp = hasAppReference(activeTrace)
+        const isInvocation = INVOCATION_SPAN_TYPES.has(spanType)
 
-        return false
+        // Invocation spans (workflow, task, agent, chain) represent the unit
+        // that matches the app's root input schema — open them whenever we
+        // have an app reference or any captured data to seed the testcase.
+        if (isInvocation && (hasApp || hasExtractableData)) return {enabled: true}
+
+        // Chat spans open ephemerally when we can reconstruct the prompt.
+        if (spanType === "chat" && hasExtractableData) return {enabled: true}
+
+        if (!hasApp && !hasExtractableData) {
+            return {
+                enabled: false,
+                reason: "This span has no application reference or captured inputs to replay in the playground.",
+            }
+        }
+        if (!hasApp) {
+            return {
+                enabled: false,
+                reason: `"${spanType}" spans need an application reference to be opened in the playground.`,
+            }
+        }
+        if (!hasExtractableData) {
+            return {
+                enabled: false,
+                reason: "This span has an application reference but no captured parameters or inputs to open.",
+            }
+        }
+        return {
+            enabled: false,
+            reason: `"${spanType}" spans can't be replayed in the playground — open the parent workflow, task, agent, or chain span instead.`,
+        }
     }, [activeTrace])
+
+    const canOpenInPlayground = openInPlaygroundState.enabled
 
     const handleOpenInPlayground = useCallback(() => {
         if (!activeTrace) return
         const result = setOpenInPlayground(activeTrace)
-        if (url.projectURL && result?.entityId) {
-            if (result.appId) {
-                // Workflow span with app reference → app playground
-                const appPlaygroundBase = `${url.baseAppURL}/${result.appId}/playground`
-                const playgroundUrl =
-                    result.type === "revision"
-                        ? `${appPlaygroundBase}?revisions=${result.entityId}`
-                        : buildPlaygroundUrl([result.entityId], appPlaygroundBase)
-                navigation.push(playgroundUrl)
-            } else {
-                // Chat span → project playground
-                const playgroundUrl = buildPlaygroundUrl(
-                    [result.entityId],
-                    `${url.projectURL}/playground`,
-                )
-                navigation.push(playgroundUrl)
-            }
+        if (!result?.entityId) return
+
+        if (result.appId) {
+            // Span with an app reference → navigate to app playground.
+            // Close the trace drawer since we're leaving observability entirely.
+            closeTraceDrawer()
+            const appPlaygroundBase = `${url.baseAppURL}/${result.appId}/playground`
+            const playgroundUrl =
+                result.type === "revision"
+                    ? `${appPlaygroundBase}?revisions=${result.entityId}`
+                    : buildPlaygroundUrl([result.entityId], appPlaygroundBase)
+            navigation.push(playgroundUrl)
+            return
         }
-    }, [activeTrace, setOpenInPlayground, url.projectURL, url.baseAppURL, navigation])
+
+        // No app reference → open the playground in the workflow revision drawer
+        // overlaid on top of the trace drawer (which stays open behind so the
+        // user can still see the span they came from).
+        //
+        // We use "variant" context so the drawer renders DrawerAppPlayground
+        // (mode="app") with the ephemeral entity as the workflow under test —
+        // matching what the project-scoped /playground page did before this
+        // change. Even for evaluator spans, we want to replay the evaluator
+        // itself, NOT enter the evaluator-grading-an-app configuration flow
+        // that "evaluator-create" routes into.
+        //
+        // `expanded: true` opens the drawer in test mode (full playground
+        // with execution panel) instead of the collapsed config+metadata
+        // view — span replay is fundamentally a "run it and see" interaction.
+        //
+        // `stacked: true` forces the drawer to render with a mask + focus
+        // lock so the trace drawer behind can't steal focus from the prompt
+        // editor. Without this, the editor is unfocusable in either expanded
+        // or collapsed mode because the trace drawer's focus trap pulls
+        // focus back on every click.
+        openWorkflowRevisionDrawer({
+            entityId: result.entityId,
+            context: "variant",
+            expanded: true,
+            stacked: true,
+        })
+    }, [
+        activeTrace,
+        setOpenInPlayground,
+        url.baseAppURL,
+        navigation,
+        openWorkflowRevisionDrawer,
+        closeTraceDrawer,
+    ])
 
     const displayTrace = activeTrace || traces?.[0]
 
@@ -129,15 +223,20 @@ const TraceTypeHeader = ({
                         # {activeTrace?.span_id || "-"}
                     </Tag>
                 </TooltipWithCopyAction>
-                <Button
-                    type="default"
-                    size="small"
-                    icon={<Play size={14} />}
-                    disabled={!canOpenInPlayground}
-                    onClick={handleOpenInPlayground}
+                <Tooltip
+                    title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
+                    placement="bottom"
                 >
-                    Playground
-                </Button>
+                    <Button
+                        type="default"
+                        size="small"
+                        icon={<Play size={14} />}
+                        disabled={!canOpenInPlayground}
+                        onClick={handleOpenInPlayground}
+                    >
+                        Playground
+                    </Button>
+                </Tooltip>
                 <AddToTestsetButton
                     label="Add to testset"
                     size="small"

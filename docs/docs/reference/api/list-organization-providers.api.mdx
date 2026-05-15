@@ -1,11 +1,11 @@
 ---
 id: list-organization-providers
-title: "List Organization Providers"
-description: "List all SSO providers for an organization."
-sidebar_label: "List Organization Providers"
+title: "List Providers"
+description: "List all SSO providers for the organization."
+sidebar_label: "List Providers"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVMFu2zAM/RWDpw0QkqzYyacFW7EG7dCgyXYJgkK1mVidbakSHTQz9O8DZTu2m7ZAT7akxyfqkY81pOgSqwwpXUIMN8pRJPM8Wq1uI2P1QaVoXbTTNpJlpO1eluqfZPAEBGiDNiwWKcSQK0f3Q8j9iQAEGGllgcSLeFNDKQuEGEZwlYIAxWkYSRkIsPhUKYspxGQrFOCSDAsJcQ10NBzuyKpyDwJIUc4btwO+aJGC91umcUaXDh1HXsxm/Bk/e1UlCTq3q/LorgWDgESXhCUxXBqTqyTQTh8dx9R9Nt57L+DrxcU58R+Zq7TJ5tJabT/ACsayvqSavFMkqXL+U4SFOwfkOhmdyvJ4uwtaj8Xy4rSjSsI9WvBbL7o9aa08DhS90U2C4AUUbv+e+L/QOblHOJG9DQ1iRGs+9VxzUwVBuuNF2PACEnoe0OiHR0xoQPOdtXwm8H3+J0zfPJugTZN+i9v2HH2Jmgq9LcWPpgSvXdZBrtbr5Rlh0x8FUqbZJ3uk4AfKIIbp0AFuWr8whJ8OPeTQHjoDVTbncGlUqGizzIiMi6dTrCZJrqt0IvdYkpxI1QC3zJFUVtExkMyXi2s8XqFM0UK82Q4BK27EprXGsFM5pFHXyAK1Zp5XlGnbJt9ZOWuifCjzTg+rPA/JRfPlAgTwwxrPzCZfJjMQL5w0ArOHZBJaprs7HIN4IcTp/SAAi2AgIJTFt/6AMzPaUSHLAV8YhKNpshwUYpRa3Vv6g/Oz1ZFbeGpyqYLJwgPqtj82ownJV8fnI7Nvka2ATDviuLp+kA5/29x73n6q0HLNtwIO0ir5wBXY1JAqx/8pxDuZO3znaZ/uWkN9jt5KveuLkpviIPOKVyDgLx5fmfVh6mRd79Utap4kaGgQfzYkuUlPZvp5uQbv/wOfjVTF
+api: eJydVU1v2zAM/SsGz1qc7ejTgn0GHdZg2U5BULA2k6iTbVWig2WB//tA+aNy2hVoc0hiie9RfI+iz8C495Bt4NrtsdJ/kXVdedgqKMjnTlt5hgy+ac8JGpOs19eJdfVRF+R8sqtdwgdK6gg9AwW1JRcelgVkYLTnmzjkZmQABY68rStPHrIzvJvP5WeafN3kOXm/a0zyow8GBXldMVUs4Wit0XmgTu+8YM7g8wOVKP80UxnIrZNzse5S6UK++WQJMvDsdLUHBbvalciQQdPoAhSwZiMBywJaBd40+6dQQ9Ra9lsFFZYUDladrneQbS4RrRpXqsYYaLcPHN8F214Y8DqqjxFFq2BngtlnwKLQsohmFUnCriE1cNW3d5RzVNrnABYNiFlXrydaD/hWQe4ImYob5Ge9KJDpDeuSIpoPHTRZsBA1toiI/qfVk5TPCfiro+2TTFr4Ze0TX69Eeql9LJCj+0Y7KuQ6BnDotr6Zpv0weBm5MRFzIsjjg2+fPtiqv5XRJZtexGEjKeuCTLj9WE1GwgweCkPn8BRpMKLDMJkoshrnQSsfBSXxoZbZsScpwCIfIIM0LsSn4xRJgxDuKATieuOMRKPVwd3u8cBsszQ1dY7mUHvutreCzBun+RSgi9Xyik5fCQtykG22ccBaRko3PKZhYx+g1Vd0GjzLYNHwoXb9gUGBFhUPHUrK1NWuDvBeosWeKsZksVo+0n6yJbMP89DrQ6awLcaPxfosTTEsz1CLRFSilk0mLN+PO+KYKNelmc/ezuayZGvPJVZRimDbKprcFxNqHMgvfVv04jH94dQa1GFYhTrOvfObSQtL7vgNIv0sjkrc+XyLnn4507ayfN+QE2O3Co7oNN6KzJttqwYXxPPfdBIF85ysNNsRTdOZefFWkV4YG/PLp5/Qtv8AgwZ+Xw==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,17 +18,18 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"List Organization Providers"}
+  children={"List Providers"}
 >
 </Heading>
 
 <MethodEndpoint
   method={"get"}
-  path={"/organizations/{organization_id}/providers"}
+  path={"/organizations/providers/"}
   context={"endpoint"}
 >
   
@@ -36,33 +37,22 @@ import Heading from "@theme/Heading";
 
 
 
-List all SSO providers for an organization.
-
-<Heading
-  id={"request"}
-  as={"h2"}
-  className={"openapi-tabs__heading"}
-  children={"Request"}
->
-</Heading>
+List all SSO providers for the organization.
 
 <ParamsDetails
-  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}}]}
+  parameters={undefined}
 >
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./list-organization-providers.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  {...require("./list-organization-providers.StatusCodes.json")}
 >
   
 </StatusCodes>

@@ -123,7 +123,7 @@ export interface TraceSpan {
     deleted_by_id?: string | null
 
     // Nested child spans (recursive)
-    spans?: Record<string, TraceSpan> | null
+    spans?: Record<string, TraceSpan | TraceSpan[]> | null
 }
 
 /**
@@ -161,7 +161,10 @@ export const traceSpanSchema: z.ZodType<TraceSpan> = z.lazy(() =>
         .merge(auditFieldsSchema)
         .extend({
             // Nested child spans
-            spans: z.record(z.string(), traceSpanSchema).optional().nullable(),
+            spans: z
+                .record(z.string(), z.union([traceSpanSchema, z.array(traceSpanSchema)]))
+                .optional()
+                .nullable(),
         }),
 )
 
@@ -180,7 +183,10 @@ export const traceSpanNodeSchema: z.ZodType<TraceSpanNode> = z.lazy(() =>
         .merge(timestampFieldsSchema)
         .merge(auditFieldsSchema)
         .extend({
-            spans: z.record(z.string(), traceSpanSchema).optional().nullable(),
+            spans: z
+                .record(z.string(), z.union([traceSpanSchema, z.array(traceSpanSchema)]))
+                .optional()
+                .nullable(),
             key: z.string().optional(),
             invocationIds: z
                 .object({

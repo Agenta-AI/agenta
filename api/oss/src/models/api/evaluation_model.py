@@ -163,6 +163,7 @@ class LMProvidersEnum(str, Enum):
     openrouter = "OPENROUTER_API_KEY"
     groq = "GROQ_API_KEY"
     gemini = "GEMINI_API_KEY"
+    minimax = "MINIMAX_API_KEY"
 
 
 class NewEvaluation(BaseModel):

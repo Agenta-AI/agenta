@@ -12,6 +12,8 @@ The largest gaps are:
 - pending/manual lifecycle exists in key loops but is still duplicated and topology-specific
 - no slice-aware `process` operation
 - no single slice-shaped operation boundary across process/probe/populate/prune
+- source-family classification and simple-queue eligibility are still entangled through `is_queue`
+- destructive step removal and archival step lifecycle are not yet separated
 
 ## Already Implemented
 
@@ -71,6 +73,48 @@ Current consequences:
 - each loop owns part of source resolution itself
 - live and batch query semantics are harder to compare
 - unsupported mixed-source cases fail implicitly rather than through clear validation
+
+
+## Source-Family Flag Gaps
+
+The current runtime still overloads `is_queue` in places where the concern is source family or queue-style ingestion.
+
+Missing from the target model:
+
+- explicit inferred `has_traces`
+- explicit inferred `has_testcases`
+- one place to prevent mixed source families using the source-family flags
+- one topology contract that does not need synthetic step-name inspection to distinguish direct traces/testcases from query/testset sources
+
+## Default Queue Integration Gaps
+
+The queue layer should be a human-work view over the tensor, but the current runtime/docs still blur several concerns.
+
+Missing from the target model:
+
+- default queue as the canonical persisted view over active human work
+- `queue.flags.is_default`
+- queue lifecycle semantics that can drive simple-queue eligibility
+- redefined persisted `run.flags.is_queue` as “active default queue + active human work”
+- explicit separation between queue view semantics and source-family classification
+
+## Step Lifecycle Gaps
+
+The current mutation model still leans toward:
+
+```text
+remove_step -> prune tensor cells
+```
+
+That is incomplete if product semantics require evaluator/step archival and retention of historical results.
+
+Needs explicit decision:
+
+- whether ordinary evaluator removal is archival/deactivation rather than destructive deletion
+- whether active versus archived step state belongs in the graph model
+- whether `process` defaults to active steps only
+- whether queue eligibility is based on active human steps only
+- when hard remove/prune is appropriate
 
 ## Planner Gaps
 

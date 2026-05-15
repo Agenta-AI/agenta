@@ -50,7 +50,6 @@ def _dump_json(source: Any) -> Any:
     return source
 
 
-
 class BackendWorkflowServiceRunner:
     """API adapter from SDK runtime requests to the backend workflow service."""
 
@@ -255,7 +254,9 @@ class BackendWorkflowRunner:
         requests: List[WorkflowExecutionRequest],
         semaphore: Optional[Semaphore] = None,
     ) -> List[WorkflowExecutionResult]:
-        async def _guarded(request: WorkflowExecutionRequest) -> WorkflowExecutionResult:
+        async def _guarded(
+            request: WorkflowExecutionRequest,
+        ) -> WorkflowExecutionResult:
             if semaphore is not None:
                 async with semaphore:
                     return await self._execute_one(request)

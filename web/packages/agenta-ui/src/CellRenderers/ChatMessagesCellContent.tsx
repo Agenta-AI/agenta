@@ -9,9 +9,11 @@ import {DEFAULT_ROLE_COLOR_CLASS, ROLE_COLOR_CLASSES} from "./constants"
 import {
     extractChatMessages,
     normalizeChatMessages,
+    selectPreviewChatMessages,
     truncateContent,
     tryParseJson,
     type ChatExtractionPreference,
+    type ChatPreviewStrategy,
 } from "./utils"
 
 interface ChatMessagesCellContentProps {
@@ -29,6 +31,8 @@ interface ChatMessagesCellContentProps {
     showDividers?: boolean
     /** Hint for chat extraction direction in mixed payloads */
     chatPreference?: ChatExtractionPreference
+    /** Strategy for selecting the truncated table preview */
+    previewStrategy?: ChatPreviewStrategy
 }
 
 /**
@@ -152,45 +156,6 @@ const SingleMessage = memo(
 SingleMessage.displayName = "SingleMessage"
 
 /**
- * Select messages that fit within maxTotalLines budget
- * Each message takes: 1 line for role + content lines (capped by maxLinesPerMessage)
- */
-const selectMessagesToFit = (
-    messages: unknown[],
-    maxTotalLines: number,
-    maxLinesPerMessage: number,
-): {selected: unknown[]; totalCount: number} => {
-    const totalCount = messages.length
-    if (!maxTotalLines) {
-        return {selected: messages, totalCount}
-    }
-
-    const selected: unknown[] = []
-    let usedLines = 0
-    const ROLE_LINE = 1
-
-    for (const msg of messages) {
-        // Each message will use at most: 1 role line + maxLinesPerMessage content lines
-        // Content is truncated to maxLinesPerMessage * CHARS_PER_LINE chars
-        const msgLines = ROLE_LINE + maxLinesPerMessage
-
-        if (usedLines + msgLines > maxTotalLines) {
-            break
-        }
-
-        selected.push(msg)
-        usedLines += msgLines
-    }
-
-    // Always show at least one message
-    if (selected.length === 0 && messages.length > 0) {
-        selected.push(messages[0])
-    }
-
-    return {selected, totalCount}
-}
-
-/**
  * Renders chat messages (OpenAI format) as lightweight plain text blocks.
  * Uses plain HTML elements instead of heavy editor components for performance.
  *
@@ -211,6 +176,7 @@ const ChatMessagesCellContent = memo(
         truncate = true,
         showDividers = true,
         chatPreference,
+        previewStrategy,
     }: ChatMessagesCellContentProps) => {
         // Memoize message extraction and smart selection together
         const {displayMessages, totalCount} = useMemo(() => {
@@ -220,17 +186,17 @@ const ChatMessagesCellContent = memo(
             if (!extracted) return {displayMessages: [], totalCount: 0}
 
             // Smart selection: pick messages that fit within line budget
-            const {selected, totalCount: total} = selectMessagesToFit(
-                extracted,
-                maxTotalLines ?? 0,
-                maxLines,
-            )
+            const {selected, totalCount: total} = selectPreviewChatMessages(extracted, {
+                maxTotalLines: maxTotalLines ?? 0,
+                maxLinesPerMessage: maxLines,
+                strategy: truncate ? previewStrategy : "first",
+            })
 
             // Only normalize the selected messages
             const normalized = normalizeChatMessages(selected)
 
             return {displayMessages: normalized, totalCount: total}
-        }, [value, maxTotalLines, maxLines, chatPreference])
+        }, [value, maxTotalLines, maxLines, chatPreference, previewStrategy, truncate])
 
         if (displayMessages.length === 0) {
             return null

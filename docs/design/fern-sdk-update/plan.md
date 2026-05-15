@@ -9,7 +9,7 @@
 
 ## PR 3: Fern Generation Update
 
-### Phase 1: Update setup_fern.sh
+### Phase 1: Update setup.sh
 1. Fix path: `core/agenta-cli/agenta/client` → `sdk/agenta/client`
 2. Update `generators.yml` format for new Fern
 3. Add recursive type fix post-processing (patch FullJson*, LabelJson* files)

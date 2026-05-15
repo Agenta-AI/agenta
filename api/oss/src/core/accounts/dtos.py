@@ -47,7 +47,7 @@ IdentityMethod = str  # e.g. "email:password", "email:otp", "social:google"
 # ---------------------------------------------------------------------------
 
 
-class AdminAccountCreateOptionsDTO(BaseModel):
+class AdminAccountCreateOptions(BaseModel):
     dry_run: Optional[bool] = False
     idempotency_key: Optional[str] = None
     create_identities: Optional[bool] = None  # None = inferred by the caller context
@@ -62,7 +62,7 @@ class AdminAccountCreateOptionsDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminUserCreateDTO(BaseModel):
+class AdminUserCreate(BaseModel):
     email: str
     username: Optional[str] = None
     name: Optional[str] = None
@@ -71,7 +71,7 @@ class AdminUserCreateDTO(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-class AdminUserReadDTO(BaseModel):
+class AdminUserRead(BaseModel):
     id: str
     uid: str
     email: str
@@ -89,7 +89,7 @@ class AdminUserReadDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminUserIdentityCreateDTO(BaseModel):
+class AdminUserIdentityCreate(BaseModel):
     user_ref: Optional[EntityRef] = None  # optional when nested under users
     method: IdentityMethod
     subject: str
@@ -101,7 +101,7 @@ class AdminUserIdentityCreateDTO(BaseModel):
     claims: Optional[Dict[str, Any]] = None
 
 
-class AdminUserIdentityReadDTO(BaseModel):
+class AdminUserIdentityRead(BaseModel):
     id: Optional[str] = None
     user_id: str
     method: IdentityMethod
@@ -121,23 +121,23 @@ class AdminUserIdentityReadDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminOrganizationCreateDTO(BaseModel):
+class AdminOrganizationCreate(BaseModel):
     name: str
     slug: Optional[str] = None
     owner_user_ref: Optional[EntityRef] = None
     metadata: Optional[Dict[str, Any]] = None
 
 
-class AdminSubscriptionCreateDTO(BaseModel):
+class AdminSubscriptionCreate(BaseModel):
     plan: str  # EE plan slug, e.g. "cloud_v0_hobby", "self_hosted_enterprise"
 
 
-class AdminSubscriptionReadDTO(BaseModel):
+class AdminSubscriptionRead(BaseModel):
     plan: str
     active: Optional[bool] = None
 
 
-class AdminOrganizationReadDTO(BaseModel):
+class AdminOrganizationRead(BaseModel):
     id: str
     name: str
     slug: Optional[str] = None
@@ -152,14 +152,14 @@ class AdminOrganizationReadDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminWorkspaceCreateDTO(BaseModel):
+class AdminWorkspaceCreate(BaseModel):
     name: str
     slug: Optional[str] = None
     organization_ref: EntityRef
     metadata: Optional[Dict[str, Any]] = None
 
 
-class AdminWorkspaceReadDTO(BaseModel):
+class AdminWorkspaceRead(BaseModel):
     id: str
     name: str
     slug: Optional[str] = None
@@ -174,7 +174,7 @@ class AdminWorkspaceReadDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminProjectCreateDTO(BaseModel):
+class AdminProjectCreate(BaseModel):
     name: str
     slug: Optional[str] = None
     organization_ref: EntityRef
@@ -183,7 +183,7 @@ class AdminProjectCreateDTO(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-class AdminProjectReadDTO(BaseModel):
+class AdminProjectRead(BaseModel):
     id: str
     name: str
     slug: Optional[str] = None
@@ -200,13 +200,13 @@ class AdminProjectReadDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminOrganizationMembershipCreateDTO(BaseModel):
+class AdminOrganizationMembershipCreate(BaseModel):
     organization_ref: EntityRef
     user_ref: EntityRef
     role: str
 
 
-class AdminOrganizationMembershipReadDTO(BaseModel):
+class AdminOrganizationMembershipRead(BaseModel):
     id: str
     organization_id: str
     user_id: str
@@ -215,13 +215,13 @@ class AdminOrganizationMembershipReadDTO(BaseModel):
     updated_at: Optional[str] = None
 
 
-class AdminWorkspaceMembershipCreateDTO(BaseModel):
+class AdminWorkspaceMembershipCreate(BaseModel):
     workspace_ref: EntityRef
     user_ref: EntityRef
     role: str
 
 
-class AdminWorkspaceMembershipReadDTO(BaseModel):
+class AdminWorkspaceMembershipRead(BaseModel):
     id: str
     workspace_id: str
     user_id: str
@@ -230,13 +230,13 @@ class AdminWorkspaceMembershipReadDTO(BaseModel):
     updated_at: Optional[str] = None
 
 
-class AdminProjectMembershipCreateDTO(BaseModel):
+class AdminProjectMembershipCreate(BaseModel):
     project_ref: EntityRef
     user_ref: EntityRef
     role: str
 
 
-class AdminProjectMembershipReadDTO(BaseModel):
+class AdminProjectMembershipRead(BaseModel):
     id: str
     project_id: str
     user_id: str
@@ -250,14 +250,14 @@ class AdminProjectMembershipReadDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminApiKeyCreateDTO(BaseModel):
+class AdminApiKeyCreate(BaseModel):
     project_ref: EntityRef
     user_ref: EntityRef
     name: Optional[str] = None
     expires_at: Optional[str] = None
 
 
-class AdminApiKeyReadDTO(BaseModel):
+class AdminApiKeyRead(BaseModel):
     id: Optional[str] = None
     prefix: str
     name: Optional[str] = None
@@ -268,7 +268,7 @@ class AdminApiKeyReadDTO(BaseModel):
     revoked_at: Optional[str] = None
 
 
-class AdminApiKeyResponseDTO(AdminApiKeyReadDTO):
+class AdminApiKeyResponse(AdminApiKeyRead):
     value: Optional[str] = None
     returned_once: Optional[bool] = None
 
@@ -278,7 +278,7 @@ class AdminApiKeyResponseDTO(AdminApiKeyReadDTO):
 # ---------------------------------------------------------------------------
 
 
-class AdminStructuredErrorDTO(BaseModel):
+class AdminStructuredError(BaseModel):
     code: str
     message: str
     details: Optional[Dict[str, Any]] = None
@@ -289,24 +289,22 @@ class AdminStructuredErrorDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminAccountReadDTO(BaseModel):
+class AdminAccountRead(BaseModel):
     """Per-account projection in the full graph response (plural entity maps)."""
 
-    users: Dict[UserRef, AdminUserReadDTO] = {}
-    user_identities: Dict[UserIdentityRef, AdminUserIdentityReadDTO] = {}
-    organizations: Dict[OrganizationRef, AdminOrganizationReadDTO] = {}
-    workspaces: Dict[WorkspaceRef, AdminWorkspaceReadDTO] = {}
-    projects: Dict[ProjectRef, AdminProjectReadDTO] = {}
-    organization_memberships: Dict[
-        MembershipRef, AdminOrganizationMembershipReadDTO
-    ] = {}
-    workspace_memberships: Dict[MembershipRef, AdminWorkspaceMembershipReadDTO] = {}
-    project_memberships: Dict[MembershipRef, AdminProjectMembershipReadDTO] = {}
-    subscriptions: Optional[Dict[OrganizationRef, AdminSubscriptionReadDTO]] = None
-    api_keys: Optional[Dict[ApiKeyRef, AdminApiKeyResponseDTO]] = None
+    users: Dict[UserRef, AdminUserRead] = {}
+    user_identities: Dict[UserIdentityRef, AdminUserIdentityRead] = {}
+    organizations: Dict[OrganizationRef, AdminOrganizationRead] = {}
+    workspaces: Dict[WorkspaceRef, AdminWorkspaceRead] = {}
+    projects: Dict[ProjectRef, AdminProjectRead] = {}
+    organization_memberships: Dict[MembershipRef, AdminOrganizationMembershipRead] = {}
+    workspace_memberships: Dict[MembershipRef, AdminWorkspaceMembershipRead] = {}
+    project_memberships: Dict[MembershipRef, AdminProjectMembershipRead] = {}
+    subscriptions: Optional[Dict[OrganizationRef, AdminSubscriptionRead]] = None
+    api_keys: Optional[Dict[ApiKeyRef, AdminApiKeyResponse]] = None
 
 
-class AdminSimpleAccountReadDTO(BaseModel):
+class AdminSimpleAccountRead(BaseModel):
     """Per-account entry in the simple-accounts response.
 
     ``user`` is a flat object (there is always exactly one per account).
@@ -315,15 +313,15 @@ class AdminSimpleAccountReadDTO(BaseModel):
     ``api_keys`` maps ref names to raw key values (plain strings, not DTOs).
     """
 
-    user: Optional[AdminUserReadDTO] = None
-    user_identities: Optional[List[AdminUserIdentityReadDTO]] = None
-    organizations: Optional[Dict[str, AdminOrganizationReadDTO]] = None
-    workspaces: Optional[Dict[str, AdminWorkspaceReadDTO]] = None
-    projects: Optional[Dict[str, AdminProjectReadDTO]] = None
-    organization_memberships: Optional[List[AdminOrganizationMembershipReadDTO]] = None
-    workspace_memberships: Optional[List[AdminWorkspaceMembershipReadDTO]] = None
-    project_memberships: Optional[List[AdminProjectMembershipReadDTO]] = None
-    subscriptions: Optional[Dict[str, AdminSubscriptionReadDTO]] = None
+    user: Optional[AdminUserRead] = None
+    user_identities: Optional[List[AdminUserIdentityRead]] = None
+    organizations: Optional[Dict[str, AdminOrganizationRead]] = None
+    workspaces: Optional[Dict[str, AdminWorkspaceRead]] = None
+    projects: Optional[Dict[str, AdminProjectRead]] = None
+    organization_memberships: Optional[List[AdminOrganizationMembershipRead]] = None
+    workspace_memberships: Optional[List[AdminWorkspaceMembershipRead]] = None
+    project_memberships: Optional[List[AdminProjectMembershipRead]] = None
+    subscriptions: Optional[Dict[str, AdminSubscriptionRead]] = None
     api_keys: Optional[Dict[str, str]] = None
 
 
@@ -332,22 +330,22 @@ class AdminSimpleAccountReadDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminAccountsResponseDTO(BaseModel):
+class AdminAccountsResponse(BaseModel):
     """Response for the full graph endpoint (POST /accounts/)."""
 
-    accounts: List[AdminAccountReadDTO] = []
-    errors: Optional[List[AdminStructuredErrorDTO]] = None
+    accounts: List[AdminAccountRead] = []
+    errors: Optional[List[AdminStructuredError]] = None
 
 
-class AdminSimpleAccountsResponseDTO(BaseModel):
+class AdminSimpleAccountsResponse(BaseModel):
     """Response for the simple batch endpoint (POST /simple/accounts/).
 
     ``accounts`` is keyed by the same refs used in the request so callers
     can look up each created account directly.
     """
 
-    accounts: Dict[AccountRef, AdminSimpleAccountReadDTO] = {}
-    errors: Optional[List[AdminStructuredErrorDTO]] = None
+    accounts: Dict[AccountRef, AdminSimpleAccountRead] = {}
+    errors: Optional[List[AdminStructuredError]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -355,28 +353,28 @@ class AdminSimpleAccountsResponseDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminDeletedEntityDTO(BaseModel):
+class AdminDeletedEntity(BaseModel):
     id: str
     ref: Optional[str] = None
 
 
-class AdminDeletedEntitiesDTO(BaseModel):
-    users: Optional[List[AdminDeletedEntityDTO]] = None
-    user_identities: Optional[List[AdminDeletedEntityDTO]] = None
-    organizations: Optional[List[AdminDeletedEntityDTO]] = None
-    workspaces: Optional[List[AdminDeletedEntityDTO]] = None
-    projects: Optional[List[AdminDeletedEntityDTO]] = None
-    organization_memberships: Optional[List[AdminDeletedEntityDTO]] = None
-    workspace_memberships: Optional[List[AdminDeletedEntityDTO]] = None
-    project_memberships: Optional[List[AdminDeletedEntityDTO]] = None
-    api_keys: Optional[List[AdminDeletedEntityDTO]] = None
+class AdminDeletedEntities(BaseModel):
+    users: Optional[List[AdminDeletedEntity]] = None
+    user_identities: Optional[List[AdminDeletedEntity]] = None
+    organizations: Optional[List[AdminDeletedEntity]] = None
+    workspaces: Optional[List[AdminDeletedEntity]] = None
+    projects: Optional[List[AdminDeletedEntity]] = None
+    organization_memberships: Optional[List[AdminDeletedEntity]] = None
+    workspace_memberships: Optional[List[AdminDeletedEntity]] = None
+    project_memberships: Optional[List[AdminDeletedEntity]] = None
+    api_keys: Optional[List[AdminDeletedEntity]] = None
 
 
-class AdminDeleteResponseDTO(BaseModel):
+class AdminDeleteResponse(BaseModel):
     dry_run: bool = False
-    deleted: AdminDeletedEntitiesDTO = AdminDeletedEntitiesDTO()
-    skipped: Optional[AdminDeletedEntitiesDTO] = None
-    errors: Optional[List[AdminStructuredErrorDTO]] = None
+    deleted: AdminDeletedEntities = AdminDeletedEntities()
+    skipped: Optional[AdminDeletedEntities] = None
+    errors: Optional[List[AdminStructuredError]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -384,27 +382,27 @@ class AdminDeleteResponseDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminAccountsCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    users: Optional[Dict[UserRef, AdminUserCreateDTO]] = None
-    user_identities: Optional[Dict[UserIdentityRef, AdminUserIdentityCreateDTO]] = None
-    organizations: Optional[Dict[OrganizationRef, AdminOrganizationCreateDTO]] = None
-    workspaces: Optional[Dict[WorkspaceRef, AdminWorkspaceCreateDTO]] = None
-    projects: Optional[Dict[ProjectRef, AdminProjectCreateDTO]] = None
+class AdminAccountsCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
+    users: Optional[Dict[UserRef, AdminUserCreate]] = None
+    user_identities: Optional[Dict[UserIdentityRef, AdminUserIdentityCreate]] = None
+    organizations: Optional[Dict[OrganizationRef, AdminOrganizationCreate]] = None
+    workspaces: Optional[Dict[WorkspaceRef, AdminWorkspaceCreate]] = None
+    projects: Optional[Dict[ProjectRef, AdminProjectCreate]] = None
     organization_memberships: Optional[
-        Dict[MembershipRef, AdminOrganizationMembershipCreateDTO]
+        Dict[MembershipRef, AdminOrganizationMembershipCreate]
     ] = None
     workspace_memberships: Optional[
-        Dict[MembershipRef, AdminWorkspaceMembershipCreateDTO]
+        Dict[MembershipRef, AdminWorkspaceMembershipCreate]
     ] = None
-    project_memberships: Optional[
-        Dict[MembershipRef, AdminProjectMembershipCreateDTO]
-    ] = None
-    api_keys: Optional[Dict[ApiKeyRef, AdminApiKeyCreateDTO]] = None
-    subscriptions: Optional[Dict[OrganizationRef, AdminSubscriptionCreateDTO]] = None
+    project_memberships: Optional[Dict[MembershipRef, AdminProjectMembershipCreate]] = (
+        None
+    )
+    api_keys: Optional[Dict[ApiKeyRef, AdminApiKeyCreate]] = None
+    subscriptions: Optional[Dict[OrganizationRef, AdminSubscriptionCreate]] = None
 
 
-class AdminAccountsDeleteTargetDTO(BaseModel):
+class AdminAccountsDeleteTarget(BaseModel):
     user_ids: Optional[List[str]] = None
     user_emails: Optional[List[str]] = None
     organization_ids: Optional[List[str]] = None
@@ -412,8 +410,8 @@ class AdminAccountsDeleteTargetDTO(BaseModel):
     project_ids: Optional[List[str]] = None
 
 
-class AdminAccountsDeleteDTO(BaseModel):
-    target: AdminAccountsDeleteTargetDTO
+class AdminAccountsDelete(BaseModel):
+    target: AdminAccountsDeleteTarget
     dry_run: Optional[bool] = True
     reason: Optional[str] = None
     confirm: Optional[str] = None
@@ -424,25 +422,23 @@ class AdminAccountsDeleteDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminSimpleAccountCreateDTO(BaseModel):
+class AdminSimpleAccountCreate(BaseModel):
     """One account entry in a batch simple-accounts create request."""
 
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    user: AdminUserCreateDTO
-    user_identities: Optional[List[AdminUserIdentityCreateDTO]] = None
-    organization: Optional[AdminOrganizationCreateDTO] = None
-    workspace: Optional[AdminWorkspaceCreateDTO] = None
-    project: Optional[AdminProjectCreateDTO] = None
-    organization_memberships: Optional[List[AdminOrganizationMembershipCreateDTO]] = (
-        None
-    )
-    workspace_memberships: Optional[List[AdminWorkspaceMembershipCreateDTO]] = None
-    project_memberships: Optional[List[AdminProjectMembershipCreateDTO]] = None
-    api_keys: Optional[List[AdminApiKeyCreateDTO]] = None
-    subscription: Optional[AdminSubscriptionCreateDTO] = None
+    options: Optional[AdminAccountCreateOptions] = None
+    user: AdminUserCreate
+    user_identities: Optional[List[AdminUserIdentityCreate]] = None
+    organization: Optional[AdminOrganizationCreate] = None
+    workspace: Optional[AdminWorkspaceCreate] = None
+    project: Optional[AdminProjectCreate] = None
+    organization_memberships: Optional[List[AdminOrganizationMembershipCreate]] = None
+    workspace_memberships: Optional[List[AdminWorkspaceMembershipCreate]] = None
+    project_memberships: Optional[List[AdminProjectMembershipCreate]] = None
+    api_keys: Optional[List[AdminApiKeyCreate]] = None
+    subscription: Optional[AdminSubscriptionCreate] = None
 
 
-class AdminSimpleAccountsCreateDTO(BaseModel):
+class AdminSimpleAccountsCreate(BaseModel):
     """Batch simple-accounts create.
 
     ``accounts`` is a caller-keyed map of account entries.  Each entry
@@ -450,11 +446,11 @@ class AdminSimpleAccountsCreateDTO(BaseModel):
     Per-account ``options`` override the top-level ``options`` defaults.
     """
 
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    accounts: Dict[AccountRef, AdminSimpleAccountCreateDTO]
+    options: Optional[AdminAccountCreateOptions] = None
+    accounts: Dict[AccountRef, AdminSimpleAccountCreate]
 
 
-class AdminSimpleAccountDeleteEntryDTO(BaseModel):
+class AdminSimpleAccountDeleteEntry(BaseModel):
     """One account entry in a batch simple-accounts delete request.
 
     Identifies the account by its user (typically by id).
@@ -463,14 +459,14 @@ class AdminSimpleAccountDeleteEntryDTO(BaseModel):
     user: EntityRef
 
 
-class AdminSimpleAccountsDeleteDTO(BaseModel):
+class AdminSimpleAccountsDelete(BaseModel):
     """Batch simple-accounts delete.
 
     ``accounts`` is a caller-keyed map of entries to delete.
     Each entry identifies the account by its user ref.
     """
 
-    accounts: Dict[AccountRef, AdminSimpleAccountDeleteEntryDTO]
+    accounts: Dict[AccountRef, AdminSimpleAccountDeleteEntry]
     dry_run: Optional[bool] = False
     reason: Optional[str] = None
     confirm: Optional[str] = None
@@ -481,51 +477,51 @@ class AdminSimpleAccountsDeleteDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminSimpleAccountsUsersCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    user: AdminUserCreateDTO
+class AdminSimpleAccountsUsersCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
+    user: AdminUserCreate
 
 
-class AdminSimpleAccountsUsersIdentitiesCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
+class AdminSimpleAccountsUsersIdentitiesCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
     user_ref: EntityRef
-    user_identity: AdminUserIdentityCreateDTO
+    user_identity: AdminUserIdentityCreate
 
 
-class AdminSimpleAccountsOrganizationsCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    organization: AdminOrganizationCreateDTO
-    owner: Optional[AdminUserCreateDTO] = None
+class AdminSimpleAccountsOrganizationsCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
+    organization: AdminOrganizationCreate
+    owner: Optional[AdminUserCreate] = None
 
 
-class AdminSimpleAccountsOrganizationsMembershipsCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    membership: AdminOrganizationMembershipCreateDTO
+class AdminSimpleAccountsOrganizationsMembershipsCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
+    membership: AdminOrganizationMembershipCreate
 
 
-class AdminSimpleAccountsWorkspacesCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    workspace: AdminWorkspaceCreateDTO
+class AdminSimpleAccountsWorkspacesCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
+    workspace: AdminWorkspaceCreate
 
 
-class AdminSimpleAccountsWorkspacesMembershipsCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    membership: AdminWorkspaceMembershipCreateDTO
+class AdminSimpleAccountsWorkspacesMembershipsCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
+    membership: AdminWorkspaceMembershipCreate
 
 
-class AdminSimpleAccountsProjectsCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    project: AdminProjectCreateDTO
+class AdminSimpleAccountsProjectsCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
+    project: AdminProjectCreate
 
 
-class AdminSimpleAccountsProjectsMembershipsCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    membership: AdminProjectMembershipCreateDTO
+class AdminSimpleAccountsProjectsMembershipsCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
+    membership: AdminProjectMembershipCreate
 
 
-class AdminSimpleAccountsApiKeysCreateDTO(BaseModel):
-    options: Optional[AdminAccountCreateOptionsDTO] = None
-    api_key: AdminApiKeyCreateDTO
+class AdminSimpleAccountsApiKeysCreate(BaseModel):
+    options: Optional[AdminAccountCreateOptions] = None
+    api_key: AdminApiKeyCreate
 
 
 # ---------------------------------------------------------------------------
@@ -533,7 +529,7 @@ class AdminSimpleAccountsApiKeysCreateDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AdminSimpleAccountsUsersResetPasswordDTO(BaseModel):
+class AdminSimpleAccountsUsersResetPassword(BaseModel):
     """Patch the password on one or more existing identities.
 
     Each identity is matched by method + subject (or email); only the
@@ -542,10 +538,10 @@ class AdminSimpleAccountsUsersResetPasswordDTO(BaseModel):
     in one call.
     """
 
-    user_identities: List[AdminUserIdentityCreateDTO]
+    user_identities: List[AdminUserIdentityCreate]
 
 
-class AdminSimpleAccountsOrganizationsTransferOwnershipDTO(BaseModel):
+class AdminSimpleAccountsOrganizationsTransferOwnership(BaseModel):
     """Transfer ownership of one or more organizations from one user to another.
 
     ``organizations`` is a keyed map of org refs; omit to transfer all orgs owned
@@ -562,7 +558,7 @@ class AdminSimpleAccountsOrganizationsTransferOwnershipDTO(BaseModel):
     recovery: Optional[bool] = None
 
 
-class AdminSimpleAccountsOrganizationsTransferOwnershipResponseDTO(BaseModel):
+class AdminSimpleAccountsOrganizationsTransferOwnershipResponse(BaseModel):
     """Response for the transfer-ownership endpoint.
 
     ``transferred`` lists the IDs of organizations whose ownership was updated.
@@ -571,4 +567,4 @@ class AdminSimpleAccountsOrganizationsTransferOwnershipResponseDTO(BaseModel):
     """
 
     transferred: List[str] = []
-    errors: Optional[List[AdminStructuredErrorDTO]] = None
+    errors: Optional[List[AdminStructuredError]] = None

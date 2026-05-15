@@ -5,7 +5,7 @@ description: "Fetch Plan User Route"
 sidebar_label: "Fetch Plan User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJx1Uk2P2jAQ/SvonS2gPeZUKvUD7QXtdk8oqgYzELeO7doTVBrlv1eTAF2Qmktkz5vx+5geQseCaouPznsXjqgNYuJM4mJY71HhwGKb78lTKDDIXFIMhQuqHu+XS/3tudjsknagwktnLZdy6Pzs+QKGgY1BOIjCKSXv7PjA4kfRnh7FNtwSqn7QzzyM/KwUZhtPYfZaOM+eYyc6tGVponI8ssAgkTSosNhNUhZXzoXzibOq7NFlrxBKDoO5HhuRVKrFgru59bHbz+nIQWhObgLWOsN22cl5HLLarJ/4/JVpzxnVtn4LeFElkz33sB5yTowKlNwTn2EQqNXzqpMmZvdndAQGTiU3U5d64cIhju1O/Igfyc1WmzUMVNhk0nL+br7Eo3V3YA2B7BjC9e2xDPNgxE0/DLglpzVhaj/8KyizFIu0FN7M+19Sd6RuTgj/Fk3JBQwXCv0lxS0uKWquY461QROLaKnvd1T4Nfth0OtfHWcNpjY4UXa0U5u29WCuLmpmP/mseq3lpLtyIt9NYTwso2Z526svn75hGP4C9w0QGw==
+api: eJx1Uk2P2jAQ/SvRnC1Ce/RpqdQPtBe02z2hqBrMQNw6tteeoKZR/ns1DiBA2lwiz3vz9d6MwHjMoLfwxTpn/REaBSFSQrbBr/eg4UBs2l/Roc+gIFGOwWfKoEf4vFzKb0/ZJBslAzS89sZQzofeVS9nMigwwTN5FjrG6KwpDerfWXJGyKalDkGPk3zqoeQ3GaHaOPTVW6ZUvYSepWhH3AaZ8UgMCiJyCxrq3bxKfZk5UzpRki1H6JMTCkYLk7o8W+ao69oFg64NmWe4kUzTJ8tDSV1t1s80/CDcUwK9bW4JrzL/LMo9bQQeIoEGjPaZBlDgsZP3quc2JPuv6AAKrCzazlmigPWHUNItu8I/kmesVps1PMpzB4nQaIrQl04FBnWzbNZ1jSW8QFuDAurQCsiE3dMVgUmBKDe3WS4+LZYSiiFzh/6mxUcG3c15lYLpL4s51ku1MtV4Nm8LZ/PEzmJfo0AsEWgcd5jpLblpkvB7T0mcaRScMFnciU7bZlIXGcW0PzSIBMZQlBM5oetnNx5uUMy8ntP3rz9hmv4DpLUM6w==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Fetch Plan User Route
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./fetch-plans.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+  {...require("./fetch-plans.StatusCodes.json")}
 >
   
 </StatusCodes>

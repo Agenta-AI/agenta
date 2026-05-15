@@ -32,7 +32,10 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
+import {
+    flattenEvaluatorConfiguration,
+    nestEvaluatorSchema,
+} from "../../runnable/evaluatorTransforms"
 import type {RequestPayloadData} from "../../runnable/types"
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {StoreOptions} from "../../shared"
@@ -248,12 +251,27 @@ export const outputSchemaAtomFamily = atomFamily((workflowId: string) =>
 
 /**
  * Parameters schema for the workflow.
- * Derived from `data.schemas.parameters`.
+ *
+ * Reads `entity.data.schemas.parameters`. For evaluator entities this is
+ * already the nested UI shape (`{prompt, feedback_config, advanced_config}`)
+ * because `workflowBaseEntityAtomFamily` runs `nestEvaluatorSchema` when the
+ * entity is an evaluator — including ephemerals, where it first seeds the
+ * flat schema from the builtin template catalog. `nestEvaluatorSchema` is
+ * applied here too as a safety net since it's idempotent.
  */
 export const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowEntityAtomFamily(workflowId))
-        return resolveParametersSchema(entity?.data) ?? null
+        if (!entity) return null
+
+        const isEvaluator = entity.flags?.is_evaluator === true
+        let schema = resolveParametersSchema(entity.data) ?? null
+
+        if (schema && isEvaluator) {
+            schema = nestEvaluatorSchema(schema)
+        }
+
+        return schema
     }),
 )
 
@@ -308,6 +326,41 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
 
         const isEvaluator = entity.flags?.is_evaluator ?? false
         const isBase = entity.flags?.is_base ?? false
+
+        // ── Ephemeral evaluator workflows: route via the evaluator URI ──
+        // A base workflow that also carries is_evaluator came from a trace span
+        // of an evaluator run. Treat it like a regular evaluator invocation
+        // (__rawBody with interface.uri + data.parameters). The execution layer
+        // populates data.inputs / data.outputs from the active testcase row.
+        if (isBase && isEvaluator) {
+            const uri = entity.data.uri
+            if (!uri) return null
+
+            const rawParams = (resolveParameters(entity.data) ?? {}) as Record<string, unknown>
+            const flatSource = getFlatSourceData(get, workflowId)
+            const flatParams =
+                (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
+            const parameters = flattenEvaluatorConfiguration(rawParams, flatParams)
+
+            // Seed envelope inputs/outputs from meta so runs without a testcase
+            // row still replay the original trace data. The execution layer
+            // overrides these when an upstream inputValues is available.
+            const meta = entity.meta as Record<string, unknown> | null | undefined
+            const envelope = (meta?.envelope as Record<string, unknown> | undefined) ?? {}
+            const envelopeInputs = (envelope.inputs as Record<string, unknown> | undefined) ?? {}
+            const envelopeOutputs = envelope.outputs ?? {}
+
+            return {
+                __rawBody: true,
+                interface: {uri},
+                data: {
+                    inputs: envelopeInputs,
+                    outputs: envelopeOutputs,
+                    parameters,
+                    ...(envelope.trace ? {trace: envelope.trace} : {}),
+                },
+            }
+        }
 
         // ── Ephemeral (base) workflows: build payload from trace data ──
         if (isBase) {
@@ -390,6 +443,42 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             // Only include interface when invoking by URI (not when using data.url directly)
             const iface = uri && !url ? {uri} : undefined
 
+            // Build trace-attribution references. Mirrors the app-workflow branch
+            // below so a standalone evaluator run (depth-0 in the playground)
+            // produces traces that the Observability page can filter by
+            // "Application ID" — the workflow's artifact id is what the filter
+            // matches against (`references.application.id`). Without this the
+            // trace lands with `references: undefined` and the user sees an
+            // empty Observability page for their evaluator.
+            const evaluatorWorkflowId = entity.workflow_id ?? null
+            const isLocal = isLocalDraftId(workflowId)
+            const isDirty = get(workflowIsDirtyAtomFamily(workflowId))
+            const references: Record<string, Record<string, string | undefined>> = {}
+            if (evaluatorWorkflowId) {
+                references.application = {id: evaluatorWorkflowId}
+            }
+            if (isLocal) {
+                const localData = get(workflowLocalServerDataAtomFamily(workflowId)) as
+                    | (Record<string, unknown> & {_sourceRevisionId?: string})
+                    | null
+                const sourceRevisionId = localData?._sourceRevisionId
+                const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+                if (variantId) {
+                    references.application_variant = {id: variantId}
+                }
+                if (sourceRevisionId) {
+                    references.application_revision = {id: sourceRevisionId}
+                }
+            } else if (!isDirty) {
+                const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+                if (variantId) {
+                    references.application_variant = {id: variantId}
+                }
+                if (entity.id) {
+                    references.application_revision = {id: entity.id}
+                }
+            }
+
             return {
                 __rawBody: true,
                 ...(iface ? {interface: iface} : {}),
@@ -398,6 +487,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
                     outputs: {},
                     parameters,
                 },
+                references: Object.keys(references).length > 0 ? references : undefined,
             }
         }
 

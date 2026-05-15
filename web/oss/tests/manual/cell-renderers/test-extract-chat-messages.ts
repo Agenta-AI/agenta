@@ -1,6 +1,10 @@
 import assert from "node:assert/strict"
 
-import {extractChatMessages} from "@agenta/ui/cell-renderers"
+import {
+    extractChatMessages,
+    getBeautifiedJsonEntries,
+    selectPreviewChatMessages,
+} from "@agenta/ui/cell-renderers"
 
 const run = () => {
     const validPrompt = {prompt: [{role: "user", content: "hi"}]}
@@ -47,6 +51,26 @@ const run = () => {
     assert.deepEqual(extractChatMessages(single), [{role: "assistant", content: "single message"}])
     assert.equal(extractChatMessages(plainJson), null)
     assert.deepEqual(extractChatMessages(stringified), JSON.parse(stringified))
+
+    assert.deepEqual(getBeautifiedJsonEntries({context: "you are a helpful chat bot"}), [
+        {key: "context", value: "you are a helpful chat bot"},
+    ])
+    assert.equal(getBeautifiedJsonEntries({}), null)
+    assert.equal(getBeautifiedJsonEntries([{context: "not a record"}]), null)
+
+    const previewMessages = [
+        {role: "user", content: "hi"},
+        {role: "assistant", content: "Hello"},
+        {role: "user", content: "who invented you"},
+    ]
+    assert.deepEqual(selectPreviewChatMessages(previewMessages, {strategy: "last-user"}), {
+        selected: [{role: "user", content: "who invented you"}],
+        totalCount: 3,
+    })
+    assert.deepEqual(selectPreviewChatMessages(previewMessages, {maxTotalLines: 2}), {
+        selected: [{role: "user", content: "hi"}],
+        totalCount: 3,
+    })
 
     console.log("extractChatMessages tests passed")
 }

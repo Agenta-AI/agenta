@@ -12,48 +12,54 @@ Move from multiple specialized setup and execution functions to unified evaluati
 - runnable-step execution
 - adapter-based persistence
 
-The plan is incremental. Existing loop families should keep working while the shared planner and executor take over topology by topology. This is a refactor over already implemented backend behavior, not a from-zero feature plan.
+This plan describes required work, not phases or timeline.
 
-## Phase 0. Current-State Inventory
+## Baseline Inventory
 
-1. Lock down the current behavior with code references and tests before changing design docs again.
+1. Lock down the current behavior with code references and tests before changing semantics.
 2. Treat these as implemented baseline behavior:
    - `is_cached`
    - `is_split`
-   - `is_queue`
+   - current `is_queue`
    - `repeats`
    - repeat-indexed result creation in current backend workers
    - hash-based cache helpers and worker integration
    - source-aware queue creation and source batch dispatch
    - human/custom pending behavior in query/queue-related paths
-3. Build a parity matrix from current tests:
+3. Maintain a parity matrix from current tests:
    - `test_cache_split_utils.py`
    - `test_query_eval_loops.py`
    - `test_run_flags.py`
    - queue assignment and queue DAO tests
    - acceptance tests for evaluation steps/runs/queues/results
-4. Review `application/docs/design/annotation-queue-v2` as product context for queue-facing API and UI requirements.
 
-## Phase 1. Normalize Vocabulary
+## Vocabulary And Flags
 
-1. Use current backend flag names as canonical:
-   - `is_cached` for trace reuse
-   - `is_split` for fan-out location
-   - `repeats` for repeat count
-2. Add documentation-only compatibility mapping for older names unless real clients require request compatibility:
-   - `reuse_traces -> is_cached`
-   - `repeat_target="application" -> is_split=true`
-   - `repeat_target="evaluator" -> is_split=false`
-3. Normalize origin values:
+1. Use current backend names as canonical:
+   - `is_cached`
+   - `is_split`
+   - `repeats`
+2. Normalize origin values:
    - `auto`
    - `human`
    - `custom`
-4. Verify and then fix or bridge any frontend `automated` usage to backend `auto`.
-5. Document topology validation rules in one table used by implementation and tests.
+3. Add explicit source-family flags:
+   - `has_queries`
+   - `has_testsets`
+   - `has_traces`
+   - `has_testcases`
+4. Separate source-family classification from simple-queue eligibility.
+5. Redefine target `run.flags.is_queue` as:
 
-## Phase 2. Add Shared Models
+```text
+active default queue exists + active human evaluator work exists
+```
 
-Introduce shared internal models without changing external behavior:
+6. Document topology validation rules in one table used by implementation and tests.
+
+## Shared Runtime Models
+
+Introduce or consolidate shared internal models:
 
 1. `InputSourceSpec`
 2. `ResolvedSourceItem`
@@ -64,22 +70,11 @@ Introduce shared internal models without changing external behavior:
 7. `ExecutionPlan`
 8. `ProcessSummary`
 
-The common runtime contract should live in the SDK so SDK-local evaluations and
-API workers share the same planner/topology/result-cell model. Backend code
-should keep API-specific source, DAO, workflow-service, and worker-dispatch
-adapters in backend modules. SDK code should keep local decorator, remote API,
-trace loading, and result persistence adapters in SDK modules.
+The common runtime contract should live in the SDK so SDK-local evaluations and API workers share the same planner/topology/result-cell model. Backend code should keep API-specific source, DAO, workflow-service, and worker-dispatch adapters in backend modules.
 
-## Phase 3. Implement Source Resolvers
+## Source Resolution
 
-Create resolver interfaces:
-
-```python
-class SourceResolver:
-    async def resolve(source, context) -> list[ResolvedSourceItem]
-```
-
-Extract current resolver behavior for:
+Create resolver interfaces that cover:
 
 1. query revision -> trace refs for live windows
 2. query revision -> trace refs for source-backed queues
@@ -88,30 +83,31 @@ Extract current resolver behavior for:
 5. direct trace IDs -> trace refs
 6. direct testcase IDs -> testcase refs
 
-Acceptance criteria:
+Resolver requirements:
 
-- existing source behavior is preserved
-- resolver tests cover empty, invalid, and multi-source cases
-- live query resolver owns windowing behavior
-- queue source resolvers preserve direct-item behavior
+- preserve existing source behavior
+- own live query windowing
+- preserve original source references in input steps
+- reject unsupported mixed-source combinations explicitly
+- expose source-family flags consistently
 
-## Phase 4. Normalize Tensor Slice Operations
+## Tensor Slice Operations
 
 Add or adapt backend service operations around existing CRUD:
 
 1. `probe(slice)`
 2. `populate(slice, results)`
 3. `prune(slice)`
-4. `process(slice)` as an internal service operation first
+4. `process(slice)`
 
-Acceptance criteria:
+Requirements:
 
-- slice dimensions support `all`, `none`, and explicit lists
-- `probe` can identify missing, success, failure, and any cells
+- slice dimensions support all/none/explicit selections
+- `probe` identifies missing, success, failure, and any cells
 - `populate` writes by `scenario_id + step_key + repeat_idx`
-- `prune` deletes by slice and flushes affected metrics
+- `prune` deletes by slice and refreshes affected metrics
 
-## Phase 5. Extract Repeat-Aware Planner
+## Planner
 
 Implement planner logic that produces result slots before execution.
 
@@ -127,19 +123,13 @@ Planner responsibilities:
 8. mark `human` and `custom` cells pending
 9. select `auto` cells for execution
 
-Start by reproducing current evaluator-only behavior because it has fewer upstream dependencies:
-
-- batch query -> evaluator
-- direct trace queue -> evaluator
-- direct testcase queue -> evaluator
-
-Acceptance criteria:
+Planner requirements:
 
 - one planned cell exists for every required repeat slot
 - unsupported topologies fail with structured validation errors
 - human/custom steps are planned as pending rather than silently skipped
 
-## Phase 6. Extract Cache Resolution
+## Cache Resolution
 
 Reuse the existing cache helpers:
 
@@ -149,20 +139,17 @@ Reuse the existing cache helpers:
 4. `plan_missing_traces(...)`
 5. per-slot trace binding
 
-Move per-loop cache lookup into one runnable-step cache resolver used when `is_cached=true`.
-
-Acceptance criteria:
+Requirements:
 
 - cache lookup is skipped when `is_cached=false`
 - full cache hit invokes nothing
 - partial cache hit invokes only missing slots
-- miss invokes all required slots
+- misses invoke all required slots
 - reused and newly generated traces populate identical tensor cells
-- lookup scope supports cross-run reuse where intended
 
-## Phase 7. Introduce Runnable-Step Executor
+## Runnable-Step Execution
 
-Add a runnable execution boundary that can execute any auto step whose type maps to a runnable.
+Add a runnable execution boundary for any auto step whose type maps to a runnable.
 
 Initial adapters:
 
@@ -178,186 +165,35 @@ The interface should own:
 - invocation
 - trace fetch/validation
 - normalized `StepExecutionResult`
-- error-to-result conversion
 
-Acceptance criteria:
+## Queue Integration
 
-- existing application invocation behavior is preserved under the adapter
-- existing evaluator invocation behavior is preserved under the adapter
-- planner code does not call legacy helper functions directly
-- legacy helper usage is isolated behind adapters and can be deprecated later
-- SDK and backend import the same planner/topology contracts rather than reimplementing them separately
+1. Treat default queues as persisted human-work views over the tensor, not orchestration.
+2. Add `queue.flags.is_default` to identify the canonical queue.
+3. Keep default queues open over scenarios, steps, and assignments.
+4. Let source-family flags describe where scenarios come from.
+5. Let `run.flags.is_queue` describe simple-queue eligibility.
+6. Ensure queue eligibility depends on active human steps and active default queue lifecycle.
 
-## Phase 8. Move Evaluator-Only Topologies
+## Mutation Semantics
 
-Route these loops through the shared planner/executor:
+1. Decide whether ordinary evaluator removal is archival/deactivation rather than destructive deletion.
+2. If history must remain visible, represent active versus archived step state in the graph model.
+3. Make planner defaults operate on active steps.
+4. Reserve hard remove/prune for explicit destructive cleanup.
+5. Keep queue eligibility tied to active human steps.
 
-1. batch query
-2. live query
-3. queue traces
-4. queue testcases
+## Verification
 
-Implementation notes:
+Add or preserve coverage for:
 
-- live query keeps its scheduler/windowing behavior, but uses the shared resolver and planner for each tick.
-- queue repeats must preserve current assignment behavior while using the same execution slot model.
-- human/custom evaluator pending behavior must match current behavior.
-
-Acceptance criteria:
-
-- existing auto evaluator behavior is unchanged
-- repeats produce one result per repeat slot
-- query-backed human/custom evaluator tests pass
-- direct queue regressions pass
-
-## Phase 9. Move Testset Application Topologies
-
-Route application-bearing testset loops through the planner/executor:
-
-1. testset -> application, also called batch inference / batch invocation
-2. testset -> application -> evaluator
-
-These should be one active application-bearing loop. Batch inference is the
-application-only configuration of the same testset application loop, not a
-separate implementation loop.
-
-Preserve current `is_split` behavior when moving testset loops into the planner:
-
-- `is_split=true`: application fan-out
-- `is_split=false`: evaluator fan-out
-- batch inference / application-only: application fan-out when `repeats > 1`
-
-Acceptance criteria:
-
-- application result slots are repeat-aware
-- evaluator result slots consume the correct upstream application trace
-- both fan-out modes are tested
-- cache reuse works at application and evaluator boundaries
-- application invocation goes through the runnable-step executor, not directly through loop-local legacy helpers
-
-## Phase 10. Add Canonical Setup API
-
-Add a graph-oriented creation path:
-
-```python
-class EvaluationCreate:
-    inputs: list[InputSourceSpec]
-    steps: list[ExecutableStepSpec]
-    flags: EvaluationFlags
-```
-
-Keep existing setup endpoints as wrappers:
-
-- auto testset evaluation
-- human testset evaluation
-- live query evaluation
-- direct trace/testcase queues
-- SDK/local helpers
-
-Keep and normalize the source-aware queue creation that currently exists:
-
-- query revisions -> trace items
-- testset revisions -> testcase items
-
-Add the Annotation Queue v2 convenience layer on top of the canonical setup path:
-
-- create queues from trace IDs without exposing the backing run
-- create queues from testset revisions without exposing the backing run
-- preserve evaluator/schema-driven annotation result shape
-- keep assignment/repeats mapped to queue data and result `repeat_idx`
-- avoid introducing a separate task runtime
-
-Acceptance criteria:
-
-- existing API consumers are not broken
-- new setup path preserves source revision references
-- source-aware queues execute on concrete items
-- invalid mixed-source requests fail before run creation
-
-## Phase 11. Expose Graph And Processing Operations
-
-Expose or stabilize operations:
-
-1. `add_step`
-2. `remove_step`
-3. `set_flag`
-4. `process(slice)`
-5. `probe(slice)`
-6. `prune(slice)`
-7. `populate(slice, results)`
-8. `refresh_metrics(scope)`
-
-Acceptance criteria:
-
-- removing a step prunes its tensor cells
-- closed runs reject structural and tensor mutations
-- `process(slice)` can retry failures and fill missing cells
-- metrics refresh is scoped or conservatively flushed after mutations
-
-## Phase 12. SDK And Frontend Parity
-
-SDK:
-
-1. Move shared planner/topology/result-cell contracts into the SDK package.
-2. Keep SDK execution adapters separate from API worker adapters.
-3. Extract remote API persistence adapter.
-4. Use shared slice/process semantics.
-5. Add probe-before-write.
-6. Align step keys and flags with backend.
-
-Frontend:
-
-1. Normalize origin naming.
-2. Display pending cells consistently.
-3. Add targeted retry/fill-missing affordances backed by `TensorSlice`.
-4. Add or update source-aware queue setup UI only after the normalized backend API is stable.
-5. Add the Annotation Queue v2 inbox/detail experience as a convenience UI over evaluation queues and results.
-
-## Phase 13. Retire Specialized Loops And Legacy Helpers
-
-After parity coverage exists:
-
-1. Remove duplicate nested-loop implementations.
-2. Keep existing API endpoints as wrappers where web/API clients need compatibility.
-3. Do not preserve topology-specific worker task names; worker tasks are API-internal.
-4. Collapse scheduler/task routing to `evaluations.run.process` and `evaluations.slice.process`.
-5. Keep backend execution on one source-slice processor, `process_evaluation_source_slice`.
-6. Make live query, batch query, queue slices, batch inference, and testset -> application -> evaluator resolve source items only, then call the source-slice processor.
-7. Keep batch inference as the application-only configuration of testset application processing, not a separate execution loop.
-8. Remove task-level pass-through helpers such as trace/testcase batch helper functions once the run/slice processors call the source-slice processor directly.
-9. Keep setup endpoints and web-facing API shapes as compatibility wrappers until product/API migration is complete.
-10. Route SDK preview/local execution through SDK-owned `process_evaluation_source_slice` with SDK local runner/result/trace adapters.
-11. Route backend execution through the same SDK source-slice contract with backend scenario/result/cache/status/workflow adapters.
-12. Delete compatibility flag bridges only after all callers use canonical names.
-13. Deprecate or delete legacy application/evaluator helper paths that are fully covered by runnable-step executors.
-14. Update docs to make the unified planner and runnable-step executor the primary design reference.
-
-## Test Plan
-
-Add tests in layers:
-
-1. Resolver unit tests
-2. Planner unit tests
-3. Tensor slice operation tests
-4. Cache helper tests
-5. Topology validation tests
-6. Worker integration tests per topology
-7. Source-aware queue API tests
-8. SDK/backend parity tests where practical
-9. Regression tests for existing setup endpoints
-
-Minimum topology matrix:
-
-| Topology | Repeats | Cache | Origins |
-|---|---:|---:|---|
-| query -> evaluator | yes | yes | auto, human, custom |
-| direct trace -> evaluator | yes | yes | auto, human, custom |
-| direct testcase -> evaluator | yes | yes | auto, human, custom |
-| testset -> application, batch inference | yes | yes | auto |
-| testset -> application -> evaluator | yes | yes | auto, human, custom |
-
-## Rollout Notes
-
-Use feature flags or internal routing switches while moving topologies. Each topology should be migrated only after its planner output can be compared with the current loop output for representative runs.
-
-The key risk is changing result cardinality when repeats become fully operational. Treat repeat-aware execution as a visible behavior change and gate it with tests and migration notes.
+1. topology classification
+2. resolver behavior
+3. repeat slot creation
+4. cache reuse
+5. human/custom pending behavior
+6. query/testset/direct trace/direct testcase source families
+7. source-family validation
+8. tensor slice probe/populate/prune/process behavior
+9. queue/default-queue integration semantics
+10. active-versus-archived step behavior once chosen

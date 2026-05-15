@@ -14,13 +14,48 @@ Your pull request should say:
 - what tests you added or updated
 - what still needs QA
 
-## API Tests
+## Loading Environment Variables
 
-From `api/`, you can run the acceptance suite or a smaller target:
+The test commands below require environment variables. Use the same env file you used to start the stack locally — the one you passed to `docker compose` when deploying.
+
+Add this helper to your `~/.bashrc` or `~/.zshrc`:
 
 ```bash
-AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
-  python -m pytest oss/tests/pytest/ -v
+load-env() {
+    local env_file="${1:-.env}"
+    if [[ ! -f "$env_file" ]]; then
+        echo "Error: File '$env_file' not found."
+        return 1
+    fi
+    set -o allexport && source "$env_file" && set +o allexport
+}
+```
+
+Then source it before running tests:
+
+```bash
+load-env hosting/docker-compose/ee/.env.ee.dev
+```
+
+If you use a different shell, the equivalent one-liner is:
+
+```bash
+export $(grep -v '^#' hosting/docker-compose/ee/.env.ee.dev | xargs)
+```
+
+## API Tests
+
+Install dependencies first (from `api/`):
+
+```bash
+uv sync
+uv pip install --editable ../sdk
+```
+
+Then run the acceptance suite or a smaller target:
+
+```bash
+python -m pytest oss/tests/pytest/ -v
 ```
 
 ```bash
@@ -29,26 +64,49 @@ python -m pytest oss/tests/pytest/acceptance/workflows/ -v
 
 ## SDK Tests
 
-From `sdk/`, run the relevant pytest targets:
+Install dependencies first (from `sdk/`):
 
 ```bash
-AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
-  poetry run pytest tests/pytest/ -v
+uv sync
+```
+
+Then run the relevant pytest targets:
+
+```bash
+uv run pytest oss/tests/pytest/ -v
 ```
 
 ```bash
-poetry run pytest oss/tests/pytest/unit/ -v
+uv run pytest oss/tests/pytest/unit/ -v
+```
+
+## Services Tests
+
+Install dependencies first (from `services/`):
+
+```bash
+uv sync
+uv pip install --editable ../sdk
 ```
 
 ## Web Tests
 
-From `web/tests/`, run the relevant Playwright suite:
+Install dependencies first (from `web/`):
 
 ```bash
-AGENTA_WEB_URL=http://localhost:10180 \
-TESTMAIL_NAMESPACE=<your-namespace> \
-TESTMAIL_API_KEY=<your-key> \
-  npx playwright test ../oss/tests/playwright/acceptance/smoke.spec.ts
+pnpm install
+```
+
+Then from `web/tests/`, run the full acceptance suite:
+
+```bash
+pnpm test:acceptance
+```
+
+Or the smoke suite for a smaller target:
+
+```bash
+pnpm test:smoke
 ```
 
 Web tests may need Testmail credentials. Check [web/tests/README.md](https://github.com/Agenta-AI/agenta/blob/main/web/tests/README.md) if you need the full setup.

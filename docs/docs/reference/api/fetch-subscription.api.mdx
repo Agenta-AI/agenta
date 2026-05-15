@@ -5,7 +5,7 @@ description: "Fetch Subscription User Route"
 sidebar_label: "Fetch Subscription User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJyFUjuP2zAM/isBZ8FOO3pqCvQR3HK49KbAKBiFidXKkipRQV3D/72g7eQSL+fFkPiR+h7sgfGcoNrDZ2OtcWeoFfhAEdl4tz1CBSdi3fxM+ZB0NEGuQUGkFLxLlKDq4eN6Lb8jvSEq2GWtKaVTtquXGQwKtHdMjgWOIVijx3fKX0l6eki6oRah6gf51GLkV2Gy2t0xWb0miqsXn1mGt8SNF8pnYlAQkBuooDxMysqFhETxQlG095CjFSQGA4O6HhvmkKqypFxo6/OxwDM5xgLNBKxlhs7RcDcO2Txvn6j7TnikCNW+vgfsRNjk1iOsB+4CQQUYzBN1oMBhK+dN5sZH8w9nukYcaKYusca4kx/bDdsRP5JbbZ63oECETZ6tiw/FGpZOPoAlE9RjJte3xzKohRE3/aCAWjRSY8L201tBmAWfuEV3N++94B7I3Rxh+stlsGgcDDOVfg51D3OokuN9rLWCxicWRN8fMNFrtMMg138yRcmpVnDBaPAgru3rQV1NlQh/UyfytaYgG3RBm6dsFqsq0d627duXHzAM/wH1giAk
+api: eJyFUsFu2zAM/RWDZyHOdtRpGbCtQS9Fs54CY2AUJtYqS6pEB3UN//tAO8mcXOqLIfKRfHyPPTAeM+gtfLfOWX+ESkGIlJBt8Os9aDgQm/pPbnfZJBslDAoS5Rh8pgy6h6/Lpfz29B+hYdMaQzkfWlc8n8GgwATP5FngGKOzZpxT/s1S00M2NTUIuh/kU3ctfwqTYjNjUrxkSsVzaFmaN8R1EMpHYlAQkWvQUO6mzcq7FTKlEyXZvYc2OUFitDCoy7NmjrosXTDo6pB5SldSadpkuRtLV0/rR+oeCPeUQG+rOWAj60wa3cJ64C4SaMBoH6kDBR4bea9arkOyH3gmaWXveqoSQaw/hLHcshvxR/KMxeppDfdq3aREdzSj7pdJYxrUbNmsyxLH8AJtCQqoQStJJmy+XTMwKBDlpjHLxZfFUkIxZG7Qz0Z85tcN36skTO9cRofWS9eRXX/2cgtnL8W+uZuVAnFIEH2/w0wvyQ2DhN9aSmJUpeCEyeJOZNtWg7qoKh6+UieKGENRDueErp3MubtQ8fZ6ZL9+/IZh+Acdkhz0
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Fetch Subscription User Route
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./fetch-subscription.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+  {...require("./fetch-subscription.StatusCodes.json")}
 >
   
 </StatusCodes>

@@ -104,6 +104,7 @@ export const useEvaluatorTypeFromConfigs = ({
             openai: "ai_llm",
             anthropic: "ai_llm",
             mistral: "ai_llm",
+            minimax: "ai_llm",
             groq: "ai_llm",
         }
 

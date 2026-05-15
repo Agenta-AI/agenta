@@ -5,7 +5,7 @@ description: "Cancel Subscription User Route"
 sidebar_label: "Cancel Subscription User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJyFUruO2zAQ/BVjakJyrlQVJ02MK2Kcc5UhBGt6z2KOohg+jCiC/j1YyXZsN6dGIHd2uDOzAxIdI6odvhhrjTuiVug8B0qmc+sDKmhymu1Pb8lBIXD0nYscUQ14Wi7ld+Cog/HSgQrbrDXH+Jbt4uUMhoLuXGKXBE7eW6OnB8pfUXoGRN1wS6iGUT71QPl1GmGxzfvr7eI1cli8dDkJe8up6WRY38UEBU+pQYVyP4sq401nOQuCQuRw4iDqB+RgpYG8waguxyYlH6uy5Fxo2+VDQUd2iQoyM7AWDp2DSf1Estqsn7n/xnTggGpX3wK2onC27R42IPWeUYG8eeYeCo5aOa9yarpg/k5OQcGIFc3cJR4Z99ZN7SbZCT8Nt1ht1lAQYbN5y+JTscSjpXdgCYf0FM7l7akM9WDEVT8UuCUjtcTUfv5fkMkkhZbcDd+HCd5Nd7Uk8Z9UekvGYTzPMpzD3eEcrgR5Qyty5oBrhUbWodphGPYU+TXYcZTr35mDJFYrnCgY2ot/u3pUF3slzHfuxQit2ctKncjmOaWH7ZWQr/u3+b79gXH8B2FUJBU=
+api: eJyFUrGu2zAM/BXjZiFOO3pq2qXBGxq89E2BUTAKX6xWllRJDuoa/veCdhI4WerFEMkjeXcckOmcUB3w2Vhr3Bm1gg8cKRvvtidU0OQ02x/BkoNC5BS8S5xQDfi4XsvvxElHEwSBCvtOa07pvbPF67UYCtq7zC5LOYVgjZ4GlD+TYAYk3XBLqIZRPvXU8su0QrHvjvdo8ZY4Fq++y9K95dx4WTb4lKEQKDeoUB5nUmVaIMuZEBQSxwtHYT+gi1YAFAxGdXs2OYeqLK3XZBuf8pyuBam7aHI/QTe77Qv3X5lOHFEd6mXBXnjNYj2WDch9YFSgYF64h4KjVt6bLjc+mr+TPlAwIkAzo0QZ4979BDfZTvVndpmKzW6LZ9keUmIA6cmA26QpDbUgm6qypCm8IlNCgVsyksxM7ad7BqOCKDePWa8+rNYSEvFbcosR/zXuYeG7Jpn/5DJYMk7aTusNV08PuHoq/i3aCsPZ11pBvJLSYThS4rdox1HCvzuOYlmtcKFo6CgCHupR3fQVN39xL9pozUEu6UK2m216Olpx+X52u2/77xjHf2MkIOU=
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Cancel Subscription User Route
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./cancel-plan.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+  {...require("./cancel-plan.StatusCodes.json")}
 >
   
 </StatusCodes>

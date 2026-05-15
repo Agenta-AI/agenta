@@ -642,18 +642,37 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
 
     // ========================================================================
     // AUTO-EXPAND
+    //
+    // Don't latch on `hasAutoExpanded` until we've actually expanded at least
+    // one parent. Otherwise, if the parent list is briefly empty when the
+    // effect first runs (e.g., parent atom returns a settled-empty state
+    // because `workflowIdAtom` hasn't resolved yet, or the variants query is
+    // gated), we'd latch with `expandedKeys=[]` and never re-expand when
+    // parents finally arrive — leaving variant groups collapsed and hiding
+    // the revisions underneath.
+    //
+    // Track parent IDs we've auto-expanded so newly-discovered parents
+    // (e.g., a fresh commit creates a variant) also auto-expand, but user-
+    // collapsed parents stay collapsed (we only expand IDs we haven't seen
+    // before).
     // ========================================================================
 
-    const hasAutoExpandedRef = useRef(false)
+    const autoExpandedSetRef = useRef<Set<string>>(new Set())
 
     useEffect(() => {
-        if (!defaultExpandAll || hasAutoExpandedRef.current || parentQuery.isPending) {
-            return
-        }
-
-        hasAutoExpandedRef.current = true
+        if (!defaultExpandAll || parentQuery.isPending) return
         const allParentIds = treeData.map((node) => node.id)
-        setExpandedKeys(allParentIds)
+        if (allParentIds.length === 0) return
+
+        const newIds = allParentIds.filter((id) => !autoExpandedSetRef.current.has(id))
+        if (newIds.length === 0) return
+
+        newIds.forEach((id) => autoExpandedSetRef.current.add(id))
+        setExpandedKeys((prev) => {
+            const next = new Set(prev)
+            newIds.forEach((id) => next.add(id))
+            return Array.from(next)
+        })
     }, [defaultExpandAll, parentQuery.isPending, treeData])
 
     // ========================================================================

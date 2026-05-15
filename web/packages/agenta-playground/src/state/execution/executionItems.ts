@@ -1214,12 +1214,71 @@ function buildExecutionItem(
                   if (body.data && typeof body.data === "object") {
                       const dataObj = body.data as Record<string, unknown>
                       const iv = params.inputValues as Record<string, unknown>
-                      dataObj.inputs = iv
+                      // Evaluator envelope: when ports expose `inputs` + `outputs`
+                      // directly (evaluator runnables), `iv` already has the envelope
+                      // shape. `iv.inputs` is the testcase row (object) and
+                      // `iv.outputs` is the upstream app output. Values may be
+                      // JSON-encoded strings — after the user edits the cell via
+                      // the JSON editor, or when the cell is stringified on the
+                      // wire — so we attempt to parse them back to their structured
+                      // form before unpacking. Unpack so `data.inputs` holds just
+                      // the row (not a doubly-nested `{inputs, outputs}` wrapper).
+                      const parseIfJsonObject = (value: unknown): unknown => {
+                          if (typeof value !== "string") return value
+                          const trimmed = value.trim()
+                          if (
+                              !(trimmed.startsWith("{") && trimmed.endsWith("}")) &&
+                              !(trimmed.startsWith("[") && trimmed.endsWith("]"))
+                          ) {
+                              return value
+                          }
+                          try {
+                              return JSON.parse(trimmed)
+                          } catch {
+                              return value
+                          }
+                      }
+                      const parsedInputs = parseIfJsonObject(iv.inputs)
+                      const isEnvelope =
+                          parsedInputs !== undefined &&
+                          parsedInputs !== null &&
+                          typeof parsedInputs === "object" &&
+                          !Array.isArray(parsedInputs)
+                      // Field ports extracted from `{{$.inputs.<field>}}` /
+                      // `{{<field>}}` references in the evaluator prompt arrive
+                      // as siblings of `inputs`/`outputs` in `iv`. Merge them
+                      // into `data.inputs` so the SDK's resolver context has
+                      // both the catch-all envelope (`inputs` cell) and the
+                      // per-field values addressable via the same paths the
+                      // prompt uses. Field values win on key collisions —
+                      // they're the more-specific user intent.
+                      //
+                      // `prediction` is preserved as the legacy alias for the
+                      // outputs envelope (it maps to `iv.outputs` below) and
+                      // also excluded from the merge.
+                      const fieldOverrides: Record<string, unknown> = {}
+                      for (const [key, value] of Object.entries(iv)) {
+                          if (key === "inputs" || key === "outputs" || key === "prediction") {
+                              continue
+                          }
+                          fieldOverrides[key] = parseIfJsonObject(value)
+                      }
+                      const baseInputs = isEnvelope
+                          ? (parsedInputs as Record<string, unknown>)
+                          : ({} as Record<string, unknown>)
+                      const mergedInputs = {...baseInputs, ...fieldOverrides}
+                      // Preserve the legacy "iv as-is" fallback when there's
+                      // no envelope cell AND no field ports — happens for
+                      // pre-WP-B1 evaluator chains where `iv` was the whole
+                      // testcase row.
+                      const hasAnyInputContent =
+                          isEnvelope || Object.keys(fieldOverrides).length > 0
+                      dataObj.inputs = hasAnyInputContent ? mergedInputs : iv
                       // Set data.outputs from the upstream output value.
                       // Schema-driven inputs use "outputs" key; legacy uses "prediction".
-                      const upstreamOutputValue = iv.outputs ?? iv.prediction
-                      if (upstreamOutputValue !== undefined) {
-                          dataObj.outputs = upstreamOutputValue
+                      const upstreamOutputValueRaw = iv.outputs ?? iv.prediction
+                      if (upstreamOutputValueRaw !== undefined) {
+                          dataObj.outputs = parseIfJsonObject(upstreamOutputValueRaw)
                       }
                   } else {
                       // Fallback for payloads without nested data structure

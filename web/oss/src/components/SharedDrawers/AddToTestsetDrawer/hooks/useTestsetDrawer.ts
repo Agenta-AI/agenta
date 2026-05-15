@@ -13,6 +13,7 @@ import {createMappingId, Mapping, TestsetColumn, TestsetTraceData} from "../asse
 import {onCascaderChangeAtom} from "../atoms/actions"
 import {
     allTracePathsSelectOptionsAtom,
+    canonicalTracePathsAtom,
     closeDrawerAtom,
     hasDifferentStructureAtom,
     hasDuplicateColumnsAtom,
@@ -168,40 +169,29 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
         [mappingData],
     )
 
-    // All available data paths from trace data (derived from atom)
+    // All available data paths from trace data (derived from atom) — powers the
+    // manual AutoComplete dropdown in Section 3.
     const allAvailablePaths = useAtomValue(allTracePathsSelectOptionsAtom)
 
-    // Auto-map first available path when no mappings exist and data is available
+    // Canonical envelope paths (data.inputs / data.outputs if present) — used
+    // to seed the initial mapping rows before a testset is selected.
+    const canonicalPaths = useAtomValue(canonicalTracePathsAtom)
+
+    // Seed initial mappings from the canonical envelope paths when no mappings
+    // exist yet. Matches the rule: a testcase mirrors the workflow envelope,
+    // so the default is one row per present top-level slot (inputs, outputs).
     useEffect(() => {
-        if (!isMapColumnExist && allAvailablePaths.length > 0 && mappingData.length === 0) {
-            const firstPath = allAvailablePaths[0].value
-            const pathLabel = allAvailablePaths[0].label
-
-            // Auto-map to a reasonable column name based on the path
-            let columnName = pathLabel
-
-            // Clean up the column name
-            columnName = columnName
-                .replace(/[^a-zA-Z0-9_]/g, "_")
-                .replace(/^[^a-zA-Z_]/, "_")
-                .replace(/_+/g, "_")
-                .toLowerCase()
-
-            // Ensure it's not empty
-            if (!columnName || columnName === "_") {
-                columnName = "field_1"
-            }
-
-            setMappingData([
-                {
+        if (!isMapColumnExist && canonicalPaths.length > 0 && mappingData.length === 0) {
+            setMappingData(
+                canonicalPaths.map((path) => ({
                     id: createMappingId(),
-                    data: firstPath,
+                    data: path,
                     column: "create",
-                    newColumn: columnName,
-                },
-            ])
+                    newColumn: path.split(".").pop() || path,
+                })),
+            )
         }
-    }, [isMapColumnExist, allAvailablePaths, mappingData.length, setMappingData])
+    }, [isMapColumnExist, canonicalPaths, mappingData.length, setMappingData])
 
     // Compute map of data paths to column names for visual indication in drill-in view
     const mappedPaths = useMemo(() => {

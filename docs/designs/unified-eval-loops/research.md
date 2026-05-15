@@ -280,3 +280,65 @@ Source-specific behavior should live in resolvers and planners. Step execution s
 - cache policy
 - fan-out policy
 - runnable invocation policy
+
+## Relationship To Default Queues
+
+The queue-unification work clarifies that annotation queues are not another execution runtime. They are a persisted human-work view over the same evaluation tensor described in this document.
+
+The useful separation is:
+
+```text
+evaluation runtime
+  = graph + tensor + process(slice)
+
+default queue
+  = canonical persisted human-work view over that tensor
+```
+
+The queue dimensions align with tensor dimensions:
+
+- scenario selection maps to scenarios
+- step selection maps to steps
+- repeat assignment maps to scenario × repeat lanes
+
+A default queue leaves those dimensions open:
+
+```text
+scenario_ids = None
+step_keys    = None
+user_ids     = None
+```
+
+The queue layer decides how human work is exposed and assigned. It does not decide how auto steps are planned or executed.
+
+### Source-family flags versus queue eligibility
+
+The current runtime still uses `is_queue` in places where it is really distinguishing queue-style source ingestion. The cleaner target model is to expose source family directly through inferred flags:
+
+- `has_queries`
+- `has_testsets`
+- `has_traces`
+- `has_testcases`
+
+Those flags should describe where scenarios come from and should drive topology validation and mixed-source prevention.
+
+Separately, `run.flags.is_queue` should answer the product question:
+
+```text
+active default queue exists
+and active human evaluator work exists
+```
+
+That makes source classification and simple-queue eligibility separate facts rather than overloading one flag.
+
+### Shared mutation question
+
+The queue-unification work also exposes a question this design must answer explicitly: whether step removal is usually destructive or archival.
+
+If historical results should remain visible after an evaluator is no longer active, then the graph model needs an active-versus-archived distinction. In that world:
+
+- `archive_step` is the common lifecycle operation
+- hard `remove_step` and `prune` are stronger cleanup operations
+- queue eligibility should depend on active human steps, not merely historical human steps
+
+This needs to be settled before hardening the mutation contract around remove/prune behavior.

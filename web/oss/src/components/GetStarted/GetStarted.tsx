@@ -2,6 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {ArrowLeft, Code, Rocket, Sparkle, TreeView} from "@phosphor-icons/react"
 import {Typography, Card, Button} from "antd"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {
@@ -9,6 +10,7 @@ import {
     useStyles as useTracingStyles,
 } from "@/oss/components/pages/app-management/modals/SetupTracingModal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {setOnboardingWidgetActivationAtom} from "@/oss/lib/onboarding"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 import {RunEvaluationView} from "./views/RunEvaluationView"
@@ -25,6 +27,7 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
     const tracingClasses = useTracingStyles()
     const router = useRouter()
     const posthog = usePostHogAg()
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     const view = useMemo<ViewState>(() => {
         const path = router.query.path
@@ -66,6 +69,7 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
             })
 
             if (selection === "test_prompt") {
+                setOnboardingWidgetActivation("open-create-prompt")
                 try {
                     const context = await waitForWorkspaceContext({
                         timeoutMs: 5000,
@@ -74,16 +78,16 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
                         requireOrgData: true,
                     })
                     const path = buildPostLoginPath(context)
-                    router.push(`${path}?create_prompt=true`)
+                    router.push(path)
                 } catch (e) {
                     console.error("Failed to resolve workspace context", e)
-                    router.push("/apps?create_prompt=true")
+                    router.push("/apps")
                 }
             } else {
                 setView(selection)
             }
         },
-        [posthog, router, setView],
+        [posthog, router, setView, setOnboardingWidgetActivation],
     )
 
     const handleNext = useCallback(

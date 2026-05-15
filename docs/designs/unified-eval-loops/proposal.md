@@ -413,3 +413,64 @@ The design succeeds when adding a new valid combination requires:
 - adding planner validation if the topology is new
 
 It should not require creating a new end-to-end setup function and a new end-to-end execution loop.
+
+## Default Queue Integration
+
+Unified eval loops should treat default queues as a consumer-facing layer over the tensor, not as part of orchestration.
+
+```text
+default queue = canonical persisted human-work view over the run tensor
+```
+
+A default queue is open over the run by default:
+
+```text
+scenario_ids = None
+step_keys    = None
+user_ids     = None
+```
+
+The runtime should continue to own:
+
+- source resolution
+- topology validation
+- planning
+- auto-step execution
+- tensor persistence
+
+The queue layer should own:
+
+- human-work visibility
+- assignment
+- queue lifecycle
+- simple queue interaction
+
+### Run flags
+
+The unified model should distinguish source family from queue eligibility.
+
+Source-family flags:
+
+- `has_queries`
+- `has_testsets`
+- `has_traces`
+- `has_testcases`
+
+Queue eligibility flag:
+
+```text
+run.flags.is_queue = active default queue exists + active human evaluator work exists
+```
+
+That keeps query-backed, testset-backed, trace-backed, and testcase-backed runs expressible through the same planner while allowing any human-bearing run with an active default queue to participate in the simple queue surface.
+
+### Step lifecycle
+
+The mutation model should distinguish lifecycle changes from destructive cleanup.
+
+If the product needs historical evaluator results to remain visible, then:
+
+- archive/deactivate should be the normal operation for steps that stop participating in future work
+- remove/prune should remain available only for explicit destructive cleanup
+- planner defaults should target active steps
+- default queue eligibility should depend on active human steps

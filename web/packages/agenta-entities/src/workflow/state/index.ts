@@ -11,6 +11,12 @@
 export {workflowMolecule, type WorkflowMolecule} from "./molecule"
 
 // ============================================================================
+// HELPERS
+// ============================================================================
+
+export {deriveWorkflowTypeFromRevision} from "./helpers"
+
+// ============================================================================
 // STORE ATOMS
 // ============================================================================
 
@@ -57,6 +63,8 @@ export {
     // Ephemeral workflows (from trace data)
     createEphemeralWorkflow,
     type CreateEphemeralWorkflowParams,
+    // Cross-context ephemeral cleanup (drawer-create flows)
+    discardLocalServerDataAtom,
     // Latest revision (derived from already-fetched data)
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
@@ -150,6 +158,7 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
+    fullPagePlaygroundEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
@@ -185,3 +194,17 @@ export {
     evaluatorSelectionConfig,
     type EvaluatorSelectionConfig,
 } from "./evaluatorUtils"
+
+// ============================================================================
+// APP UTILITIES (for application-type workflows)
+// ============================================================================
+
+export {
+    // Templates
+    appTemplatesQueryAtom,
+    appTemplatesDataAtom,
+    // Create ephemeral app from template (entity lifecycle)
+    createEphemeralAppFromTemplate,
+    type AppType,
+    type CreateEphemeralAppFromTemplateParams,
+} from "./appUtils"

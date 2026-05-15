@@ -331,10 +331,39 @@ export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath = "") =>
 }
 
 /**
+ * Heuristic: if a string value looks like a JSON object or array, parse
+ * it so the request envelope carries structured data. Object-typed
+ * variables (grouped `$.inputs.X.*` paths) are stored as JSON strings in
+ * testcase cells — the backend resolver needs real objects to navigate
+ * sub-paths like `$.inputs.X.subkey`.
+ *
+ * Only attempts parse when the trimmed value starts with `{` or `[`, so
+ * plain text inputs don't accidentally get decoded. Failed parses leave
+ * the string as-is.
+ */
+function coerceCellValue(raw: string): unknown {
+    const trimmed = raw.trim()
+    if (!trimmed) return raw
+    const first = trimmed[0]
+    if (first !== "{" && first !== "[") return raw
+    try {
+        return JSON.parse(trimmed)
+    } catch {
+        return raw
+    }
+}
+
+/**
  * Extract input values from an enhanced input row.
  * Unwraps enhanced primitive wrappers ({value: X}) and strips metadata fields.
+ *
+ * Returns a dict keyed by the clean field name (not the raw JSONPath —
+ * that translation happens at the port/grouping boundary). Values are
+ * returned in their natural shape: strings stay strings, JSON-looking
+ * strings become the parsed object/array, native objects/numbers come
+ * through unchanged.
  */
-export function extractInputValues(inputRow: Record<string, unknown>): Record<string, string> {
+export function extractInputValues(inputRow: Record<string, unknown>): Record<string, unknown> {
     return Object.entries(inputRow).reduce(
         (acc, [key, value]) => {
             if (key === "__id" || key === "__metadata" || key === "__result") {
@@ -344,17 +373,15 @@ export function extractInputValues(inputRow: Record<string, unknown>): Record<st
             if (value && typeof value === "object" && "value" in value) {
                 const wrappedValue = asRecord(value)["value"]
                 if (typeof wrappedValue === "string") {
-                    acc[key] = wrappedValue
+                    acc[key] = coerceCellValue(wrappedValue)
                 } else if (wrappedValue !== undefined && wrappedValue !== null) {
-                    try {
-                        acc[key] = JSON.stringify(wrappedValue)
-                    } catch {
-                        acc[key] = String(wrappedValue)
-                    }
+                    // Already a native value (object, number, boolean) — keep
+                    // as-is rather than round-tripping through JSON.stringify.
+                    acc[key] = wrappedValue
                 }
             }
             return acc
         },
-        {} as Record<string, string>,
+        {} as Record<string, unknown>,
     )
 }

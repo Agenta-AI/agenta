@@ -1,6 +1,8 @@
 export {
     annotationSessionController,
     type AnnotationSessionController,
+    type AddToTestsetExportJob,
+    type AddToTestsetScope,
     registerAnnotationCallbacks,
     annotationFormController,
     type AnnotationFormController,
@@ -10,6 +12,8 @@ export {
     isEmptyValue,
     OUTPUT_KEYS,
 } from "./controllers"
+
+export {getTraceInputDisplayKeys, getTraceInputDisplayValue} from "./traceInputDisplay"
 
 export type {
     OpenQueuePayload,

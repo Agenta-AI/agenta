@@ -1108,7 +1108,10 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
     assert workflow_request.data.revision == revision
     assert workflow_request.data.parameters == {"temperature": 0.1}
     assert workflow_request.data.inputs == {"input": "hello"}
-    assert workflow_request.references["application_revision"].id == application_revision_id
+    assert (
+        workflow_request.references["application_revision"].id
+        == application_revision_id
+    )
 
 
 @pytest.mark.asyncio

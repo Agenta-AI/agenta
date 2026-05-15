@@ -36,10 +36,13 @@ services:
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
+            --worker-connections 1000
+            --backlog 2048
+            --keep-alive 5
             --max-requests 10000
             --max-requests-jitter 1000
             --timeout 60
-            --graceful-timeout 60
+            --graceful-timeout 30
             --log-level info
             --access-logfile -
             --error-logfile -
@@ -281,6 +284,9 @@ services:
             --bind 0.0.0.0:8080
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
+            --worker-connections 1000
+            --backlog 2048
+            --keep-alive 5
             --max-requests 10000
             --max-requests-jitter 1000
             --timeout 60

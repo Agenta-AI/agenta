@@ -1,5 +1,5 @@
 # Tests: deployment/deploy-variant.spec.ts -> deployment/index.ts
-# RTM ID: WEB-ACC-DEPLOYMENT-001
+# RTM IDs: WEB-ACC-DEPLOYMENT-001, WEB-ACC-DEPLOYMENT-002, WEB-ACC-DEPLOYMENT-003
 # Tags: @scope:deployment @coverage:smoke @coverage:light @coverage:full @path:happy
 #
 # Implementation notes:
@@ -7,6 +7,8 @@
 # - The DeploymentsDashboard on the variants page has a standalone "Deploy" button
 # - Clicking "Deploy" opens SelectDeployVariantModal: a table of variants with radio selection
 # - Selecting a variant row and clicking Deploy in the footer triggers the publish mutation
+# - VersionBadge renders <span title="Version N">vN</span> on the environment card
+# - Revert action: MoreOutlined button on older history row → "Revert" menu item → confirmation dialog
 
 Feature: Variant Deployment
   As a user
@@ -26,3 +28,19 @@ Feature: Variant Deployment
     And the user selects a variant to deploy to Development
     And the user confirms the deployment
     Then the deployment to Development succeeds
+
+  @light @happy @scope:deployment @speed:slow
+  Scenario: Deploy a variant to Staging and Production environments
+    Given a fresh completion app with at least one variant exists
+    When the user deploys the variant to Staging
+    And the user deploys the variant to Production
+    Then both Staging and Production deployments succeed
+
+  @light @happy @scope:deployment @speed:slow
+  Scenario: Verify version badge updates after deploying to Development
+    Given a fresh completion app with at least one variant exists
+    When the user deploys the variant to Development
+    And the user navigates to the app overview page
+    Then the Development card shows a version badge
+    And the Staging and Production cards still show no deployment
+

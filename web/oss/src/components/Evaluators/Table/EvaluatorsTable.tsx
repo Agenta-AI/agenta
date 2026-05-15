@@ -9,7 +9,7 @@ import {
 
 import type {EvaluatorCategory} from "../assets/types"
 import type {EvaluatorTableRow} from "../store/evaluatorsPaginatedStore"
-import {evaluatorsPaginatedStore} from "../store/evaluatorsPaginatedStore"
+import {getEvaluatorsTableState} from "../store/evaluatorsPaginatedStore"
 
 import {createEvaluatorColumns, type EvaluatorColumnActions} from "./assets/evaluatorColumns"
 
@@ -19,6 +19,7 @@ import {createEvaluatorColumns, type EvaluatorColumnActions} from "./assets/eval
 
 interface EvaluatorsTableProps {
     category: EvaluatorCategory
+    mode?: "active" | "archived"
     onRowClick?: (record: EvaluatorTableRow) => void
     actions: EvaluatorColumnActions
     searchDeps?: unknown[]
@@ -31,6 +32,7 @@ const getEvaluatorGroupKey = (row: EvaluatorTableRow) => row.workflowId
 
 const EvaluatorsTable = ({
     category,
+    mode = "active",
     onRowClick,
     actions,
     searchDeps = [],
@@ -38,14 +40,19 @@ const EvaluatorsTable = ({
     primaryActions,
     displayMode = "grouped",
 }: EvaluatorsTableProps) => {
+    const tableState = getEvaluatorsTableState(mode)
+    const isArchived = mode === "archived"
     const table = useTableManager<EvaluatorTableRow>({
-        datasetStore: evaluatorsPaginatedStore.store as never,
-        scopeId: "evaluators",
+        datasetStore: tableState.paginatedStore.store as never,
+        scopeId: isArchived ? "archived-evaluators" : "evaluators",
         pageSize: 50,
         onRowClick,
         searchDeps,
-        columnVisibilityStorageKey: "agenta:evaluators:column-visibility",
+        columnVisibilityStorageKey: isArchived
+            ? "agenta:archived-evaluators:column-visibility"
+            : "agenta:evaluators:column-visibility",
         rowClassName: "variant-table-row",
+        exportFilename: isArchived ? "archived-evaluators.csv" : "evaluators.csv",
     })
 
     const paginationRows = table.shellProps.pagination?.rows ?? []
@@ -57,11 +64,11 @@ const EvaluatorsTable = ({
     })
 
     const columns = useMemo(
-        () => createEvaluatorColumns(actions, category, expandState),
-        [actions, category, expandState],
+        () => createEvaluatorColumns(actions, category, expandState, {mode}),
+        [actions, category, expandState, mode],
     )
 
-    const isGrouped = displayMode === "grouped"
+    const isGrouped = !isArchived && displayMode === "grouped"
 
     return (
         <InfiniteVirtualTableFeatureShell<EvaluatorTableRow>
@@ -70,7 +77,9 @@ const EvaluatorsTable = ({
             columns={columns}
             filters={filters}
             primaryActions={primaryActions}
+            className="flex-1 min-h-0"
             autoHeight
+            enableExport={isArchived}
             dataSource={isGrouped ? groupedDataSource : undefined}
             tableProps={{
                 ...table.shellProps.tableProps,

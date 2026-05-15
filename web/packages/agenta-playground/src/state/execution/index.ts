@@ -255,6 +255,7 @@ export {
     inputVariableNamesAtom,
     // Variable schema map (type + schema per key)
     inputPortSchemaMapAtom,
+    outputPortSchemaMapAtom,
     // App-level mode selectors
     isChatModeAtom,
     appTypeAtom,

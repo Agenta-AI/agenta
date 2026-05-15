@@ -105,7 +105,7 @@ const SelectVariantSection = ({
                         emptyText: (
                             <NoResultsFound
                                 className="!py-10"
-                                description="No available variants found to display"
+                                description="No available revisions found to display"
                             />
                         ),
                     }}

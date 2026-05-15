@@ -2,6 +2,7 @@ export {
     AnnotationUIProvider,
     useAnnotationUI,
     useAnnotationNavigation,
+    useAnnotationNavigationSafe,
     useTraceContentRenderer,
     useTestcaseContentRenderer,
     useMetricPopoverWrapper,

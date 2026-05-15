@@ -315,7 +315,13 @@ function InsertInitialCodeBlockPlugin({
                                 existingCodeBlock.append(line)
 
                                 root.append(existingCodeBlock)
-                                line.selectStart()
+                                if (hasFocus) {
+                                    line.selectStart()
+                                } else {
+                                    // Avoid keeping an off-focus caret at the first line. Revealing it
+                                    // on later focus can scroll parent popover containers back upward.
+                                    $setSelection(null)
+                                }
                             } else if (hasFocus && editor.isEditable() && !payload.forceUpdate) {
                                 // Don't update if editor has focus and is editable (user is typing)
                                 // But allow updates for read-only editors (like diff view)
@@ -373,140 +379,148 @@ function InsertInitialCodeBlockPlugin({
                                 }
                             }
 
-                            if (currentTextValue) {
+                            const hasIncomingContent =
+                                typeof payload.content === "string"
+                                    ? payload.content.trim().length > 0
+                                    : Boolean(payload.content)
+
+                            if (currentTextValue || hasIncomingContent || payload.forceUpdate) {
                                 editor.setEditable(false)
-                            }
-                            log("INITIAL VALUE CHANGED - CHANGE CONTENT", {currentTextValue})
-                            // TODO: Instead of clearing and re-adding, we should do a diff check and edit updated nodes only
-                            try {
-                                let value: string
-                                // For JSON/YAML content, parse and format
-                                if (payload.language === "json") {
-                                    try {
-                                        const objectValue = JSON5.parse(payload.content)
-                                        value = JSON.stringify(objectValue, null, 2)
-                                    } catch {
-                                        // Content isn't valid JSON — display as-is
+                                log("INITIAL VALUE CHANGED - CHANGE CONTENT", {currentTextValue})
+                                // TODO: Instead of clearing and re-adding, we should do a diff check and edit updated nodes only
+                                try {
+                                    let value: string
+                                    // For JSON/YAML content, parse and format
+                                    if (payload.language === "json") {
+                                        try {
+                                            const objectValue = JSON5.parse(payload.content)
+                                            value = JSON.stringify(objectValue, null, 2)
+                                        } catch {
+                                            // Content isn't valid JSON — display as-is
+                                            value = payload.content
+                                        }
+                                    } else if (payload.language === "yaml") {
+                                        const objectValue = payload.content
+                                        try {
+                                            const obj = yaml.load(objectValue)
+                                            if (obj !== undefined) {
+                                                value = yaml.dump(obj, {indent: 2})
+                                            } else {
+                                                value = objectValue
+                                            }
+                                        } catch {
+                                            // Try JSON as a fallback and then dump to YAML for consistent highlighting
+                                            try {
+                                                const obj = JSON5.parse(objectValue)
+                                                value = yaml.dump(obj, {indent: 2})
+                                            } catch {
+                                                value = objectValue
+                                            }
+                                        }
+                                    } else {
+                                        // For code languages (python, javascript, typescript), keep as-is
                                         value = payload.content
                                     }
-                                } else if (payload.language === "yaml") {
-                                    const objectValue = payload.content
-                                    try {
-                                        const obj = yaml.load(objectValue)
-                                        if (obj !== undefined) {
-                                            value = yaml.dump(obj, {indent: 2})
-                                        } else {
-                                            value = objectValue
+                                    log(" Reconstructing code block due to prop change", {
+                                        language: payload.language,
+                                        value,
+                                    })
+
+                                    // For large content, defer the heavy node creation so the
+                                    // browser can paint a loading overlay first.
+                                    const lineCount = value.split("\n").length
+                                    if (lineCount >= LARGE_DOC_INITIAL_HIGHLIGHT_LINE_THRESHOLD) {
+                                        // Capture values for the deferred callback
+                                        const capturedLanguage = payload.language as CodeLanguage
+                                        const capturedDisableLongText = disableLongText
+
+                                        // Clear existing content and show a single empty line
+                                        // so the current update finishes quickly.
+                                        existingCodeBlock.clear()
+                                        const placeholder = $createCodeLineNode()
+                                        existingCodeBlock.append(placeholder)
+                                        $setSelection(null)
+
+                                        if (!store.get(editorStateAtom)?.focused) {
+                                            editor.setEditable(true)
                                         }
-                                    } catch {
-                                        // Try JSON as a fallback and then dump to YAML for consistent highlighting
-                                        try {
-                                            const obj = JSON5.parse(objectValue)
-                                            value = yaml.dump(obj, {indent: 2})
-                                        } catch {
-                                            value = objectValue
-                                        }
+
+                                        // Show overlay and defer heavy work
+                                        const removeOverlay = showEditorLoadingOverlay(editor)
+                                        setTimeout(() => {
+                                            editor.update(
+                                                () => {
+                                                    $addUpdateTag("agenta:initial-content")
+                                                    const root = $getRoot()
+                                                    const codeBlock = root
+                                                        .getChildren()
+                                                        .find($isCodeBlockNode)
+                                                    if (!codeBlock) return
+
+                                                    codeBlock.clear()
+                                                    const highlightedNodes = createHighlightedNodes(
+                                                        value,
+                                                        capturedLanguage,
+                                                        capturedDisableLongText,
+                                                    )
+                                                    $wrapLinesInSegments(highlightedNodes).forEach(
+                                                        (node) => {
+                                                            codeBlock.append(node)
+                                                        },
+                                                    )
+
+                                                    if (!store.get(editorStateAtom)?.focused) {
+                                                        editor.setEditable(true)
+                                                        $setSelection(null)
+                                                    }
+                                                },
+                                                {
+                                                    tag: "agenta:initial-content",
+                                                    onUpdate: () => {
+                                                        removeOverlay?.()
+                                                    },
+                                                },
+                                            )
+                                        }, 0)
+
+                                        return
                                     }
-                                } else {
-                                    // For code languages (python, javascript, typescript), keep as-is
-                                    value = payload.content
-                                }
-                                log(" Reconstructing code block due to prop change", {
-                                    language: payload.language,
-                                    value,
-                                })
 
-                                // For large content, defer the heavy node creation so the
-                                // browser can paint a loading overlay first.
-                                const lineCount = value.split("\n").length
-                                if (lineCount >= LARGE_DOC_INITIAL_HIGHLIGHT_LINE_THRESHOLD) {
-                                    // Capture values for the deferred callback
-                                    const capturedLanguage = payload.language as CodeLanguage
-                                    const capturedDisableLongText = disableLongText
-
-                                    // Clear existing content and show a single empty line
-                                    // so the current update finishes quickly.
                                     existingCodeBlock.clear()
-                                    const placeholder = $createCodeLineNode()
-                                    existingCodeBlock.append(placeholder)
-                                    $setSelection(null)
+                                    log("CLEAR AND RECONSTRUCT", {
+                                        content: payload.content,
+                                        currentTextValue,
+                                    })
+                                    const highlightedNodes = createHighlightedNodes(
+                                        value,
+                                        payload.language,
+                                        disableLongText,
+                                    )
+                                    $wrapLinesInSegments(highlightedNodes).forEach((node) => {
+                                        existingCodeBlock.append(node)
+                                    })
 
-                                    if (!store.get(editorStateAtom)?.focused) {
+                                    const hasFocus = store.get(editorStateAtom)?.focused
+
+                                    if (!hasFocus) {
+                                        editor.setEditable(true)
+                                        $setSelection(null)
+                                    }
+                                } catch (err) {
+                                    log("failed values", {
+                                        existingCodeBlock,
+                                        content: payload.content,
+                                        type: typeof payload.content,
+                                        err,
+                                    })
+
+                                    if (!editor.isEditable()) {
                                         editor.setEditable(true)
                                     }
-
-                                    // Show overlay and defer heavy work
-                                    const removeOverlay = showEditorLoadingOverlay(editor)
-                                    setTimeout(() => {
-                                        editor.update(
-                                            () => {
-                                                $addUpdateTag("agenta:initial-content")
-                                                const root = $getRoot()
-                                                const codeBlock = root
-                                                    .getChildren()
-                                                    .find($isCodeBlockNode)
-                                                if (!codeBlock) return
-
-                                                codeBlock.clear()
-                                                const highlightedNodes = createHighlightedNodes(
-                                                    value,
-                                                    capturedLanguage,
-                                                    capturedDisableLongText,
-                                                )
-                                                $wrapLinesInSegments(highlightedNodes).forEach(
-                                                    (node) => {
-                                                        codeBlock.append(node)
-                                                    },
-                                                )
-
-                                                if (!store.get(editorStateAtom)?.focused) {
-                                                    editor.setEditable(true)
-                                                    $setSelection(null)
-                                                }
-                                            },
-                                            {
-                                                tag: "agenta:initial-content",
-                                                onUpdate: () => {
-                                                    removeOverlay?.()
-                                                },
-                                            },
-                                        )
-                                    }, 0)
-
-                                    return
                                 }
-
-                                existingCodeBlock.clear()
-                                log("CLEAR AND RECONSTRUCT", {
-                                    content: payload.content,
-                                    currentTextValue,
-                                })
-                                const highlightedNodes = createHighlightedNodes(
-                                    value,
-                                    payload.language,
-                                    disableLongText,
-                                )
-                                $wrapLinesInSegments(highlightedNodes).forEach((node) => {
-                                    existingCodeBlock.append(node)
-                                })
-
-                                const hasFocus = store.get(editorStateAtom)?.focused
-
-                                if (!hasFocus) {
-                                    editor.setEditable(true)
-                                    $setSelection(null)
-                                }
-                            } catch (err) {
-                                log("failed values", {
-                                    existingCodeBlock,
-                                    content: payload.content,
-                                    type: typeof payload.content,
-                                    err,
-                                })
-
-                                if (!editor.isEditable()) {
-                                    editor.setEditable(true)
-                                }
+                            } else if (!hasFocus) {
+                                editor.setEditable(true)
+                                $setSelection(null)
                             }
                         },
                         {tag: "agenta:initial-content"},
@@ -866,48 +880,74 @@ function InsertInitialCodeBlockPlugin({
         const languageChanged =
             prevLanguageRef.current !== undefined && prevLanguageRef.current !== language
 
-        // For JSON content, use semantic comparison. YAML should be treated as raw text.
-        // Always proceed if the language itself changed (re-tokenization needed).
-        if (prevInitialRef.current && !languageChanged) {
+        // Compare the new prop value against the editor's CURRENT content (not the
+        // previous prop value). The editor state is the source of truth — if it
+        // already matches the incoming value, nothing to do; if it differs, we
+        // need to update regardless of what the previous prop was. This catches
+        // external updates (preset loads) where prevInitialRef-based tracking
+        // would race with React Strict Mode double-invokes or stale closures.
+        let needsDispatch = languageChanged
+        let forceUpdate = false
+        editor.getEditorState().read(() => {
+            const currentEditorContent = $getEditorCodeAsString()
+            const hasExistingContent = !!currentEditorContent
+
             if (language === "json") {
-                if (
-                    isEqual(
-                        safeJson5Parse(prevInitialRef.current as string),
-                        safeJson5Parse(initialValue),
-                    )
-                ) {
-                    return // no semantic change
+                const currentParsed = safeJson5Parse(currentEditorContent)
+                const incomingParsed = safeJson5Parse(initialValue)
+                if (!isEqual(currentParsed, incomingParsed)) {
+                    needsDispatch = true
+                    // Force only when we're replacing real content; on first
+                    // populate, the handler should run normally.
+                    forceUpdate = hasExistingContent
                 }
-            } else if (prevInitialRef.current === initialValue) {
                 return
             }
+
+            if (language === "yaml") {
+                // YAML must be parsed with a YAML parser. Earlier this branch
+                // shared the JSON5 path, but `safeJson5Parse` returns `null`
+                // for unparseable YAML — two different YAML docs would both
+                // collapse to `null` and `isEqual` would treat them as the
+                // same, skipping the dispatch and dropping external updates.
+                // Fall back to trimmed string compare when parsing fails so a
+                // truly non-YAML payload still triggers the update path.
+                let currentParsed: unknown = currentEditorContent?.trim() ?? ""
+                let incomingParsed: unknown = initialValue?.trim() ?? ""
+                try {
+                    currentParsed = yaml.load(currentEditorContent ?? "")
+                } catch {
+                    /* keep trimmed-string fallback */
+                }
+                try {
+                    incomingParsed = yaml.load(initialValue ?? "")
+                } catch {
+                    /* keep trimmed-string fallback */
+                }
+                if (!isEqual(currentParsed, incomingParsed)) {
+                    needsDispatch = true
+                    forceUpdate = hasExistingContent
+                }
+                return
+            }
+
+            // Code languages (python/javascript/typescript/etc.): plain string compare.
+            if ((currentEditorContent ?? "").trim() !== (initialValue ?? "").trim()) {
+                needsDispatch = true
+                forceUpdate = hasExistingContent
+            }
+        })
+
+        if (!needsDispatch) {
+            // Even when skipping the dispatch, keep refs current so subsequent
+            // language-change checks work correctly.
+            prevInitialRef.current = initialValue
+            prevLanguageRef.current = language
+            return
         }
 
         prevInitialRef.current = initialValue
         prevLanguageRef.current = language
-
-        // Check if this is an external update (undo/redo) by comparing with current editor content
-        // If the incoming value differs from what's in the editor, force the update
-        let forceUpdate = false
-        editor.getEditorState().read(() => {
-            const currentEditorContent = $getEditorCodeAsString()
-            // console.log("currentEditorContent", currentEditorContent)
-            if (currentEditorContent) {
-                try {
-                    const currentParsed = safeJson5Parse(currentEditorContent)
-                    const incomingParsed = safeJson5Parse(initialValue)
-                    // If editor content differs from incoming value, this is an external update
-                    if (!isEqual(currentParsed, incomingParsed)) {
-                        forceUpdate = true
-                    }
-                } catch {
-                    // If parsing fails, compare as strings
-                    if (currentEditorContent.trim() !== initialValue.trim()) {
-                        forceUpdate = true
-                    }
-                }
-            }
-        })
 
         // Dispatch event to allow other plugins to handle the content
         let defaultPrevented = false

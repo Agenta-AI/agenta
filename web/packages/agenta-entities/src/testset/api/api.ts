@@ -5,6 +5,7 @@
  * These are pure functions with no Jotai dependencies.
  */
 
+import {getAgentaSdkClient} from "@agenta/sdk"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
@@ -57,7 +58,25 @@ export async function fetchRevision({id, projectId}: RevisionDetailParams): Prom
 export async function fetchRevisionWithTestcases({
     id,
     projectId,
-}: RevisionDetailParams): Promise<Revision | null> {
+    testcaseLimit,
+}: RevisionDetailParams & {testcaseLimit?: number}): Promise<Revision | null> {
+    if (testcaseLimit) {
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/testsets/revisions/retrieve`,
+            {
+                testset_revision_ref: {id},
+                include_testcases: true,
+                windowing: {limit: testcaseLimit},
+            },
+            {params: {project_id: projectId}},
+        )
+
+        const revision = response.data?.testset_revision ?? response.data
+        if (!revision) return null
+
+        return normalizeRevision(revision)
+    }
+
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
@@ -71,6 +90,31 @@ export async function fetchRevisionWithTestcases({
     if (revisions.length === 0) return null
 
     return normalizeRevision(revisions[0])
+}
+
+/**
+ * Fetch the latest revision for a testset with testcases included.
+ * Supports limiting embedded testcases when callers only need a column sample.
+ */
+export async function fetchLatestRevisionWithTestcases({
+    projectId,
+    testsetId,
+    testcaseLimit,
+}: RevisionListParams & {testcaseLimit?: number}): Promise<Revision | null> {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/testsets/revisions/retrieve`,
+        {
+            testset_ref: {id: testsetId},
+            include_testcases: true,
+            ...(testcaseLimit ? {windowing: {limit: testcaseLimit}} : {}),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const revision = response.data?.testset_revision ?? response.data
+    if (!revision) return null
+
+    return normalizeRevision(revision)
 }
 
 /**
@@ -212,7 +256,12 @@ export async function fetchRevisionsBatch(
 // ============================================================================
 
 /**
- * Fetch testsets list (metadata only)
+ * Fetch testsets list (metadata only).
+ *
+ * Migrated to consume the Fern-generated `@agentaai/api-client` via `@agenta/sdk`
+ * (v3 PoC). Zod validation stays at the boundary because Fern's compile-time
+ * types under-declare backend `extra="allow"` fields — drift detection still
+ * has independent value.
  */
 export async function fetchTestsetsList({
     projectId,
@@ -222,25 +271,17 @@ export async function fetchTestsetsList({
         return {testsets: [], count: 0}
     }
 
-    const queryPayload: Record<string, unknown> = {
-        windowing: {limit: 100, order: "descending"},
-    }
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
 
-    if (searchQuery && searchQuery.trim()) {
-        queryPayload.testset = {
-            name: searchQuery.trim(),
-        }
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/testsets/query`, queryPayload, {
-        params: {project_id: projectId},
-    })
-
-    const validated = safeParseWithLogging(
-        testsetsResponseSchema,
-        response.data,
-        "[fetchTestsetsList]",
+    const data = await client.testsets.queryTestsets(
+        {
+            windowing: {limit: 100, order: "descending"},
+            ...(searchQuery && searchQuery.trim() ? {testset: {name: searchQuery.trim()}} : {}),
+        },
+        {queryParams: {project_id: projectId}},
     )
+
+    const validated = safeParseWithLogging(testsetsResponseSchema, data, "[fetchTestsetsList]")
     if (!validated) {
         return {testsets: [], count: 0}
     }

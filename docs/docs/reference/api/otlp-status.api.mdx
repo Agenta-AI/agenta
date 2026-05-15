@@ -1,11 +1,11 @@
 ---
 id: otlp-status
 title: "Status check for OTLP"
-description: "Status check for OTLP"
+description: "Return the OTLP endpoint liveness status."
 sidebar_label: "Status check for OTLP"
 hide_title: true
 hide_table_of_contents: true
-api: eJyNU8tu2zAQ/BVjz6zl9KhTjaJojRRI0KQnQwjW1NpiQokMuTSqCvr3YilHtV20qC4StbOvmeEAjIcI5RbudpHCEXfGGu6hUuA8BWTjuk0NJTi2/ikycoqgIFD0rosUoRzg/Wolr5qiDsZLBpTwkLSmGPfJLr6dwKBAu46pY4Gj99bo3KB4jpIzQNQNtShfPkh7NlOHmLx3gZ9MnTO7/m4P5XYA7j1BCZGD6Q4wqvlPl6yFsVLAhi3lcXKFxaaGUc31OP6rnoK9Cy0ylFAj0zs2Lf1Xk8eYm0xklX+WnfETYhzVG8TtnklzJvg1mUC1KHMqdNboo7OWNE/5M72jPOpah4xZ6Ib0y2LvwuLu8es9KGiJGyfCHkj6eeQGSihE5uJ4U3BATaK0mIJCzPSkYAWD3mQapmPD7GNZFJSW2rpUL/FAHeMSzQSspIZOQVwlRdb3m1vqvxDWFKDcVueAB9F/kvwSNnOI3txSDwo6bOW8Tty4YH5mH4ECIzs3U5aQYbq9y+kn5tZ5uMX6fgMKZLGJpdXyZrmCa+4uwGJd1Nm6b71zGNQVEfP+oIBaNBJjwvbD74BM5l3kFruzen+T6mKomQmmH1x4i6YTs+URhpOM23xbZcEbcdskZaWgcZElOgw7jPQ92HGU36+JgmhTKThiMLgTprbVqN6IFNleqJeVtSYvfjmiTZMeV7dY5Jy99fnTI4zjL2Xjfjc=
+api: eJzdlE2P0zAQhv+KNWeT7HLMiRVCUIG0KyintmJdZ9oYHNvYk0KI8t/R2G1pF4Q4c8mH5+Mdzzz2BKT2CZoV3Ad0S7TYI8URNhJaTDqaQMY7aOA90hCdoA7F/fLdg0DXBm8cCWsO6DAlkUjRkKq1W7t3Zt/RN+SniKhakx1C9FusRMmUxOO0hhKzhkasgR3HNcyP4luHbu1YKvqBMAqTRO8HR9hWYuEIXYut2PkoOlSWOqE71F+S2EXfi/sl2rXT3lrU5GMSW9z5iFz5yDVGEvg9+EjG7QVFpTFVIMEHjIr3umihAU82fCrFgYSIKXiXMEEzwfObG35dd+fDoDWmtBuseH90Bgnac63E7ioEa3QWqD8njpkg6Q57xV8hsjyZopCGwPV9Mm2OdOP9DprVBDQGhAYSReP2MMvzihushXkjgQxZzOXkDGLRwizP+Sj9LZ+EnY+9ImigVYTPyPT4TyLLlEVKs5rf0579T+18CtaJjxJRicdMwqPoUbkk/oiBUK4VSmsMlAqPxu0xUQXzLE8V+O1n1JTn93UwEVvG/FjnxT5eFlRKeRfTuy7zGvpfUJ/YYOWZxXukzjNDe2TtoKiDBmomqj7c1oU4kJAwHjCmPIkhWvZRweSOl9+OKDR1bb1WtvOJinnDkXqIhsYceveweIvjG1QtRmhWm0uHDwxYYera7TwkFcxbHEGCUz3/3w3U+Wh+ZFBBguGtdyWKN2fczufwY+/u9uhIibuHxW8NuzLxSVA6n4STUjaDvNhsaupa5eVKmRokYK8MGwlV/+JsYdq4c0Xmprqtbngp+ES9chcSZaLlcsi3Bc/waZ3Tr1P6399xx6ETfqc6WGUc9y33fzpyuso3H0g43LJ/YXUjgflj6zRtVcKP0c4zL38dMDKGGwkHFY3aMhSrzSxPzDChX3DkeefDypmVHQp6T25EJvd8eF6/WsI8/wQf60/z
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -36,7 +37,11 @@ import Heading from "@theme/Heading";
 
 
 
-Status check for OTLP
+Return the OTLP endpoint liveness status.
+
+Lightweight readiness probe. Returns `{"status": "ready"}` when
+the router is mounted. Intended for health checks from OTel
+collectors before they start exporting traces.
 
 <ParamsDetails
   parameters={undefined}
@@ -45,16 +50,13 @@ Status check for OTLP
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./otlp-status.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"support_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Support Id"},"support_ts":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Support Ts"},"status":{"type":"string","title":"Status"}},"type":"object","required":["status"],"title":"CollectStatusResponse"}}}}}}
+  {...require("./otlp-status.StatusCodes.json")}
 >
   
 </StatusCodes>

@@ -5,7 +5,7 @@ description: "Creates an API key for a user."
 sidebar_label: "Create Api Key"
 hide_title: true
 hide_table_of_contents: true
-api: eJzVU02P2jAQ/SvWnFrJCrTHnBq1hyIORbA9AVrNmoF4SRyvPUGlUf57NU7CLvyD5hJ/PM/He286YDxFyLdQeKuWdI2w13CgaIL1bBsHOXwPhExRoVPFaqHOdFXHJihUbaSQ7dzOFeEU851TSqlAby1FVp/Ww+Jzrp5Kuh03L69kWJnGMVpn3UlxSSmQWvxQ1qXtBI6MTCnBmrgNbsoROQxRTarsMJWVgYbGU0ApfHGAHAbAM3r7fKYraAgUfeMiRcg7+Dqfy+++201rDMV4bCu1HsGgQQomxwJH7ytrUo7Za5Q3HURTUo2y4qsnyCFysO4EGthyJQdTLDWwqUa6oZdPQ01cNlKxbyKDBo9cQg6zsyiiIVK4UBCdOmhDJTfoLfR62pbMPuazGbWZqZr2kOGJHGOGdgDuJYZpg+VrClKsFku6/iQ8UIB8u/8I2EgzA0P3sFt36O0y0emwln3RctkE+zeRAhqsEFkOr6Q7645Nej6SUaTiRDbQII0N1M+zL9kcHu13B07GMUmHKXe6Bv1AxK1/0EA1Wrljwvrb+4VUJnTX6D7Ee9DnoZru3Qn/11yMyjH94Zmv0DroR8q60WxbOI/jX4oH8y103QtG+h2qvpfjt5aCuGev4YLB4otoud33epJajCVjlkNhDHnx8QWrdnDMw9CI4W6mX/3aPEHf/wMCCIsQ
+api: eJzVU82O2jAQfhVrTq1kEdpjTo3aQxGHItieAK0GMxAvwfHaE9Q0yrtX4xAKvMHmEs//zDffdMB4jJCvYU5thK2GPUUTrGdbO8jheyBkigqdKhYzdaJWHeqgUDWRwmTjNq4Ix5hvnFJKBXpvKLL6tBwen3P1UtJNXe/eyLAytWO0zrqj4pJSIjX7oaxL4ugcGZlSgSVxE9xYI3IYsprU2X5sawIaak8BpfHZHnIYHF7R29cTtaAhUPS1ixQh7+DrdCq/x2lXjTEU46Gp1PLqDBqkYXIs7uh9ZU2qkb1FiekgmpLOKC9uPUEOkYN1R9DAlitRjLnUgKYqvFVzaqGXT8OZuKylY19HBg0euYQcspNsREOkcKEgO+qgCZVY0Fvo9SiWzD7Psqo2WJV15MG8lUjTBMttCi0Wszm1Pwn3FCBfb+8dVjLCgMuj220m9HaeQHR4FrlouKyD/ZugAA1W4CuHKJnJukOdwq8QFEdyjLIseKbYgymRwySsx0rJDPpu2JhnGSb1BG0GGuiMVoxMeP52s0CvQZAbykwnXyZTUQnKZ3R3JZ7W8tRg958AH+scrqtj+sOZr9A6mT6h2F05tobT9eqFNyJ33Q4j/Q5V34v6vaEg9NlquGCwuJNlrre9HnctzJLryqEwhrzQ94JVM1Dm6VaEcTeuL36tXqDv/wHCBIam
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -51,16 +52,13 @@ Returns:
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./create-api-key.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"string","title":"Response Create Api Key"}}}}}}
+  {...require("./create-api-key.StatusCodes.json")}
 >
   
 </StatusCodes>

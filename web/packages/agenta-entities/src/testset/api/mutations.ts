@@ -161,6 +161,21 @@ export async function archiveTestsets(params: {projectId: string; testsetIds: st
     return results.map((r) => r.data)
 }
 
+/**
+ * Unarchive (restore) a testset.
+ */
+export async function unarchiveTestset(params: {projectId: string; testsetId: string}) {
+    const {projectId, testsetId} = params
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/simple/testsets/${testsetId}/unarchive`,
+        {},
+        {params: {project_id: projectId}},
+    )
+
+    return response.data
+}
+
 // ============================================================================
 // REVISION MUTATIONS
 // ============================================================================
@@ -225,16 +240,18 @@ export async function patchRevision(params: {
 export async function commitRevision(params: {
     projectId: string
     testsetId: string
+    testsetVariantId?: string
     testcases: {id?: string; data: Record<string, unknown>}[]
     message?: string
 }) {
-    const {projectId, testsetId, testcases, message} = params
+    const {projectId, testsetId, testsetVariantId, testcases, message} = params
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/revisions/commit`,
         {
             testset_revision_commit: {
                 testset_id: testsetId,
+                testset_variant_id: testsetVariantId,
                 message: message || "Updated testcases",
                 data: {
                     testcases: testcases.map((tc) => ({

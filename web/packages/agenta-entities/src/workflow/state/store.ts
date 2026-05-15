@@ -41,8 +41,9 @@ import type {
     WorkflowVariantsResponse,
     WorkflowRevisionsResponse,
 } from "../core"
-import {buildWorkflowUri} from "../core/schema"
+import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core/schema"
 
+import {evaluatorTemplateByKeyAtomFamily} from "./evaluatorTemplateAtoms"
 import {
     resolveServiceTypeFromUrl,
     buildServiceUrlFromUri,
@@ -113,6 +114,31 @@ function primeWorkflowRevisionDetailCache(
 ): void {
     if (!workflow?.id) return
     queryClient.setQueryData(["workflows", "revision", workflow.id, projectId], workflow)
+}
+
+/**
+ * Imperative wrapper for `primeWorkflowRevisionDetailCache` callable from
+ * commit/create handlers. Seeds the per-revision detail cache with the
+ * server response so subsequent `workflowQueryAtomFamily` reads resolve
+ * instantly without a network round-trip — critical for the post-commit
+ * navigation flow where the playground page mounts immediately after
+ * router.push and must not fall back to the workflow's v0 seed revision
+ * while the GET endpoint catches up.
+ */
+export function primeWorkflowRevisionDetailCacheImperative(
+    workflow: Workflow | null | undefined,
+    options?: StoreOptions,
+): void {
+    if (!workflow?.id) return
+    const store = getStore(options)
+    const projectId = store.get(workflowProjectIdAtom)
+    if (!projectId) return
+    try {
+        const qc = store.get(queryClientAtom)
+        primeWorkflowRevisionDetailCache(qc, projectId, workflow)
+    } catch {
+        // queryClientAtom may not be initialized yet (rare)
+    }
 }
 
 function findWorkflowRevisionInDetailCache(
@@ -1078,12 +1104,35 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
         // Check local draft storage first (for browser-only clones)
         let localData = get(workflowLocalServerDataAtomFamily(workflowId))
         if (localData) {
+            // Track the original FLAT schema so the post-draft re-nest can still
+            // see the `x-ag-type: "hidden"` markers (the nested schema in
+            // `localData.data.schemas.parameters` no longer carries them).
+            let flatSchemaForReNest: Record<string, unknown> | undefined
             // Apply evaluator normalization to local drafts too
             if (localData.flags?.is_evaluator) {
                 const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
-                const flatSchema = localData.data?.schemas?.parameters as
+                let flatSchema = localData.data?.schemas?.parameters as
                     | Record<string, unknown>
                     | undefined
+
+                // Ephemeral evaluator workflows (e.g. opened from a trace span) don't
+                // carry their own parameter schema. Reactively seed it from the builtin
+                // evaluator template catalog so data nesting and schema nesting both
+                // run with the same schema context — otherwise `nestEvaluatorConfiguration`
+                // runs schemaless and emits empty `advanced_config` sections, and
+                // downstream schema readers return null for feedback_config.
+                if (!flatSchema && localData.flags?.is_base && localData.data?.uri) {
+                    const key = parseWorkflowKeyFromUri(localData.data.uri)
+                    if (key) {
+                        const template = get(evaluatorTemplateByKeyAtomFamily(key))
+                        const templateSchema = template?.data?.schemas?.parameters
+                        if (templateSchema && typeof templateSchema === "object") {
+                            flatSchema = templateSchema as Record<string, unknown>
+                        }
+                    }
+                }
+
+                flatSchemaForReNest = flatSchema
 
                 const nestedParams = flatParams
                     ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1121,26 +1170,27 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
             } as Workflow
 
             // Re-apply evaluator nesting after draft merge.
-            // Presets write flat params to the draft, overwriting the nested
-            // structure. Re-nesting ensures the UI sees the correct format.
+            // Presets write flat params to the draft (with hidden keys preserved
+            // for round-tripping), so we re-nest using the ORIGINAL flat schema
+            // to drop hidden keys from the rendered data again.
             if (localMerged.flags?.is_evaluator && draft.data?.parameters) {
                 const draftParams = localMerged.data?.parameters as
                     | Record<string, unknown>
                     | undefined
-                const draftSchema = localMerged.data?.schemas?.parameters as
-                    | Record<string, unknown>
-                    | undefined
+                const reNestSchema =
+                    flatSchemaForReNest ??
+                    (localMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
                 if (draftParams) {
                     localMerged = {
                         ...localMerged,
                         data: {
                             ...localMerged.data,
-                            parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
-                            ...(draftSchema
+                            parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
+                            ...(reNestSchema
                                 ? {
                                       schemas: {
                                           ...localMerged.data?.schemas,
-                                          parameters: nestEvaluatorSchema(draftSchema),
+                                          parameters: nestEvaluatorSchema(reNestSchema),
                                       },
                                   }
                                 : {}),
@@ -1161,11 +1211,14 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
         let merged = serverData
 
         // ── Evaluator normalization ──
+        let flatSchemaForReNest: Record<string, unknown> | undefined
         if (merged.flags?.is_evaluator) {
             const flatParams = merged.data?.parameters as Record<string, unknown> | undefined
             const flatSchema = merged.data?.schemas?.parameters as
                 | Record<string, unknown>
                 | undefined
+
+            flatSchemaForReNest = flatSchema
 
             const nestedParams = flatParams
                 ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1203,24 +1256,25 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
         } as Workflow
 
         // Re-apply evaluator nesting after draft merge.
-        // Config edits and presets write flat params to the draft, overwriting
-        // the nested structure. Re-nesting ensures the UI sees the correct format.
+        // Presets write flat params to the draft (with hidden keys preserved
+        // for round-tripping), so we re-nest using the ORIGINAL flat schema
+        // to drop hidden keys from the rendered data again.
         if (finalMerged.flags?.is_evaluator && draft.data?.parameters) {
             const draftParams = finalMerged.data?.parameters as Record<string, unknown> | undefined
-            const draftSchema = finalMerged.data?.schemas?.parameters as
-                | Record<string, unknown>
-                | undefined
+            const reNestSchema =
+                flatSchemaForReNest ??
+                (finalMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
             if (draftParams) {
                 finalMerged = {
                     ...finalMerged,
                     data: {
                         ...finalMerged.data,
-                        parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
-                        ...(draftSchema
+                        parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
+                        ...(reNestSchema
                             ? {
                                   schemas: {
                                       ...finalMerged.data?.schemas,
-                                      parameters: nestEvaluatorSchema(draftSchema),
+                                      parameters: nestEvaluatorSchema(reNestSchema),
                                   },
                               }
                             : {}),
@@ -1238,12 +1292,35 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         // Check local draft storage first (for browser-only clones)
         let localData = get(workflowLocalServerDataAtomFamily(workflowId))
         if (localData) {
+            // Track the original FLAT schema so the post-draft re-nest can still
+            // see the `x-ag-type: "hidden"` markers (the nested schema in
+            // `localData.data.schemas.parameters` no longer carries them).
+            let flatSchemaForReNest: Record<string, unknown> | undefined
             // Apply evaluator normalization to local drafts too
             if (localData.flags?.is_evaluator) {
                 const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
-                const flatSchema = localData.data?.schemas?.parameters as
+                let flatSchema = localData.data?.schemas?.parameters as
                     | Record<string, unknown>
                     | undefined
+
+                // Ephemeral evaluator workflows (e.g. opened from a trace span) don't
+                // carry their own parameter schema. Reactively seed it from the builtin
+                // evaluator template catalog so data nesting and schema nesting both
+                // run with the same schema context — otherwise `nestEvaluatorConfiguration`
+                // runs schemaless and emits empty `advanced_config` sections, and
+                // downstream schema readers return null for feedback_config.
+                if (!flatSchema && localData.flags?.is_base && localData.data?.uri) {
+                    const key = parseWorkflowKeyFromUri(localData.data.uri)
+                    if (key) {
+                        const template = get(evaluatorTemplateByKeyAtomFamily(key))
+                        const templateSchema = template?.data?.schemas?.parameters
+                        if (templateSchema && typeof templateSchema === "object") {
+                            flatSchema = templateSchema as Record<string, unknown>
+                        }
+                    }
+                }
+
+                flatSchemaForReNest = flatSchema
 
                 const nestedParams = flatParams
                     ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1281,26 +1358,27 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
             } as Workflow
 
             // Re-apply evaluator nesting after draft merge.
-            // Presets write flat params to the draft, overwriting the nested
-            // structure. Re-nesting ensures the UI sees the correct format.
+            // Presets write flat params to the draft (with hidden keys preserved
+            // for round-tripping), so we re-nest using the ORIGINAL flat schema
+            // to drop hidden keys from the rendered data again.
             if (localMerged.flags?.is_evaluator && draft.data?.parameters) {
                 const draftParams = localMerged.data?.parameters as
                     | Record<string, unknown>
                     | undefined
-                const draftSchema = localMerged.data?.schemas?.parameters as
-                    | Record<string, unknown>
-                    | undefined
+                const reNestSchema =
+                    flatSchemaForReNest ??
+                    (localMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
                 if (draftParams) {
                     localMerged = {
                         ...localMerged,
                         data: {
                             ...localMerged.data,
-                            parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
-                            ...(draftSchema
+                            parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
+                            ...(reNestSchema
                                 ? {
                                       schemas: {
                                           ...localMerged.data?.schemas,
-                                          parameters: nestEvaluatorSchema(draftSchema),
+                                          parameters: nestEvaluatorSchema(reNestSchema),
                                       },
                                   }
                                 : {}),
@@ -1404,11 +1482,14 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         //
         // The reverse transform (flattenEvaluatorConfiguration) is only
         // applied at write boundaries (commit, updateConfiguration action).
+        let flatSchemaForReNest: Record<string, unknown> | undefined
         if (merged.flags?.is_evaluator) {
             const flatParams = merged.data?.parameters as Record<string, unknown> | undefined
             const flatSchema = merged.data?.schemas?.parameters as
                 | Record<string, unknown>
                 | undefined
+
+            flatSchemaForReNest = flatSchema
 
             const nestedParams = flatParams
                 ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1446,24 +1527,25 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         } as Workflow
 
         // Re-apply evaluator nesting after draft merge.
-        // Config edits and presets write flat params to the draft, overwriting
-        // the nested structure. Re-nesting ensures the UI sees the correct format.
+        // Presets write flat params to the draft (with hidden keys preserved
+        // for round-tripping), so we re-nest using the ORIGINAL flat schema
+        // to drop hidden keys from the rendered data again.
         if (finalMerged.flags?.is_evaluator && draft.data?.parameters) {
             const draftParams = finalMerged.data?.parameters as Record<string, unknown> | undefined
-            const draftSchema = finalMerged.data?.schemas?.parameters as
-                | Record<string, unknown>
-                | undefined
+            const reNestSchema =
+                flatSchemaForReNest ??
+                (finalMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
             if (draftParams) {
                 finalMerged = {
                     ...finalMerged,
                     data: {
                         ...finalMerged.data,
-                        parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
-                        ...(draftSchema
+                        parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
+                        ...(reNestSchema
                             ? {
                                   schemas: {
                                       ...finalMerged.data?.schemas,
-                                      parameters: nestEvaluatorSchema(draftSchema),
+                                      parameters: nestEvaluatorSchema(reNestSchema),
                                   },
                               }
                             : {}),
@@ -1801,6 +1883,10 @@ export function createLocalDraftFromWorkflowRevision(
 
 /**
  * Parameters for creating an ephemeral workflow from trace data.
+ *
+ * `isEvaluator` + `uri` are required for evaluator spans so the ephemeral
+ * entity carries the evaluator identity — downstream selectors (schema,
+ * input ports, request payload) dispatch on `flags.is_evaluator` / `data.uri`.
  */
 export interface CreateEphemeralWorkflowParams {
     label: string
@@ -1808,6 +1894,12 @@ export interface CreateEphemeralWorkflowParams {
     outputs: unknown
     parameters: Record<string, unknown>
     sourceRef?: {type: "application" | "evaluator"; id: string; slug?: string}
+    /** When true, entity.flags.is_evaluator is set and evaluator selectors engage. */
+    isEvaluator?: boolean
+    /** Workflow URI (e.g. "agenta:builtin:auto_ai_critique:v0"). Required for evaluators. */
+    uri?: string
+    /** Full envelope `{trace, inputs, outputs}` for evaluator spans; preserved in meta. */
+    envelope?: Record<string, unknown>
 }
 
 /**
@@ -1842,7 +1934,9 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
     const store = getDefaultStore()
     const id = generateLocalId("local")
 
-    const isChat = detectIsChatFromInputs(params.inputs)
+    const isEvaluator = params.isEvaluator === true
+    // Chat detection is meaningless for evaluator envelopes (inputs are {trace, inputs, outputs}).
+    const isChat = isEvaluator ? false : detectIsChatFromInputs(params.inputs)
 
     const workflow: Workflow = {
         id,
@@ -1862,7 +1956,7 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
             has_script: false,
             has_handler: false,
             is_application: false,
-            is_evaluator: false,
+            is_evaluator: isEvaluator,
             is_snippet: false,
             is_base: true,
         },
@@ -1873,12 +1967,14 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
                 outputs: null,
                 parameters: null,
             },
+            ...(params.uri ? {uri: params.uri} : {}),
         },
         // Store trace I/O in meta for port derivation and snapshot serialization
         meta: {
             __ephemeral: true,
             inputs: params.inputs,
             outputs: params.outputs,
+            ...(params.envelope ? {envelope: params.envelope} : {}),
             ...(params.sourceRef ? {sourceRef: params.sourceRef} : {}),
         },
     } as Workflow
@@ -1887,6 +1983,29 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
 
     return {id, data: workflow}
 }
+
+/**
+ * Release a `local-*` ephemeral entity from the local atom family.
+ *
+ * Discards both the local server data (the ephemeral entity itself) and
+ * the draft layer (any in-progress edits). Used by drawer-create flows
+ * (`app-create`, `evaluator-create`, `trace-replay`) when the user closes
+ * the drawer without committing.
+ *
+ * Safe to call with non-local IDs — it's a no-op for those (the helper
+ * checks the prefix internally).
+ *
+ * **Caller is responsible for gating on commit-not-in-flight.** Releasing
+ * during an active commit can tear state mid-mutation. The drawer wrapper
+ * owns this gate.
+ */
+export const discardLocalServerDataAtom = atom(null, (_get, set, localId: string) => {
+    if (!localId || !localId.startsWith("local-")) return
+    set(workflowLocalServerDataAtomFamily(localId), null)
+    workflowLocalServerDataAtomFamily.remove(localId)
+    set(workflowDraftAtomFamily(localId), null)
+    workflowDraftAtomFamily.remove(localId)
+})
 
 // ============================================================================
 // CACHE INVALIDATION
@@ -2042,4 +2161,30 @@ export function invalidateWorkflowRevisionsByWorkflowCache(
         // queryClientAtom may not be initialized yet
     }
     store.set(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
+}
+
+/**
+ * Invalidate the revisions-by-variant cache for a given variant ID.
+ *
+ * The playground's per-variant revision selector reads
+ * `workflowRevisionsListQueryStateAtomFamily(variantId)`, which is backed by
+ * the `["workflows", "revisions", variantId, projectId]` queryKey — distinct
+ * from the workflow-scoped `revisionsByWorkflow` cache. Without this
+ * invalidation, deleting a revision keeps the stale entry in the dropdown.
+ */
+export function invalidateWorkflowRevisionsByVariantCache(
+    variantId: string,
+    options?: StoreOptions,
+) {
+    const store = getStore(options)
+    try {
+        const qc = store.get(queryClientAtom)
+        qc.invalidateQueries({
+            queryKey: ["workflows", "revisions", variantId],
+            exact: false,
+        })
+    } catch {
+        // queryClientAtom may not be initialized yet
+    }
+    store.set(workflowRevisionsQueryAtomFamily(variantId))
 }

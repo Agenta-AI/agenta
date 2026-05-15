@@ -5,7 +5,7 @@ description: "Get workspace details."
 sidebar_label: "Get Workspace"
 hide_title: true
 hide_table_of_contents: true
-api: eJzllE1v2zAMhv+KwMsuQpLt6NMCrGiDAlvRZtghDQZGZmK1tuRKdNvM8H8fKCeOk916XS6OSL78kB6pBcZdhGwFv3x4jjUagrWGnKIJtmbrHWRwTazejm6VE6Mt4+TRPbp74ia4eLQp3PiGFRc0iscYvbHIlKs3y0XyNpHCp6gixWi9G6fKHp1SSg3dZGpZDDWV354n75VoIx2FN8vl3dW7odR7phbboZ7KPUXlPKsCX0nVFCqbyiv2str6UCkubFRoRDwBDb6mgLJY5JDBjvj3UBo0BIq1d5EiZC18mc3kc75zD40xFOO2KdX9IRg0GO+YHEs41nVpTSoxfYqiaSGagiqUf5apSsnrIJ2w7UvZPEnd/scWslULvK8JMogcrNtBpweLa8oSurUGtlyKYZFDp8FhRZLhXHeK+i7+7oKCjxX8NkrR6UPYx1Itxd4NScBvnshwOoaXxgbKheI02iFkpD3BfdJjCLgfTX08ICW4jwTy01ARF/4AAWiokQvIYDrgEEFDpPBKIaa5mlCKH2ubhuqXBXMds+mUmokpfZNPcEeOcYK2D1xLDtMEy/uUZH63uKX9DWFOAbLVehzwIJT0PJyHDTuItb0lmbA/b5g3XPhg/yTaQIMVQoteJSNat/VJftiQeWpOze8WoEEG65meTT5PZnD5RpwFC+BoEuDH2skN+mIjhvlBA1VoxceE1deTQzqrfeQK3Sjf+Rn9g+pww/7jt+tAAdM7T+sSbbqAafvbA74rGOG71lD4yGJt2w1G+hnKrhPzS0NBeFxreMVgcSN0rNadPsIjqD7TXo7ZSPeCC5ZNz+DF+yYID3fp+moJXfcX4ZJBUA==
+api: eJzllMFu2zAMhl9F4GUXIc529GkBVrRBga1oM+yQBgMjM7FaW3IlumkW+N0HyonjdLdel4sjkj8pip90AMZthHwJv3x4jg0airDSUFA0wTZsvYMcronV7uRXBTHaKk4e3aO7J26DiyebwrVvWXFJo3iM0RuLTIXaWS6Tt40UPkUVKUbr3ThV/uiUUmrYTq4W5VBT+c1l8l6JNtJJeLNY3F29GUp7z9V8M9RThaeonGdV4iuphkJtU3nFXlYbH2rFpY0KjYgnoME3FFAW8wJy2BL/HkqDhkCx8S5ShPwAX6ZT+Vye3ENrDMW4aSt1fwwGDcY7JscSjk1TWZNKZE9RNAeIpqQa5Z9lqlPyJshO2PalbJGkbv9jA/nyALxvCHKIHKzbQqcHi2urCrqVBrZciWFeQKfBYU2S4VJ3jvou/u4dBR8r+G2UotPHsI+lWoi9G5KAXz+R4TSGl9YGKgTj1NoxZKQdcDpvAjAE3I+6Pg1ICe4jgfw01MSlP0IAGhrkEnLIdudroyFSeKUQU19tqMSPjU1N9cuSucmzrPIGq9JH7t0rUZo2WN4n6exufkv7G8KCAuTL1TjgQdjoKbgMG84NG3tL0lc/ZZi1XPpg/yTGQIMVLsteJY1Zt/FJfjyG2ZYco5rdzeH9O3DhEojRJIhPlZIb9KjZmGcZJvMEbQYaqEYrTiasvw4emYqcXF9mOvk8mYqp8ZFrdKMSl6P5h9DhYv3HT9YRA6Y3zpoKbbp3aSKHI7VL2F089kKiWA+HNUb6GaquE/NLS0GAXGl4xWBxLXgsV50+0SOsPtNeJm9k9yCBVdtD+O5ZE4aHK3R9tYCu+wvWTz6T
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -53,16 +54,13 @@ Raises:
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./get-workspace.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Id"},"name":{"type":"string","title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"type":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Type"}},"type":"object","required":["name","type"],"title":"Workspace"},"type":"array","title":"Response Get Workspace"}}}}}}
+  {...require("./get-workspace.StatusCodes.json")}
 >
   
 </StatusCodes>

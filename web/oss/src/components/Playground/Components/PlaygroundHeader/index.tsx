@@ -23,10 +23,10 @@ import dynamic from "next/dynamic"
 
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import {currentAppAtom} from "@/oss/state/app"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
+import {currentWorkflowAtom, currentWorkflowContextAtom} from "@/oss/state/workflow"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
 import type {BaseContainerProps} from "../types"
@@ -146,7 +146,12 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     // ATOM-LEVEL OPTIMIZATION: Use focused atom subscriptions instead of full playground state
     const {displayedEntities} = usePlaygroundLayout()
 
-    const currentApp = useAtomValue(currentAppAtom)
+    // Phase 6.1.1: read from currentWorkflowAtom (resolves both apps and
+    // evaluators) instead of currentAppAtom (apps-only — null for evaluators).
+    // The is_custom flag still resolves correctly because it's a URI-derived
+    // flag that exists on the workflow data regardless of role.
+    const currentWorkflow = useAtomValue(currentWorkflowAtom)
+    const currentWorkflowCtx = useAtomValue(currentWorkflowContextAtom)
     const routeAppId = useAtomValue(routerAppIdAtom)
     const isProjectLevelPlayground = !routeAppId
 
@@ -300,7 +305,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                 {...divProps}
             >
                 <div className="flex shrink-0 items-center gap-2">
-                    {currentApp?.flags?.is_custom ? (
+                    {currentWorkflow?.flags?.is_custom ? (
                         <Dropdown
                             trigger={["click"]}
                             styles={{
@@ -343,7 +348,10 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             </div>
                         </div>
                     )}
-                    <RunEvaluationButton />
+                    {/* Phase 6.1.2: hide "New Evaluation" for evaluator
+                     * workflows — running an evaluation FROM an evaluator's
+                     * playground doesn't make sense (would evaluate itself). */}
+                    {currentWorkflowCtx.workflowKind !== "evaluator" && <RunEvaluationButton />}
                     <Divider orientation="vertical" className="!mx-0 h-5" />
                     <Tooltip title="Add evaluators to automatically score outputs in the playground.">
                         <span>

@@ -31,6 +31,7 @@ import {
     normalizeEscapedLineBreaks,
     parseStructuredJson,
 } from "@/oss/components/DrillInView/decodedJsonHelpers"
+import {getDefaultJsonViewMode} from "@/oss/components/DrillInView/viewModes"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
@@ -64,9 +65,9 @@ type AccordionTreePanelProps = {
  * Summary:
  * - `json` / `yaml`: faithful — data as stored, no cleanup.
  * - `decoded-json`: JSON editor, cleaned (unwrap nested stringified JSON,
- *   decode escaped newlines). Default for non-message data.
+ *   decode escaped newlines).
  * - `beautified-json`: custom component tree (chat bubbles, per-key fields,
- *   envelope unwrap, noise stripping). Default for `viewModePreset="message"`.
+ *   envelope unwrap, noise stripping). Default for structured JSON data.
  * - `text` / `markdown`: prose editor.
  */
 type PanelViewMode = "json" | "yaml" | "decoded-json" | "beautified-json" | "text" | "markdown"
@@ -78,15 +79,6 @@ const PANEL_VIEW_MODE_LABELS: Record<PanelViewMode, string> = {
     "beautified-json": "Beautified JSON",
     text: "Text",
     markdown: "Markdown",
-}
-
-const getDefaultPanelViewMode = (
-    availableModes: PanelViewMode[],
-    {preferBeautified = false}: {preferBeautified?: boolean} = {},
-): PanelViewMode => {
-    if (preferBeautified && availableModes.includes("beautified-json")) return "beautified-json"
-    if (availableModes.includes("decoded-json")) return "decoded-json"
-    return availableModes[0] ?? "json"
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -336,20 +328,14 @@ const AccordionTreePanel = ({
         return ["json", "yaml", "decoded-json", "beautified-json"]
     }, [viewModePreset, isStringValue, hasStructuredValue, parsedStructuredString])
     const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(() =>
-        getDefaultPanelViewMode(availableViewModes, {
-            preferBeautified: viewModePreset === "message",
-        }),
+        getDefaultJsonViewMode(availableViewModes),
     )
 
     useEffect(() => {
         if (!availableViewModes.includes(panelViewMode)) {
-            setPanelViewMode(
-                getDefaultPanelViewMode(availableViewModes, {
-                    preferBeautified: viewModePreset === "message",
-                }),
-            )
+            setPanelViewMode(getDefaultJsonViewMode(availableViewModes))
         }
-    }, [availableViewModes, panelViewMode, viewModePreset])
+    }, [availableViewModes, panelViewMode])
 
     const isCodeMode =
         panelViewMode === "json" || panelViewMode === "yaml" || panelViewMode === "decoded-json"

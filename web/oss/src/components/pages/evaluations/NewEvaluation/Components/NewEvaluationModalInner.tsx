@@ -74,11 +74,37 @@ const NewEvaluationModalInner = ({
 }: NewEvaluationModalInnerProps) => {
     // Use appIdentifiersAtom directly to get the URL-derived appId without fallback to stale values
     const {appId} = useAtomValue(appIdentifiersAtom)
+    // Phase 6.1.3 defensive guard: if a preselect ID matches an evaluator
+    // workflow, ignore it. Belt-and-suspenders with the Phase 6.1.2 fix that
+    // hides RunEvaluationButton for evaluators — but covers any other call site
+    // (e.g., a stale cache or programmatic open) that might still pass an
+    // evaluator ID. Without this, the modal silently defaults to "no app
+    // selected" which is confusing.
+    const evaluatorWorkflows = useAtomValue(evaluatorsListDataAtom)
+    const sanitizedPreSelectedAppId = useMemo(() => {
+        if (!preSelectedAppId) return undefined
+        const isEvaluator = evaluatorWorkflows.some((e) => e.id === preSelectedAppId)
+        if (isEvaluator) {
+            if (process.env.NODE_ENV !== "production") {
+                console.warn(
+                    `[NewEvaluationModal] preSelectedAppId resolves to an evaluator workflow (${preSelectedAppId}) — ignoring.`,
+                )
+            }
+            return undefined
+        }
+        return preSelectedAppId
+    }, [preSelectedAppId, evaluatorWorkflows])
     // Consider pre-selected app ID from playground, fallback to URL-derived appId
-    const effectiveAppId = preSelectedAppId || appId || ""
+    const effectiveAppId = sanitizedPreSelectedAppId || appId || ""
     const isAppScoped = Boolean(effectiveAppId)
     const {apps: availableApps = []} = useAppsData()
     const [selectedAppId, setSelectedAppId] = useState<string>(effectiveAppId)
+    // Name/kind captured when the user picks a workflow from the table so the
+    // panel tag stays readable even for evaluators (not present in `availableApps`).
+    const [selectedWorkflowMeta, setSelectedWorkflowMeta] = useState<{
+        label?: string
+        isEvaluator?: boolean
+    } | null>(null)
     const setRegistryWorkflowIdOverride = useSetAtom(registryWorkflowIdOverrideAtom)
 
     // Sync the registry store's workflow ID override with the modal's selected app.
@@ -102,16 +128,18 @@ const NewEvaluationModalInner = ({
             updatedAt: app.updated_at ?? null,
         }))
         if (selectedAppId && !options.some((opt) => opt.value === selectedAppId)) {
+            // Evaluators (and locally-picked workflows) aren't in useAppsData —
+            // fall back to the captured meta so the tag renders a real name.
             options.push({
-                label: selectedAppId,
+                label: selectedWorkflowMeta?.label ?? selectedAppId,
                 value: selectedAppId,
-                type: null,
+                type: selectedWorkflowMeta?.isEvaluator ? "evaluator" : null,
                 createdAt: null,
                 updatedAt: null,
             })
         }
         return options
-    }, [availableApps, selectedAppId])
+    }, [availableApps, selectedAppId, selectedWorkflowMeta])
     const router = useRouter()
     const {baseAppURL, projectURL} = useURL()
 
@@ -251,9 +279,16 @@ const NewEvaluationModalInner = ({
     }, [isAppScoped, selectedAppId, activePanel, setActivePanel])
 
     const handleAppSelection = useCallback(
-        (value: string) => {
-            if (value === selectedAppId) return
+        (value: string, meta?: {label?: string; isEvaluator?: boolean}) => {
+            if (value === selectedAppId) {
+                // Same workflow re-selected — refresh the meta so label/kind
+                // fallbacks stay current without resetting the rest of the
+                // wizard state.
+                if (value && meta) setSelectedWorkflowMeta(meta)
+                return
+            }
             setSelectedAppId(value)
+            setSelectedWorkflowMeta(value ? (meta ?? null) : null)
             setSelectedTestsetId("")
             setSelectedTestsetRevisionId("")
             setSelectedTestsetName("")
@@ -261,7 +296,7 @@ const NewEvaluationModalInner = ({
             setSelectedVariantRevisionIds([])
             setSelectedEvalConfigs([])
             setEvaluationName("")
-            setActivePanel("variantPanel")
+            setActivePanel(value ? "variantPanel" : "appPanel")
             setAdvanceSettings(DEFAULT_ADVANCE_SETTINGS)
         },
         [selectedAppId],
@@ -395,7 +430,7 @@ const NewEvaluationModalInner = ({
             return false
         }
         if (selectedVariantRevisionIds.length === 0) {
-            message.error("Please select app variant")
+            message.error("Please select a revision")
             return false
         }
 
@@ -412,7 +447,7 @@ const NewEvaluationModalInner = ({
 
         if (hasUnresolvableLocalDraft) {
             message.error(
-                "Please commit selected local draft variants before starting an evaluation.",
+                "Please commit selected local draft revisions before starting an evaluation.",
             )
             return false
         }
@@ -512,10 +547,10 @@ const NewEvaluationModalInner = ({
                     (evaluationType === "human" && !evaluationName)
                 ) {
                     message.error(
-                        `Please select a testset, app variant, ${
+                        `Please select a testset, revision, ${
                             evaluationType === "human" ? "evaluation name, and" : " and"
                         } evaluator configuration. Missing: ${
-                            !selectionData.revisions?.length ? "app revision" : ""
+                            !selectionData.revisions?.length ? "revision" : ""
                         } ${!selectionData.testset ? "testset" : ""} ${
                             !selectionData.evaluators?.length
                                 ? "evaluators"

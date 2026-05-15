@@ -95,7 +95,7 @@ class TestSimpleUserIdentities:
         # Delete that identity
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/users/{user_id}/identities/{identity_id}/",
+            f"/admin/simple/accounts/users/{user_id}/identities/{identity_id}",
         )
         assert delete_resp.status_code == 200
         delete_body = delete_resp.json()
@@ -112,7 +112,7 @@ class TestSimpleUserIdentities:
 
         response = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/users/{user_id}/identities/{fake_identity_id}/",
+            f"/admin/simple/accounts/users/{user_id}/identities/{fake_identity_id}",
         )
         assert response.status_code == 404
 
@@ -125,61 +125,17 @@ class TestSimpleUserIdentities:
 
 
 class TestSimpleOrganizations:
-    def test_create_and_delete_organization(self, admin_api):
-        uid = uuid4().hex[:12]
-        email = f"org-owner-{uid}@test.agenta.ai"
-
-        # Owner must exist before creating an organization
-        user_resp = admin_api(
-            "POST",
-            "/admin/simple/accounts/users/",
-            json={"user": {"email": email}},
-        )
-        assert user_resp.status_code == 200
-
-        create_resp = admin_api(
-            "POST",
-            "/admin/simple/accounts/organizations/",
-            json={
-                "organization": {"name": f"Org-{uid}"},
-                "owner": {"email": email},
-            },
-        )
-        assert create_resp.status_code == 200
-        body = create_resp.json()
-        orgs = body["accounts"][0]["organizations"]
-        assert orgs
-        org_id = list(orgs.values())[0]["id"]
-
-        delete_resp = admin_api(
-            "DELETE",
-            f"/admin/simple/accounts/organizations/{org_id}/",
-        )
-        assert delete_resp.status_code == 200
-        assert delete_resp.json()["deleted"]["organizations"]
-
-        _delete_account_by_email(admin_api, email=email)
+    # Create / delete round-trip moved to EE: on OSS the singleton
+    # invariant collapses admin_create_organization onto a fixed slug
+    # and the delete handler refuses to remove it. See
+    # api/ee/tests/pytest/acceptance/accounts/test_simple_entities_ee.py.
 
     def test_delete_nonexistent_org_returns_404(self, admin_api):
         response = admin_api(
             "DELETE",
-            "/admin/simple/accounts/organizations/00000000-0000-0000-0000-000000000000/",
+            "/admin/simple/accounts/organizations/00000000-0000-0000-0000-000000000000",
         )
         assert response.status_code == 404
-
-    def test_invalid_org_ref_returns_400(self, admin_api):
-        """Referencing a non-existent owner slug should return 400, not 500 (Bug 1 fix)."""
-        uid = uuid4().hex[:12]
-        response = admin_api(
-            "POST",
-            "/admin/simple/accounts/organizations/",
-            json={
-                "organization": {"name": f"BadRefOrg-{uid}"},
-                "owner": {"email": f"no-such-owner-{uid}@test.agenta.ai"},
-            },
-        )
-        # The service raises AdminInvalidReferenceError for unknown refs → must be 400
-        assert response.status_code in (400, 404)
 
 
 # ---------------------------------------------------------------------------
@@ -188,41 +144,15 @@ class TestSimpleOrganizations:
 
 
 class TestSimpleWorkspaces:
-    def test_create_and_delete_workspace(self, admin_api):
-        uid = uuid4().hex[:12]
-        email = f"wrk-{uid}@test.agenta.ai"
-        account = _create_account(admin_api, email=email)
-        org_id = list(account["organizations"].values())[0]["id"]
-
-        create_resp = admin_api(
-            "POST",
-            "/admin/simple/accounts/workspaces/",
-            json={
-                "workspace": {
-                    "name": f"Workspace-{uid}",
-                    "organization_ref": {"id": org_id},
-                }
-            },
-        )
-        assert create_resp.status_code == 200
-        body = create_resp.json()
-        wks = body["accounts"][0]["workspaces"]
-        assert wks
-        workspace_id = list(wks.values())[0]["id"]
-
-        delete_resp = admin_api(
-            "DELETE",
-            f"/admin/simple/accounts/workspaces/{workspace_id}/",
-        )
-        assert delete_resp.status_code == 200
-        assert delete_resp.json()["deleted"]["workspaces"]
-
-        _delete_account_by_email(admin_api, email=email)
+    # Create / delete round-trip moved to EE: on OSS the singleton
+    # workspace under the singleton org is itself a singleton and the
+    # delete handler refuses to remove it. See
+    # api/ee/tests/pytest/acceptance/accounts/test_simple_entities_ee.py.
 
     def test_delete_nonexistent_workspace_returns_404(self, admin_api):
         response = admin_api(
             "DELETE",
-            "/admin/simple/accounts/workspaces/00000000-0000-0000-0000-000000000000/",
+            "/admin/simple/accounts/workspaces/00000000-0000-0000-0000-000000000000",
         )
         assert response.status_code == 404
 
@@ -259,7 +189,7 @@ class TestSimpleProjects:
 
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/projects/{project_id}/",
+            f"/admin/simple/accounts/projects/{project_id}",
         )
         assert delete_resp.status_code == 200
         assert delete_resp.json()["deleted"]["projects"]
@@ -269,119 +199,9 @@ class TestSimpleProjects:
     def test_delete_nonexistent_project_returns_404(self, admin_api):
         response = admin_api(
             "DELETE",
-            "/admin/simple/accounts/projects/00000000-0000-0000-0000-000000000000/",
+            "/admin/simple/accounts/projects/00000000-0000-0000-0000-000000000000",
         )
         assert response.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# Memberships
-# ---------------------------------------------------------------------------
-
-
-class TestSimpleMemberships:
-    def test_create_and_delete_org_membership(self, admin_api):
-        uid = uuid4().hex[:12]
-        email_a = f"mem-a-{uid}@test.agenta.ai"
-        email_b = f"mem-b-{uid}@test.agenta.ai"
-        account_a = _create_account(admin_api, email=email_a)
-        account_b = _create_account(admin_api, email=email_b)
-        org_id = list(account_a["organizations"].values())[0]["id"]
-        user_b_id = account_b["user"]["id"]
-
-        create_resp = admin_api(
-            "POST",
-            "/admin/simple/accounts/organizations/memberships/",
-            json={
-                "membership": {
-                    "organization_ref": {"id": org_id},
-                    "user_ref": {"id": user_b_id},
-                    "role": "member",
-                }
-            },
-        )
-        assert create_resp.status_code == 200
-        memberships = create_resp.json()["accounts"][0]["organization_memberships"]
-        assert memberships
-        membership_id = list(memberships.values())[0]["id"]
-
-        delete_resp = admin_api(
-            "DELETE",
-            f"/admin/simple/accounts/organizations/{org_id}/memberships/{membership_id}/",
-        )
-        assert delete_resp.status_code == 200
-        assert delete_resp.json()["deleted"]["organization_memberships"]
-
-        _delete_account_by_email(admin_api, email=email_a)
-        _delete_account_by_email(admin_api, email=email_b)
-
-    def test_create_and_delete_workspace_membership(self, admin_api):
-        uid = uuid4().hex[:12]
-        email_a = f"wm-a-{uid}@test.agenta.ai"
-        email_b = f"wm-b-{uid}@test.agenta.ai"
-        account_a = _create_account(admin_api, email=email_a)
-        account_b = _create_account(admin_api, email=email_b)
-        workspace_id = list(account_a["workspaces"].values())[0]["id"]
-        user_b_id = account_b["user"]["id"]
-
-        create_resp = admin_api(
-            "POST",
-            "/admin/simple/accounts/workspaces/memberships/",
-            json={
-                "membership": {
-                    "workspace_ref": {"id": workspace_id},
-                    "user_ref": {"id": user_b_id},
-                    "role": "viewer",
-                }
-            },
-        )
-        assert create_resp.status_code == 200
-        memberships = create_resp.json()["accounts"][0]["workspace_memberships"]
-        assert memberships
-        membership_id = list(memberships.values())[0]["id"]
-
-        delete_resp = admin_api(
-            "DELETE",
-            f"/admin/simple/accounts/workspaces/{workspace_id}/memberships/{membership_id}/",
-        )
-        assert delete_resp.status_code == 200
-
-        _delete_account_by_email(admin_api, email=email_a)
-        _delete_account_by_email(admin_api, email=email_b)
-
-    def test_create_and_delete_project_membership(self, admin_api):
-        uid = uuid4().hex[:12]
-        email_a = f"pm-a-{uid}@test.agenta.ai"
-        email_b = f"pm-b-{uid}@test.agenta.ai"
-        account_a = _create_account(admin_api, email=email_a)
-        account_b = _create_account(admin_api, email=email_b)
-        project_id = list(account_a["projects"].values())[0]["id"]
-        user_b_id = account_b["user"]["id"]
-
-        create_resp = admin_api(
-            "POST",
-            "/admin/simple/accounts/projects/memberships/",
-            json={
-                "membership": {
-                    "project_ref": {"id": project_id},
-                    "user_ref": {"id": user_b_id},
-                    "role": "viewer",
-                }
-            },
-        )
-        assert create_resp.status_code == 200
-        memberships = create_resp.json()["accounts"][0]["project_memberships"]
-        assert memberships
-        membership_id = list(memberships.values())[0]["id"]
-
-        delete_resp = admin_api(
-            "DELETE",
-            f"/admin/simple/accounts/projects/{project_id}/memberships/{membership_id}/",
-        )
-        assert delete_resp.status_code == 200
-
-        _delete_account_by_email(admin_api, email=email_a)
-        _delete_account_by_email(admin_api, email=email_b)
 
 
 # ---------------------------------------------------------------------------
@@ -417,7 +237,7 @@ class TestSimpleApiKeys:
 
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/api-keys/{api_key_id}/",
+            f"/admin/simple/accounts/api-keys/{api_key_id}",
         )
         assert delete_resp.status_code == 200
         assert delete_resp.json()["deleted"]["api_keys"]
@@ -427,6 +247,6 @@ class TestSimpleApiKeys:
     def test_delete_nonexistent_api_key_returns_404(self, admin_api):
         response = admin_api(
             "DELETE",
-            "/admin/simple/accounts/api-keys/00000000-0000-0000-0000-000000000000/",
+            "/admin/simple/accounts/api-keys/00000000-0000-0000-0000-000000000000",
         )
         assert response.status_code == 404

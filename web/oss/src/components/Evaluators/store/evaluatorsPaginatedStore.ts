@@ -24,7 +24,13 @@ import {
 } from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Atom} from "jotai"
+
+import {
+    createDateDescComparator,
+    emptyFetchResult,
+    getCursorOffset,
+} from "@/oss/state/entities/shared"
 
 import type {EvaluatorCategory} from "../assets/types"
 
@@ -49,6 +55,8 @@ export interface EvaluatorTableRow {
     version: number | null
     /** Revision's own created_at — used for child row date sort */
     revisionCreatedAt: string | null
+    deletedAt?: string | null
+    deletedById?: string | null
     [k: string]: unknown
 }
 
@@ -62,15 +70,11 @@ interface EvaluatorQueryMeta {
     searchTerm?: string
 }
 
-// ============================================================================
-// META ATOM
-// ============================================================================
+export type EvaluatorsTableMode = "active" | "archived"
 
-const evaluatorPaginatedMetaAtom = atom<EvaluatorQueryMeta>((get) => ({
-    projectId: get(projectIdAtom),
-    category: get(evaluatorCategoryAtom),
-    searchTerm: get(evaluatorSearchTermAtom) || undefined,
-}))
+// ============================================================================
+// SHARED HELPERS
+// ============================================================================
 
 const skeletonDefaults: Partial<EvaluatorTableRow> = {
     revisionId: "",
@@ -78,30 +82,85 @@ const skeletonDefaults: Partial<EvaluatorTableRow> = {
     variantId: "",
     version: null,
     revisionCreatedAt: null,
+    deletedAt: null,
+    deletedById: null,
     key: "",
 }
 
+const compareDeletedAtDesc = createDateDescComparator<EvaluatorTableRow>((row) => row.deletedAt)
+
+const createEvaluatorMetaAtom = (
+    categoryAtom: Atom<EvaluatorCategory>,
+    searchTermAtom: Atom<string>,
+) =>
+    atom<EvaluatorQueryMeta>((get) => ({
+        projectId: get(projectIdAtom),
+        category: get(categoryAtom),
+        searchTerm: get(searchTermAtom) || undefined,
+    }))
+
+const toRevisionEvaluatorRow = (revision: Workflow): EvaluatorTableRow => {
+    const workflowId = revision.workflow_id ?? ""
+
+    return {
+        key: revision.id,
+        revisionId: revision.id,
+        workflowId,
+        variantId: revision.workflow_variant_id ?? revision.variant_id ?? "",
+        version: revision.version ?? null,
+        revisionCreatedAt: revision.created_at ?? null,
+    }
+}
+
+const toArchivedEvaluatorRow = (workflow: Workflow, revision: Workflow): EvaluatorTableRow => ({
+    key: workflow.id,
+    revisionId: revision.id,
+    workflowId: workflow.id,
+    variantId: revision.workflow_variant_id ?? revision.variant_id ?? "",
+    version: revision.version ?? null,
+    revisionCreatedAt: revision.created_at ?? null,
+    deletedAt: workflow.deleted_at ?? null,
+    deletedById: workflow.deleted_by_id ?? null,
+})
+
 // ============================================================================
-// WORKFLOW ID CACHE
+// META ATOM
+// ============================================================================
+
+const evaluatorPaginatedMetaAtom = createEvaluatorMetaAtom(
+    evaluatorCategoryAtom,
+    evaluatorSearchTermAtom,
+)
+
+// ============================================================================
+// EVALUATOR WORKFLOW CACHE
 // ============================================================================
 
 /**
- * Lightweight cache of workflow IDs per category+project.
- * Used only to know which workflow IDs to pass to the revisions query.
+ * Lightweight cache of evaluator workflows per mode+category+project.
+ * Active lists use the workflow IDs to page revisions server-side.
+ * Archived lists use the richer entries because deleted metadata lives on the
+ * workflow row, not on the latest revision row.
  *
  * Workflow entities are seeded into workflowMolecule by their ID so that
  * group parent rows (which look up by workflowId) can read name/slug without
  * triggering individual revision fetches.
  *
- * Category classification (auto vs human) is derived from the latest revision's
+ * Category classification (automatic vs human) is derived from the latest revision's
  * URI/flags — workflow-level flags only have is_evaluator, not is_feedback.
  */
-interface WorkflowIdCache {
-    key: string // `${projectId}:${category}:${searchTerm}`
-    workflowIds: string[]
+interface EvaluatorWorkflowCacheEntry {
+    workflow: Workflow
+    latestRevision: Workflow | null
 }
 
-let _workflowIdCache: WorkflowIdCache | null = null
+interface EvaluatorWorkflowCache {
+    key: string // `${projectId}:${category}:${mode}:${searchTerm}`
+    workflowIds: string[]
+    entries: EvaluatorWorkflowCacheEntry[]
+}
+
+let _evaluatorWorkflowCache = new Map<string, EvaluatorWorkflowCache>()
 
 /**
  * Determine if a workflow revision represents a "human" evaluator.
@@ -116,22 +175,48 @@ function isHumanEvaluator(revision: Workflow | null | undefined): boolean {
     return Boolean(revision.flags?.is_feedback)
 }
 
-async function ensureWorkflowIdCache(
-    projectId: string,
-    category: EvaluatorCategory,
-    searchTerm?: string,
-): Promise<WorkflowIdCache> {
-    const cacheKey = `${projectId}:${category}:${searchTerm ?? ""}`
-    if (_workflowIdCache?.key === cacheKey) {
-        return _workflowIdCache
+/**
+ * Determine if a workflow revision is platform-managed (URI rooted at
+ * `agenta:*`). User-deployed Python evaluators registered via the SDK
+ * get auto-generated URIs like `user:custom:__main__.MyEval:latest` —
+ * those are operationally evaluators but aren't first-class catalog
+ * entries the Evaluators page is built around, so we filter them out.
+ *
+ * The flag is URI-derived in the BE (`provider == "agenta"`) and lives
+ * on the revision (not artifact), so the check has to happen here after
+ * we've fetched the latest revision for category classification.
+ */
+function isManagedEvaluator(revision: Workflow | null | undefined): boolean {
+    if (!revision) return false
+    return Boolean(revision.flags?.is_managed)
+}
+
+async function ensureEvaluatorWorkflowCache({
+    projectId,
+    category,
+    searchTerm,
+    mode,
+}: {
+    projectId: string
+    category: EvaluatorCategory
+    searchTerm?: string
+    mode: EvaluatorsTableMode
+}): Promise<EvaluatorWorkflowCache> {
+    const cacheKey = `${projectId}:${category}:${mode}:${searchTerm ?? ""}`
+    const cached = _evaluatorWorkflowCache.get(cacheKey)
+    if (cached) {
+        return cached
     }
 
     const workflowsResponse = await queryWorkflows({
         projectId,
         flags: {is_evaluator: true as const},
         name: searchTerm || undefined,
+        includeArchived: mode === "archived",
     })
-    const workflows = (workflowsResponse.workflows ?? []).filter((w) => !w.deleted_at)
+    const workflows = (workflowsResponse.workflows ?? []).filter((workflow) =>
+        mode === "archived" ? Boolean(workflow.deleted_at) : !workflow.deleted_at,
+    )
 
     const allWorkflowIds = workflows.map((w) => w.id)
 
@@ -148,22 +233,43 @@ async function ensureWorkflowIdCache(
             ? await fetchWorkflowsBatch(projectId, allWorkflowIds)
             : new Map<string, Workflow>()
 
-    const workflowIds = allWorkflowIds.filter((id) => {
-        const revision = latestRevisions.get(id)
+    const entries = workflows.flatMap((workflow) => {
+        const revision = latestRevisions.get(workflow.id) ?? null
+
+        if (revision) {
+            workflowMolecule.set.seedEntity(revision.id, revision)
+        }
+
+        // Drop user-deployed evaluators (`is_managed=false`) — they're
+        // not catalog entries and shouldn't appear here.
+        if (!isManagedEvaluator(revision)) return [] as EvaluatorWorkflowCacheEntry[]
+
         const isHuman = isHumanEvaluator(revision)
-        return category === "human" ? isHuman : !isHuman
+        if (category === "human" ? !isHuman : isHuman) {
+            return [] as EvaluatorWorkflowCacheEntry[]
+        }
+
+        return [{workflow, latestRevision: revision}]
     })
 
-    _workflowIdCache = {key: cacheKey, workflowIds}
-    return _workflowIdCache
+    const cache = {
+        key: cacheKey,
+        workflowIds: entries.map((entry) => entry.workflow.id),
+        entries,
+    }
+
+    _evaluatorWorkflowCache.set(cacheKey, cache)
+    return cache
 }
 
 /** Clear caches so the next fetch re-queries the API. */
 export const clearEvaluatorWorkflowCache = () => {
-    _workflowIdCache = null
+    _evaluatorWorkflowCache.clear()
+    _archivedEvaluatorRowsCache.clear()
     // Also remove TanStack Query entries so the paginated store
     // re-fetches from the API instead of returning cached data.
     queryClient.removeQueries({queryKey: ["evaluator-paginated"], exact: false})
+    queryClient.removeQueries({queryKey: ["archived-evaluator-paginated"], exact: false})
 }
 
 /**
@@ -174,6 +280,48 @@ export const clearEvaluatorWorkflowCache = () => {
 export function invalidateEvaluatorsPaginatedStore() {
     clearEvaluatorWorkflowCache()
     evaluatorsPaginatedStore.invalidate()
+}
+
+export function invalidateArchivedEvaluatorsPaginatedStore() {
+    clearEvaluatorWorkflowCache()
+    archivedEvaluatorsPaginatedStore.invalidate()
+}
+
+const _archivedEvaluatorRowsCache = new Map<string, EvaluatorTableRow[]>()
+
+function getArchivedEvaluatorCacheKey(meta: EvaluatorQueryMeta): string {
+    return JSON.stringify({
+        projectId: meta.projectId ?? null,
+        category: meta.category,
+        searchTerm: meta.searchTerm,
+    })
+}
+
+async function buildArchivedEvaluatorRows(meta: EvaluatorQueryMeta): Promise<EvaluatorTableRow[]> {
+    if (!meta.projectId) return []
+
+    const cacheKey = getArchivedEvaluatorCacheKey(meta)
+    const cachedRows = _archivedEvaluatorRowsCache.get(cacheKey)
+    if (cachedRows) return cachedRows
+
+    const cache = await ensureEvaluatorWorkflowCache({
+        projectId: meta.projectId,
+        category: meta.category,
+        searchTerm: meta.searchTerm,
+        mode: "archived",
+    })
+
+    const rows = cache.entries
+        .flatMap(({workflow, latestRevision}) => {
+            const revision = latestRevision
+            if (!revision) return [] as EvaluatorTableRow[]
+
+            return [toArchivedEvaluatorRow(workflow, revision)]
+        })
+        .sort(compareDeletedAtDesc)
+
+    _archivedEvaluatorRowsCache.set(cacheKey, rows)
+    return rows
 }
 
 // ============================================================================
@@ -189,33 +337,29 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
     metaAtom: evaluatorPaginatedMetaAtom,
     fetchPage: async ({meta, limit, cursor}): Promise<InfiniteTableFetchResult<Workflow>> => {
         if (!meta.projectId) {
-            return {
-                rows: [],
-                totalCount: null,
-                hasMore: false,
-                nextCursor: null,
-                nextOffset: null,
-                nextWindowing: null,
-            }
+            return emptyFetchResult<Workflow>()
         }
 
-        const cache = await ensureWorkflowIdCache(meta.projectId, meta.category, meta.searchTerm)
+        const cache = await ensureEvaluatorWorkflowCache({
+            projectId: meta.projectId,
+            category: meta.category,
+            searchTerm: meta.searchTerm,
+            mode: "active",
+        })
 
         if (cache.workflowIds.length === 0) {
-            return {
-                rows: [],
-                totalCount: 0,
-                hasMore: false,
-                nextCursor: null,
-                nextOffset: null,
-                nextWindowing: null,
-            }
+            return emptyFetchResult<Workflow>(0)
         }
 
         const response = await queryWorkflowRevisionsByWorkflows(
             cache.workflowIds,
             meta.projectId,
-            {is_evaluator: true},
+            // `is_managed: true` mirrors the workflow-id pre-filter in
+            // `ensureWorkflowIdCache`. Belt-and-suspenders — the BE
+            // applies the same filter on the revision side so we never
+            // surface a user-deployed evaluator if the cache somehow
+            // regresses.
+            {is_evaluator: true, is_managed: true},
             {next: cursor ?? undefined, limit: limit ?? undefined, order: "descending"},
             meta.searchTerm,
         )
@@ -238,25 +382,90 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
         getRowId: (row) => row.id,
         skeletonDefaults,
     },
-    transformRow: (apiRow): EvaluatorTableRow => {
-        const workflowId = apiRow.workflow_id ?? ""
-        return {
-            key: apiRow.id,
-            revisionId: apiRow.id,
-            workflowId,
-            variantId: apiRow.workflow_variant_id ?? apiRow.variant_id ?? "",
-            version: apiRow.version ?? null,
-            revisionCreatedAt: apiRow.created_at ?? null,
-        }
-    },
+    transformRow: toRevisionEvaluatorRow,
     isEnabled: (meta) => Boolean(meta?.projectId),
     listCountsConfig: {
         totalCountMode: "unknown",
     },
 })
 
+const archivedEvaluatorCategoryAtom = atom<EvaluatorCategory>("automatic")
+const archivedEvaluatorSearchTermAtom = atom("")
+
+const archivedEvaluatorPaginatedMetaAtom = createEvaluatorMetaAtom(
+    archivedEvaluatorCategoryAtom,
+    archivedEvaluatorSearchTermAtom,
+)
+
+const archivedEvaluatorsPaginatedStore = createPaginatedEntityStore<
+    EvaluatorTableRow,
+    EvaluatorTableRow,
+    EvaluatorQueryMeta
+>({
+    entityName: "archived-evaluator",
+    metaAtom: archivedEvaluatorPaginatedMetaAtom,
+    fetchPage: async ({
+        meta,
+        limit,
+        cursor,
+    }): Promise<InfiniteTableFetchResult<EvaluatorTableRow>> => {
+        if (!meta.projectId) {
+            return emptyFetchResult<EvaluatorTableRow>()
+        }
+
+        const archivedRows = await buildArchivedEvaluatorRows(meta)
+        const offset = getCursorOffset(cursor)
+        const rows = archivedRows.slice(offset, offset + limit)
+        const nextOffset = offset + rows.length
+
+        return {
+            rows,
+            totalCount: archivedRows.length,
+            hasMore: nextOffset < archivedRows.length,
+            nextCursor: nextOffset < archivedRows.length ? String(nextOffset) : null,
+            nextOffset: null,
+            nextWindowing: null,
+        }
+    },
+    rowConfig: {
+        getRowId: (row) => row.revisionId || row.workflowId,
+        skeletonDefaults,
+    },
+    transformRow: (row) => row,
+    isEnabled: (meta) => Boolean(meta?.projectId),
+    listCountsConfig: {
+        totalCountMode: "unknown",
+    },
+})
+
+export function invalidateEvaluatorManagementQueries() {
+    clearEvaluatorWorkflowCache()
+    evaluatorsPaginatedStore.invalidate()
+    archivedEvaluatorsPaginatedStore.invalidate()
+}
+
+export function getEvaluatorsTableState(mode: EvaluatorsTableMode = "active") {
+    if (mode === "archived") {
+        return {
+            mode,
+            categoryAtom: archivedEvaluatorCategoryAtom,
+            searchTermAtom: archivedEvaluatorSearchTermAtom,
+            paginatedStore: archivedEvaluatorsPaginatedStore,
+            invalidate: invalidateArchivedEvaluatorsPaginatedStore,
+        }
+    }
+
+    return {
+        mode,
+        categoryAtom: evaluatorCategoryAtom,
+        searchTermAtom: evaluatorSearchTermAtom,
+        paginatedStore: evaluatorsPaginatedStore,
+        invalidate: invalidateEvaluatorsPaginatedStore,
+    }
+}
+
 // Auto-refresh when evaluators are created/updated/deleted.
 // The entity package fires this after any evaluator mutation.
 onEvaluatorMutation(() => {
-    invalidateEvaluatorsPaginatedStore()
+    invalidateEvaluatorManagementQueries()
 })

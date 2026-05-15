@@ -3,20 +3,33 @@ title: "REST API Migration (v0.96)"
 slug: unified-invoke-api
 date: 2026-04-14
 tags: [v0.96.0]
-description: "Migration guide from the v0.95 REST API to v0.96. Covers the unified /v0/invoke endpoint and the removed /apps, /variants/configs, and /preview/annotations endpoints."
+description: "Migration guide from the v0.95 REST API to v0.96. Covers the unified /v0/invoke endpoint, the new prompt configuration fetch endpoint, and a complete list of removed REST endpoints with their replacements."
 ---
+
+:::warning Guide updated 2026-04-28
+The original version of this guide did not mention the prompt configuration fetch endpoint and lacked several minor endpoints. This update covers them all.
+:::
+
+:::danger Deprecation deadline: May 31, 2026
+Every legacy REST endpoint covered in this guide will stop responding on **May 31, 2026**. Until then, an adapter layer keeps the old endpoints working. Update your integration before that date.
+:::
 
 # REST API Migration (v0.96)
 
 ## Overview
 
-In v0.96.0, we unified all application invocation endpoints into a single `POST /services/{service}/v0/invoke` endpoint. The four legacy endpoints (`/generate`, `/generate_deployed`, `/test`, `/run`) are replaced by one consistent interface with structured references and a cleaner response format.
+v0.96.0 restructures the REST API. Two changes affect most users who integrate with Agenta for prompt management:
 
-The old endpoints will continue to work temporarily via an adapter layer, but we strongly recommend migrating to the new format.
+1. **Invoking a deployed prompt** moves to a single unified endpoint: `POST /services/{service}/v0/invoke`, replacing `/run`, `/generate`, `/generate_deployed`, and `/test`.
+2. **Fetching a prompt configuration** moves to `POST /applications/revisions/retrieve`, replacing `POST /variants/configs/fetch`.
 
-## What Changed
+The release also restructures the rest of the REST CRUD surface (apps, variants, environments, traces, annotations, invocations). If you call any of those directly, see the [complete list of affected endpoints](#all-affected-endpoints) at the end of this guide.
 
-### Single Endpoint
+:::info SDK users don't need to migrate
+If you only call Agenta through the Python SDK (`agenta.ConfigManager`, `agenta.VariantManager`, `agenta.DeploymentManager`), you don't need to change anything. The SDK absorbs every change in this release.
+:::
+
+## Invoking a deployed prompt
 
 All invocations now go through one endpoint:
 
@@ -24,17 +37,19 @@ All invocations now go through one endpoint:
 POST /services/{service}/v0/invoke
 ```
 
-This replaces:
+This replaces four legacy endpoints:
+
 - `POST /services/{service}/generate` (draft testing)
 - `POST /services/{service}/test` (draft testing)
 - `POST /services/{service}/generate_deployed` (deployed config)
 - `POST /services/{service}/run` (deployed config)
 
-### New Request Format
+### New request format
 
-The most common use case is calling a prompt deployed to an environment using `generate_deployed`. Here is how that changes end-to-end:
+The most common case is calling a prompt deployed to an environment with `generate_deployed`. Here is how that changes end-to-end.
 
-**Before** — `POST /services/completion/generate_deployed`
+**Before** (`POST /services/completion/generate_deployed`):
+
 ```python
 response = requests.post(
     "https://cloud.agenta.ai/services/completion/generate_deployed",
@@ -50,11 +65,12 @@ response = requests.post(
 )
 
 result = response.json()
-print(result["data"])       # "The capital of France is Paris."
-print(result["tree_id"])    # trace ID for observability
+print(result["data"])     # "The capital of France is Paris."
+print(result["tree_id"])  # trace ID for observability
 ```
 
-**After** — `POST /services/completion/v0/invoke`
+**After** (`POST /services/completion/v0/invoke`):
+
 ```python
 response = requests.post(
     "https://cloud.agenta.ai/services/completion/v0/invoke",
@@ -78,18 +94,20 @@ print(result["data"]["outputs"])  # "The capital of France is Paris."
 print(result["trace_id"])         # trace ID for observability
 ```
 
-The request body is now structured into two sections: `data` (your inputs and optional parameters) and `references` (which application/variant/revision/environment to target).
+The new request body has two top-level sections. `data` carries your inputs and optional configuration parameters. `references` identifies which application, variant, revision, or environment to target.
 
-Key changes:
-- `inputs` moves to `data.inputs`
-- `messages` merges into `data.inputs.messages`
-- `ag_config` becomes `data.parameters`
-- Flat params (`app`, `variant_slug`, `environment`, etc.) become structured `references`
-- `?application_id=` query parameter removed — use `references.application.id` instead
+The key field-by-field changes are:
 
-### New Response Format
+- `inputs` moves under `data.inputs`.
+- `messages` moves under `data.inputs.messages` (for chat applications).
+- `ag_config` becomes `data.parameters`.
+- The flat targeting fields (`app`, `variant_slug`, `variant_version`, `environment`) become structured entries under `references`.
+- The `?application_id=` query parameter is removed. Pass the ID in `references.application.id` instead.
+
+### New response format
 
 **Before:**
+
 ```json
 {
   "version": "3.0",
@@ -100,6 +118,7 @@ Key changes:
 ```
 
 **After:**
+
 ```json
 {
   "version": "2025-07-14",
@@ -112,16 +131,11 @@ Key changes:
 }
 ```
 
-Key changes:
-- `version` changed from `"3.0"` to `"2025-07-14"` (date-based versioning)
-- `data` (direct value) becomes `data.outputs` (nested)
-- `content_type` removed
-- `tree_id` replaced by `trace_id` and `span_id`
-- New `status` object for error reporting
+The output value moves from `data` (a direct string) to `data.outputs` (nested). The `tree_id` field becomes `trace_id`, and we now return a `span_id` alongside it. The `content_type` field is removed. A new `status` object reports the operation code, an optional human-readable message, and a stacktrace when the call fails.
 
-## Migration Guide
+### Field reference
 
-### Quick Reference Table
+The following table maps every old field, endpoint, and response key to its new equivalent.
 
 | Old | New |
 |-----|-----|
@@ -139,55 +153,15 @@ Key changes:
 | Response `"data": "text"` | Response `"data": {"outputs": "text"}` |
 | Response `"tree_id"` | Response `"trace_id"` |
 
-### Example: Invoking a Deployed Prompt (Completion)
+<details>
+<summary>More examples: chat applications and draft configurations</summary>
+
+#### Invoking a chat application
+
+Chat applications follow the same pattern. Messages move under `data.inputs.messages`.
 
 **Before:**
-```python
-import requests
 
-response = requests.post(
-    "https://cloud.agenta.ai/services/completion/run",
-    headers={
-        "Content-Type": "application/json",
-        "Authorization": f"ApiKey {api_key}",
-    },
-    json={
-        "environment": "production",
-        "app": "my-app",
-        "inputs": {"country": "France"},
-    },
-)
-data = response.json()
-print(data["data"])  # "The capital of France is Paris."
-```
-
-**After:**
-```python
-import requests
-
-response = requests.post(
-    "https://cloud.agenta.ai/services/completion/v0/invoke",
-    headers={
-        "Content-Type": "application/json",
-        "Authorization": f"ApiKey {api_key}",
-    },
-    json={
-        "data": {
-            "inputs": {"country": "France"},
-        },
-        "references": {
-            "application": {"slug": "my-app"},
-            "environment": {"slug": "production"},
-        },
-    },
-)
-data = response.json()
-print(data["data"]["outputs"])  # "The capital of France is Paris."
-```
-
-### Example: Invoking a Chat Application
-
-**Before:**
 ```python
 response = requests.post(
     "https://cloud.agenta.ai/services/chat/run",
@@ -205,6 +179,7 @@ response = requests.post(
 ```
 
 **After:**
+
 ```python
 response = requests.post(
     "https://cloud.agenta.ai/services/chat/v0/invoke",
@@ -227,9 +202,12 @@ response = requests.post(
 )
 ```
 
-### Example: Testing with Draft Configuration
+#### Testing with a draft configuration
+
+If you previously sent an inline `ag_config` to test a draft, that block now lives under `data.parameters`.
 
 **Before:**
+
 ```python
 response = requests.post(
     "https://cloud.agenta.ai/services/completion/generate?application_id=xxx",
@@ -251,6 +229,7 @@ response = requests.post(
 ```
 
 **After:**
+
 ```python
 response = requests.post(
     "https://cloud.agenta.ai/services/completion/v0/invoke",
@@ -276,128 +255,278 @@ response = requests.post(
 )
 ```
 
-## SDK Unchanged
+</details>
 
-The Python SDK (`ag.ConfigManager.get_from_registry()`) continues to work with the same interface. The SDK handles the new API format internally. No changes needed in your SDK code.
+## Fetching a prompt configuration
+
+`POST /variants/configs/fetch` is deprecated and superseded by `POST /applications/revisions/retrieve`. The new endpoint mirrors the shape of the invocation endpoint: you pass structured references to identify the variant or environment you want to fetch, and the response carries the configuration parameters together with metadata about the revision.
+
+### Fetching by variant and version
+
+**Before:**
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/variants/configs/fetch" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "variant_ref": {"slug": "default", "version": 1},
+    "application_ref": {"slug": "my-app"}
+  }'
+```
+
+**After:**
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "application_ref": {"slug": "my-app"},
+    "application_variant_ref": {"slug": "default"},
+    "application_revision_ref": {"version": "1"}
+  }'
+```
+
+:::info
+The `version` field is now a string, not an integer.
+:::
+
+### Fetching by environment
+
+To fetch the configuration deployed to an environment, pass the `application_ref` and the `environment_ref` together:
+
+**Before:**
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/variants/configs/fetch" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "environment_ref": {"slug": "production"},
+    "application_ref": {"slug": "my-app"}
+  }'
+```
+
+**After:**
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "application_ref": {"slug": "my-app"},
+    "environment_ref": {"slug": "production"}
+  }'
+```
+
+### Response shape
+
+The response shape changed too. The legacy endpoint returned a flat envelope with the configuration under `params` and reference IDs as siblings. The new endpoint wraps the revision in a query envelope, with the configuration nested under `application_revision.data.parameters`.
+
+**Before:**
+
+```json
+{
+  "params": {
+    "prompt": {"...": "..."}
+  },
+  "url": "https://cloud.agenta.ai/services/completion/v0",
+  "application_ref": {
+    "slug": "my-app",
+    "id": "019ce1cd-ccec-76f1-a803-eb1dc9187d57"
+  },
+  "variant_ref": {
+    "slug": "default",
+    "version": 1,
+    "id": "019ce1cd-cd98-7270-b51b-550c58e51e41"
+  },
+  "environment_ref": {
+    "slug": "production",
+    "version": 1,
+    "id": "..."
+  }
+}
+```
+
+**After:**
+
+```json
+{
+  "count": 1,
+  "application_revision": {
+    "id": "019ce1d0-7920-76a0-84b3-bb5a29750634",
+    "slug": "default",
+    "name": "default",
+    "version": "1",
+    "application_id": "019ce1cd-ccec-76f1-a803-eb1dc9187d57",
+    "application_variant_id": "019ce1cd-cd98-7270-b51b-550c58e51e41",
+    "data": {
+      "parameters": {
+        "prompt": {"...": "..."}
+      },
+      "url": "https://cloud.agenta.ai/services/completion/v0",
+      "uri": "agenta:builtin:completion:v0",
+      "schemas": {"...": "..."}
+    },
+    "flags": {"is_application": true, "is_chat": false, "...": "..."},
+    "created_at": "2026-03-12T11:31:02.045131Z"
+  }
+}
+```
+
+If you read fields from the response, here is where each one moved.
+
+| Old | New |
+|-----|-----|
+| `response["params"]` | `response["application_revision"]["data"]["parameters"]` |
+| `response["params"]["prompt"]` | `response["application_revision"]["data"]["parameters"]["prompt"]` |
+| `response["url"]` | `response["application_revision"]["data"]["url"]` |
+| `response["application_ref"]["id"]` | `response["application_revision"]["application_id"]` |
+| `response["variant_ref"]["id"]` | `response["application_revision"]["application_variant_id"]` |
+| `response["variant_ref"]["version"]` | `response["application_revision"]["version"]` |
+
+The new response also exposes the input/output `schemas` under `data.schemas` and a richer set of `flags` (including `is_chat`, `has_url`, etc.), which were not available in the legacy response.
+
+### Python SDK unchanged
+
+If you fetch configurations through the SDK, you don't need to change anything:
 
 ```python
-# This still works exactly the same
-config = ag.ConfigManager.get_from_registry(
-    app_slug="my-app",
-    variant_slug="default",
-    variant_version=1,
-)
-
 config = ag.ConfigManager.get_from_registry(
     app_slug="my-app",
     environment_slug="production",
 )
 ```
 
-## Other API Changes
+The SDK calls the new endpoint internally and returns the same shape it always has.
 
-The following REST endpoints were deprecated in v0.96.0. If you call them directly, migrate to the replacements below.
+## All affected endpoints
 
-| Removed | Replacement |
-|---------|-------------|
-| `GET /apps` | `POST /simple/applications/query` |
-| `GET /apps/{id}` | `GET /applications/{id}` |
-| `POST /apps` | `POST /simple/applications/` |
-| `PATCH /apps/{id}` | `PUT /applications/{id}` |
-| `DELETE /apps/{id}` | `POST /applications/{id}/archive` |
-| `GET /apps/{id}/variants` | `POST /applications/variants/query` |
-| `GET /apps/{id}/environments` | `POST /preview/environments/query` |
-| `POST /environments/deploy` | `POST /applications/revisions/deploy` |
-| `POST /variants/configs/add` | `POST /applications/revisions/commit` |
-| `POST /variants/configs/commit` | `POST /applications/revisions/commit` |
-| `POST /variants/configs/delete` | `POST /applications/variants/{variant_id}/archive` |
-| `POST /variants/configs/deploy` | `POST /applications/revisions/deploy` |
-| `POST /variants/configs/history` | `POST /applications/revisions/log` |
-| `POST /variants/configs/list` | `POST /applications/variants/query` |
-| `POST /preview/annotations/` | `POST /simple/traces/` |
-| `POST /preview/annotations/query` | `POST /simple/traces/query` |
-| `GET /preview/annotations/{trace_id}/{span_id}` | `GET /simple/traces/{trace_id}` |
-| `PATCH /preview/annotations/{trace_id}/{span_id}` | `PATCH /simple/traces/{trace_id}` |
-| `DELETE /preview/annotations/{trace_id}/{span_id}` | `DELETE /simple/traces/{trace_id}` |
+Below is the complete list of REST endpoints moved in v0.96.0, grouped by domain.
 
-Below some examples for how to use the new endpoints with more details in the reference and the rest of the documentation.
+### Application invocation
 
-### Fetch your applications
+| Operation | Old | New |
+|-----------|-----|-----|
+| Invoke deployed prompt | `POST /services/{svc}/run` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Invoke deployed prompt (alias) | `POST /services/{svc}/generate_deployed` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Test with draft config | `POST /services/{svc}/generate` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Test with draft config (alias) | `POST /services/{svc}/test` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Invoke a workflow | `POST /workflows/invoke` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Inspect a workflow revision | `POST /workflows/inspect` | [`POST /applications/revisions/resolve`](/reference/api/resolve-application-revision) |
 
-```bash
-curl -X POST "https://cloud.agenta.ai/api/simple/applications/query" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey $AGENTA_API_KEY" \
-  -d '{"windowing": {"limit": 50}}'
-```
+### Apps CRUD
 
-Response:
+| Operation | Old | New |
+|-----------|-----|-----|
+| List apps | `GET /apps` | [`POST /simple/applications/query`](/reference/api/query-simple-applications) |
+| Create app | `POST /apps` | [`POST /simple/applications/`](/reference/api/create-simple-application) |
+| Fetch app | `GET /apps/{id}` | [`GET /applications/{id}`](/reference/api/fetch-application) |
+| Update app | `PATCH /apps/{id}` | [`PUT /applications/{id}`](/reference/api/edit-application) |
+| Delete app | `DELETE /apps/{id}` | [`POST /applications/{id}/archive`](/reference/api/archive-application) |
+| List variants of an app | `GET /apps/{id}/variants` | [`POST /applications/variants/query`](/reference/api/query-application-variants) |
+| List environments of an app | `GET /apps/{id}/environments` | [`POST /preview/environments/query`](/reference/api/query-environments) |
+| Get deployed revision for an environment | `GET /apps/{id}/revisions/{environment_name}` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
+| Get variant deployed to an environment | `GET /apps/get_variant_by_env` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
+| Create variant from template | `POST /apps/{id}/variant/from-template` | [`GET /applications/catalog/templates/`](/reference/api/list-application-catalog-templates) then [`POST /applications/variants/`](/reference/api/create-application-variant) |
+| Create variant from service URL | `POST /apps/{id}/variant/from-service` | [`POST /applications/variants/`](/reference/api/create-application-variant) |
 
-```json
-{
-  "count": 1,
-  "applications": [
-    {
-      "id": "019d952f-5945-71b1-b8cb-d6d8e675c18d",
-      "slug": "chat1",
-      "name": "chat1",
-      "variant_id": "019d952f-5a10-70a3-9f85-81e8ff07ab94",
-      "revision_id": "019d952f-5b6c-7300-a5a0-379ee234263d",
-      "flags": {
-        "is_application": true,
-        "is_chat": true,
-        "is_managed": true,
-        "has_url": true
-      },
-      "data": {
-        "uri": "agenta:builtin:chat:v0",
-        "url": "https://cloud.agenta.ai/services/chat/v0",
-        "schemas": { "parameters": {}, "inputs": {}, "outputs": {} }
-      },
-      "created_at": "2026-04-16T07:26:41.475248Z"
-    }
-  ]
-}
-```
+### Variants CRUD
 
-### Add an annotation
+| Operation | Old | New |
+|-----------|-----|-----|
+| Fetch a variant | `GET /variants/{id}` | [`GET /applications/variants/{id}`](/reference/api/fetch-application-variant) |
+| Delete a variant | `DELETE /variants/{id}` | [`POST /applications/variants/{id}/archive`](/reference/api/archive-application-variant) |
+| List variant revisions | `GET /variants/{id}/revisions` | [`POST /applications/revisions/log`](/reference/api/log-application-revisions) |
+| Fetch a variant revision | `GET /variants/{id}/revisions/{revision_number}` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
+| Delete a variant revision | `DELETE /variants/{id}/revisions/{revision_id}` | [`POST /applications/revisions/{id}/archive`](/reference/api/archive-application-revision) |
+| Update variant parameters | `PUT /variants/{id}/parameters` | [`POST /applications/revisions/commit`](/reference/api/commit-application-revision) |
+| Update variant service URL | `PUT /variants/{id}/service` | [`PUT /applications/variants/{id}`](/reference/api/edit-application-variant) |
+| Fork a variant from a base | `POST /variants/from-base` | [`POST /applications/variants/fork`](/reference/api/fork-application-variant) |
+| Query variant revisions | `POST /variants/revisions/query` | [`POST /applications/revisions/query`](/reference/api/query-application-revisions) |
 
-```bash
-curl -X POST "https://cloud.agenta.ai/api/simple/traces/" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey $AGENTA_API_KEY" \
-  -d '{
-    "trace": {
-      "data": {"outputs": {"score": 5, "comment": "Good response"}},
-      "references": {"evaluator": {"slug": "user-feedback"}},
-      "links": {"invocation": {"trace_id": "0af7651916cd43dd8448eb211c80319c", "span_id": "b7ad6b7169203331"}}
-    }
-  }'
-```
+### Variant configurations
 
-Response:
+The git-style operations on variant configurations (commit, fork, history) are now exposed under the `/applications/revisions/*` namespace.
 
-```json
-{
-  "count": 1,
-  "trace": {
-    "trace_id": "bdda8fb878cb49088c8191bc2850a058",
-    "span_id": "acacdf9134bcb7ea",
-    "origin": "custom",
-    "kind": "adhoc",
-    "channel": "api",
-    "data": {"outputs": {"score": 5, "comment": "Good response"}},
-    "references": {"evaluator": {"slug": "user-feedback"}},
-    "links": {
-      "invocation": {
-        "trace_id": "0af7651916cd43dd8448eb211c80319c",
-        "span_id": "b7ad6b7169203331"
-      }
-    }
-  }
-}
-```
+| Operation | Old | New |
+|-----------|-----|-----|
+| Fetch a configuration | `POST /variants/configs/fetch` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
+| Create a variant with initial config | `POST /variants/configs/add` | [`POST /applications/variants/`](/reference/api/create-application-variant) |
+| Commit a new configuration revision | `POST /variants/configs/commit` | [`POST /applications/revisions/commit`](/reference/api/commit-application-revision) |
+| Delete a variant | `POST /variants/configs/delete` | [`POST /applications/variants/{id}/archive`](/reference/api/archive-application-variant) |
+| Deploy a configuration to an environment | `POST /variants/configs/deploy` | [`POST /applications/revisions/deploy`](/reference/api/deploy-application-revision) |
+| Fork a variant | `POST /variants/configs/fork` | [`POST /applications/variants/fork`](/reference/api/fork-application-variant) |
+| Get the revision history of a variant | `POST /variants/configs/history` | [`POST /applications/revisions/log`](/reference/api/log-application-revisions) |
+| List variants of an app | `POST /variants/configs/list` | [`POST /applications/variants/query`](/reference/api/query-application-variants) |
+| Query variants with filters | `POST /variants/configs/query` | [`POST /applications/variants/query`](/reference/api/query-application-variants) |
 
-The annotation gets its own `trace_id` and `span_id`. Use those IDs to fetch, update, or delete the annotation later.
+### Environments and deployments
 
-For request body conventions, pagination, and the full endpoint list, see the [REST API Guide](/reference/api-guide/overview).
+:::info Deployment is now an action on a revision
+In v0.95 you deployed by calling `POST /environments/deploy` with a variant ID and an environment name. The environment was the actor; the deployment was a side-effect on the environment.
+
+In v0.96 you deploy by calling `POST /applications/revisions/deploy` with a revision reference and a target environment reference. The revision is the actor; the environment is just where you point it.
+
+The legacy `/configs/*` endpoints exposed environment-side configuration directly. They split into two new namespaces: `/applications/revisions/*` for the revision lookup itself, and `/preview/environments/revisions/*` for the environment's deployment history (when, who, and which revision was deployed at each point).
+:::
+
+| Operation | Old | New |
+|-----------|-----|-----|
+| Deploy to environment | `POST /environments/deploy` | [`POST /applications/revisions/deploy`](/reference/api/deploy-application-revision) |
+| List configurations | `GET /configs` | [`POST /applications/revisions/query`](/reference/api/query-application-revisions) |
+| Fetch a deployed configuration | `GET /configs/deployment/{revision_id}` | [`POST /preview/environments/revisions/retrieve`](/reference/api/retrieve-environment-revision) |
+| Revert a deployment | `POST /configs/deployment/{revision_id}/revert` | [`POST /preview/environments/revisions/commit`](/reference/api/commit-environment-revision) |
+
+### Containers
+
+| Operation | Old | New |
+|-----------|-----|-----|
+| List built-in templates | `GET /containers/templates` | [`GET /applications/catalog/templates/`](/reference/api/list-application-catalog-templates) |
+
+### Annotations
+
+Annotations are observability records you attach to a trace or span to capture things like a human rating, an evaluator score, or a correction. They previously lived under `/annotations/*` and `/preview/annotations/*`. Both namespaces were removed. Annotations now share the unified `/simple/traces/*` API with other observability records.
+
+| Operation | Old | New |
+|-----------|-----|-----|
+| Create an annotation | `POST /annotations/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
+| Query annotations | `POST /annotations/query` | [`POST /simple/traces/query`](/reference/api/query-simple-traces) |
+| Fetch an annotation by trace | `GET /annotations/{trace_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Fetch an annotation by trace and span | `GET /annotations/{trace_id}/{span_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Update an annotation by trace | `PATCH /annotations/{trace_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Update an annotation by trace and span | `PATCH /annotations/{trace_id}/{span_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Delete an annotation by trace | `DELETE /annotations/{trace_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+| Delete an annotation by trace and span | `DELETE /annotations/{trace_id}/{span_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+| Create an annotation (preview) | `POST /preview/annotations/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
+| Query annotations (preview) | `POST /preview/annotations/query` | [`POST /simple/traces/query`](/reference/api/query-simple-traces) |
+| Fetch an annotation (preview) | `GET /preview/annotations/{trace_id}/{span_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Update an annotation (preview) | `PATCH /preview/annotations/{trace_id}/{span_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Delete an annotation (preview) | `DELETE /preview/annotations/{trace_id}/{span_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+
+### Invocations
+
+Invocations are observability records that capture a single LLM call: the input, the output, latency, cost, and the model used. They previously lived under `/invocations/*`. They now share the unified `/simple/traces/*` API with annotations, distinguished by the `kind` field on each record.
+
+| Operation | Old | New |
+|-----------|-----|-----|
+| Create an invocation | `POST /invocations/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
+| Query invocations | `POST /invocations/query` | [`POST /simple/traces/query`](/reference/api/query-simple-traces) |
+| Fetch an invocation by trace | `GET /invocations/{trace_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Fetch an invocation by trace and span | `GET /invocations/{trace_id}/{span_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Update an invocation by trace | `PATCH /invocations/{trace_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Update an invocation by trace and span | `PATCH /invocations/{trace_id}/{span_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Delete an invocation by trace | `DELETE /invocations/{trace_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+| Delete an invocation by trace and span | `DELETE /invocations/{trace_id}/{span_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+
+### Spans
+
+| Operation | Old | New |
+|-----------|-----|-----|
+| Create a span | `POST /preview/spans/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
+| Ingest spans in bulk | `POST /preview/spans/ingest` | OTLP ingestion endpoint (see [Observability docs](/observability/overview)) |
+
+## Need help?
+
+If you have questions about migrating, reach out on [Slack](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw) or reply to the migration email. We are happy to help.

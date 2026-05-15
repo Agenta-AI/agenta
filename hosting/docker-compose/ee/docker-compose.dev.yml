@@ -5,8 +5,8 @@ services:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
         build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.dev
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -26,8 +26,8 @@ services:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-services:latest
         build:
-            context: ../../../services
-            dockerfile: ee/docker/Dockerfile.dev
+            context: ../../..
+            dockerfile: services/ee/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -67,28 +67,41 @@ services:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
-        command: >
-            bash -c "echo '[STARTUP] Python process started' &&
-            /usr/local/bin/python -m uvicorn
-            entrypoints.routers:app
-            --host 0.0.0.0
-            --port 8000
-            --reload
-            --reload-dir /sdk
-            --reload-dir /app/oss
-            --reload-dir /app/ee
-            --reload-dir /app/entrypoints
-            --reload-exclude '**/tests/**'
-            --reload-exclude /sdk/tests
-            --reload-exclude /app/oss/tests
-            --reload-exclude /app/ee/tests
-            --root-path /api"
+        command:
+            [
+                "uvicorn",
+                "entrypoints.routers:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
+                "--reload",
+                "--reload-dir",
+                "/app/oss",
+                "--reload-dir",
+                "/app/ee",
+                "--reload-dir",
+                "/app/entrypoints",
+                "--reload-dir",
+                "/sdks/python",
+                "--reload-dir",
+                "/clients/python",
+                "--reload-exclude",
+                "**/tests/**",
+                "--root-path",
+                "/api",
+                "--loop",
+                "uvloop",
+                "--http",
+                "httptools",
+            ]
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -135,7 +148,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -171,7 +185,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -207,7 +222,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -249,7 +265,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -317,7 +334,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -345,26 +363,25 @@ services:
                 "8080",
                 "--reload",
                 "--reload-dir",
-                "/sdk",
+                "/app",
                 "--reload-dir",
-                "/app/ee",
+                "/sdks/python",
                 "--reload-dir",
-                "/app/oss",
+                "/clients/python",
                 "--reload-exclude",
                 "**/tests/**",
-                "--reload-exclude",
-                "/sdk/tests",
-                "--reload-exclude",
-                "/app/oss/tests",
-                "--reload-exclude",
-                "/app/ee/tests",
                 "--root-path",
                 "/services",
+                "--loop",
+                "uvloop",
+                "--http",
+                "httptools",
             ]
         # === STORAGE ============================================== #
         volumes:
             - ../../../services:/app
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}

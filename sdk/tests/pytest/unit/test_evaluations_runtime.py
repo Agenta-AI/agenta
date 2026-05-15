@@ -709,6 +709,7 @@ async def test_sdk_source_slice_runs_scenarios_concurrently_up_to_batch_size():
         async def execute_batch(self, requests, semaphore=None):
             results = []
             for request in requests:
+
                 async def _one(req):
                     nonlocal in_flight, peak
                     in_flight += 1

@@ -29,15 +29,25 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
     const currentApp = useAtomValue(currentAppAtom)
 
     const hasEntities = displayedEntities.length > 0
+    // Project-scoped playground has no current app — evaluation creation
+    // requires an app target, so the button is disabled in that context.
+    const isProjectScoped = !currentApp
+    const isDisabled = !hasEntities || isProjectScoped
 
     return (
         <>
-            <Tooltip title="Run your prompt against a full test set with evaluators. Results are saved to the Evaluations page.">
+            <Tooltip
+                title={
+                    isProjectScoped
+                        ? "Open this trace from an app's playground to create an evaluation."
+                        : "Run your prompt against a full test set with evaluators. Results are saved to the Evaluations page."
+                }
+            >
                 <Button
                     type="text"
                     icon={<Flask size={14} />}
                     className={clsx("self-start", className)}
-                    disabled={!hasEntities}
+                    disabled={isDisabled}
                     data-tour="run-evaluation-button"
                     onClick={() => setIsModalOpen(true)}
                     size="small"

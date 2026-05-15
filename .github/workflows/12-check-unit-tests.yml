@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'web/**'
-      - 'sdk/**'
+      - 'sdks/python/**'
       - 'api/**'
       - 'services/**'
       - '.github/workflows/12-check-unit-tests.yml'
@@ -30,6 +30,9 @@ concurrency:
   group: application-unit-tests-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 
+env:
+  UV_VERSION: "0.11.14"
+
 jobs:
 
   run-web-unit-tests:
@@ -38,7 +41,7 @@ jobs:
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Skip when package selection excludes web
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
@@ -67,7 +70,7 @@ jobs:
     env:
       AGENTA_LICENSE: oss
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Skip when package selection excludes SDK
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","sdk-only"]'), inputs.packages)
@@ -77,37 +80,37 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
-      - name: Install Poetry
+      - name: Install uv
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
-        run: python -m pip install "poetry==2.3.1"
+        run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Cache Python dependencies
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-application-sdk-unit-pip-${{ hashFiles('sdk/pyproject.toml', 'sdk/poetry.lock', 'sdk/*/tests/requirements.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-sdk-unit-uv-${{ hashFiles('sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-application-sdk-unit-pip-
+            ${{ runner.os }}-application-sdk-unit-uv-
 
       - name: Install SDK dependencies
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
-        working-directory: sdk
+        working-directory: sdks/python
         run: |
-          poetry install --no-interaction
+          uv sync --locked --python 3.13
 
       - name: Run SDK unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
-        working-directory: sdk
-        run: poetry run python run-tests.py -- oss/tests/pytest/unit
+        working-directory: sdks/python
+        run: uv run python run-tests.py -- oss/tests/pytest/unit
 
       - name: Publish SDK unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: sdk/oss/tests/results/junit.xml
+          files: sdks/python/oss/tests/results/junit.xml
           check_name: Application SDK Unit Test Results
           comment_mode: off
 
@@ -123,7 +126,7 @@ jobs:
     env:
       AGENTA_LICENSE: oss
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Skip when package selection excludes API
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
@@ -133,32 +136,32 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
-      - name: Install Poetry
+      - name: Install uv
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
-        run: python -m pip install "poetry==2.3.1"
+        run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Cache Python dependencies
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-application-api-unit-pip-${{ hashFiles('api/pyproject.toml', 'api/poetry.lock', 'api/*/tests/requirements.txt', 'sdk/pyproject.toml', 'sdk/poetry.lock') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-api-unit-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-application-api-unit-pip-
+            ${{ runner.os }}-application-api-unit-uv-
 
       - name: Install API dependencies
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         working-directory: api
         run: |
-          poetry install --no-interaction
-          poetry run pip install -e ../sdk/
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
 
       - name: Run API unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         working-directory: api
-        run: poetry run python run-tests.py -- oss/tests/pytest/unit
+        run: uv run --no-sync python run-tests.py -- oss/tests/pytest/unit
 
       - name: Publish API unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
@@ -180,7 +183,7 @@ jobs:
     env:
       AGENTA_LICENSE: oss
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Skip when package selection excludes services
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
@@ -202,32 +205,32 @@ jobs:
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
-      - name: Install Poetry
+      - name: Install uv
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
-        run: python -m pip install "poetry==2.3.1"
+        run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Cache Python dependencies
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-application-services-unit-pip-${{ hashFiles('services/pyproject.toml', 'services/poetry.lock', 'services/*/tests/requirements.txt', 'sdk/pyproject.toml', 'sdk/poetry.lock') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-services-unit-uv-${{ hashFiles('services/pyproject.toml', 'services/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-application-services-unit-pip-
+            ${{ runner.os }}-application-services-unit-uv-
 
       - name: Install services dependencies
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
         working-directory: services
         run: |
-          poetry install --no-interaction
-          poetry run pip install -e ../sdk/
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
 
       - name: Run services unit tests
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
         working-directory: services
-        run: poetry run python run-tests.py -- oss/tests/pytest/unit
+        run: uv run --no-sync python run-tests.py -- oss/tests/pytest/unit
 
       - name: Publish services unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'

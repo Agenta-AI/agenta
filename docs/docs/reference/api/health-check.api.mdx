@@ -5,7 +5,7 @@ description: "Health Check"
 sidebar_label: "Health Check"
 hide_title: true
 hide_table_of_contents: true
-api: eJxdkkFv2zAMhf9K8M6Ck+3oU4NhWINeirU7BcbAKmyt1ZY0iQ7mGf7vA20na+yLIfGRevzIASFyInHBH04oUTM1Uv+0Ndt3GCTOMfjMGeWAz7ud/k6cbXJRU1DiqbOWc37tms33RQwDG7ywF5VTjI2z0wvbX1lzBmRbc0soh1E/syp5P3nYfFk8tCx1UG9vLDCIJDVKbGenMMiczpwyyuOALjUao+gwmsuxFom53G65K2wTulNBb+yFCnKzsNIatktO+qnI/vHwwP0904kTymP1UfCkzmcct7IB0kdGCYrugXsYeGr1vO+kDsn9nQjAwPkZs2Zp786/hindSTPpJ3Ob/eMBBtrYDGVXfCp2WKO6ESt0shP0y9tTGGYF4to/DLglpzFhau/+B9RZDFla8h/qrSZz4+UKQPiPbGNDzmNcXh6WqR2X/UJlUIcsejMML5T5R2rGUa9/d5x0DJXBmZKjF4VyrEZzYaYTeudeu7OWo67EmZpuRr9aNZ3cdX2+fX3GOP4D/JL+Mw==
+api: eJxdUkGO2zAM/EowZyFOe9SpQVF0g70smvYUBAVX4cbalW1VooO6hv9eUE6CJLoIIjnicIYjhI4ZdoetkPQZe4MuciLxXbs5wKJmClL/djW7DxgkzrFrM2fYEZ9XK70OnF3yUSGw2PbOcc5vfVj8OBfDwHWtcCtaTjEG70qH6j0rZkR2NTcEO056zMOXT4XD4uuZQ8NSd8rtyAKDSFLDopqZwiBzOnHSqUb0KWiOosdkLs9aJNqqCp2jUHdZ5vReka5PXoYCXb9snnl4Yjpwgt3tbwu2yncW4b5shAyRYUHRP/MAg5Yafa97qbvk/5W5YeDbWVxF6cS+fesK3Eso9UduhRbrlw0e5bhLqbDkirCXTiUNczNstlVFJbwkX8GAG/KaFKbmyzWDyUCVm9uslp+WKw3FLktD7U2LB0Pu6F0VEP4rVQzkW/2kkBnPZu3Oa6XrpgZoZBxfKfOvFKZJw396TurD3uBEydOrqrLbT+Yimlr0wYMO7BxH3YQThX7W/mHD1Lrr1nz/9hPT9B+G3QDr
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Health Check
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./health-check.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+  {...require("./health-check.StatusCodes.json")}
 >
   
 </StatusCodes>

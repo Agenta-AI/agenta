@@ -1,4 +1,5 @@
 import os
+import hashlib
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse
@@ -440,6 +441,7 @@ class LLMConfig(BaseModel):
     openrouter: str = os.getenv("OPENROUTER_API_KEY", "")
     perplexityai: str = os.getenv("PERPLEXITYAI_API_KEY", "")
     togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
+    minimax: str = os.getenv("MINIMAX_API_KEY", "")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -461,6 +463,7 @@ class LLMConfig(BaseModel):
                 "openrouter",
                 "perplexityai",
                 "togetherai",
+                "minimax",
             ]
             if getattr(self, name)
         ]
@@ -629,6 +632,28 @@ class PostgresConfig(BaseModel):
 
     username: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
+
+    # Stable signed-64-bit advisory-lock key for this deployment. We mix
+    # AGENTA_AUTH_KEY with the core Postgres URI so two deployments that
+    # both forget to set AGENTA_AUTH_KEY (and thus share the literal
+    # "replace-me" fallback) still get distinct keys as long as they point
+    # at different databases.
+    advisory_lock: int = int.from_bytes(
+        hashlib.blake2b(
+            b"|".join(
+                (
+                    (os.getenv("AGENTA_AUTH_KEY") or "replace-me").encode(),
+                    (
+                        os.getenv("POSTGRES_URI_CORE")
+                        or f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_core"
+                    ).encode(),
+                )
+            ),
+            digest_size=8,
+        ).digest(),
+        "big",
+        signed=True,
+    )
 
     model_config = ConfigDict(extra="ignore")
 

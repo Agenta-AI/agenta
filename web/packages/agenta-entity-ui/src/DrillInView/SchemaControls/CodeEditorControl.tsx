@@ -3,6 +3,15 @@
  *
  * Schema-driven code editor for string values with x-parameters: {code: true}.
  * Uses SharedEditor in codeOnly mode with syntax highlighting.
+ *
+ * Language detection (priority order):
+ *   1. `schema["x-parameters"].language` — explicit language override
+ *   2. `schema["x-parameters"].languageFromField` — sibling field name; the
+ *      drill-in `rootData[fieldName]` value is used as the language
+ *   3. Heuristic: if `rootData.runtime` is one of {python, javascript,
+ *      typescript}, use that (covers the evaluator code-runtime pattern
+ *      without needing a schema annotation)
+ *   4. Fallback to "python"
  */
 
 import {memo, useCallback, useMemo} from "react"
@@ -11,6 +20,14 @@ import type {SchemaProperty} from "@agenta/entities/shared"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
+
+import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
+
+const SUPPORTED_LANGUAGES = new Set(["code", "json", "yaml", "python", "javascript", "typescript"])
+
+function isSupportedLanguage(value: string): boolean {
+    return SUPPORTED_LANGUAGES.has(value)
+}
 
 export interface CodeEditorControlProps {
     /** The schema property defining constraints */
@@ -49,11 +66,40 @@ export const CodeEditorControl = memo(function CodeEditorControl({
 }: CodeEditorControlProps) {
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
-    // Detect language from schema hints or default to python
+    const drillIn = useOptionalDrillIn<{parameters?: Record<string, unknown>} | null>()
+    // The drill-in adapter exposes `rootData` already unwrapped to parameters
+    // (see PlaygroundConfigSection's `getRootData`), so it's a flat record of
+    // the entity's config fields keyed by name.
+    const rootData = (drillIn?.rootData as Record<string, unknown> | null | undefined) ?? null
+
+    // Detect language: explicit schema hint → schema-named sibling field →
+    // heuristic on `runtime` sibling → "python" fallback.
     const language = useMemo(() => {
         const xParams = schema?.["x-parameters"] as Record<string, unknown> | undefined
-        return (xParams?.language as string) ?? "python"
-    }, [schema])
+        // Normalize + validate the explicit hint so a typo or unexpected
+        // casing falls through to the heuristic / "python" fallback rather
+        // than being passed straight to the editor with undefined behavior.
+        const explicit =
+            typeof xParams?.language === "string" ? xParams.language.toLowerCase() : undefined
+        if (explicit && isSupportedLanguage(explicit)) return explicit
+
+        const fromFieldName = xParams?.languageFromField as string | undefined
+        if (fromFieldName && rootData && typeof rootData[fromFieldName] === "string") {
+            const candidate = (rootData[fromFieldName] as string).toLowerCase()
+            if (isSupportedLanguage(candidate)) return candidate
+        }
+
+        // Heuristic: evaluator code fields ship alongside a `runtime` choice
+        // field whose value matches a supported language enum. Use it when
+        // present so syntax highlighting tracks the runtime selection.
+        const runtime = rootData?.runtime
+        if (typeof runtime === "string") {
+            const candidate = runtime.toLowerCase()
+            if (isSupportedLanguage(candidate)) return candidate
+        }
+
+        return "python"
+    }, [schema, rootData])
 
     const handleChange = useCallback(
         (val: string) => {
