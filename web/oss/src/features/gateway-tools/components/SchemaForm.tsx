@@ -1,11 +1,10 @@
 import {forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react"
 
+import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Collapse, Form, Input, InputNumber, Switch, Select, Typography} from "antd"
 import type {FormInstance} from "antd"
-
-import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "../utils/schema"
 
 export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>

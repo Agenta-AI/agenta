@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 export function useDebouncedAtomSearch(setAtom: (v: string) => void, delay = 300) {
     const [local, setLocal] = useState("")
-    const timerRef = useRef<ReturnType<typeof setTimeout>>()
+    const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
     const onChange = useCallback(
         (v: string) => {

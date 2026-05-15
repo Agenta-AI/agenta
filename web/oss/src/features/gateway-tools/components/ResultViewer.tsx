@@ -1,16 +1,15 @@
 import {useMemo} from "react"
 
+import {
+    buildFormFieldsFromData,
+    buildFormFieldsFromSchema,
+    type FormFieldDescriptor,
+} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {CopySimple} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, InputNumber, message, Typography} from "antd"
 
 import type {ToolCallResult} from "@/oss/services/tools/api/types"
-
-import {
-    buildFormFieldsFromData,
-    buildFormFieldsFromSchema,
-    type FormFieldDescriptor,
-} from "../utils/schema"
 
 interface Props {
     result: ToolCallResult | null

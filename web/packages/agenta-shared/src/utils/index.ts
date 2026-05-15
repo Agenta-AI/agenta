@@ -194,6 +194,13 @@ export {
 } from "./connectionSlug"
 export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
 
+// Gateway Tool JSON-Schema → form-field descriptor utilities
+export {
+    buildFormFieldsFromData,
+    buildFormFieldsFromSchema,
+    type FormFieldDescriptor,
+} from "./gatewayToolSchema"
+
 // Polling utilities
 export {shortPoll} from "./shortPoll"
 

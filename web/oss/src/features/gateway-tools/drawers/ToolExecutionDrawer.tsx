@@ -1,5 +1,6 @@
 import React, {useCallback, useMemo, useRef, useState} from "react"
 
+import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {
     ArrowLeft,
@@ -33,7 +34,6 @@ import type {SchemaFormHandle} from "../components/SchemaForm"
 import SchemaForm from "../components/SchemaForm"
 import {useActionDetail} from "../hooks/useActionDetail"
 import {actionsSearchAtom, useCatalogActions} from "../hooks/useCatalogActions"
-import {useDebouncedAtomSearch} from "../hooks/useDebouncedAtomSearch"
 import {useIntegrationDetail} from "../hooks/useIntegrationDetail"
 import {useToolExecution} from "../hooks/useToolExecution"
 import {executionDrawerAtom} from "../state/atoms"
