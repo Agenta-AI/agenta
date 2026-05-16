@@ -41,6 +41,15 @@ const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
 const BRAINTRUST_OTLP_URL =
     process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
 
+// Optional Langfuse tri-export. Langfuse uses Basic auth with
+// base64(public_key:secret_key) per their OTel docs
+// (https://langfuse.com/docs/opentelemetry/get-started). Endpoint is
+// `${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`. Adding the optional
+// `x-langfuse-ingestion-version: 4` header enables real-time preview.
+const LANGFUSE_PUBLIC_KEY = process.env.LANGFUSE_PUBLIC_KEY
+const LANGFUSE_SECRET_KEY = process.env.LANGFUSE_SECRET_KEY
+const LANGFUSE_BASE_URL = process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com"
+
 // Fail loudly on missing required env, NOT silently degrade.
 // Running the app without these is always a misconfiguration.
 if (!AGENTA_API_KEY) {
@@ -90,6 +99,19 @@ if (BRAINTRUST_API_KEY) {
     spanProcessors.push(new SimpleSpanProcessor(braintrustExporter))
 }
 
+if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
+    // Langfuse OTLP needs base64(public:secret) in Basic auth header.
+    const auth = Buffer.from(`${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}`).toString("base64")
+    const langfuseExporter = new OTLPTraceExporter({
+        url: `${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
+        headers: {
+            Authorization: `Basic ${auth}`,
+            "x-langfuse-ingestion-version": "4",
+        },
+    })
+    spanProcessors.push(new SimpleSpanProcessor(langfuseExporter))
+}
+
 const provider = new NodeTracerProvider({
     resource: resourceFromAttributes({
         [ATTR_SERVICE_NAME]: SERVICE_NAME,
@@ -111,4 +133,9 @@ const instrKey = `__agenta_instr_${APP_NAME}` as const
 console.log(`instrumentation: registered for service.name="${SERVICE_NAME}" → ${otlpUrl}`)
 if (BRAINTRUST_API_KEY) {
     console.log(`instrumentation: + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
+}
+if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
+    console.log(
+        `instrumentation: + Langfuse tri-export → ${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
+    )
 }

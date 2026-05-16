@@ -25,6 +25,9 @@ const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME ?? "pages-vercel"
 const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
 const BRAINTRUST_OTLP_URL =
     process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
+const LANGFUSE_PUBLIC_KEY = process.env.LANGFUSE_PUBLIC_KEY
+const LANGFUSE_SECRET_KEY = process.env.LANGFUSE_SECRET_KEY
+const LANGFUSE_BASE_URL = process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com"
 
 const otlpUrl = AGENTA_PROJECT_ID
     ? `${AGENTA_HOST}${AGENTA_OTLP_PATH}?project_id=${encodeURIComponent(AGENTA_PROJECT_ID)}`
@@ -52,6 +55,7 @@ export function register(): void {
     // empty `ag.metrics.tokens`. Switching to `SimpleSpanProcessor` per
     // Agenta docs may sidestep the race — assertion-1 was loosened earlier
     // to drop the token-attr check; re-verifying with this config post-fix.
+    const spanProcessors = [new SimpleSpanProcessor(agentaExporter)]
     if (BRAINTRUST_API_KEY) {
         const braintrustExporter = new OTLPHttpProtoTraceExporter({
             url: BRAINTRUST_OTLP_URL,
@@ -60,19 +64,24 @@ export function register(): void {
                 "x-bt-parent": `project_name:${serviceName}`,
             },
         })
-        registerOTel({
-            serviceName,
-            spanProcessors: [
-                new SimpleSpanProcessor(agentaExporter),
-                new SimpleSpanProcessor(braintrustExporter),
-            ],
-        })
-    } else {
-        registerOTel({
-            serviceName,
-            spanProcessors: [new SimpleSpanProcessor(agentaExporter)],
-        })
+        spanProcessors.push(new SimpleSpanProcessor(braintrustExporter))
     }
+    // Optional Langfuse tri-export. Auth is Basic base64(public:secret) per
+    // their OTel docs (https://langfuse.com/docs/opentelemetry/get-started).
+    if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
+        const auth = Buffer.from(`${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}`).toString(
+            "base64",
+        )
+        const langfuseExporter = new OTLPHttpProtoTraceExporter({
+            url: `${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
+            headers: {
+                Authorization: `Basic ${auth}`,
+                "x-langfuse-ingestion-version": "4",
+            },
+        })
+        spanProcessors.push(new SimpleSpanProcessor(langfuseExporter))
+    }
+    registerOTel({serviceName, spanProcessors})
 
     if (process.env.NEXT_RUNTIME === "nodejs") {
         const instrKey = `__agenta_instr_${APP_NAME}` as const
@@ -82,6 +91,11 @@ export function register(): void {
         )
         if (BRAINTRUST_API_KEY) {
             console.log(`instrumentation: + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
+        }
+        if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
+            console.log(
+                `instrumentation: + Langfuse tri-export → ${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
+            )
         }
     }
 }

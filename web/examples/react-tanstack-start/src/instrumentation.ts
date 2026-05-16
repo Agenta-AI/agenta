@@ -34,6 +34,9 @@ const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME ?? "tanstack-start"
 const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
 const BRAINTRUST_OTLP_URL =
     process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
+const LANGFUSE_PUBLIC_KEY = process.env.LANGFUSE_PUBLIC_KEY
+const LANGFUSE_SECRET_KEY = process.env.LANGFUSE_SECRET_KEY
+const LANGFUSE_BASE_URL = process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com"
 
 if (!AGENTA_API_KEY) {
     console.error("instrumentation: AGENTA_API_KEY is required — traces will not export")
@@ -64,6 +67,22 @@ if (!AGENTA_API_KEY) {
         spanProcessors.push(new SimpleSpanProcessor(braintrustExporter))
     }
 
+    // Optional Langfuse tri-export. Auth is Basic base64(public:secret) per
+    // their OTel docs (https://langfuse.com/docs/opentelemetry/get-started).
+    if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
+        const auth = Buffer.from(`${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}`).toString(
+            "base64",
+        )
+        const langfuseExporter = new OTLPTraceExporter({
+            url: `${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
+            headers: {
+                Authorization: `Basic ${auth}`,
+                "x-langfuse-ingestion-version": "4",
+            },
+        })
+        spanProcessors.push(new SimpleSpanProcessor(langfuseExporter))
+    }
+
     const provider = new NodeTracerProvider({
         resource: resourceFromAttributes({
             [ATTR_SERVICE_NAME]: SERVICE_NAME,
@@ -90,5 +109,10 @@ if (!AGENTA_API_KEY) {
     console.log(`instrumentation: registered service.name="${SERVICE_NAME}" → ${otlpUrl}`)
     if (BRAINTRUST_API_KEY) {
         console.log(`instrumentation: + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
+    }
+    if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
+        console.log(
+            `instrumentation: + Langfuse tri-export → ${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
+        )
     }
 }

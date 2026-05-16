@@ -1206,3 +1206,57 @@ Three known approaches in the LLM observability ecosystem today — all kept in 
 2. Filter out spans whose `scope.name = "next.js"` (or carries no LLM-shaped attrs) before display — same approach Langfuse takes in `@langfuse/otel` v5+ but applied server-side at query/render time instead of pre-export at the SpanProcessor.
 
 Either fix benefits ALL Agenta users (Python SDK, raw OTel, AI SDK, Mastra) without per-framework JS code. See `summary.md` § "Backend-fixable subset (AI SDK)" for the full matrix.
+
+---
+
+## P-BRAINTRUST-01: Braintrust OTLP endpoint silently swallows spans on data-plane mismatch — projects auto-create but logs land nowhere
+
+**Discovered:** Phase 8 (2026-05-12), during user-driven empirical verification of secondary backends via REST API.
+
+**Scope:** Affects any customer wiring Braintrust as a secondary OTel destination who is NOT on Braintrust's US data plane.
+
+**Symptom:** OTLP exporter to `https://api.braintrust.dev/otel/v1/traces` (Braintrust's default US endpoint, shown first in their docs) returns no synchronous error. Projects auto-create on US plane via the `x-bt-parent: project_name:<name>` header and appear in US-plane `GET /v1/project` listings. **But the spans themselves never reach the user's actual project storage** — because the user's org is configured for the EU plane (`https://api-eu.braintrust.dev`). The Braintrust UI shows the empty-state "waiting for traces" message across every project. The `SimpleSpanProcessor` does not surface the failure; the spike's Agenta-side assertions all PASS while 100% of Braintrust spans are lost.
+
+**Repro:**
+
+1. Sign up a Braintrust org on EU plane (some EU enterprise customers, GDPR-restricted setups, etc).
+2. Wire `@opentelemetry/exporter-trace-otlp-proto` with `url: "https://api.braintrust.dev/otel/v1/traces"` (the docs default) and `Authorization: Bearer <key>` + `x-bt-parent: project_name:my-app`.
+3. Generate a `streamText` call — exporter logs say "registered", no errors at runtime.
+4. Open Braintrust UI → my-app project → empty.
+5. `curl -X POST https://api.braintrust.dev/v1/project_logs/<project_id>/fetch -H "Authorization: Bearer <key>"` → returns **HTTP 421 `DataPlaneRedirectError`** with `RedirectUrl: https://api-eu.braintrust.dev`.
+
+The 421 redirect is sent on the **log-fetch** path, but the **OTLP ingestion** path on US plane silently swallows the request. The OTel exporter doesn't follow the redirect because OTLP/proto doesn't expect 3xx redirects per spec — and the 421 returned to OTLP requests is undocumented behavior.
+
+**Mechanism:** Braintrust's project metadata appears to replicate across both planes (so project listing works on either side), but log/trace storage is plane-bound. OTLP requests to the wrong plane are accepted by their gateway, project auto-creation completes (presumably written to a shared metadata service), but the trace payload never makes it into the data store. The OTLP response is 200 OK so the OTel SDK has no signal to retry or redirect.
+
+**Why silent failure:** the OTel `SimpleSpanProcessor` calls `exporter.export(spans, callback)`. The callback receives `ExportResult.SUCCESS` because the HTTP layer got a 200. No `diag.error` log fires, no exception bubbles, no test assertion fails. The user only finds out when they manually check the Braintrust UI and see the empty state.
+
+**Fix on the user's side:** set `BRAINTRUST_OTLP_URL=https://api-eu.braintrust.dev/otel/v1/traces` (or the correct plane for their org). After patching all 8 spike `.env` files to EU and re-running assertions, all 8 Braintrust projects received 2–33 events each.
+
+**Backend-fixable (Agenta side)?** No — third-party SDK / Braintrust infrastructure issue. **JS-side fix?** Documentation only. Braintrust's OTel docs need a "data plane selection" callout near the top. Or their US gateway should return a proper HTTP 3xx redirect on OTLP ingestion so SDKs can follow it.
+
+**Generalization:** any OTLP export pipeline silently swallows backend-side failures unless explicit destination-side verification is done. The spike's assumption that "SimpleSpanProcessor would surface HTTP failures as test failures" was wrong — OTel exporters log to stderr and swallow errors back to the SpanProcessor. **Multi-backend OTel pipelines need REST-API-based delivery verification, not just assertion PASS.** This is a generalizable lesson that applies to ANY observability fan-out, including a future `@agenta/sdk-tracing` if it ships.
+
+**Notes:** Took ~3 hours of empirical investigation to find. The user had to flag it ("braintrust don't have any traces [all projects etc are showing empty state]"); the spike's own tests didn't catch it. Pre-Phase-8 doc claimed "Live (200)" for Braintrust based on the false assumption that test PASS implied delivery. Doc has been corrected.
+
+---
+
+## P-LANGFUSE-01: Langfuse stores all spans (including non-LLM) when receiving raw OTLP — no server-side scope filter
+
+**Discovered:** Phase 8 (2026-05-12), during empirical UI comparison.
+
+**Earlier wrong claim:** an earlier revision of `summary.md` P-COMMON-01 said "Langfuse's `@langfuse/otel` v5+ ships a SpanProcessor filter dropping non-LLM-scope spans before export — known industry precedent." This was used to argue P-COMMON-01 is solvable Langfuse-style.
+
+**Empirical reality:** when sending raw OTLP to `https://cloud.langfuse.com/api/public/otel/v1/traces` (i.e., NOT using `@langfuse/otel`), Langfuse stores **every span** — including Next.js HTTP wrapper spans with null input/output. Verified by querying their REST API: 11 traces for the Phase 2b app, with multiple `POST /api/chat/route` and `GET /api/sentinels/route` rows that have `input: null, output: null`. The scope filter lives **inside their JS SDK**, running client-side before export.
+
+**Implication for the strategic comparison:**
+
+- "Langfuse doesn't have the P-COMMON-01 wrapper-span clutter" is true only with their SDK.
+- On raw OTLP (which is what the spike uses for tri-export), Langfuse behaves identically to Agenta — both store all spans, both have wrapper spans in the trace list.
+- **The filter belongs at the ingest / display layer**, not as a JS SpanProcessor. Agenta can solve P-COMMON-01 at the backend with the same logic Langfuse's SDK applies client-side.
+
+**Why this matters:** it strengthens the backend-fix case for P-COMMON-01 — the precedent isn't "JS-side filter via custom SDK", it's "scope-based filter logic" that can run wherever. The Agenta UI implementing it on the read path is a strictly cleaner architecture than asking users to install yet another SDK with yet another SpanProcessor.
+
+**Backend-fixable?** Not directly (this is about Langfuse, not Agenta). But the *learning* maps to: P-COMMON-01 is backend-fixable on Agenta's side via the same filter logic Langfuse's SDK uses, just applied at query/render time.
+
+**Notes:** Original claim was based on reading their docs without confirming behavior empirically. The user requested verification via SDK / REST API — pulling actual trace data immediately surfaced the contradiction.

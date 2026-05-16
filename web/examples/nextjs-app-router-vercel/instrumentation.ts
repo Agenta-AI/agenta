@@ -28,6 +28,9 @@ const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME ?? "app-router-vercel"
 const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
 const BRAINTRUST_OTLP_URL =
     process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
+const LANGFUSE_PUBLIC_KEY = process.env.LANGFUSE_PUBLIC_KEY
+const LANGFUSE_SECRET_KEY = process.env.LANGFUSE_SECRET_KEY
+const LANGFUSE_BASE_URL = process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com"
 
 const otlpUrl = AGENTA_PROJECT_ID
     ? `${AGENTA_HOST}${AGENTA_OTLP_PATH}?project_id=${encodeURIComponent(AGENTA_PROJECT_ID)}`
@@ -45,7 +48,7 @@ export function register(): void {
         headers: {Authorization: `ApiKey ${AGENTA_API_KEY}`},
     })
 
-    // Optional Braintrust dual-export. Both exporters are wrapped in
+    // Optional Braintrust + Langfuse fan-out. All exporters are wrapped in
     // `SimpleSpanProcessor` to match the Agenta docs' canonical example
     // (`docs/docs/integrations/frameworks/vercel-ai-sdk/observability.mdx`),
     // which uses `SimpleSpanProcessor` in the `instrumentation.js` snippet.
@@ -58,6 +61,7 @@ export function register(): void {
     // sidesteps this — but the docs don't have a `@vercel/otel`-specific
     // section, so users following `@vercel/otel`'s default still hit it.
     // That's a documentation gap as well as an SDK gap.
+    const spanProcessors = [new SimpleSpanProcessor(agentaExporter)]
     if (BRAINTRUST_API_KEY) {
         const braintrustExporter = new OTLPHttpProtoTraceExporter({
             url: BRAINTRUST_OTLP_URL,
@@ -66,19 +70,25 @@ export function register(): void {
                 "x-bt-parent": `project_name:${serviceName}`,
             },
         })
-        registerOTel({
-            serviceName,
-            spanProcessors: [
-                new SimpleSpanProcessor(agentaExporter),
-                new SimpleSpanProcessor(braintrustExporter),
-            ],
-        })
-    } else {
-        registerOTel({
-            serviceName,
-            spanProcessors: [new SimpleSpanProcessor(agentaExporter)],
-        })
+        spanProcessors.push(new SimpleSpanProcessor(braintrustExporter))
     }
+    // Optional Langfuse tri-export. Auth is Basic base64(public:secret) per
+    // their OTel docs (https://langfuse.com/docs/opentelemetry/get-started).
+    // The `x-langfuse-ingestion-version: 4` header enables real-time preview.
+    if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
+        const auth = Buffer.from(`${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}`).toString(
+            "base64",
+        )
+        const langfuseExporter = new OTLPHttpProtoTraceExporter({
+            url: `${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
+            headers: {
+                Authorization: `Basic ${auth}`,
+                "x-langfuse-ingestion-version": "4",
+            },
+        })
+        spanProcessors.push(new SimpleSpanProcessor(langfuseExporter))
+    }
+    registerOTel({serviceName, spanProcessors})
 
     // Per-app sentinel for assertion-4 (same pattern as the raw variant).
     // We only stamp this from the nodejs runtime register() — edge runtime
@@ -92,6 +102,11 @@ export function register(): void {
         )
         if (BRAINTRUST_API_KEY) {
             console.log(`instrumentation: + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
+        }
+        if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
+            console.log(
+                `instrumentation: + Langfuse tri-export → ${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
+            )
         }
     }
 }
