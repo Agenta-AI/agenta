@@ -3,7 +3,7 @@
 ## Current State
 
 **Branch:** `ts-sdk-chore/example-apps`
-**Last Updated:** 2026-05-12 (Phase 7 Braintrust dual-export across 8 apps + accidental P-APP-VERCEL-01 SimpleSpanProcessor workaround discovered)
+**Last Updated:** 2026-05-12 (Phase 8 Langfuse tri-export across 8 apps · 3 spot-checks 12/12 PASS · same single-instrumentation-file pattern as Phase 7, refactored if/else to unified `spanProcessors` array for `@vercel/otel` apps)
 
 ---
 
@@ -22,7 +22,8 @@
 | 5 | Nuxt 4 (Vue + Nitro) — raw OTel | ✅ 4/4 assertions PASS (assertion-2 needs 30s flush window per P-NUXT-01: H3 v2 RC's abort signal is undefined at runtime) · trace hierarchy CLEAN (ai.streamText IS root, P-COMMON-01 does not apply) · edge probe deferred (no per-route opt-in, same as TanStack) |
 | 6 | Mastra (Node) — raw OTel + custom Mastra exporter | ✅ 4/4 assertions PASS with AgentaMastraExporter PoC · Path A (bare Mastra) and Path B-cheap (Observability + ConsoleExporter) both emit 0 OTel traces (P-MASTRA-01 + P-MASTRA-02) · Path B-real with custom `BaseExporter` subclass (~150 lines) ships 4-level Mastra tree to Agenta · companion broken-baseline at `examples/node/observability-mastra/` reproduces failure mode |
 | 7 | Braintrust dual-export across 8 AI-SDK-direct apps | ✅ 29/32 assertions PASS (a2 P-APP-VERCEL-01 expected FAIL preserved) · single instrumentation-file change adds Braintrust alongside Agenta · accidental finding: `spanProcessors: [SimpleSpanProcessor]` overrides @vercel/otel's default BatchSpanProcessor and sidesteps P-APP-VERCEL-01 (added as interim workaround note to that entry) · Mastra-Braintrust integration deferred (different shape, no key provided) |
-| 8 | Pain log de-dup + severity grouping → SDK design phase input | 🔜 PENDING |
+| 8 | Langfuse tri-export across the same 8 apps | ✅ Spot-checks 12/12 PASS across the 3 distinct instrumentation shapes — Phase 1 (raw Node OTel SDK, 4/4 PASS) · Phase 2b (`@vercel/otel` unified-array refactor, 4/4 PASS) · Phase 5 (Nitro plugin, 4/4 PASS) · same conditional `SimpleSpanProcessor(OTLPTraceExporter(langfuse))` pattern as Phase 7 · Basic auth via `base64(public:secret)` per Langfuse OTel docs · 8 distinct Langfuse projects (one per app) for clean per-app trace separation in their UI · enables side-by-side comparison: identical OTel input, three platforms displaying it |
+| 9 | Pain log de-dup + severity grouping → SDK design phase input | 🔜 PENDING |
 
 ---
 
