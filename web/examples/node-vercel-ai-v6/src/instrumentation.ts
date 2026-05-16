@@ -30,6 +30,17 @@ const AGENTA_PROJECT_ID = process.env.AGENTA_PROJECT_ID
 const AGENTA_OTLP_PATH = process.env.AGENTA_OTLP_PATH || "/api/otlp/v1/traces"
 const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME
 
+// Optional Braintrust dual-export. Same OTel data fans out to both backends
+// so we can directly compare what each platform displays for IDENTICAL trace
+// input. Braintrust accepts OTLP at `/otel/v1/traces` with Bearer auth + an
+// `x-bt-parent` header naming the destination project. (Their canonical TS
+// integration is wrapper-based `wrapAISDK`, but OTel is supported and is
+// the cleanest dual-export shape for the spike's purposes — single source
+// of trace data, fans out to N backends.)
+const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
+const BRAINTRUST_OTLP_URL =
+    process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
+
 // Fail loudly on missing required env, NOT silently degrade.
 // Running the app without these is always a misconfiguration.
 if (!AGENTA_API_KEY) {
@@ -52,12 +63,32 @@ const otlpUrl = AGENTA_PROJECT_ID
     ? `${AGENTA_HOST}${AGENTA_OTLP_PATH}?project_id=${encodeURIComponent(AGENTA_PROJECT_ID)}`
     : `${AGENTA_HOST}${AGENTA_OTLP_PATH}`
 
-const exporter = new OTLPTraceExporter({
+const agentaExporter = new OTLPTraceExporter({
     url: otlpUrl,
     headers: {
         Authorization: `ApiKey ${AGENTA_API_KEY}`,
     },
 })
+
+// Build the span processor list. Always include Agenta. Optionally include
+// Braintrust when BRAINTRUST_API_KEY is set — same SpanProcessor pattern,
+// so a single ended span fans out to both exporters.
+const spanProcessors = [new SimpleSpanProcessor(agentaExporter)]
+
+if (BRAINTRUST_API_KEY) {
+    const braintrustExporter = new OTLPTraceExporter({
+        url: BRAINTRUST_OTLP_URL,
+        headers: {
+            Authorization: `Bearer ${BRAINTRUST_API_KEY}`,
+            // `x-bt-parent` controls which Braintrust project (or experiment)
+            // receives the spans. Using project_name keeps the wiring
+            // declarative — Braintrust auto-creates the project on first
+            // span if it doesn't exist.
+            "x-bt-parent": `project_name:${SERVICE_NAME}`,
+        },
+    })
+    spanProcessors.push(new SimpleSpanProcessor(braintrustExporter))
+}
 
 const provider = new NodeTracerProvider({
     resource: resourceFromAttributes({
@@ -67,7 +98,7 @@ const provider = new NodeTracerProvider({
     // The published v4 example uses this. Tested 2026-05-10: switching from
     // BatchSpanProcessor to SimpleSpanProcessor in v6 made `ai.streamText`
     // spans actually arrive in Agenta. See P-NODE-02 in the pain log.
-    spanProcessors: [new SimpleSpanProcessor(exporter)],
+    spanProcessors,
 })
 
 provider.register()
@@ -78,3 +109,6 @@ const instrKey = `__agenta_instr_${APP_NAME}` as const
 ;(globalThis as Record<string, unknown>)[instrKey] = Date.now()
 
 console.log(`instrumentation: registered for service.name="${SERVICE_NAME}" → ${otlpUrl}`)
+if (BRAINTRUST_API_KEY) {
+    console.log(`instrumentation: + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
+}

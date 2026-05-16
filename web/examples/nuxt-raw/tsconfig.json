@@ -1,0 +1,4 @@
+{
+    "extends": "./.nuxt/tsconfig.json",
+    "include": ["server/**/*.ts", "pages/**/*.vue", "test/**/*.ts", "*.ts"]
+}

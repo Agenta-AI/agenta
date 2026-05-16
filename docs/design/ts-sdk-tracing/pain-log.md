@@ -7,7 +7,7 @@ Structured friction log from spike apps under `web/examples/*`. Each entry captu
 ```markdown
 ## P-{FRAMEWORK}-NN: <one-line title>
 
-**Framework:** <node | app-router-raw | app-router-vercel | pages-router-raw | pages-router-vercel | tanstack>
+**Framework:** <node | app-router-raw | app-router-vercel | pages-router-raw | pages-router-vercel | tanstack | nuxt | mastra | common>
 **Severity:**
   - User impact: <high | med | low>          // would a real user hit this?
   - Self-recoverable: <yes | partially | no>  // can they fix it from docs alone?
@@ -36,6 +36,9 @@ Per-framework prefix to prevent merge conflicts on numeric IDs. Each framework n
 - `P-PAGES-RAW-NN` — Next.js Pages Router with raw OTel
 - `P-PAGES-VERCEL-NN` — Next.js Pages Router with `@vercel/otel`
 - `P-TANSTACK-NN` — React TanStack Start
+- `P-NUXT-NN` — Nuxt 3/4 (Vue + Nitro)
+- `P-MASTRA-NN` — Mastra (agent framework on top of AI SDK v1 vendored)
+- `P-COMMON-NN` — Cross-framework / backend-side findings (Agenta UI, adapter, attribute schema)
 
 ## Quality bar
 
@@ -104,6 +107,8 @@ await ag.traces.querySpans({
 ```
 
 **Notes:** **Silent failure: yes** — your spans arrive in Agenta and look fine in the UI, but you can't programmatically query by service. Workaround during the spike: every assertion sets `experimental_telemetry.metadata.userId` to a unique-per-run UUID, and verifies/filters on `ag.user.id`. That works because per-call metadata IS preserved (verified by assertion-3), but it's a workaround that breaks down anywhere a user expects standard OTel resource semantics. **Implication for `ts-sdk-tracing`:** either the SDK must expose service-tag helpers that map to whatever attribute path Agenta uses, OR Agenta's adapter must start preserving `service.name` (and other standard Resource attrs) under a documented path. The first is cheaper; the second is more correct.
+
+**Backend-fixable: yes (2026-05-12 analysis).** Pure ingest-side change. The OTLP adapter currently discards Resource attributes; preserving them under `ag.resource.*` is a backend-only fix that benefits every Agenta customer (Python SDK, raw OTel, AI SDK, Mastra). Recommended as part of the "backend wins" tranche before any JS SDK work. See `summary.md` § "Backend-fixable subset (AI SDK)" for the full matrix.
 
 ## P-NODE-02: `BatchSpanProcessor` + AI SDK v6 `streamText` silently loses spans — `forceFlush()` doesn't help
 
@@ -177,6 +182,10 @@ initInstrumentation({apiKey, host}) // chooses processor based on env / batch ne
 
 **SimpleSpanProcessor cost:** synchronous export per span = each `generateText` call adds an HTTP round-trip to Agenta before returning. ~50-200ms per call. Acceptable for spike scope, NOT acceptable for production chat apps. The SDK has to solve this for real.
 
+**Docs-coverage clarification (2026-05-12):** Agenta's docs (`docs/docs/integrations/frameworks/vercel-ai-sdk/observability.mdx` line 74) already use `SimpleSpanProcessor` in the canonical example. **Users following the docs end-to-end will NOT hit this bug.** The pain is for users who follow general OTel "production-grade" guidance (which recommends Batch) without reading Agenta's specific docs, or for users on `@vercel/otel` who get Batch by default. **The strategic framing is therefore "performance optimisation on top of a docs-recommended workaround," not "bug in the canonical Agenta integration path":** the SDK should ship a streaming-aware Batch processor that gets Batch's latency benefits WITHOUT Simple's per-span HTTP tax. Minimum docs fix: the existing observability.mdx should explicitly explain WHY Simple is used (not just demonstrate it by example) so users don't naively replace it with Batch.
+
+**Backend-fixable: no (2026-05-12 analysis).** Spans never reach the backend. The streamText parent span ends async after the `BatchProcessor`'s flush window has closed, so the OTLP exporter has nothing to ship at process exit. Backend can't fix what doesn't arrive. JS-side wedge: streamText lifecycle wrapper. See `summary.md` § "Backend-fixable subset (AI SDK)".
+
 ## P-NODE-03: Per-call metadata doesn't propagate to all child spans (no way to filter "this run's trace")
 
 **Framework:** node
@@ -222,6 +231,8 @@ const fullTrace = await ag.traces.fetchTrace({trace_id: parent.spans[0].trace_id
 ```
 
 **Notes:** Hit during assertion-1 development. Workaround: assertion-1 only checks for `ai.generateText` (the parent), not its sibling `ai.toolCall`. Tool call presence is verified via the parent's `ag.data.outputs.toolCalls` payload instead. **Implication for `ts-sdk-tracing`:** users will reasonably expect `metadata.userId` to propagate to every span in the trace. Either the SDK helper auto-fills it, OR the SDK exposes a "find full trace by metadata" pattern that hides the parent-only-filtering reality.
+
+**Backend-fixable: yes (2026-05-12 analysis).** Trace-level enrichment at ingest. When all spans of a trace arrive, the backend can cascade the root span's `ag.user.id` / `ag.session.id` to children that lack them. The backend already groups spans by `trace_id`; this is a one-time enricher pass during ingest (or a query-time view). Benefits all Agenta customers regardless of SDK path. See `summary.md` § "Backend-fixable subset (AI SDK)" for the full matrix.
 
 > **Phase 0 setup notes (NOT pain log entries — preserved in code comments for context):**
 > Three Phase 0 frictions were captured but excluded from the pain log because they're spike-tooling friction (vitest setup, turbo lint scope, prettier `semi: false`), not Vercel AI SDK / observability friction. Their fixes live in:
@@ -333,6 +344,8 @@ export async function POST(req: NextRequest) {
 
 So the failure is structural to ANY manual edge OTel wiring that doesn't reach `requestContext.waitUntil`: the isolate freezes before the export `fetch` resolves. **What's still uncertain:** whether the `@vercel/request-context` symbol is populated in `next dev` (our local-only spike scope per Decision 4) or only on deployed Vercel infrastructure. We never confirmed our `@vercel/otel` edge spans actually came through `waitUntil` vs by some other path during local `next dev`; the 10-15s arrival could be incidental (e.g. BatchSpanProcessor's 5s scheduledDelay + retry timing) rather than the `waitUntil`-enrolled flush.
 
+**Backend-fixable: no (2026-05-12 analysis).** Edge isolate freezes before the OTLP fetch resolves; spans never leave the user's process. Backend invisible. JS-side wedge: edge runtime helper that enrolls `forceFlush` into `requestContext.waitUntil` (mirror `@vercel/otel`'s mechanism). See `summary.md` § "Backend-fixable subset (AI SDK)".
+
 ### Next.js App Router — `@vercel/otel` (P-APP-VERCEL-*)
 
 ## P-APP-VERCEL-01: `@vercel/otel` defaults to BatchSpanProcessor → mid-stream abort flush still loses spans
@@ -387,6 +400,16 @@ export function register() {
 
 **Notes:** Compounds with P-NODE-02 — they're the SAME underlying problem (BatchSpanProcessor + AI SDK v6 streamText flush ordering) manifested through two different setups. Neither raw OTel nor `@vercel/otel` solves it on its own. **Implication for `ts-sdk-tracing`:** the SDK MUST own the span processor choice and ship one that handles streamText's `endWhenDone: false` lifecycle. Letting users pick a "production-grade" processor (Batch) silently breaks streaming traces — and that's the dominant AI SDK use case.
 
+**Docs-coverage clarification (2026-05-12):** the Agenta docs (`docs/docs/integrations/frameworks/vercel-ai-sdk/observability.mdx` line 74) ALREADY use `SimpleSpanProcessor` in the canonical example. A user who follows the Agenta docs end-to-end will NOT hit this bug — `SimpleSpanProcessor` exports synchronously per span and sidesteps `BatchSpanProcessor`'s flush window race with `streamText`'s `endWhenDone: false` lifecycle. Empirically verified in Phase 7 by switching `@vercel/otel`'s `spanProcessors: [SimpleSpanProcessor(...)]` — assertion-2 went from FAIL to PASS.
+
+**So who actually hits P-APP-VERCEL-01?** Users who follow `@vercel/otel`'s docs (default `traceExporter: x` uses `BatchSpanProcessor` internally) WITHOUT also reading Agenta's docs to override the default. The Agenta docs don't have a `@vercel/otel`-specific section, so a user composing both ecosystem docs naively gets Batch and hits the bug. **This is primarily a documentation gap, not just an SDK gap.**
+
+**Trade-off of the docs-recommended `SimpleSpanProcessor`:** each ended span triggers a synchronous HTTP round-trip — ~50-200ms per LLM call. Acceptable for low-volume apps; expensive at scale. **The SDK wedge is therefore a streaming-aware Batch processor** (gets the latency benefits of Batch WITHOUT the `streamText` flush bug), not a bug fix.
+
+**Minimum docs fix:** add a `@vercel/otel`-specific section that calls out the default-processor pitfall, shows how to override with `spanProcessors: [new SimpleSpanProcessor(...)]`, and warns about the latency tax. Until then, P-APP-VERCEL-01 reproduces for any user who follows `@vercel/otel`'s docs in isolation.
+
+**Backend-fixable: no (2026-05-12 analysis).** Same root cause as P-NODE-02 (Batch flush timing on mid-stream abort). Spans don't arrive. JS-side wedge. See `summary.md` § "Backend-fixable subset (AI SDK)".
+
 ## P-APP-VERCEL-02: `@vercel/otel` edge route emits spans, but with significant delay (BatchSpanProcessor batch interval)
 
 **Framework:** app-router-vercel
@@ -433,6 +456,8 @@ return NextResponse.json({text: result.text, runtime: "edge"})
 ```
 
 **Notes:** This is the GOOD news of Phase 2b: `@vercel/otel` does work on edge runtime where raw OTel doesn't, so users adopting Vercel's recommended path get observability eventually. The bad news is the latency. For "user closed tab mid-stream" scenarios, 10-15s is too long — the user's session record is already torn down before the trace lands. **Implication for `ts-sdk-tracing`:** if the SDK ships an edge-runtime helper, it must beat both raw OTel (zero spans) AND `@vercel/otel` (slow spans) — flush within the route response cycle.
+
+**Backend-fixable: no (2026-05-12 analysis).** Delay is in JS-side `BatchProcessor.scheduledDelay` (5s default) + edge function freeze interaction. Backend processes whatever arrives whenever; can't make them arrive faster. JS-side wedge: edge-aware processor that flushes via `waitUntil` within the route response cycle. See `summary.md` § "Backend-fixable subset (AI SDK)".
 
 ### Next.js Pages Router — raw OTel (P-PAGES-RAW-*)
 
@@ -488,6 +513,8 @@ So Pages Router edge has stricter static analysis at build time than App Router 
 ```
 
 **Notes:** Spike-time workaround was to drop the edge route from this app entirely; assertions 1-4 still pass for the nodejs path. Pages Router users on raw OTel cannot ship an edge route AT ALL today. **Implication for `ts-sdk-tracing`:** the SDK's edge helper must ship an edge-safe bundle (or rely on `@vercel/otel`'s edge-safe bundle) so users on either router can use it. Confirms the cross-cutting takeaway in summary.md: SDK has to own edge instrumentation; users wiring it themselves hit framework-specific build limits the AI SDK + Agenta ecosystem doesn't currently document.
+
+**Backend-fixable: no (2026-05-12 analysis).** `next build` rejects the import before runtime — nothing ever ships. Backend never gets to see anything. JS-side wedge: SDK ships an eval-free edge bundle that passes Pages-edge static dynamic-code-eval check. See `summary.md` § "Backend-fixable subset (AI SDK)".
 
 ### Next.js Pages Router — `@vercel/otel` (P-PAGES-VERCEL-*)
 
@@ -577,6 +604,10 @@ pipeUIMessageStreamToResponse({response: res, stream: result.toUIMessageStream()
 - The mechanism is traced from source, not instrumented at runtime. A 1-line runtime probe to confirm: patch `@vercel/otel`'s `CompositeSpanProcessor.onEnd` to log `span.attributes` for spans named `ai.streamText` immediately before/after the force-end loop. If `ai.usage.inputTokens` is missing both times AND present on a subsequent (no-op) `setAttributes` call from AI SDK, the mechanism is empirically confirmed.
 - Untested whether AI SDK's `experimental_telemetry.tracer` injection (passing a custom tracer that wraps spans with deferred attribute application) would mask the symptom. Our spike didn't exercise that knob.
 
+**Processor-choice independence verified (2026-05-12):** unlike P-APP-VERCEL-01 which is fixable by switching to `SimpleSpanProcessor`, **P-PAGES-VERCEL-01 reproduces under BOTH `BatchSpanProcessor` AND `SimpleSpanProcessor`.** Empirically tested: changing `@vercel/otel`'s `spanProcessors` from Batch to Simple while keeping `pipeUIMessageStreamToResponse` produces the same empty `ag.metrics.tokens` result. This makes sense from the mechanism: `CompositeSpanProcessor.onEnd` force-ends the child span BEFORE the wrapped processor sees it — so the choice of wrapped processor (Batch vs Simple) only affects EXPORT timing, not the force-end race that destroys the token writes. **Following Agenta's docs (which use `SimpleSpanProcessor`) does NOT save users from this bug.** Genuine JS-side wedge.
+
+**Backend-fixable: no (2026-05-12 analysis).** `@vercel/otel`'s `CompositeSpanProcessor.onEnd` force-ends the streamText span BEFORE AI SDK writes `ai.usage.*` — the token attributes are never written to the span at all. Backend receives the span with empty token data; can't reconstruct what wasn't sent. JS-side wedge: streamText lifecycle wrapper that owns span end (same wedge as P-NODE-02). See `summary.md` § "Backend-fixable subset (AI SDK)".
+
 ### React TanStack Start (P-TANSTACK-*)
 
 ## P-TANSTACK-01: Instrumentation seam is unenforced `src/server.ts` import order — silent failure on regression
@@ -632,6 +663,8 @@ export default withAgentaInstrumentation(
 
 **Notes:** Discovered while scaffolding Phase 4. The official TanStack Start observability docs DO call out "Initialize BEFORE importing your app" but rely entirely on a comment convention. **Implication for `ts-sdk-tracing`:** the SDK's framework adapter should accept the user's start handler as input and return a wrapped one — invariant-by-construction. Eliminates the entire class of "wait, why aren't there any spans?" debugging.
 
+**Backend-fixable: no (2026-05-12 analysis).** If instrumentation isn't registered before the first handler, no spans flow. Backend invisible. JS-side wedge: TanStack Start adapter that wraps the start handler (invariant-by-construction). See `summary.md` § "Backend-fixable subset (AI SDK)".
+
 ## P-TANSTACK-02: No per-route edge runtime opt-in — runtime selection is global at the Nitro preset level
 
 **Framework:** tanstack
@@ -675,6 +708,8 @@ export default withAgentaInstrumentation(handler, {apiKey, projectId})
 ```
 
 **Notes:** This isn't a silent failure — it's a coverage gap in the spike. We could deploy this app to a Cloudflare/Vercel-edge preset to verify, but that's out of scope for local-only spike testing (Decision 4 in status.md). **Implication for `ts-sdk-tracing`:** the SDK's TanStack Start adapter must pick the right bundle (eval-free, edge-safe vs Node-rich) based on the deployment target — users won't be choosing per-route. Same edge-safe bundle requirement as P-PAGES-RAW-01.
+
+**Backend-fixable: no (2026-05-12 analysis).** TanStack Start architecture choice — no `runtime: "edge"` per-route flag. Backend has no leverage here. Workaround is JS-side: deployment-preset-aware SDK bundling. See `summary.md` § "Backend-fixable subset (AI SDK)".
 
 ## P-TANSTACK-03: `createStartHandler()` return shape doesn't match what the dev plugin expects — docs lie
 
@@ -735,3 +770,439 @@ export default withAgentaInstrumentation(
 ```
 
 **Notes:** Cost us ~30 minutes of "why does every request 500?" debugging during Phase 4 scaffolding. Resolution required reading the framework's own default-entry source, not the docs. **Implication for `ts-sdk-tracing`:** combines with P-TANSTACK-01 — the SDK's TanStack Start adapter SHOULD own both the instrumentation wiring and the export-shape wrapping. Users never write `export default createStartHandler(...)` directly; they wrap it through our adapter. This is the cheapest possible value-add and dodges a documented framework foot-gun.
+
+**Backend-fixable: no (2026-05-12 analysis).** Build/runtime crash before any span fires. Backend invisible. JS-side wedge: SDK adapter returns the correct `{fetch}` shape. See `summary.md` § "Backend-fixable subset (AI SDK)".
+
+### Nuxt 3/4 (Vue + Nitro) (P-NUXT-*)
+
+## P-NUXT-01: H3 v2 RC has no working abort-signal propagation — mid-stream client abort doesn't reach `streamText`
+
+**Framework:** nuxt
+**Severity:**
+  - User impact: high
+  - Self-recoverable: no
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+In Nuxt 4 (`nuxt@4.4.5` + `nitro@2.13.4` + `h3@2.0.1-rc.20`), there's no working way to get an `AbortSignal` that fires when a client aborts a streaming request mid-flight. The H3 v2 RC types document THREE potential paths, all of which fail at runtime in the Nitro Node-runtime preset:
+
+```ts
+// server/api/chat.post.ts — Nuxt streaming chat
+export default defineEventHandler(async (event) => {
+    // (1) The typed Web Fetch shape — H3 docs comment links to MDN's
+    //     `Request.signal`:
+    const signal = event.req.signal
+    // → undefined at runtime. event.req exists but lacks `.signal`.
+
+    // (2) The "runtime-specific additional context" path:
+    const signal = event.runtime?.node?.req?.signal
+    // → undefined at runtime. event.runtime itself is undefined.
+
+    // (3) The deprecated Node IncomingMessage path:
+    event.node?.req?.on("close", () => streamCtrl.abort())
+    // → 'close' event fires, but only AFTER the response stream finishes
+    //   draining naturally (model completes), NOT when the client
+    //   disconnects mid-stream. So it doesn't help.
+
+    // Net effect: streamText receives no abortSignal, model keeps
+    // generating after client abort, span ends ~7-15s late.
+    const result = streamText({
+        model: openai("gpt-4o-mini"),
+        messages,
+        experimental_telemetry: {isEnabled: true, metadata: {userId, sessionId}},
+        // abortSignal: ??? — no working path
+    })
+    return result.toUIMessageStreamResponse()
+})
+```
+
+**Verified isolation (2026-05-11):**
+
+Runtime probe in `web/examples/nuxt-raw/server/api/chat.post.ts` printed:
+
+```
+[chat.post probe] {
+    "event.req exists": true,
+    "event.req.signal exists": false,    ← typed but missing at runtime
+    "event.node exists": true,
+    "event.node.req exists": true,
+    "event.runtime exists": false        ← typed but missing at runtime
+}
+```
+
+Empirical confirmation via assertion-2:
+- `ASSERTION_FLUSH_WINDOW_S=5` (default for other phases): **FAIL** — span not in Agenta within 5s of client abort
+- `ASSERTION_FLUSH_WINDOW_S=30`: **PASS** — span arrives ~7-15s after abort (= the time it takes the model to finish naturally and the streamText span to end on its own)
+
+Compare to other phases under the same setup:
+- Phase 2a Next.js App Router raw OTel: 5s window PASS — `req.signal` works in Next.js
+- Phase 4 TanStack Start: 5s window PASS — different framework, abort path works
+- Phase 1 Node: 5s window PASS — no framework HTTP layer, `AbortController` flows through directly
+
+So the failing variable is specifically **H3 v2 RC's broken AbortSignal exposure on Node runtime in Nuxt 4 / Nitro 2.13**.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK ships a Nuxt server-route helper that fabricates a working
+// AbortSignal via whatever mechanism actually works in the current
+// Nitro version (close event polling, Node-side response 'close',
+// or whatever H3 stabilizes). Users don't see the H3 version skew.
+import {agentaStreamText} from "@agenta/sdk/nuxt"
+
+export default defineEventHandler(async (event) => {
+    return agentaStreamText(event, {
+        model: openai("gpt-4o-mini"),
+        messages,
+        metadata: {userId, sessionId},
+    })
+})
+```
+
+**Notes:** Discovered during Phase 5 scaffolding while running the 4 canonical assertions. Initial assertion-2 failed at 5s; raising to 30s passed. Probed the H3 event shape three different ways before confirming no working path exists. **Why this matters:** mid-stream client abort handling is the cost-control mechanism for production LLM apps — if a user closes their tab mid-generation, the server should stop generating to avoid burning tokens for nothing. Today's Nuxt 4 users can't do that. Their costs include all the streamText completions that ran to natural completion after the user already left. **Why partial-silent:** the span DOES arrive in Agenta (eventually), so observability isn't broken — but the production cost behavior IS broken, and the gap between "client aborted" and "trace lands" is much longer than other frameworks (7-15s vs <1s). **Investigation deferred:** whether H3 v2 stable (when it ships) fixes this; whether building Nuxt against `vercel-edge` preset would route through `event.web.request.signal` instead and surface a working signal. Both kept in observation space.
+
+**Backend-fixable: no (2026-05-12 analysis).** The pain is JS-side abort propagation (or rather, its absence). Backend receives the eventual span fine — but by then the user has already closed the tab and the company has paid for tokens nobody saw. Backend can't bridge a JS-side abort gap. JS-side wedge: Nuxt server helper that fabricates a working AbortSignal via whatever H3 path actually works in the running Nitro version. See `summary.md` § "Backend-fixable subset (AI SDK)".
+
+### Mastra (P-MASTRA-*)
+
+## P-MASTRA-01: Mastra returns a noop tracer by default — raw OTel + Agenta produces ZERO traces
+
+**Framework:** mastra
+**Severity:**
+  - User impact: high
+  - Self-recoverable: no
+  - Silent failure: yes
+
+**The friction (code that exists today):**
+
+A user reads the Agenta Vercel AI SDK docs, sees the "register raw OTel + point at our OTLP endpoint" pattern, swaps `streamText` / `generateText` for a Mastra `Agent`, and gets ZERO traces with no error or warning. The agent works perfectly. OpenAI call works perfectly. Agenta dashboard is empty.
+
+```js
+// instrumentation.js — identical to the AI SDK quickstart, registers
+// a global NodeTracerProvider with an OTLP exporter pointed at Agenta.
+const provider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(otlpExporter)],
+})
+provider.register()
+
+// app.js — use Mastra instead of bare AI SDK
+import {Agent} from "@mastra/core/agent"
+import {Mastra} from "@mastra/core/mastra"
+import {openai} from "@ai-sdk/openai"
+
+const chat = new Agent({name: "chat", instructions: "...", model: openai("gpt-4o-mini")})
+new Mastra({agents: {chat}})
+const result = await chat.generate("Hi")
+// → result.text is correct. Agenta dashboard shows nothing.
+```
+
+**Verified isolation (2026-05-11):**
+
+Source dive into `@mastra/core@1.32.1`'s vendored AI SDK v1 bundle at `node_modules/@mastra/core/dist/chunk-VXOFGYGF.js:3359`:
+
+```js
+function getTracer({ isEnabled = false, tracer } = {}) {
+    if (!isEnabled) return noopTracer
+    return tracer ?? trace.getTracer("ai")
+}
+```
+
+Mastra bundles its own AI SDK v1 internally. The vendored AI SDK checks `experimental_telemetry.isEnabled` (defaulting `false`). When false, every span op becomes a no-op. Mastra's user-facing Agent API (`AgentExecutionOptionsBase`) does not expose `experimental_telemetry` to callers — verified by grepping `node_modules/@mastra/core/dist/agent/agent.types.d.ts`. So there is no path from outside Mastra to flip `isEnabled` to true.
+
+Empirically confirmed: `web/examples/mastra-node/` with bare Mastra (no `@mastra/observability` installed) produces ONLY the one wrapper span we manually created. Zero `ai.*` spans land in Agenta.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK ships a one-line setup that handles both Mastra's vendored AI SDK
+// telemetry AND Mastra's own observability bus. User installs it, doesn't
+// need to know that Mastra has two parallel telemetry surfaces.
+import {wireAgentaMastra} from "@agenta/sdk/mastra"
+
+const mastra = new Mastra({
+    agents: {chat},
+    observability: wireAgentaMastra({apiKey, projectId}),
+})
+```
+
+**Notes:** Discovered Phase 6.1a (bare Mastra + global OTel provider produces zero traces). Confirmed Phase 6.1b (`@mastra/observability` installed + ConsoleExporter wired still produces zero AI SDK OTel spans — Mastra's Observability layer doesn't flip the vendored AI SDK's `isEnabled` flag either; the two systems are completely parallel). **Why this matters:** every Agenta customer reading the AI SDK quickstart docs and trying to apply the same pattern to Mastra will hit this. No error, no warning, just an empty dashboard. Worst form of silent failure — the user thinks Agenta is broken or that their instrumentation is wrong, not that they need a different setup entirely.
+
+**Backend-fixable: no (2026-05-12 analysis).** Mastra returns a noopTracer; spans are never created at all. There is no path from outside Mastra to flip the `isEnabled` flag. Backend invisible. JS-side wedge: see P-MASTRA-02 — the AgentaMastraExporter subscribes to Mastra's separate `ObservabilityBus` and re-emits as OTel. See `summary.md` § "Backend-fixable subset (AI SDK)".
+
+## P-MASTRA-02: Mastra has a separate, non-OTel `ObservabilityBus` — no native OTLP exporter
+
+**Framework:** mastra
+**Severity:**
+  - User impact: high
+  - Self-recoverable: partially
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+Mastra's blessed observability path is `@mastra/observability`. Install it, configure an `Observability` instance, pass to `new Mastra({observability})`. Mastra then emits rich `TracingEvent` payloads with span types like `AGENT_RUN`, `MODEL_GENERATION`, `MODEL_STEP`, `MODEL_CHUNK` — full input/output, model, provider, streaming flag, step indices, tool calls, the works.
+
+**But the events are emitted to Mastra's own `ObservabilityBus`, not to OpenTelemetry.** The bus delivers to Mastra-specific exporters: `ConsoleExporter`, `CloudExporter`, `DefaultExporter`, `TestExporter`. There is no `OTLPExporter`. No `OpenTelemetryExporter`. Nothing that speaks the protocol Agenta (and Langfuse, Honeycomb, Datadog, every OTel-backed observability platform) expects.
+
+```ts
+import {Observability, ConsoleExporter, SamplingStrategyType} from "@mastra/observability"
+
+new Mastra({
+    agents: {chat},
+    observability: new Observability({
+        configs: {
+            default: {
+                name: "default",
+                serviceName: "my-app",
+                sampling: {type: SamplingStrategyType.ALWAYS},
+                exporters: [new ConsoleExporter()],
+                //         ^^^^^^^^^^^^^^^^^^^^^
+                //         Only Mastra-blessed exporters exist. To ship to any
+                //         OTel/OTLP backend, the user must write their own
+                //         BaseExporter subclass that translates Mastra's
+                //         TracingEvent → OTLP → POST.
+            },
+        },
+    }),
+})
+```
+
+**Verified isolation (2026-05-11):**
+
+`@mastra/observability@1.11.1` exports surface (`node_modules/@mastra/observability/dist/exporters/index.d.ts`):
+- `BaseExporter` (abstract — implement `_exportTracingEvent`)
+- `ConsoleExporter` (stdout)
+- `CloudExporter` (Mastra Cloud HTTP API — proprietary)
+- `DefaultExporter` (storage-backed)
+- `TestExporter` (testing)
+
+The `ObservabilityBridge` config (`bridge?: ObservabilityBridge`) sounds OTel-flavoured ("e.g., OpenTelemetry, DataDog") but its actual interface is `executeInContext(spanId, fn)` — for **context propagation** (parent-span linkage when downstream HTTP/DB auto-instrumentation runs), NOT span export. Mastra spans don't flow OUT to OTel via the bridge.
+
+So integrating Mastra with any OTLP backend requires a custom `BaseExporter` subclass that translates Mastra's `TracingEvent.exportedSpan` shape to OTLP.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK ships the BaseExporter subclass + sane defaults for Agenta. User
+// imports + plugs in.
+import {AgentaMastraExporter} from "@agenta/sdk/mastra"
+
+new Observability({
+    configs: {
+        default: {
+            // ...
+            exporters: [new AgentaMastraExporter({apiKey, projectId, host})],
+        },
+    },
+})
+```
+
+**Notes:** Discovered Phase 6.1b. Implemented a working PoC at `web/examples/mastra-node/src/agenta-exporter.ts` (~150 lines) that subscribes to Mastra's `TracingEvent` bus, re-emits each ended span as an OTel span through the globally-registered tracer (so the existing OTLP exporter handles serialization/transport/batching/retries). After wiring, 4/4 canonical Mastra assertions PASS and a clean 4-level span tree (`agent run` → `llm` → `step` → `chunk`) lands in Agenta with inputs/outputs/metadata/user-id all populated. **Strategic implication:** this is a strictly different shape from the `@agenta/sdk-ai` SpanProcessor wedge (which would be a pre-export filter on OTel-native AI SDK spans). They integrate at different layers. `@agenta/sdk-mastra` is its own package, not a variant of `@agenta/sdk-ai`. Both can exist with non-overlapping reasons.
+
+**Backend-fixable: partial (2026-05-12 analysis).** Without a JS-side bridge, Mastra spans never reach the backend at all — backend can't ingest what isn't sent. So a pure-backend fix isn't possible. **However**, the JS-side bridge can be much thinner than the AgentaMastraExporter shown here IF the backend grows a Mastra-aware adapter: ship a 30-line shim that POSTs raw Mastra `TracingEvent` payloads to a dedicated `/api/mastra/v1/spans` endpoint, and have the backend handle the semantic translation to `ag.*` (mirroring the Vercel AI SDK pattern). Discussed at length in `summary.md` § "Strategic alternative: backend-led integration". Either way, some JS code must exist; the question is fat-vs-thin and whether the schema lives in JS or backend.
+
+## P-MASTRA-03: Mastra's user-facing Agent API hides `experimental_telemetry` — per-call metadata requires `tracingOptions.metadata`
+
+**Framework:** mastra
+**Severity:**
+  - User impact: med
+  - Self-recoverable: partially
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+In every other phase of the spike, per-call metadata (`userId`, `sessionId`) is passed via the AI SDK's `experimental_telemetry.metadata` option. Mastra users can't do this — `agent.generate()` and `agent.stream()` accept `AgentExecutionOptionsBase`, which does **not** expose `experimental_telemetry`. Trying to pass it is a type error, and Mastra silently drops it at runtime even with `as any`.
+
+Mastra's own equivalent is `tracingOptions.metadata`, which lives on a different option path and is shaped slightly differently:
+
+```ts
+// AI SDK direct (Phase 1-5):
+streamText({
+    model: openai("gpt-4o-mini"),
+    messages: [...],
+    experimental_telemetry: {
+        isEnabled: true,
+        metadata: {userId, sessionId},
+    },
+})
+
+// Mastra (Phase 6):
+chatAgent.generate(prompt, {
+    tracingOptions: {
+        metadata: {userId, sessionId},
+    },
+})
+```
+
+This is a per-framework knob users have to learn. Worse: the divergence isn't called out in Mastra docs — discoverability is by source dive (`node_modules/@mastra/core/dist/agent/agent.types.d.ts:452`).
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK ships per-framework helpers that wrap the metadata convention,
+// so users have ONE consistent shape regardless of framework underneath:
+import {agentaCall} from "@agenta/sdk"
+const result = await agentaCall(chatAgent.generate(prompt), {userId, sessionId})
+```
+
+**Notes:** Mastra's metadata path also auto-propagates to child spans (verified empirically — `userId` ends up on `agent run`, `llm`, `step`, and `chunk` spans). This is BETTER than AI SDK's behaviour (P-NODE-03: AI SDK only attaches metadata to the parent span, not children like `ai.toolCall`). So Mastra-side metadata semantics are actually superior. The friction is the discoverability gap, not the underlying capability.
+
+**Backend-fixable: no (2026-05-12 analysis).** This is an API ergonomics gap, not a wire-format problem. Mastra's `tracingOptions.metadata` already propagates correctly once users find it. Backend has nothing to fix here. JS-side wedge: `agentaCall(agent.generate(prompt), {userId, sessionId})` helper or framework-aware overload that abstracts the metadata path divergence between AI SDK and Mastra. See `summary.md` § "Backend-fixable subset (AI SDK)".
+
+### Cross-framework / backend findings (P-COMMON-*)
+
+## P-COMMON-01: Next.js auto-instrumentation creates an HTTP root span that hides AI SDK data in Agenta's "Root" UI view
+
+**Framework:** common
+**Severity:**
+  - User impact: high
+  - Self-recoverable: partially
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+Every Next.js 15 app with `instrumentation.ts` (whether using raw OTel or `@vercel/otel`) emits an HTTP server span + a Next-internal handler-execution span automatically — Next.js's own built-in OTel auto-instrumentation, not the user's choice. The AI SDK's `ai.streamText` / `ai.generateText` spans then become CHILDREN nested 2-3 levels deep. Agenta's UI "Root" filter shows the HTTP root as the trace's representative row, which carries only Next-internal duration data — not the LLM payload.
+
+Verified trace shape for the SAME assertion across all four Next.js spike apps (queried via `POST /api/spans/query` filtering by `trace_id`):
+
+```text
+Phase 2a + 2b (App Router, both raw OTel and @vercel/otel — IDENTICAL trees):
+└─ POST /api/chat/route                              ← Agenta UI shows THIS as root
+   ├─ resolve page components
+   ├─ executing api route (app) /api/chat/route
+   │  ├─ ai.streamText                               ← AI SDK data lives HERE (L2)
+   │  │  └─ ai.streamText.doStream
+   │  │     └─ fetch POST https://api.openai.com/v1/responses
+   │  └─ start response
+
+Phase 3a + 3b (Pages Router, both raw OTel and @vercel/otel — IDENTICAL trees):
+└─ POST /api/chat                                    ← Agenta UI shows THIS as root
+   └─ executing api route (pages) /api/chat
+      └─ ai.streamText                               ← AI SDK data lives HERE (L2)
+         └─ ai.streamText.doStream
+            └─ fetch POST https://api.openai.com/v1/responses
+
+Phase 4 TanStack Start (NO HTTP auto-instrumentation):
+└─ ai.streamText                                     ← AI SDK IS the root (L0) ✓
+   └─ ai.streamText.doStream
+
+Phase 1 Node (NO HTTP layer at all):
+└─ ai.streamText (or ai.generateText)                ← root ✓
+   └─ ai.streamText.doStream
+```
+
+Attribute payload comparison for the same trace's HTTP root vs `ai.streamText` (Phase 2a, run `a3-1778501741412`):
+
+```text
+POST /api/chat/route (UI displays this row):
+  ag.type.trace = 'invocation'
+  ag.metrics.duration.cumulative = 1745.926
+  (no inputs, no outputs, no model, no tokens, no metadata — column shows "—")
+
+ai.streamText (buried at depth 2, not visible in default UI view):
+  ag.data.inputs.messages    = [{role: 'user', content: [...]}]  ← the prompt
+  ag.data.outputs            = 'ok.'                              ← the response
+  ag.meta.system             = 'openai.responses'
+  ag.meta.request.model      = 'gpt-4o-mini'
+  ag.meta.request.max_retries = 2
+  ag.meta.response.finish_reasons = ['stop']
+  ag.metrics.tokens.incremental.{total,prompt,completion,cached,reasoning}
+  ag.user.id, ag.session.id
+  ag.metrics.duration.cumulative
+```
+
+**Verified isolation (2026-05-11):**
+- Phase 2a (raw OTel): 7 spans, AI SDK at L2 — HTTP root + Next handler wrappers present
+- Phase 2b (`@vercel/otel`): 7 spans, **identical tree shape** to 2a — proves the wrappers come from Next.js itself, NOT from `@vercel/otel`
+- Phase 3a (Pages raw): 4 spans, AI SDK at L2 — same `executing api route (pages)` pattern
+- Phase 3b (Pages vercel): 5 spans, AI SDK at L2 — identical to 3a
+- Phase 4 TanStack Start: 2 spans, AI SDK IS the root (L0) — confirms Vite/Nitro doesn't emit HTTP auto-instrumentation spans
+- Phase 1 Node: AI SDK IS the root — no HTTP layer at all
+- Pure Node v4 published example: same as Phase 1, AI SDK is the root
+
+So the failing variable is **Next.js's built-in OTel auto-instrumentation**, independent of which OTel wrapper the user installs.
+
+**Confirmed not-a-wiring-mistake (2026-05-11):** Compared our `instrumentation.ts` shape against canonical references — they match 1:1, no filtering. Our wiring is not the problem. References:
+- Vercel's own `ai-chatbot` template (`github.com/vercel/ai-chatbot`) ships literally `registerOTel({serviceName: "chatbot"})` and stops
+- The [Next.js OTel docs](https://nextjs.org/docs/app/guides/open-telemetry)'s "Manual OpenTelemetry configuration" sample matches our raw OTel setup line-for-line
+- The same docs explicitly call out: *"the root server span labeled as `[http.method] [next.route]`. All other spans from that particular trace will be nested under it."* — confirms the root-HTTP shape is by design
+- Span names we see (`POST /api/chat/route`, `executing api route (app) /api/chat/route`, `resolve page components`, `start response`) all come from Next.js internals (`packages/next/src/server/lib/trace/constants.ts`), not from `@opentelemetry/instrumentation-http` and not from `@vercel/otel`. The `@vercel/otel` README confirms it only adds fetch instrumentation; HTTP server spans are Next itself
+- Documented Next env knobs that DON'T solve this: `NEXT_OTEL_VERBOSE=0` (default — keeps the 5 wrapper spans, adds more if set to 1); `NEXT_OTEL_FETCH_DISABLED=1` (suppresses only the outbound `fetch` span). Neither removes the HTTP root or the `executing api route` wrapper
+
+**How other LLM observability SDKs handle the same symptom (2026-05-11):**
+
+- **Langfuse** (`@langfuse/otel` v5+ for JS/TS, Python v4+): ships a `LangfuseSpanProcessor` that drops spans before export. Two verbatim quotes from their own FAQ at [langfuse.com/faq/all/unwanted-http-database-spans](https://langfuse.com/faq/all/unwanted-http-database-spans):
+
+  > "The Python v3 and JS/TS v4 SDKs have no automatic filtering — Langfuse exports all spans it receives, including HTTP requests, database queries, and framework internals."
+
+  > "The Langfuse Python SDK v4+ and JS/TS SDK v5+ apply a default span filter that automatically keeps only LLM-related spans and drops HTTP, database, and framework spans — no configuration needed."
+
+  Source code (verified at [unpkg.com/@langfuse/otel/dist/index.mjs](https://unpkg.com/@langfuse/otel/dist/index.mjs)): `LangfuseSpanProcessor` applies `isDefaultExportSpan(span)` which is the OR of three checks:
+
+  ```ts
+  function isDefaultExportSpan(span) {
+      return isLangfuseSpan(span) || isGenAISpan(span) || isKnownLLMInstrumentor(span)
+  }
+  function isGenAISpan(span) {
+      return Object.keys(span.attributes).some((k) => k.startsWith("gen_ai."))
+  }
+  function isKnownLLMInstrumentor(span) {
+      const scope = span.instrumentationScope.name
+      return KNOWN_LLM_INSTRUMENTATION_SCOPE_PREFIXES.some(
+          (prefix) => scope === prefix || scope.startsWith(`${prefix}.`),
+      )
+  }
+  ```
+
+  `KNOWN_LLM_INSTRUMENTATION_SCOPE_PREFIXES` (verbatim, 10 entries): `LANGFUSE_TRACER_NAME`, `"agent_framework"`, `"ai"`, `"haystack"`, `"langsmith"`, `"litellm"`, `"openinference"`, `"opentelemetry.instrumentation.anthropic"`, `"strands-agents"`, `"vllm"`. Next.js wrapper spans use scope `next.js` (not in the list) and lack `gen_ai.*` attrs → filtered out before export.
+
+  **Interpretive note (not a verbatim claim):** Langfuse explicitly documenting the pre-v5 vs v5 contrast AND maintaining a dedicated FAQ page titled "unwanted-http-database-spans" is strong evidence that their users hit this pain often enough to motivate (a) the v5 filter and (b) a public FAQ entry. The FAQ does NOT contain a direct quote saying "we built this because we ran into the problem ourselves" — that's an inference from the documented behavioral change and the existence of the FAQ.
+
+- **Braintrust**: uses wrapper-based observability (`wrapAISDK`, `traced()`) rather than `instrumentation.ts` auto-instrumentation. The AI call is wrapped explicitly, so the Braintrust span IS the root. Different paradigm — no filtering needed because the wrappers don't sit downstream of Next's auto-instrumentation. (Source: agent-research summary; not independently verified beyond the docs URL [braintrust.dev/docs/cookbook/recipes/AISDKObservabilityFeatures](https://www.braintrust.dev/docs/cookbook/recipes/AISDKObservabilityFeatures).)
+
+- **Neither** documents a user-side `instrumentation.ts` modification for the Next.js case — the filtering (Langfuse) or wrapping (Braintrust) is SDK-side, applied uniformly across all customer apps.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+Three known approaches in the LLM observability ecosystem today — all kept in observation-only form per current spike direction:
+
+```ts
+// (1) Langfuse approach: SDK-side scope filter. Their @langfuse/otel v5+
+//     ships a custom SpanProcessor that drops every span whose
+//     `instrumentationScope.name` is not in a known-LLM allowlist (`ai`,
+//     `openinference`, `gen_ai.*` attrs, etc.). Next.js wrapper spans
+//     (scope `next.js`) get dropped at the processor BEFORE export, so
+//     the Langfuse backend only ever sees AI SDK spans. The dashboard
+//     naturally shows ai.streamText as the trace root.
+//
+//     import {LangfuseSpanProcessor} from "@langfuse/otel"
+//     // Inside instrumentation.ts:
+//     new NodeTracerProvider({
+//         spanProcessors: [new LangfuseSpanProcessor({apiKey})],
+//     })
+
+// (2) Braintrust approach: wrapper-based, not auto-instrumented. AI
+//     calls are explicitly wrapped (wrapAISDK / traced()), so the
+//     Braintrust span IS the trace root by construction. No filtering
+//     needed because Braintrust's spans don't sit downstream of Next's
+//     auto-instrumentation — they're a separate trace tree.
+//
+//     import {wrapAISDK} from "@braintrust/sdk"
+//     const result = await wrapAISDK(streamText)({model, messages})
+
+// (3) Backend-side UI fix: Agenta's "Root" filter promotes the deepest
+//     LLM-relevant span (ai.streamText / ai.generateText) to the
+//     displayed trace-list row when present — server-side aggregation
+//     that hoists `ag.data.*` from the first descendant LLM span onto
+//     the trace summary. Accepts the auto-instrumentation spans but
+//     hides them by default; users see prompts/responses/tokens at the
+//     list level. (Doesn't require any SDK changes.)
+```
+
+**Notes:** Discovered when comparing the spike's screenshots — all 4 Next.js phases showed `POST /api/chat...` / `executing api r...` / `GET /api/sentin...` rows with empty Inputs/Outputs columns, while Phase 1 (Node) and the Node v4 published example showed `ai.generateText` / `ai.streamText` rows with the prompt + response fully visible. **The data is in Agenta** (confirmed via direct `POST /api/spans/query` API calls — `ai.streamText` spans carry `ag.data.inputs/outputs/metrics.tokens/user.id/session.id`), it's just not surfaced in the default "Root" UI view. Users with hundreds of Next.js traces have to click into each `POST /api/chat/route` row, navigate two levels of children, and inspect the `ai.streamText` span to see what their LLM call did — including which prompt, which model, how many tokens, what cost. **Why this matters:** the dashboard becomes practically unusable for production triage at scale. Token-cost monitoring, prompt-regression debugging, and per-user usage breakdowns ALL depend on those payload columns being visible at the trace-list level. This affects **every Next.js + AI SDK + Agenta user equally** — the entire dominant deployment shape for AI SDK in production. **Why we missed it earlier in the spike:** our `verifyTrace` harness queries the spans API by attribute (`ag.user.id`) and matches by span name, which finds the `ai.streamText` regardless of hierarchy. Programmatic assertions pass; UI experience is degraded. The pre-existing pain log's "silent failure" entries focused on data loss (P-NODE-02, P-APP-RAW-01, P-PAGES-VERCEL-01); P-COMMON-01 is the inverse — the data is preserved, but the UI's default lens hides it.
+
+**Backend-fixable: yes (2026-05-12 analysis).** The data is already in Agenta — this is purely a display problem, not an export problem. Two backend-side fixes work:
+1. Promote LLM-relevant descendants (spans matching `ai.*` / `mastra.*` / `gen_ai.*` attrs) to the displayed trace-list row when a non-LLM span is the technical root. Hoists `ag.data.inputs/outputs/metrics.tokens` from the first descendant LLM span onto the trace summary.
+2. Filter out spans whose `scope.name = "next.js"` (or carries no LLM-shaped attrs) before display — same approach Langfuse takes in `@langfuse/otel` v5+ but applied server-side at query/render time instead of pre-export at the SpanProcessor.
+
+Either fix benefits ALL Agenta users (Python SDK, raw OTel, AI SDK, Mastra) without per-framework JS code. See `summary.md` § "Backend-fixable subset (AI SDK)" for the full matrix.

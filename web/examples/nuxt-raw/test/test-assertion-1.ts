@@ -1,9 +1,8 @@
 /**
- * Assertion 1 — Cold-start trace completeness via /api/chat (Pages Router).
+ * Assertion 1 — Cold-start trace completeness via /api/chat (Nuxt).
  *
- * Same shape as the App Router version: hit /api/chat with a chat-style
- * payload, drain the stream, then poll Agenta for an ai.streamText span
- * tagged with this run's userId.
+ * Hits the chat route with a UIMessage payload, drains the stream, then
+ * polls Agenta for an `ai.streamText` span tagged with this run's userId.
  */
 
 import {verifyTrace} from "@agenta/spike-verify"
@@ -43,13 +42,9 @@ async function main(): Promise<void> {
         filterAttribute: {path: "ag.user.id", value: RUN_ID},
         expectSpans: ["ai.streamText"],
         expectAttributes: {
-            // P-PAGES-VERCEL-01 still reproduces under SimpleSpanProcessor
-            // (verified 2026-05-12). The bug is in @vercel/otel's
-            // `CompositeSpanProcessor.onEnd` force-end logic — independent
-            // of whether the wrapped processor is Batch or Simple. The
-            // CompositeSpanProcessor force-ends ai.streamText before AI SDK
-            // writes ai.usage.*, so token attrs never land regardless of
-            // export timing. Hence token check stays disabled in this app.
+            // streamText carries tokens under `incremental`. Matches the Next.js
+            // App Router raw OTel + the TanStack Start phases — same shape.
+            "ag.metrics.tokens.incremental.prompt": (n: unknown) => typeof n === "number" && n > 0,
             "ag.user.id": RUN_ID,
             "ag.session.id": RUN_ID,
             "ag.meta.request.model": "gpt-4o-mini",

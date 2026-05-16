@@ -1,0 +1,37 @@
+{
+    "name": "@agenta-spike/mastra-node",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Spike app: Node.js standalone + Mastra + AI SDK v6 + raw OpenTelemetry. Phase 6 app for ts-sdk-tracing design — validates whether @agenta/sdk-mastra needs to exist as a separate package, or whether the AI SDK SpanProcessor covers Mastra users. See docs/design/ts-sdk-tracing/.",
+    "type": "module",
+    "scripts": {
+        "dev": "tsx --import ./src/instrumentation.ts src/app.ts",
+        "test:assertion-1": "tsx --import ./src/instrumentation.ts test/test-assertion-1.ts",
+        "test:assertion-2": "tsx --import ./src/instrumentation.ts test/test-assertion-2.ts",
+        "test:assertion-3": "tsx --import ./src/instrumentation.ts test/test-assertion-3.ts",
+        "test:assertion-4": "tsx --import ./src/instrumentation.ts test/test-assertion-4.ts",
+        "test": "pnpm run test:assertion-1 && pnpm run test:assertion-2 && pnpm run test:assertion-3 && pnpm run test:assertion-4",
+        "lint": "eslint --config ../../eslint.config.mjs src/ test/ --max-warnings 0",
+        "lint:fix": "eslint --config ../../eslint.config.mjs src/ test/ --max-warnings 0 --fix"
+    },
+    "dependencies": {
+        "@agenta/spike-verify": "workspace:*",
+        "@ai-sdk/openai": "^3.0.63",
+        "@mastra/core": "^1.32.1",
+        "@mastra/observability": "^1.11.1",
+        "@opentelemetry/api": "^1.9.0",
+        "@opentelemetry/exporter-trace-otlp-proto": "^0.217.0",
+        "@opentelemetry/resources": "^2.7.0",
+        "@opentelemetry/sdk-trace-base": "^2.7.0",
+        "@opentelemetry/sdk-trace-node": "^2.7.0",
+        "@opentelemetry/semantic-conventions": "^1.40.0",
+        "ai": "^6.0.177",
+        "dotenv": "^16.4.7",
+        "zod": "^3.25.76"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.10",
+        "tsx": "^4.21.0",
+        "typescript": "5.8.3"
+    }
+}

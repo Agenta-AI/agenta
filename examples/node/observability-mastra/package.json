@@ -1,0 +1,20 @@
+{
+  "name": "agenta-mastra-observability-baseline",
+  "version": "1.0.0",
+  "description": "Agenta + Mastra observability baseline. Demonstrates the broken default — Mastra agent calls produce ZERO traces when wired the same way as the Vercel AI SDK example. See README for why and where the fix lives.",
+  "type": "module",
+  "scripts": {
+    "start": "node --import ./instrumentation.js app.js"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^3.0.63",
+    "@mastra/core": "^1.32.1",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.217.0",
+    "@opentelemetry/resources": "^2.7.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.0",
+    "@opentelemetry/sdk-trace-node": "^2.7.0",
+    "@opentelemetry/semantic-conventions": "^1.40.0",
+    "ai": "^6.0.177",
+    "dotenv": "^16.4.7"
+  }
+}

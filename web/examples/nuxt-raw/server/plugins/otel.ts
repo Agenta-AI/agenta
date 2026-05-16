@@ -1,21 +1,20 @@
 /**
- * TanStack Start OTel instrumentation (raw OTel, Node runtime).
+ * Nitro plugin — raw OpenTelemetry registration for the Nuxt spike.
  *
  *   ┌─────────────────────────────────────────────────────────────┐
- *   │ Critical TanStack Start specific: this file MUST be imported│
- *   │ as the very first line of `src/server.ts` — there's no      │
- *   │ Next.js-style `register()` auto-discovery. Import order in  │
- *   │ server.ts is the seam.                                      │
+ *   │ Nuxt 3/4 has no `instrumentation.ts` hook (Next.js-style    │
+ *   │ register before first handler). Nitro plugins are the seam: │
+ *   │ they run during Nitro initialization, BEFORE any request    │
+ *   │ handler fires. Plugin file convention is                    │
+ *   │ `server/plugins/<name>.ts` — auto-discovered.               │
  *   │                                                             │
- *   │ Same OTel wiring as Phase 1 / 2a / 3a: raw OTLP/proto       │
- *   │ exporter against Agenta's /api/otlp/v1/traces, with         │
- *   │ SimpleSpanProcessor (per P-NODE-02: BatchSpanProcessor      │
- *   │ silently loses AI SDK v6 streamText spans).                 │
+ *   │ Per P-NODE-02 we use SimpleSpanProcessor not                │
+ *   │ BatchSpanProcessor: AI SDK v6 `streamText` + BatchProcessor │
+ *   │ silently loses spans even with explicit forceFlush.         │
  *   │                                                             │
- *   │ TanStack Start has NO documented edge runtime opt-in        │
- *   │ (runtime is selected at the Nitro preset level, not         │
- *   │ per-route like Next 15's `export const runtime = "edge"`).  │
- *   │ Captured as P-TANSTACK-01.                                  │
+ *   │ Project ID is appended to OTLP URL as a query param because │
+ *   │ Agenta reads project_id from query params on every endpoint │
+ *   │ (per SDK-REQ-03 in status.md).                              │
  *   └─────────────────────────────────────────────────────────────┘
  */
 
@@ -26,18 +25,21 @@ import {SimpleSpanProcessor} from "@opentelemetry/sdk-trace-base"
 import {NodeTracerProvider} from "@opentelemetry/sdk-trace-node"
 import {ATTR_SERVICE_NAME} from "@opentelemetry/semantic-conventions"
 
-const AGENTA_HOST = process.env.AGENTA_HOST || "https://cloud.agenta.ai"
-const AGENTA_API_KEY = process.env.AGENTA_API_KEY
-const AGENTA_PROJECT_ID = process.env.AGENTA_PROJECT_ID
-const AGENTA_OTLP_PATH = process.env.AGENTA_OTLP_PATH || "/api/otlp/v1/traces"
-const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME ?? "tanstack-start"
-const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
-const BRAINTRUST_OTLP_URL =
-    process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
+export default defineNitroPlugin(() => {
+    const AGENTA_HOST = process.env.AGENTA_HOST || "https://cloud.agenta.ai"
+    const AGENTA_API_KEY = process.env.AGENTA_API_KEY
+    const AGENTA_PROJECT_ID = process.env.AGENTA_PROJECT_ID
+    const AGENTA_OTLP_PATH = process.env.AGENTA_OTLP_PATH || "/api/otlp/v1/traces"
+    const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME ?? "nuxt-raw"
+    const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
+    const BRAINTRUST_OTLP_URL =
+        process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
 
-if (!AGENTA_API_KEY) {
-    console.error("instrumentation: AGENTA_API_KEY is required — traces will not export")
-} else {
+    if (!AGENTA_API_KEY) {
+        console.error("[nitro/otel] AGENTA_API_KEY is missing — instrumentation NOT registered")
+        return
+    }
+
     const SERVICE_NAME = `vercel-ai-spike-${APP_NAME}`
 
     const otlpUrl = AGENTA_PROJECT_ID
@@ -46,9 +48,7 @@ if (!AGENTA_API_KEY) {
 
     const agentaExporter = new OTLPTraceExporter({
         url: otlpUrl,
-        headers: {
-            Authorization: `ApiKey ${AGENTA_API_KEY}`,
-        },
+        headers: {Authorization: `ApiKey ${AGENTA_API_KEY}`},
     })
 
     // Optional Braintrust dual-export. Same OTel data fans out to both backends.
@@ -73,22 +73,21 @@ if (!AGENTA_API_KEY) {
 
     provider.register()
 
-    // Assertion-4 sentinel: per-app namespace prevents cross-app collision in
+    // Assertion-4 sentinel — per-app namespace prevents collision in
     // monorepo dev mode where multiple spike apps may share a Node process.
     const instrKey = `__agenta_instr_${APP_NAME}` as const
     ;(globalThis as Record<string, unknown>)[instrKey] = Date.now()
 
     // Force-flush hook used by route handlers before they return. With
-    // SimpleSpanProcessor this is a no-op for ended spans, but it costs
-    // nothing to call defensively (and IS load-bearing for streamText
-    // which ends async per P-NODE-02).
+    // SimpleSpanProcessor this is mostly a no-op for ended spans, but
+    // streamText spans end async per P-NODE-02 so the defensive call helps.
     ;(globalThis as Record<string, unknown>).__agenta_flush_traces = async () => {
         const tp = trace.getTracerProvider() as {forceFlush?: () => Promise<void>}
         if (typeof tp.forceFlush === "function") await tp.forceFlush()
     }
 
-    console.log(`instrumentation: registered service.name="${SERVICE_NAME}" → ${otlpUrl}`)
+    console.log(`[nitro/otel] registered service.name="${SERVICE_NAME}" → ${otlpUrl}`)
     if (BRAINTRUST_API_KEY) {
-        console.log(`instrumentation: + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
+        console.log(`[nitro/otel] + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
     }
-}
+})
