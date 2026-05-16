@@ -60,7 +60,7 @@ class TestSimpleMemberships:
 
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/organizations/{org_id}/memberships/{membership_id}/",
+            f"/admin/simple/accounts/organizations/{org_id}/memberships/{membership_id}",
         )
         assert delete_resp.status_code == 200
         assert delete_resp.json()["deleted"]["organization_memberships"]
@@ -95,7 +95,7 @@ class TestSimpleMemberships:
 
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/workspaces/{workspace_id}/memberships/{membership_id}/",
+            f"/admin/simple/accounts/workspaces/{workspace_id}/memberships/{membership_id}",
         )
         assert delete_resp.status_code == 200
 
@@ -129,7 +129,7 @@ class TestSimpleMemberships:
 
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/projects/{project_id}/memberships/{membership_id}/",
+            f"/admin/simple/accounts/projects/{project_id}/memberships/{membership_id}",
         )
         assert delete_resp.status_code == 200
 

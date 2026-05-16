@@ -1,9 +1,8 @@
-import {type SetStateAction, useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
-import {PlusOutlined} from "@ant-design/icons"
 import {Tray} from "@phosphor-icons/react"
 import {Button, Empty, Space, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -24,20 +23,17 @@ import {
 import type {AppWorkflowRow} from "../store"
 
 import {createAppWorkflowColumns, type AppWorkflowColumnActions} from "./appWorkflowColumns"
+import CreateAppDropdown from "./CreateAppDropdown"
 import EmptyAppView from "./EmptyAppView"
 
 interface ApplicationManagementSectionProps {
-    setIsAddAppFromTemplatedModal?: (value: SetStateAction<boolean>) => void
     mode?: "active" | "archived"
 }
 
 const {Title} = Typography
 const PAGE_SIZE = 10
 
-const ApplicationManagementSection = ({
-    setIsAddAppFromTemplatedModal,
-    mode = "active",
-}: ApplicationManagementSectionProps) => {
+const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSectionProps) => {
     const tableState = getAppWorkflowTableState(mode)
     const isArchived = tableState.mode === "archived"
     const router = useRouter()
@@ -132,16 +128,10 @@ const ApplicationManagementSection = ({
                     >
                         Archived
                     </Button>
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={() => setIsAddAppFromTemplatedModal?.(true)}
-                    >
-                        Create New Prompt
-                    </Button>
+                    <CreateAppDropdown />
                 </Space>
             ),
-        [baseAppURL, isArchived, router, setIsAddAppFromTemplatedModal],
+        [baseAppURL, isArchived, router],
     )
 
     const emptyState = useMemo(() => {
@@ -153,12 +143,8 @@ const ApplicationManagementSection = ({
             )
         }
 
-        return setIsAddAppFromTemplatedModal ? (
-            <EmptyAppView setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal} />
-        ) : (
-            <Empty description="No apps" />
-        )
-    }, [isArchived, setIsAddAppFromTemplatedModal])
+        return <EmptyAppView />
+    }, [isArchived])
 
     return (
         <div className="flex flex-col gap-2">

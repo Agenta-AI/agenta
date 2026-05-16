@@ -75,7 +75,7 @@ const COMMON_CONFIG: NextConfig = {
     // Always transpile workspace packages to ensure proper module resolution
     transpilePackages: [
         "@agenta/sdk",
-        "@agenta/api-client",
+        "@agentaai/api-client",
         "@agenta/shared",
         "@agenta/ui",
         "@agenta/entities",

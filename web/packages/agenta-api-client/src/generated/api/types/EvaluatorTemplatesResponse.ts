@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Envelope for a list of evaluator templates.
+ */
 export interface EvaluatorTemplatesResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of templates in `templates`. */
     count?: number | undefined;
+    /** Built-in evaluator templates. */
     templates?: AgentaApi.EvaluatorTemplate[] | undefined;
 }

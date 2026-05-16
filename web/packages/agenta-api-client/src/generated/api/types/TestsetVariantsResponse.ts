@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface TestsetVariantsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of variants returned. */
     count?: number | undefined;
+    /** Testset variants matching the query. */
     testset_variants?: AgentaApi.TestsetVariant[] | undefined;
 }

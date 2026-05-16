@@ -27,11 +27,18 @@ export const capitalize = (s: string) => {
 
 const URL_SAFE = /^[a-zA-Z0-9_-]+$/
 
+// App names are free-form display labels (per AGE-3754). Only reject empty /
+// whitespace-only input here; URL safety belongs on slug fields, not names.
 export const isAppNameInputValid = (input: string) => {
-    return URL_SAFE.test(input)
+    return typeof input === "string" && input.trim().length > 0
 }
 
 export const isVariantNameInputValid = (input: string) => {
+    return URL_SAFE.test(input)
+}
+
+// Slugs go into URLs / identifiers and stay constrained to [a-zA-Z0-9_-].
+export const isSlugInputValid = (input: string) => {
     return URL_SAFE.test(input)
 }
 

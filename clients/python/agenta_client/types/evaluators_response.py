@@ -9,10 +9,21 @@ from .evaluator import Evaluator
 
 
 class EvaluatorsResponse(UniversalBaseModel):
+    """
+    Envelope for a list of evaluators.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    evaluators: typing.Optional[typing.List[Evaluator]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of evaluators in `evaluators`.
+    """
+    
+    evaluators: typing.Optional[typing.List[Evaluator]] = pydantic.Field(default=None)
+    """
+    Matching evaluator artifacts.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

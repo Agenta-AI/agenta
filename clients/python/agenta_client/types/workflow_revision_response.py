@@ -12,9 +12,21 @@ from .workflow_revision_output import WorkflowRevisionOutput
 class WorkflowRevisionResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    workflow_revision: typing.Optional[WorkflowRevisionOutput] = None
-    resolution_info: typing.Optional[ResolutionInfo] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` when a revision is returned, `0` when none matched.
+    """
+    
+    workflow_revision: typing.Optional[WorkflowRevisionOutput] = pydantic.Field(default=None)
+    """
+    The workflow revision.
+    """
+    
+    resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)
+    """
+    Reference-resolution metadata; populated when `resolve=true` on retrieve.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

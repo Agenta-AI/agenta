@@ -27,7 +27,7 @@ class RawOrganizationsClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._client_wrapper = client_wrapper
     
-    def list_domains(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[OrganizationDomainResponse]]:
+    def list_organization_domains(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[OrganizationDomainResponse]]:
         """
         List all domains for the organization.
         
@@ -42,7 +42,7 @@ class RawOrganizationsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "organizations/domains",method="GET",
+            "organizations/domains/",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -59,7 +59,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def create_domain(self, *, domain: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationDomainResponse]:
+    def create_organization_domain(self, *, domain: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationDomainResponse]:
         """
         Create a new domain for verification.
         
@@ -87,7 +87,7 @@ class RawOrganizationsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "organizations/domains",method="POST",
+            "organizations/domains/",method="POST",
             json={
                 "name": name,
                 "description": description,
@@ -121,7 +121,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def verify_domain(self, *, domain_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationDomainResponse]:
+    def verify_organization_domain(self, *, domain_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationDomainResponse]:
         """
         Verify domain ownership via DNS TXT record.
         
@@ -173,7 +173,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def refresh_domain_token(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationDomainResponse]:
+    def refresh_organization_domain_token(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationDomainResponse]:
         """
         Refresh the verification token for an unverified domain.
         
@@ -218,7 +218,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def reset_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationDomainResponse]:
+    def reset_organization_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationDomainResponse]:
         """
         Reset a verified domain to unverified state for re-verification.
         
@@ -263,7 +263,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def delete_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[None]:
+    def delete_organization_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[None]:
         """
         Delete a domain.
         
@@ -297,7 +297,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def list_providers(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[OrganizationProviderResponse]]:
+    def list_organization_providers(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[OrganizationProviderResponse]]:
         """
         List all SSO providers for the organization.
         
@@ -312,7 +312,7 @@ class RawOrganizationsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "organizations/providers",method="GET",
+            "organizations/providers/",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -329,7 +329,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def create_provider(self, *, slug: str, settings: typing.Dict[str, typing.Any], name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationProviderResponse]:
+    def create_organization_provider(self, *, slug: str, settings: typing.Dict[str, typing.Any], name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationProviderResponse]:
         """
         Create a new SSO provider configuration.
         
@@ -358,7 +358,7 @@ class RawOrganizationsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "organizations/providers",method="POST",
+            "organizations/providers/",method="POST",
             json={
                 "slug": slug,
                 "name": name,
@@ -394,7 +394,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def delete_provider(self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[None]:
+    def delete_organization_provider(self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[None]:
         """
         Delete an SSO provider configuration.
         
@@ -428,7 +428,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def update_provider(self, provider_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, settings: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationProviderResponse]:
+    def update_organization_provider(self, provider_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, settings: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationProviderResponse]:
         """
         Update an SSO provider configuration.
         
@@ -491,7 +491,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def test_provider(self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationProviderResponse]:
+    def test_organization_provider(self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationProviderResponse]:
         """
         Test SSO provider connection.
         
@@ -996,474 +996,6 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def list_organization_domains(self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        List all domains for an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains",method="GET",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def create_organization_domain(self, organization_id: str, *, domain: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Add a new domain to an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        domain : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains",method="POST",
-            params={"domain": domain, }
-            ,
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def get_organization_domain(self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Get a single domain by ID.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        domain_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains/{jsonable_encoder(domain_id)}",method="GET",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def delete_organization_domain(self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Delete a domain from an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        domain_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains/{jsonable_encoder(domain_id)}",method="DELETE",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def verify_organization_domain(self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Verify a domain (marks it as verified).
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        domain_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains/{jsonable_encoder(domain_id)}/verify",method="POST",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def list_organization_providers(self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        List all SSO providers for an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers",method="GET",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def create_organization_provider(self, organization_id: str, *, request: typing.Dict[str, typing.Any], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Add a new SSO provider to an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        request : typing.Dict[str, typing.Any]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers",method="POST",
-            json=request,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def get_organization_provider(self, organization_id: str, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Get a single SSO provider by ID.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        provider_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers/{jsonable_encoder(provider_id)}",method="GET",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def delete_organization_provider(self, organization_id: str, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Delete an SSO provider from an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        provider_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers/{jsonable_encoder(provider_id)}",method="DELETE",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def update_organization_provider(self, organization_id: str, provider_id: str, *, request: typing.Dict[str, typing.Any], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Update an SSO provider.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        provider_id : str
-        
-        request : typing.Dict[str, typing.Any]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers/{jsonable_encoder(provider_id)}",method="PATCH",
-            json=request,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
     def invite_user_to_workspace(self, organization_id: str, workspace_id: str, *, request: typing.Sequence[InviteRequest], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Assigns a role to a user in an organization.
@@ -1664,7 +1196,7 @@ class AsyncRawOrganizationsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
     
-    async def list_domains(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[OrganizationDomainResponse]]:
+    async def list_organization_domains(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[OrganizationDomainResponse]]:
         """
         List all domains for the organization.
         
@@ -1679,7 +1211,7 @@ class AsyncRawOrganizationsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "organizations/domains",method="GET",
+            "organizations/domains/",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -1696,7 +1228,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def create_domain(self, *, domain: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationDomainResponse]:
+    async def create_organization_domain(self, *, domain: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationDomainResponse]:
         """
         Create a new domain for verification.
         
@@ -1724,7 +1256,7 @@ class AsyncRawOrganizationsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "organizations/domains",method="POST",
+            "organizations/domains/",method="POST",
             json={
                 "name": name,
                 "description": description,
@@ -1758,7 +1290,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def verify_domain(self, *, domain_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationDomainResponse]:
+    async def verify_organization_domain(self, *, domain_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationDomainResponse]:
         """
         Verify domain ownership via DNS TXT record.
         
@@ -1810,7 +1342,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def refresh_domain_token(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationDomainResponse]:
+    async def refresh_organization_domain_token(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationDomainResponse]:
         """
         Refresh the verification token for an unverified domain.
         
@@ -1855,7 +1387,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def reset_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationDomainResponse]:
+    async def reset_organization_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationDomainResponse]:
         """
         Reset a verified domain to unverified state for re-verification.
         
@@ -1900,7 +1432,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def delete_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[None]:
+    async def delete_organization_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[None]:
         """
         Delete a domain.
         
@@ -1934,7 +1466,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def list_providers(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[OrganizationProviderResponse]]:
+    async def list_organization_providers(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[OrganizationProviderResponse]]:
         """
         List all SSO providers for the organization.
         
@@ -1949,7 +1481,7 @@ class AsyncRawOrganizationsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "organizations/providers",method="GET",
+            "organizations/providers/",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -1966,7 +1498,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def create_provider(self, *, slug: str, settings: typing.Dict[str, typing.Any], name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationProviderResponse]:
+    async def create_organization_provider(self, *, slug: str, settings: typing.Dict[str, typing.Any], name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationProviderResponse]:
         """
         Create a new SSO provider configuration.
         
@@ -1995,7 +1527,7 @@ class AsyncRawOrganizationsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "organizations/providers",method="POST",
+            "organizations/providers/",method="POST",
             json={
                 "slug": slug,
                 "name": name,
@@ -2031,7 +1563,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def delete_provider(self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[None]:
+    async def delete_organization_provider(self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[None]:
         """
         Delete an SSO provider configuration.
         
@@ -2065,7 +1597,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def update_provider(self, provider_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, settings: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationProviderResponse]:
+    async def update_organization_provider(self, provider_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, settings: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationProviderResponse]:
         """
         Update an SSO provider configuration.
         
@@ -2128,7 +1660,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def test_provider(self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationProviderResponse]:
+    async def test_organization_provider(self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationProviderResponse]:
         """
         Test SSO provider connection.
         
@@ -2604,474 +2136,6 @@ class AsyncRawOrganizationsClient:
                 "description": description,
             }
             ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def list_organization_domains(self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        List all domains for an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains",method="GET",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def create_organization_domain(self, organization_id: str, *, domain: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Add a new domain to an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        domain : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains",method="POST",
-            params={"domain": domain, }
-            ,
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def get_organization_domain(self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Get a single domain by ID.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        domain_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains/{jsonable_encoder(domain_id)}",method="GET",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def delete_organization_domain(self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Delete a domain from an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        domain_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains/{jsonable_encoder(domain_id)}",method="DELETE",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def verify_organization_domain(self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Verify a domain (marks it as verified).
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        domain_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/domains/{jsonable_encoder(domain_id)}/verify",method="POST",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def list_organization_providers(self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        List all SSO providers for an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers",method="GET",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def create_organization_provider(self, organization_id: str, *, request: typing.Dict[str, typing.Any], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Add a new SSO provider to an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        request : typing.Dict[str, typing.Any]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers",method="POST",
-            json=request,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def get_organization_provider(self, organization_id: str, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Get a single SSO provider by ID.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        provider_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers/{jsonable_encoder(provider_id)}",method="GET",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def delete_organization_provider(self, organization_id: str, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Delete an SSO provider from an organization.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        provider_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers/{jsonable_encoder(provider_id)}",method="DELETE",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def update_organization_provider(self, organization_id: str, provider_id: str, *, request: typing.Dict[str, typing.Any], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Update an SSO provider.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        provider_id : str
-        
-        request : typing.Dict[str, typing.Any]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/providers/{jsonable_encoder(provider_id)}",method="PATCH",
-            json=request,
             headers={"content-type": "application/json", }
             ,
             request_options=request_options,omit=OMIT,

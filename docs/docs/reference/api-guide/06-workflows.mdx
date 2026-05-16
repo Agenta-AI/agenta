@@ -1,0 +1,163 @@
+---
+title: "Workflows"
+description: "What a workflow is, what its data payload carries, and how applications and evaluators specialise it."
+sidebar_position: 6
+---
+
+A **workflow** is a versioned artifact that holds configuration and, optionally, a handler. It is the primitive on which the other runnable resources are built: applications, evaluators, snippets, and custom orchestrations all persist as workflows.
+
+Workflows are versioned. For commit semantics, `include_archived`, and how revision IDs stay stable, see [Versioning](/reference/api-guide/versioning). The rest of this page covers what is specific to workflows.
+
+## Body
+
+A workflow revision commits a `data` payload. The fields describe what the workflow is and how it runs.
+
+| Field | What it describes |
+|-------|------------------|
+| `data.uri` | The handler identifier. Built-in URIs (for example, `agenta:builtin:completion:v0`, `agenta:builtin:auto_exact_match:v0`) point at handlers Agenta ships. A custom URI (for example, `agenta:custom:hook:v0`, `agenta:custom:code:v0`) points at a user-provided handler. Optional. |
+| `data.url` | The HTTP endpoint that serves the handler. Populated by the server when the workflow has a `uri`. Clients POST to `{url}/invoke`. |
+| `data.schemas` | JSON Schemas for `parameters` (configuration), `inputs` (request payload), and `outputs` (response shape). |
+| `data.parameters` | Configured values for the parameters described in `data.schemas.parameters`. |
+
+Custom code workflows also carry `data.runtime` (`python`, `typescript`, or `javascript`) and `data.script` (the source). Custom HTTP workflows can carry `data.headers` for handler auth.
+
+## Runnable vs config-only
+
+A workflow with a `data.uri` is **runnable**: clients can invoke the handler at `data.url` with inputs and the pinned parameters. Most workflows you create are runnable.
+
+A workflow without `data.uri` is **config-only**: it stores configuration that your own runtime reads. Use this when the prompt and parameters live in Agenta but the execution lives in your service. The `has_url` flag on a revision is `true` for runnable workflows and `false` for config-only ones.
+
+## Types
+
+Two flags on a workflow artifact promote it to a specialised type. Each type has its own endpoints and concept page.
+
+| Flag | Type | Specialised endpoints | Concept page |
+|------|------|----------------------|--------------|
+| `is_application: true` | Application | `/applications/*` | [Applications](/reference/api-guide/applications) |
+| `is_evaluator: true` | Evaluator | `/evaluators/*` | [Evaluators](/reference/api-guide/evaluators) |
+| (neither) | Plain workflow | `/workflows/*` | This page |
+
+The same artifact is reachable through both surfaces. An application is a workflow, so `/workflows/{id}` and `/applications/{id}` return the same record with their respective envelopes. Use the specialised endpoints when you want type-specific defaults and shortcuts (the catalog defaults to completion/chat for applications, scoring for evaluators). Use `/workflows/*` for orchestration, snippets, and anything that does not fit one of the named types.
+
+A third artifact flag, `is_snippet: true`, marks a reusable configuration fragment. Snippets are workflows that other workflows embed by reference through `@ag.references` tokens.
+
+Additional flags on a revision describe the handler shape rather than the artifact type:
+
+- `is_chat`: the handler uses a chat-style input schema.
+- `is_managed` / `is_custom`: the handler is shipped by Agenta, or provided by the user.
+- `is_llm` / `is_hook` / `is_code` / `is_match` / `is_feedback`: the handler's kind.
+- `has_url` / `has_script` / `has_handler`: which interface is present.
+
+These flags are derived from `data.uri` and the schemas. You don't set them on commit; you read them off a revision.
+
+## How it runs
+
+To invoke a runnable workflow, POST the inputs and the revision's `parameters` to `{data.url}/invoke`:
+
+```bash
+curl -X POST "https://$AGENTA_HOST/services/completion/v0/invoke" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "data": {
+      "inputs": {"country": "France"},
+      "parameters": { /* from data.parameters of the revision */ }
+    }
+  }'
+```
+
+The response shape matches `data.schemas.outputs`. Each invocation produces an invocation-type trace, with references recorded under the `ag.references.workflow_*` namespace. See [Tracing](/reference/api-guide/tracing) for the full reference map.
+
+`POST /workflows/revisions/resolve` returns a revision with any `@ag.references` tokens in its configuration replaced by the referenced payload. Use it when a revision embeds another workflow or a snippet.
+
+## Catalog
+
+The catalog ships the list of built-in workflow blueprints. Each one is described as a **template** with these fields:
+
+- `key`: the template's stable identifier.
+- `uri`: the built-in handler URI.
+- `schemas`: JSON Schemas for `parameters`, `inputs`, and `outputs`.
+- `flags`: the artifact-level flags the template targets (`is_application`, `is_evaluator`, `is_snippet`).
+- `presets`: named sets of pinned parameter values for that template.
+
+Creating a workflow "from a preset" produces a new artifact, variant, and first revision whose `data` comes from the template URI plus the preset's pinned parameter values.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /workflows/catalog/types/` | List the JSON Schema fragments (`message`, `prompt`, and similar) that workflow schemas reference via `x-ag-type-ref`. |
+| `GET /workflows/catalog/templates/` | List workflow templates. |
+| `GET /workflows/catalog/templates/{key}` | Fetch one template by key. |
+| `GET /workflows/catalog/templates/{key}/presets/` | List presets for a template. |
+
+## Simple endpoints
+
+The `/simple/workflows/` surface returns one row per workflow with the artifact, variant, and latest revision merged, including the handler URI, URL, and schemas:
+
+```bash
+curl -X POST "$AGENTA_HOST/api/simple/workflows/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{}'
+```
+
+Use it when you want a workflow's invocation payload without walking the three layers. For commits, forks, or specific-revision retrieval, use `/workflows/`, `/workflows/variants/`, and `/workflows/revisions/`. See [Simple Endpoints](/reference/api-guide/simple-endpoints) for the general pattern.
+
+## Example
+
+Create a workflow, commit a revision, retrieve the latest.
+
+```bash
+# 1. Create the artifact.
+curl -X POST "$AGENTA_HOST/api/workflows/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "workflow": {
+      "slug": "classify-feedback",
+      "name": "classify-feedback",
+      "description": "Route customer feedback to a label."
+    }
+  }'
+```
+
+```bash
+# 2. Create a variant.
+curl -X POST "$AGENTA_HOST/api/workflows/variants/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "workflow_variant": {
+      "workflow_id": "019d952f-0000-0000-0000-000000000000",
+      "slug": "classify-feedback-main",
+      "name": "main"
+    }
+  }'
+```
+
+```bash
+# 3. Commit a revision on that variant.
+curl -X POST "$AGENTA_HOST/api/workflows/revisions/commit" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "workflow_revision": {
+      "workflow_variant_id": "019d9530-0000-0000-0000-000000000000",
+      "message": "initial parameters",
+      "data": {"parameters": {"temperature": 0.2}}
+    }
+  }'
+```
+
+```bash
+# 4. Retrieve the latest revision.
+curl -X POST "$AGENTA_HOST/api/workflows/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"workflow_variant_ref": {"slug": "classify-feedback-main"}}'
+```
+
+The response returns the resolved revision with `id`, `version`, `author`, `date`, and the committed `data`. Pass `data.url` to the runtime to invoke the workflow.
+
+## Lifecycle
+
+Workflows, variants, and revisions are soft-deleted. Use `POST /workflows/{id}/archive` and `POST /workflows/{id}/unarchive` to flip `deleted_at`. The same pattern applies at the variant and revision level. Archiving hides the workflow from `/query` responses unless the request sets `include_archived: true`. See [Versioning](/reference/api-guide/versioning#archive-and-unarchive).

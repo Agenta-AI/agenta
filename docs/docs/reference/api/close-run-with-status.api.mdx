@@ -1,0 +1,69 @@
+---
+id: close-run-with-status
+title: "Close Run"
+description: "Close Run"
+sidebar_label: "Close Run"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNWUtv20YQ/ivCnhKAiZygJ52q2g6sJq5d2cnFMIwROZI2XS6ZfbhRBf73YnaXNEmRouwoRU82yZlvZue9oy0zsNJscsfOH0FYMDyTmt1HLMtRuadZwiYsFpnGB2Xlw9/crB+0AWM1i1gOClI0qAhiyySkyCaM6HjCIsYlm7AczJpFTOE3yxUmbGKUxYjpeI0psMmWmU1OXNooLlcsYstMpWDYhFnrUAw3ggjmVo5mCSuKqJJUKXKYJJCbq6XTtC0TpU3JCjnKxL/5ZtEiiVdWSv9K2zhGTeKWwIVVSIxKZYpexSBjFAITsl6p8pNRb7ympHuQLa0QrKgRlyT0TqHOM6lRk9rvT07oT4I6VjwnNKL2yiytGM0DMWmRSYPSuMPmueCxEz7+qolnWzNFrsjDhnsJ2uZ5pgx5bY+Z9irvEZyDogrP6P1mr1ydgME3hqd4kJBbMiSLM+tPGsi5NLhCVYuYU0cRsQSXYIVhk5PC+bOpVNMUS+ESop+A6wfBH7EmeJFlAkHWBM/06BPR1EQvQWgsImKH2BwAMPVU3RAuIZMhiFNP1Q3hAnwI4U9H1KMDxOsDdPBU3RA6F9wMIdw4og6ANbhTqOCYXowLcAdxdD0wBrXRaIZxbkvCHiD0GU81YQjq/Im0Byy22mTpINCpJ+sBWdsU5CDGhaPqgQBrskGEKRHtABRRyZUtvmJsWFdxnFv5waXdbvIT/05CQpJw4gNx3UjNnUJTalrDrdWybhgWcxVbAerVJ1ig+F1n8s2VNbk1r1n7MPXi1KZmO0ffV9pu/fFZigZeeNjdKl1WxIbgdNF8U7fRkEU+WDFgkGjLuMH0QC5QCjZ77dLifZ5RL8mYRRSmhZc1tj/ANaVm930Z1FkNgvqXQjCYPIA5apM89bCjqTOWzZOfIeSzhw1CEhT4E4ScedggpDTXYjMwprQnyEOM9dsmTC6lvY4qpbRWJaU02FGllOaqpBwP2uM9otI/EP5fAjvNh37U/d+O5FUTq6ST06BdmltDtMG8daZQCtuUf+Gm6+JTqvgRN091rt8wXFJBpLvPY+bnfBYxkDIz/qHeXQiiiFim+IrLfaBxOUusw0Dgen8N6spD0CCNS1Qo49COetpU8+RHDCFhVy++rBDv0RNkz6gzL0212786iNwg4Lx7vHDqkPt0T75zEJ1JMrfyDAzcGMxnstmAh5v3zJ/hEOGBogrRRngNafYspW5cmrr4zRF6bqidk1MLaB74a+XiHU1wkOdctkfWHtfFmbCp7HApl8len9L32mTTR+enlyH7E1jA2mfqS3+yU6+zK+OYv7S6uWXNHrJr+n5Y5DioAxT3oTIAGTwSDncA6rOC77IMjoMvRiSp6150KP+P8FaLpaIgnl/ev9/dQ30BwRPHMDqnxvvyJVSCBrhwK5buZBFZ3Pj6nBvQfdtLtYtb2T0pefVqX1Beotawwn3duTIkGWNUNl7fq4m8XhrdWGu+12B2/HFKtvxuBsOWbOPVD3T1rlm5yHuo3xRn3gX7AuTi9vZ6B9DHRzMw3PJpRBHobrXrjBbJeaZNmbETNsanpfNYWanHW787LsZuwTXe+kGxoHRE9Vjuma0SxA05d772j2tj8sl4LLIYxDrTxn++J87YKm42jnV6PfuImwuEBBWb3N3XCW4oMH2oNckq90DOP7qSE/bPU2vWmeL/lNOXW0OvPVfh3L7M6l6frlAaGE2vZ6xtrsYnyiCIXcCUktxnFtUOqyfjMbjXb4GPaYZLXf4wg5D+Wn1pTO7s5O27tyeu/mbahMVQEFF3WOu2G45PkTjOBfj5z2myDb68YzVf+hGd/kyq3wKcQ+lNmP3vI0ZeIs7tdgEaPytRFPSaVnrkrPuIPYLisCDT3W1ZwjX9n4TV0o6SVdlhr+YhM16PnnYNTeVLh0ryJmlOTyzyzav8BYOC6z+UGizjatW6jNDQT9k0jjE3Nbad0kqhXCXa9dXNLSuKfwGa2M/4
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Close Run"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/evaluations/runs/{run_id}/close/{status}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Close Run
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./close-run-with-status.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./close-run-with-status.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./close-run-with-status.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

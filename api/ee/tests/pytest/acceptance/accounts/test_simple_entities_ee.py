@@ -69,7 +69,7 @@ class TestSimpleOrganizations:
 
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/organizations/{org_id}/",
+            f"/admin/simple/accounts/organizations/{org_id}",
         )
         assert delete_resp.status_code == 200
         assert delete_resp.json()["deleted"]["organizations"]
@@ -121,7 +121,7 @@ class TestSimpleWorkspaces:
 
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/workspaces/{workspace_id}/",
+            f"/admin/simple/accounts/workspaces/{workspace_id}",
         )
         assert delete_resp.status_code == 200
         assert delete_resp.json()["deleted"]["workspaces"]

@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface TraceResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` if a trace was returned, `0` otherwise. */
     count?: number | undefined;
+    /** The trace in the canonical `Trace` shape (`trace_id` + nested `spans` tree). */
     trace?: (AgentaApi.TraceOutput | null) | undefined;
 }

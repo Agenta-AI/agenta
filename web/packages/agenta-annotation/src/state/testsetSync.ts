@@ -23,7 +23,6 @@ export interface TestsetSyncRow {
     testcaseId: string
     testsetId: string
     rowId: string
-    evaluatorColumnKeys: string[]
     data: Record<string, unknown>
 }
 
@@ -31,7 +30,6 @@ export interface TestsetSyncTarget {
     testsetId: string
     baseRevisionId: string
     rowCount: number
-    columns: string[]
     rows: TestsetSyncRow[]
 }
 
@@ -69,6 +67,27 @@ interface BuildTestsetSyncPreviewParams {
     annotationsByTestcaseId: Map<string, Annotation[]>
     evaluators: TestsetSyncEvaluator[]
     latestRevisionIdsByTestsetId: Map<string, string>
+}
+
+export interface TraceTestsetRowBuilderParams {
+    scenarioIds: string[]
+    traceInputsByScenario: Map<string, Record<string, unknown>>
+    traceOutputsByScenario: Map<string, unknown>
+    annotationsByScenario: Map<string, Record<string, Record<string, unknown>>>
+    outputColumnName: string
+}
+
+export interface TraceTestsetRow {
+    scenarioId: string
+    data: Record<string, unknown>
+}
+
+export interface TestcaseExportRowBuilderParams {
+    scenarioIds: string[]
+    testcasesByScenarioId: Map<string, Testcase>
+    annotationsByTestcaseId: Map<string, Annotation[]>
+    evaluators: TestsetSyncEvaluator[]
+    queueId: string
 }
 
 interface BaseRevisionTestcaseRow {
@@ -123,6 +142,362 @@ function matchesAnnotationEvaluator(params: {
 
     const resolvedSlug = resolveAnnotationEvaluatorSlug(params.annotation, params.slugByEvaluatorId)
     return resolvedSlug === params.evaluatorSlug
+}
+
+function getAnnotationOutputs(annotation: Annotation): Record<string, unknown> {
+    const outputs = annotation.data?.outputs
+    return outputs && typeof outputs === "object" && !Array.isArray(outputs)
+        ? (outputs as Record<string, unknown>)
+        : {}
+}
+
+function buildSlugByEvaluatorId(evaluators: TestsetSyncEvaluator[]): Map<string, string> {
+    const slugByEvaluatorId = new Map<string, string>()
+
+    for (const evaluator of evaluators) {
+        if (evaluator.workflowId) {
+            slugByEvaluatorId.set(evaluator.workflowId, evaluator.slug)
+        }
+    }
+
+    return slugByEvaluatorId
+}
+
+export function getTestsetSyncEvaluatorColumnKey(params: {
+    evaluator: TestsetSyncEvaluator
+    annotation?: Annotation | null
+    slugByEvaluatorId?: Map<string, string>
+}): string {
+    const resolvedSlug = params.annotation
+        ? resolveAnnotationEvaluatorSlug(
+              params.annotation,
+              params.slugByEvaluatorId ?? buildSlugByEvaluatorId([params.evaluator]),
+          )
+        : null
+
+    return (
+        resolvedSlug?.trim() ||
+        params.evaluator.slug?.trim() ||
+        params.evaluator.workflowId?.trim() ||
+        ""
+    )
+}
+
+function buildAnnotationOutputEntries(params: {
+    annotations: Annotation[]
+    evaluators: TestsetSyncEvaluator[]
+    queueId: string
+}): {columnKey: string; outputs: Record<string, unknown>}[] {
+    const entries: {columnKey: string; outputs: Record<string, unknown>}[] = []
+    const slugByEvaluatorId = buildSlugByEvaluatorId(params.evaluators)
+
+    for (const evaluator of params.evaluators) {
+        const selection = selectQueueScopedAnnotation({
+            annotations: params.annotations,
+            queueId: params.queueId,
+            evaluatorSlug: evaluator.slug,
+            evaluatorWorkflowId: evaluator.workflowId,
+        })
+
+        if (!selection.annotation || selection.conflictCode) continue
+
+        const outputs = getAnnotationOutputs(selection.annotation)
+        if (Object.keys(outputs).length === 0) continue
+
+        const columnKey = getTestsetSyncEvaluatorColumnKey({
+            evaluator,
+            annotation: selection.annotation,
+            slugByEvaluatorId,
+        })
+        if (!columnKey) continue
+
+        entries.push({
+            columnKey,
+            outputs,
+        })
+    }
+
+    return entries
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value && typeof value === "object" && !Array.isArray(value))
+}
+
+function applyAnnotationOutputEntries(
+    data: Record<string, unknown>,
+    entries: {columnKey: string; outputs: Record<string, unknown>}[],
+): void {
+    for (const entry of entries) {
+        const existingValue = data[entry.columnKey]
+        data[entry.columnKey] = {
+            ...(isPlainRecord(existingValue) ? existingValue : {}),
+            ...entry.outputs,
+        }
+    }
+}
+
+function expandInputsColumn(data: Record<string, unknown>): Record<string, unknown> {
+    const {inputs, ...rest} = data
+
+    if (!isPlainRecord(inputs)) {
+        return {...data}
+    }
+
+    return {
+        ...inputs,
+        ...rest,
+    }
+}
+
+function hasMessageIdentity(value: Record<string, unknown>): boolean {
+    return (
+        typeof value.role === "string" ||
+        typeof value.sender === "string" ||
+        typeof value.author === "string"
+    )
+}
+
+function stringifyToolCallArguments(value: unknown): string {
+    if (typeof value === "string") return value
+    if (value === null || value === undefined) return ""
+
+    try {
+        return JSON.stringify(value)
+    } catch {
+        return String(value)
+    }
+}
+
+function unwrapValueField(value: unknown): unknown {
+    return isPlainRecord(value) && "value" in value ? value.value : value
+}
+
+function asArrayField(value: unknown): unknown[] | null {
+    const unwrapped = unwrapValueField(value)
+    return Array.isArray(unwrapped) ? unwrapped : null
+}
+
+function extractTextParts(value: unknown): string {
+    if (!Array.isArray(value)) return ""
+
+    return value
+        .map((part) => {
+            if (typeof part === "string") return part
+            if (!isPlainRecord(part)) return ""
+            if (typeof part.text === "string") return part.text
+            if (typeof part.content === "string") return part.content
+            return ""
+        })
+        .filter(Boolean)
+        .join("\n")
+}
+
+function normalizeMessageContentValue(value: unknown): unknown {
+    const unwrapped = unwrapValueField(value)
+    if (Array.isArray(unwrapped)) {
+        return extractTextParts(unwrapped) || unwrapped
+    }
+    return unwrapped
+}
+
+function getToolCallDisplay(value: unknown): string | null {
+    if (!isPlainRecord(value)) return null
+
+    const fn = value.function
+    if (isPlainRecord(fn)) {
+        const name = typeof fn.name === "string" && fn.name.trim() ? fn.name.trim() : "tool_call"
+        const args = stringifyToolCallArguments(fn.arguments)
+        return args ? `${name}(${args})` : name
+    }
+
+    const name =
+        typeof value.name === "string" && value.name.trim()
+            ? value.name.trim()
+            : typeof value.type === "string" && value.type.trim()
+              ? value.type.trim()
+              : "tool_call"
+
+    return name
+}
+
+function extractToolCallsDisplay(value: Record<string, unknown>): string {
+    const toolCalls = asArrayField(value.tool_calls) ?? asArrayField(value.toolCalls)
+    if (toolCalls?.length) {
+        return toolCalls
+            .map(getToolCallDisplay)
+            .filter((display): display is string => Boolean(display))
+            .join("\n")
+    }
+
+    const functionCall = value.function_call ?? value.functionCall
+    if (isPlainRecord(functionCall)) {
+        return getToolCallDisplay({function: functionCall}) ?? ""
+    }
+
+    return ""
+}
+
+function extractDirectMessageContent(value: Record<string, unknown>): {
+    found: boolean
+    content: unknown
+} {
+    if ("content" in value) {
+        return {found: true, content: normalizeMessageContentValue(value.content)}
+    }
+
+    if ("text" in value) {
+        return {found: true, content: normalizeMessageContentValue(value.text)}
+    }
+
+    if ("message" in value && !isPlainRecord(value.message)) {
+        return {found: true, content: normalizeMessageContentValue(value.message)}
+    }
+
+    const delta = value.delta
+    if (isPlainRecord(delta) && "content" in delta) {
+        return {found: true, content: normalizeMessageContentValue(delta.content)}
+    }
+
+    if ("parts" in value) {
+        return {found: true, content: normalizeMessageContentValue(value.parts)}
+    }
+
+    return {found: false, content: undefined}
+}
+
+function extractKnownOutputMessage(value: Record<string, unknown>): unknown {
+    const completion = value.completion
+    if (Array.isArray(completion) && completion.length > 0) {
+        return completion[completion.length - 1]
+    }
+
+    const outputMessages = value.output_messages ?? value.outputMessages
+    if (Array.isArray(outputMessages) && outputMessages.length > 0) {
+        return outputMessages[outputMessages.length - 1]
+    }
+
+    const responses = value.responses
+    if (Array.isArray(responses) && responses.length > 0) {
+        return responses[responses.length - 1]
+    }
+
+    return undefined
+}
+
+function extractMessageContent(value: unknown): {matched: boolean; content: unknown} {
+    if (!isPlainRecord(value)) {
+        return {matched: false, content: value}
+    }
+
+    const toolCallsDisplay = extractToolCallsDisplay(value)
+
+    if (hasMessageIdentity(value)) {
+        const directContent = extractDirectMessageContent(value)
+        if (directContent.found) {
+            return {
+                matched: true,
+                content: directContent.content || toolCallsDisplay,
+            }
+        }
+
+        if (toolCallsDisplay) {
+            return {matched: true, content: toolCallsDisplay}
+        }
+
+        return {matched: true, content: ""}
+    }
+
+    if (toolCallsDisplay) {
+        return {matched: true, content: toolCallsDisplay}
+    }
+
+    const nestedMessage = value.message
+    if (isPlainRecord(nestedMessage)) {
+        const nested = extractMessageContent(nestedMessage)
+        if (nested.matched) return nested
+    }
+
+    const knownOutputMessage = extractKnownOutputMessage(value)
+    if (knownOutputMessage !== undefined) {
+        const output = extractMessageContent(knownOutputMessage)
+        if (output.matched) return output
+    }
+
+    const choices = value.choices
+    const firstChoice = Array.isArray(choices) ? choices[0] : null
+    if (isPlainRecord(firstChoice)) {
+        const choiceMessage = firstChoice.message ?? firstChoice.delta
+        if (isPlainRecord(choiceMessage)) {
+            const nested = extractMessageContent(choiceMessage)
+            if (nested.matched) return nested
+        }
+    }
+
+    return {matched: false, content: value}
+}
+
+function normalizeTraceOutputForTestset(value: unknown): unknown {
+    if (isPlainRecord(value) && typeof value.error === "string" && value.error.trim()) {
+        return value.error
+    }
+
+    const message = extractMessageContent(value)
+    return message.matched ? message.content : value
+}
+
+export function buildTraceTestsetRows(params: TraceTestsetRowBuilderParams): TraceTestsetRow[] {
+    return params.scenarioIds.map((scenarioId) => {
+        const data: Record<string, unknown> = expandInputsColumn(
+            params.traceInputsByScenario.get(scenarioId) ?? {},
+        )
+
+        data[params.outputColumnName] = normalizeTraceOutputForTestset(
+            params.traceOutputsByScenario.get(scenarioId),
+        )
+
+        const annotationsByEvaluator = params.annotationsByScenario.get(scenarioId) ?? {}
+        applyAnnotationOutputEntries(
+            data,
+            Object.entries(annotationsByEvaluator).map(([columnKey, outputs]) => ({
+                columnKey,
+                outputs,
+            })),
+        )
+
+        return {scenarioId, data}
+    })
+}
+
+export function buildTestcaseExportRows(params: TestcaseExportRowBuilderParams): TestsetSyncRow[] {
+    const rows: TestsetSyncRow[] = []
+
+    for (const scenarioId of params.scenarioIds) {
+        const testcase = params.testcasesByScenarioId.get(scenarioId)
+        if (!testcase) continue
+        const testsetId = testcase.testset_id ?? testcase.set_id
+        if (!testsetId) continue
+
+        const data: Record<string, unknown> = expandInputsColumn(testcase.data ?? {})
+        const annotations = params.annotationsByTestcaseId.get(testcase.id) ?? []
+        const entries = buildAnnotationOutputEntries({
+            annotations,
+            evaluators: params.evaluators,
+            queueId: params.queueId,
+        })
+
+        applyAnnotationOutputEntries(data, entries)
+
+        rows.push({
+            scenarioId,
+            testcaseId: testcase.id,
+            testsetId,
+            rowId: testcase.id,
+            data,
+        })
+    }
+
+    return rows
 }
 
 export function mergeTestcaseAnnotationTags(params: {
@@ -194,13 +569,7 @@ export function selectQueueScopedAnnotation(params: {
 export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): TestsetSyncPreview {
     const conflicts: TestsetSyncConflict[] = []
     const rows: TestsetSyncRow[] = []
-    const slugByEvaluatorId = new Map<string, string>()
-
-    for (const evaluator of params.evaluators) {
-        if (evaluator.workflowId) {
-            slugByEvaluatorId.set(evaluator.workflowId, evaluator.slug)
-        }
-    }
+    const slugByEvaluatorId = buildSlugByEvaluatorId(params.evaluators)
 
     for (const completed of params.completedScenarios) {
         const testcase = params.testcasesById.get(completed.testcaseId)
@@ -256,19 +625,18 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
 
             if (!selection.annotation) continue
 
-            const resolvedSlug =
-                resolveAnnotationEvaluatorSlug(selection.annotation, slugByEvaluatorId) ??
-                evaluator.slug
-            const outputs =
-                selection.annotation.data?.outputs &&
-                typeof selection.annotation.data.outputs === "object"
-                    ? (selection.annotation.data.outputs as Record<string, unknown>)
-                    : {}
+            const outputs = getAnnotationOutputs(selection.annotation)
 
             if (Object.keys(outputs).length === 0) continue
+            const columnKey = getTestsetSyncEvaluatorColumnKey({
+                evaluator,
+                annotation: selection.annotation,
+                slugByEvaluatorId,
+            })
+            if (!columnKey) continue
 
             selected.push({
-                columnKey: evaluator.name?.trim() || resolvedSlug,
+                columnKey,
                 outputs,
             })
         }
@@ -277,23 +645,14 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
             continue
         }
 
-        const evaluatorColumnKeys: string[] = []
         const data: Record<string, unknown> = {...(testcase.data ?? {})}
-
-        for (const entry of selected) {
-            for (const [fieldKey, fieldValue] of Object.entries(entry.outputs)) {
-                const flatKey = `${entry.columnKey}.${fieldKey}`
-                data[flatKey] = fieldValue
-                evaluatorColumnKeys.push(flatKey)
-            }
-        }
+        applyAnnotationOutputEntries(data, selected)
 
         rows.push({
             scenarioId: completed.scenarioId,
             testcaseId: completed.testcaseId,
             testsetId,
             rowId: testcase.id,
-            evaluatorColumnKeys,
             data,
         })
     }
@@ -303,7 +662,6 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
         {
             testsetId: string
             rowCount: number
-            columns: Set<string>
             rows: TestsetSyncRow[]
         }
     >()
@@ -312,13 +670,11 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
         const target = targetsByTestsetId.get(row.testsetId) ?? {
             testsetId: row.testsetId,
             rowCount: 0,
-            columns: new Set<string>(),
             rows: [],
         }
 
         target.rowCount += 1
         target.rows.push(row)
-        row.evaluatorColumnKeys.forEach((columnKey) => target.columns.add(columnKey))
         targetsByTestsetId.set(row.testsetId, target)
     }
 
@@ -341,7 +697,6 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
             testsetId: target.testsetId,
             baseRevisionId,
             rowCount: target.rowCount,
-            columns: Array.from(target.columns),
             rows: target.rows,
         })
     }
@@ -359,7 +714,6 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
 
 export function buildTestsetSyncOperations(target: TestsetSyncTarget): TestsetRevisionDelta {
     return {
-        columns: target.columns.length > 0 ? {add: target.columns} : undefined,
         rows: {
             replace: target.rows.map((row) => ({
                 id: row.rowId,

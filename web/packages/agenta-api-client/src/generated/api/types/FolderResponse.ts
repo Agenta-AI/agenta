@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface FolderResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of folders returned (`0` or `1`). */
     count?: number | undefined;
+    /** The folder, when found. Omitted when `count` is `0`. */
     folder?: (AgentaApi.Folder | null) | undefined;
 }

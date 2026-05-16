@@ -27,724 +27,14 @@ export class TracesClient {
     }
 
     /**
-     * @param {AgentaApi.OTelTracingRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
+     * Fetch multiple traces by known IDs.
      *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
+     * Point lookup endpoint. Accepts either repeated query params
+     * (`?trace_id=a&trace_id=b`) or a comma-separated single param
+     * (`?trace_ids=a,b`). Results are deduplicated. Returns `400` when
+     * no IDs are supplied. Use `POST /traces/query` for filter-based
+     * retrieval.
      *
-     * @example
-     *     await client.traces.ingestSpansRpc({})
-     */
-    public ingestSpansRpc(
-        request: AgentaApi.OTelTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.OTelLinksResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__ingestSpansRpc(request, requestOptions));
-    }
-
-    private async __ingestSpansRpc(
-        request: AgentaApi.OTelTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.OTelLinksResponse>> {
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "tracing/spans/ingest",
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: request,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.OTelLinksResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/tracing/spans/ingest");
-    }
-
-    /**
-     * @param {AgentaApi.QuerySpansRpcRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.traces.querySpansRpc()
-     */
-    public querySpansRpc(
-        request: AgentaApi.QuerySpansRpcRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.OTelTracingResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__querySpansRpc(request, requestOptions));
-    }
-
-    private async __querySpansRpc(
-        request: AgentaApi.QuerySpansRpcRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.OTelTracingResponse>> {
-        const { focus, format, oldest, newest, limit, interval, rate, filter } = request;
-        const _queryParams: Record<string, unknown> = {
-            focus: focus !== undefined ? focus : undefined,
-            format: format !== undefined ? format : undefined,
-            oldest: oldest !== undefined ? (typeof oldest === "string" ? oldest : toJson(oldest)) : undefined,
-            newest: newest !== undefined ? (typeof newest === "string" ? newest : toJson(newest)) : undefined,
-            limit,
-            interval,
-            rate,
-            filter,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "tracing/spans/query",
-            ),
-            method: "POST",
-            headers: _headers,
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.OTelTracingResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/tracing/spans/query");
-    }
-
-    /**
-     * @param {AgentaApi.FetchLegacyAnalyticsRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.traces.fetchLegacyAnalytics()
-     */
-    public fetchLegacyAnalytics(
-        request: AgentaApi.FetchLegacyAnalyticsRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.OldAnalyticsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__fetchLegacyAnalytics(request, requestOptions));
-    }
-
-    private async __fetchLegacyAnalytics(
-        request: AgentaApi.FetchLegacyAnalyticsRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.OldAnalyticsResponse>> {
-        const { focus, format, oldest, newest, limit, interval, rate, filter } = request;
-        const _queryParams: Record<string, unknown> = {
-            focus: focus !== undefined ? focus : undefined,
-            format: format !== undefined ? format : undefined,
-            oldest: oldest !== undefined ? (typeof oldest === "string" ? oldest : toJson(oldest)) : undefined,
-            newest: newest !== undefined ? (typeof newest === "string" ? newest : toJson(newest)) : undefined,
-            limit,
-            interval,
-            rate,
-            filter,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "tracing/spans/analytics",
-            ),
-            method: "POST",
-            headers: _headers,
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.OldAnalyticsResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/tracing/spans/analytics");
-    }
-
-    /**
-     * @param {AgentaApi.FetchAnalyticsRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.traces.fetchAnalytics()
-     */
-    public fetchAnalytics(
-        request: AgentaApi.FetchAnalyticsRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.AnalyticsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__fetchAnalytics(request, requestOptions));
-    }
-
-    private async __fetchAnalytics(
-        request: AgentaApi.FetchAnalyticsRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.AnalyticsResponse>> {
-        const { focus, format, oldest, newest, interval, rate, filter, specs } = request;
-        const _queryParams: Record<string, unknown> = {
-            focus: focus !== undefined ? focus : undefined,
-            format: format !== undefined ? format : undefined,
-            oldest: oldest !== undefined ? (typeof oldest === "string" ? oldest : toJson(oldest)) : undefined,
-            newest: newest !== undefined ? (typeof newest === "string" ? newest : toJson(newest)) : undefined,
-            interval,
-            rate,
-            filter,
-            specs,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "tracing/analytics/query",
-            ),
-            method: "POST",
-            headers: _headers,
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.AnalyticsResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/tracing/analytics/query");
-    }
-
-    /**
-     * @param {AgentaApi.OTelTracingRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.traces.createTraceTracing({})
-     */
-    public createTraceTracing(
-        request: AgentaApi.OTelTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.OTelLinksResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__createTraceTracing(request, requestOptions));
-    }
-
-    private async __createTraceTracing(
-        request: AgentaApi.OTelTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.OTelLinksResponse>> {
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "tracing/traces/",
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: request,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.OTelLinksResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/tracing/traces/");
-    }
-
-    /**
-     * @param {AgentaApi.FetchTraceTracingRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.traces.fetchTraceTracing({
-     *         trace_id: "trace_id"
-     *     })
-     */
-    public fetchTraceTracing(
-        request: AgentaApi.FetchTraceTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.OTelTracingResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__fetchTraceTracing(request, requestOptions));
-    }
-
-    private async __fetchTraceTracing(
-        request: AgentaApi.FetchTraceTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.OTelTracingResponse>> {
-        const { trace_id: traceId } = request;
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                `tracing/traces/${core.url.encodePathParam(traceId)}`,
-            ),
-            method: "GET",
-            headers: _headers,
-            queryParameters: requestOptions?.queryParams,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.OTelTracingResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/tracing/traces/{trace_id}");
-    }
-
-    /**
-     * @param {AgentaApi.EditTraceTracingRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.traces.editTraceTracing({
-     *         trace_id: "trace_id",
-     *         body: {}
-     *     })
-     */
-    public editTraceTracing(
-        request: AgentaApi.EditTraceTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.OTelLinksResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__editTraceTracing(request, requestOptions));
-    }
-
-    private async __editTraceTracing(
-        request: AgentaApi.EditTraceTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.OTelLinksResponse>> {
-        const { trace_id: traceId, body: _body } = request;
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                `tracing/traces/${core.url.encodePathParam(traceId)}`,
-            ),
-            method: "PUT",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.OTelLinksResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "PUT", "/tracing/traces/{trace_id}");
-    }
-
-    /**
-     * @param {AgentaApi.DeleteTraceTracingRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.traces.deleteTraceTracing({
-     *         trace_id: "trace_id"
-     *     })
-     */
-    public deleteTraceTracing(
-        request: AgentaApi.DeleteTraceTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.OTelLinksResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__deleteTraceTracing(request, requestOptions));
-    }
-
-    private async __deleteTraceTracing(
-        request: AgentaApi.DeleteTraceTracingRequest,
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.OTelLinksResponse>> {
-        const { trace_id: traceId } = request;
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                `tracing/traces/${core.url.encodePathParam(traceId)}`,
-            ),
-            method: "DELETE",
-            headers: _headers,
-            queryParameters: requestOptions?.queryParams,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.OTelLinksResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "DELETE", "/tracing/traces/{trace_id}");
-    }
-
-    /**
-     * @param {AgentaApi.SessionsQueryRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.traces.listSessions()
-     */
-    public listSessions(
-        request: AgentaApi.SessionsQueryRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SessionIdsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__listSessions(request, requestOptions));
-    }
-
-    private async __listSessions(
-        request: AgentaApi.SessionsQueryRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SessionIdsResponse>> {
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "tracing/sessions/query",
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: request,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.SessionIdsResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/tracing/sessions/query");
-    }
-
-    /**
-     * @param {AgentaApi.UsersQueryRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.traces.listUsers()
-     */
-    public listUsers(
-        request: AgentaApi.UsersQueryRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.UserIdsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__listUsers(request, requestOptions));
-    }
-
-    private async __listUsers(
-        request: AgentaApi.UsersQueryRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.UserIdsResponse>> {
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "tracing/users/query",
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: request,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.UserIdsResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/tracing/users/query");
-    }
-
-    /**
      * @param {AgentaApi.FetchTracesRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -816,6 +106,21 @@ export class TracesClient {
     }
 
     /**
+     * Create a single trace from the canonical `Trace` shape.
+     *
+     * Accepts one trace (`trace_id` plus a nested `spans` tree) and
+     * returns the resulting `trace_id`. The payload is internally
+     * normalized into the same ingest pipeline as
+     * `POST /tracing/spans/ingest`.
+     *
+     * Returns `202 Accepted`. The async write contract applies — see
+     * [Tracing — Async write
+     * contract](/reference/api-guide/tracing#async-write-contract-202).
+     *
+     * Use this when you want to operate on whole traces in the
+     * list-shaped `Trace` payload. For flat-list ingestion or multiple
+     * traces in one call, use `POST /traces/ingest` (plural).
+     *
      * @param {AgentaApi.TraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -885,6 +190,30 @@ export class TracesClient {
     }
 
     /**
+     * Query traces as a list of canonical `Trace` records.
+     *
+     * Thin wrapper over the shared span-query backend that forces
+     * `focus = "trace"` and returns the list-shaped `Traces` payload
+     * (one entry per trace, each with its nested `spans` tree). Use this
+     * to build a table of runs, where each row is a trace.
+     *
+     * ## Request body
+     *
+     * - `filtering` — span-level conditions, same dialect as
+     *   `POST /spans/query`. A trace matches when any of its spans
+     *   matches.
+     * - `windowing` — cursor pagination and time range.
+     * - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+     *   filters and windowing from a saved query revision. If the
+     *   revision's stored `formatting.focus` is `span`, this endpoint
+     *   returns `409` — call `POST /spans/query` instead.
+     *
+     * ## Response
+     *
+     * Returns `{count, traces: [...]}`. For the per-trace map shape
+     * keyed by `trace_id`, call `POST /tracing/spans/query` with
+     * `focus="trace"`.
+     *
      * @param {AgentaApi.TracesQueryRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -954,75 +283,13 @@ export class TracesClient {
     }
 
     /**
-     * @param {AgentaApi.TracesRequest} request
-     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
+     * Fetch a single trace by `trace_id` in the canonical `Trace` shape.
      *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
+     * Returns `{count: 1, trace}` when found and `{count: 0}` otherwise.
+     * `trace_id` must be a 32-char hex UUID; any other format returns
+     * `400`. The reserved path segments `query` and `ingest` return
+     * `405` to disambiguate from the sibling query/ingest endpoints.
      *
-     * @example
-     *     await client.traces.ingestTraces()
-     */
-    public ingestTraces(
-        request: AgentaApi.TracesRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.TraceIdsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__ingestTraces(request, requestOptions));
-    }
-
-    private async __ingestTraces(
-        request: AgentaApi.TracesRequest = {},
-        requestOptions?: TracesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.TraceIdsResponse>> {
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "traces/ingest",
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: request,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.TraceIdsResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/traces/ingest");
-    }
-
-    /**
      * @param {AgentaApi.FetchTraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1092,6 +359,16 @@ export class TracesClient {
     }
 
     /**
+     * Replace a trace's spans using the canonical `Trace` shape.
+     *
+     * Path `trace_id` must match the `trace_id` inside the payload's
+     * `trace.trace_id`. Mismatches return `400`. The payload must
+     * describe exactly one trace.
+     *
+     * Edit re-ingests the spans through the same stream as
+     * `POST /tracing/spans/ingest`. Returns `202 Accepted` once the
+     * spans are queued. The worker reconciles the trace asynchronously.
+     *
      * @param {AgentaApi.EditTraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1165,6 +442,85 @@ export class TracesClient {
     }
 
     /**
+     * @param {AgentaApi.DeleteTraceRequest} request
+     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.traces.deleteTrace({
+     *         trace_id: "trace_id"
+     *     })
+     */
+    public deleteTrace(
+        request: AgentaApi.DeleteTraceRequest,
+        requestOptions?: TracesClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.TraceIdResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteTrace(request, requestOptions));
+    }
+
+    private async __deleteTrace(
+        request: AgentaApi.DeleteTraceRequest,
+        requestOptions?: TracesClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.TraceIdResponse>> {
+        const { trace_id: traceId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `traces/${core.url.encodePathParam(traceId)}`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.TraceIdResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "DELETE", "/traces/{trace_id}");
+    }
+
+    /**
+     * Fetch spans by known IDs.
+     *
+     * Point lookup endpoint. At least one of `trace_id` or `span_id`
+     * must be present. Both accept either repeated query params
+     * (`?trace_id=a&trace_id=b`) or a comma-separated single param
+     * (`?trace_ids=a,b`); results are deduplicated.
+     *
+     * Returns `400` when neither IDs nor trace IDs are supplied.
+     * For filter-based retrieval, use `POST /spans/query`.
+     *
      * @param {AgentaApi.FetchSpansRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1238,6 +594,30 @@ export class TracesClient {
     }
 
     /**
+     * Query spans as a flat list.
+     *
+     * Thin wrapper over the shared span-query backend that forces
+     * `focus = "span"`. Use this when you want a paged list of spans
+     * regardless of trace hierarchy — for example, to surface all LLM
+     * calls across traces or to stream spans into an external system.
+     *
+     * ## Request body
+     *
+     * - `filtering` — span-level conditions (fields on `Span` and
+     *   `attributes` paths).
+     * - `windowing` — cursor pagination and time range (see
+     *   [Query Pattern](/reference/api-guide/query-pattern#windowing)).
+     * - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+     *   filtering and windowing from a saved query revision. If the
+     *   revision's stored `formatting.focus` is `trace`, this endpoint
+     *   returns `409` — call `POST /traces/query` for that revision.
+     *
+     * ## Response
+     *
+     * Returns `{count, spans}`. For the nested per-trace shape, call
+     * `POST /traces/query` or `POST /tracing/spans/query` with
+     * `focus="trace"` instead.
+     *
      * @param {AgentaApi.SpansQueryRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1307,6 +687,227 @@ export class TracesClient {
     }
 
     /**
+     * @param {AgentaApi.QuerySpansAnalyticsRequest} request
+     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.traces.querySpansAnalytics()
+     */
+    public querySpansAnalytics(
+        request: AgentaApi.QuerySpansAnalyticsRequest = {},
+        requestOptions?: TracesClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.AnalyticsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__querySpansAnalytics(request, requestOptions));
+    }
+
+    private async __querySpansAnalytics(
+        request: AgentaApi.QuerySpansAnalyticsRequest = {},
+        requestOptions?: TracesClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.AnalyticsResponse>> {
+        const { focus, format, oldest, newest, interval, rate, filter, specs } = request;
+        const _queryParams: Record<string, unknown> = {
+            focus: focus !== undefined ? focus : undefined,
+            format: format !== undefined ? format : undefined,
+            oldest: oldest !== undefined ? (typeof oldest === "string" ? oldest : toJson(oldest)) : undefined,
+            newest: newest !== undefined ? (typeof newest === "string" ? newest : toJson(newest)) : undefined,
+            interval,
+            rate,
+            filter,
+            specs,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "spans/analytics/query",
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.AnalyticsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/spans/analytics/query");
+    }
+
+    /**
+     * @param {AgentaApi.SessionsQueryRequest} request
+     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.traces.querySpansSessions()
+     */
+    public querySpansSessions(
+        request: AgentaApi.SessionsQueryRequest = {},
+        requestOptions?: TracesClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SessionIdsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__querySpansSessions(request, requestOptions));
+    }
+
+    private async __querySpansSessions(
+        request: AgentaApi.SessionsQueryRequest = {},
+        requestOptions?: TracesClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SessionIdsResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "spans/sessions/query",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.SessionIdsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/spans/sessions/query");
+    }
+
+    /**
+     * @param {AgentaApi.UsersQueryRequest} request
+     * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.traces.querySpansUsers()
+     */
+    public querySpansUsers(
+        request: AgentaApi.UsersQueryRequest = {},
+        requestOptions?: TracesClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.UserIdsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__querySpansUsers(request, requestOptions));
+    }
+
+    private async __querySpansUsers(
+        request: AgentaApi.UsersQueryRequest = {},
+        requestOptions?: TracesClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.UserIdsResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "spans/users/query",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.UserIdsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/spans/users/query");
+    }
+
+    /**
+     * Fetch a single span by `trace_id` + `span_id`.
+     *
+     * Returns `{count: 1, span}` when found and `{count: 0}` otherwise.
+     * Both IDs are required path parameters. Use this to drill in on one
+     * span from a trace waterfall without pulling the full tree.
+     *
      * @param {AgentaApi.FetchSpanRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1377,6 +978,46 @@ export class TracesClient {
     }
 
     /**
+     * Create a single-span "simple" trace.
+     *
+     * This endpoint is a higher-level helper for the common case of
+     * recording one self-contained event — an evaluator output, a human
+     * annotation, a feedback entry, a manually-logged inference. It
+     * creates one span under a fresh `trace_id` and returns the resulting
+     * handle.
+     *
+     * ## When to use this vs. `/tracing/spans/ingest`
+     *
+     * - **Use this endpoint** when you have a single payload to record
+     *   with no internal hierarchy: evaluation results, human feedback,
+     *   manual annotations, or a standalone completion. It takes care of
+     *   `trace_id`/`span_id` generation, attribute namespacing, and link
+     *   wiring for you.
+     * - **Use `POST /tracing/spans/ingest`** when you need multi-span
+     *   traces (e.g. an agent run with nested tool calls and LLM spans),
+     *   precise control over IDs, timings, or parent/child relationships,
+     *   or when forwarding traces from another OTel-compatible source.
+     *
+     * ## Request body
+     *
+     * Send a `trace` object with:
+     *
+     * - `origin` — who produced the trace (`human`, `auto`, `custom`).
+     * - `kind` — intent (`adhoc`, `eval`, `play`).
+     * - `channel` — transport that produced it (`sdk`, `api`, `web`, `otlp`).
+     * - `data` — required dict carrying the actual payload (inputs,
+     *   outputs, or evaluator results).
+     * - `tags`, `meta` — optional free-form dicts for filtering and
+     *   metadata.
+     * - `references` — optional links to Agenta entities (application,
+     *   variant, revision, evaluator, testset, etc.).
+     * - `links` — optional OTel-style links to other traces/spans.
+     *
+     * Use `PATCH /preview/tracing/traces/{trace_id}` to update fields
+     * later, `GET` to fetch, and `DELETE` to remove. See
+     * [Tracing — References and links](/reference/api-guide/tracing#references-and-entity-linking)
+     * for when to use `references` vs. `links`.
+     *
      * @param {AgentaApi.SimpleTraceCreateRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1454,6 +1095,14 @@ export class TracesClient {
     }
 
     /**
+     * Fetch a single "simple" trace by `trace_id`.
+     *
+     * Returns the high-level `SimpleTrace` view (origin, kind, channel,
+     * data, references, links) rather than the raw OTel span shape. Use
+     * this for evaluation results, feedback entries, and annotations
+     * created via `POST /simple/traces/`. For the span-level view of the
+     * same trace, call `GET /tracing/traces/{trace_id}`.
+     *
      * @param {AgentaApi.FetchSimpleTraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1523,6 +1172,14 @@ export class TracesClient {
     }
 
     /**
+     * Delete a "simple" trace.
+     *
+     * Removes the single-span trace created via
+     * `POST /simple/traces/`. Returns the `(trace_id, span_id)` pair
+     * that was removed, for logging or downstream cleanup. Use
+     * `DELETE /tracing/traces/{trace_id}` when operating on a
+     * multi-span trace.
+     *
      * @param {AgentaApi.DeleteSimpleTraceRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1592,6 +1249,17 @@ export class TracesClient {
     }
 
     /**
+     * Update an existing "simple" trace.
+     *
+     * Supplied fields overwrite the existing trace. Fields not present
+     * in the request body are left unchanged. `data` is required (the
+     * payload being recorded); `tags`, `meta`, `references`, and
+     * `links` are optional.
+     *
+     * This endpoint is intended for annotations and feedback entries,
+     * where the `data.outputs` is the part that typically gets revised.
+     * For span-level edits, use `PUT /tracing/traces/{trace_id}`.
+     *
      * @param {AgentaApi.SimpleTraceEditRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1667,6 +1335,20 @@ export class TracesClient {
     }
 
     /**
+     * Query "simple" traces.
+     *
+     * Filter annotations and feedback by `origin`, `kind`, `channel`,
+     * `tags`, `meta`, `references`, and `links`. The shape of the
+     * request body is described in the
+     * [Simple Endpoints](/reference/api-guide/simple-endpoints#query-traces)
+     * guide, including the distinction between filtering via
+     * `trace.links` (inbound links on the trace) and the top-level
+     * `links` (batch GET by the trace's own IDs).
+     *
+     * Use this endpoint when building feedback or annotation UIs.
+     * For span-level queries across all trace types, use
+     * `POST /tracing/spans/query`.
+     *
      * @param {AgentaApi.SimpleTraceQueryRequest} request
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *

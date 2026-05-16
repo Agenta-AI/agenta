@@ -14,16 +14,18 @@
  * - Navigation arrows appear when navigationIds has > 1 entry (except evaluator-create)
  * - Info popover (metadata) shows in expanded mode only
  */
-import {memo, useCallback, useMemo} from "react"
+import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {ArrowsIn, ArrowsOut, CaretDown, CaretUp, Info, X} from "@phosphor-icons/react"
-import {Button, Popover, Typography} from "antd"
+import {Button, Input, Popover, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useDrawerProviders} from "./DrawerContext"
 import MetadataSidebar from "./MetadataSidebar"
 import {
     closeWorkflowRevisionDrawerAtom,
+    isCreateContext,
     navigateWorkflowRevisionDrawerAtom,
     workflowRevisionDrawerContextAtom,
     workflowRevisionDrawerEntityIdAtom,
@@ -104,7 +106,7 @@ const VariantActionButtons = memo(({entityId}: {entityId: string}) => {
 const MetadataPopover = memo(({entityId}: {entityId: string}) => {
     const context = useAtomValue(workflowRevisionDrawerContextAtom)
 
-    if (context === "evaluator-create") return null
+    if (isCreateContext(context)) return null
 
     return (
         <Popover
@@ -131,7 +133,67 @@ const DRAWER_TITLES: Record<string, string> = {
     deployment: "Deployment",
     "evaluator-view": "Evaluator",
     "evaluator-create": "New Evaluator",
+    "app-create": "New App",
 }
+
+// ================================================================
+// APP-CREATE NAME INPUT (editable, inline in header)
+// ================================================================
+
+/**
+ * Inline editable name input shown in the drawer header for `app-create`.
+ * Reads the current name from `workflowMolecule.selectors.name(entityId)`
+ * (draft-merged), writes via `workflowMolecule.actions.update`. The latest
+ * value is what `createWorkflowFromEphemeralAtom` reads at commit time
+ * (commit.ts:550 — `workflowName = name || entity.name || "Workflow"`).
+ */
+const AppCreateNameInput = memo(({entityId}: {entityId: string}) => {
+    const currentName = useAtomValue(workflowMolecule.selectors.name(entityId))
+    const updateWorkflow = useSetAtom(workflowMolecule.actions.update)
+    const [localValue, setLocalValue] = useState(currentName ?? "")
+
+    // Keep input in sync if the entity's name changes externally (e.g. on
+    // initial entity hydration). Don't clobber while the user is typing.
+    useEffect(() => {
+        setLocalValue(currentName ?? "")
+    }, [currentName])
+
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setLocalValue(e.target.value)
+    }, [])
+
+    const handleBlur = useCallback(() => {
+        const trimmed = localValue.trim()
+        // Persist the trimmed value whenever it differs from the current
+        // (also-trimmed) name — including the empty-string case. Without
+        // this, deleting the name and blurring would leave the workflow
+        // entity holding the previous name silently while the input
+        // appears blank.
+        if (trimmed !== (currentName ?? "").trim()) {
+            updateWorkflow(entityId, {name: trimmed})
+        }
+    }, [localValue, currentName, updateWorkflow, entityId])
+
+    const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+            e.currentTarget.blur()
+        }
+    }, [])
+
+    return (
+        <Input
+            value={localValue}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            size="small"
+            placeholder="Untitled App"
+            className="!w-[260px] !text-sm !font-medium"
+            data-testid="app-create-name-input"
+            variant="borderless"
+        />
+    )
+})
 
 // ================================================================
 // MAIN HEADER
@@ -150,19 +212,33 @@ const DrawerHeader = () => {
         [isExpanded, setExpanded],
     )
 
-    const isEvaluatorCreate = context === "evaluator-create"
+    const isCreate = isCreateContext(context)
+    const isAppCreate = context === "app-create"
     const isEvaluator = context === "evaluator-view" || context === "evaluator-create"
     const title = DRAWER_TITLES[context] ?? "Workflow Revision"
 
     return (
-        <div className="flex items-center justify-between px-4 py-4 border-0 border-b border-solid border-[#0517290F] shrink-0">
+        <div
+            className="flex items-center justify-between px-4 py-4 border-0 border-b border-solid border-[#0517290F] shrink-0"
+            data-testid="workflow-revision-drawer-header"
+        >
             {/* Left: close + title + nav */}
             <div className="flex items-center gap-2">
-                <Button type="text" size="small" onClick={handleClose} icon={<X size={14} />} />
+                <Button
+                    type="text"
+                    size="small"
+                    onClick={handleClose}
+                    icon={<X size={14} />}
+                    data-testid="workflow-revision-drawer-close"
+                />
 
                 <div className="flex items-center gap-3">
-                    <Text className="text-sm font-medium">{title}</Text>
-                    {entityId && !isEvaluatorCreate && <NavControls entityId={entityId} />}
+                    {isAppCreate && entityId ? (
+                        <AppCreateNameInput entityId={entityId} />
+                    ) : (
+                        <Text className="text-sm font-medium">{title}</Text>
+                    )}
+                    {entityId && !isCreate && <NavControls entityId={entityId} />}
                 </div>
             </div>
 
@@ -170,7 +246,7 @@ const DrawerHeader = () => {
             <div className="flex items-center gap-2">
                 {isExpanded
                     ? entityId && <MetadataPopover entityId={entityId} />
-                    : isEvaluatorCreate
+                    : isCreate
                       ? null
                       : isEvaluator
                         ? null

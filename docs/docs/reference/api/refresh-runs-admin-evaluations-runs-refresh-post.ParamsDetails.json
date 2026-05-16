@@ -1,1 +1,0 @@
-{"parameters":[{"name":"trigger_interval","in":"query","required":false,"schema":{"anyOf":[{"type":"integer","maximum":60,"minimum":1},{"type":"null"}],"default":1,"title":"Trigger Interval"}},{"name":"trigger_datetime","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Trigger Datetime"}}]}

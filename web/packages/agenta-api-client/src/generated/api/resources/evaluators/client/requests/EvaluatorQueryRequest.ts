@@ -7,8 +7,12 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface EvaluatorQueryRequest {
+    /** Filter on evaluator attributes (flags, tags, meta). */
     evaluator?: AgentaApi.EvaluatorQuery | null;
+    /** Restrict the query to these evaluators. Accepts `id` or `slug` per reference. */
     evaluator_refs?: AgentaApi.Reference[] | null;
+    /** When true, include soft-deleted evaluators in the response. */
     include_archived?: boolean | null;
+    /** Cursor-based pagination controls (limit, order, next, newest, oldest). */
     windowing?: AgentaApi.Windowing | null;
 }

@@ -1,6 +1,6 @@
 {
-  "name": "@agenta/api-client",
-  "version": "0.99.4",
+  "name": "@agentaai/api-client",
+  "version": "0.99.9",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

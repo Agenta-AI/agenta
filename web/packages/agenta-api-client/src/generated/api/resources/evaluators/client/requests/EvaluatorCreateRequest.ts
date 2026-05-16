@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface EvaluatorCreateRequest {
     evaluator_id?: string | null;
+    /** Evaluator payload (slug, name, flags, data). Slug is required and scoped to the project. */
     evaluator: AgentaApi.EvaluatorCreate;
 }

@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleTestsetEditRequest {
     testset_id: string;
+    /** Simple testset fields to update. If `data.testcases` is provided, a new revision is committed with those testcases. */
     testset: AgentaApi.SimpleTestsetEdit;
 }

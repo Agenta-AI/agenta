@@ -12,9 +12,21 @@ from .workflow_variant import WorkflowVariant
 class WorkflowVariantsResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    workflow_variants: typing.Optional[typing.List[WorkflowVariant]] = None
-    windowing: typing.Optional[Windowing] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of variants in this page.
+    """
+    
+    workflow_variants: typing.Optional[typing.List[WorkflowVariant]] = pydantic.Field(default=None)
+    """
+    Workflow variants matching the query.
+    """
+    
+    windowing: typing.Optional[Windowing] = pydantic.Field(default=None)
+    """
+    Pagination cursor.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

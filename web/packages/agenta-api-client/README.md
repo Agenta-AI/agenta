@@ -1,4 +1,4 @@
-# @agenta/api-client
+# @agentaai/api-client
 
 Fern-generated TypeScript client for the Agenta API. Workspace package consumed by `@agenta/sdk`, `@agenta/entities`, and the web apps.
 
@@ -12,7 +12,7 @@ To rebuild after source changes:
 
 ```bash
 pnpm install                              # easiest — re-runs prepare for every workspace package
-pnpm --filter @agenta/api-client build    # targeted — rebuilds just this package
+pnpm --filter @agentaai/api-client build    # targeted — rebuilds just this package
 ```
 
 `dist/` is gitignored (see [`.gitignore`](../../../.gitignore)). Don't commit it.
@@ -32,7 +32,7 @@ bash ./clients/scripts/generate.sh --language typescript --live
 bash ./clients/scripts/generate.sh --language typescript --file /path/to/openapi.json
 ```
 
-After generating, run `pnpm install` (or `pnpm --filter @agenta/api-client build`) so `dist/` reflects the new source.
+After generating, run `pnpm install` (or `pnpm --filter @agentaai/api-client build`) so `dist/` reflects the new source.
 
 The generator config sets several non-default options worth knowing about (Fern is unconfigured by default):
 

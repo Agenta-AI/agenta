@@ -9,10 +9,21 @@ from .o_tel_link_output import OTelLinkOutput
 
 
 class SimpleTraceLinkResponse(UniversalBaseModel):
+    """
+    Response from `DELETE /simple/traces/{trace_id}`.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    link: typing.Optional[OTelLinkOutput] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    `1` if a trace was removed, `0` otherwise.
+    """
+    
+    link: typing.Optional[OTelLinkOutput] = pydantic.Field(default=None)
+    """
+    The `(trace_id, span_id)` pair that was removed.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -11,9 +11,21 @@ from .windowing import Windowing
 class UserIdsResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    user_ids: typing.Optional[typing.List[str]] = None
-    windowing: typing.Optional[Windowing] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of user IDs in this page.
+    """
+    
+    user_ids: typing.Optional[typing.List[str]] = pydantic.Field(default=None)
+    """
+    Distinct values of `ag.user.id` in this page.
+    """
+    
+    windowing: typing.Optional[Windowing] = pydantic.Field(default=None)
+    """
+    Cursor for the next page. Pass verbatim as `windowing.next`.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

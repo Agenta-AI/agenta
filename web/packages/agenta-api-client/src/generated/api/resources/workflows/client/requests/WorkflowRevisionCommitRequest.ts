@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface WorkflowRevisionCommitRequest {
     workflow_variant_id?: string | null;
+    /** Revision to append to a variant's history. Requires `workflow_variant_id` and optional `message`; `data` carries the new configuration. */
     workflow_revision: AgentaApi.WorkflowRevisionCommit;
 }

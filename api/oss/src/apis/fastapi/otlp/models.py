@@ -1,9 +1,8 @@
 from typing import List, Optional
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
-
 from oss.src.utils.exceptions import Support
+from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.otel.dtos import (
     OTelSpanDTO,
@@ -15,7 +14,14 @@ from oss.src.core.otel.dtos import (
 
 
 class CollectStatusResponse(Support):
-    status: str
+    """OTLP endpoint readiness response."""
+
+    status: str = Field(
+        description=(
+            "Readiness string. `ready` means the router is mounted and "
+            "accepts OTLP ingest."
+        ),
+    )
 
 
 class OTelTracingResponse(Support):

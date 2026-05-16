@@ -60,7 +60,7 @@ class ToolsClient:
         _response = self._raw_client.list_tool_providers(full_details=full_details, request_options=request_options)
         return _response.data
     
-    def get_tool_provider(self, provider_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogProviderResponse:
+    def fetch_tool_provider(self, provider_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogProviderResponse:
         """
         Parameters
         ----------
@@ -83,11 +83,11 @@ class ToolsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.tools.get_tool_provider(
+        client.tools.fetch_tool_provider(
             provider_key="provider_key",
         )
         """
-        _response = self._raw_client.get_tool_provider(provider_key, full_details=full_details, request_options=request_options)
+        _response = self._raw_client.fetch_tool_provider(provider_key, full_details=full_details, request_options=request_options)
         return _response.data
     
     def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationsResponse:
@@ -128,7 +128,7 @@ class ToolsClient:
         _response = self._raw_client.list_tool_integrations(provider_key, search=search, sort_by=sort_by, limit=limit, cursor=cursor, full_details=full_details, request_options=request_options)
         return _response.data
     
-    def get_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationResponse:
+    def fetch_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationResponse:
         """
         Parameters
         ----------
@@ -153,12 +153,12 @@ class ToolsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.tools.get_tool_integration(
+        client.tools.fetch_tool_integration(
             provider_key="provider_key",
             integration_key="integration_key",
         )
         """
-        _response = self._raw_client.get_tool_integration(provider_key, integration_key, full_details=full_details, request_options=request_options)
+        _response = self._raw_client.fetch_tool_integration(provider_key, integration_key, full_details=full_details, request_options=request_options)
         return _response.data
     
     def list_tool_actions(self, provider_key: str, integration_key: str, *, query: typing.Optional[str] = None, categories: typing.Optional[typing.Sequence[str]] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogActionsResponse:
@@ -202,7 +202,7 @@ class ToolsClient:
         _response = self._raw_client.list_tool_actions(provider_key, integration_key, query=query, categories=categories, limit=limit, cursor=cursor, full_details=full_details, request_options=request_options)
         return _response.data
     
-    def get_tool_action(self, provider_key: str, integration_key: str, action_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogActionResponse:
+    def fetch_tool_action(self, provider_key: str, integration_key: str, action_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogActionResponse:
         """
         Parameters
         ----------
@@ -229,13 +229,13 @@ class ToolsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.tools.get_tool_action(
+        client.tools.fetch_tool_action(
             provider_key="provider_key",
             integration_key="integration_key",
             action_key="action_key",
         )
         """
-        _response = self._raw_client.get_tool_action(provider_key, integration_key, action_key, full_details=full_details, request_options=request_options)
+        _response = self._raw_client.fetch_tool_action(provider_key, integration_key, action_key, full_details=full_details, request_options=request_options)
         return _response.data
     
     def query_tool_connections(self, *, provider_key: typing.Optional[str] = None, integration_key: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolConnectionsResponse:
@@ -335,7 +335,7 @@ class ToolsClient:
         _response = self._raw_client.callback_tool_connection(connected_account_id=connected_account_id, status=status, error_message=error_message, state=state, request_options=request_options)
         return _response.data
     
-    def get_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> ToolConnectionResponse:
+    def fetch_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> ToolConnectionResponse:
         """
         Get a connection by ID.
         
@@ -358,11 +358,11 @@ class ToolsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.tools.get_tool_connection(
+        client.tools.fetch_tool_connection(
             connection_id="connection_id",
         )
         """
-        _response = self._raw_client.get_tool_connection(connection_id, request_options=request_options)
+        _response = self._raw_client.fetch_tool_connection(connection_id, request_options=request_options)
         return _response.data
     
     def delete_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> None:
@@ -540,7 +540,7 @@ class AsyncToolsClient:
         _response = await self._raw_client.list_tool_providers(full_details=full_details, request_options=request_options)
         return _response.data
     
-    async def get_tool_provider(self, provider_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogProviderResponse:
+    async def fetch_tool_provider(self, provider_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogProviderResponse:
         """
         Parameters
         ----------
@@ -568,14 +568,14 @@ class AsyncToolsClient:
         
         
         async def main() -> None:
-            await client.tools.get_tool_provider(
+            await client.tools.fetch_tool_provider(
                 provider_key="provider_key",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_tool_provider(provider_key, full_details=full_details, request_options=request_options)
+        _response = await self._raw_client.fetch_tool_provider(provider_key, full_details=full_details, request_options=request_options)
         return _response.data
     
     async def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationsResponse:
@@ -624,7 +624,7 @@ class AsyncToolsClient:
         _response = await self._raw_client.list_tool_integrations(provider_key, search=search, sort_by=sort_by, limit=limit, cursor=cursor, full_details=full_details, request_options=request_options)
         return _response.data
     
-    async def get_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationResponse:
+    async def fetch_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationResponse:
         """
         Parameters
         ----------
@@ -654,7 +654,7 @@ class AsyncToolsClient:
         
         
         async def main() -> None:
-            await client.tools.get_tool_integration(
+            await client.tools.fetch_tool_integration(
                 provider_key="provider_key",
                 integration_key="integration_key",
             )
@@ -662,7 +662,7 @@ class AsyncToolsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_tool_integration(provider_key, integration_key, full_details=full_details, request_options=request_options)
+        _response = await self._raw_client.fetch_tool_integration(provider_key, integration_key, full_details=full_details, request_options=request_options)
         return _response.data
     
     async def list_tool_actions(self, provider_key: str, integration_key: str, *, query: typing.Optional[str] = None, categories: typing.Optional[typing.Sequence[str]] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogActionsResponse:
@@ -714,7 +714,7 @@ class AsyncToolsClient:
         _response = await self._raw_client.list_tool_actions(provider_key, integration_key, query=query, categories=categories, limit=limit, cursor=cursor, full_details=full_details, request_options=request_options)
         return _response.data
     
-    async def get_tool_action(self, provider_key: str, integration_key: str, action_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogActionResponse:
+    async def fetch_tool_action(self, provider_key: str, integration_key: str, action_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogActionResponse:
         """
         Parameters
         ----------
@@ -746,7 +746,7 @@ class AsyncToolsClient:
         
         
         async def main() -> None:
-            await client.tools.get_tool_action(
+            await client.tools.fetch_tool_action(
                 provider_key="provider_key",
                 integration_key="integration_key",
                 action_key="action_key",
@@ -755,7 +755,7 @@ class AsyncToolsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_tool_action(provider_key, integration_key, action_key, full_details=full_details, request_options=request_options)
+        _response = await self._raw_client.fetch_tool_action(provider_key, integration_key, action_key, full_details=full_details, request_options=request_options)
         return _response.data
     
     async def query_tool_connections(self, *, provider_key: typing.Optional[str] = None, integration_key: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolConnectionsResponse:
@@ -879,7 +879,7 @@ class AsyncToolsClient:
         _response = await self._raw_client.callback_tool_connection(connected_account_id=connected_account_id, status=status, error_message=error_message, state=state, request_options=request_options)
         return _response.data
     
-    async def get_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> ToolConnectionResponse:
+    async def fetch_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> ToolConnectionResponse:
         """
         Get a connection by ID.
         
@@ -907,14 +907,14 @@ class AsyncToolsClient:
         
         
         async def main() -> None:
-            await client.tools.get_tool_connection(
+            await client.tools.fetch_tool_connection(
                 connection_id="connection_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_tool_connection(connection_id, request_options=request_options)
+        _response = await self._raw_client.fetch_tool_connection(connection_id, request_options=request_options)
         return _response.data
     
     async def delete_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> None:

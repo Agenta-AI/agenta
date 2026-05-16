@@ -9,17 +9,17 @@ from .core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from .environment import AgentaApiEnvironment
 
 if typing.TYPE_CHECKING:
-    from .admin.client import AdminClient, AsyncAdminClient
+    from .access.client import AccessClient, AsyncAccessClient
+    from .annotations.client import AnnotationsClient, AsyncAnnotationsClient
     from .applications.client import ApplicationsClient, AsyncApplicationsClient
     from .billing.client import AsyncBillingClient, BillingClient
-    from .deprecated.client import AsyncDeprecatedClient, DeprecatedClient
     from .environments.client import AsyncEnvironmentsClient, EnvironmentsClient
     from .evaluations.client import AsyncEvaluationsClient, EvaluationsClient
     from .evaluators.client import AsyncEvaluatorsClient, EvaluatorsClient
-    from .events.client import AsyncEventsClient, EventsClient
     from .folders.client import AsyncFoldersClient, FoldersClient
+    from .invocations.client import AsyncInvocationsClient, InvocationsClient
     from .keys.client import AsyncKeysClient, KeysClient
-    from .open_telemetry.client import AsyncOpenTelemetryClient, OpenTelemetryClient
+    from .legacy.client import AsyncLegacyClient, LegacyClient
     from .organizations.client import AsyncOrganizationsClient, OrganizationsClient
     from .projects.client import AsyncProjectsClient, ProjectsClient
     from .queries.client import AsyncQueriesClient, QueriesClient
@@ -78,14 +78,15 @@ class AgentaApi:
         self._client_wrapper = SyncClientWrapper(base_url=_get_base_url(base_url=base_url, environment=environment), api_key=api_key, headers=headers, httpx_client=httpx_client if httpx_client is not None else httpx.Client(timeout=_defaulted_timeout, follow_redirects=follow_redirects) if follow_redirects is not None else httpx.Client(timeout=_defaulted_timeout)
         , timeout=_defaulted_timeout)
         self._billing: typing.Optional[BillingClient] = None
-        self._admin: typing.Optional[AdminClient] = None
         self._organizations: typing.Optional[OrganizationsClient] = None
         self._workspaces: typing.Optional[WorkspacesClient] = None
         self._secrets: typing.Optional[SecretsClient] = None
         self._webhooks: typing.Optional[WebhooksClient] = None
-        self._open_telemetry: typing.Optional[OpenTelemetryClient] = None
+        self._access: typing.Optional[AccessClient] = None
+        self._legacy: typing.Optional[LegacyClient] = None
         self._traces: typing.Optional[TracesClient] = None
-        self._events: typing.Optional[EventsClient] = None
+        self._invocations: typing.Optional[InvocationsClient] = None
+        self._annotations: typing.Optional[AnnotationsClient] = None
         self._testcases: typing.Optional[TestcasesClient] = None
         self._testsets: typing.Optional[TestsetsClient] = None
         self._queries: typing.Optional[QueriesClient] = None
@@ -94,7 +95,6 @@ class AgentaApi:
         self._workflows: typing.Optional[WorkflowsClient] = None
         self._evaluators: typing.Optional[EvaluatorsClient] = None
         self._environments: typing.Optional[EnvironmentsClient] = None
-        self._deprecated: typing.Optional[DeprecatedClient] = None
         self._tools: typing.Optional[ToolsClient] = None
         self._evaluations: typing.Optional[EvaluationsClient] = None
         self._status: typing.Optional[StatusClient] = None
@@ -108,13 +108,6 @@ class AgentaApi:
             from .billing.client import BillingClient  # noqa: E402
             self._billing = BillingClient(client_wrapper=self._client_wrapper)
         return self._billing
-    
-    @property
-    def admin(self):
-        if self._admin is None:
-            from .admin.client import AdminClient  # noqa: E402
-            self._admin = AdminClient(client_wrapper=self._client_wrapper)
-        return self._admin
     
     @property
     def organizations(self):
@@ -145,11 +138,18 @@ class AgentaApi:
         return self._webhooks
     
     @property
-    def open_telemetry(self):
-        if self._open_telemetry is None:
-            from .open_telemetry.client import OpenTelemetryClient  # noqa: E402
-            self._open_telemetry = OpenTelemetryClient(client_wrapper=self._client_wrapper)
-        return self._open_telemetry
+    def access(self):
+        if self._access is None:
+            from .access.client import AccessClient  # noqa: E402
+            self._access = AccessClient(client_wrapper=self._client_wrapper)
+        return self._access
+    
+    @property
+    def legacy(self):
+        if self._legacy is None:
+            from .legacy.client import LegacyClient  # noqa: E402
+            self._legacy = LegacyClient(client_wrapper=self._client_wrapper)
+        return self._legacy
     
     @property
     def traces(self):
@@ -159,11 +159,18 @@ class AgentaApi:
         return self._traces
     
     @property
-    def events(self):
-        if self._events is None:
-            from .events.client import EventsClient  # noqa: E402
-            self._events = EventsClient(client_wrapper=self._client_wrapper)
-        return self._events
+    def invocations(self):
+        if self._invocations is None:
+            from .invocations.client import InvocationsClient  # noqa: E402
+            self._invocations = InvocationsClient(client_wrapper=self._client_wrapper)
+        return self._invocations
+    
+    @property
+    def annotations(self):
+        if self._annotations is None:
+            from .annotations.client import AnnotationsClient  # noqa: E402
+            self._annotations = AnnotationsClient(client_wrapper=self._client_wrapper)
+        return self._annotations
     
     @property
     def testcases(self):
@@ -220,13 +227,6 @@ class AgentaApi:
             from .environments.client import EnvironmentsClient  # noqa: E402
             self._environments = EnvironmentsClient(client_wrapper=self._client_wrapper)
         return self._environments
-    
-    @property
-    def deprecated(self):
-        if self._deprecated is None:
-            from .deprecated.client import DeprecatedClient  # noqa: E402
-            self._deprecated = DeprecatedClient(client_wrapper=self._client_wrapper)
-        return self._deprecated
     
     @property
     def tools(self):
@@ -314,14 +314,15 @@ class AsyncAgentaApi:
         self._client_wrapper = AsyncClientWrapper(base_url=_get_base_url(base_url=base_url, environment=environment), api_key=api_key, headers=headers, httpx_client=httpx_client if httpx_client is not None else httpx.AsyncClient(timeout=_defaulted_timeout, follow_redirects=follow_redirects) if follow_redirects is not None else httpx.AsyncClient(timeout=_defaulted_timeout)
         , timeout=_defaulted_timeout)
         self._billing: typing.Optional[AsyncBillingClient] = None
-        self._admin: typing.Optional[AsyncAdminClient] = None
         self._organizations: typing.Optional[AsyncOrganizationsClient] = None
         self._workspaces: typing.Optional[AsyncWorkspacesClient] = None
         self._secrets: typing.Optional[AsyncSecretsClient] = None
         self._webhooks: typing.Optional[AsyncWebhooksClient] = None
-        self._open_telemetry: typing.Optional[AsyncOpenTelemetryClient] = None
+        self._access: typing.Optional[AsyncAccessClient] = None
+        self._legacy: typing.Optional[AsyncLegacyClient] = None
         self._traces: typing.Optional[AsyncTracesClient] = None
-        self._events: typing.Optional[AsyncEventsClient] = None
+        self._invocations: typing.Optional[AsyncInvocationsClient] = None
+        self._annotations: typing.Optional[AsyncAnnotationsClient] = None
         self._testcases: typing.Optional[AsyncTestcasesClient] = None
         self._testsets: typing.Optional[AsyncTestsetsClient] = None
         self._queries: typing.Optional[AsyncQueriesClient] = None
@@ -330,7 +331,6 @@ class AsyncAgentaApi:
         self._workflows: typing.Optional[AsyncWorkflowsClient] = None
         self._evaluators: typing.Optional[AsyncEvaluatorsClient] = None
         self._environments: typing.Optional[AsyncEnvironmentsClient] = None
-        self._deprecated: typing.Optional[AsyncDeprecatedClient] = None
         self._tools: typing.Optional[AsyncToolsClient] = None
         self._evaluations: typing.Optional[AsyncEvaluationsClient] = None
         self._status: typing.Optional[AsyncStatusClient] = None
@@ -344,13 +344,6 @@ class AsyncAgentaApi:
             from .billing.client import AsyncBillingClient  # noqa: E402
             self._billing = AsyncBillingClient(client_wrapper=self._client_wrapper)
         return self._billing
-    
-    @property
-    def admin(self):
-        if self._admin is None:
-            from .admin.client import AsyncAdminClient  # noqa: E402
-            self._admin = AsyncAdminClient(client_wrapper=self._client_wrapper)
-        return self._admin
     
     @property
     def organizations(self):
@@ -381,11 +374,18 @@ class AsyncAgentaApi:
         return self._webhooks
     
     @property
-    def open_telemetry(self):
-        if self._open_telemetry is None:
-            from .open_telemetry.client import AsyncOpenTelemetryClient  # noqa: E402
-            self._open_telemetry = AsyncOpenTelemetryClient(client_wrapper=self._client_wrapper)
-        return self._open_telemetry
+    def access(self):
+        if self._access is None:
+            from .access.client import AsyncAccessClient  # noqa: E402
+            self._access = AsyncAccessClient(client_wrapper=self._client_wrapper)
+        return self._access
+    
+    @property
+    def legacy(self):
+        if self._legacy is None:
+            from .legacy.client import AsyncLegacyClient  # noqa: E402
+            self._legacy = AsyncLegacyClient(client_wrapper=self._client_wrapper)
+        return self._legacy
     
     @property
     def traces(self):
@@ -395,11 +395,18 @@ class AsyncAgentaApi:
         return self._traces
     
     @property
-    def events(self):
-        if self._events is None:
-            from .events.client import AsyncEventsClient  # noqa: E402
-            self._events = AsyncEventsClient(client_wrapper=self._client_wrapper)
-        return self._events
+    def invocations(self):
+        if self._invocations is None:
+            from .invocations.client import AsyncInvocationsClient  # noqa: E402
+            self._invocations = AsyncInvocationsClient(client_wrapper=self._client_wrapper)
+        return self._invocations
+    
+    @property
+    def annotations(self):
+        if self._annotations is None:
+            from .annotations.client import AsyncAnnotationsClient  # noqa: E402
+            self._annotations = AsyncAnnotationsClient(client_wrapper=self._client_wrapper)
+        return self._annotations
     
     @property
     def testcases(self):
@@ -456,13 +463,6 @@ class AsyncAgentaApi:
             from .environments.client import AsyncEnvironmentsClient  # noqa: E402
             self._environments = AsyncEnvironmentsClient(client_wrapper=self._client_wrapper)
         return self._environments
-    
-    @property
-    def deprecated(self):
-        if self._deprecated is None:
-            from .deprecated.client import AsyncDeprecatedClient  # noqa: E402
-            self._deprecated = AsyncDeprecatedClient(client_wrapper=self._client_wrapper)
-        return self._deprecated
     
     @property
     def tools(self):

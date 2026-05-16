@@ -10,5 +10,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleApplicationCreateRequest {
     application_id?: string | null;
+    /** Application fields plus `data` for the first revision. `data.uri` selects the template (for example `agenta:builtin:completion:v0`); `data.parameters` carries the prompt and model config. */
     application: AgentaApi.SimpleApplicationCreate;
 }

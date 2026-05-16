@@ -119,50 +119,50 @@ from supertokens_python.recipe.passwordless.asyncio import (
 from oss.src.utils.env import env
 
 from oss.src.core.accounts.dtos import (
-    AdminAccountCreateOptionsDTO,
-    AdminAccountReadDTO,
-    AdminAccountsCreateDTO,
-    AdminAccountsDeleteDTO,
-    AdminAccountsResponseDTO,
-    AdminApiKeyCreateDTO,
-    AdminApiKeyResponseDTO,
-    AdminDeleteResponseDTO,
-    AdminDeletedEntitiesDTO,
-    AdminDeletedEntityDTO,
-    AdminOrganizationCreateDTO,
-    AdminOrganizationMembershipCreateDTO,
-    AdminOrganizationMembershipReadDTO,
-    AdminOrganizationReadDTO,
-    AdminSubscriptionReadDTO,
-    AdminProjectCreateDTO,
-    AdminProjectMembershipCreateDTO,
-    AdminProjectMembershipReadDTO,
-    AdminProjectReadDTO,
-    AdminSimpleAccountCreateDTO,
-    AdminSimpleAccountReadDTO,
-    AdminSimpleAccountsApiKeysCreateDTO,
-    AdminSimpleAccountsCreateDTO,
-    AdminSimpleAccountsResponseDTO,
-    AdminSimpleAccountsDeleteDTO,
-    AdminSimpleAccountsOrganizationsCreateDTO,
-    AdminSimpleAccountsOrganizationsMembershipsCreateDTO,
-    AdminSimpleAccountsProjectsCreateDTO,
-    AdminSimpleAccountsProjectsMembershipsCreateDTO,
-    AdminSimpleAccountsUsersCreateDTO,
-    AdminSimpleAccountsUsersIdentitiesCreateDTO,
-    AdminSimpleAccountsWorkspacesCreateDTO,
-    AdminSimpleAccountsWorkspacesMembershipsCreateDTO,
-    AdminSimpleAccountsUsersResetPasswordDTO,
-    AdminSimpleAccountsOrganizationsTransferOwnershipDTO,
-    AdminSimpleAccountsOrganizationsTransferOwnershipResponseDTO,
-    AdminStructuredErrorDTO,
-    AdminUserCreateDTO,
-    AdminUserIdentityReadDTO,
-    AdminUserReadDTO,
-    AdminWorkspaceCreateDTO,
-    AdminWorkspaceMembershipCreateDTO,
-    AdminWorkspaceMembershipReadDTO,
-    AdminWorkspaceReadDTO,
+    AdminAccountCreateOptions,
+    AdminAccountRead,
+    AdminAccountsCreate,
+    AdminAccountsDelete,
+    AdminAccountsResponse,
+    AdminApiKeyCreate,
+    AdminApiKeyResponse,
+    AdminDeleteResponse,
+    AdminDeletedEntities,
+    AdminDeletedEntity,
+    AdminOrganizationCreate,
+    AdminOrganizationMembershipCreate,
+    AdminOrganizationMembershipRead,
+    AdminOrganizationRead,
+    AdminSubscriptionRead,
+    AdminProjectCreate,
+    AdminProjectMembershipCreate,
+    AdminProjectMembershipRead,
+    AdminProjectRead,
+    AdminSimpleAccountCreate,
+    AdminSimpleAccountRead,
+    AdminSimpleAccountsApiKeysCreate,
+    AdminSimpleAccountsCreate,
+    AdminSimpleAccountsResponse,
+    AdminSimpleAccountsDelete,
+    AdminSimpleAccountsOrganizationsCreate,
+    AdminSimpleAccountsOrganizationsMembershipsCreate,
+    AdminSimpleAccountsProjectsCreate,
+    AdminSimpleAccountsProjectsMembershipsCreate,
+    AdminSimpleAccountsUsersCreate,
+    AdminSimpleAccountsUsersIdentitiesCreate,
+    AdminSimpleAccountsWorkspacesCreate,
+    AdminSimpleAccountsWorkspacesMembershipsCreate,
+    AdminSimpleAccountsUsersResetPassword,
+    AdminSimpleAccountsOrganizationsTransferOwnership,
+    AdminSimpleAccountsOrganizationsTransferOwnershipResponse,
+    AdminStructuredError,
+    AdminUserCreate,
+    AdminUserIdentityRead,
+    AdminUserRead,
+    AdminWorkspaceCreate,
+    AdminWorkspaceMembershipCreate,
+    AdminWorkspaceMembershipRead,
+    AdminWorkspaceRead,
     EntityRef,
 )
 from oss.src.core.accounts.errors import (
@@ -241,8 +241,8 @@ class _Tracker:
 # ---------------------------------------------------------------------------
 
 
-def _user_db_to_read_dto(user: UserDB) -> AdminUserReadDTO:
-    return AdminUserReadDTO(
+def _user_db_to_read_dto(user: UserDB) -> AdminUserRead:
+    return AdminUserRead(
         id=str(user.id),
         uid=str(user.uid),
         email=user.email,
@@ -253,8 +253,8 @@ def _user_db_to_read_dto(user: UserDB) -> AdminUserReadDTO:
     )
 
 
-def _org_db_to_read_dto(org: OrganizationDB) -> AdminOrganizationReadDTO:
-    return AdminOrganizationReadDTO(
+def _org_db_to_read_dto(org: OrganizationDB) -> AdminOrganizationRead:
+    return AdminOrganizationRead(
         id=str(org.id),
         name=org.name or "",
         slug=org.slug,
@@ -264,8 +264,8 @@ def _org_db_to_read_dto(org: OrganizationDB) -> AdminOrganizationReadDTO:
     )
 
 
-def _ws_db_to_read_dto(ws: WorkspaceDB) -> AdminWorkspaceReadDTO:
-    return AdminWorkspaceReadDTO(
+def _ws_db_to_read_dto(ws: WorkspaceDB) -> AdminWorkspaceRead:
+    return AdminWorkspaceRead(
         id=str(ws.id),
         name=ws.name or "",
         organization_id=str(ws.organization_id),
@@ -274,8 +274,8 @@ def _ws_db_to_read_dto(ws: WorkspaceDB) -> AdminWorkspaceReadDTO:
     )
 
 
-def _proj_db_to_read_dto(proj: ProjectDB) -> AdminProjectReadDTO:
-    return AdminProjectReadDTO(
+def _proj_db_to_read_dto(proj: ProjectDB) -> AdminProjectRead:
+    return AdminProjectRead(
         id=str(proj.id),
         name=proj.project_name or "",
         organization_id=str(proj.organization_id),
@@ -290,8 +290,8 @@ def _api_key_db_to_response_dto(
     key: APIKeyDB,
     *,
     raw_value: Optional[str] = None,
-) -> AdminApiKeyResponseDTO:
-    return AdminApiKeyResponseDTO(
+) -> AdminApiKeyResponse:
+    return AdminApiKeyResponse(
         id=str(key.id),
         prefix=key.prefix,
         project_id=str(key.project_id),
@@ -494,12 +494,12 @@ class PlatformAdminAccountsService:
     async def create_accounts(
         self,
         *,
-        dto: AdminAccountsCreateDTO,
-    ) -> AdminAccountsResponseDTO:
-        options = dto.options or AdminAccountCreateOptionsDTO()
+        dto: AdminAccountsCreate,
+    ) -> AdminAccountsResponse:
+        options = dto.options or AdminAccountCreateOptions()
         tracker = _Tracker()
-        account = AdminAccountReadDTO()
-        errors: List[AdminStructuredErrorDTO] = []
+        account = AdminAccountRead()
+        errors: List[AdminStructuredError] = []
 
         # 1. Users
         for user_ref, user_create in (dto.users or {}).items():
@@ -516,7 +516,7 @@ class PlatformAdminAccountsService:
             for identity_ref, identity_create in dto.user_identities.items():
                 if not _identity_method_supported(identity_create.method):
                     errors.append(
-                        AdminStructuredErrorDTO(
+                        AdminStructuredError(
                             code="not_implemented",
                             message=(
                                 f"Identity provisioning for method "
@@ -537,7 +537,7 @@ class PlatformAdminAccountsService:
                 password = identity_create.password
                 if not email:
                     errors.append(
-                        AdminStructuredErrorDTO(
+                        AdminStructuredError(
                             code="invalid_identity",
                             message=(
                                 f"email identity requires 'email' (or 'subject') "
@@ -570,7 +570,7 @@ class PlatformAdminAccountsService:
                 )
                 if err_code is not None:
                     errors.append(
-                        AdminStructuredErrorDTO(
+                        AdminStructuredError(
                             code=err_code,
                             message=f"{err_msg} (ref: {identity_ref}).",
                             details={"ref": identity_ref, "email": email},
@@ -578,7 +578,7 @@ class PlatformAdminAccountsService:
                     )
                     continue
 
-                account.user_identities[identity_ref] = AdminUserIdentityReadDTO(
+                account.user_identities[identity_ref] = AdminUserIdentityRead(
                     id=rid,
                     user_id=user_id_str or "",
                     method=created_method,
@@ -623,7 +623,7 @@ class PlatformAdminAccountsService:
                         plan=plan,
                     )
                     account.subscriptions = account.subscriptions or {}
-                    account.subscriptions[org_ref] = AdminSubscriptionReadDTO(
+                    account.subscriptions[org_ref] = AdminSubscriptionRead(
                         plan=plan.value,
                         active=sub.active if sub else None,
                     )
@@ -634,7 +634,7 @@ class PlatformAdminAccountsService:
                         exc,
                     )
                     errors.append(
-                        AdminStructuredErrorDTO(
+                        AdminStructuredError(
                             code="subscription_provision_failed",
                             message=f"Organization '{org_ref}' created but subscription provisioning failed.",
                             details={
@@ -720,7 +720,7 @@ class PlatformAdminAccountsService:
                 )
                 prefix = raw_key.split(".")[0]
                 key_db = await _db_get_api_key_by_prefix(prefix)
-                key_dto = AdminApiKeyResponseDTO(
+                key_dto = AdminApiKeyResponse(
                     id=str(key_db.id) if key_db else None,
                     prefix=prefix,
                     project_id=str(proj_id_for_key),
@@ -731,17 +731,17 @@ class PlatformAdminAccountsService:
                 account.api_keys[key_ref] = key_dto
                 tracker.api_keys[key_ref] = key_db.id if key_db else _uuid_mod.uuid4()
 
-        return AdminAccountsResponseDTO(
+        return AdminAccountsResponse(
             accounts=[account],
             errors=errors or None,
         )
 
     async def _create_memberships_ee(
         self,
-        dto: AdminAccountsCreateDTO,
+        dto: AdminAccountsCreate,
         tracker: _Tracker,
-        account: AdminAccountReadDTO,
-        options: AdminAccountCreateOptionsDTO,
+        account: AdminAccountRead,
+        options: AdminAccountCreateOptions,
     ) -> None:
         """EE-only: create organization/workspace/project memberships."""
         for mem_ref, mem_create in (dto.organization_memberships or {}).items():
@@ -765,13 +765,11 @@ class PlatformAdminAccountsService:
             )
             ref = await _ee_create_org_membership(request=request)
             tracker.organization_memberships[mem_ref] = ref.id
-            account.organization_memberships[mem_ref] = (
-                AdminOrganizationMembershipReadDTO(
-                    id=str(ref.id),
-                    organization_id=str(org_id),
-                    user_id=str(user_id),
-                    role=mem_create.role,
-                )
+            account.organization_memberships[mem_ref] = AdminOrganizationMembershipRead(
+                id=str(ref.id),
+                organization_id=str(org_id),
+                user_id=str(user_id),
+                role=mem_create.role,
             )
 
         for mem_ref, mem_create in (dto.workspace_memberships or {}).items():
@@ -795,7 +793,7 @@ class PlatformAdminAccountsService:
             )
             ref = await _ee_create_ws_membership(request=request)
             tracker.workspace_memberships[mem_ref] = ref.id
-            account.workspace_memberships[mem_ref] = AdminWorkspaceMembershipReadDTO(
+            account.workspace_memberships[mem_ref] = AdminWorkspaceMembershipRead(
                 id=str(ref.id),
                 workspace_id=str(ws_id),
                 user_id=str(user_id),
@@ -823,7 +821,7 @@ class PlatformAdminAccountsService:
             )
             ref = await _ee_create_project_membership(request=request)
             tracker.project_memberships[mem_ref] = ref.id
-            account.project_memberships[mem_ref] = AdminProjectMembershipReadDTO(
+            account.project_memberships[mem_ref] = AdminProjectMembershipRead(
                 id=str(ref.id),
                 project_id=str(proj_id),
                 user_id=str(user_id),
@@ -837,8 +835,8 @@ class PlatformAdminAccountsService:
     async def delete_accounts(
         self,
         *,
-        dto: AdminAccountsDeleteDTO,
-    ) -> AdminDeleteResponseDTO:
+        dto: AdminAccountsDelete,
+    ) -> AdminDeleteResponse:
         """Delete account graphs by selector.
 
         Default behavior when only user selectors are given:
@@ -847,7 +845,7 @@ class PlatformAdminAccountsService:
         delete the user records.
         """
         dry_run = bool(dto.dry_run)
-        deleted = AdminDeletedEntitiesDTO()
+        deleted = AdminDeletedEntities()
 
         target = dto.target
         user_ids: List[UUID] = []
@@ -915,17 +913,13 @@ class PlatformAdminAccountsService:
 
         if dry_run:
             # Report what would be deleted without writing
-            deleted.organizations = [
-                AdminDeletedEntityDTO(id=str(oid)) for oid in org_ids
-            ]
+            deleted.organizations = [AdminDeletedEntity(id=str(oid)) for oid in org_ids]
             deleted.workspaces = [
-                AdminDeletedEntityDTO(id=str(wid)) for wid in workspace_ids
+                AdminDeletedEntity(id=str(wid)) for wid in workspace_ids
             ]
-            deleted.projects = [
-                AdminDeletedEntityDTO(id=str(pid)) for pid in project_ids
-            ]
-            deleted.users = [AdminDeletedEntityDTO(id=str(uid)) for uid in user_ids]
-            return AdminDeleteResponseDTO(dry_run=True, deleted=deleted)
+            deleted.projects = [AdminDeletedEntity(id=str(pid)) for pid in project_ids]
+            deleted.users = [AdminDeletedEntity(id=str(uid)) for uid in user_ids]
+            return AdminDeleteResponse(dry_run=True, deleted=deleted)
 
         await _db_delete_accounts_batch(
             org_ids=org_ids,
@@ -935,17 +929,17 @@ class PlatformAdminAccountsService:
         )
 
         deleted.projects = [
-            AdminDeletedEntityDTO(id=str(pid)) for pid in project_ids
+            AdminDeletedEntity(id=str(pid)) for pid in project_ids
         ] or None
         deleted.workspaces = [
-            AdminDeletedEntityDTO(id=str(wid)) for wid in workspace_ids
+            AdminDeletedEntity(id=str(wid)) for wid in workspace_ids
         ] or None
         deleted.organizations = [
-            AdminDeletedEntityDTO(id=str(oid)) for oid in org_ids
+            AdminDeletedEntity(id=str(oid)) for oid in org_ids
         ] or None
-        deleted.users = [AdminDeletedEntityDTO(id=str(uid)) for uid in user_ids] or None
+        deleted.users = [AdminDeletedEntity(id=str(uid)) for uid in user_ids] or None
 
-        return AdminDeleteResponseDTO(dry_run=False, deleted=deleted)
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
     # -----------------------------------------------------------------------
     # Simple Account Create / Delete
@@ -954,16 +948,16 @@ class PlatformAdminAccountsService:
     async def create_simple_accounts(
         self,
         *,
-        dto: AdminSimpleAccountsCreateDTO,
-    ) -> AdminAccountsResponseDTO:
+        dto: AdminSimpleAccountsCreate,
+    ) -> AdminAccountsResponse:
         """Create one or more accounts from a keyed batch.
 
         The response ``accounts`` dict is keyed by the same refs used in
         the request, with each entry in the singular shape of the request:
         user/organization/workspace/project/api_key (no plural maps).
         """
-        global_options = dto.options or AdminAccountCreateOptionsDTO()
-        result = AdminSimpleAccountsResponseDTO()
+        global_options = dto.options or AdminAccountCreateOptions()
+        result = AdminSimpleAccountsResponse()
 
         for account_ref, entry in dto.accounts.items():
             existing = await _db_get_user_by_email(entry.user.email)
@@ -983,7 +977,7 @@ class PlatformAdminAccountsService:
                         for ref, _dto in acc.api_keys.items()
                         if _dto.value is not None
                     } or None
-                result.accounts[account_ref] = AdminSimpleAccountReadDTO(
+                result.accounts[account_ref] = AdminSimpleAccountRead(
                     user=acc.users.get("user"),
                     organizations=dict(acc.organizations)
                     if acc.organizations
@@ -1024,9 +1018,9 @@ class PlatformAdminAccountsService:
     async def _create_one_simple_account(
         self,
         *,
-        entry: "AdminSimpleAccountCreateDTO",
-        global_options: AdminAccountCreateOptionsDTO,
-    ) -> AdminAccountsResponseDTO:
+        entry: "AdminSimpleAccountCreate",
+        global_options: AdminAccountCreateOptions,
+    ) -> AdminAccountsResponse:
         """Build a graph DTO for one simple-account entry and delegate.
 
         Simple-account defaults (applied when the caller leaves a field as None):
@@ -1037,7 +1031,7 @@ class PlatformAdminAccountsService:
         """
         raw = entry.options or global_options
 
-        effective_options = AdminAccountCreateOptionsDTO(
+        effective_options = AdminAccountCreateOptions(
             dry_run=raw.dry_run,
             seed_defaults=raw.seed_defaults,
             reason=raw.reason,
@@ -1080,7 +1074,7 @@ class PlatformAdminAccountsService:
         proj_create.workspace_ref = EntityRef(ref="wrk")
         proj_create.is_default = True
 
-        graph_dto = AdminAccountsCreateDTO(
+        graph_dto = AdminAccountsCreate(
             options=effective_options,
             users={"user": entry.user},
             organizations={"org": org_create},
@@ -1105,7 +1099,7 @@ class PlatformAdminAccountsService:
                 }
             else:
                 graph_dto.organization_memberships = {
-                    "org_owner": AdminOrganizationMembershipCreateDTO(
+                    "org_owner": AdminOrganizationMembershipCreate(
                         organization_ref=EntityRef(ref="org"),
                         user_ref=EntityRef(ref="user"),
                         role="owner",
@@ -1117,7 +1111,7 @@ class PlatformAdminAccountsService:
                 }
             else:
                 graph_dto.workspace_memberships = {
-                    "wrk_owner": AdminWorkspaceMembershipCreateDTO(
+                    "wrk_owner": AdminWorkspaceMembershipCreate(
                         workspace_ref=EntityRef(ref="wrk"),
                         user_ref=EntityRef(ref="user"),
                         role="owner",
@@ -1129,7 +1123,7 @@ class PlatformAdminAccountsService:
                 }
             else:
                 graph_dto.project_memberships = {
-                    "prj_owner": AdminProjectMembershipCreateDTO(
+                    "prj_owner": AdminProjectMembershipCreate(
                         project_ref=EntityRef(ref="prj"),
                         user_ref=EntityRef(ref="user"),
                         role="owner",
@@ -1141,7 +1135,7 @@ class PlatformAdminAccountsService:
 
         if effective_options.create_api_keys:
             graph_dto.api_keys = {
-                "key": AdminApiKeyCreateDTO(
+                "key": AdminApiKeyCreate(
                     user_ref=EntityRef(ref="user"),
                     project_ref=EntityRef(ref="prj"),
                 )
@@ -1152,9 +1146,9 @@ class PlatformAdminAccountsService:
     async def _create_one_simple_account_oss(
         self,
         *,
-        entry: "AdminSimpleAccountCreateDTO",
-        options: AdminAccountCreateOptionsDTO,
-    ) -> AdminAccountsResponseDTO:
+        entry: "AdminSimpleAccountCreate",
+        options: AdminAccountCreateOptions,
+    ) -> AdminAccountsResponse:
         """OSS-only path for simple account creation.
 
         OSS is single-tenant: every user lives under one organization with one
@@ -1162,8 +1156,8 @@ class PlatformAdminAccountsService:
         use (mirroring `_create_account` in the SuperTokens override) and
         attach every subsequent user to it via `_assign_user_to_organization_oss`.
         """
-        account = AdminAccountReadDTO()
-        errors: List[AdminStructuredErrorDTO] = []
+        account = AdminAccountRead()
+        errors: List[AdminStructuredError] = []
 
         # 1. Create the user (the existence check already happened in caller).
         user_db = await _db_get_or_create_user(
@@ -1240,7 +1234,7 @@ class PlatformAdminAccountsService:
                 identity_ref = f"identity_{index}"
                 if not _identity_method_supported(identity_create.method):
                     errors.append(
-                        AdminStructuredErrorDTO(
+                        AdminStructuredError(
                             code="not_implemented",
                             message=(
                                 f"Identity provisioning for method "
@@ -1261,7 +1255,7 @@ class PlatformAdminAccountsService:
                 password = identity_create.password
                 if not email:
                     errors.append(
-                        AdminStructuredErrorDTO(
+                        AdminStructuredError(
                             code="invalid_identity",
                             message=(
                                 f"email identity requires 'email' (or 'subject') "
@@ -1284,7 +1278,7 @@ class PlatformAdminAccountsService:
                 )
                 if err_code is not None:
                     errors.append(
-                        AdminStructuredErrorDTO(
+                        AdminStructuredError(
                             code=err_code,
                             message=f"{err_msg} (ref: {identity_ref}).",
                             details={"ref": identity_ref, "email": email},
@@ -1292,7 +1286,7 @@ class PlatformAdminAccountsService:
                     )
                     continue
 
-                account.user_identities[identity_ref] = AdminUserIdentityReadDTO(
+                account.user_identities[identity_ref] = AdminUserIdentityRead(
                     id=rid,
                     user_id=str(user_db.id),
                     method=created_method,
@@ -1312,7 +1306,7 @@ class PlatformAdminAccountsService:
             prefix = raw_key.split(".")[0]
             key_db = await _db_get_api_key_by_prefix(prefix)
             account.api_keys = {
-                "key": AdminApiKeyResponseDTO(
+                "key": AdminApiKeyResponse(
                     id=str(key_db.id) if key_db else None,
                     prefix=prefix,
                     project_id=str(proj_db.id),
@@ -1321,7 +1315,7 @@ class PlatformAdminAccountsService:
                 )
             }
 
-        return AdminAccountsResponseDTO(
+        return AdminAccountsResponse(
             accounts=[account],
             errors=errors or None,
         )
@@ -1329,7 +1323,7 @@ class PlatformAdminAccountsService:
     async def delete_simple_accounts(
         self,
         *,
-        dto: AdminSimpleAccountsDeleteDTO,
+        dto: AdminSimpleAccountsDelete,
     ) -> None:
         """Delete one or more accounts identified by user ref."""
         if dto.dry_run:
@@ -1354,9 +1348,9 @@ class PlatformAdminAccountsService:
     async def create_user(
         self,
         *,
-        dto: AdminSimpleAccountsUsersCreateDTO,
-    ) -> AdminAccountsResponseDTO:
-        options = dto.options or AdminAccountCreateOptionsDTO()
+        dto: AdminSimpleAccountsUsersCreate,
+    ) -> AdminAccountsResponse:
+        options = dto.options or AdminAccountCreateOptions()
 
         # On OSS, when seed_defaults is requested, route through the
         # simple-account path so the singleton org/workspace are reused
@@ -1366,11 +1360,11 @@ class PlatformAdminAccountsService:
         # When seed_defaults is False, no org/workspace is created here,
         # so falling through to the graph path is safe.
         if options.seed_defaults and not is_ee():
-            simple_entry = AdminSimpleAccountCreateDTO(
+            simple_entry = AdminSimpleAccountCreate(
                 user=dto.user,
                 options=options,
             )
-            simple_dto = AdminSimpleAccountsCreateDTO(
+            simple_dto = AdminSimpleAccountsCreate(
                 accounts={"user": simple_entry},
                 options=options,
             )
@@ -1378,12 +1372,12 @@ class PlatformAdminAccountsService:
 
             # Translate the simple response shape back into the graph
             # response shape that callers of ``create_user`` expect.
-            # Note: ``AdminAccountsResponseDTO.accounts`` is a *list* of
-            # ``AdminAccountReadDTO`` (not a dict), so we append rather
+            # Note: ``AdminAccountsResponse.accounts`` is a *list* of
+            # ``AdminAccountRead`` (not a dict), so we append rather
             # than subscript.
-            graph_response = AdminAccountsResponseDTO()
+            graph_response = AdminAccountsResponse()
             for _account_ref, simple_account in simple_response.accounts.items():
-                read = AdminAccountReadDTO()
+                read = AdminAccountRead()
                 if simple_account.user is not None:
                     read.users = {"user": simple_account.user}
                 if simple_account.organizations:
@@ -1394,7 +1388,7 @@ class PlatformAdminAccountsService:
                     read.projects = dict(simple_account.projects)
                 # NOTE: simple-account responses expose api_keys as raw
                 # value strings, while the graph shape expects a richer
-                # AdminApiKeyResponseDTO. We cannot losslessly reconstruct
+                # AdminApiKeyResponse. We cannot losslessly reconstruct
                 # the latter, so leave ``read.api_keys`` unset on this OSS
                 # path. Tests for this endpoint only assert on ``users``.
                 graph_response.accounts.append(read)
@@ -1402,7 +1396,7 @@ class PlatformAdminAccountsService:
                 graph_response.errors = list(simple_response.errors)
             return graph_response
 
-        graph_dto = AdminAccountsCreateDTO(
+        graph_dto = AdminAccountsCreate(
             options=options,
             users={"user": dto.user},
         )
@@ -1416,21 +1410,21 @@ class PlatformAdminAccountsService:
             graph_dto.projects = {"prj": proj_create}
             if is_ee():
                 graph_dto.organization_memberships = {
-                    "org_owner": AdminOrganizationMembershipCreateDTO(
+                    "org_owner": AdminOrganizationMembershipCreate(
                         organization_ref=EntityRef(ref="org"),
                         user_ref=EntityRef(ref="user"),
                         role="owner",
                     )
                 }
                 graph_dto.workspace_memberships = {
-                    "wrk_owner": AdminWorkspaceMembershipCreateDTO(
+                    "wrk_owner": AdminWorkspaceMembershipCreate(
                         workspace_ref=EntityRef(ref="wrk"),
                         user_ref=EntityRef(ref="user"),
                         role="owner",
                     )
                 }
                 graph_dto.project_memberships = {
-                    "prj_owner": AdminProjectMembershipCreateDTO(
+                    "prj_owner": AdminProjectMembershipCreate(
                         project_ref=EntityRef(ref="prj"),
                         user_ref=EntityRef(ref="user"),
                         role="owner",
@@ -1438,7 +1432,7 @@ class PlatformAdminAccountsService:
                 }
             if options.create_api_keys:
                 graph_dto.api_keys = {
-                    "key": AdminApiKeyCreateDTO(
+                    "key": AdminApiKeyCreate(
                         user_ref=EntityRef(ref="user"),
                         project_ref=EntityRef(ref="prj"),
                     )
@@ -1448,8 +1442,8 @@ class PlatformAdminAccountsService:
     async def create_user_identity(
         self,
         *,
-        dto: AdminSimpleAccountsUsersIdentitiesCreateDTO,
-    ) -> AdminAccountsResponseDTO:
+        dto: AdminSimpleAccountsUsersIdentitiesCreate,
+    ) -> AdminAccountsResponse:
         """Create a SuperTokens identity for an existing user."""
         identity = dto.user_identity
         if not _identity_method_supported(identity.method):
@@ -1483,7 +1477,7 @@ class PlatformAdminAccountsService:
         if err_code is not None:
             raise AdminValidationError(err_msg)
 
-        identity_dto = AdminUserIdentityReadDTO(
+        identity_dto = AdminUserIdentityRead(
             id=rid,
             user_id=user_id_str or "",
             method=created_method,
@@ -1492,16 +1486,16 @@ class PlatformAdminAccountsService:
             verified=identity.verified or False,
             status="created",
         )
-        account = AdminAccountReadDTO()
+        account = AdminAccountRead()
         account.user_identities["identity_0"] = identity_dto
-        return AdminAccountsResponseDTO(accounts=[account])
+        return AdminAccountsResponse(accounts=[account])
 
     async def create_organization(
         self,
         *,
-        dto: AdminSimpleAccountsOrganizationsCreateDTO,
-    ) -> AdminAccountsResponseDTO:
-        options = dto.options or AdminAccountCreateOptionsDTO()
+        dto: AdminSimpleAccountsOrganizationsCreate,
+    ) -> AdminAccountsResponse:
+        options = dto.options or AdminAccountCreateOptions()
         users: dict = {}
         if dto.owner:
             # Require the owner to already exist — look up by email
@@ -1513,7 +1507,7 @@ class PlatformAdminAccountsService:
         else:
             owner_ref = None
 
-        org_create = AdminOrganizationCreateDTO(
+        org_create = AdminOrganizationCreate(
             name=dto.organization.name,
             slug=dto.organization.slug,
             owner_user_ref=owner_ref,
@@ -1521,7 +1515,7 @@ class PlatformAdminAccountsService:
         ws_create = _default_ws_for_org("org")
         proj_create = _default_proj_for_ws("org", "wrk")
 
-        graph_dto = AdminAccountsCreateDTO(
+        graph_dto = AdminAccountsCreate(
             options=options,
             users=users or None,
             organizations={"org": org_create},
@@ -1530,21 +1524,21 @@ class PlatformAdminAccountsService:
         )
         if is_ee() and dto.owner:
             graph_dto.organization_memberships = {
-                "org_owner": AdminOrganizationMembershipCreateDTO(
+                "org_owner": AdminOrganizationMembershipCreate(
                     organization_ref=EntityRef(ref="org"),
                     user_ref=EntityRef(ref="owner"),
                     role="owner",
                 )
             }
             graph_dto.workspace_memberships = {
-                "wrk_owner": AdminWorkspaceMembershipCreateDTO(
+                "wrk_owner": AdminWorkspaceMembershipCreate(
                     workspace_ref=EntityRef(ref="wrk"),
                     user_ref=EntityRef(ref="owner"),
                     role="owner",
                 )
             }
             graph_dto.project_memberships = {
-                "prj_owner": AdminProjectMembershipCreateDTO(
+                "prj_owner": AdminProjectMembershipCreate(
                     project_ref=EntityRef(ref="prj"),
                     user_ref=EntityRef(ref="owner"),
                     role="owner",
@@ -1555,12 +1549,12 @@ class PlatformAdminAccountsService:
     async def create_organization_membership(
         self,
         *,
-        dto: AdminSimpleAccountsOrganizationsMembershipsCreateDTO,
-    ) -> AdminAccountsResponseDTO:
+        dto: AdminSimpleAccountsOrganizationsMembershipsCreate,
+    ) -> AdminAccountsResponse:
         if not is_ee():
             raise AdminNotImplementedError("organization_memberships")
-        options = dto.options or AdminAccountCreateOptionsDTO()
-        graph_dto = AdminAccountsCreateDTO(
+        options = dto.options or AdminAccountCreateOptions()
+        graph_dto = AdminAccountsCreate(
             options=options,
             organization_memberships={"mem": dto.membership},
         )
@@ -1569,19 +1563,19 @@ class PlatformAdminAccountsService:
     async def create_workspace(
         self,
         *,
-        dto: AdminSimpleAccountsWorkspacesCreateDTO,
-    ) -> AdminAccountsResponseDTO:
-        options = dto.options or AdminAccountCreateOptionsDTO()
+        dto: AdminSimpleAccountsWorkspacesCreate,
+    ) -> AdminAccountsResponse:
+        options = dto.options or AdminAccountCreateOptions()
         ws_create = dto.workspace
         # The workspace's organization must be specified by id/slug
         # We create a minimal graph: workspace + default project
-        proj_create = AdminProjectCreateDTO(
+        proj_create = AdminProjectCreate(
             name="Default",
             organization_ref=ws_create.organization_ref,
             workspace_ref=EntityRef(ref="wrk"),
             is_default=True,
         )
-        graph_dto = AdminAccountsCreateDTO(
+        graph_dto = AdminAccountsCreate(
             options=options,
             workspaces={"wrk": ws_create},
             projects={"prj": proj_create},
@@ -1591,12 +1585,12 @@ class PlatformAdminAccountsService:
     async def create_workspace_membership(
         self,
         *,
-        dto: AdminSimpleAccountsWorkspacesMembershipsCreateDTO,
-    ) -> AdminAccountsResponseDTO:
+        dto: AdminSimpleAccountsWorkspacesMembershipsCreate,
+    ) -> AdminAccountsResponse:
         if not is_ee():
             raise AdminNotImplementedError("workspace_memberships")
-        options = dto.options or AdminAccountCreateOptionsDTO()
-        graph_dto = AdminAccountsCreateDTO(
+        options = dto.options or AdminAccountCreateOptions()
+        graph_dto = AdminAccountsCreate(
             options=options,
             workspace_memberships={"mem": dto.membership},
         )
@@ -1605,10 +1599,10 @@ class PlatformAdminAccountsService:
     async def create_project(
         self,
         *,
-        dto: AdminSimpleAccountsProjectsCreateDTO,
-    ) -> AdminAccountsResponseDTO:
-        options = dto.options or AdminAccountCreateOptionsDTO()
-        graph_dto = AdminAccountsCreateDTO(
+        dto: AdminSimpleAccountsProjectsCreate,
+    ) -> AdminAccountsResponse:
+        options = dto.options or AdminAccountCreateOptions()
+        graph_dto = AdminAccountsCreate(
             options=options,
             projects={"prj": dto.project},
         )
@@ -1617,12 +1611,12 @@ class PlatformAdminAccountsService:
     async def create_project_membership(
         self,
         *,
-        dto: AdminSimpleAccountsProjectsMembershipsCreateDTO,
-    ) -> AdminAccountsResponseDTO:
+        dto: AdminSimpleAccountsProjectsMembershipsCreate,
+    ) -> AdminAccountsResponse:
         if not is_ee():
             raise AdminNotImplementedError("project_memberships")
-        options = dto.options or AdminAccountCreateOptionsDTO()
-        graph_dto = AdminAccountsCreateDTO(
+        options = dto.options or AdminAccountCreateOptions()
+        graph_dto = AdminAccountsCreate(
             options=options,
             project_memberships={"mem": dto.membership},
         )
@@ -1631,13 +1625,13 @@ class PlatformAdminAccountsService:
     async def create_api_key(
         self,
         *,
-        dto: AdminSimpleAccountsApiKeysCreateDTO,
-    ) -> AdminAccountsResponseDTO:
-        options = AdminAccountCreateOptionsDTO(
+        dto: AdminSimpleAccountsApiKeysCreate,
+    ) -> AdminAccountsResponse:
+        options = AdminAccountCreateOptions(
             create_api_keys=True,
             return_api_keys=(dto.options.return_api_keys if dto.options else False),
         )
-        graph_dto = AdminAccountsCreateDTO(
+        graph_dto = AdminAccountsCreate(
             options=options,
             api_keys={"key": dto.api_key},
         )
@@ -1651,7 +1645,7 @@ class PlatformAdminAccountsService:
         self,
         *,
         user_id: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         uid = _parse_uuid(user_id, "user_id")
         user = await _db_get_user_by_id(uid)
         if not user:
@@ -1662,21 +1656,19 @@ class PlatformAdminAccountsService:
             await _ee_delete_user_memberships(uid)
 
         deleted_org_ids = await _db_delete_user_with_cascade(uid)
-        deleted = AdminDeletedEntitiesDTO(
-            organizations=[
-                AdminDeletedEntityDTO(id=str(oid)) for oid in deleted_org_ids
-            ]
+        deleted = AdminDeletedEntities(
+            organizations=[AdminDeletedEntity(id=str(oid)) for oid in deleted_org_ids]
             or None,
-            users=[AdminDeletedEntityDTO(id=user_id)],
+            users=[AdminDeletedEntity(id=user_id)],
         )
-        return AdminDeleteResponseDTO(dry_run=False, deleted=deleted)
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
     async def delete_user_identity(
         self,
         *,
         user_id: str,
         identity_id: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         """Delete a SuperTokens recipe identity (recipe user) by its ID."""
         from supertokens_python.asyncio import (
             get_user as _st_get_user,
@@ -1688,16 +1680,16 @@ class PlatformAdminAccountsService:
             raise AdminUserNotFoundError(identity_id)
 
         await _st_delete_user(user_id=identity_id, remove_all_linked_accounts=False)
-        deleted = AdminDeletedEntitiesDTO(
-            user_identities=[AdminDeletedEntityDTO(id=identity_id)]
+        deleted = AdminDeletedEntities(
+            user_identities=[AdminDeletedEntity(id=identity_id)]
         )
-        return AdminDeleteResponseDTO(dry_run=False, deleted=deleted)
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
     async def delete_organization(
         self,
         *,
         organization_id: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         oid = _parse_uuid(organization_id, "organization_id")
         org = await _db_get_org_by_id(oid)
         if not org:
@@ -1714,17 +1706,17 @@ class PlatformAdminAccountsService:
             )
 
         await _db_delete_organization(oid)
-        deleted = AdminDeletedEntitiesDTO(
-            organizations=[AdminDeletedEntityDTO(id=organization_id)]
+        deleted = AdminDeletedEntities(
+            organizations=[AdminDeletedEntity(id=organization_id)]
         )
-        return AdminDeleteResponseDTO(dry_run=False, deleted=deleted)
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
     async def delete_organization_membership(
         self,
         *,
         organization_id: str,
         membership_id: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         if not is_ee():
             raise AdminNotImplementedError("delete_organization_membership")
         return await self._delete_ee_membership(
@@ -1736,7 +1728,7 @@ class PlatformAdminAccountsService:
         self,
         *,
         workspace_id: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         wid = _parse_uuid(workspace_id, "workspace_id")
         ws = await _db_get_workspace_by_id(wid)
         if not ws:
@@ -1753,17 +1745,15 @@ class PlatformAdminAccountsService:
                 )
 
         await _db_delete_workspace(wid)
-        deleted = AdminDeletedEntitiesDTO(
-            workspaces=[AdminDeletedEntityDTO(id=workspace_id)]
-        )
-        return AdminDeleteResponseDTO(dry_run=False, deleted=deleted)
+        deleted = AdminDeletedEntities(workspaces=[AdminDeletedEntity(id=workspace_id)])
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
     async def delete_workspace_membership(
         self,
         *,
         workspace_id: str,
         membership_id: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         if not is_ee():
             raise AdminNotImplementedError("delete_workspace_membership")
         return await self._delete_ee_membership(
@@ -1775,24 +1765,22 @@ class PlatformAdminAccountsService:
         self,
         *,
         project_id: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         pid = _parse_uuid(project_id, "project_id")
         proj = await _db_get_project_by_id(pid)
         if not proj:
             raise AdminProjectNotFoundError(project_id)
 
         await _db_delete_project(pid)
-        deleted = AdminDeletedEntitiesDTO(
-            projects=[AdminDeletedEntityDTO(id=project_id)]
-        )
-        return AdminDeleteResponseDTO(dry_run=False, deleted=deleted)
+        deleted = AdminDeletedEntities(projects=[AdminDeletedEntity(id=project_id)])
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
     async def delete_project_membership(
         self,
         *,
         project_id: str,
         membership_id: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         if not is_ee():
             raise AdminNotImplementedError("delete_project_membership")
         return await self._delete_ee_membership(
@@ -1804,17 +1792,15 @@ class PlatformAdminAccountsService:
         self,
         *,
         api_key_id: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         kid = _parse_uuid(api_key_id, "api_key_id")
         key = await _db_get_api_key_by_id(kid)
         if not key:
             raise AdminApiKeyNotFoundError(api_key_id)
 
         await _db_delete_api_key(kid)
-        deleted = AdminDeletedEntitiesDTO(
-            api_keys=[AdminDeletedEntityDTO(id=api_key_id)]
-        )
-        return AdminDeleteResponseDTO(dry_run=False, deleted=deleted)
+        deleted = AdminDeletedEntities(api_keys=[AdminDeletedEntity(id=api_key_id)])
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
     # -----------------------------------------------------------------------
     # Actions
@@ -1823,7 +1809,7 @@ class PlatformAdminAccountsService:
     async def reset_password(
         self,
         *,
-        dto: AdminSimpleAccountsUsersResetPasswordDTO,
+        dto: AdminSimpleAccountsUsersResetPassword,
     ) -> None:
         """Update the password on one or more existing email:password identities.
 
@@ -1906,8 +1892,8 @@ class PlatformAdminAccountsService:
     async def transfer_ownership(
         self,
         *,
-        dto: AdminSimpleAccountsOrganizationsTransferOwnershipDTO,
-    ) -> AdminSimpleAccountsOrganizationsTransferOwnershipResponseDTO:
+        dto: AdminSimpleAccountsOrganizationsTransferOwnership,
+    ) -> AdminSimpleAccountsOrganizationsTransferOwnershipResponse:
         """Transfer organization ownership from one user to another.
 
         Updates only ``owner_id`` on each targeted org (``created_by_id`` is
@@ -1958,7 +1944,7 @@ class PlatformAdminAccountsService:
             org.id for org in await _db_get_orgs_owned_by_user(source_id)
         }
 
-        errors: List[AdminStructuredErrorDTO] = []
+        errors: List[AdminStructuredError] = []
 
         if dto.organizations is None:
             # Transfer every org owned by source
@@ -1974,7 +1960,7 @@ class PlatformAdminAccountsService:
                     org = await _db_get_org_by_slug(ref.slug)
                     if not org:
                         errors.append(
-                            AdminStructuredErrorDTO(
+                            AdminStructuredError(
                                 code="organization_not_found",
                                 message=f"Organization '{ref.slug}' was not found.",
                                 details={"slug": ref.slug, "ref": org_key},
@@ -1991,7 +1977,7 @@ class PlatformAdminAccountsService:
 
                 if oid not in owned_by_source:
                     errors.append(
-                        AdminStructuredErrorDTO(
+                        AdminStructuredError(
                             code="not_owned_by_source",
                             message=(
                                 f"Organization '{label}' is not owned by the source user "
@@ -2013,7 +1999,7 @@ class PlatformAdminAccountsService:
                 skipped = [oid for oid in org_ids if oid not in target_member_org_ids]
                 for oid in skipped:
                     errors.append(
-                        AdminStructuredErrorDTO(
+                        AdminStructuredError(
                             code="target_not_member",
                             message=(
                                 f"Organization '{oid}' was not transferred: target "
@@ -2077,7 +2063,7 @@ class PlatformAdminAccountsService:
                 source_id=str(source_id),
             )
 
-        return AdminSimpleAccountsOrganizationsTransferOwnershipResponseDTO(
+        return AdminSimpleAccountsOrganizationsTransferOwnershipResponse(
             transferred=[str(oid) for oid in org_ids],
             errors=errors or None,
         )
@@ -2091,7 +2077,7 @@ class PlatformAdminAccountsService:
         *,
         membership_id: str,
         scope_type: str,
-    ) -> AdminDeleteResponseDTO:
+    ) -> AdminDeleteResponse:
         """Delete an EE membership by ID."""
         if not is_ee():
             raise AdminNotImplementedError(f"delete_{scope_type}_membership")
@@ -2110,13 +2096,13 @@ class PlatformAdminAccountsService:
         if not found:
             raise AdminMembershipNotFoundError(membership_id)
 
-        deleted = AdminDeletedEntitiesDTO()
+        deleted = AdminDeletedEntities()
         setattr(
             deleted,
             f"{scope_type}_memberships",
-            [AdminDeletedEntityDTO(id=membership_id)],
+            [AdminDeletedEntity(id=membership_id)],
         )
-        return AdminDeleteResponseDTO(dry_run=False, deleted=deleted)
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
 
 # ---------------------------------------------------------------------------
@@ -2131,23 +2117,23 @@ def _parse_uuid(value: str, field: str) -> UUID:
         raise AdminInvalidReferenceError(field, f"'{value}' is not a valid UUID")
 
 
-def _default_org_for_user(user: AdminUserCreateDTO) -> AdminOrganizationCreateDTO:
+def _default_org_for_user(user: AdminUserCreate) -> AdminOrganizationCreate:
     label = user.name or user.username or user.email.split("@")[0]
-    return AdminOrganizationCreateDTO(
+    return AdminOrganizationCreate(
         name=f"{label}'s Organization",
         owner_user_ref=EntityRef(ref="user"),
     )
 
 
-def _default_ws_for_org(org_ref: str) -> AdminWorkspaceCreateDTO:
-    return AdminWorkspaceCreateDTO(
+def _default_ws_for_org(org_ref: str) -> AdminWorkspaceCreate:
+    return AdminWorkspaceCreate(
         name="Default",
         organization_ref=EntityRef(ref=org_ref),
     )
 
 
-def _default_proj_for_ws(org_ref: str, ws_ref: str) -> AdminProjectCreateDTO:
-    return AdminProjectCreateDTO(
+def _default_proj_for_ws(org_ref: str, ws_ref: str) -> AdminProjectCreate:
+    return AdminProjectCreate(
         name="Default",
         organization_ref=EntityRef(ref=org_ref),
         workspace_ref=EntityRef(ref=ws_ref),

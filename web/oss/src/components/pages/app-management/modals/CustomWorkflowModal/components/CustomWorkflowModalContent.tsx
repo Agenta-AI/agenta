@@ -9,7 +9,6 @@ import {Scroll} from "@phosphor-icons/react"
 import {Typography, Space, Button, notification} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
-import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import {updateVariant} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
 import {
@@ -214,10 +213,7 @@ const CustomWorkflowModalContent = ({
                     editorType="border"
                     placeholder="Enter app name"
                     editorClassName={`!border-none !shadow-none px-0 ${
-                        appNameExist ||
-                        (values.appName.length > 0 && !isAppNameInputValid(values.appName))
-                            ? "border-red-500 !border"
-                            : ""
+                        appNameExist ? "border-red-500 !border" : ""
                     }`}
                     className="py-1 px-[11px] !w-auto"
                     useAntdInput
@@ -235,19 +231,6 @@ const CustomWorkflowModalContent = ({
                         }}
                     >
                         App name already exists
-                    </Typography.Text>
-                )}
-                {values.appName.length > 0 && !isAppNameInputValid(values.appName) && (
-                    <Typography.Text
-                        style={{
-                            color: "red",
-                            fontSize: "12px",
-                            marginTop: "2px",
-                            display: "block",
-                        }}
-                    >
-                        App name must contain only letters, numbers, underscore, or dash without any
-                        spaces.
                     </Typography.Text>
                 )}
             </div>

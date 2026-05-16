@@ -51,7 +51,7 @@ export class SecretsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "vault/v1/secrets/",
+                "secrets/",
             ),
             method: "GET",
             headers: _headers,
@@ -75,7 +75,7 @@ export class SecretsClient {
             });
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/vault/v1/secrets/");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/secrets/");
     }
 
     /**
@@ -120,7 +120,7 @@ export class SecretsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "vault/v1/secrets/",
+                "secrets/",
             ),
             method: "POST",
             headers: _headers,
@@ -155,7 +155,7 @@ export class SecretsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/vault/v1/secrets/");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/secrets/");
     }
 
     /**
@@ -192,7 +192,7 @@ export class SecretsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `vault/v1/secrets/${core.url.encodePathParam(secretId)}`,
+                `secrets/${core.url.encodePathParam(secretId)}`,
             ),
             method: "GET",
             headers: _headers,
@@ -224,7 +224,7 @@ export class SecretsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/vault/v1/secrets/{secret_id}");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/secrets/{secret_id}");
     }
 
     /**
@@ -261,7 +261,7 @@ export class SecretsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `vault/v1/secrets/${core.url.encodePathParam(secretId)}`,
+                `secrets/${core.url.encodePathParam(secretId)}`,
             ),
             method: "PUT",
             headers: _headers,
@@ -296,7 +296,7 @@ export class SecretsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "PUT", "/vault/v1/secrets/{secret_id}");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "PUT", "/secrets/{secret_id}");
     }
 
     /**
@@ -333,7 +333,7 @@ export class SecretsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `vault/v1/secrets/${core.url.encodePathParam(secretId)}`,
+                `secrets/${core.url.encodePathParam(secretId)}`,
             ),
             method: "DELETE",
             headers: _headers,
@@ -365,11 +365,6 @@ export class SecretsClient {
             }
         }
 
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "DELETE",
-            "/vault/v1/secrets/{secret_id}",
-        );
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "DELETE", "/secrets/{secret_id}");
     }
 }

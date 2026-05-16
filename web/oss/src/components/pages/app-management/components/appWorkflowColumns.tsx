@@ -83,14 +83,14 @@ export function createAppWorkflowColumns(
             ),
         },
         ...(isArchived
-            ? ([
+            ? [
                   {
-                      type: "date",
+                      type: "date" as const,
                       key: "deletedAt",
                       title: "Archived At",
                   },
                   {
-                      type: "text",
+                      type: "text" as const,
                       key: "deletedById",
                       title: "Archived By",
                       render: (_: unknown, record: AppWorkflowRow) => (
@@ -104,7 +104,7 @@ export function createAppWorkflowColumns(
                           </div>
                       ),
                   },
-              ] as const)
+              ]
             : []),
         {
             type: "actions",

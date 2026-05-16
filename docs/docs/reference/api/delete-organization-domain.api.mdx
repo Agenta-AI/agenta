@@ -1,11 +1,11 @@
 ---
 id: delete-organization-domain
-title: "Delete Organization Domain"
-description: "Delete a domain from an organization."
-sidebar_label: "Delete Organization Domain"
+title: "Delete Domain"
+description: "Delete a domain."
+sidebar_label: "Delete Domain"
 hide_title: true
 hide_table_of_contents: true
-api: eJy9VcFu2zAM/RWDpw0Q4qzYyacFS4AG7dCizXYJjEK1mVidbamSXDQz9O8DJTu2m7bYgGGnWCL1SD7yMS1YvjeQbOFK73ktfnErZG0gZZCjybRQdIYElliixYhHuay4qKOdllXE60iOns2AgVSo/WGdQwK5f3U3droLAMBAcc0rtKgpfgs1rxASmPiKHBgIiq+4LYCBxsdGaMwhsbpBBiYrsOKQtGAPip4bq0W9BwZW2JIuxnVF6xycY8dYIZV/EWUZWPH4KQEYJWuDht6czef0M+XztskyNGbXlNFN5wwMMllbrC25c6VKkfm04wdDb9ohD+ecY/D57OwU+AcvRR6qXWkt9V+ggtLUPitC3jlaLkr6EhYrc+pQymxi5fXhaud7OaWJGO9uRG1xjxpc6lh/x7XmhxGXlzIkCI5BZfbv0f4NjeF7hCPY266ejGhDVkfdVo0npDev/YVjkNnnEYy8f8DMjmC+EpfPlsboxGcYm63nJqTf+aUDxtCi0KG3qViGFrwWrHc532yuTwDDfFRoCznI0EvOFpBAPBaZidsXmnNxEIaJ26NCHDAwqJ96tTa6JCCuhG9vOBbWKpPEMTazrJRNPuN7rC2fcREcU8LIGi3swYMsrtcXeDhHnqOGZJuOHW5pKsOcTd2OveFKXCCx1al50dhC6q6MXtFFeOV8z3dy3PKFTy5aXK/h5babmEg+PPPT0kfyZmAvyh6qBQZYefGARV59OVqo18RhCDOffZrN6UpJYytej0J0+3ayvZb95pwk2w76/uMt3TFIkxyrkkBdV0zbzch2sogNMEhON3M3JmQcVmnKoJDGEkTb3nOD33XpHF0/Nqip8SmDJ64Fv6c2bFvIhaHvHJIdLw2+U9+Hm05iH6O3quiHo6bJeOJlQydg8BMPr/y70Oz+x/ADS34BFv3kt519kWWo7Ojlyb4miRx1vVxdrjYrcO43vGmpKQ==
+api: eJx9VMFu2zAM/RWDpw0Q4q7oyacFS4AG7dCizXYJjIC1mVidbamSXDQz9O8DZTuxl7a5xCIfKeo9ki043FtINnBn9ljLv+ikqi2kAnKymZGaz5DAgkpyFGGUqwplPQMBSpMJ8FUOCeQBsFWjNNsOCwI0GqzIkeGrWqixIg4J7q3MQYDkSzS6AgQYemmkoRwSZxoSYLOCKoSkBXfQHGidkfUeBDjpSjYsQqZolYP3KSewWtWWLMdcXlzx3/Q5j02WkbW7poweejB4AVeXl+fY31jKPDwoWhqjDAjIVO2odoxFrUuZBXf8bDmgHRWsDbPkZFdKTg5lyV/SUWXPAaXKJl6sD3e7QNn05V4cLbJ2tCcDPvVisKExeBjRc6u6AvmJld1/xuRPshb3gYwO8jE0kBGt2etZQN0EQgb3Khi8gMy9jdKop2fK3CjND+byzYE/1X/EnDphE7jpyu9x6SnHSaJOoY+pWHQSvHfZALler+/PEvJPQEWuUKduD53tCkggHve9jbvOtnF7bHEPAiyZ12EEGlNyGGoZxOyOhXM6ieNSZVgWyrrOnXJk1hjpDiF0fr+6ocM1YU4Gkk06Bjxy53W9NIUd+Uctb4gZ6Ydw3rhCmb7yYRCLLsoHXXdqLOt8T7XDaH6/gv93xMTFI4JZ6IjhpuAGMXqsTeIYg3mGMgYBVIUBAUdYfT96WE9mrrvmYvZtdsEmrayrsB5d0W+pxbB3JvW1p7F9b531/HAvxrrkeN+X2vYqb2CiMufvdAYByWmZpQJYPMa37RNa+mVK79n80pBhDVMBr2gkPjGjmxZyafk7h2SHpaVP6v7y0E/E1+ijkgedaxb5FcuGTyDgDx0mOzcsjGLoorb3z7OMtBtFnu03brfjHCyWt8v1Erz/B7aIIi0=
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -23,13 +23,13 @@ import Translate from "@docusaurus/Translate";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"Delete Organization Domain"}
+  children={"Delete Domain"}
 >
 </Heading>
 
 <MethodEndpoint
   method={"delete"}
-  path={"/organizations/{organization_id}/domains/{domain_id}"}
+  path={"/organizations/domains/{domain_id}"}
   context={"endpoint"}
 >
   
@@ -37,7 +37,7 @@ import Translate from "@docusaurus/Translate";
 
 
 
-Delete a domain from an organization.
+Delete a domain.
 
 <Heading
   id={"request"}

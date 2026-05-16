@@ -43,21 +43,12 @@ from ee.src.services.organization_service import (
     transfer_organization_ownership as transfer_ownership_service,
 )
 from ee.src.services.commoners import create_organization_for_user
-from ee.src.services.organization_service import OrganizationProvidersService
-from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.core.organizations.types import (
-    OrganizationDomainCreate,
-    OrganizationProviderCreate,
-    OrganizationProviderUpdate,
     OrganizationUpdate as OrganizationUpdateDTO,
 )
 from ee.src.core.organizations.exceptions import (
     OrganizationSlugConflictError,
     OrganizationCreationNotAllowedError,
-)
-
-from ee.src.services.organization_service import (
-    OrganizationDomainsService,
 )
 
 
@@ -67,12 +58,12 @@ log = get_module_logger(__name__)
 
 
 @router.get(
-    "/{organization_id}/",
+    "/{organization_id}",
     operation_id="fetch_ee_organization_details",
 )
 async def fetch_organization_details(
-    organization_id: str,
     request: Request,
+    organization_id: str,
 ):
     """Get an organization's details.
 
@@ -153,19 +144,19 @@ async def fetch_organization_details(
 
 
 @router.put(
-    "/{organization_id}/",
+    "/{organization_id}",
     operation_id="update_organization",
     response_model=Organization,
 )
 @router.patch(
-    "/{organization_id}/",
+    "/{organization_id}",
     operation_id="patch_organization",
     response_model=Organization,
 )
 async def update_organization(
+    request: Request,
     organization_id: str,
     payload: OrganizationUpdate,
-    request: Request,
 ):
     if (
         not payload.slug
@@ -238,9 +229,9 @@ async def update_organization(
     response_model=WorkspaceResponse,
 )
 async def create_workspace(
+    request: Request,
     organization_id: str,
     payload: CreateWorkspace,
-    request: Request,
 ) -> WorkspaceResponse:
     try:
         user_org_workspace_data: dict = await get_user_org_and_workspace_id(
@@ -277,15 +268,15 @@ async def create_workspace(
 
 
 @router.put(
-    "/{organization_id}/workspaces/{workspace_id}/",
+    "/{organization_id}/workspaces/{workspace_id}",
     operation_id="update_workspace",
     response_model=WorkspaceResponse,
 )
 async def update_workspace(
+    request: Request,
     organization_id: str,
     workspace_id: str,
     payload: UpdateWorkspace,
-    request: Request,
 ) -> WorkspaceResponse:
     try:
         user_org_workspace_data: dict = await get_user_org_and_workspace_id(
@@ -327,9 +318,9 @@ async def update_workspace(
     operation_id="transfer_organization_ownership",
 )
 async def transfer_organization_ownership(
+    request: Request,
     organization_id: str,
     new_owner_id: str,
-    request: Request,
 ):
     """Transfer organization ownership to another member."""
     try:
@@ -386,8 +377,8 @@ async def transfer_organization_ownership(
     operation_id="create_organization",
 )
 async def create_organization(
-    payload: CreateOrganizationPayload,
     request: Request,
+    payload: CreateOrganizationPayload,
 ):
     """Create a new organization."""
     try:
@@ -431,12 +422,12 @@ async def create_organization(
 
 
 @router.delete(
-    "/{organization_id}/",
+    "/{organization_id}",
     operation_id="delete_organization",
 )
 async def delete_organization(
-    organization_id: str,
     request: Request,
+    organization_id: str,
 ):
     """Delete an organization (owner only)."""
     try:
@@ -485,510 +476,4 @@ async def delete_organization(
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred while deleting the organization.",
-        )
-
-
-# ============================================================================
-# Domain Verification Endpoints
-# ============================================================================
-
-
-@router.get(
-    "/{organization_id}/domains/",
-    operation_id="list_organization_domains",
-)
-async def list_organization_domains(
-    organization_id: str,
-    request: Request,
-):
-    """List all domains for an organization."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "You do not have access to this organization"},
-                status_code=403,
-            )
-
-        domains_dao = OrganizationDomainsDAO()
-        domains = await domains_dao.list_by_organization(
-            organization_id=str(organization_id)
-        )
-
-        return [
-            {
-                "id": str(domain.id),
-                "slug": domain.slug,
-                "organization_id": str(domain.organization_id),
-                "flags": domain.flags,
-                "created_at": domain.created_at.isoformat()
-                if domain.created_at
-                else None,
-                "updated_at": domain.updated_at.isoformat()
-                if domain.updated_at
-                else None,
-            }
-            for domain in domains
-        ]
-
-    except Exception:
-        log.error(
-            "Unexpected error while listing organization domains",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while listing organization domains.",
-        )
-
-
-@router.post(
-    "/{organization_id}/domains/",
-    operation_id="create_organization_domain",
-)
-async def create_organization_domain(
-    organization_id: str,
-    request: Request,
-    domain: str,
-):
-    """Add a new domain to an organization."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id, check_owner=True
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "Only organization owners can add domains"},
-                status_code=403,
-            )
-
-        domain_service = OrganizationDomainsService()
-        created_domain = await domain_service.create_domain(
-            organization_id=organization_id,
-            payload=OrganizationDomainCreate(
-                slug=domain,
-                organization_id=UUID(organization_id),
-            ),
-            user_id=str(request.state.user_id),
-        )
-
-        return {
-            "id": str(created_domain.id),
-            "slug": created_domain.slug,
-            "organization_id": str(created_domain.organization_id),
-            "flags": created_domain.flags,
-            "created_at": created_domain.created_at.isoformat()
-            if created_domain.created_at
-            else None,
-            "updated_at": created_domain.updated_at.isoformat()
-            if created_domain.updated_at
-            else None,
-        }
-
-    except Exception:
-        log.error(
-            "Unexpected error while creating organization domain",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while creating the organization domain.",
-        )
-
-
-@router.get(
-    "/{organization_id}/domains/{domain_id}",
-    operation_id="get_organization_domain",
-)
-async def get_organization_domain(
-    organization_id: str,
-    domain_id: str,
-    request: Request,
-):
-    """Get a single domain by ID."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "You do not have access to this organization"},
-                status_code=403,
-            )
-
-        domains_dao = OrganizationDomainsDAO()
-        domain = await domains_dao.get_by_id(
-            domain_id=domain_id, organization_id=organization_id
-        )
-
-        if not domain:
-            return JSONResponse(
-                {"detail": "Domain not found"},
-                status_code=404,
-            )
-
-        return {
-            "id": str(domain.id),
-            "slug": domain.slug,
-            "organization_id": str(domain.organization_id),
-            "flags": domain.flags,
-            "created_at": domain.created_at.isoformat() if domain.created_at else None,
-            "updated_at": domain.updated_at.isoformat() if domain.updated_at else None,
-        }
-
-    except Exception:
-        log.error(
-            "Unexpected error while fetching organization domain",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while fetching the organization domain.",
-        )
-
-
-@router.delete(
-    "/{organization_id}/domains/{domain_id}",
-    operation_id="delete_organization_domain",
-)
-async def delete_organization_domain(
-    organization_id: str,
-    domain_id: str,
-    request: Request,
-):
-    """Delete a domain from an organization."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id, check_owner=True
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "Only organization owners can delete domains"},
-                status_code=403,
-            )
-
-        # TODO: Implement delete method in DAO
-        # domains_dao = OrganizationDomainsDAO()
-        # await domains_dao.delete(UUID(domain_id))
-
-        return JSONResponse(
-            {"detail": "Domain deleted successfully"},
-            status_code=200,
-        )
-
-    except Exception:
-        log.error(
-            "Unexpected error while deleting organization domain",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while deleting the organization domain.",
-        )
-
-
-@router.post(
-    "/{organization_id}/domains/{domain_id}/verify",
-    operation_id="verify_organization_domain",
-)
-async def verify_organization_domain(
-    organization_id: str,
-    domain_id: str,
-    request: Request,
-):
-    """Verify a domain (marks it as verified)."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id, check_owner=True
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "Only organization owners can verify domains"},
-                status_code=403,
-            )
-
-        domain_service = OrganizationDomainsService()
-        verified_domain = await domain_service.verify_domain(
-            organization_id=organization_id,
-            domain_id=domain_id,
-            user_id=str(request.state.user_id),
-        )
-
-        if not verified_domain:
-            return JSONResponse(
-                {"detail": "Domain not found"},
-                status_code=404,
-            )
-
-        return {
-            "id": str(verified_domain.id),
-            "slug": verified_domain.slug,
-            "organization_id": str(verified_domain.organization_id),
-            "flags": verified_domain.flags,
-            "created_at": verified_domain.created_at.isoformat()
-            if verified_domain.created_at
-            else None,
-            "updated_at": verified_domain.updated_at.isoformat()
-            if verified_domain.updated_at
-            else None,
-        }
-
-    except Exception:
-        log.error(
-            "Unexpected error while verifying organization domain",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while verifying the organization domain.",
-        )
-
-
-# ============================================================================
-# SSO/OIDC Provider Endpoints
-# ============================================================================
-
-
-@router.get(
-    "/{organization_id}/providers/",
-    operation_id="list_organization_providers",
-)
-async def list_organization_providers(
-    organization_id: str,
-    request: Request,
-):
-    """List all SSO providers for an organization."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "You do not have access to this organization"},
-                status_code=403,
-            )
-
-        provider_service = OrganizationProvidersService()
-        return await provider_service.list_providers(organization_id)
-
-    except Exception:
-        log.error(
-            "Unexpected error while listing organization providers",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while listing the organization providers.",
-        )
-
-
-@router.post(
-    "/{organization_id}/providers/",
-    operation_id="create_organization_provider",
-)
-async def create_organization_provider(
-    organization_id: str,
-    request: Request,
-    payload: dict,
-):
-    """Add a new SSO provider to an organization."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id, check_owner=True
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "Only organization owners can add SSO providers"},
-                status_code=403,
-            )
-
-        provider_service = OrganizationProvidersService()
-        provider_create = OrganizationProviderCreate(
-            slug=payload.get("slug"),
-            organization_id=UUID(organization_id),
-            name=payload.get("name"),
-            description=payload.get("description"),
-            settings=payload.get("settings"),
-            flags=payload.get("flags"),
-            tags=payload.get("tags"),
-            meta=payload.get("meta"),
-        )
-        created_provider = await provider_service.create_provider(
-            organization_id=organization_id,
-            payload=provider_create,
-            user_id=str(request.state.user_id),
-        )
-
-        return created_provider
-
-    except Exception:
-        log.error(
-            "Unexpected error while creating organization provider",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while creating the organization provider.",
-        )
-
-
-@router.get(
-    "/{organization_id}/providers/{provider_id}",
-    operation_id="get_organization_provider",
-)
-async def get_organization_provider(
-    organization_id: str,
-    provider_id: str,
-    request: Request,
-):
-    """Get a single SSO provider by ID."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "You do not have access to this organization"},
-                status_code=403,
-            )
-
-        provider_service = OrganizationProvidersService()
-        return await provider_service.get_provider(
-            organization_id=organization_id,
-            provider_id=provider_id,
-        )
-
-    except Exception:
-        log.error(
-            "Unexpected error while fetching organization provider",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while fetching the organization provider.",
-        )
-
-
-@router.patch(
-    "/{organization_id}/providers/{provider_id}",
-    operation_id="update_organization_provider",
-)
-async def update_organization_provider(
-    organization_id: str,
-    provider_id: str,
-    request: Request,
-    payload: dict,
-):
-    """Update an SSO provider."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id, check_owner=True
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "Only organization owners can update SSO providers"},
-                status_code=403,
-            )
-
-        provider_service = OrganizationProvidersService()
-        provider_update = OrganizationProviderUpdate(
-            name=payload.get("name"),
-            description=payload.get("description"),
-            settings=payload.get("settings"),
-            flags=payload.get("flags"),
-            tags=payload.get("tags"),
-            meta=payload.get("meta"),
-        )
-        updated_provider = await provider_service.update_provider(
-            organization_id=organization_id,
-            provider_id=provider_id,
-            payload=provider_update,
-            user_id=str(request.state.user_id),
-        )
-
-        return updated_provider
-
-    except Exception:
-        log.error(
-            "Unexpected error while updating organization provider",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while updating the organization provider.",
-        )
-
-
-@router.delete(
-    "/{organization_id}/providers/{provider_id}",
-    operation_id="delete_organization_provider",
-)
-async def delete_organization_provider(
-    organization_id: str,
-    provider_id: str,
-    request: Request,
-):
-    """Delete an SSO provider from an organization."""
-    try:
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id, check_owner=True
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "Only organization owners can delete SSO providers"},
-                status_code=403,
-            )
-
-        provider_service = OrganizationProvidersService()
-        await provider_service.delete_provider(
-            organization_id=organization_id,
-            provider_id=provider_id,
-            user_id=str(request.state.user_id),
-        )
-
-        return JSONResponse(
-            {"detail": "Provider deleted successfully"},
-            status_code=200,
-        )
-
-    except Exception:
-        log.error(
-            "Unexpected error while deleting organization provider",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while deleting the organization provider.",
         )

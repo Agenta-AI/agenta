@@ -9,10 +9,21 @@ from .simple_evaluator import SimpleEvaluator
 
 
 class SimpleEvaluatorResponse(UniversalBaseModel):
+    """
+    Envelope for a single simple evaluator.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    evaluator: typing.Optional[SimpleEvaluator] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    1 when an evaluator is returned, 0 otherwise.
+    """
+    
+    evaluator: typing.Optional[SimpleEvaluator] = pydantic.Field(default=None)
+    """
+    The flat evaluator record with latest variant and revision merged into `data`.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

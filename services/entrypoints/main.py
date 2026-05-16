@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.types import ASGIApp
+from starlette.middleware.base import BaseHTTPMiddleware
 
 import agenta as ag
 from agenta.sdk.utils.logging import get_module_logger
@@ -12,6 +14,8 @@ from agenta.sdk.decorators.routing import (
 )
 from agenta.sdk.decorators.running import invoke_workflow, inspect_workflow
 from agenta.sdk.models.workflows import WorkflowInvokeRequest, WorkflowInspectRequest
+from agenta.sdk.contexts.routing import RoutingContext, routing_context_manager
+from agenta.sdk.litellm.mocks import MOCKS
 from oss.src.managed import (
     builtin_auto_ai_critique_app,
     builtin_auto_contains_all_app,
@@ -44,6 +48,28 @@ from entrypoints.legacy import register_legacy_routes
 ag.init()
 
 log = get_module_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# MockMiddleware — honors ?mock=<name> for credit-free uptime probes
+# ---------------------------------------------------------------------------
+
+
+class MockMiddleware(BaseHTTPMiddleware):
+    """Short-circuit litellm calls to a canned response when `?mock=<name>` is
+    present and matches a known mock. Used by hyperping to probe the invoke
+    pipeline without consuming LLM credits."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
+
+    async def dispatch(self, request: Request, call_next):
+        mock = request.query_params.get("mock")
+        if mock and mock in MOCKS:
+            with routing_context_manager(RoutingContext(mock=mock)):
+                return await call_next(request)
+        return await call_next(request)
+
 
 # ---------------------------------------------------------------------------
 # /services — dispatch endpoints (invoke/inspect by URI)
@@ -81,6 +107,9 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
 )
+
+
+app.add_middleware(MockMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

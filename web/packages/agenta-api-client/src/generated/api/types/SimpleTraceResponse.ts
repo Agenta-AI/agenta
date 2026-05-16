@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Response from a single-trace create/fetch/edit.
+ */
 export interface SimpleTraceResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` if the trace was returned, `0` otherwise. */
     count?: number | undefined;
+    /** The created or fetched trace, including server-assigned `trace_id` and `span_id`. */
     trace?: (AgentaApi.SimpleTrace | null) | undefined;
 }

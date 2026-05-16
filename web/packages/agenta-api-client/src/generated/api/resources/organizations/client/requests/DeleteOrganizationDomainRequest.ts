@@ -3,11 +3,9 @@
 /**
  * @example
  *     {
- *         organization_id: "organization_id",
  *         domain_id: "domain_id"
  *     }
  */
 export interface DeleteOrganizationDomainRequest {
-    organization_id: string;
     domain_id: string;
 }

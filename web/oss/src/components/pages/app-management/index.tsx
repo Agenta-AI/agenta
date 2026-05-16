@@ -1,6 +1,6 @@
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -9,35 +9,20 @@ import dynamic from "next/dynamic"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {welcomeCardsDismissedAtom} from "@/oss/components/pages/app-management/components/WelcomeCardsSection/assets/store/welcomeCards"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {type LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {
     onboardingWidgetActivationAtom,
-    recordWidgetEventAtom,
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
 import {StyleProps} from "@/oss/lib/Types"
-import {waitForAppToStart} from "@/oss/services/api"
-import {createAppWithTemplate} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
-import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
-import {useProfileData} from "@/oss/state/profile"
-import {getProjectValues} from "@/oss/state/project"
 
-import {timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import WelcomeCardsSection from "./components/WelcomeCardsSection"
-import {invalidateAppManagementWorkflowQueries} from "./store"
 
-const CreateAppStatusModal: any = dynamic(
-    () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
-)
-const AddAppFromTemplatedModal: any = dynamic(
-    () => import("@/oss/components/pages/app-management/modals/AddAppFromTemplateModal"),
+const CreateAppTypeModal: any = dynamic(
+    () => import("@/oss/components/pages/app-management/modals/CreateAppTypeModal"),
 )
 
 const SetupTracingModal: any = dynamic(
@@ -49,107 +34,42 @@ const ObservabilityDashboardSection: any = dynamic(
 )
 
 const AppManagement: React.FC = () => {
-    const statusData = useAtomValue(appCreationStatusAtom)
-    const setStatusData = useSetAtom(appCreationStatusAtom)
-    const resetAppCreation = useSetAtom(resetAppCreationAtom)
-    const [statusModalOpen, setStatusModalOpen] = useState(false)
     const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
-    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
     const welcomeCardsDismissed = useAtomValue(welcomeCardsDismissedAtom)
-    const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const {user} = useProfileData()
-    const [templateKey, setTemplateKey] = useState<string | undefined>(undefined)
-    const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
+    const [isCreateAppTypeModalOpen, setIsCreateAppTypeModalOpen] = useState(false)
     const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
-    const [appName, setAppName] = useState("")
-    const [appSlug, setAppSlug] = useState<string | undefined>(undefined)
-    const {error, mutate} = useAppsData()
+    const {error} = useAppsData()
 
-    const {secrets} = useVaultSecret()
+    // Pre-fetch the catalog templates on page mount so the welcome-card
+    // "Create a prompt" shortcut and the apps-table dropdown both have
+    // data ready. This avoids the first-click latency cliff when the
+    // factory falls back to a synchronous fetch.
+    useAtomValue(appTemplatesQueryAtom)
 
-    const handleTemplateCardClick = async (
-        templateId: string,
-        submittedAppName: string,
-        submittedAppSlug?: string,
-    ) => {
-        setAppName(submittedAppName)
-        setAppSlug(submittedAppSlug)
-        setTemplateKey(templateId)
-        setIsAddAppFromTemplatedModal(false)
-        setStatusModalOpen(true)
-        resetAppCreation()
-
-        // attempt to create and start the template, notify user of the progress
-        const apiKeys = secrets
-        await createAppWithTemplate({
-            appName: submittedAppName,
-            slug: submittedAppSlug,
-            templateKey: templateId,
-            providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
-            onStatusChange: async (status, details, appId) => {
-                if (["error", "bad_request", "timeout", "success"].includes(status))
-                    if (status === "success") {
-                        await mutate?.()
-                        await invalidateAppManagementWorkflowQueries()
-                        posthog?.capture?.("app_deployment", {
-                            properties: {
-                                app_id: appId,
-                                environment: "UI",
-                                deployed_by: user?.id,
-                            },
-                        })
-                        recordWidgetEvent("prompt_created")
-                    }
-
-                setStatusData((prev) => ({...prev, status, details, appId: appId || prev.appId}))
-            },
-        })
-    }
+    /**
+     * "Create a prompt" welcome-card shortcut: opens the CreateAppTypeModal
+     * so the user explicitly picks Chat or Completion before we mint the
+     * ephemeral app. The modal handles drawer navigation; we only own
+     * opening the modal here.
+     */
+    const handleCreatePrompt = useCallback(() => {
+        setIsCreateAppTypeModalOpen(true)
+    }, [])
 
     useEffect(() => {
         if (onboardingWidgetActivation !== "open-create-prompt") return
-        setIsAddAppFromTemplatedModal(true)
+        handleCreatePrompt()
         setOnboardingWidgetActivation(null)
-    }, [onboardingWidgetActivation, setOnboardingWidgetActivation])
+    }, [handleCreatePrompt, onboardingWidgetActivation, setOnboardingWidgetActivation])
 
     useEffect(() => {
         if (onboardingWidgetActivation !== "tracing-snippet") return
         setIsSetupTracingModal(true)
         setOnboardingWidgetActivation(null)
     }, [onboardingWidgetActivation, setOnboardingWidgetActivation])
-
-    const onErrorRetry = async () => {
-        if (statusData.appId) {
-            setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
-            const {projectId} = getProjectValues()
-            await workflowMolecule.lifecycle
-                .archive(statusData.appId, {projectId})
-                .catch(console.error)
-            await mutate?.()
-            await invalidateAppManagementWorkflowQueries()
-        }
-        handleTemplateCardClick(templateKey as string, appName, appSlug)
-    }
-
-    const onTimeoutRetry = async () => {
-        if (!statusData.appId) return
-        setStatusData((prev) => ({...prev, status: "configuring_app", details: undefined}))
-        try {
-            await waitForAppToStart({appId: statusData.appId, timeout})
-        } catch (error: any) {
-            if (error.message === "timeout") {
-                setStatusData((prev) => ({...prev, status: "timeout", details: undefined}))
-            } else {
-                setStatusData((prev) => ({...prev, status: "error", details: error}))
-            }
-        }
-        setStatusData((prev) => ({...prev, status: "success", details: undefined}))
-        await mutate?.()
-        await invalidateAppManagementWorkflowQueries()
-    }
 
     return (
         <>
@@ -165,15 +85,13 @@ const AppManagement: React.FC = () => {
                         )}
 
                         <WelcomeCardsSection
-                            onCreatePrompt={() => setIsAddAppFromTemplatedModal(true)}
+                            onCreatePrompt={handleCreatePrompt}
                             onSetupTracing={() => setIsSetupTracingModal(true)}
                         />
 
                         <ObservabilityDashboardSection />
 
-                        <ApplicationManagementSection
-                            setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
-                        />
+                        <ApplicationManagementSection />
 
                         <HelpAndSupportSection />
                     </>
@@ -185,23 +103,9 @@ const AppManagement: React.FC = () => {
                 onCancel={() => setIsSetupTracingModal(false)}
             />
 
-            <AddAppFromTemplatedModal
-                open={isAddAppFromTemplatedModal}
-                onCancel={() => setIsAddAppFromTemplatedModal(false)}
-                handleTemplateCardClick={handleTemplateCardClick}
-            />
-
-            <CreateAppStatusModal
-                open={statusModalOpen}
-                loading={false}
-                onErrorRetry={onErrorRetry}
-                onTimeoutRetry={onTimeoutRetry}
-                onCancel={() => {
-                    setStatusModalOpen(false)
-                    resetAppCreation()
-                }}
-                statusData={statusData}
-                appName={appName}
+            <CreateAppTypeModal
+                open={isCreateAppTypeModalOpen}
+                onCancel={() => setIsCreateAppTypeModalOpen(false)}
             />
         </>
     )

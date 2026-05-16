@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface SpansResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Total number of matching spans in the window. */
     count?: number | undefined;
+    /** Flat list of matching spans. */
     spans?: (AgentaApi.SpanOutput[] | null) | undefined;
 }

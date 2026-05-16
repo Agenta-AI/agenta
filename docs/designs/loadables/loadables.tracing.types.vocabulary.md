@@ -143,25 +143,26 @@ Legacy spans payload (`OTelFlatSpans`):
 
 | Endpoint | Contract |
 |---|---|
-| `POST /traces/ingest` `*` | `TraceIdsResponse` (request: `traces: Traces`) |
-| `POST /traces/` `*` | `TraceIdResponse` (request: `trace: Trace`) |
+| `POST /traces/` | `TraceIdResponse` (request: `trace: Trace`) |
 | `GET /traces/{trace_id}` | `TraceResponse` (`trace: Trace`) |
+| `PUT /traces/{trace_id}` | `TraceIdResponse` (request: `trace: Trace`) |
+| `DELETE /traces/{trace_id}` | `TraceIdResponse` |
 | `GET /traces/?trace_ids=...` | `TracesResponse` (`traces: Traces`) |
 | `POST /traces/query` | `TracesResponse` (`traces: Traces`) |
-
-`*` `/` is synchronous, `/ingest` is asynchronous.
+| `POST /traces/ingest` | **Deprecated.** Use OTLP (`POST /otlp/v1/traces`) for batch ingestion or `POST /traces/` for single create. |
 
 #### 3.1.2 Spans (`/spans/*`)
 
 | Endpoint | Contract |
 |---|---|
-| `POST /spans/ingest` `*` | `LinksResponse` (request: `spans: Spans`) |
-| `POST /spans/` `*` | `LinkResponse` (request: `span: Span`) |
 | `GET /spans/{trace_id}/{span_id}` | `SpanResponse` (`span: Span`) |
 | `GET /spans/?trace_ids=...&span_ids=...` | `SpansResponse` (`spans: Spans`) |
 | `POST /spans/query` | `SpansResponse` (`spans: Spans`) |
+| `POST /spans/analytics/query` | `AnalyticsResponse` |
+| `POST /spans/sessions/query` | `SessionIdsResponse` |
+| `POST /spans/users/query` | `UserIdsResponse` |
 
-`*` `/` is synchronous, `/ingest` is asynchronous.
+The only canonical ingestion paths are OTLP (`POST /otlp/v1/traces`) and per-trace create (`POST /traces/`). `POST /spans/ingest` is deprecated under the legacy `/tracing/spans/ingest`; there is no flat `/spans/ingest`.
 
 ### 3.2 Existing and Legacy Endpoint Groups
 
@@ -172,26 +173,22 @@ Legacy spans payload (`OTelFlatSpans`):
 | `GET /otlp/v1/traces` | `CollectStatusResponse` |
 | `POST /otlp/v1/traces` | OTLP protobuf `ExportTraceServiceResponse` bytes |
 
-#### 3.2.2 Tracing (non-deprecated subset)
+#### 3.2.2 Tracing (`/tracing/*`) — fully deprecated
 
-| Endpoint | Contract |
+The entire `/tracing/*` mount is deprecated in favor of the flat `/spans/*` and `/traces/*` surfaces. Routes remain functional but are tagged `Deprecated` and excluded from SDK regeneration.
+
+| Endpoint | Replacement |
 |---|---|
-| `POST /tracing/analytics/query` | `AnalyticsResponse` |
-| `POST /tracing/sessions/query` | `SessionIdsResponse` |
-| `POST /tracing/users/query` | `UserIdsResponse` |
-
-#### 3.2.3 Legacy/Deprecated observability (everything else)
-
-| Endpoint(s) | Legacy/deprecated contract | Notes |
-|---|---|---|
-| `POST /tracing/spans/query` and `/tracing/spans/query` | `OTelTracingResponse` (polymorphic: `spans` or `traces`) | Kept as legacy/deprecated in this vocabulary. |
-| `POST /tracing/spans/ingest` and `/tracing/spans/ingest` | `OTelLinksResponse` | Legacy ingest shape. |
-| `POST /tracing/spans/analytics` and `/tracing/spans/analytics` | `OldAnalyticsResponse` | Legacy analytics shape. |
-| `POST /tracing/traces/` and `/tracing/traces/` | `OTelLinksResponse` | Legacy trace upsert shape. |
-| `GET /tracing/traces/{trace_id}` and `/tracing/traces/{trace_id}` | `OTelTracingResponse.traces` map | Legacy trace map response shape. |
-| `PUT /tracing/traces/{trace_id}` and `/tracing/traces/{trace_id}` | `OTelLinksResponse` | Legacy trace edit shape. |
-| `DELETE /tracing/traces/{trace_id}` and `/tracing/traces/{trace_id}` | `OTelLinksResponse` | Legacy trace delete shape. |
-| `/tracing/*` family | Deprecated alias | Mounted for compatibility and hidden from schema. |
+| `POST /tracing/analytics/query` | `POST /spans/analytics/query` |
+| `POST /tracing/sessions/query` | `POST /spans/sessions/query` |
+| `POST /tracing/users/query` | `POST /spans/users/query` |
+| `POST /tracing/spans/query` | `POST /spans/query` |
+| `POST /tracing/spans/ingest` | OTLP (`POST /otlp/v1/traces`) or `POST /traces/` |
+| `POST /tracing/spans/analytics` | `POST /spans/analytics/query` (legacy analytics shape, `OldAnalyticsResponse`, fixed metrics) |
+| `POST /tracing/traces/` | `POST /traces/` |
+| `GET /tracing/traces/{trace_id}` | `GET /traces/{trace_id}` |
+| `PUT /tracing/traces/{trace_id}` | `PUT /traces/{trace_id}` |
+| `DELETE /tracing/traces/{trace_id}` | `DELETE /traces/{trace_id}` |
 
 ### 3.3 Gap
 
@@ -337,50 +334,47 @@ Legacy spans payload (`OTelFlatSpans`):
 | `GET` | `/otlp/v1/traces` | none | `CollectStatusResponse` |
 | `POST` | `/otlp/v1/traces` | OTLP protobuf stream (`application/x-protobuf`) | OTLP protobuf `ExportTraceServiceResponse` bytes (`application/x-protobuf`) |
 
-### 10.2 Existing tracing endpoints (`/tracing/*`)
+### 10.2 Legacy `/tracing/*` mount (fully deprecated)
+
+The entire mount is tagged `Deprecated` and excluded from SDK regeneration. Routes still respond. Replacements live under `/spans/*` and `/traces/*`.
+
+| Method | Path | Request type | Response type | Replacement |
+| --- | --- | --- | --- | --- |
+| `POST` | `/tracing/spans/ingest` | `OTelTracingRequest` | `OTelLinksResponse` | OTLP `POST /otlp/v1/traces` or `POST /traces/` |
+| `POST` | `/tracing/spans/query` | `TracingQuery` (params/body) | `OTelTracingResponse` | `POST /spans/query` |
+| `POST` | `/tracing/spans/analytics` | `TracingQuery` | `OldAnalyticsResponse` | `POST /spans/analytics/query` (legacy fixed-metric shape replaced by spec-based) |
+| `POST` | `/tracing/analytics/query` | `TracingQuery + List[MetricSpec]` | `AnalyticsResponse` | `POST /spans/analytics/query` |
+| `POST` | `/tracing/traces/` | `OTelTracingRequest` | `OTelLinksResponse` | `POST /traces/` |
+| `GET` | `/tracing/traces/{trace_id}` | path `trace_id` | `OTelTracingResponse` | `GET /traces/{trace_id}` |
+| `PUT` | `/tracing/traces/{trace_id}` | `OTelTracingRequest` | `OTelLinksResponse` | `PUT /traces/{trace_id}` |
+| `DELETE` | `/tracing/traces/{trace_id}` | path `trace_id` | `OTelLinksResponse` | `DELETE /traces/{trace_id}` |
+| `POST` | `/tracing/sessions/query` | `SessionsQueryRequest` | `SessionIdsResponse` | `POST /spans/sessions/query` |
+| `POST` | `/tracing/users/query` | `UsersQueryRequest` | `UserIdsResponse` | `POST /spans/users/query` |
+
+### 10.3 Canonical traces endpoints (`/traces/*`)
+
+| Method | Path | Request type | Response type | Notes |
+| --- | --- | --- | --- | --- |
+| `POST` | `/traces/` | `TraceRequest` | `TraceIdResponse` | Synchronous create |
+| `GET` | `/traces/{trace_id}` | path `trace_id` | `TraceResponse` | |
+| `PUT` | `/traces/{trace_id}` | `TraceRequest` | `TraceIdResponse` | |
+| `DELETE` | `/traces/{trace_id}` | path `trace_id` | `TraceIdResponse` | |
+| `GET` | `/traces/` | query `trace_id[]` and/or `trace_ids` | `TracesResponse` | |
+| `POST` | `/traces/query` | `TracesQueryRequest` | `TracesResponse` | |
+| `POST` | `/traces/ingest` | `TracesRequest` | `TraceIdsResponse` | **Deprecated.** Use OTLP or `POST /traces/`. |
+
+### 10.4 Canonical spans endpoints (`/spans/*`)
 
 | Method | Path | Request type | Response type |
-|---|---|---|---|
-| `POST` | `/tracing/spans/ingest` | `OTelTracingRequest` | `OTelLinksResponse` |
-| `POST` | `/tracing/spans/query` | `TracingQuery` (params/body) | `OTelTracingResponse` |
-| `POST` | `/tracing/spans/analytics` | `TracingQuery` | `OldAnalyticsResponse` |
-| `POST` | `/tracing/analytics/query` | `TracingQuery + List[MetricSpec]` | `AnalyticsResponse` |
-| `POST` | `/tracing/traces/` | `OTelTracingRequest` | `OTelLinksResponse` |
-| `GET` | `/tracing/traces/{trace_id}` | path `trace_id` | `OTelTracingResponse` |
-| `PUT` | `/tracing/traces/{trace_id}` | `OTelTracingRequest` | `OTelLinksResponse` |
-| `DELETE` | `/tracing/traces/{trace_id}` | path `trace_id` | `OTelLinksResponse` |
-| `POST` | `/tracing/sessions/query` | `SessionsQueryRequest` | `SessionIdsResponse` |
-| `POST` | `/tracing/users/query` | `UsersQueryRequest` | `UserIdsResponse` |
-
-### 10.3 Legacy tracing alias (`/tracing/*`)
-
-| Alias family | Status | Notes |
-|---|---|---|
-| `/tracing/*` | Deprecated | Alias of `/tracing/*`, retained for compatibility and hidden from schema. |
-
-### 10.4 New traces endpoints (`/traces/*`)
-
-| Method | Path | Request type | Response type |
-|---|---|---|---|
-| `POST` | `/traces/ingest` `*` | `TracesRequest` | `TraceIdsResponse` |
-| `POST` | `/traces/` `*` | `TraceRequest` | `TraceIdResponse` |
-| `GET` | `/traces/{trace_id}` | path `trace_id` | `TraceResponse` |
-| `GET` | `/traces/` | query `trace_id[]` and/or `trace_ids` | `TracesResponse` |
-| `POST` | `/traces/query` | `TracesQueryRequest` | `TracesResponse` |
-
-`*` `/` is synchronous, `/ingest` is asynchronous.
-
-### 10.5 New spans endpoints (`/spans/*`)
-
-| Method | Path | Request type | Response type |
-|---|---|---|---|
-| `POST` | `/spans/ingest` `*` | `SpansRequest` | `LinksResponse` |
-| `POST` | `/spans/` `*` | `SpanRequest` | `LinkResponse` |
+| --- | --- | --- | --- |
 | `GET` | `/spans/{trace_id}/{span_id}` | path `trace_id`, `span_id` | `SpanResponse` |
 | `GET` | `/spans/` | query `trace_id[]` and/or `trace_ids` and/or `span_id[]` and/or `span_ids` | `SpansResponse` |
 | `POST` | `/spans/query` | `SpansQueryRequest` | `SpansResponse` |
+| `POST` | `/spans/analytics/query` | `TracingQuery + List[MetricSpec]` (params/body) | `AnalyticsResponse` |
+| `POST` | `/spans/sessions/query` | `SessionsQueryRequest` | `SessionIdsResponse` |
+| `POST` | `/spans/users/query` | `UsersQueryRequest` | `UserIdsResponse` |
 
-`*` `/` is synchronous, `/ingest` is asynchronous.
+There is no `/spans/ingest` and no `POST /spans/`. Span-level write endpoints were folded into trace-level operations and OTLP.
 
 ---
 

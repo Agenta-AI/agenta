@@ -15,6 +15,15 @@ const isBrowser = typeof window !== "undefined"
 
 export const traceIdAtom = atom<string | undefined>(undefined)
 
+// Tracks whether the current trace drawer was opened via URL (trace param).
+// Only URL-driven drawers should be closed by URL sync. Drawers opened
+// programmatically (e.g. from execution-result trace buttons inside the
+// WorkflowRevisionDrawer "+ New prompt" flow on /apps) must survive route
+// changes and URL syncs that don't natively support trace context — otherwise
+// `syncTraceStateFromUrl` strips `?span=...` while the drawer's tree-click
+// handler re-adds it, producing a tight URL change loop.
+let drawerOpenedViaUrl = false
+
 export const clearTraceDrawerState = () => {
     const store = getDefaultStore()
     const current = store.get(traceDrawerAtom)
@@ -26,6 +35,7 @@ export const clearTraceDrawerState = () => {
     store.set(traceIdAtom, undefined)
     store.set(selectedTraceIdAtom, "")
     store.set(selectedNodeAtom, "")
+    drawerOpenedViaUrl = false
 }
 
 export const syncTraceStateFromUrl = (nextUrl?: string) => {
@@ -41,6 +51,13 @@ export const syncTraceStateFromUrl = (nextUrl?: string) => {
         const currentDrawerState = store.get(traceDrawerAtom)
 
         if (!routeSupportsTrace) {
+            // Programmatic opens (drawer already open without being URL-driven)
+            // must survive on non-trace routes. Stripping `?span=...` while the
+            // drawer is open would race the tree-click `setSpanQueryParam` and
+            // loop indefinitely.
+            if (currentDrawerState.open && !drawerOpenedViaUrl) {
+                return
+            }
             if (traceParam || url.searchParams.has("span")) {
                 if (traceParam) {
                     url.searchParams.delete("trace")
@@ -53,13 +70,16 @@ export const syncTraceStateFromUrl = (nextUrl?: string) => {
                     console.error("Failed to remove unsupported trace query params:", error)
                 })
             }
-            if (currentTraceId !== undefined) {
+            if (currentDrawerState.open && drawerOpenedViaUrl) {
                 clearTraceDrawerState()
             }
             return
         }
 
         if (!traceParam) {
+            if (currentDrawerState.open && !drawerOpenedViaUrl) {
+                return
+            }
             if (currentTraceId !== undefined) {
                 clearTraceDrawerState()
             }
@@ -68,6 +88,12 @@ export const syncTraceStateFromUrl = (nextUrl?: string) => {
 
         if (currentDrawerState.open && currentTraceId === traceParam) {
             return
+        }
+
+        // The drawer is being opened by URL sync (rather than programmatically
+        // by a button handler that already set `drawerState.open = true`).
+        if (!currentDrawerState.open) {
+            drawerOpenedViaUrl = true
         }
 
         store.set(traceIdAtom, traceParam)
@@ -109,5 +135,8 @@ export const clearTraceQueryParam = () => {
 }
 
 export const clearTraceParamAtom = atom(null, (_get, _set) => {
+    // Reset the URL-driven flag so the next open (whether URL-driven or
+    // programmatic) starts from a clean state.
+    drawerOpenedViaUrl = false
     clearTraceQueryParam()
 })

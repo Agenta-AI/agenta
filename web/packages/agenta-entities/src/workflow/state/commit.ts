@@ -49,7 +49,9 @@ import {
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateWorkflowRevisionsByWorkflowCache,
+    invalidateWorkflowRevisionsByVariantCache,
     invalidateWorkflowVariantsCache,
+    primeWorkflowRevisionDetailCacheImperative,
     getFlatSourceData,
 } from "./store"
 
@@ -282,6 +284,19 @@ export const commitWorkflowRevisionAtom = atom(
 
             const newRevisionId = newWorkflow.id
 
+            // Prime the per-revision detail cache with the server response
+            // BEFORE invoking callbacks (which may router.push to the
+            // playground page). Without this, the playground mounts and
+            // queries the new revision via `workflowQueryAtomFamily`,
+            // which has to make a fresh network round-trip. On slower
+            // environments (preview deployments) the query is still pending
+            // by the time `displayedEntityIdsAtom` evaluates and SUB 4 in
+            // `playgroundSyncAtom` falls back to `revisions[0]` (the v0
+            // seed). Priming the cache here makes the query resolve
+            // synchronously with `initialData`, keeping the just-created
+            // revision selected through the navigation.
+            primeWorkflowRevisionDetailCacheImperative(newWorkflow)
+
             const result: WorkflowCommitResult = {
                 success: true,
                 revisionId,
@@ -448,6 +463,12 @@ export const createWorkflowVariantAtom = atom(
 
             const newRevisionId = newRevision.id
 
+            // Prime the per-revision detail cache before callbacks run —
+            // see the matching comment in `commitWorkflowRevisionAtom`.
+            // This covers the "commit as new variant" flow, which also
+            // triggers post-commit navigation to the new revision.
+            primeWorkflowRevisionDetailCacheImperative(newRevision)
+
             // 5. Invoke new revision callback (entity switch — must happen
             // before returning so the UI shows the correct entity)
             const commitResult: WorkflowCommitResult = {
@@ -573,6 +594,14 @@ export const createWorkflowFromEphemeralAtom = atom(
 
             const newRevisionId = newWorkflow.id
 
+            // Prime the per-revision detail cache before callbacks run —
+            // see the matching comment in `commitWorkflowRevisionAtom`.
+            // Critical for the evaluator-create + code-eval-create flows
+            // where the drawer wrapper router.pushes to the new revision's
+            // playground URL; without this prime the playground would fall
+            // back to the v0 seed revision on slower environments.
+            primeWorkflowRevisionDetailCacheImperative(newWorkflow)
+
             const result: WorkflowCommitResult = {
                 success: true,
                 revisionId,
@@ -669,6 +698,13 @@ export const archiveWorkflowRevisionAtom = atom(
             invalidateWorkflowsListCache()
             invalidateEvaluatorsListCache()
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+            // Variant-scoped revisions list backs the playground's per-variant
+            // revision selector dropdown. The workflow-scoped invalidation
+            // above doesn't reach it, so the deleted revision lingers in the
+            // dropdown until the next manual refetch.
+            if (variantId) {
+                invalidateWorkflowRevisionsByVariantCache(variantId)
+            }
             invalidateWorkflowCache(revisionId)
 
             if (_archiveCallbacks.onQueryInvalidate) {

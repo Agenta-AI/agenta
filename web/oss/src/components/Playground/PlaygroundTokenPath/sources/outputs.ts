@@ -14,6 +14,7 @@ import {useMemo} from "react"
 
 import type {RunnablePort} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import type {TokenPathSuggestion} from "@agenta/ui/editor"
 import {atom} from "jotai"
 import {useAtomValue} from "jotai"
@@ -63,6 +64,13 @@ export function useOutputsSource(upstreamEntityId: string | null): EnvelopeSourc
                 if (afterSlot.length === 0) {
                     const out: TokenPathSuggestion[] = []
                     for (const key of Object.keys(schemaMap)) {
+                        // Skip envelope-slot names — see the matching filter
+                        // in `useInputsSource` for the same reasoning. An
+                        // evaluator's output port keyed `outputs` would
+                        // otherwise produce `{{$.outputs.outputs}}`, which
+                        // is a self-referential path the runtime can't
+                        // resolve.
+                        if (KNOWN_ENVELOPE_SLOTS.has(key)) continue
                         if (!queryMatches(key, query)) continue
                         out.push({label: key, hint: "output"})
                     }

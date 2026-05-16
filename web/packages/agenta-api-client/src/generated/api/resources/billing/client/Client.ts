@@ -16,7 +16,7 @@ export declare namespace BillingClient {
 }
 
 /**
- * Subscription management, plans, usage, and Stripe billing (EE only).
+ * Subscription, plan, and usage endpoints for workspace billing.
  */
 export class BillingClient {
     protected readonly _options: NormalizedClientOptionsWithAuth<BillingClient.Options>;

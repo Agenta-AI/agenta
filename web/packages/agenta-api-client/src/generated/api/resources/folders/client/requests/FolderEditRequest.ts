@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface FolderEditRequest {
     folder_id: string;
+    /** Folder edit payload. `id` must match the path parameter. Only fields present in the payload are changed. */
     folder: AgentaApi.FolderEdit;
 }

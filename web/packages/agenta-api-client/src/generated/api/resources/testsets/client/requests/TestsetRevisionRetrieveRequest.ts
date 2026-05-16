@@ -7,10 +7,16 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface TestsetRevisionRetrieveRequest {
+    /** Testset reference. If only the testset is provided, the latest revision on its default variant is returned. */
     testset_ref?: AgentaApi.Reference | null;
+    /** Variant reference. Returns the latest revision on that variant. */
     testset_variant_ref?: AgentaApi.Reference | null;
+    /** Revision reference. Returns that specific revision. */
     testset_revision_ref?: AgentaApi.Reference | null;
+    /** Include the ordered list of testcase IDs. Defaults to true (opt-out). */
     include_testcase_ids?: boolean | null;
+    /** Include full testcase objects. Defaults to true (opt-out). Note: this opt-out default is the opposite of `/queries/revisions/retrieve`, where trace materialization is opt-in. */
     include_testcases?: boolean | null;
+    /** Windowing applied to the testcases list when materialized. */
     windowing?: AgentaApi.Windowing | null;
 }

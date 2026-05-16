@@ -9,3 +9,11 @@ packages:
   # keeps it out of `examples/*` (default glob doesn't match dot-prefixed dirs).
   - 'examples/*'
   - 'examples/.shared/*'
+allowBuilds:
+  '@swc/core': true
+  browser-tabs-lock: false
+  core-js: true
+  esbuild: true
+  protobufjs: false
+  sharp: true
+  unrs-resolver: true

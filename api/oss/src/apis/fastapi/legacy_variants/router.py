@@ -78,9 +78,9 @@ class LegacyVariantsRouter:
             "/configs/fetch",
             self.configs_fetch,
             methods=["POST"],
-            operation_id="configs_fetch",
             status_code=status.HTTP_200_OK,
             response_model=ConfigResponseModel,
+            deprecated=True,
         )
 
     async def _check_view_access(self, request: Request) -> None:

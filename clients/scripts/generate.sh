@@ -135,8 +135,69 @@ load_openapi() {
     exit 1
   fi
 
+  strip_endpoints_by_tag "${fern_dir}/openapi/openapi.json" "OpenTelemetry"
+  strip_endpoints_by_tag "${fern_dir}/openapi/openapi.json" "Admin"
+  strip_endpoints_by_tag "${fern_dir}/openapi/openapi.json" "Deprecated"
+  strip_endpoints_marked_deprecated "${fern_dir}/openapi/openapi.json"
+
   log "OpenAPI spec ready"
 
+}
+
+# Remove any operation tagged with the given tag so the generated clients
+# don't expose it. Used to strip "Deprecated", "Admin" (admin-only
+# endpoints), and "OpenTelemetry" (OTLP ingest endpoints not meant for
+# client SDKs).
+strip_endpoints_by_tag() {
+  local spec_file="$1"
+  local tag="$2"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "jq is not installed. Install it with: brew install jq or apt install jq" >&2
+    exit 1
+  fi
+
+  log "stripping endpoints tagged '${tag}' from ${spec_file}"
+  local tmp_file="${spec_file}.tmp"
+  jq --arg tag "${tag}" '
+    .paths |= with_entries(
+      .value |= with_entries(
+        select(
+          (.value | type) != "object"
+          or ((.value.tags // []) | index($tag) | not)
+        )
+      )
+    )
+    | .paths |= with_entries(select(.value | length > 0))
+  ' "${spec_file}" > "${tmp_file}"
+  mv "${tmp_file}" "${spec_file}"
+}
+
+# Remove any operation flagged with `deprecated: true` (separate from the
+# "Deprecated" tag-based pass above; a route can carry the flag without
+# the tag).
+strip_endpoints_marked_deprecated() {
+  local spec_file="$1"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "jq is not installed. Install it with: brew install jq or apt install jq" >&2
+    exit 1
+  fi
+
+  log "stripping endpoints with deprecated:true from ${spec_file}"
+  local tmp_file="${spec_file}.tmp"
+  jq '
+    .paths |= with_entries(
+      .value |= with_entries(
+        select(
+          (.value | type) != "object"
+          or (.value.deprecated != true)
+        )
+      )
+    )
+    | .paths |= with_entries(select(.value | length > 0))
+  ' "${spec_file}" > "${tmp_file}"
+  mv "${tmp_file}" "${spec_file}"
 }
 
 write_fern_config() {
@@ -294,7 +355,7 @@ module-name = "agenta_client"
 module-root = ""
 
 [build-system]
-requires = ["uv_build>=0.11.9,<0.12.0"]
+requires = ["uv_build>=0.11,<0.12"]
 build-backend = "uv_build"
 EOF
 

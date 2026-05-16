@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface WorkflowVariantCreateRequest {
+    /** Variant to create under an existing workflow. Requires `workflow_id` (the artifact) and a project-unique `slug`. */
     workflow_variant: AgentaApi.WorkflowVariantCreate;
 }

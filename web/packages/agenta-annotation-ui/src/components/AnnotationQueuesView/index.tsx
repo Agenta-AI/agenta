@@ -419,7 +419,7 @@ const AnnotationQueuesView = ({
                             label: "View Results",
                             onClick: (record) => {
                                 if (record.run_id) {
-                                    navigation.navigateToResults(record.run_id)
+                                    navigation.navigateToResults?.(record.run_id)
                                 }
                             },
                         },

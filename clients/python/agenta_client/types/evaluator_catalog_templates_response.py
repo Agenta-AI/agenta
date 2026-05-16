@@ -9,10 +9,21 @@ from .evaluator_catalog_template import EvaluatorCatalogTemplate
 
 
 class EvaluatorCatalogTemplatesResponse(UniversalBaseModel):
+    """
+    Envelope for a list of catalog templates.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    templates: typing.Optional[typing.List[EvaluatorCatalogTemplate]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of templates in `templates`.
+    """
+    
+    templates: typing.Optional[typing.List[EvaluatorCatalogTemplate]] = pydantic.Field(default=None)
+    """
+    Evaluator catalog templates (blueprints for creating evaluators).
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

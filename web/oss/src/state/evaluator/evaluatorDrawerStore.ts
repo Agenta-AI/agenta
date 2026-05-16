@@ -26,8 +26,14 @@ interface OpenDrawerParams {
     mode: EvaluatorDrawerMode
     /** List of entity IDs for prev/next navigation */
     navigationIds?: string[]
-    /** Callback after successful evaluator creation/commit. Called with the new revision ID. */
+    /** @deprecated Use `onWorkflowCreated` to also receive the parent workflow id (`newAppId`). */
     onEvaluatorCreated?: (configId?: string) => void
+    /** Callback after successful evaluator creation/commit. Receives the new revision id (`configId`/`newRevisionId`) and the parent workflow id (`newAppId`). */
+    onWorkflowCreated?: (result: {
+        configId?: string
+        newAppId?: string
+        newRevisionId?: string
+    }) => void
 }
 
 // ================================================================
@@ -49,6 +55,7 @@ export const openEvaluatorDrawerAtom = atom(null, (_get, set, params: OpenDrawer
         entityId: params.entityId,
         context: params.mode === "create" ? "evaluator-create" : "evaluator-view",
         navigationIds: params.navigationIds,
+        onWorkflowCreated: params.onWorkflowCreated,
         onEvaluatorCreated: params.onEvaluatorCreated,
     })
 })

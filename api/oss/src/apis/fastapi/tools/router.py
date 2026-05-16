@@ -112,7 +112,7 @@ class ToolsRouter:
             "/catalog/providers/{provider_key}",
             self.get_provider,
             methods=["GET"],
-            operation_id="get_tool_provider",
+            operation_id="fetch_tool_provider",
             response_model=ToolCatalogProviderResponse,
             response_model_exclude_none=True,
         )
@@ -128,7 +128,7 @@ class ToolsRouter:
             "/catalog/providers/{provider_key}/integrations/{integration_key}",
             self.get_integration,
             methods=["GET"],
-            operation_id="get_tool_integration",
+            operation_id="fetch_tool_integration",
             response_model=ToolCatalogIntegrationResponse,
             response_model_exclude_none=True,
         )
@@ -144,7 +144,7 @@ class ToolsRouter:
             "/catalog/providers/{provider_key}/integrations/{integration_key}/actions/{action_key}",
             self.get_action,
             methods=["GET"],
-            operation_id="get_tool_action",
+            operation_id="fetch_tool_action",
             response_model=ToolCatalogActionResponse,
             response_model_exclude_none=True,
         )
@@ -176,7 +176,7 @@ class ToolsRouter:
             "/connections/{connection_id}",
             self.get_connection,
             methods=["GET"],
-            operation_id="get_tool_connection",
+            operation_id="fetch_tool_connection",
             response_model=ToolConnectionResponse,
             response_model_exclude_none=True,
         )

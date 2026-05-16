@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Single-variant response envelope.
+ */
 export interface ApplicationVariantResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** `1` when a variant was found, `0` otherwise. */
     count?: number | undefined;
+    /** The application variant, or `null`. */
     application_variant?: (AgentaApi.ApplicationVariant | null) | undefined;
 }

@@ -65,6 +65,18 @@ export const normalizeValue = (value: unknown): string => {
     return safeJsonStringify(value)
 }
 
+export function getBeautifiedJsonEntries(value: unknown): {key: string; value: string}[] | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null
+
+    const entries = Object.entries(value as Record<string, unknown>)
+    if (entries.length === 0) return null
+
+    return entries.map(([key, entryValue]) => ({
+        key,
+        value: normalizeValue(entryValue),
+    }))
+}
+
 /**
  * Check if a single entry looks like a chat message
  */
@@ -106,9 +118,16 @@ export const isChatMessagesArray = (value: unknown): boolean => {
  * Extract chat messages array from various formats
  */
 export type ChatExtractionPreference = "input" | "output"
+export type ChatPreviewStrategy = "first" | "last-user"
 
 interface ExtractChatMessagesOptions {
     prefer?: ChatExtractionPreference
+}
+
+interface SelectPreviewChatMessagesOptions {
+    maxTotalLines?: number
+    maxLinesPerMessage?: number
+    strategy?: ChatPreviewStrategy
 }
 
 const INPUT_KEYS = ["prompt", "input_messages"]
@@ -247,6 +266,60 @@ export const extractChatMessages = (
     }
 
     return null
+}
+
+function getChatRole(message: unknown): string {
+    if (!message || typeof message !== "object") return ""
+    const obj = message as Record<string, unknown>
+    const role = obj.role ?? obj.sender ?? obj.author
+    return typeof role === "string" ? role.toLowerCase() : ""
+}
+
+export const selectPreviewChatMessages = (
+    messages: unknown[],
+    {
+        maxTotalLines = 0,
+        maxLinesPerMessage = 4,
+        strategy = "first",
+    }: SelectPreviewChatMessagesOptions = {},
+): {selected: unknown[]; totalCount: number} => {
+    const totalCount = messages.length
+
+    if (strategy === "last-user" && messages.length > 0) {
+        for (let index = messages.length - 1; index >= 0; index--) {
+            const role = getChatRole(messages[index])
+            if (role === "user" || role === "human") {
+                return {selected: [messages[index]], totalCount}
+            }
+        }
+
+        return {selected: [messages[messages.length - 1]], totalCount}
+    }
+
+    if (!maxTotalLines) {
+        return {selected: messages, totalCount}
+    }
+
+    const selected: unknown[] = []
+    let usedLines = 0
+    const roleLine = 1
+
+    for (const message of messages) {
+        const messageLines = roleLine + maxLinesPerMessage
+
+        if (usedLines + messageLines > maxTotalLines) {
+            break
+        }
+
+        selected.push(message)
+        usedLines += messageLines
+    }
+
+    if (selected.length === 0 && messages.length > 0) {
+        selected.push(messages[0])
+    }
+
+    return {selected, totalCount}
 }
 
 /**
