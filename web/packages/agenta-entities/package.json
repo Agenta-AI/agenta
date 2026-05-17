@@ -14,7 +14,8 @@
         "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
         "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
         "test": "pnpm run types:check && pnpm run lint",
-        "test:etl": "tsx --test src/etl/__tests__/*.test.ts"
+        "test:etl": "tsx --test src/etl/__tests__/runLoop.guarantees.test.ts",
+        "test:etl:memory": "node --expose-gc --import tsx --test src/etl/__tests__/runLoop.memory.test.ts src/etl/__tests__/runLoop.overhead.test.ts"
     },
     "exports": {
         ".": "./src/index.ts",
