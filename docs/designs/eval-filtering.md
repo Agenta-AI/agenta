@@ -2,7 +2,7 @@
 
 **Created:** 2026-05-15
 **Status:** RFC — Draft
-**Related:** [eval-package-architecture](./eval-package-architecture.md) (prerequisite), [eval-etl-engine](./eval-etl-engine.md) (parallel — engine the filter primitive may build on), [eval-loops](./eval-loops/), [query-eval-loops](./query-eval-loops/), [loadables](./loadables/), [evaluator-table-molecule-refactor](./evaluator-table-molecule-refactor.md)
+**Related:** [eval-package-architecture](./eval-package-architecture.md) (prerequisite), [etl-engine](./etl-engine.md) (the general loop engine), [eval-etl-engine](./eval-etl-engine.md) (eval's adoption of the engine), [eval-loops](./eval-loops/), [query-eval-loops](./query-eval-loops/), [loadables](./loadables/), [evaluator-table-molecule-refactor](./evaluator-table-molecule-refactor.md)
 **Authors:** JP, Arda (huddle 2026-05-15)
 
 ---
@@ -131,6 +131,279 @@ flowchart LR
 ```
 
 Yellow paths are queryable in v1 and v2 (frontend over metric atoms, or backend JSONB). Green paths are v2-only — they require resolving trace IDs via `evaluation_results` and applying the tracing predicate.
+
+---
+
+## D4. Filter schema and field declarations
+
+The predicate vocabulary (D1) and field-path convention (D3) define **what a predicate looks like**. They don't define **which predicates are valid for a given entity**. A filter UI can't render a "status equals" dropdown without knowing what `status` values exist; a predicate validator can't reject `metrics.foo contains "bar"` without knowing whether `metrics.foo` is a string blob or a number.
+
+The missing piece is the **filter schema** — a declarative manifest of filterable fields per entity. Each entity that exposes `derived.filtered(...)` must provide one.
+
+### Schema type (shared across entities)
+
+Lives in `@agenta/entities/shared/paginated/filter/types.ts`:
+
+```ts
+export interface FilterSchema<TRow = unknown> {
+  /** Schema version. Bump when adding/removing fields or changing operator allowlists. */
+  version: number
+
+  /** Filterable fields, keyed by their dotted path (matches Condition.field). */
+  fields: Record<string, FilterFieldSchema<TRow>>
+
+  /** Optional: groups for UI organization (e.g. "Metrics", "Status & Lifecycle"). */
+  groups?: Array<{ key: string; label: string; fieldKeys: string[] }>
+}
+
+export interface FilterFieldSchema<TRow> {
+  /** Field type — drives operator allowlist and UI rendering. */
+  type: FilterFieldType
+
+  /** Display name for UI; supports i18n keys. */
+  displayName: string
+
+  /** Tier classification — drives client-side vs server-side eval (see C2). */
+  tier: 1 | 2 | 3
+
+  /** Operators allowed for this field. Subset of what the type supports. */
+  operators: FilterOperator[]
+
+  /** Resolves the field's value from a row + store. Used by client-side predicate eval. */
+  resolve: (row: TRow, store: JotaiStore) => unknown
+
+  /** Optional: server-side path if it differs from the client field key. */
+  serverPath?: string
+
+  /** Type-specific metadata (enum values, ranges, format hints, etc.). */
+  meta?: FilterFieldMeta
+}
+
+export type FilterFieldType =
+  | "string"           // unbounded text — contains/startswith allowed but Tier 3 by default
+  | "string-enum"      // finite value set — fast equality / membership only
+  | "number"           // floating-point — comparisons + range
+  | "number-discrete"  // integer — same ops as number, integer UI
+  | "boolean"          // true/false toggle
+  | "datetime"         // ISO timestamp — comparisons + date picker UI
+  | "duration"         // ms-precision numeric — duration UI
+  | "json"             // nested blob — Tier 3 by default
+  | "id-set"           // multi-id selector (e.g. evaluator IDs)
+
+export type FilterFieldMeta =
+  | { kind: "enum"; values: Array<{ value: string | number; label: string }> }
+  | { kind: "number-range"; min?: number; max?: number; step?: number; precision?: number }
+  | { kind: "datetime-range"; min?: string; max?: string }
+  | { kind: "duration"; unit: "ms" | "s" }
+  | { kind: "none" }
+```
+
+### Type-to-operator matrix
+
+This is the **canonical allowlist** for client-side filter evaluation. The filter UI surfaces only these combinations; the predicate validator rejects anything outside the matrix.
+
+| Field type | Tier 1 (client always) | Tier 2 (client w/ debounce) | Tier 3 (force server) |
+|---|---|---|---|
+| `string` | `exists`, `not_exists` | `eq` (exact, short strings) | `contains`, `matches`, `like`, `startswith`, `endswith` |
+| `string-enum` | `eq`, `in`, `not_in`, `exists` | — | — |
+| `number` | `eq`, `gte`, `lte`, `between`, `exists` | — | — |
+| `number-discrete` | `eq`, `gte`, `lte`, `between`, `in`, `exists` | — | — |
+| `boolean` | `eq`, `exists` | — | — |
+| `datetime` | `eq`, `gte`, `lte`, `between`, `exists` | — | — |
+| `duration` | `gte`, `lte`, `between`, `exists` | — | — |
+| `json` | `exists`, `not_exists` | `has`, `has_not` (top-level keys) | Everything else (deep-equality, contains, regex) |
+| `id-set` | `in`, `not_in`, `exists` | — | — |
+
+The matrix is what `FilterFieldSchema.tier` and `FilterFieldSchema.operators` encode for each declared field. **The schema is the contract** — anything outside it is invalid by construction, not by runtime check.
+
+### Scenario filter schema (canonical eval example)
+
+The eval entity declares its scenario filter schema in `@agenta/entities/evaluationRun/etl/filterSchema.ts`. Most fields are static (known at compile time); metric fields are **dynamic**, derived from the run's annotation steps + their evaluator output schemas.
+
+```ts
+// @agenta/entities/evaluationRun/etl/filterSchema.ts
+import type { FilterSchema } from "@agenta/entities/shared/paginated/filter"
+import { evaluationRunMolecule } from "../state/molecule"
+import { metricsMolecule } from "../state/metricsMolecule"
+
+export function buildScenarioFilterSchema(runId: string): FilterSchema<Scenario> {
+  const annotationSteps = evaluationRunMolecule.get.annotationSteps(runId)
+
+  return {
+    version: 1,
+    fields: {
+      // ── Static fields ──────────────────────────────────────────
+      "status": {
+        type: "string-enum",
+        displayName: "Status",
+        tier: 1,
+        operators: ["eq", "in", "not_in", "exists"],
+        resolve: (s) => s.status,
+        meta: {
+          kind: "enum",
+          values: [
+            { value: "pending", label: "Pending" },
+            { value: "running", label: "Running" },
+            { value: "completed", label: "Completed" },
+            { value: "failed", label: "Failed" },
+          ],
+        },
+      },
+      "timestamp": {
+        type: "datetime",
+        displayName: "Created at",
+        tier: 1,
+        operators: ["gte", "lte", "between", "exists"],
+        resolve: (s) => s.createdAt,
+      },
+      "testcase_id": {
+        type: "string",
+        displayName: "Testcase ID",
+        tier: 1,
+        operators: ["eq", "exists"],
+        resolve: (s, store) => store.get(evaluationRunMolecule.atoms.scenarioSteps({ runId, scenarioId: s.id }))?.data?.[0]?.testcase_id ?? null,
+      },
+
+      // ── Dynamic fields: one entry per evaluator output ─────────
+      ...buildEvaluatorMetricFields(runId, annotationSteps),
+    },
+    groups: [
+      { key: "lifecycle", label: "Status & Lifecycle", fieldKeys: ["status", "timestamp"] },
+      { key: "identity", label: "Identity", fieldKeys: ["testcase_id"] },
+      { key: "metrics", label: "Evaluator Metrics", fieldKeys: Object.keys(/* dynamic */) },
+    ],
+  }
+}
+
+/**
+ * For each annotation step, inspect the evaluator's output schema and emit
+ * one FilterFieldSchema per output field. The evaluator schema (Zod or
+ * OpenAPI on the server) tells us the type; we map to FilterFieldType.
+ */
+function buildEvaluatorMetricFields(
+  runId: string,
+  steps: EvaluationRunDataStep[],
+): Record<string, FilterFieldSchema<Scenario>> {
+  const fields: Record<string, FilterFieldSchema<Scenario>> = {}
+  for (const step of steps) {
+    const evaluatorSchema = evaluatorOutputSchemaFor(step)
+    for (const [outputName, outputType] of Object.entries(evaluatorSchema)) {
+      const key = `metrics.${step.key}.${outputName}`
+      fields[key] = mapEvaluatorOutputToFilterField(key, outputType, step.key, runId)
+    }
+  }
+  return fields
+}
+```
+
+### Evaluator output → field type mapping
+
+The eval-specific bit. Maps each evaluator output's declared type to a `FilterFieldType`:
+
+| Evaluator output type | FilterFieldType | Notes |
+|---|---|---|
+| `boolean` (e.g. `passed: bool`) | `boolean` | True/false toggle |
+| `number` (e.g. `score: float`) | `number` | Sliders + numeric inputs |
+| `integer` (e.g. `rating: int`) | `number-discrete` | Integer-only |
+| `string` with `enum` constraint | `string-enum` | Fast equality |
+| `string` without enum | `string` | Tier 3 for content-search |
+| `array<string>` with enum | `id-set` | Multi-select |
+| `object` (nested) | `json` | Top-level keys filterable; deep content Tier 3 |
+
+This mapping lives in `@agenta/entities/evaluationRun/etl/filterSchema.ts` alongside `buildScenarioFilterSchema`. It's eval-specific because it depends on how evaluators declare their output shapes — other entities will have their own mapping logic.
+
+### Schema-driven UI
+
+The filter UI doesn't hard-code anything per entity. It reads the schema and renders dropdowns:
+
+```mermaid
+flowchart LR
+    Schema["buildScenarioFilterSchema(runId)"]
+    UI["FilterDropdown component"]
+    PerField["per field:<br/>render input by type"]
+    Validate["validate predicate<br/>against schema"]
+    Emit["emit Condition / Filtering"]
+
+    Schema --> UI
+    UI --> PerField
+    PerField --> Validate
+    Validate --> Emit
+
+    style Schema fill:#fff4d6,stroke:#d4a017
+```
+
+For each `FilterFieldSchema`, the UI picks the right input:
+
+| Type | UI input |
+|---|---|
+| `string-enum` | Multi-select dropdown with `meta.values` |
+| `boolean` | Toggle / radio |
+| `number`, `number-discrete` | Slider + numeric inputs with `meta.range` |
+| `datetime` | Date range picker |
+| `duration` | Duration input (numeric + unit selector) |
+| `string` | Text input + operator dropdown (`contains`, `eq`, etc.) — only operators in schema |
+| `json`, `id-set` | Specialized pickers |
+
+**The user never sees an invalid operator-type combination** because the schema's `operators` array is the source of truth for what's surfaced.
+
+### Predicate validation
+
+Before a `Filtering` reaches `derived.filtered`, it passes through `validateFilteringAgainstSchema(filter, schema)`. Three checks:
+
+1. **Field exists:** every `Condition.field` is a key in `schema.fields`. Unknown fields rejected with "field X is not filterable for this entity."
+2. **Operator allowed:** `Condition.operator` is in `schema.fields[field].operators`. Otherwise rejected with "operator Y not allowed for field X (type Z)."
+3. **Value shape matches type:** `Condition.value` is a string for `string` fields, a number for `number` fields, etc. Otherwise rejected with a type-mismatch error.
+
+This validator is shared across entities — only the schema varies. A bad predicate fails fast at the UI/atom boundary, never reaches the loop.
+
+### Tier propagation and escalation
+
+Tier classification (C2 in this RFC) is now **per-field**, not per-operator-globally:
+
+- A `string` field with `eq` operator at Tier 1 is fine client-side
+- The same `string` field with `contains` operator at Tier 3 forces server-side escalation
+- A `json` field with `has` (top-level key check) at Tier 2 is allowed client-side with debounce; with `contains` it's Tier 3 force-escalate
+
+`derived.filtered` walks the predicate, looks up each condition's `(field, operator)` in the schema, and computes the **maximum tier** across all conditions. That tier drives the escalation decision:
+
+```ts
+function predicateMaxTier(filter: Filtering, schema: FilterSchema): 1 | 2 | 3 {
+  // Walk Conditions and nested Filtering objects.
+  // Look up each (field, operator) in the schema.
+  // Return the max tier seen.
+}
+```
+
+C3's eager-escalation triggers integrate this: if `predicateMaxTier === 3`, escalate **immediately** to server-side. No "wait for 3 windows" — the predicate is known-expensive by design.
+
+### Server-side parity strategy
+
+The same `FilterSchema` must be understood server-side for v2 predicate evaluation. Three options, in order of preference:
+
+| Strategy | Pros | Cons |
+|---|---|---|
+| **Backend authors schema, exports as JSON/OpenAPI; FE codegens TS** | Single source of truth | Schema becomes part of API surface; coupling |
+| **FE authors schema; expose via dedicated endpoint backend can read** | FE-first development | Server has to parse and validate; runtime cost |
+| **Independently authored; integration test verifies parity** | Each side stays loose | Test required; drift risk |
+
+**v1 punts** to strategy 3 (independent authoring + integration test). Acceptable because v1 is client-side only; backend parity matters when v2 ships. v2 should adopt strategy 1 if we have time, strategy 2 otherwise.
+
+A simpler intermediate: **the field key itself encodes the server path** (per D3's convention: `metrics.<step_key>.<metric_path>`). If client and server agree on the path convention, they don't need to negotiate the schema — only the value types (which the operator restricts anyway). Schema parity becomes a soft contract: "if both sides accept this path, both evaluate the same way."
+
+### Versioning
+
+`FilterSchema.version` bumps when:
+- New field added (`+1` minor — backwards compatible)
+- Field removed or operator allowlist tightened (`+1` major — breaking)
+- Type changed (`+1` major)
+
+The paginated store remembers the schema version it was built with. When derived views detect a version mismatch (e.g. schema rebuilt after annotation step changes), they invalidate cached predicate results and re-evaluate.
+
+### Why this lives in the filter RFC (not the engine)
+
+Filter schemas are **not part of the engine**. The engine has zero knowledge of fields, types, or operators. Schemas live at the `derived` layer (which sits above the engine, see [eval-package-architecture.md](./eval-package-architecture.md#phase-2--derived-filter-primitive-extension-to-createpaginatedentitystore)). The general shape (`FilterSchema`, types, validator) lives in `@agenta/entities/shared/paginated/filter/`; per-entity schemas live in each entity package's `etl/` folder.
+
+Other transforms (map, project, join) will follow the same declarative-schema pattern as they're built out — each gets a schema declaring what's transformable, validation against that schema, and per-entity schema builders. The pattern is consistent; the specifics vary per transform type.
 
 ---
 

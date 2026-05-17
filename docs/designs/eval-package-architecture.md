@@ -2,7 +2,7 @@
 
 **Created:** 2026-05-16
 **Status:** RFC — Draft
-**Related:** [eval-filtering](./eval-filtering.md), [eval-etl-engine](./eval-etl-engine.md) (parallel — minimal pipeline scaffolding the filter primitive can build on), [evaluator-table-molecule-refactor](./evaluator-table-molecule-refactor.md)
+**Related:** [eval-filtering](./eval-filtering.md), [etl-engine](./etl-engine.md) (the general loop engine), [eval-etl-engine](./eval-etl-engine.md) (eval's adoption of the engine), [evaluator-table-molecule-refactor](./evaluator-table-molecule-refactor.md)
 **Authors:** Arda
 
 ---
@@ -643,6 +643,58 @@ paginatedStore.derived.joined(otherStore, key) // → PaginatedEntityStore<Joine
 Each `derived.*` returns a new store with the same API. They compose. The base store's cursor advances drive the derived view's window resolution — no new cursor concept. Hit-ratio escalation lives in `derived.filtered`: when matched/scanned ratio drops below a threshold over N windows, it swaps the underlying base's `fetchPage` for a server-filtered variant. The wire format is the same `Filtering` from the filter RFC.
 
 Filter atom + applyPredicate pure function still live as small helpers, but they plug into `derived.filtered` rather than living in a separate sub-export. Reuses the existing scopes, atoms, and listCounts. Hit-ratio and the predicate are the only net-new state.
+
+#### Cross-entity filter schemas (the `FilterSchema` contract)
+
+`derived.filtered(predicate)` doesn't enforce per-entity validity on its own — that's the job of the **filter schema** each entity provides. The schema declares which fields are filterable, their types, allowed operators, and tier classification (see [eval-filtering.md D4](./eval-filtering.md#d4-filter-schema-and-field-declarations) for the canonical eval example).
+
+Folder structure:
+
+```
+@agenta/entities/shared/paginated/
+├── filter/
+│   ├── types.ts                  FilterSchema, FilterFieldSchema, FilterFieldType,
+│   │                             FilterFieldMeta, FilterOperator
+│   ├── validate.ts               validateFilteringAgainstSchema(filter, schema)
+│   ├── tier.ts                   predicateMaxTier(filter, schema)
+│   └── index.ts
+└── derived/
+    └── filtered.ts                consumes a FilterSchema when constructing the view
+
+@agenta/entities/{evaluationRun, testset, tracing, ...}/etl/
+└── filterSchema.ts                build*FilterSchema(...) — per-entity schema builders
+                                   (static + dynamic fields, evaluator output mapping, etc.)
+```
+
+The general types + validator + tier walker live in `shared/paginated/filter/`. Each entity writes its own schema builder that:
+
+1. Declares **static fields** (status, timestamp, identity columns)
+2. Declares **dynamic fields** when they depend on runtime context (e.g. eval's per-evaluator metric fields, observability's per-span-attribute fields, testset's per-column fields)
+3. Wires up the `resolve` callback that reads field values from the row + Jotai store at predicate eval time
+
+Construction flow:
+
+```mermaid
+flowchart LR
+    Run["runtime context<br/>(runId, testsetId, traceId, ...)"]
+    Builder["build*FilterSchema(ctx)<br/>(per-entity)"]
+    Schema["FilterSchema<TRow>"]
+    Filter["derived.filtered(predicate, schema)"]
+    UI["Filter UI<br/>(reads schema for dropdowns)"]
+    Validator["validateFilteringAgainstSchema<br/>(rejects invalid predicates)"]
+
+    Run --> Builder
+    Builder --> Schema
+    Schema --> Filter
+    Schema --> UI
+    Schema --> Validator
+
+    style Schema fill:#fff4d6,stroke:#d4a017
+```
+
+The same schema drives **UI rendering**, **predicate validation**, **tier classification for escalation**, and **runtime field resolution**. One source of truth per entity per context.
+
+**Why this lives at the shared layer (not the engine):** filter is one specific transform. The engine knows nothing about fields or types. The `derived` namespace is where filter (and map, project, join) compose with schema declarations. Other transforms will follow the same pattern as they're built out — each will get its own schema type (`ProjectionSchema`, `MapSchema`, etc.) following the precedent set by `FilterSchema`.
 
 ### Phase 3 detail — Eviction first
 
