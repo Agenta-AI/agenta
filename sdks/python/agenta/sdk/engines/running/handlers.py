@@ -17,10 +17,10 @@ from pydantic import BaseModel, Field
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.lazy import (
-    _load_jinja2,
     _load_litellm,
     _load_openai,
 )
+from agenta.sdk.utils.rendering import render_json_like, render_messages
 from agenta.sdk.utils.templating import render_template
 
 from agenta.sdk.litellm import mockllm
@@ -182,25 +182,12 @@ def _format_with_template(
 ) -> str:
     """Format content via the shared rendering helper.
 
-    Preserves the judge's silent-return-on-jinja-error behavior: any Jinja
-    sandbox violation or template error is logged and the original content is
-    returned. Alignment to a consistent raise semantic across services lands in
-    WP-B2.
+    Kept for compatibility with direct callers. Runtime handlers use the
+    structured renderers, which raise on Jinja failures.
     """
 
     if format not in ("curly", "fstring", "jinja2"):
         return content
-
-    if format == "jinja2":
-        _SandboxedEnvironment, TemplateError = _load_jinja2()
-        try:
-            return render_template(template=content, mode=format, context=kwargs)
-        except TemplateError as e:
-            log.warning(
-                "Jinja2 template rendering failed (possible sandbox violation): %s",
-                str(e),
-            )
-            return content
 
     return render_template(template=content, mode=format, context=kwargs)
 
@@ -944,11 +931,6 @@ async def auto_ai_critique_v0(
             got=json_schema,
         )
 
-    response_format: dict = dict(type=response_type)
-
-    if response_type == "json_schema":
-        response_format["json_schema"] = json_schema
-
     correct_answer = None
 
     if inputs:
@@ -1025,17 +1007,19 @@ async def auto_ai_critique_v0(
         )
 
     try:
-        formatted_prompt_template = [
-            {
-                "role": message["role"],
-                "content": _format_with_template(
-                    content=message["content"],
-                    format=template_format,
-                    kwargs=context,
-                ),
-            }
-            for message in prompt_template
-        ]
+        formatted_prompt_template = render_messages(
+            messages=prompt_template,
+            mode=template_format,
+            context=context,
+        )
+        response_format: dict = dict(type=response_type)
+        if response_type == "json_schema":
+            response_format["json_schema"] = render_json_like(
+                json_like=json_schema,
+                mode=template_format,
+                context=context,
+                location="json_schema",
+            )
     except Exception as e:
         raise PromptFormattingV0Error(
             message=str(e),
