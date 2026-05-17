@@ -76,9 +76,7 @@ export function register(): void {
     // their OTel docs (https://langfuse.com/docs/opentelemetry/get-started).
     // The `x-langfuse-ingestion-version: 4` header enables real-time preview.
     if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
-        const auth = Buffer.from(`${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}`).toString(
-            "base64",
-        )
+        const auth = Buffer.from(`${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}`).toString("base64")
         const langfuseExporter = new OTLPHttpProtoTraceExporter({
             url: `${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
             headers: {
