@@ -62,17 +62,31 @@ The last row is the [filter RFC](./eval-filtering.md). Same loop, different sink
 
 ---
 
-## What the loop guarantees
+## What the loop guarantees (and what it doesn't)
 
-Five properties, none negotiable. They are why the engine exists:
+Five properties hold for the loop runtime. **They do not extend to cumulative session state** — that's a separate concern handled by the paginated store layer (see [eval-package-architecture.md Limitations](./eval-package-architecture.md#limitations-and-required-discipline)).
 
-1. **Memory bounded by chunk size.** The loop never holds more than one chunk in flight. The full dataset is never materialized. A 50k-scenario run iterates in 250 chunks of 200, not as one 50k array.
-2. **Cancellation propagates.** An `AbortSignal` passed to the loop reaches the source (stops the next fetch), the transforms (skipped), and the sink (gets `finalize()` for cleanup if defined).
-3. **Progress is observable.** The loop yields `{ scanned, matched, loaded, cursor }` after every chunk. The UI reads progress without polling.
-4. **Backpressure is natural.** `await sink.load(chunk)` means the loop pauses on a slow sink. No buffering, no queueing.
-5. **Idempotent resume is possible.** Cursor + AbortSignal + a deterministic sink = a pipeline that can be killed and restarted from the last cursor. v1 doesn't ship resume, but the loop doesn't preclude it.
+### What the loop itself guarantees
 
-These are JP's exact concerns from the huddle, named and locked in.
+1. **Pipeline memory bounded by chunk size.** The loop never holds more than one chunk in flight in its own local state. The full dataset is never materialized inside the loop. A 50k-scenario run iterates in 250 chunks of 200, not as one 50k array. **Important caveat:** this bound covers the loop's local variables only. The data the loop writes (into a paginated store, into a viewport atom, into an accumulator sink) is the caller's memory to manage. See "What this doesn't bound" below.
+2. **Progress is observable.** The loop yields `{ scanned, matched, loaded, cursor }` after every chunk. The UI reads progress without polling.
+3. **Backpressure is natural** *for write sinks*. `await sink.load(chunk)` means the loop pauses on a slow sink. No buffering, no queueing. For UI sinks (synchronous atom writes), backpressure is meaningless — the consumer breaking out of `for await` is what controls flow.
+4. **Cancellation through the loop body.** An `AbortSignal` passed to the loop reaches the source's iterator and is checked between chunks. `finally` runs `sink.finalize()` for cleanup.
+5. **Idempotent resume is possible** (not implemented in v1). Cursor + AbortSignal + a deterministic sink = a pipeline that can be killed and restarted from the last cursor.
+
+### What this doesn't bound
+
+Calling these out honestly so callers don't over-rely on the loop's bounds:
+
+| Concern | Not bounded by | Bounded by what instead |
+|---|---|---|
+| Cumulative loaded rows in a paginated store | the loop | paginated store eviction policy (Phase 3a of the package architecture RFC) |
+| AtomFamily entries created during iteration | the loop | `molecule.cache.evictMany` called by the eviction policy |
+| In-flight HTTP requests after cancellation | the loop's `AbortSignal` check | only if `AbortSignal` is plumbed through `fetchPage` → axios (Phase 1d) |
+| Background tab CPU/battery | the loop | a visibility wrapper around `AbortSignal` (see open question 9 below) |
+| Sink accumulator state (e.g. testset commit's `testcaseIds: string[]`) | the loop | the sink's own design — it can drop old IDs, paginate the commit, etc. |
+
+These are JP's exact concerns from the huddle, named and locked in. **The cancellation guarantee is also partially honored in v1**: the loop body exits immediately on abort, but any HTTP request in flight at the moment of cancellation completes anyway and updates atoms. Phase 1d of the package architecture RFC plumbs `AbortSignal` through the API layer to fix this. Until that ships, callers may see brief result flashes from cancelled fetches before the new fetch's results land.
 
 ---
 
@@ -373,17 +387,27 @@ Each entity package gets a sibling `etl/` folder next to `state/`, `core/`, `api
 ```
 @agenta/entities/etl/                       loop engine (no entity deps)
 ├── core/types.ts                            Source, Transform, Sink, Chunk, Progress
+├── core/multiSourceTransform.ts             MultiSourceTransform<A, B, Out> for joins
 └── runtime/runLoop.ts                       runLoop()
 
+@agenta/entities/shared/paginated/
+├── createPaginatedEntityStore.ts            EXISTS today (586 lines)
+├── derived/                                 NEW — extension to the factory return
+│   ├── filtered.ts                          predicate → new PaginatedEntityStore
+│   ├── mapped.ts
+│   ├── projected.ts
+│   └── joined.ts                            wraps a MultiSourceTransform internally
+└── etl/
+    ├── makeSource.ts                        PaginatedEntityStore → Source<T>
+    └── makeSink.ts                          PaginatedEntityStore (local mode) → Sink<T>
+
 @agenta/entities/evaluationRun/
-├── state/molecule.ts                        evaluationRunMolecule
-├── state/scenarioMolecule.ts                (new, Phase 1)
-├── state/metricsMolecule.ts                 (new, Phase 1)
-└── etl/                                     adapters (new)
-    ├── sources/scenarioSource.ts            scenarioMolecule → Source<Scenario>
-    ├── sources/scenarioStepsSource.ts       evaluationRunMolecule.scenarioSteps → Source<EvaluationResult>
+├── state/molecule.ts                        evaluationRunMolecule (exists)
+├── state/scenariosPaginatedStore.ts         (new, Phase 1) — createPaginatedEntityStore instance
+├── state/metricsMolecule.ts                 (new, Phase 1) — + actions.prefetchMany
+└── etl/                                     entity-specific adapters (new)
     ├── transforms/filter.ts                 Filtering → Transform<Scenario, Scenario>
-    └── sinks/viewportSink.ts                viewportAtom → Sink<Scenario>
+    └── (sources/sinks come from shared/paginated/etl/ — no per-entity wrapper needed)
 
 @agenta/entities/testset/
 ├── state/molecule.ts                        testsetMolecule, revisionMolecule, testcaseMolecule
@@ -398,7 +422,7 @@ Each entity package gets a sibling `etl/` folder next to `state/`, `core/`, `api
     └── sources/querySource.ts               queryMolecule → Source<Trace>
 ```
 
-Adapters are tiny factories. They take entity-specific params, return a Source / Transform / Sink that satisfies the engine's contract. No molecule logic gets duplicated; adapters just bridge shapes.
+Adapters are tiny factories. They take entity-specific params, return a Source / Transform / Sink that satisfies the engine's contract. **For paginated-store-backed sources and sinks, the generic adapters in `shared/paginated/etl/` are reused — no per-entity wrapper is needed.** Per-entity ETL folders only carry domain-specific transforms (e.g. `traceToTestcase`).
 
 ### Adapter pattern: molecule → Source
 
@@ -419,37 +443,39 @@ flowchart LR
     style Src fill:#fff4d6,stroke:#d4a017
 ```
 
-Concretely, `evaluationRun/etl/sources/scenarioSource.ts`:
+Concretely, `shared/paginated/etl/makeSource.ts` (generic for any paginated store):
 
 ```ts
-import {runLoop, type Source} from "@agenta/entities/etl"
-import {scenarioMolecule} from "../state/scenarioMolecule"
+import {type Source} from "@agenta/entities/etl"
+import type {PaginatedEntityStore} from "../createPaginatedEntityStore"
 
-interface ScenarioSourceParams {
-  runId: string
-  projectId: string
-  chunkSize?: number
-}
-
-export function makeScenarioSource(
-  initial: ScenarioSourceParams,
-): Source<Scenario, ScenarioSourceParams> {
+/**
+ * Generic Source adapter for any createPaginatedEntityStore instance.
+ * The paginated store's `correlatedDataPrefetch` will fire per chunk
+ * automatically (configured at store construction time).
+ */
+export function makeSource<TRow, TApiRow, TMeta>(
+  store: PaginatedEntityStore<TRow, TApiRow, TMeta>,
+  chunkSize: number = 200,
+): Source<TApiRow> {
   return {
-    async *extract(params, signal) {
-      const {runId, projectId, chunkSize = 200} = {...initial, ...params}
-      let cursor: Cursor = null
+    async *extract(_params, signal) {
+      let cursor: string | null = null
 
       while (!signal.aborted) {
-        // imperative read — bypasses React, returns the freshest data
-        const window = await scenarioMolecule.get.window({
-          runId,
-          projectId,
+        // Drives the same fetchPage the UI uses. Server cursor is opaque —
+        // we just hand back what we got. Prefetch hook fires inside fetchPage.
+        const result = await store.controller.fetchPage({
           cursor,
           limit: chunkSize,
         })
-        yield {items: window.items, cursor: window.next, meta: {hint: "scenarios"}}
-        if (!window.next) return
-        cursor = window.next
+        yield {
+          items: result.rows,
+          cursor: result.nextCursor,
+          meta: {hint: store.entityName, hasMore: result.hasMore},
+        }
+        if (!result.nextCursor) return
+        cursor = result.nextCursor
       }
     },
   }
@@ -458,9 +484,11 @@ export function makeScenarioSource(
 
 Three properties of this adapter, none accidental:
 
-- **Uses imperative `get`, not reactive `selectors`.** Inside an async iterator there's no React context. `molecule.get.*` reads the current store value. Selectors are for components; `get` is for adapters.
-- **Honors the AbortSignal.** Source pagination stops when the consumer cancels.
-- **Adapter owns the cursor.** The molecule's `get.window` just takes `cursor` as a param; the adapter loops until cursor is null. Single responsibility.
+- **Reuses the store's `fetchPage`.** Same code path as UI loads. The cursor model is the server-emitted opaque string (verified pattern); no client-side cursor arithmetic.
+- **Inherits `correlatedDataPrefetch` for free.** When the store was constructed, prefetchers for correlated molecules were declared once. They fire inside `fetchPage`, so by the time a chunk reaches a transform, the data the transform needs is already loading.
+- **Honors the AbortSignal.** Pagination stops when the consumer cancels.
+
+A consumer that constructs `scenariosPaginatedStore` with `correlatedDataPrefetch: rows => metricsMolecule.actions.prefetchMany(rows.map(r=>r.id))` gets correct ETL behavior with **zero adapter-level config**. The store handles it. This is the answer to "we won't have to remember this whenever we use an ETL table" — the discipline is enforced at store construction time, not per consumer.
 
 ### Adapter pattern: molecule → Sink
 
@@ -619,21 +647,23 @@ sequenceDiagram
 
     loop one chunk per iteration
         Loop->>Src: extract().next()
-        Src->>SMol: get.window({runId, cursor})
-        SMol->>API1: POST /evaluations/scenarios/query
-        API1-->>SMol: scenarios[] + nextCursor
+        Src->>SMol: paginatedStore.controller.fetchPage({cursor})
+        SMol->>API1: POST /evaluations/scenarios/query (windowing.next = cursor)
+        API1-->>SMol: scenarios[] + windowing.next
+        Note over SMol: correlatedDataPrefetch fires:<br/>metricsMolecule.actions.prefetchMany(ids)
+        SMol->>MMol: prefetchMany (fire-and-forget)
+        MMol->>API2: POST /evaluations/metrics/query (batched)
         SMol-->>Src: window
         Src-->>Loop: Chunk~Scenario~
 
         Loop->>Tx: filterTransform(chunk)
         loop per row
             Tx->>MMol: get.scenarioMetric(id)
-            alt cached
+            alt prefetch already settled
                 MMol-->>Tx: metric data
-            else not cached
-                MMol->>API2: POST /evaluations/metrics/query (batched)
-                API2-->>MMol: metric data
-                MMol-->>Tx: metric data
+            else still pending
+                MMol-->>Tx: pending — row marked skeleton<br/>(re-evaluates when settled)
+                API2-->>MMol: metric data arrives
             end
             Tx->>Tx: applyPredicate(scenario, metrics)
         end
@@ -764,8 +794,9 @@ These are the ones the worked examples actually surfaced. Not speculative.
 2. **Should `Transform` be allowed to yield 0 or N+1 chunks per input chunk?**
    v1 says no — one chunk in, one chunk out. This rules out "split a chunk into smaller chunks" or "buffer N chunks then emit one large chunk." Both are real use cases (e.g. testcase ingest may want to batch differently than the source paginates). v1 ducks this by letting the sink re-batch. If a transform genuinely needs to re-chunk, we revisit.
 
-3. **What's the cursor type?**
-   v1 says `Cursor = string | number | object | null`. Object cursors are common (e.g. `{ before: id, since: ts }`). The loop treats cursor opaquely — only the source reads it. This works but means typing the cursor per-source is the consumer's job. Could be parameterized: `Source<T, Params, Cur = Cursor>`. Punt to first time it matters.
+3. **What's the cursor type?** **Answered: opaque string.** Verified against [`simpleQueue/state/paginatedStore.ts`](../../web/packages/agenta-entities/src/simpleQueue/state/paginatedStore.ts) and [`windowingResponseSchema`](../../web/packages/agenta-entities/src/simpleQueue/core/schema.ts). The server emits `windowing.next: string | null`, the client passes it back verbatim in the next request. No client-side cursor arithmetic. The loop's `Cursor` type is `string | null` for paginated-store-backed sources. Object cursors are reserved for joined sources (see Q4 below).
+
+   **Cursor for `derived.joined` / `MultiSourceTransform`:** the joined cursor is `{aCursor: string | null, bCursor: string | null}`. Each advance updates whichever side needed to fetch. v2 (server-side join endpoint) collapses this back to a single opaque string. Same v1/v2 split as filter.
 
 4. **How does the v2 filter (backend) integrate?**
    The filter RFC's escalation switches the source from "client-side scenario windows" to "server-filtered scenario windows." Same `Source<Scenario>` shape, different backing query. The loop doesn't care. But: should the source itself decide to escalate, or does the loop swap sources? Lean toward source-decides — the source has the cursor and the hit-ratio context. v2 of the filter RFC implements this inside `scenarioSource`.
@@ -774,6 +805,93 @@ These are the ones the worked examples actually surfaced. Not speculative.
 
 6. **What's the testing story?**
    The loop itself is pure and trivially testable. Sources/sinks need mocks. The worked examples in this RFC become integration tests. The 5 guarantees become 5 test groups for `runLoop.test.ts`. The cost is ~100 lines of test scaffolding, paid once.
+
+7. **Horizontal column virtualization vs ETL data presence.** **Resolved by store-level prefetch.** The IVT couples data loads to cell rendering today via `createViewportAwareCell`/`createColumnVisibilityAwareCell`. When a column scrolls off-screen, its cells return `null` and never subscribe to molecule selectors → data never loads → ETL transforms reading that data see nothing.
+
+   The fix lives in the paginated store, not in the ETL adapters: `correlatedDataPrefetch` (Phase 1c of the package architecture RFC) fires per chunk independent of cell rendering. Once a store is constructed with this hook configured, **every consumer downstream (cells, derived views, ETL transforms) gets correct data presence with zero per-consumer configuration**. The store enforces the discipline.
+
+   See Convention 7 in the [package architecture RFC](./eval-package-architecture.md#7-data-presence-is-a-store-concern-not-a-cell-concern) for the full pattern. The principle restated: *cells observe data; they never own it*.
+
+8. **`MultiSourceTransform` for joins.** New addition to v1 contracts (not in the original sketch):
+
+   ```ts
+   export type MultiSourceTransform<A, B, Out> = (
+     chunkA: Chunk<A>,
+     chunkB: Chunk<B>,
+     state: JoinState,
+   ) => Chunk<Out>
+   ```
+
+   Used by `derived.joined`. The state object carries the hash-map accumulator across chunk boundaries so an in-memory join can survive the cursor advance loop. Server-side join (v2) skips the transform entirely — the source IS the join.
+
+9. **Background tab pause (resolved by design, deserves explicit support).** Browsers don't throttle microtask-based iteration in background tabs. A loop running in a hidden tab keeps consuming CPU and battery. The loop engine should expose a visibility-aware AbortSignal wrapper as a first-class utility, not a per-consumer concern:
+
+   ```ts
+   // @agenta/entities/etl/runtime/visibility.ts
+   export function withVisibilityPause(signal: AbortSignal): AbortSignal {
+     // Returns a signal that "aborts" while document.visibilityState === "hidden"
+     // and "un-aborts" when visible again. Actually implemented as a pause-resume
+     // wrapper that the loop checks each iteration rather than a literal abort,
+     // since AbortSignal is one-way. See impl notes.
+   }
+   ```
+
+   The loop checks visibility once per iteration (negligible cost). When hidden, it sets aside the in-flight cursor and resumes from that cursor when visibility returns. **Crucially, this lives in the engine layer once** — filter consumers, ETL pipelines, derived views all benefit without per-call configuration.
+
+   AbortSignal isn't bidirectional (no "un-abort"), so the implementation is actually a Promise-based gate: the loop awaits `visibilityGate.next()` between chunks, which resolves immediately when visible and blocks while hidden. Combined with the AbortSignal for true cancellation.
+
+10. **Predicate evaluation cost vs eager escalation.** The loop body itself doesn't know how expensive a transform is. A filter transform doing O(1) comparisons looks identical to one doing O(blob_size) string matches. The escalation triggers (loaded > 10k, Tier 3 operator) live at the **caller** (filter UI / `derived.filtered`), not the loop. The loop just runs whatever transform it's given. Worth being explicit: the engine is a runtime, not a query optimizer. Cost-awareness belongs to whoever composes the pipeline.
+
+---
+
+## Performance properties — honest
+
+The loop engine has well-defined costs. Pipeline-wide performance is the sum of source, transform, and sink costs, plus the loop overhead (which is negligible).
+
+### Per-chunk costs
+
+| Stage | Cost | Notes |
+|---|---|---|
+| Source `extract` | One HTTP request + Zod validation | Batched via paginated store's `fetchPage`; `correlatedDataPrefetch` adds parallel calls but pipelined |
+| Transform per row | Depends on transform | Pure functions: ns. Atom reads: μs each. Network calls: forbidden — use prefetch |
+| Sink `load` | UI: μs (atom write). Network: RTT | Network sinks throttle the loop naturally |
+| Loop bookkeeping | < 1 μs per iteration | `Progress` yield + abort check |
+
+For a typical 200-row chunk filtering scenarios by metric value:
+- Source: ~200 ms (RTT) + ~50 ms (validation)
+- Prefetch: parallel, no added latency on critical path
+- Transform: 200 × ~10 μs/row = ~2 ms
+- Sink (UI): < 1 ms
+- **Total: ~250 ms per chunk**, mostly RTT.
+
+For comparison: same chunk with a Tier 3 predicate (content-search on metric blobs):
+- Same source/sink costs
+- Transform: 200 × ~5 ms/row (string match on 10 KB blob) = **~1 second**
+- **Total: ~1.3 seconds per chunk** — visible stutter
+
+This is why Tier 3 operators auto-escalate to v2 (see filter RFC C2). The loop engine doesn't enforce this; the caller (filter UI / `derived.filtered`) does.
+
+### Performance regimes (engine-level)
+
+| Pipeline size | Per-chunk cost | Total time for full iteration | Notes |
+|---|---|---|---|
+| 1 chunk (200 rows) | ~250 ms | ~250 ms | Single window, no pagination needed |
+| 5 chunks (1k rows) | ~250 ms each, pipelined | ~1.25 s | Smooth scrolling, no perceptible delay |
+| 50 chunks (10k rows) | same | ~12.5 s | Full iteration takes time; user usually doesn't wait — viewport-driven cancellation kicks in |
+| 250 chunks (50k rows) | same | ~62 s | Definitely viewport-cancelled before completion; the loop is happy to run forever, the consumer controls duration |
+| Effectively unlimited (server-paginated) | same | unbounded | Loop runs as long as consumer iterates |
+
+The loop scales linearly with cursor-advance count. There is no built-in iteration cap. The consumer is responsible for breaking out of `for await` when enough data has been seen. The visibility wrapper (open question 9) protects against runaway iterations in background tabs.
+
+### What the engine does NOT do for you
+
+- **No optimizer.** Transforms run in declared order; no filter-before-map fusion.
+- **No retry.** Errors abort the pipeline. Idempotent retry is the consumer's responsibility.
+- **No backpressure beyond `await`.** If a sink is slow, the loop waits — no buffering or queue.
+- **No memoization.** Identical pipelines produce identical chunks but cache nothing across runs.
+- **No cost model.** A transform that takes 5 seconds per row looks identical to one that takes 5 microseconds; the engine doesn't introspect or optimize.
+
+All of these are deliberately out of scope. If a use case needs any of them, it's the consumer's job to add the capability above the engine, not in the engine.
 
 ---
 

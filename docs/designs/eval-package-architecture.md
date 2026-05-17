@@ -352,47 +352,117 @@ Without it, every new object literal allocates a new atom family entry. See [lin
 
 Path extraction, scalar/stats/frequency parsing, leaf shape detection — none of these need Jotai. Put them in `utils/` as pure functions so they can be unit-tested without spinning up a store. The molecule's selectors call into them. This makes the path-resolver (the filter RFC's D2 question) testable in isolation.
 
+### 7. Data presence is a store concern, not a cell concern
+
+**Background.** The IVT today couples data loads to cell rendering via two mechanisms:
+- [`createViewportAwareCell`](../../web/packages/agenta-ui/src/InfiniteVirtualTable/columns/cells.tsx) — vertical IntersectionObserver fires `onVisible` when a row enters the viewport. Cells use this to trigger correlated data loads (metric batchers, annotation fetches).
+- [`createColumnVisibilityAwareCell`](../../web/packages/agenta-ui/src/InfiniteVirtualTable/columns/cells.tsx) — horizontal column visibility. Off-screen columns return `null` from `render()` and **never subscribe** to molecule selectors, so the cell never triggers a fetch.
+
+**The problem this creates for ETL and derived views.** A filter predicate, a transform inside an ETL pipeline, a `derived.filtered` evaluator — all of these read molecule data **without rendering a cell**. If data presence is gated by cell rendering, these consumers race against viewport state. A user scrolls horizontally, a column scrolls off-screen, its cells stop rendering, and now a predicate reading that column's underlying data sees `null`. Filter results become viewport-dependent, which is wrong.
+
+**The fix.** Move correlated-data prefetch from the cell layer to the **store layer**. The store fires a prefetch hook after every window load, regardless of which cells (if any) end up rendering. Cells become purely decorative — they decide what to draw, never whether data exists.
+
+Add to `createPaginatedEntityStore`'s config:
+
+```ts
+interface PaginatedEntityStoreConfig<TRow, TApiRow, TMeta> {
+  // ... existing fields (entityName, metaAtom, fetchPage, rowConfig, ...)
+
+  /**
+   * Fires after every successful `fetchPage` response, before rows are added
+   * to the store. Use to prefetch correlated molecule data that consumers
+   * (filter predicates, derived views, ETL transforms) will need.
+   *
+   * Fire-and-forget: do not await blocking work here. Implementations
+   * typically call `molecule.actions.prefetchMany(ids)` for one or more
+   * correlated molecules.
+   */
+  correlatedDataPrefetch?: (rows: TApiRow[]) => void
+}
+```
+
+Per-molecule, add to the molecule contract:
+
+```ts
+metricsMolecule.actions = {
+  prefetchMany: (scenarioIds: string[]) => void,  // NEW
+  // ...
+}
+```
+
+`prefetchMany` triggers the molecule's batch fetcher for the given IDs without forcing a subscription. The data arrives, populates the molecule's atoms, and is available to any imperative `get` call from that point forward.
+
+**Consumer ergonomics.** A store config gets prefetchers declared once:
+
+```ts
+const scenariosPaginatedStore = createPaginatedEntityStore({
+  entityName: "scenarios",
+  metaAtom: scenarioMetaAtom,
+  fetchPage: async (params) => { ... },
+  rowConfig: { getRowId: (s) => s.id, skeletonDefaults },
+
+  // NEW: declare correlated data once. Cells, derived views, ETL pipelines
+  // all benefit. No "remember to do this in every consumer" trap.
+  correlatedDataPrefetch: (rows) => {
+    metricsMolecule.actions.prefetchMany(rows.map((r) => r.id))
+    annotationsMolecule.actions.prefetchMany(rows.map((r) => r.id))
+  },
+})
+```
+
+After this, the column-virtualization concern goes away for data correctness. The off-screen column's cells still don't render (a UI win — saves DOM nodes), but the data those cells WOULD render is loaded into molecules regardless. A predicate or transform reading that data succeeds.
+
+**Layering rule:** *cells observe data, they never own it*. The store owns data presence. This is also the seam that makes ETL adapters work — a `makeSource(paginatedStore)` adapter pulls rows; the prefetch has already fired; transforms see populated molecules.
+
 ---
 
 ## Migration phases
 
 ```mermaid
 flowchart LR
-    subgraph P1 ["Phase 1 — Scenario + Metrics extraction"]
-        P1A["1a. scenarioMolecule<br/>(wrap table/scenarios.ts)"]
-        P1B["1b. metricsMolecule<br/>(extract metrics.ts + runMetrics.ts)"]
-        P1C["1c. migrate evaluationPreviewTableStore<br/>to read from molecules"]
+    subgraph P1 ["Phase 1 — Paginated store + Metrics + Prefetch + AbortSignal plumbing"]
+        P1A["1a. scenariosPaginatedStore<br/>(createPaginatedEntityStore)"]
+        P1B["1b. metricsMolecule<br/>+ actions.prefetchMany<br/>+ cache.evict / evictMany"]
+        P1C["1c. correlatedDataPrefetch hook<br/>+ wire scenarios → metrics"]
+        P1D["1d. AbortSignal through<br/>API layer (fetchPage → axios)"]
+        P1E["1e. migrate evaluationPreviewTableStore<br/>to scenariosPaginatedStore"]
     end
 
-    subgraph P2 ["Phase 2 — Filter primitive"]
-        P2A["2a. filter/ sub-export<br/>+ scenarioFilterAtom"]
-        P2B["2b. transformedRows<br/>+ hit-ratio tracker"]
-        P2C["2c. wire one filter UI<br/>(filter RFC v1 ships)"]
+    subgraph P2 ["Phase 2 — Derived filter primitive"]
+        P2A["2a. derived.filtered<br/>on createPaginatedEntityStore"]
+        P2B["2b. eager escalation triggers<br/>(hit-ratio + loaded > 10k +<br/>Tier 3 operator)"]
+        P2C["2c. wire filter UI<br/>(filter RFC v1 ships)"]
     end
 
-    subgraph P3 ["Phase 3 — Clean up the rest"]
-        P3A["3a. annotationsMolecule<br/>(extract annotations.ts + traces.ts)"]
-        P3B["3b. queryRefMolecule<br/>(extract query.ts + references.ts)"]
-        P3C["3c. split table/run.ts<br/>(API → utils → molecule)"]
+    subgraph P3 ["Phase 3 — Eviction + remaining concerns"]
+        P3A["3a. paginated-store eviction<br/>(sliding window, atomFamily cleanup)"]
+        P3B["3b. annotationsMolecule extraction"]
+        P3C["3c. queryRefMolecule extraction"]
+        P3D["3d. split table/run.ts"]
     end
 
-    subgraph P4 ["Phase 4 — Dependency flip"]
+    subgraph P4 ["Phase 4 — Dependency flip + server filter"]
         P4A["4a. lift executeWorkflowRevision<br/>to @agenta/entities/workflow"]
         P4B["4b. runInvocationAction<br/>drops @agenta/playground import"]
         P4C["4c. backend filter param<br/>(filter RFC v2 ships)"]
+        P4D["4d. backend join endpoint<br/>(compare-mode v2)"]
     end
 
     P1A --> P1B
     P1B --> P1C
-    P1C --> P2A
+    P1C --> P1D
+    P1D --> P1E
+    P1E --> P2A
     P2A --> P2B
     P2B --> P2C
     P2C --> P3A
     P3A --> P3B
     P3B --> P3C
-    P3C --> P4A
+    P3C --> P3D
+    P3D --> P4A
     P4A --> P4B
     P4B --> P4C
+    P4C --> P4D
 
     style P1 fill:#fff4d6,stroke:#d4a017
     style P2 fill:#e1f5e1,stroke:#2d8a2d
@@ -400,49 +470,64 @@ flowchart LR
     style P4 fill:#f0e1ff,stroke:#8a2ddc
 ```
 
-**Phase 1 is the prerequisite for the filter RFC.** Phases 2-3 can interleave; Phase 4 is independent and can land in parallel with 3. Every phase ships working, no big-bang cutovers.
+**Phase 1 is the prerequisite for the filter RFC.** New in this revision: **Phase 1d (AbortSignal plumbing through the API layer)** was elevated from "v2 polish" because mid-flight requests racing against new requests is a real source of jank. **Phase 3a (eviction) was bumped earlier** because the limitations analysis showed cumulative memory growth is the dominant scaling bottleneck — putting eviction in Phase 4+ is too late if the migration ships incrementally. Phases 2-4 still interleave; every phase ships working.
 
 ### Phase 1 detail (the load-bearing phase)
 
-**1a. `scenarioMolecule`** in `@agenta/entities/evaluationRun/state/`. Wraps the existing `fetchEvaluationScenarioWindow` and exposes (matching the existing `evaluationRunMolecule` 4-namespace convention):
+**Course correction — use the existing IVT primitive.** Before this RFC was written, a key fact was unknown to the author: `@agenta/entities/shared/paginated/createPaginatedEntityStore` already exists (586 lines, used by `simpleQueue`, `trace`, others). It provides cursor-windowed pagination, skeleton rows, list counts, local-row prepending via `clientRowsAtom`, row-exclusion via `excludeRowIdsAtom`, and selection state. **The "scenarioMolecule" originally proposed here should instead be `scenariosPaginatedStore` built on this existing primitive**, not a new entity-style molecule. Same scope of work, materially different shape.
+
+The cursor model the store uses is verified: server returns `windowing.next` as an opaque string ID; the client passes it back verbatim in the next request's `windowing.next`. No client-side cursor arithmetic. See [`simpleQueue/state/paginatedStore.ts`](../../web/packages/agenta-entities/src/simpleQueue/state/paginatedStore.ts) for the canonical pattern.
+
+**1a. `scenariosPaginatedStore`** in `@agenta/entities/evaluationRun/state/`. A `createPaginatedEntityStore` instance configured for evaluation scenarios. Exposes the standard paginated-store API (rows, columns, cursor, hasMore, totalCount, listCounts, selection) and adds an evaluation-specific correlated-data prefetch:
 
 ```mermaid
 classDiagram
-    class scenarioMolecule {
-        +selectors
-        +atoms
-        +get
-        +cache
+    class scenariosPaginatedStore {
+        +store
+        +controller
+        +derived
+        +etl
     }
-    class selectors {
-        +window({runId, cursor, limit}) AtomFamily~Scenario[]~
-        +rowIds(runId) AtomFamily~ScenarioId[]~
-        +row(scenarioId) AtomFamily~Scenario~
-        +status(scenarioId) AtomFamily~Status~
-        +isMaterialized(scenarioId) AtomFamily~boolean~
+    class store {
+        +rows AtomFamily~Scenario[]~
+        +rowIds AtomFamily~string[]~
+        +rowById AtomFamily~Scenario | null~
+        +columns AtomFamily~ColumnDef[]~
+        +cursor AtomFamily~CursorState~
+        +hasMore AtomFamily~boolean~
+        +totalCount AtomFamily~number | null~
+        +listCounts AtomFamily~EntityListCounts~
+        +pendingWindows AtomFamily~Set~string~~
+        +selection AtomFamily~Key[]~
     }
-    class atoms {
-        +window (raw scenarioWindowQueryAtomFamily)
-        +row (raw scenarioByIdQueryAtomFamily)
+    class controller {
+        +fetchPage(params) Promise
+        +loadNextPage()
+        +refresh()
+        +invalidate(rowId?)
+        +setSelection(keys)
     }
-    class get {
-        +row(scenarioId) imperative
-        +window(runId, cursor, limit) imperative
+    class derived {
+        +filtered(predicate) PaginatedStore
+        +mapped(fn) PaginatedStore
+        +projected(columnKeys) PaginatedStore
+        +joined(other, joinKey) PaginatedStore
     }
-    class cache {
-        +invalidateScenario(scenarioId)
-        +invalidateRun(runId)
-        +refetchWindow(runId, cursor)
+    class etl {
+        +makeSource(params) Source~Scenario~
+        +makeSink(mode) Sink~Scenario~
     }
-    scenarioMolecule --> selectors
-    scenarioMolecule --> atoms
-    scenarioMolecule --> get
-    scenarioMolecule --> cache
+    scenariosPaginatedStore --> store
+    scenariosPaginatedStore --> controller
+    scenariosPaginatedStore --> derived
+    scenariosPaginatedStore --> etl
 ```
 
-The HTTP layer goes in `api/scenarios.ts` as a sibling to the existing `api/api.ts`: `queryScenarios(params)` and `fetchScenarioById(params)`, both following the same `safeParseWithLogging` validation pattern.
+The HTTP layer goes in `api/scenarios.ts` as a sibling to the existing `api/api.ts`: `queryScenarios(params)` and `fetchScenarioById(params)`. Both run through `safeParseWithLogging` (Convention 4). `queryScenarios` accepts `windowing.next` as the opaque cursor string per the verified pattern.
 
-`evaluationPreviewTableStore.ts` becomes a thin adapter that reads from `scenarioMolecule.selectors.window(...)` and maps to its existing `PreviewTableRow` shape. No behavior change visible to users.
+The `derived` and `etl` namespaces are **new additions to `createPaginatedEntityStore` proposed by this RFC** (the existing factory has none today). See "Conventions to follow" → Convention 7 for the prefetch hook that backs them. The four `derived.*` operations and the two `etl.*` adapters are all thin sugar over the base store's atoms — none invents new mechanisms.
+
+`evaluationPreviewTableStore.ts` becomes a thin adapter that reads from `scenariosPaginatedStore.store.rows(...)` and maps to its existing `PreviewTableRow` shape. No behavior change visible to users.
 
 **1b. `metricsMolecule`** extracts `metrics.ts` (953 lines) + `runMetrics.ts` + `metricProcessor.ts`. Cleanly split:
 
@@ -475,10 +560,16 @@ classDiagram
         +refreshScenario(scenarioId) Promise
         +refreshRun(runId) Promise
     }
+    class actions {
+        +prefetchMany(scenarioIds) void
+        +prefetchRun(runId) void
+        +ensureLoaded(scenarioId) Promise~MetricData~
+    }
     metricsMolecule --> selectors
     metricsMolecule --> atoms
     metricsMolecule --> get
     metricsMolecule --> cache
+    metricsMolecule --> actions
 ```
 
 Sibling supporting files (NOT inside the molecule class — separate exports so they can be unit-tested without Jotai):
@@ -515,35 +606,84 @@ sequenceDiagram
     end
 
     rect rgb(220, 255, 220)
-        Note over VT,API: After — package molecules own data; store is a shape adapter
+        Note over VT,API: After — paginated store owns data + prefetch; cell reads are decorative
         VT->>Store: read rows window
-        Store->>Atom: scenarioMolecule.selectors.window(runId, cursor, limit)
-        Atom->>API: package api.queryScenarios
-        API-->>Atom: rows
+        Store->>Atom: scenariosPaginatedStore.store.rows(scopeId)
+        Atom->>API: paginatedStore.fetchPage (queryScenarios)
+        API-->>Atom: rows + windowing.next
         Atom-->>Store: Scenario[]
+        Note over Atom: correlatedDataPrefetch fires:<br/>metricsMolecule.actions.prefetchMany(ids)<br/>annotationsMolecule.actions.prefetchMany(ids)
         Store-->>VT: PreviewTableRow[] (adapted shape)
 
         VT->>AtomM: metricsMolecule.selectors.scenarioMetric(id)
-        AtomM->>API: package api.queryMetrics (batched)
-        API-->>AtomM: metrics
+        Note over AtomM: data already loading from prefetch<br/>cell visibility no longer gates fetch
         AtomM-->>VT: metric cells
     end
 ```
 
-Red is the current path. Green is post-Phase-1. The V-table interface doesn't change. The atom families are now package-owned. `evaluationPreviewTableStore` survives as a thin row-shape adapter (and may be deleted in Phase 2 if it stops earning its weight).
+Red is the current path. Green is post-Phase-1. Two critical differences from the original draft:
 
-### Phase 2 — Filter primitive (parallel sub-export)
+1. **Cell visibility no longer gates data presence.** `correlatedDataPrefetch` fires immediately when scenarios arrive — metrics, annotations, and other correlated data start loading before any cell decides to render. Horizontal column virtualization no longer creates phantom-empty data for off-screen columns.
+2. **The store IS the molecule.** What was originally proposed as `scenarioMolecule.selectors.window` is just `scenariosPaginatedStore.store.rows` — the existing `createPaginatedEntityStore` already provides this.
 
-Lives at `@agenta/entities/evaluationRun/filter/`. Sibling to `state/`, not nested under it, because filtering composes molecules rather than being one. Re-exports:
+`evaluationPreviewTableStore` survives as a thin row-shape adapter (and may be deleted in Phase 2 if it stops earning its weight).
 
-- `scenarioFilterAtom` — the `Filtering` predicate
-- `transformedRowsAtomFamily(runId, predicate)` — reads `scenarioMolecule` rows and `metricsMolecule.flatPath` for each row, returns matched rows
-- `hitRatioAtomFamily(runId)` — tracks `(matched, scanned)`
-- `applyPredicate(row, metrics, predicate)` — pure function, unit-testable
+### Phase 2 — Derived filter primitive (extension to createPaginatedEntityStore)
 
-The OSS table swaps `tableScenarioRowsQueryAtomFamily` for `transformedRowsAtomFamily`. v1 of the filter RFC is now shippable in days, not weeks, because the molecules are already there.
+Lives **inside** `@agenta/entities/shared/paginated/` as an extension to the existing factory, not as a new sub-export. Adds a `derived` namespace returning new `PaginatedEntityStore` views:
 
-### Phase 3-4 — Remaining concerns
+```ts
+// New surface on createPaginatedEntityStore's return value:
+paginatedStore.derived.filtered(predicate)     // → PaginatedEntityStore<Row>
+paginatedStore.derived.mapped(rowFn)           // → PaginatedEntityStore<NewRow>
+paginatedStore.derived.projected(columnKeys)   // → PaginatedEntityStore<Row>
+paginatedStore.derived.joined(otherStore, key) // → PaginatedEntityStore<JoinedRow>
+```
+
+Each `derived.*` returns a new store with the same API. They compose. The base store's cursor advances drive the derived view's window resolution — no new cursor concept. Hit-ratio escalation lives in `derived.filtered`: when matched/scanned ratio drops below a threshold over N windows, it swaps the underlying base's `fetchPage` for a server-filtered variant. The wire format is the same `Filtering` from the filter RFC.
+
+Filter atom + applyPredicate pure function still live as small helpers, but they plug into `derived.filtered` rather than living in a separate sub-export. Reuses the existing scopes, atoms, and listCounts. Hit-ratio and the predicate are the only net-new state.
+
+### Phase 3 detail — Eviction first
+
+**Phase 3a — Sliding-window eviction.** The paginated store accumulates rows without bound today. After a long session on a 100k-row table the resident set is gigabyte-scale. Eviction is no longer "optional v2 polish"; it's a P3 deliverable.
+
+```mermaid
+flowchart LR
+    subgraph LoadedWindows
+        W1["window 1<br/>(evictable)"]
+        W2["window 2<br/>(retained, near viewport)"]
+        V["viewport"]
+        W3["window 3<br/>(retained, near viewport)"]
+        W4["window 4<br/>(evictable)"]
+    end
+    W1 -. evict .-> Gone1["dropped from rowsAtom<br/>+ atomFamily entries"]
+    W4 -. evict .-> Gone2["dropped from rowsAtom<br/>+ atomFamily entries"]
+
+    style W1 fill:#ffd6d6,stroke:#cc0000
+    style W4 fill:#ffd6d6,stroke:#cc0000
+    style V fill:#fff4d6,stroke:#d4a017
+```
+
+Eviction policy:
+
+- Keep **N=3 windows** above and below the visible viewport (configurable per-store).
+- Drop everything else.
+- **Survivors regardless of position:** rows with `__isDirty: true` (uncommitted edits), the active row (`selection.activeRowId`), explicitly pinned IDs.
+- When dropping a row from the store, **also drop its atom-family entries** in correlated molecules. This is the part most easily forgotten and most damaging when forgotten.
+- Scrolling back to a dropped window re-fetches it (skeleton during re-fetch).
+
+Required additions to molecule contracts:
+
+```ts
+metricsMolecule.cache.evict(scenarioId)            // single
+metricsMolecule.cache.evictMany(scenarioIds)       // batch
+annotationsMolecule.cache.evict(scenarioId)        // ditto
+```
+
+`atomFamily.remove(key)` (Jotai-family API) drops the cached atom; the next read recreates it.
+
+### Phase 3b-d — Remaining concerns
 
 Lower priority but worth doing while the architecture is fresh:
 
@@ -586,30 +726,265 @@ Two consumers of `executeWorkflowRevision` (evaluations + playground) become two
 flowchart LR
     UI["filter UI"]
     FA["scenarioFilterAtom"]
-    TR["transformedRows<br/>(filter sub-export)"]
-    SM["scenarioMolecule.rows"]
-    MM["metricsMolecule.flatPath"]
-    HR["hitRatioAtom"]
+    DF["scenariosPaginatedStore<br/>.derived.filtered(predicate)"]
+    Base["scenariosPaginatedStore<br/>(base)"]
+    Prefetch["correlatedDataPrefetch<br/>(metrics, annotations)"]
+    MM["metricsMolecule"]
+    HR["hitRatioAtom<br/>(inside derived.filtered)"]
     VT["V-table"]
     BE["scenarios/query<br/>+ filtering param (v2)"]
 
     UI --> FA
-    FA --> TR
-    SM --> TR
-    MM --> TR
-    TR --> VT
-    TR --> HR
-    HR -. "escalate" .-> SM
-    SM <--> BE
+    FA --> DF
+    Base --> DF
+    Base --> Prefetch
+    Prefetch --> MM
+    MM -. "read by predicate" .-> DF
+    DF --> VT
+    DF -. "tracks" .-> HR
+    HR -. "swap fetchPage when low" .-> Base
+    Base <--> BE
 
-    style TR fill:#fff4d6,stroke:#d4a017
+    style DF fill:#fff4d6,stroke:#d4a017
     style FA fill:#fff4d6,stroke:#d4a017
     style HR fill:#fff4d6,stroke:#d4a017
+    style Prefetch fill:#e1f5e1,stroke:#2d8a2d
 ```
 
-The filter primitive composes two molecules (`scenarioMolecule.rows` and `metricsMolecule.flatPath`). It doesn't know about React, the V-table, or the API client. The V-table reads from the filter primitive. The API client is hit only through the molecules. Each piece is testable in isolation.
+The filter primitive composes the base paginated store with `metricsMolecule` (read by the predicate). It doesn't know about React, the V-table, or the API client. The V-table reads from `derived.filtered`. The API client is hit only through the base store's `fetchPage`. Each piece is testable in isolation. The green prefetch box is what makes this work in the presence of horizontal column virtualization — data is loaded before any cell decides to render.
 
 When v2 lands, the only thing that changes is `scenarioMolecule.selectors.window` learns to pass a `filtering` payload to the API. The filter primitive becomes a no-op for server-filtered windows. The UI doesn't change. The V-table doesn't change. That is the architectural payoff.
+
+---
+
+## Limitations and required discipline
+
+Honest scope of this architecture. The design holds for small-to-medium runs; medium-to-large runs require discipline; very-large runs need server-side work this RFC does not commit to.
+
+### What's bounded
+
+- **Loop runtime memory** — bounded by chunk size (one chunk in flight)
+- **Network calls per chunk** — bounded to one batched call per correlated molecule, regardless of column visibility (Convention 7 prefetch)
+- **Backpressure** — natural via `await sink.load()` for write sinks
+- **Cancellation through pipeline body** — `signal.aborted` checked between chunks
+
+### What's NOT bounded by default
+
+- **Cumulative paginated store memory** — without eviction (Phase 3a), `rowsAtom` grows linearly with `fetchPage` calls
+- **AtomFamily entries** — without `cache.evict*` (Phase 3a), per-entity atoms persist for the session
+- **TanStack Query cache** — `gcTime` defaults to 5 min but stale entries within that window stay resident
+- **Mid-flight HTTP requests** — without Phase 1d (AbortSignal plumbing through axios), cancelling a pipeline doesn't cancel its inflight network requests; old responses can update atoms after cancellation, racing against newer fetches
+
+### Sizing expectations
+
+Estimated resident memory after scrolling through N scenarios with default settings (no eviction):
+
+| Scrolled rows | Row data | Metric blobs | Atom-family overhead | Total resident |
+|---|---|---|---|---|
+| 1,000 | ~200 KB | ~1 MB | ~2 MB | ~3 MB |
+| 10,000 | ~2 MB | ~10 MB | ~20 MB | ~32 MB |
+| 50,000 | ~10 MB | ~50 MB | ~100 MB | ~160 MB |
+| 100,000 | ~20 MB | ~100 MB | ~200 MB | ~320 MB |
+| 500,000 | ~100 MB | ~500 MB | ~1 GB | ~1.6 GB (browser dies) |
+
+The Phase 3a eviction policy caps resident memory to **(N_windows × 2 × chunk_size × row_size)** instead of growing with cumulative scroll. For N=3 above/below, chunk=200, row=~1 KB combined: ~2.4 MB resident regardless of how far the user has scrolled. Plus the survivors (dirty / pinned / active row).
+
+### Required disciplines from the filter RFC
+
+These are mandatory at the consumer level — they're not optional optimizations:
+
+| Discipline | Where enforced | Source |
+|---|---|---|
+| Debounce filter input (≥ 250ms) | Filter UI wrapping `scenarioFilterAtom` writes | [eval-filtering.md C1](./eval-filtering.md#c1-mandatory-debounce-on-scenariofilteratom-writes) |
+| Restrict to Tier 1/2 operators client-side | Filter UI surfaces only safe operators | [eval-filtering.md C2](./eval-filtering.md#c2-predicate-operator-tiers) |
+| Eager v2 escalation (3 triggers) | `derived.filtered` swap logic | [eval-filtering.md C3](./eval-filtering.md#c3-eager-v2-escalation-not-just-hit-ratio-based) |
+| Background tab pause | Loop engine wraps `AbortSignal` with visibility | [eval-etl-engine.md](./eval-etl-engine.md) |
+| AtomFamily eviction in lockstep with row eviction | Paginated store eviction policy | Phase 3a here |
+
+### What the design doesn't fix
+
+- **Server-side aggregations.** A run with 5M scenarios viewed for "show me the worst 10 by some metric" needs sorted server-side queries with proper indexes. This RFC trio doesn't commit to that.
+- **Cross-table joins beyond compare-mode.** Joining a run with a testset, or two queries with a run, etc. The `derived.joined` primitive is sized for the compare-mode use case (two runs of bounded similar shape) — generalizing is downstream work.
+- **Real-time streaming.** The cursor model is pull-based snapshot pagination. Live evaluation streams (annotations arriving in real time) need a separate push-based source primitive (WebSocket/SSE adapter to the loop). Future RFC, not this one.
+- **Offline / resume.** AsyncIterable cursors can resume if the source's cursor model supports it, but there's no built-in checkpoint/replay machinery. Pipeline restart from arbitrary cursor is a v2 feature.
+
+Make these explicit so downstream consumers don't expect them. If a use case actually needs one of these, that's a signal to write a follow-up RFC, not to hack it into this trio.
+
+---
+
+## Future improvements (not v1, but designed)
+
+Two improvements that earned design thinking but didn't earn their way into v1 phases. Captured concretely so when scale forces them, the shape is already worked out.
+
+**Related future improvements in the filter RFC:**
+- [F1. Skip-ahead UX on filter transitions](./eval-filtering.md#f1-skip-ahead-ux-on-filter-transitions) — preserve scroll position when applying / changing filters
+- [F2. Predicate explain mode](./eval-filtering.md#f2-predicate-explain-mode-dev-tool) — dev tool measuring per-row predicate cost; informs Tier classification with real data
+
+These address UX and observability of filtering; F1 and F2 below address the cost of evaluation itself.
+
+### F1. Worker-thread predicate evaluation
+
+**Problem.** Even with debouncing, client-side predicate evaluation on 10k+ rows × Tier 2 operators blocks the main thread. The eval itself is CPU-bound; debouncing only batches keystrokes, doesn't speed up the eval.
+
+**Why naive worker offloading fails.** First instinct is "ship rows to a worker, run predicate there." Two reasons this doesn't work cleanly:
+
+1. **Structured-clone cost.** Sending 10k row objects (with 10KB metric blobs each) across the worker boundary via `postMessage` is roughly memcpy-equivalent. Serialization + deserialization on both ends can cost more than the eval it's meant to save.
+2. **Atom layer is unavailable.** Workers can't access Jotai's store. A transform reading `metricsMolecule.get.scenarioMetric(id)` doesn't work in worker context — the data has to be pre-shipped.
+
+**Design — snapshot-based, ship-once.** The worker holds **denormalized row snapshots**: flat objects containing exactly the fields any predicate might reference. Data ships once per chunk load; predicate changes only ship the predicate.
+
+```mermaid
+sequenceDiagram
+    participant Main as Main thread
+    participant Pref as correlatedDataPrefetch
+    participant W as Predicate worker
+
+    Note over Main,W: One-time per chunk
+    Main->>Main: fetchPage resolves (rows)
+    Main->>Pref: correlatedDataPrefetch(rows)
+    Pref-->>Main: metrics, annotations populated
+    Main->>Main: snapshot(rows) - flatten relevant fields
+    Main->>W: postMessage(snapshots, transferable)
+    W->>W: cache snapshots by chunk version
+
+    Note over Main,W: Per predicate change (cheap, hot path)
+    Main->>W: postMessage(predicate)
+    W->>W: evaluate against cached snapshots
+    W-->>Main: matched row IDs
+    Main->>Main: render via store rowById(id)
+```
+
+**Snapshot construction:**
+
+```ts
+// At store-config time, declare what fields might be in predicates:
+createPaginatedEntityStore({
+  ...,
+  workerPredicate: {
+    enabled: true,
+    snapshotShape: (row, store) => ({
+      id: row.id,
+      status: row.status,
+      timestamp: row.timestamp,
+      metrics: {
+        correctness: metricsMolecule.get.scenarioMetric(row.id)?.correctness?.value,
+        cost: metricsMolecule.get.scenarioMetric(row.id)?.cost?.value,
+        // declared paths only; predicate can only reference these
+      },
+    }),
+  },
+})
+```
+
+The `snapshotShape` is the **predicate field schema** for that store. Predicates that reference fields outside the schema fail validation client-side before they reach the worker — explicit error, "your predicate references `metrics.outputs.body` but this store's worker schema doesn't include it; either add it to snapshotShape or force server-side eval."
+
+**Cache invalidation:** snapshots are versioned per chunk. When a chunk's rows or correlated data updates (e.g. metric refresh), the snapshot ships again with a higher version. The worker drops old versions.
+
+**When to enable:**
+- Per-store opt-in (default off)
+- Recommended when expected loaded row count > 5k AND predicates are non-trivial
+- Mandatory when row count > 20k (otherwise main thread dies under tier-2 predicate changes)
+
+**Performance comparison (expected):**
+
+| Strategy | 10k rows, simple predicate | 10k rows, Tier 2 predicate |
+|---|---|---|
+| Main thread (v1) | ~50 ms blocking | ~500 ms blocking (jank) |
+| Worker (this RFC) | ~80 ms total (clone + eval + result) | ~150 ms total |
+| Worker (snapshots cached) | ~5 ms (predicate ship only) | ~20 ms |
+
+The cache makes the worker pay off **after the first eval** — every subsequent predicate change is fast.
+
+**Cost to add when ready:** ~300 lines split between worker bootstrap, snapshot shape, message protocol, and derived integration. Probably a single PR.
+
+### F2. Memoized derived results
+
+**Problem.** Users toggle filters on and off, switch between A/B configurations, undo and redo. Each toggle re-evaluates the predicate over all loaded rows. For repeated predicates the second eval is the exact same work as the first.
+
+**Design.** Per-derived-view LRU cache keyed by predicate hash. Stores matched row IDs (small) keyed by predicate identity (also small).
+
+```mermaid
+flowchart LR
+    P1["predicate A<br/>(applied)"]
+    Cache["LRU cache<br/>maxEntries: 10<br/>key: predicateHash<br/>value: Set~rowId~"]
+    P2["predicate B<br/>(applied)"]
+    P1Back["predicate A<br/>(re-applied)"]
+
+    P1 -->|eval, store result| Cache
+    P2 -->|eval, store result| Cache
+    P1Back -->|hash match!<br/>O(1) lookup| Cache
+
+    style Cache fill:#fff4d6,stroke:#d4a017
+```
+
+**Concrete shape:**
+
+```ts
+paginatedStore.derived.filtered(predicate, {
+  cache: {
+    maxEntries: 10,                          // LRU size; bounded memory
+    invalidation: "base-rows-change",         // | "any-data-change" | "manual"
+  },
+})
+```
+
+**Cache invalidation events:**
+
+| Event | Should invalidate? | Why |
+|---|---|---|
+| Base store loads a new chunk | Yes (partially — new rows may match cached predicates) | New rows need predicate eval; old matches still valid |
+| Base store evicts a window | Yes (cached entries with evicted IDs become stale) | Pruning |
+| Correlated molecule data updates (e.g. metric refresh) | Conditional — only if cached predicate references that data | Hard part: knowing which |
+| Predicate atom changes to a different predicate | No (cache it as a new entry) | Normal flow |
+| User explicitly refreshes | Yes (invalidate all) | Manual flush |
+
+**The hard part: conditional invalidation.** A cached predicate evaluation on a metric path is invalid if that metric refreshes. Knowing "this cached entry references `metrics.correctness`" requires the cache to track field-path dependencies per entry.
+
+Two implementations:
+1. **Coarse:** invalidate all entries on any correlated-molecule update. Simple, but cache becomes useless during active sessions.
+2. **Fine-grained:** parse predicate's referenced field paths at insert time; track per-cache-entry field-path set; invalidate only entries that depend on the updated path. More complex but cache stays useful.
+
+v1 of memoization should ship **coarse** (simpler, still beats no cache). Promote to fine-grained when users complain about cache misses on partial refreshes.
+
+**Versioning:** each cache entry carries the version of the data it was computed against:
+
+```ts
+interface CacheEntry {
+  predicateHash: string
+  matchedIds: Set<string>
+  computedAt: {
+    baseRevision: number
+    correlatedRevisions: Map<string, number>  // moleculeName → revision
+  }
+}
+```
+
+On read, the cache compares current revisions to the entry's. Mismatch → invalidate that entry, re-eval.
+
+**Memory bound:** `maxEntries × avg(matched_ids.size)` — for 10 entries × 500 average matches × 36 bytes per ID = ~180 KB. Negligible.
+
+**When to enable:** by default on `derived.filtered` for any store. The cache pays for itself after the first toggle.
+
+**Cost to add when ready:** ~150 lines. The revision-tracking is the trickiest part; the cache mechanics are routine.
+
+### Interaction between F1 and F2
+
+The two improvements compose well. The worker's snapshot cache (F1) IS a form of memoization at the data layer; the LRU result cache (F2) is memoization at the result layer. They live at different boundaries and don't conflict:
+
+- **Snapshot cache** (worker-side): keyed by chunk version, holds flattened row data
+- **Result cache** (main-thread-side): keyed by predicate hash, holds matched IDs
+
+When both are enabled, a repeat predicate hits the result cache without even shipping a message to the worker. The worker handles novel predicates; the cache handles repeats. Both fall through cleanly when the chunk version changes.
+
+### Why these are F-level (future), not P-level (phased)
+
+Neither is needed for the v1 filter to work correctly. They're optimizations for cases the v1 design **handles correctly but slowly**:
+
+- v1 with discipline (debounce, tier restriction, eager escalation): correct, sometimes slow
+- v1 + F1 (worker): correct, fast for large loaded sets
+- v1 + F2 (memoization): correct, fast for repeated predicates
+
+They're additive, not replacements. Ship v1 first; add F1 and F2 when profiling shows the user pain.
 
 ---
 
