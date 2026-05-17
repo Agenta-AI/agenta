@@ -13,7 +13,8 @@
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
         "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
-        "test": "pnpm run types:check && pnpm run lint"
+        "test": "pnpm run types:check && pnpm run lint",
+        "test:etl": "tsx --test src/etl/__tests__/*.test.ts"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -38,6 +39,8 @@
         "./queue": "./src/queue/index.ts",
         "./annotation": "./src/annotation/index.ts",
         "./evaluationRun": "./src/evaluationRun/index.ts",
+        "./evaluationRun/etl": "./src/evaluationRun/etl/index.ts",
+        "./etl": "./src/etl/index.ts",
         "./shared/openapi": "./src/shared/openapi/index.ts",
         "./shared/execution": "./src/shared/execution/index.ts",
         "./shared/invalidation": "./src/shared/invalidation/index.ts"
