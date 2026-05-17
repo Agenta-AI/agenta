@@ -69,9 +69,7 @@ export function register(): void {
     // Optional Langfuse tri-export. Auth is Basic base64(public:secret) per
     // their OTel docs (https://langfuse.com/docs/opentelemetry/get-started).
     if (LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY) {
-        const auth = Buffer.from(`${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}`).toString(
-            "base64",
-        )
+        const auth = Buffer.from(`${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}`).toString("base64")
         const langfuseExporter = new OTLPHttpProtoTraceExporter({
             url: `${LANGFUSE_BASE_URL}/api/public/otel/v1/traces`,
             headers: {
