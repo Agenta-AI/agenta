@@ -570,3 +570,216 @@ This RFC defines the engine. Consumer-specific RFCs describe how each domain ado
 - **Future:** `testset-etl-integration.md`, `tracing-etl-integration.md`, etc. — one per entity package as adoption spreads.
 
 Each consumer doc focuses on its domain's specifics. This doc stays general and stable; consumer docs evolve with their domains.
+
+---
+
+## PoC strategy — headless, against real backend
+
+The entire engine + adapter stack is **environment-agnostic**: no React, no DOM, no browser APIs. Every load-bearing primitive (`AsyncIterable`, Jotai atoms, TanStack Query, axios, Zod) works in Node and Bun. This lets us prove the architecture without touching the frontend.
+
+### Why headless
+
+Faster iteration than UI work — edit, save, re-run a script in ~2s rather than full Next.js rebuild + reconciliation. Cleaner architectural proof — if the contracts hold up headlessly, they hold up in the UI; if they don't, the problem is in the contracts, not the UI integration. Real performance measurement — `process.memoryUsage()`, `process.hrtime.bigint()`, real network timing, measurable rather than theoretical.
+
+### What the PoC validates end-to-end
+
+```mermaid
+flowchart TB
+    Script["scripts/etl-poc.ts<br/>(Node/Bun)"]
+    Engine["@agenta/entities/etl<br/>runLoop"]
+    Store["scenariosPaginatedStore<br/>(+ correlatedDataPrefetch)"]
+    Filter["derived.filtered(predicate)"]
+    Schema["FilterSchema validator + tier walker"]
+    Molecules["metricsMolecule<br/>annotationsMolecule"]
+    API["Real Agenta backend<br/>(local or staging)"]
+
+    subgraph Assertions ["Asserted behaviors"]
+        A1["progress events fire per chunk"]
+        A2["cursor pagination via opaque string"]
+        A3["correlatedDataPrefetch batches per chunk"]
+        A4["filter predicate matches correctly"]
+        A5["AbortSignal cancellation stops iteration"]
+        A6["pipeline memory stays bounded"]
+        A7["tier escalation triggers when expected"]
+        A8["per-chunk timing within budget"]
+    end
+
+    Script --> Engine
+    Script --> Store
+    Script --> Filter
+    Script --> Schema
+    Store --> Molecules
+    Store --> API
+    Molecules --> API
+    Engine --> Assertions
+    Filter --> Assertions
+
+    style Script fill:#fff4d6,stroke:#d4a017
+    style API fill:#e1f5e1,stroke:#2d8a2d
+    style Assertions fill:#dcefff,stroke:#1971c2
+```
+
+One Node script exercises every one of the engine's 5 guarantees, plus the prefetch hook, plus the filter schema validator, plus the tier escalator — all against real data.
+
+### File layout
+
+The PoC produces files that **become the v1 implementation**. Nothing is throwaway; the script's imports are the real package paths.
+
+```
+web/packages/agenta-entities/src/etl/
+├── core/types.ts                  ← engine contracts
+├── runtime/runLoop.ts             ← the ~50-line loop
+├── runtime/visibility.ts          ← (browser-only utility — skip for PoC)
+├── index.ts                       ← public exports
+└── __tests__/
+    ├── runLoop.guarantees.test.ts ← 5 guarantees as 5 test groups
+    ├── runLoop.cancellation.test.ts
+    └── runLoop.backpressure.test.ts
+
+web/packages/agenta-entities/src/shared/paginated/
+├── filter/
+│   ├── types.ts                   ← FilterSchema, FilterFieldSchema
+│   ├── validate.ts                ← validateFilteringAgainstSchema
+│   ├── tier.ts                    ← predicateMaxTier
+│   └── __tests__/
+├── derived/filtered.ts            ← derived.filtered factory
+└── etl/
+    ├── makeSource.ts              ← paginated store → Source
+    ├── makeSink.ts                ← paginated store → Sink
+    └── __tests__/
+
+web/packages/agenta-entities/src/evaluationRun/etl/
+├── filterSchema.ts                ← buildScenarioFilterSchema(runId)
+├── transforms/filter.ts           ← Filtering → Transform<Scenario, Scenario>
+└── __tests__/
+
+scripts/
+└── etl-poc.ts                     ← end-to-end against real backend
+```
+
+### Three layers of testing
+
+| Layer | Where | Speed | What it proves |
+|---|---|---|---|
+| **Unit** | `__tests__/*.test.ts` per package | ms | Each primitive in isolation; everything mocked |
+| **Integration** | `__tests__/*.integration.test.ts` | seconds | Real `atomFamily` + real `createBatchFetcher` + mocked HTTP via msw |
+| **E2E PoC** | `scripts/etl-poc.ts` | seconds-to-minutes | Real backend, real eval run, full pipeline, real numbers |
+
+The E2E script is the load-bearing artifact. Sketch:
+
+```ts
+// scripts/etl-poc.ts
+import { getDefaultStore } from "jotai"
+import { projectIdAtom } from "@agenta/shared/state"
+import { runLoop } from "@agenta/entities/etl"
+import { makeSource, makeSink } from "@agenta/entities/shared/paginated/etl"
+import { scenariosPaginatedStore } from "@agenta/entities/evaluationRun"
+import { buildScenarioFilterSchema, makeFilterTransform } from "@agenta/entities/evaluationRun/etl"
+import { validateFilteringAgainstSchema } from "@agenta/entities/shared/paginated/filter"
+
+const { AGENTA_RUN_ID, AGENTA_PROJECT_ID } = process.env
+if (!AGENTA_RUN_ID || !AGENTA_PROJECT_ID) {
+  console.error("Set AGENTA_RUN_ID and AGENTA_PROJECT_ID")
+  process.exit(1)
+}
+
+const store = getDefaultStore()
+store.set(projectIdAtom, AGENTA_PROJECT_ID)
+
+const schema = buildScenarioFilterSchema(AGENTA_RUN_ID)
+console.log(`Schema fields: ${Object.keys(schema.fields).length}`)
+
+const predicate = {
+  operator: "AND",
+  conditions: [
+    { field: "status", operator: "eq", value: "completed" },
+    // Adjust per available evaluators in the test run
+  ],
+}
+
+const validation = validateFilteringAgainstSchema(predicate, schema)
+if (!validation.ok) { console.error(validation.errors); process.exit(1) }
+
+const source = makeSource(scenariosPaginatedStore, { chunkSize: 200 })
+const filterTransform = makeFilterTransform(predicate, schema)
+const sink = makeSink(scenariosPaginatedStore, { mode: "local" })
+
+const abort = new AbortController()
+const startMem = process.memoryUsage().heapUsed
+const startTime = Date.now()
+let chunks = 0
+
+for await (const progress of runLoop(
+  source, [filterTransform], sink,
+  { runId: AGENTA_RUN_ID, projectId: AGENTA_PROJECT_ID },
+  abort.signal,
+)) {
+  chunks++
+  const mb = (process.memoryUsage().heapUsed - startMem) / 1024 / 1024
+  console.log(
+    `chunk ${chunks}: scanned=${progress.scanned} matched=${progress.matched} ` +
+    `loaded=${progress.loaded} elapsed=${Date.now() - startTime}ms heap=+${mb.toFixed(1)}MB`,
+  )
+  if (progress.matched >= 20) { abort.abort(); break }
+}
+
+console.log(`\nfinal: chunks=${chunks} elapsed=${Date.now() - startTime}ms`)
+```
+
+Run:
+
+```bash
+AGENTA_RUN_ID=abc123 AGENTA_PROJECT_ID=xyz npx tsx scripts/etl-poc.ts
+```
+
+### Suggested ordering (and time budget)
+
+| Step | Duration | Output | What it proves |
+|---|---|---|---|
+| 0. Verify `createPaginatedEntityStore` works in Node | ~1 hr | Smoke test | The existing factory doesn't accidentally import browser-only deps |
+| 1. Engine standalone + unit tests | ~1 day | `etl/core/types.ts`, `etl/runtime/runLoop.ts`, 5 guarantee tests | Loop contracts hold |
+| 2. Generic paginated-store adapters + tests | ~1 day | `shared/paginated/etl/makeSource.ts`, `makeSink.ts` | Adapter pattern works |
+| 3. FilterSchema types + validator + tier walker | ~1 day | `shared/paginated/filter/*` | D4 schema design is implementable |
+| 4. Eval-specific schema + filter transform | ~1 day | `evaluationRun/etl/filterSchema.ts`, `transforms/filter.ts` | Eval expresses its filterable surface; predicate eval correct |
+| 5. E2E PoC against real backend | ~1 day | `scripts/etl-poc.ts` + run report | Architecture works end-to-end |
+
+**~5-6 days to a working PoC** that proves the entire architecture before any frontend integration. After that, UI work is just wrapping atoms in components.
+
+### What the PoC's run report should include
+
+The final commit on the PoC branch produces a `docs/designs/etl-poc-results.md` capturing:
+
+- Backend env (local vs staging, version, run IDs used)
+- Schema for the test run (which fields, which evaluators)
+- Per-chunk timing distribution (p50, p95, max)
+- Memory growth at chunk 1, 10, 50, 100
+- Cursor pagination behavior (correctness + advancement rate)
+- Cancellation latency (time from `abort()` to loop exit)
+- Predicate eval cost histogram per field type / operator
+- Tier escalation triggers fired (if any)
+- Any surprises or design changes the PoC forced
+
+This doc becomes the empirical complement to the design RFCs. The trio describes what should happen; the PoC report documents what does happen.
+
+### Preconditions
+
+For the PoC to be runnable:
+
+1. **Agenta dev stack runnable locally** OR staging accessible — needs real `/evaluations/scenarios/query` + `/evaluations/metrics/query` endpoints
+2. **A test eval run with realistic shape** — at least a few thousand scenarios, multiple evaluators attached, varied metric values for filter exercising
+3. **`createPaginatedEntityStore` Node-runnable** — verified via PoC step 0
+
+All three are likely already satisfied. Step 0 is the only risk and takes an hour to confirm.
+
+### Branch strategy
+
+This RFC trio lives on `fe-experiment/etl-engine`. The PoC implementation belongs on a follow-up branch — `fe-experiment/etl-poc` — that branches off the trio and adds:
+
+- The 5 source files under `web/packages/agenta-entities/src/etl/` and siblings
+- The unit + integration tests
+- The PoC script
+- The run report doc
+
+That branch is what becomes the v1 PR when the architecture is validated. The trio merges as design context; the PoC branch merges as the implementation.
+
+---
