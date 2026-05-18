@@ -129,9 +129,7 @@ function GatewayToolsEnabledProvider({
                     name: connection.name ?? undefined,
                     integration_key: connection.integration_key,
                     provider_key: connection.provider_key,
-                    flags: (connection.flags ?? undefined) as
-                        | Record<string, unknown>
-                        | undefined,
+                    flags: (connection.flags ?? undefined) as Record<string, unknown> | undefined,
                 })),
             connectionsLoading: isLoading,
             onOpenCatalog: () => setCatalogDrawerOpen(true),
