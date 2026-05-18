@@ -91,19 +91,19 @@ jobs:
           cd ..
 
           cd clients/python
-          PY_CLIENT_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          PY_CLIENT_VERSION=$(uv version --bump "$BUMP_TYPE" --short --no-sync)
           cd ../..
 
           cd sdks/python
-          PY_SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          PY_SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short --no-sync)
           cd ../..
 
           cd api
-          API_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          API_VERSION=$(uv version --bump "$BUMP_TYPE" --short --no-sync)
           cd ..
 
           cd services
-          SERVICES_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          SERVICES_VERSION=$(uv version --bump "$BUMP_TYPE" --short --no-sync)
           cd ..
 
           WEB_VERSION=$(echo "$WEB_VERSION" | tr -d '[:space:]')
