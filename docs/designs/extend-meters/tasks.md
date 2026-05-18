@@ -106,7 +106,7 @@ For design context, see [proposal.md](./proposal.md). Pre-PR analysis: [research
 ## Usage exposure
 
 - [x] `/billing/usage` exposes `period` and `scope` additively alongside `value`, `limit`, `free`, `strict`.
-- [x] DAILY branch sums across rows (one row per user/day; org rollup is the sum).
+- [x] Per-caller read: for each quota the response returns the single meter row matching the caller's ambient `AuthScope` projected to `quota.scope`'s granularity (same projection `check_entitlements` uses, so numerator and denominator stay at the same scope). No org-wide aggregation. No `organization_id` path/query/wrapper param — identity comes from the ambient `AuthContext`.
 - [x] Frontend types `UsagePeriod`, `UsageScope` carry the new fields. Usage card renders them.
 
 ## Out of scope (follow-up PRs)

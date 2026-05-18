@@ -17,6 +17,8 @@ An eighth Copilot pass on 2026-05-18 14:52Z surfaced 1 new finding (PR-45) — a
 
 A ninth Copilot pass on 2026-05-18 16:01Z surfaced 1 new finding (PR-46): the three `EVALUATIONS_RUN` write handlers (`create_runs`, `create_evaluation`, `create_simple_queue`) charged the meter before the service call but only refunded on `except Exception`. Each service path can fail silently — the DAO's `suppress_exceptions(default=[])` for `create_runs`, the early-guard `return None` paths in `simple_evaluations.create` and `simple_queues.create` — so the meter kept the full charge while the handler returned `count=0`. Closed: added a post-call shortfall refund (`shortfall = charged - actual; if shortfall > 0: refund -shortfall`) at all three sites. Exception refund paths unchanged. 68/68 EE unit tests pass.
 
+A tenth Copilot pass on 2026-05-18 16:35Z surfaced 1 doc-only finding (PR-47): the `tasks.md` Usage-exposure checklist still claimed `/billing/usage` "DAILY branch sums across rows" — stale relative to the pass-7 per-caller rewrite that already landed in `proposal.md` and `summary.md`. Closed: rewrote the checklist item to describe the per-caller projected-scope read. No code change.
+
 ## Rules
 
 - Findings cite `file:Lstart-Lend` against the current working tree.
@@ -25,7 +27,7 @@ A ninth Copilot pass on 2026-05-18 16:01Z surfaced 1 new finding (PR-46): the th
 
 ## Notes
 
-- Sync runs: 2026-05-18, nine passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed `75e7b8472` ("final CR") → PR-32..PR-40. Pass 7 (2026-05-18 12:53Z): Copilot reviewed the post-pass-6 tree → PR-41..PR-43. PR-44 is an internal staging-deployment incident. Pass 8 (2026-05-18 14:52Z): Copilot reviewed the post-pass-7 tree → PR-45. Pass 9 (2026-05-18 16:01Z): Copilot reviewed the post-pass-8 tree → PR-46.
+- Sync runs: 2026-05-18, ten passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed `75e7b8472` ("final CR") → PR-32..PR-40. Pass 7 (2026-05-18 12:53Z): Copilot reviewed the post-pass-6 tree → PR-41..PR-43. PR-44 is an internal staging-deployment incident. Pass 8 (2026-05-18 14:52Z): Copilot reviewed the post-pass-7 tree → PR-45. Pass 9 (2026-05-18 16:01Z): Copilot reviewed the post-pass-8 tree → PR-46. Pass 10 (2026-05-18 16:35Z): Copilot reviewed the post-pass-9 tree → PR-47.
 - Resolve queue priority order: P0 → P1 → P2 → P3.
 - **Rule (from user 2026-05-18):** sync's first step is ALWAYS to save new findings to this file, before any code change or proposed-fix discussion.
 
@@ -34,6 +36,15 @@ A ninth Copilot pass on 2026-05-18 16:01Z surfaced 1 new finding (PR-46): the th
 (none)
 
 ## Closed Findings
+
+### [CLOSED] PR-47 — `tasks.md` Usage-exposure checklist item updated to reflect per-caller read (P3, medium)
+
+- **Category**: Documentation drift
+- **Files**: `docs/designs/extend-meters/tasks.md:109`
+- **PR comment**: [discussion_r3260514845](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3260514845)
+- **Background**: The pass-7 PR-41 fix rewrote `/billing/usage` to per-caller scoped read and propagated the change to `proposal.md` and `summary.md`, but the corresponding `tasks.md` checklist item still described the old "DAILY branch sums across rows" behavior.
+- **Fix shipped**: Replaced the checklist line with "Per-caller read: for each quota the response returns the single meter row matching the caller's ambient `AuthScope` projected to `quota.scope`'s granularity ... No org-wide aggregation. No `organization_id` path/query/wrapper param — identity comes from the ambient `AuthContext`." Matches the shipped code and the rest of the design docs.
+- **Action**: Reply on the GitHub thread and resolve.
 
 ### [CLOSED] PR-46 — Three `EVALUATIONS_RUN` write handlers now refund the shortfall when the service returns empty/None silently (P1, high)
 
