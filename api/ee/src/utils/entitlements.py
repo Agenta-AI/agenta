@@ -4,7 +4,7 @@ from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
-from oss.src.utils.context import AuthScope, get_auth_scope
+from oss.src.utils.context import get_auth_scope
 
 from fastapi.responses import JSONResponse
 from ee.src.core.subscriptions.service import SubscriptionsService
@@ -139,20 +139,42 @@ def NOT_ENTITLED_RESPONSE(tracker=None) -> JSONResponse:
     )
 
 
-def _scope_from(
-    auth_scope: AuthScope,
-    scope: Optional[Scope],
+def scope_from(
+    *,
+    scope: Optional[Scope] = None,
+    organization_id: Optional[UUID] = None,
 ) -> MeterScope:
-    """Project a fully-populated `AuthScope` down to a `MeterScope` at the
-    granularity selected by `scope`.
+    """Build a `MeterScope`.
 
-    Dimensions below the selected granularity are nulled out — meter rows
-    at a given granularity must not carry coordinates below their declared
-    level (a workspace-granularity meter row has no `project_id` or
-    `user_id`).
+    Two modes:
 
-    `scope=None` is treated as `Scope.ORGANIZATION` (the safest default).
+      - **Ambient projection** (no `organization_id`): project the ambient
+        `AuthScope` (from the auth ContextVar) down to `scope`'s
+        granularity. `scope=None` is treated as `Scope.ORGANIZATION` (the
+        common case — `quota.scope=None` flows here unchanged). Raises
+        `AuthContextMissing` if no auth context is published. Used by
+        HTTP-bound callers (handlers, `check_entitlements`,
+        `/billing/usage`).
+
+      - **Explicit org-only** (`organization_id=UUID(...)`, `scope` must
+        be omitted/None): minimal org-only `MeterScope` with no ambient
+        lookup. Used by bootstrap operations and background workers that
+        target a specific org without an ambient request context.
+
+    Passing both `scope` and `organization_id` is ambiguous — raises
+    `ValueError`. Dimensions below the selected granularity are nulled
+    out so meter rows never carry coordinates below their declared level.
     """
+
+    if organization_id is not None:
+        if scope is not None:
+            raise ValueError(
+                "scope_from() does not accept both `scope` and "
+                "`organization_id` together"
+            )
+        return MeterScope(organization_id=organization_id)
+
+    auth_scope = get_auth_scope()
 
     if scope is None or scope == Scope.ORGANIZATION:
         return MeterScope(
@@ -182,38 +204,6 @@ def _scope_from(
 
     return MeterScope(
         organization_id=auth_scope.organization_id,
-    )
-
-
-def scope_from(
-    *,
-    scope: Optional[Scope] = None,
-    organization_id: Optional[UUID] = None,
-) -> MeterScope:
-    """Build a `MeterScope` from one of several sources. Exactly one
-    keyword must be provided:
-
-      - `scope=Scope.X`: project the ambient `AuthScope` (auth ContextVar)
-        down to granularity X. Raises `AuthContextMissing` if no auth
-        context is set. Used by HTTP-bound callers (handlers, soft-check
-        helpers).
-
-      - `organization_id=UUID(...)`: minimal org-only `MeterScope`. Used by
-        bootstrap operations and background workers that target a specific
-        org without an ambient request context.
-    """
-
-    if scope is not None and organization_id is None:
-        return _scope_from(get_auth_scope(), scope)
-
-    if organization_id is not None and scope is None:
-        return MeterScope(
-            organization_id=organization_id,
-        )
-
-    raise ValueError(
-        "scope_from() requires exactly one source keyword "
-        "(`scope` or `organization_id`)"
     )
 
 
@@ -447,13 +437,11 @@ async def _check_entitlements(
         raise EntitlementsException(f"No quota found for key [{key}] in plan [{plan}]")
 
     # Fall back to helpers for the ambient HTTP-request case when the
-    # caller did not pass explicit values. We project the ambient
-    # AuthScope down to `quota.scope` directly via `_scope_from` —
-    # `scope_from(scope=None)` raises by design, and `quota.scope=None`
-    # is the common case (means organization-scoped).
-    _scope: MeterScope = (
-        scope if scope is not None else _scope_from(get_auth_scope(), quota.scope)
-    )
+    # caller did not pass explicit values. `scope_from(scope=quota.scope)`
+    # projects the ambient AuthScope at `quota.scope`'s granularity;
+    # `quota.scope=None` (the common case) is treated as
+    # `Scope.ORGANIZATION`.
+    _scope: MeterScope = scope if scope is not None else scope_from(scope=quota.scope)
     _period: MeterPeriod = (
         period
         if period is not None
