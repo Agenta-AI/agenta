@@ -256,7 +256,7 @@ Three handlers in `api/oss/src/apis/fastapi/evaluations/router.py`:
 - `SimpleEvaluationsRouter.create_evaluation`
 - `SimpleQueuesRouter.create_simple_queue`
 
-Pattern: after the permission check, call `check_entitlements(key=Counter.EVALUATIONS_RUN, delta=N)`. On `not allowed`, raise `HTTPException(429)`. Then wrap `service.create_*` in `try/except Exception:` — on **any** exception, refund with `delta=-N` and re-raise. Domain exceptions therefore also refund (broad-safety trade-off — the conservative choice for an in-flight quota write, so a failed create never leaves a counted-but-not-created row).
+Pattern: after the permission check, call `check_entitlements(key=Counter.EVALUATIONS_RUN, delta=N)`. On `not allowed`, raise `HTTPException(429)`. Then wrap `service.create_*` in `try/except Exception:` — on **any** exception, refund with `delta=-N` and re-raise. Domain exceptions therefore also refund (broad-safety trade-off — the conservative choice for an in-flight quota write, so a failed create never leaves a counted-but-not-created row). After the call returns, refund the *shortfall* between charged `N` and actual creations: `create_runs` refunds `N - len(runs)` if `len(runs) < N`; the single-create handlers refund `1` when the service returned `None`. This covers silent-failure paths where the DAO's `suppress_exceptions(default=[])` decorator or the service's early `return None` guards swallow what would otherwise be an exception.
 
 There is no `EvaluationQuotaExceeded` domain exception or HTTP-exception subclass — the original design had one, but the pivot to router-layer enforcement removed the need for it (the router translates the boolean directly to HTTP).
 

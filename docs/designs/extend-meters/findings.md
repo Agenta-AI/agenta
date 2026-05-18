@@ -15,6 +15,8 @@ A seventh Copilot pass on 2026-05-18 12:53Z surfaced 3 new distinct findings (PR
 
 An eighth Copilot pass on 2026-05-18 14:52Z surfaced 1 new finding (PR-45) — a regression introduced by PR-41: the rewrite called `scope_from(scope=None)` which had been deliberately raising since PR-15, so `/billing/usage` crashed on the first org-scoped quota. Closed: PR-45 collapsed the public/private split — `scope_from` is now the single helper (ambient by default, `scope=None` means `Scope.ORGANIZATION`, explicit `organization_id` still supported, both-args still raises). `_scope_from` removed. `check_entitlements` and `/billing/usage` now share the same call shape. `test_scope_from.py` rewritten for the unified contract; 68/68 EE unit tests pass.
 
+A ninth Copilot pass on 2026-05-18 16:01Z surfaced 1 new finding (PR-46): the three `EVALUATIONS_RUN` write handlers (`create_runs`, `create_evaluation`, `create_simple_queue`) charged the meter before the service call but only refunded on `except Exception`. Each service path can fail silently — the DAO's `suppress_exceptions(default=[])` for `create_runs`, the early-guard `return None` paths in `simple_evaluations.create` and `simple_queues.create` — so the meter kept the full charge while the handler returned `count=0`. Closed: added a post-call shortfall refund (`shortfall = charged - actual; if shortfall > 0: refund -shortfall`) at all three sites. Exception refund paths unchanged. 68/68 EE unit tests pass.
+
 ## Rules
 
 - Findings cite `file:Lstart-Lend` against the current working tree.
@@ -23,36 +25,28 @@ An eighth Copilot pass on 2026-05-18 14:52Z surfaced 1 new finding (PR-45) — a
 
 ## Notes
 
-- Sync runs: 2026-05-18, eight passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed `75e7b8472` ("final CR") → PR-32..PR-40. Pass 7 (2026-05-18 12:53Z): Copilot reviewed the post-pass-6 tree → PR-41..PR-43. PR-44 is an internal staging-deployment incident. Pass 8 (2026-05-18 14:52Z): Copilot reviewed the post-pass-7 tree → PR-45.
+- Sync runs: 2026-05-18, nine passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed `75e7b8472` ("final CR") → PR-32..PR-40. Pass 7 (2026-05-18 12:53Z): Copilot reviewed the post-pass-6 tree → PR-41..PR-43. PR-44 is an internal staging-deployment incident. Pass 8 (2026-05-18 14:52Z): Copilot reviewed the post-pass-7 tree → PR-45. Pass 9 (2026-05-18 16:01Z): Copilot reviewed the post-pass-8 tree → PR-46.
 - Resolve queue priority order: P0 → P1 → P2 → P3.
 - **Rule (from user 2026-05-18):** sync's first step is ALWAYS to save new findings to this file, before any code change or proposed-fix discussion.
 
 ## Open Findings
 
-### [OPEN] PR-46 — Three `EVALUATIONS_RUN` write handlers leak charges when the service returns empty/None silently (P1, high, in-progress)
-
-- **Origin**: sync
-- **Lens**: verification
-- **Confidence**: high
-- **Status**: in-progress
-- **Category**: Correctness / Quota accounting
-- **Files**: `api/oss/src/apis/fastapi/evaluations/router.py:579-615` (`EvaluationsRouter.create_runs`), `api/oss/src/apis/fastapi/evaluations/router.py:1925-1954` (`SimpleEvaluationsRouter.create_evaluation`), `api/oss/src/apis/fastapi/evaluations/router.py:2292-2316` (`SimpleQueuesRouter.create_simple_queue`); cross-ref `api/oss/src/dbs/postgres/evaluations/dao.py:133` (`@suppress_exceptions(default=[], exclude=[EntityCreationConflict])`), `api/oss/src/core/evaluations/service.py:1804` (`simple_evaluations.create -> Optional[SimpleEvaluation]`), `api/oss/src/core/evaluations/service.py:3338` (`simple_queues.create -> Optional[SimpleQueue]`).
-- **PR comment**: [discussion_r3260318614](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3260318614) — Copilot, 2026-05-18 16:01Z
-- **Summary**: Each handler charges `EVALUATIONS_RUN` before calling the service, then refunds only on `except Exception`. But each service path can fail silently — `evaluations_service.create_runs` returns `[]` when the underlying DAO suppresses non-conflict exceptions (`suppress_exceptions(default=[], exclude=[EntityCreationConflict])`); `simple_evaluations.create` returns `None` on missing data; `simple_queues.create` returns `None` on missing data or evaluators. In every silent-failure case the handler returns `count=0` (or a 200 with no entity) while keeping the full charge on the meter.
-- **Evidence (verified)**: code reads as quoted. The PR description explicitly calls out the broad refund as "the conservative choice for an in-flight quota write, so a failed create never leaves a counted-but-not-created row" (proposal.md "Write-side enforcement") — but that contract only holds on the *exception* path. The silent-return path is the gap.
-- **Activation Condition**: live every time the DAO swallows a non-conflict exception (DB transient, network blip, constraint violation other than conflict) for `create_runs`; live every time `simple_evaluations`/`simple_queues` receives malformed input that trips the early `return None` guards.
-- **Cause**: The refund path was designed around the assumption that "service failure ⇒ exception". The DAO's `suppress_exceptions(default=[])` decorator and the early `return None` guards inside the simple services violate that assumption, but the router never reconciled.
-- **Suggested Fix**: Refund the difference between what was charged and what actually got created:
-
-  - `EvaluationsRouter.create_runs`: charged `N = len(runs_create_request.runs)`. After the call, refund `N - len(runs)` if `len(runs) < N`. Negative refunds are no-ops because `delta=0` short-circuits the `check_entitlements` cache preflight (PR-43's `_delta <= quota.limit and current < quota.limit` allows it but does no work). Code shape: `created = len(runs); shortfall = delta - created; if shortfall > 0 and is_ee(): await check_entitlements(key=Counter.EVALUATIONS_RUN, delta=-shortfall)`.
-  - `SimpleEvaluationsRouter.create_evaluation`: charged `1`. If `evaluation is None`, refund `1`. Code shape: `if evaluation is None and is_ee(): await check_entitlements(key=Counter.EVALUATIONS_RUN, delta=-1)`.
-  - `SimpleQueuesRouter.create_simple_queue`: charged `1`. If `queue is None`, refund `1`. Same shape as above.
-
-  Existing `try/except Exception:` refund paths stay as-is for the genuine-exception case. The new "shortfall" refund only fires on the silent-return path.
-- **Alternatives**: (a) Make the DAO/service raise instead of swallowing — bigger blast radius (touches `suppress_exceptions` semantics across many callers, would need broader audit) and the simple-service `return None` guards are deliberate input-validation no-ops, not exceptional cases. (b) Move the quota charge to *after* the service call — closer to "charge only what was created", but loses the soft-check property that current overage blocks the request before the work happens. The current "charge first, refund on mismatch" pattern is the right shape; the silent-return path just needs to be plumbed.
-- **Recommendation**: Suggested fix. Ship at all three sites in one patch.
+(none)
 
 ## Closed Findings
+
+### [CLOSED] PR-46 — Three `EVALUATIONS_RUN` write handlers now refund the shortfall when the service returns empty/None silently (P1, high)
+
+- **Category**: Correctness / Quota accounting
+- **Files**: `api/oss/src/apis/fastapi/evaluations/router.py` — `EvaluationsRouter.create_runs` (~L617), `SimpleEvaluationsRouter.create_evaluation` (~L1972), `SimpleQueuesRouter.create_simple_queue` (~L2347).
+- **PR comment**: [discussion_r3260318614](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3260318614)
+- **Background**: The `try/except Exception:` refund only fires when the service raises. `evaluations_service.create_runs` returns `[]` silently when the DAO swallows non-conflict exceptions; `simple_evaluations.create` / `simple_queues.create` return `None` on early-guard malformed-input paths. In every silent-failure case the meter kept the full charge while the handler returned `count=0`.
+- **Fix shipped**: Added a shortfall-refund branch after each service call:
+  - `create_runs`: `shortfall = len(runs_create_request.runs) - len(runs); if shortfall > 0: refund -shortfall`.
+  - `create_evaluation`: `if evaluation is None: refund -1`.
+  - `create_simple_queue`: `if queue is None: refund -1`.
+  Existing exception refund paths unchanged for the genuine-exception case. 68/68 EE unit tests pass.
+- **Action**: Reply on the GitHub thread and resolve.
 
 ### [CLOSED] PR-45 — `scope_from` unified: ambient by default, `scope=None` means ORGANIZATION; private `_scope_from` removed (P0, high)
 
