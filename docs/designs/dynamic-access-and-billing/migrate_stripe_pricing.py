@@ -1,63 +1,39 @@
 #!/usr/bin/env python3
-"""Convert the legacy `STRIPE_PRICING` / `AGENTA_PRICING` env value to the
-canonical `AGENTA_BILLING_PRICING` shape consumed by
-`ee.src.core.subscriptions.settings`.
+"""Annotate existing `STRIPE_PRICING` / `AGENTA_PRICING` JSON with the two
+reserved markers that the new canonical `AGENTA_BILLING_PRICING` schema
+adds: `{"free": true}` and `{"trial": N}`.
 
-Old (flat) shape — one entry per plan, top-level keys are Stripe-side
-meter event names chosen by the operator (`"users"`, `"traces"`, …):
+The canonical schema is intentionally the same as the old shape — top-level
+keys inside a plan entry are Stripe-side meter slot names (`"users"`,
+`"traces"`, …), each carrying `{"price": ..., "quantity"?}`. The only
+additions are the two reserved top-level markers:
 
-    {
-        "cloud_v0_pro": {
-            "base":   {"price": "price_base_1",   "quantity": 1},
-            "users":  {"price": "price_users_1",  "quantity": 1},
-            "traces": {"price": "price_traces_1"}
-        }
-    }
+- `"free": true` — marks this plan as the free / downgrade fallback
+  (exactly one entry across the whole pricing map may carry this).
+- `"trial": N` — marks this plan as the reverse-trial plan with duration
+  `N` days (exactly one entry across the whole pricing map may carry this).
 
-New (canonical) shape — `line_items` is what Stripe sees on checkout;
-`meters` is how `meters/service.py` finds the price ID for a given meter
-when reporting usage. The `meters` keys remain the **Stripe-side meter
-event names** (the operator-configured identifiers on the Stripe
-dashboard, e.g. `"users"`, `"traces"`), not the internal `Counter`/`Gauge`
-slugs — the internal slug → Stripe-side name map lives in
-`ee.src.core.entitlements.types.STRIPE_METER_NAMES`. This converter is
-therefore a structural reshape only; the meter-slot names pass through
-unchanged.
-
-    {
-        "cloud_v0_pro": {
-            "stripe": {
-                "line_items": [
-                    {"price": "price_base_1",   "quantity": 1},
-                    {"price": "price_users_1",  "quantity": 1},
-                    {"price": "price_traces_1"}
-                ],
-                "meters": {
-                    "users":  {"price": "price_users_1"},
-                    "traces": {"price": "price_traces_1"}
-                }
-            }
-        },
-        "cloud_v0_hobby": {"free": true}
-    }
+Because the old shape passes through verbatim, an operator who only needs
+to add the markers can just edit their JSON by hand. This script is a
+small convenience for scripted deployments — it reads the existing JSON,
+adds the markers via CLI flags, and emits the result.
 
 Usage:
 
-    # From a file
-    python migrate_stripe_pricing.py --in stripe_pricing.json --out billing_pricing.json
+    # Annotate from a file
+    python migrate_stripe_pricing.py --in stripe_pricing.json \\
+        --free cloud_v0_hobby \\
+        --trial cloud_v0_pro:90 \\
+        --out billing_pricing.json
 
-    # From an env var (with optional --free to mark a plan as the free fallback)
+    # Annotate from an env var
     STRIPE_PRICING='{"cloud_v0_pro": {...}}' python migrate_stripe_pricing.py \\
         --env STRIPE_PRICING --free cloud_v0_hobby
 
-The `--free <slug>` flag adds `{"free": true}` for the given plan slug if it
-isn't already present — there must be exactly one free plan in the canonical
-pricing for downgrade/cancel flows to work.
-
-`line_items` is the list of meter sub-entries that have a `"price"` field.
-Meters without a price (e.g. retention buckets) are skipped. The `quantity`
-defaults to 1 for entries that don't specify one; pass `--no-default-quantity`
-to disable that.
+Without `--free` and `--trial`, the script is a pure pass-through (no
+reshape happens). It does not validate the canonical schema — point
+`AGENTA_BILLING_PRICING` at the result and let the API's startup
+validator do that.
 """
 
 import argparse
@@ -67,70 +43,26 @@ import sys
 from typing import Any
 
 
-# Top-level keys in a legacy plan entry that are treated as Stripe-billable
-# meters. Everything that has a `price` is a line item; the entries we map into
-# `stripe.meters` are the ones reported on by `meters/service.py` (gauges +
-# tiered counters with per-unit prices).
-_METER_KEYS_FOR_REPORTING = {"users", "traces"}
-
-
-def _convert_plan(
-    slug: str,
-    old: dict[str, Any],
-    *,
-    default_quantity: bool,
-) -> dict[str, Any]:
-    line_items: list[dict[str, Any]] = []
-    meters: dict[str, dict[str, str]] = {}
-
-    for meter_key, meter_block in old.items():
-        if not isinstance(meter_block, dict):
-            raise ValueError(
-                f"{slug}.{meter_key}: expected object, got {type(meter_block).__name__}"
-            )
-
-        price = meter_block.get("price")
-        if not price:
-            # No price ID → not a Stripe line item; skip.
-            continue
-
-        item: dict[str, Any] = {"price": price}
-        if "quantity" in meter_block:
-            item["quantity"] = meter_block["quantity"]
-        elif default_quantity:
-            item["quantity"] = 1
-        line_items.append(item)
-
-        if meter_key in _METER_KEYS_FOR_REPORTING:
-            meters[meter_key] = {"price": price}
-
-    out: dict[str, Any] = {"stripe": {"line_items": line_items}}
-    if meters:
-        out["stripe"]["meters"] = meters
-    return out
-
-
-def convert(
-    legacy: dict[str, Any],
+def annotate(
+    pricing: dict[str, Any],
     *,
     free_slug: str | None = None,
-    default_quantity: bool = True,
+    trial: tuple[str, int] | None = None,
 ) -> dict[str, Any]:
-    if not isinstance(legacy, dict):
-        raise ValueError("Top-level legacy pricing must be a JSON object")
+    """Add the `free` and `trial` markers to a copy of the pricing dict."""
+    if not isinstance(pricing, dict):
+        raise ValueError("Top-level pricing must be a JSON object")
 
-    result: dict[str, Any] = {}
-    for slug, plan_block in legacy.items():
-        if not isinstance(plan_block, dict):
-            raise ValueError(f"{slug}: plan entry must be a JSON object")
-        result[slug] = _convert_plan(
-            slug, plan_block, default_quantity=default_quantity
-        )
+    result: dict[str, Any] = {slug: dict(entry) for slug, entry in pricing.items()}
 
     if free_slug:
-        if free_slug not in result:
-            result[free_slug] = {}
+        result.setdefault(free_slug, {})
         result[free_slug]["free"] = True
+
+    if trial:
+        trial_slug, trial_days = trial
+        result.setdefault(trial_slug, {})
+        result[trial_slug]["trial"] = trial_days
 
     return result
 
@@ -160,6 +92,24 @@ def _write_output(args: argparse.Namespace, data: dict[str, Any]) -> None:
         print(text)
 
 
+def _parse_trial(raw: str | None) -> tuple[str, int] | None:
+    """Parse the `--trial <slug>:<days>` form into `(slug, days)`."""
+    if not raw:
+        return None
+    if ":" not in raw:
+        raise SystemExit("--trial must be in the form '<plan_slug>:<days>'")
+    slug, _, days_str = raw.partition(":")
+    if not slug:
+        raise SystemExit("--trial: missing plan slug")
+    try:
+        days = int(days_str)
+    except ValueError as e:
+        raise SystemExit(f"--trial: days must be an integer, got {days_str!r}") from e
+    if days <= 0:
+        raise SystemExit(f"--trial: days must be positive, got {days}")
+    return slug, days
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
@@ -173,21 +123,20 @@ def main() -> None:
         "--free", dest="free_slug", help="Mark this plan slug as the free fallback"
     )
     parser.add_argument(
-        "--no-default-quantity",
-        dest="default_quantity",
-        action="store_false",
-        help="Do not inject quantity=1 for line items that omit it",
+        "--trial",
+        dest="trial",
+        help="Mark this plan as the reverse-trial plan: '<plan_slug>:<days>'",
     )
     parser.add_argument("--pretty", action="store_true", help="Indent JSON output")
     args = parser.parse_args()
 
-    legacy = _read_input(args)
-    converted = convert(
-        legacy,
+    pricing = _read_input(args)
+    annotated = annotate(
+        pricing,
         free_slug=args.free_slug,
-        default_quantity=args.default_quantity,
+        trial=_parse_trial(args.trial),
     )
-    _write_output(args, converted)
+    _write_output(args, annotated)
 
 
 if __name__ == "__main__":

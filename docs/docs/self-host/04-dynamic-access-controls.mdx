@@ -118,11 +118,10 @@ per-user daily reads set `limit` via env override.
 
 ### Example — `self_hosted_enterprise` (the code-default for self-hosted)
 
-When `STRIPE_ENABLED=false` and `AGENTA_ACCESS_DEFAULT_PLAN` is unset,
-signup onboards new organizations on `self_hosted_enterprise`. This is the
-operative plan for almost every self-hosted deployment, and the canonical
-shape to use as a starting point for any further customization via
-`AGENTA_ACCESS_PLANS`:
+When `AGENTA_ACCESS_DEFAULT_PLAN` is unset, signup onboards new
+organizations on `self_hosted_enterprise`. This is the operative plan for
+almost every self-hosted deployment, and the canonical shape to use as a
+starting point for any further customization via `AGENTA_ACCESS_PLANS`:
 
 ```json
 {

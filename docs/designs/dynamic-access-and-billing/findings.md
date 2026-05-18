@@ -1,6 +1,6 @@
 # Findings: Dynamic Access and Billing
 
-Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45..da0548d5e`) against the `proposal.md` and `gap.md` in this folder. Code was read independently before reconciling against `tasks.md`. Findings from PR #4330 external review (Copilot) appended as FIND-014..019 — all closed. FIND-020 added from a local migration-tree audit and resolved on user direction by rebasing this branch's migration after the meters reshape. A second sync pass against PR #4330 added FIND-021 (`migrate_stripe_pricing.py` emits legacy meter slugs that fail new validation) and FIND-022 (stale `Counter.EVENTS` / `Counter.TRACES` references in adjacent design folders) — both currently open, pending user decision. See [Open Findings](#open-findings) and [Closed Findings](#closed-findings) for current state.
+Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45..da0548d5e`) against the `proposal.md` and `gap.md` in this folder. Code was read independently before reconciling against `tasks.md`. Findings from PR #4330 external review (Copilot) appended as FIND-014..019 — all closed. FIND-020 added from a local migration-tree audit and resolved on user direction by rebasing this branch's migration after the meters reshape. A second sync pass against PR #4330 added FIND-021 (Stripe meter mapping), FIND-022 (stale `Counter.EVENTS` / `Counter.TRACES` references in adjacent design folders), and FIND-023 (stale enum references in `test_access_controls.py`) — all closed in this same pass. A third sync pass picked up FIND-024 from a follow-up Copilot review comment (stale `scripts/` path in a validator error message); already resolved as a side-effect of the FIND-021 pricing rewrite. See [Closed Findings](#closed-findings) for current state.
 
 ## Sources
 
@@ -24,12 +24,12 @@ Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45
 
 ## Summary
 
-Initial scan surfaced 13 findings: one P0 (project-scope RBAC regression), four P1 (closed-enum holdouts and validation gaps), and the rest P2/P3 hygiene — all resolved on this branch. PR #4330 external review (Copilot) added six more:
+Initial scan surfaced 13 findings: one P0 (project-scope RBAC regression), four P1 (closed-enum holdouts and validation gaps), and the rest P2/P3 hygiene — all resolved on this branch. PR #4330 external review (Copilot) added six more (FIND-014..019), then a migration audit added FIND-020, then a second sync pass added FIND-021..023:
 
-- **Closed:** FIND-014 (P2, design-doc retention defaults updated to match shipped code), FIND-015 (P3, override-vs-overlay terminology tightened in MDX), FIND-016 (P1, acceptance tests fixed by renaming `member`→`viewer`), FIND-017 (P2, `assert` replaced with explicit `if/raise EventException` in trial-checkout), FIND-018 (P3, `_normalize_pricing_entry` now rejects empty `{}` with a slug-pointing error; covered by new unit test), FIND-019 (P3, `existing_type=sa.String()` threaded through both `alter_column` calls in the member→viewer migration), FIND-020 (P0, EE `core` migration tree fork resolved by chaining `a1b2c3d4e5f7` after `9d3e8f0a1b2c`).
-- **Open:** FIND-021 (P1, no mapping between internal `Counter`/`Gauge` slugs and Stripe-side meter event names — runtime sends `event_name="traces_ingested"` but the Stripe dashboard's meter is `"traces"`; same root cause behind the converter symptom Copilot flagged), FIND-022 (P3, stale `Counter.EVENTS` / `Counter.TRACES` references in `data-retention/` and `ee-self-hosting/` design folders).
+- **Closed (PR #4330 + migration audit):** FIND-014 (P2, design-doc retention defaults updated to match shipped code), FIND-015 (P3, override-vs-overlay terminology tightened in MDX), FIND-016 (P1, acceptance tests fixed by renaming `member`→`viewer`), FIND-017 (P2, `assert` replaced with explicit `if/raise EventException` in trial-checkout), FIND-018 (P3, `_normalize_pricing_entry` now rejects empty `{}` with a slug-pointing error; covered by new unit test), FIND-019 (P3, `existing_type=sa.String()` threaded through both `alter_column` calls in the member→viewer migration), FIND-020 (P0, EE `core` migration tree fork resolved by chaining `a1b2c3d4e5f7` after `9d3e8f0a1b2c`).
+- **Closed (latest sync):** FIND-021 (P1, `STRIPE_METER_NAMES` mapping added in `entitlements/types.py`; `meters/service.py` looks up event name + price via the mapping with a skip-path log; `subscriptions/settings.py` switched to flat pricing shape with operator-owned `traces` / `users` slot names plus reserved `free` / `trial` markers; `migrate_stripe_pricing.py` rewritten as an annotation helper for `free` / `trial`), FIND-022 (P3, mechanical `Counter.EVENTS` → `Counter.EVENTS_INGESTED` and `Counter.TRACES` → `Counter.TRACES_INGESTED` rename across `data-retention/README.md`, `data-retention/data-retention-periods.initial.specs.md`, and `ee-self-hosting/research.md`), FIND-023 (P2, `test_access_controls.py` fixture and tests migrated to `Counter.TRACES_INGESTED` / `Period.MONTHLY` / `Retention.MONTHLY` / `Flag.ACCESS`; 61/61 pass), FIND-024 (P3, Copilot-flagged stale `scripts/migrate_stripe_pricing.py` path in a validator error message — already resolved as a side-effect of the FIND-021 pricing rewrite; verified `grep` returns no matches).
 
-EE unit suite (102 tests) green after the changes.
+EE unit suite green after the changes: `test_access_controls.py` 61/61, `test_billing_settings.py` + `test_controls_env_override.py` 83/83.
 
 ## Rules
 
@@ -45,14 +45,18 @@ EE unit suite (102 tests) green after the changes.
 
 ## Open Findings
 
-### FIND-021 — [OPEN] No mapping between internal Counter/Gauge slugs and Stripe-side meter event names; `traces_ingested` won't route to a Stripe meter configured as `"traces"`
+_None._
+
+## Closed Findings
+
+### FIND-021 — [CLOSED] No mapping between internal Counter/Gauge slugs and Stripe-side meter event names; `traces_ingested` won't route to a Stripe meter configured as `"traces"`
 
 - ID: FIND-021
 - Origin: sync
 - Lens: validation
 - Severity: P1
 - Confidence: high
-- Status: needs-user-decision
+- Status: fixed
 - Category: Migration
 - Summary: The runtime sends `event_name = meter.key.value` to [`stripe.billing.MeterEvent.create`](../../../api/ee/src/core/meters/service.py) (line 250) — i.e. `"traces_ingested"`, the value of `Counter.TRACES_INGESTED`. But the Stripe meter on the dashboard was configured against the pre-rename slug `"traces"`, and the per-meter price IDs live on Stripe subscription items keyed by that same `"traces"` name. With the meters reshape that renamed the Counter from `TRACES` to `TRACES_INGESTED`, the runtime now emits a Stripe event with a name no Stripe-side meter recognizes — Stripe silently drops the event (or rejects with an "unknown meter" error in strict mode). Same class of bug for the corresponding price-id lookup in `stripe.meters`. The internal slug rename was a one-sided change that broke the external Stripe wiring.
 - Evidence:
@@ -94,16 +98,17 @@ EE unit suite (102 tests) green after the changes.
 - Alternatives:
   - Rename the Stripe-side meters on every operator's Stripe dashboard to match the new internal slug (`"traces"` → `"traces_ingested"`). Rejected: operationally invasive, requires coordinated downtime per deployment, and any future internal rename would require the same dance again.
   - Make the mapping operator-configurable per plan via an extra `stripe.meters.<slot>.event_name` field. Could be added later as a layer on top of the global default if any deployment needs to override the canonical map; not required for the initial fix.
-- Sources: User-direction ("the Stripe meters and prices are associated to 'traces' not 'traces_ingested'", "maybe add a mapping as a global var"); PR #4330 Copilot review (comment id 3260473541, thread `PRRT_kwDOJbjazM6C5oCs`) flagged the converter-surface symptom of the same root cause.
+- Resolution: Applied the user-suggested mapping plus the broader pricing reshape that fell out of the conversation. `STRIPE_METER_NAMES: dict[str, str]` added at module scope in [`entitlements/types.py`](../../../api/ee/src/core/entitlements/types.py) keying internal Counter/Gauge values to Stripe-side meter event names (`Counter.TRACES_INGESTED.value` → `"traces"`, `Gauge.USERS.value` → `"users"`). Runtime in [`meters/service.py`](../../../api/ee/src/core/meters/service.py) uses `STRIPE_METER_NAMES.get(meter.key.value)` for both `event_name` and the price-id lookup, with a clear skip-path log if a meter is not Stripe-reportable. [`subscriptions/settings.py`](../../../api/ee/src/core/subscriptions/settings.py) was rewritten to a flat pricing shape mirroring the original `STRIPE_PRICING` (`{slug: {free?, trial?, <stripe_slot>: {price, quantity?}}}`); slot names are operator-owned and no longer validated against an internal enum, so `"traces"` and `"users"` flow end-to-end. The `AGENTA_BILLING_TRIAL_PLAN` / `AGENTA_BILLING_TRIAL_DAYS` env vars were collapsed into a per-entry `{trial: N}` marker in the pricing dict, and the corresponding fields were dropped from `BillingSettings` in [`api/oss/src/utils/env.py`](../../../api/oss/src/utils/env.py). [`migrate_stripe_pricing.py`](migrate_stripe_pricing.py) was rewritten as a small annotation helper (`annotate(pricing, free_slug, trial)`) that adds the `free` / `trial` markers without touching slot names. Operator-facing billing docs (`05-dynamic-billing-settings.mdx`) were deleted per user direction; access-control docs (`04-dynamic-access-controls.mdx`, `02-configuration.mdx`, both `env.ee.*.example` files) were stripped of all billing / Stripe references.
+- Sources: User-direction ("the Stripe meters and prices are associated to 'traces' not 'traces_ingested'", "maybe add a mapping as a global var", "drop the docs about billing", "drop mentions to BILLING or STRIPE ENV VARS in mdx docs", "drop from .env.example files too"); PR #4330 Copilot review (comment id 3260473541, thread `PRRT_kwDOJbjazM6C5oCs`) flagged the converter-surface symptom of the same root cause.
 
-### FIND-022 — [OPEN] Stale `Counter.EVENTS.retention` / `Counter.TRACES.retention` references in data-retention design docs
+### FIND-022 — [CLOSED] Stale `Counter.EVENTS.retention` / `Counter.TRACES.retention` references in data-retention design docs
 
 - ID: FIND-022
 - Origin: sync
 - Lens: verification
 - Severity: P3
 - Confidence: high
-- Status: needs-user-decision
+- Status: fixed
 - Category: Consistency
 - Summary: Three documents in `docs/designs/data-retention/` and `docs/design/ee-self-hosting/` still reference the pre-reshape enum members `Counter.EVENTS.retention` and `Counter.TRACES.retention`. The shipped enum uses the `_INGESTED` suffix (`Counter.EVENTS_INGESTED`, `Counter.TRACES_INGESTED`). Operators grepping for these symbols when reading retention design notes won't find them in the code.
 - Evidence:
@@ -119,9 +124,66 @@ EE unit suite (102 tests) green after the changes.
 - Suggested Fix:
   - Sed-style rename across the three files: `Counter.EVENTS` → `Counter.EVENTS_INGESTED`, `Counter.TRACES` → `Counter.TRACES_INGESTED` (carefully — only when the context is enum member access, not when the string slug `events` / `traces` is being discussed as a config value).
   - Grep `docs/` for any remaining `Counter\.\(EVENTS\|TRACES\|EVALUATIONS\|CREDITS\)\b` references that aren't `_INGESTED` / `_RUN` / `_CONSUMED` / `_RETRIEVED` and address them too.
+- Resolution: Applied the mechanical rename across the three files: `docs/designs/data-retention/README.md` lines 27 and 34 (`Counter.TRACES.retention` → `Counter.TRACES_INGESTED.retention`, `Counter.EVENTS.retention` → `Counter.EVENTS_INGESTED.retention`); `docs/designs/data-retention/data-retention-periods.initial.specs.md` line 72 (`Counter.TRACES` → `Counter.TRACES_INGESTED`); `docs/design/ee-self-hosting/research.md` lines 528, 531, and the entitlement-endpoint table at lines 604–611 (trace + event retention enum names updated). Grep for `Counter\.(EVENTS|TRACES|EVALUATIONS|CREDITS)\b` outside of `_INGESTED` / `_RUN` / `_CONSUMED` / `_RETRIEVED` forms returns clean.
 - Sources: PR #4330 Copilot review (comment ids 3260473592 + 3260473627, threads `PRRT_kwDOJbjazM6C5oDW` + `PRRT_kwDOJbjazM6C5oDv`).
 
-## Closed Findings
+### FIND-023 — [CLOSED] `test_access_controls.py` uses pre-reshape `Counter.TRACES` / `monthly=True` / `Flag.HOOKS`
+
+- ID: FIND-023
+- Origin: sync (incidental — surfaced while running broader test suite to validate FIND-021 fix)
+- Lens: validation
+- Severity: P2
+- Confidence: high
+- Status: fixed
+- Category: Testing
+- Summary: [api/ee/tests/pytest/unit/test_access_controls.py](../../../api/ee/tests/pytest/unit/test_access_controls.py) still constructs `Counter.TRACES`, `Quota(monthly=True, ...)`, and `Flag.HOOKS` at lines 124, 319, 321, 347, 396, 401. None of these enum members / fields exist on the post-reshape branch — `Counter` has `TRACES_INGESTED` (no `TRACES`), `Quota` has `period: Optional[Period]` (no `monthly` field; rejected by `extra="forbid"`), and `Flag` has only `RBAC`/`ACCESS`/`DOMAINS`/`SSO` (no `HOOKS`). 8 tests fail to load. These were missed during FIND-014 (design-doc rename), FIND-015 (MDX rename), and the `Quota.extra="forbid"` hardening — the tests are independent of those fix sites but consume the same renamed surfaces.
+- Evidence:
+  - `python -m pytest ee/tests/pytest/unit/test_access_controls.py` produces 8 failures, all `extra_forbidden` or `AttributeError`-style errors against the stale references.
+  - Specific lines: 124 (`"counters": {"traces": {... "monthly": True}}`), 319 (`Flag.HOOKS`), 321 (`Counter.TRACES: Quota(... monthly=True ...)`), 347 (`plans[...][Counter.TRACES]`), 396 + 401 (`Flag.HOOKS`).
+- Files:
+  - [api/ee/tests/pytest/unit/test_access_controls.py](../../../api/ee/tests/pytest/unit/test_access_controls.py)
+- Cause: When `Counter.TRACES` was renamed to `Counter.TRACES_INGESTED` and `Quota.monthly` replaced with `Quota.period`, the production code + design docs + MDX docs were updated, but this test file (which exercises `_PlanOverride` parsing + the overlay merge against env-payload JSON) was not. The `Flag.HOOKS` removal was missed in the same pass.
+- Explanation: The failures are tightly scoped to one test file; nothing in production references these stale members. Same class of doc-vs-code drift as FIND-022 but on the test side. Mechanical fix: rename `Counter.TRACES` → `Counter.TRACES_INGESTED`, replace `monthly=True` with `period=Period.MONTHLY` (and import `Period`), replace `Flag.HOOKS` with a still-existing flag (`Flag.RBAC` or remove the test case if its semantic was specifically the dropped flag).
+- Suggested Fix:
+  - Rename the four stale enum references and migrate the `Quota` constructor calls / JSON payloads:
+
+    ```python
+    # Before
+    "counters": {"traces": {"limit": 100, "monthly": True}}
+    Counter.TRACES: Quota(free=5000, monthly=True, retention=44640)
+    Tracker.FLAGS: {Flag.HOOKS: False}
+
+    # After
+    "counters": {"traces_ingested": {"limit": 100, "period": "monthly"}}
+    Counter.TRACES_INGESTED: Quota(free=5000, period=Period.MONTHLY, retention=Retention.MONTHLY)
+    Tracker.FLAGS: {Flag.RBAC: False}  # or drop the test if HOOKS-specific
+    ```
+
+  - Import `Period` and `Retention` from `ee.src.core.entitlements.types` if not already.
+  - Re-run `python -m pytest ee/tests/pytest/unit/test_access_controls.py` to confirm 64/64 pass.
+- Resolution: Added `Period` and `Retention` to the `# noqa: E402` import block at line 277. Reworked the `_base_plan()` fixture at lines 318–337 to use `Flag.ACCESS` (not `Flag.HOOKS`), `Counter.TRACES_INGESTED` (not `Counter.TRACES`), and `Quota(free=5000, period=Period.MONTHLY, retention=Retention.MONTHLY)` (not `monthly=True, retention=44640`). Updated `test_quota_field_merge_preserves_other_fields` at lines 339–352 (overlay payload key `"traces"` → `"traces_ingested"`, lookup `Counter.TRACES` → `Counter.TRACES_INGESTED`, assertion `traces.monthly is True` → `traces.period == Period.MONTHLY`, `traces.retention == 525600` → `traces.retention == Retention.YEARLY`). Updated `test_overlay_targeting_unknown_plan_fails` and `test_flag_patch_only_overwrites_named_keys` to use `Flag.ACCESS` (the only non-RBAC flag still in the enum). Two upstream cleanups in this same file at lines 105–117 (`test_description_propagated`) and 120–130 (`test_counters_and_gauges_validated`) had already been applied in the prior pass. `python -m pytest ee/tests/pytest/unit/test_access_controls.py` → 61/61 pass (test count dropped from 64 to 61 after the parser API tightening; broader suite `test_billing_settings.py` + `test_controls_env_override.py` → 83/83). `ruff check` clean.
+- Sources: Local test-suite run during FIND-021 verification.
+
+### FIND-024 — [CLOSED] `_normalize_pricing_entry` error message pointed at non-existent `scripts/migrate_stripe_pricing.py`
+
+- ID: FIND-024
+- Origin: sync
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed
+- Category: Consistency
+- Summary: Copilot review (PR #4330, comment id `3260614199`, review id `4312094586`, targeting [`api/ee/src/core/subscriptions/settings.py:130`](../../../api/ee/src/core/subscriptions/settings.py#L130) at the time of the review) flagged that an error message in `_normalize_pricing_entry` directed operators to `scripts/migrate_stripe_pricing.py` for legacy-to-new pricing conversion, while the converter actually ships at `docs/designs/dynamic-access-and-billing/migrate_stripe_pricing.py`. Operators hitting the validation error on the legacy shape would look in a `scripts/` directory that doesn't exist.
+- Evidence:
+  - Copilot comment body (`gh api repos/Agenta-AI/agenta/pulls/comments/3260614199`): "Operators hitting this validation error during the legacy-to-new-pricing migration will look in a `scripts/` directory that doesn't exist. Update the path in the error message to match the script's actual location."
+  - Post-FIND-021 rewrite of [`subscriptions/settings.py`](../../../api/ee/src/core/subscriptions/settings.py) no longer contains any reference to `scripts/migrate_stripe_pricing.py` — `grep -rn "scripts/migrate_stripe_pricing" .` returns no matches.
+- Files:
+  - [api/ee/src/core/subscriptions/settings.py](../../../api/ee/src/core/subscriptions/settings.py)
+- Cause: Pre-FIND-021 versions of `_normalize_pricing_entry` carried a legacy-shape detection branch with an error message that referenced the wrong path. The branch was rewritten end-to-end as part of the FIND-021 pricing reshape (flat shape with operator-owned slot names, reserved `free` / `trial` markers, no internal-enum validation of slot names), so the legacy-detection branch and its stale error message no longer exist.
+- Explanation: The defect was real at review time; it is no longer present because the FIND-021 rewrite removed the surrounding code. Resolving as a side-effect of FIND-021 (not a no-op — the same operator-facing failure mode is just unreachable now). No follow-up needed in code.
+- Suggested Fix: None — already resolved by the FIND-021 rewrite. If a future change re-introduces a legacy-detection branch, the error message must point at `docs/designs/dynamic-access-and-billing/migrate_stripe_pricing.py` (or wherever the converter then lives).
+- Resolution: Verified via `grep -rn "scripts/migrate_stripe_pricing" .` returning no matches across the repo. The pricing validator now operates on the flat shape and never emits a legacy-conversion hint; the helper at `docs/designs/dynamic-access-and-billing/migrate_stripe_pricing.py` is documented in `summary.md` and `findings.md` as the annotation tool for `free` / `trial` markers.
+- Sources: PR #4330 Copilot review (comment id `3260614199`, review id `4312094586`).
 
 ### FIND-001 — [CLOSED] WorkspaceMember response model still uses closed `WorkspaceRole` enum
 

@@ -415,17 +415,6 @@ def _load_json_env_list(name: str) -> list | None:
     return value
 
 
-def _load_int_env(name: str) -> int | None:
-    """Parse `name` as an integer, or return None if unset/empty."""
-    raw = os.getenv(name)
-    if not raw:
-        return None
-    try:
-        return int(raw)
-    except ValueError as e:
-        raise ValueError(f"{name} must be an integer, got {raw!r}") from e
-
-
 class AccessControls(BaseModel):
     """Access controls configuration (plans + roles + default plan).
 
@@ -454,16 +443,18 @@ class AccessControls(BaseModel):
 
 
 class BillingSettings(BaseModel):
-    """Billing settings configuration (catalog + Stripe pricing + trial).
+    """Billing settings configuration (catalog + Stripe pricing).
 
     JSON env vars are parsed here at startup. Schema validation happens in
-    ``ee.src.core.subscriptions.settings``.
+    ``ee.src.core.subscriptions.settings``. The free-plan marker and
+    reverse-trial duration live per-entry inside ``AGENTA_BILLING_PRICING``
+    (`{"free": true}` / `{"trial": N}`) — there is intentionally no separate
+    ``AGENTA_BILLING_FREE_PLAN`` / ``AGENTA_BILLING_TRIAL_PLAN`` /
+    ``AGENTA_BILLING_TRIAL_DAYS`` env var.
     """
 
     catalog: list | None = _load_json_env_list("AGENTA_BILLING_CATALOG")
     pricing: dict | None = _load_json_env_dict("AGENTA_BILLING_PRICING")
-    trial_plan: str | None = os.getenv("AGENTA_BILLING_TRIAL_PLAN") or None
-    trial_days: int | None = _load_int_env("AGENTA_BILLING_TRIAL_DAYS")
 
     model_config = ConfigDict(extra="ignore")
 

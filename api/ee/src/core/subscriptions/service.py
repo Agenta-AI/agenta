@@ -88,8 +88,8 @@ class SubscriptionsService:
 
         if not trial_enabled():
             raise EventException(
-                "Reverse trial requires AGENTA_BILLING_TRIAL_PLAN and "
-                "AGENTA_BILLING_TRIAL_DAYS to be configured."
+                "Reverse trial requires an AGENTA_BILLING_PRICING entry "
+                'carrying a `"trial": N` marker on the trial plan slug.'
             )
 
         trial_days = get_trial_days()

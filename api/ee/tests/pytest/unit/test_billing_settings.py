@@ -65,65 +65,79 @@ class TestNormalizePricingEntry:
         result = settings._normalize_pricing_entry("p", {"free": True})
         assert result == {"free": True}
 
-    def test_paid_with_line_items(self):
+    def test_paid_with_single_slot(self):
         result = settings._normalize_pricing_entry(
             "p",
-            {"stripe": {"line_items": [{"price": "price_x", "quantity": 1}]}},
+            {"base": {"price": "price_x", "quantity": 1}},
         )
-        assert result == {
-            "stripe": {
-                "line_items": [{"price": "price_x", "quantity": 1}],
-                "meters": {},
-            }
-        }
+        assert result == {"base": {"price": "price_x", "quantity": 1}}
 
-    def test_with_per_meter_prices(self):
+    def test_paid_with_multiple_slots(self):
         result = settings._normalize_pricing_entry(
             "p",
             {
-                "stripe": {
-                    "line_items": [{"price": "p1"}],
-                    "meters": {"users": {"price": "p_users"}},
-                }
+                "base": {"price": "p_base", "quantity": 1},
+                "users": {"price": "p_users"},
+                "traces": {"price": "p_traces"},
             },
         )
-        assert result["stripe"]["meters"] == {"users": {"price": "p_users"}}
+        assert set(result.keys()) == {"base", "users", "traces"}
+        assert result["users"] == {"price": "p_users"}
+        assert result["base"]["quantity"] == 1
+
+    def test_trial_plan_entry(self):
+        result = settings._normalize_pricing_entry(
+            "p", {"trial": 90, "base": {"price": "p_base"}}
+        )
+        assert result["trial"] == 90
+        assert result["base"]["price"] == "p_base"
+
+    def test_trial_must_be_positive_int(self):
+        with pytest.raises(ValueError, match="trial must be a positive integer"):
+            settings._normalize_pricing_entry("p", {"trial": 0})
+        with pytest.raises(ValueError, match="trial must be a positive integer"):
+            settings._normalize_pricing_entry("p", {"trial": -7})
+        with pytest.raises(ValueError, match="trial must be a positive integer"):
+            settings._normalize_pricing_entry("p", {"trial": "ninety"})
+        with pytest.raises(ValueError, match="trial must be a positive integer"):
+            settings._normalize_pricing_entry("p", {"trial": True})
 
     def test_non_dict_rejected(self):
         with pytest.raises(ValueError, match="must be an object"):
             settings._normalize_pricing_entry("p", "not-a-dict")
 
-    def test_unknown_top_level_key_rejected(self):
-        with pytest.raises(ValueError, match="unknown keys"):
-            settings._normalize_pricing_entry("p", {"surprise": True})
+    def test_slot_value_not_dict_rejected(self):
+        with pytest.raises(ValueError, match="slot must be an object"):
+            settings._normalize_pricing_entry("p", {"users": "nope"})
 
-    def test_stripe_not_dict_rejected(self):
-        with pytest.raises(ValueError, match="stripe must be an object"):
-            settings._normalize_pricing_entry("p", {"stripe": "nope"})
+    def test_slot_missing_price_rejected(self):
+        with pytest.raises(ValueError, match="missing or invalid 'price'"):
+            settings._normalize_pricing_entry("p", {"users": {}})
 
-    def test_unknown_stripe_key_rejected(self):
-        with pytest.raises(ValueError, match="stripe has unknown keys"):
-            settings._normalize_pricing_entry("p", {"stripe": {"foo": []}})
+    def test_slot_empty_price_rejected(self):
+        with pytest.raises(ValueError, match="missing or invalid 'price'"):
+            settings._normalize_pricing_entry("p", {"users": {"price": ""}})
 
-    def test_line_items_not_list_rejected(self):
-        with pytest.raises(ValueError, match="line_items must be a list"):
-            settings._normalize_pricing_entry("p", {"stripe": {"line_items": "nope"}})
-
-    def test_meters_not_dict_rejected(self):
-        with pytest.raises(ValueError, match="meters must be an object"):
-            settings._normalize_pricing_entry("p", {"stripe": {"meters": "nope"}})
-
-    def test_meter_entry_missing_price_rejected(self):
-        with pytest.raises(ValueError, match="must be an object with a 'price'"):
+    def test_slot_quantity_must_be_int(self):
+        with pytest.raises(ValueError, match="quantity must be an integer"):
             settings._normalize_pricing_entry(
-                "p", {"stripe": {"meters": {"users": {}}}}
+                "p", {"users": {"price": "p1", "quantity": "many"}}
+            )
+
+    def test_slot_unknown_subkey_rejected(self):
+        with pytest.raises(ValueError, match="unknown sub-keys"):
+            settings._normalize_pricing_entry(
+                "p", {"users": {"price": "p1", "color": "purple"}}
             )
 
     def test_empty_pricing_entry_rejected(self):
-        """`{}` would pass the unknown-keys check but contribute nothing and
-        silently 400 at checkout. Require at least one of `free`/`stripe`."""
+        """`{}` would contribute nothing and silently 400 at checkout. Require at
+        least one of `free` / `trial` / a meter slot."""
         with pytest.raises(
-            ValueError, match="must declare at least one of 'free' or 'stripe'"
+            ValueError,
+            match=(
+                "must declare at least one of 'free', 'trial', or a Stripe meter slot"
+            ),
         ):
             settings._normalize_pricing_entry("my_plan", {})
 
@@ -138,13 +152,11 @@ class TestParsePricingOverride:
         result = settings._parse_pricing_override(
             {
                 "free_plan": {"free": True},
-                "paid_plan": {
-                    "stripe": {"line_items": [{"price": "p_x", "quantity": 1}]}
-                },
+                "paid_plan": {"base": {"price": "p_x", "quantity": 1}},
             }
         )
         assert result["free_plan"]["free"] is True
-        assert result["paid_plan"]["stripe"]["line_items"][0]["price"] == "p_x"
+        assert result["paid_plan"]["base"]["price"] == "p_x"
 
     def test_non_dict_rejected(self):
         with pytest.raises(ValueError, match="JSON object"):
@@ -156,6 +168,36 @@ class TestParsePricingOverride:
                 {
                     "a": {"free": True},
                     "b": {"free": True},
+                }
+            )
+
+
+# ---------------------------------------------------------------------------
+# Trial resolution (derived from per-entry "trial" markers)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveTrial:
+    def test_no_trial_returns_none_none(self):
+        pricing = {
+            "a": {"free": True},
+            "b": {"base": {"price": "p_b"}},
+        }
+        assert settings._resolve_trial(pricing) == (None, None)
+
+    def test_single_trial_entry(self):
+        pricing = {
+            "free_plan": {"free": True},
+            "pro": {"trial": 90, "base": {"price": "p_pro"}},
+        }
+        assert settings._resolve_trial(pricing) == ("pro", 90)
+
+    def test_multiple_trial_entries_rejected(self):
+        with pytest.raises(ValueError, match="multiple trial plans"):
+            settings._resolve_trial(
+                {
+                    "a": {"trial": 90, "base": {"price": "p_a"}},
+                    "b": {"trial": 30, "base": {"price": "p_b"}},
                 }
             )
 
@@ -208,12 +250,12 @@ class TestDefaults:
     def test_get_free_plan_falls_back_to_hobby(self):
         assert settings.get_free_plan() == DefaultPlan.CLOUD_V0_HOBBY.value
 
-    def test_get_trial_plan_disabled_when_no_env(self):
-        # No AGENTA_BILLING_TRIAL_PLAN/DAYS set → trial is disabled.
+    def test_get_trial_plan_disabled_by_default(self):
+        # No `AGENTA_BILLING_PRICING.<slug>.trial` set → trial is disabled.
         assert settings.get_trial_plan() is None
 
-    def test_get_trial_days_disabled_when_no_env(self):
+    def test_get_trial_days_disabled_by_default(self):
         assert settings.get_trial_days() is None
 
-    def test_trial_enabled_false_when_no_env(self):
+    def test_trial_enabled_false_by_default(self):
         assert settings.trial_enabled() is False

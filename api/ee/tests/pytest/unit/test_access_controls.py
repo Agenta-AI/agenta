@@ -104,8 +104,7 @@ class TestParsePlansOverride:
                 "plan_a": {
                     "description": "Test plan",
                     "flags": {
-                        "hooks": True,
-                        "rbac": False,
+                        "rbac": True,
                         "access": False,
                         "domains": False,
                         "sso": False,
@@ -114,19 +113,21 @@ class TestParsePlansOverride:
             }
         )
         assert list(plans.keys()) == ["plan_a"]
-        assert plans["plan_a"][Tracker.FLAGS]["hooks"] is True
+        assert plans["plan_a"][Tracker.FLAGS]["rbac"] is True
         assert descriptions["plan_a"] == "Test plan"
 
     def test_counters_and_gauges_validated(self):
         plans, _ = controls._parse_plans_override(
             {
                 "p": {
-                    "counters": {"traces": {"limit": 100, "monthly": True}},
+                    "counters": {
+                        "traces_ingested": {"limit": 100, "period": "monthly"}
+                    },
                     "gauges": {"users": {"limit": 5, "strict": True}},
                 }
             }
         )
-        assert plans["p"][Tracker.COUNTERS]["traces"].limit == 100
+        assert plans["p"][Tracker.COUNTERS]["traces_ingested"].limit == 100
         assert plans["p"][Tracker.GAUGES]["users"].strict is True
 
     def test_empty_dict_rejected(self):
@@ -278,7 +279,9 @@ from ee.src.core.entitlements.types import (  # noqa: E402
     Counter,
     Flag,
     Gauge,
+    Period,
     Quota,
+    Retention,
     Throttle,
 )
 
@@ -316,9 +319,11 @@ class TestDefaultPlanOverlayParse:
 class TestDefaultPlanOverlayApply:
     def _base_plan(self) -> dict:
         return {
-            Tracker.FLAGS: {Flag.HOOKS: False},
+            Tracker.FLAGS: {Flag.ACCESS: False},
             Tracker.COUNTERS: {
-                Counter.TRACES: Quota(free=5000, monthly=True, retention=44640)
+                Counter.TRACES_INGESTED: Quota(
+                    free=5000, period=Period.MONTHLY, retention=Retention.MONTHLY
+                )
             },
             Tracker.GAUGES: {Gauge.USERS: Quota(limit=2, free=2, strict=True)},
             Tracker.THROTTLES: [
@@ -339,16 +344,16 @@ class TestDefaultPlanOverlayApply:
         plans = {"the_plan": self._base_plan()}
         descriptions: dict = {}
         overlay = controls._parse_default_plan_overlay(
-            {"counters": {"traces": {"retention": 525600}}}
+            {"counters": {"traces_ingested": {"retention": 525600}}}
         )
         plans, _ = controls._apply_default_plan_overlay(
             plans, descriptions, overlay, "the_plan"
         )
-        traces: Quota = plans["the_plan"][Tracker.COUNTERS][Counter.TRACES]
+        traces: Quota = plans["the_plan"][Tracker.COUNTERS][Counter.TRACES_INGESTED]
         # Only retention changed; the rest is untouched.
-        assert traces.retention == 525600
+        assert traces.retention == Retention.YEARLY
         assert traces.free == 5000
-        assert traces.monthly is True
+        assert traces.period == Period.MONTHLY
 
     def test_throttle_category_patch_preserves_other_throttles(self):
         plans = {"the_plan": self._base_plan()}
@@ -367,7 +372,7 @@ class TestDefaultPlanOverlayApply:
 
     def test_overlay_targeting_unknown_plan_fails(self):
         plans = {"the_plan": self._base_plan()}
-        overlay = controls._parse_default_plan_overlay({"flags": {"hooks": True}})
+        overlay = controls._parse_default_plan_overlay({"flags": {"access": True}})
         with pytest.raises(ValueError, match="not in the effective plan set"):
             controls._apply_default_plan_overlay(plans, {}, overlay, "ghost_plan")
 
@@ -393,12 +398,12 @@ class TestDefaultPlanOverlayApply:
 
     def test_flag_patch_only_overwrites_named_keys(self):
         base = self._base_plan()
-        base[Tracker.FLAGS] = {Flag.HOOKS: False, Flag.RBAC: True}
+        base[Tracker.FLAGS] = {Flag.ACCESS: False, Flag.RBAC: True}
         plans = {"the_plan": base}
-        overlay = controls._parse_default_plan_overlay({"flags": {"hooks": True}})
+        overlay = controls._parse_default_plan_overlay({"flags": {"access": True}})
         plans, _ = controls._apply_default_plan_overlay(plans, {}, overlay, "the_plan")
         flags = plans["the_plan"][Tracker.FLAGS]
-        assert flags[Flag.HOOKS] is True
+        assert flags[Flag.ACCESS] is True
         assert flags[Flag.RBAC] is True  # untouched
 
 

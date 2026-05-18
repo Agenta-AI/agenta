@@ -24,14 +24,14 @@ each other.
 Spans:
 
 1. Cron calls the admin endpoint `/admin/spans/flush`.
-2. The tracing service enumerates plans with finite `Counter.TRACES.retention`.
+2. The tracing service enumerates plans with finite `Counter.TRACES_INGESTED.retention`.
 3. For each plan, it batches projects and deletes traces older than the cutoff.
 4. Logs include per-plan and total deletion counts.
 
 Events:
 
 1. Cron calls the admin endpoint `/admin/events/flush`.
-2. The events retention service enumerates plans with finite `Counter.EVENTS.retention`.
+2. The events retention service enumerates plans with finite `Counter.EVENTS_INGESTED.retention`.
 3. For each plan, it batches projects and deletes events older than the cutoff.
 4. Logs include per-plan and total deletion counts.
 

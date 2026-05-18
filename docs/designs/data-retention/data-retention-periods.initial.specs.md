@@ -69,7 +69,7 @@ For each **plan** with a finite retention window:
 - `max_traces_per_batch: int` — max number of **traces** deleted per project chunk.
 
 **Plan retention source**
-- Retention minutes are defined per plan in entitlements as `Quota.retention` on `Counter.TRACES`.
+- Retention minutes are defined per plan in entitlements as `Quota.retention` on `Counter.TRACES_INGESTED`.
 - Plans without a retention value are skipped.
 
 ---

@@ -1,7 +1,10 @@
 """Billing settings: effective catalog, Stripe pricing, free/trial plan accessors.
 
-Reads `env.billing.catalog`, `env.billing.pricing`, `env.billing.trial_plan`,
-and `env.billing.trial_days` at import time and falls back to code defaults.
+Reads `env.billing.catalog` and `env.billing.pricing` at import time and
+falls back to code defaults. The free-plan marker and trial duration live
+per-entry inside `AGENTA_BILLING_PRICING` (`{"free": true}` /
+`{"trial": N}`); there is no separate `_FREE_PLAN` / `_TRIAL_PLAN` /
+`_TRIAL_DAYS` env var.
 
 Catalog entries provide user-facing display metadata for `/billing/plans`.
 Pricing entries provide Stripe line items and the free-plan marker.
@@ -18,11 +21,9 @@ from ee.src.core.entitlements.controls import get_plans
 from ee.src.core.entitlements.types import (
     DEFAULT_CATALOG,
     DefaultPlan,
-    STRIPE_METER_NAMES,
 )
 
 
-_VALID_METER_KEYS: set[str] = set(STRIPE_METER_NAMES.values())
 _VALID_CATALOG_TYPES: set[str] = {"standard", "custom"}
 
 
@@ -92,98 +93,107 @@ def _default_pricing() -> Dict[str, Dict[str, Any]]:
     return {}
 
 
+_RESERVED_PRICING_KEYS: set[str] = {"free", "trial"}
+
+
 def _normalize_pricing_entry(slug: str, entry: Any) -> Dict[str, Any]:
     """Validate and normalize one pricing entry.
 
-    Canonical shape:
+    Canonical shape (flat — mirrors the original `STRIPE_PRICING` layout):
 
         {
-            "free": bool,                 # optional, exactly one entry may be free=true
-            "stripe": {                   # required for paid plans
-                "line_items": [           # passed to Stripe checkout/subscription
-                    {"price": "price_...", "quantity": 1},
-                    ...
-                ],
-                "meters": {               # optional, per-meter price IDs for
-                    "users":  {"price": "price_..."},   # usage reporting
-                    "traces": {"price": "price_..."}
-                }
-            }
+            "free":  bool,                      # optional; reserved
+            "trial": int,                       # optional; reserved; days > 0
+            "<slot>": {"price": "price_...", "quantity": 1?},
+            ...
         }
 
-    `meters` keys are **Stripe-side meter event names** (operator-configured
-    on the Stripe dashboard; `"users"`, `"traces"`, …), not the internal
-    `Counter` / `Gauge` slugs. The mapping from internal slug to Stripe-side
-    name lives in `ee.src.core.entitlements.types.STRIPE_METER_NAMES`;
+    `"free"` and `"trial"` are the reserved top-level keys:
+
+    - `"free": true` marks this plan as the free / downgrade fallback. Exactly
+      one entry across the whole `AGENTA_BILLING_PRICING` map may carry this.
+    - `"trial": N` declares this plan as the reverse-trial plan with duration
+      `N` days. Exactly one entry across the map may carry this. `N` must be
+      a positive integer.
+
+    Every other top-level key is a **Stripe-side meter slot name**
+    (operator-configured on the Stripe dashboard; e.g. `"users"`, `"traces"`,
+    `"base"`). A slot's value must be an object carrying a `"price"` field
+    plus an optional `"quantity"` (default `1` when omitted).
+
+    The internal `Counter` / `Gauge` slug → Stripe-side slot name map lives
+    in `ee.src.core.entitlements.types.STRIPE_METER_NAMES`. The runtime in
     `ee.src.core.meters.service` resolves the internal slug through that
-    map before looking up the price ID here.
+    map before looking up the price ID here; that is why the operator's
+    pricing JSON uses Stripe-side names (matching their Stripe dashboard)
+    and not internal slugs.
+
+    Validation:
+
+    - At least one of `"free"`, `"trial"`, or any meter slot must be present.
+    - Every slot must be an object with a non-empty `"price"` string.
+    - `"quantity"`, when supplied, must be an integer.
     """
     if not isinstance(entry, dict):
         raise ValueError(f"AGENTA_BILLING_PRICING['{slug}'] must be an object")
 
-    allowed_top = {"free", "stripe"}
-    unknown = set(entry.keys()) - allowed_top
-    if unknown:
-        raise ValueError(
-            f"AGENTA_BILLING_PRICING['{slug}'] has unknown keys: {sorted(unknown)}. "
-            f"Allowed: {sorted(allowed_top)}. "
-            "If migrating from STRIPE_PRICING, see scripts/migrate_stripe_pricing.py."
-        )
-
     normalized: Dict[str, Any] = {}
 
-    if "free" in entry:
-        normalized["free"] = bool(entry["free"])
-
-    if "stripe" in entry:
-        stripe_block = entry["stripe"]
-        if not isinstance(stripe_block, dict):
+    for key, value in entry.items():
+        if not isinstance(key, str) or not key:
             raise ValueError(
-                f"AGENTA_BILLING_PRICING['{slug}'].stripe must be an object"
+                f"AGENTA_BILLING_PRICING['{slug}']: keys must be non-empty strings; "
+                f"got {key!r}"
             )
 
-        stripe_unknown = set(stripe_block.keys()) - {"line_items", "meters"}
-        if stripe_unknown:
-            raise ValueError(
-                f"AGENTA_BILLING_PRICING['{slug}'].stripe has unknown keys: "
-                f"{sorted(stripe_unknown)}. Allowed: ['line_items', 'meters']."
-            )
+        if key == "free":
+            normalized["free"] = bool(value)
+            continue
 
-        line_items = stripe_block.get("line_items") or []
-        if not isinstance(line_items, list):
-            raise ValueError(
-                f"AGENTA_BILLING_PRICING['{slug}'].stripe.line_items must be a list"
-            )
-
-        meters = stripe_block.get("meters") or {}
-        if not isinstance(meters, dict):
-            raise ValueError(
-                f"AGENTA_BILLING_PRICING['{slug}'].stripe.meters must be an object"
-            )
-        for meter_key, meter_entry in meters.items():
-            if meter_key not in _VALID_METER_KEYS:
+        if key == "trial":
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
                 raise ValueError(
-                    f"AGENTA_BILLING_PRICING['{slug}'].stripe.meters['{meter_key}'] "
-                    "is not a recognized Stripe meter event name. Allowed keys: "
-                    f"{sorted(_VALID_METER_KEYS)} (configured on the Stripe "
-                    "dashboard; the internal Counter/Gauge slug → Stripe name "
-                    "map lives in entitlements/types.py STRIPE_METER_NAMES)."
+                    f"AGENTA_BILLING_PRICING['{slug}'].trial must be a positive "
+                    f"integer (days); got {value!r}"
                 )
-            if not isinstance(meter_entry, dict) or "price" not in meter_entry:
-                raise ValueError(
-                    f"AGENTA_BILLING_PRICING['{slug}'].stripe.meters['{meter_key}'] "
-                    "must be an object with a 'price' field"
-                )
+            normalized["trial"] = value
+            continue
 
-        normalized["stripe"] = {
-            "line_items": list(line_items),
-            "meters": dict(meters),
-        }
+        # Treat as a Stripe meter slot.
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"AGENTA_BILLING_PRICING['{slug}']['{key}']: slot must be an "
+                f"object with a 'price' field; got {type(value).__name__}"
+            )
+        price = value.get("price")
+        if not isinstance(price, str) or not price:
+            raise ValueError(
+                f"AGENTA_BILLING_PRICING['{slug}']['{key}']: missing or invalid "
+                "'price' (must be a non-empty string)"
+            )
+        slot: Dict[str, Any] = {"price": price}
+        if "quantity" in value:
+            qty = value["quantity"]
+            if not isinstance(qty, int) or isinstance(qty, bool):
+                raise ValueError(
+                    f"AGENTA_BILLING_PRICING['{slug}']['{key}'].quantity must "
+                    f"be an integer; got {type(qty).__name__}"
+                )
+            slot["quantity"] = qty
+        # Reject any unknown sub-keys inside a slot to catch operator typos.
+        slot_unknown = set(value.keys()) - {"price", "quantity"}
+        if slot_unknown:
+            raise ValueError(
+                f"AGENTA_BILLING_PRICING['{slug}']['{key}'] has unknown sub-keys: "
+                f"{sorted(slot_unknown)}. Allowed: ['price', 'quantity']."
+            )
+        normalized[key] = slot
 
     if not normalized:
         raise ValueError(
             f"AGENTA_BILLING_PRICING['{slug}'] must declare at least one of "
-            "'free' or 'stripe'."
+            "'free', 'trial', or a Stripe meter slot (e.g. 'base', 'users', "
+            "'traces')."
         )
 
     return normalized
@@ -218,43 +228,33 @@ def _parse_pricing_override(decoded: Any) -> Dict[str, Dict[str, Any]]:
 
 
 def _resolve_trial(
-    plans: set[str],
+    pricing: Dict[str, Dict[str, Any]],
 ) -> tuple[Optional[str], Optional[int]]:
-    """Resolve the trial plan slug and duration.
+    """Resolve the trial plan slug and duration from the pricing map.
 
-    Rule: `AGENTA_BILLING_TRIAL_PLAN` and `AGENTA_BILLING_TRIAL_DAYS` must
-    be configured together — either both set or neither. Setting only one
-    fails startup with a clear error.
+    A plan declares itself as the trial plan by carrying `"trial": N` in its
+    `AGENTA_BILLING_PRICING` entry, where `N` is the trial duration in days.
+    At most one entry across the map may carry `"trial"`; multiples fail
+    startup.
 
-    When neither is set the reverse-trial flow is disabled and signups
-    onboard directly on the free plan.
+    When no entry carries `"trial"`, the reverse-trial flow is disabled and
+    signups onboard directly on the free plan.
     """
-    raw_plan = env.billing.trial_plan
-    raw_days = env.billing.trial_days
-
-    if (raw_plan is None) != (raw_days is None):
-        missing = (
-            "AGENTA_BILLING_TRIAL_DAYS" if raw_plan else "AGENTA_BILLING_TRIAL_PLAN"
-        )
-        raise ValueError(
-            f"Trial configuration is incomplete: {missing} is required when the "
-            "other trial env var is set. Either configure both or unset both."
-        )
-
-    if raw_plan is None:
-        return None, None
-
-    if raw_plan not in plans:
-        raise ValueError(
-            f"AGENTA_BILLING_TRIAL_PLAN '{raw_plan}' is not in the effective plans set"
-        )
-
-    if raw_days is None or raw_days <= 0:
-        raise ValueError(
-            f"AGENTA_BILLING_TRIAL_DAYS must be a positive integer, got {raw_days!r}"
-        )
-
-    return raw_plan, int(raw_days)
+    trial_plan: Optional[str] = None
+    trial_days: Optional[int] = None
+    for slug, entry in pricing.items():
+        days = entry.get("trial")
+        if days is None:
+            continue
+        if trial_plan is not None:
+            raise ValueError(
+                "AGENTA_BILLING_PRICING has multiple trial plans "
+                f"('{trial_plan}' and '{slug}'); exactly one entry may "
+                "carry '\"trial\": N'."
+            )
+        trial_plan = slug
+        trial_days = int(days)
+    return trial_plan, trial_days
 
 
 def _build_settings() -> tuple[
@@ -318,7 +318,13 @@ def _build_settings() -> tuple[
             "AGENTA_ACCESS_PLANS."
         )
 
-    trial_plan, trial_days = _resolve_trial(plans)
+    trial_plan, trial_days = _resolve_trial(pricing)
+    if trial_plan is not None and trial_plan not in plans:
+        raise ValueError(
+            f"AGENTA_BILLING_PRICING['{trial_plan}'].trial is set, but the "
+            "plan slug is not in the effective plan set "
+            f"(AGENTA_ACCESS_PLANS = {sorted(plans)})."
+        )
 
     # If operators set AGENTA_ACCESS_DEFAULT_PLAN (or legacy
     # AGENTA_DEFAULT_PLAN), it must reference an effective plan slug.
@@ -376,14 +382,24 @@ def get_pricing_plan(slug: Optional[str]) -> Optional[Dict[str, Any]]:
 
 
 def get_stripe_line_items(slug: Optional[str]) -> List[Dict[str, Any]]:
-    """Return Stripe line items for a plan, or [] if not configured."""
+    """Return Stripe line items for a plan, or `[]` if not configured.
+
+    Derived from the flat pricing entry: every non-reserved key whose value
+    carries a `"price"` is a line item. Order is the JSON-insertion order
+    the operator supplied (Python dicts preserve insertion).
+    """
     if not slug:
         return []
     entry = _PRICING.get(slug)
     if not entry:
         return []
-    stripe_block = entry.get("stripe") or {}
-    return list(stripe_block.get("line_items") or [])
+    line_items: List[Dict[str, Any]] = []
+    for key, value in entry.items():
+        if key in _RESERVED_PRICING_KEYS:
+            continue
+        if isinstance(value, dict) and value.get("price"):
+            line_items.append(dict(value))
+    return line_items
 
 
 def get_stripe_meter_price(
@@ -392,20 +408,22 @@ def get_stripe_meter_price(
 ) -> Optional[str]:
     """Return the Stripe price ID for a given (plan, meter) pair.
 
-    `meter` is a **Stripe-side meter event name** (e.g. `"users"`,
+    `meter` is a **Stripe-side meter slot name** (e.g. `"users"`,
     `"traces"`) — the operator-configured identifier on the Stripe dashboard,
     not the internal `Counter` / `Gauge` slug. Callers in `meters/service.py`
     resolve the internal slug through `STRIPE_METER_NAMES` before calling
-    this. Returns `None` when the plan has no pricing or the meter has no
-    price wired up.
+    this. Returns `None` when the plan has no pricing, the meter slot is
+    absent, or the slot carries no `"price"`.
     """
     if not plan or not meter:
         return None
     entry = _PRICING.get(plan)
     if not entry:
         return None
-    meters = (entry.get("stripe") or {}).get("meters") or {}
-    return (meters.get(meter) or {}).get("price")
+    slot = entry.get(meter)
+    if not isinstance(slot, dict):
+        return None
+    return slot.get("price")
 
 
 def get_free_plan() -> Optional[str]:
@@ -420,10 +438,10 @@ def get_free_plan() -> Optional[str]:
 
 
 def get_trial_plan() -> Optional[str]:
-    """Return the configured trial plan slug, or None if trial is disabled.
+    """Return the configured trial plan slug, or `None` if trial is disabled.
 
-    Disabled when `AGENTA_BILLING_TRIAL_PLAN` / `AGENTA_BILLING_TRIAL_DAYS`
-    are unset — signups should onboard directly on the free plan.
+    Disabled when no `AGENTA_BILLING_PRICING` entry carries `"trial": N`.
+    When disabled, signups should onboard directly on the free plan.
     """
     return _TRIAL_PLAN
 

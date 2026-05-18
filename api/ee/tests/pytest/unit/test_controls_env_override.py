@@ -80,7 +80,6 @@ class TestPlansOverride:
                 "only_plan": {
                     "description": "Test",
                     "flags": {
-                        "hooks": True,
                         "rbac": False,
                         "access": False,
                         "domains": False,
@@ -167,7 +166,6 @@ class TestCatalogConsistency:
                     {
                         "only": {
                             "flags": {
-                                "hooks": True,
                                 "rbac": False,
                                 "access": False,
                                 "domains": False,
@@ -201,7 +199,6 @@ class TestCatalogConsistency:
                     {
                         "only": {
                             "flags": {
-                                "hooks": True,
                                 "rbac": False,
                                 "access": False,
                                 "domains": False,
@@ -229,7 +226,6 @@ class TestPricingConsistency:
                     {
                         "only": {
                             "flags": {
-                                "hooks": True,
                                 "rbac": False,
                                 "access": False,
                                 "domains": False,
@@ -263,7 +259,6 @@ class TestPricingConsistency:
                     {
                         "only": {
                             "flags": {
-                                "hooks": True,
                                 "rbac": False,
                                 "access": False,
                                 "domains": False,
@@ -296,7 +291,6 @@ class TestPricingConsistency:
                     {
                         "a": {
                             "flags": {
-                                "hooks": True,
                                 "rbac": False,
                                 "access": False,
                                 "domains": False,
@@ -305,7 +299,6 @@ class TestPricingConsistency:
                         },
                         "b": {
                             "flags": {
-                                "hooks": True,
                                 "rbac": False,
                                 "access": False,
                                 "domains": False,
@@ -341,24 +334,35 @@ class TestPricingConsistency:
 
 
 # ---------------------------------------------------------------------------
-# Trial env vars
+# Trial — declared per-entry inside AGENTA_BILLING_PRICING as `{"trial": N}`
 # ---------------------------------------------------------------------------
+#
+# The previous design used two separate env vars (`AGENTA_BILLING_TRIAL_PLAN`
+# and `AGENTA_BILLING_TRIAL_DAYS`); they were collapsed into a per-pricing-
+# entry `trial: N` marker so the trial plan and its duration live as one
+# atomic unit on a single plan slug. These tests exercise the new shape.
 
 
-class TestTrialEnv:
-    def test_trial_both_set_enables_trial(self):
+class TestTrialPricingEntry:
+    def test_trial_entry_enables_trial(self):
+        pricing = json.dumps(
+            {
+                "cloud_v0_business": {
+                    "trial": 30,
+                    "base": {"price": "p_business", "quantity": 1},
+                },
+                "cloud_v0_hobby": {"free": True},
+            }
+        )
         out = _ok(
             "from ee.src.core.subscriptions.settings import "
             "get_trial_plan, get_trial_days, trial_enabled; "
             "print(get_trial_plan()); print(get_trial_days()); print(trial_enabled())",
-            env_extra={
-                "AGENTA_BILLING_TRIAL_PLAN": "cloud_v0_business",
-                "AGENTA_BILLING_TRIAL_DAYS": "30",
-            },
+            env_extra={"AGENTA_BILLING_PRICING": pricing},
         )
         assert out.splitlines() == ["cloud_v0_business", "30", "True"]
 
-    def test_trial_neither_set_disables_trial(self):
+    def test_no_trial_entry_disables_trial(self):
         out = _ok(
             "from ee.src.core.subscriptions.settings import "
             "get_trial_plan, get_trial_days, trial_enabled; "
@@ -366,45 +370,48 @@ class TestTrialEnv:
         )
         assert out.splitlines() == ["None", "None", "False"]
 
-    def test_trial_plan_only_fails_startup(self):
-        _fails(
-            "from ee.src.core.subscriptions.settings import get_trial_plan",
-            {"AGENTA_BILLING_TRIAL_PLAN": "cloud_v0_business"},
-            "AGENTA_BILLING_TRIAL_DAYS is required",
-        )
-
-    def test_trial_days_only_fails_startup(self):
-        _fails(
-            "from ee.src.core.subscriptions.settings import get_trial_days",
-            {"AGENTA_BILLING_TRIAL_DAYS": "14"},
-            "AGENTA_BILLING_TRIAL_PLAN is required",
-        )
-
     def test_trial_plan_not_in_effective_plans_fails(self):
+        # Note: the higher-level pricing cross-reference guard fires first
+        # ("AGENTA_BILLING_PRICING references plan 'bogus_plan' not in
+        # effective plans"); we don't reach the trial-specific guard at the
+        # bottom of `_build_settings`. Either error confirms the
+        # invariant.
+        pricing = json.dumps({"bogus_plan": {"trial": 14, "base": {"price": "p_x"}}})
         _fails(
             "from ee.src.core.subscriptions.settings import get_trial_plan",
-            {
-                "AGENTA_BILLING_TRIAL_PLAN": "bogus_plan",
-                "AGENTA_BILLING_TRIAL_DAYS": "14",
-            },
-            "not in the effective plans set",
+            {"AGENTA_BILLING_PRICING": pricing},
+            "not in effective plans",
         )
 
     def test_trial_days_non_positive_fails(self):
+        pricing = json.dumps({"cloud_v0_pro": {"trial": 0, "base": {"price": "p_pro"}}})
         _fails(
             "from ee.src.core.subscriptions.settings import get_trial_days",
-            {
-                "AGENTA_BILLING_TRIAL_PLAN": "cloud_v0_pro",
-                "AGENTA_BILLING_TRIAL_DAYS": "0",
-            },
-            "must be a positive integer",
+            {"AGENTA_BILLING_PRICING": pricing},
+            "trial must be a positive integer",
         )
 
-    def test_trial_days_invalid_fails_startup(self):
+    def test_trial_days_string_fails(self):
+        pricing = json.dumps(
+            {"cloud_v0_pro": {"trial": "ninety", "base": {"price": "p_pro"}}}
+        )
         _fails(
-            "from oss.src.utils.env import env; print(env.billing.trial_days)",
-            {"AGENTA_BILLING_TRIAL_DAYS": "not-a-number"},
-            "must be an integer",
+            "from ee.src.core.subscriptions.settings import get_trial_plan",
+            {"AGENTA_BILLING_PRICING": pricing},
+            "trial must be a positive integer",
+        )
+
+    def test_multiple_trial_entries_rejected(self):
+        pricing = json.dumps(
+            {
+                "cloud_v0_pro": {"trial": 30, "base": {"price": "p1"}},
+                "cloud_v0_business": {"trial": 90, "base": {"price": "p2"}},
+            }
+        )
+        _fails(
+            "from ee.src.core.subscriptions.settings import get_trial_plan",
+            {"AGENTA_BILLING_PRICING": pricing},
+            "multiple trial plans",
         )
 
 
@@ -547,37 +554,41 @@ class TestDefaultPlanOverlay:
     """
 
     def test_overlay_patches_traces_retention(self):
+        # Note: 525600 = Retention.YEARLY; the overlay only accepts canonical
+        # Retention enum values, so we use one of those rather than an
+        # arbitrary minute count.
         out = _ok(
             "from ee.src.core.entitlements.controls import get_plan_entitlements; "
             "from ee.src.core.entitlements.types import Tracker, Counter; "
             "ent = get_plan_entitlements('cloud_v0_hobby'); "
-            "print(ent[Tracker.COUNTERS][Counter.TRACES].retention)",
+            "print(ent[Tracker.COUNTERS][Counter.TRACES_INGESTED].retention.value)",
             env_extra={
                 "AGENTA_ACCESS_DEFAULT_PLAN": "cloud_v0_hobby",
                 "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
-                    {"counters": {"traces": {"retention": 43200}}}
+                    {"counters": {"traces_ingested": {"retention": 525600}}}
                 ),
             },
         )
-        assert out.strip() == "43200"
+        assert out.strip() == "525600"
 
     def test_overlay_preserves_other_quota_fields(self):
-        # Hobby's traces quota: free=5000, monthly=True, retention=44640.
-        # Overlay sets only retention → free/monthly stay.
+        # Hobby's traces_ingested quota: free=5000, period=Period.MONTHLY,
+        # retention=Retention.MONTHLY. Overlay sets only retention → free
+        # and period stay.
         out = _ok(
             "from ee.src.core.entitlements.controls import get_plan_entitlements; "
             "from ee.src.core.entitlements.types import Tracker, Counter; "
             "q = get_plan_entitlements('cloud_v0_hobby')"
-            "[Tracker.COUNTERS][Counter.TRACES]; "
-            "print(q.retention, q.free, q.monthly)",
+            "[Tracker.COUNTERS][Counter.TRACES_INGESTED]; "
+            "print(q.retention.value, q.free, q.period.value)",
             env_extra={
                 "AGENTA_ACCESS_DEFAULT_PLAN": "cloud_v0_hobby",
                 "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
-                    {"counters": {"traces": {"retention": 525600}}}
+                    {"counters": {"traces_ingested": {"retention": 525600}}}
                 ),
             },
         )
-        assert out.strip() == "525600 5000 True"
+        assert out.strip() == "525600 5000 monthly"
 
     def test_overlay_patches_throttle_rate_only(self):
         out = _ok(
@@ -614,7 +625,7 @@ class TestDefaultPlanOverlay:
             {
                 "AGENTA_ACCESS_DEFAULT_PLAN": "ghost_plan",
                 "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
-                    {"flags": {"hooks": True}}
+                    {"flags": {"rbac": True}}
                 ),
             },
             "not in the effective plan set",
