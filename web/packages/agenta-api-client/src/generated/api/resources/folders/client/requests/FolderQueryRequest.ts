@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface FolderQueryRequest {
+    /** Filter object. Any combination of `id`/`ids`, `slug`/`slugs`, `kind`/`kinds`, `parent_id`/`parent_ids`, `path`/`paths`, and `prefix`/`prefixes` narrows the result. */
     folder: AgentaApi.FolderQuery;
 }

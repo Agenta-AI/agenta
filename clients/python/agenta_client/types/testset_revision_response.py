@@ -11,8 +11,16 @@ from .testset_revision import TestsetRevision
 class TestsetRevisionResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    testset_revision: typing.Optional[TestsetRevision] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    1 if a revision was returned, 0 otherwise.
+    """
+    
+    testset_revision: typing.Optional[TestsetRevision] = pydantic.Field(default=None)
+    """
+    The testset revision. `data.testcase_ids` is the ordered list of testcase IDs; `data.testcases` is populated when `include_testcases` is true.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

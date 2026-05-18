@@ -116,6 +116,31 @@ function primeWorkflowRevisionDetailCache(
     queryClient.setQueryData(["workflows", "revision", workflow.id, projectId], workflow)
 }
 
+/**
+ * Imperative wrapper for `primeWorkflowRevisionDetailCache` callable from
+ * commit/create handlers. Seeds the per-revision detail cache with the
+ * server response so subsequent `workflowQueryAtomFamily` reads resolve
+ * instantly without a network round-trip — critical for the post-commit
+ * navigation flow where the playground page mounts immediately after
+ * router.push and must not fall back to the workflow's v0 seed revision
+ * while the GET endpoint catches up.
+ */
+export function primeWorkflowRevisionDetailCacheImperative(
+    workflow: Workflow | null | undefined,
+    options?: StoreOptions,
+): void {
+    if (!workflow?.id) return
+    const store = getStore(options)
+    const projectId = store.get(workflowProjectIdAtom)
+    if (!projectId) return
+    try {
+        const qc = store.get(queryClientAtom)
+        primeWorkflowRevisionDetailCache(qc, projectId, workflow)
+    } catch {
+        // queryClientAtom may not be initialized yet (rare)
+    }
+}
+
 function findWorkflowRevisionInDetailCache(
     queryClient: QueryClient,
     projectId: string,
@@ -2136,4 +2161,30 @@ export function invalidateWorkflowRevisionsByWorkflowCache(
         // queryClientAtom may not be initialized yet
     }
     store.set(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
+}
+
+/**
+ * Invalidate the revisions-by-variant cache for a given variant ID.
+ *
+ * The playground's per-variant revision selector reads
+ * `workflowRevisionsListQueryStateAtomFamily(variantId)`, which is backed by
+ * the `["workflows", "revisions", variantId, projectId]` queryKey — distinct
+ * from the workflow-scoped `revisionsByWorkflow` cache. Without this
+ * invalidation, deleting a revision keeps the stale entry in the dropdown.
+ */
+export function invalidateWorkflowRevisionsByVariantCache(
+    variantId: string,
+    options?: StoreOptions,
+) {
+    const store = getStore(options)
+    try {
+        const qc = store.get(queryClientAtom)
+        qc.invalidateQueries({
+            queryKey: ["workflows", "revisions", variantId],
+            exact: false,
+        })
+    } catch {
+        // queryClientAtom may not be initialized yet
+    }
+    store.set(workflowRevisionsQueryAtomFamily(variantId))
 }

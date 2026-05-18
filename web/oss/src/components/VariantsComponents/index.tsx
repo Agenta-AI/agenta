@@ -21,6 +21,7 @@ import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 import {useAppEnvironments} from "@/oss/state/environment/useAppEnvironments"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 import {openDeploymentsDrawerAtom} from "../DeploymentsDashboard/modals/store/deploymentDrawerStore"
 import {openDeleteVariantModalAtom} from "../Playground/Components/Modals/DeleteVariantModal/store/deleteVariantModalStore"
@@ -50,6 +51,13 @@ const VariantsDashboard = () => {
     const [displayMode, setDisplayMode] = useAtom(registryDisplayModeAtom)
     const [searchTerm, setSearchTerm] = useAtom(registrySearchTermAtom)
     const {baseAppURL} = useURL()
+
+    // Phase 6.2: gate deploy-related UI on workflow kind. Evaluators don't
+    // deploy to environments — hide the per-row "Deploy" action and the
+    // header-level Deploy button. The deployments tab is also hidden / URL-
+    // rewritten in this phase (see tabItems below + the redirect effect).
+    const workflowCtx = useAtomValue(currentWorkflowContextAtom)
+    const isCurrentWorkflowEvaluator = workflowCtx.workflowKind === "evaluator"
 
     // Deployments data
     const {environments, isEnvironmentsLoading} = useAppEnvironments({appId})
@@ -218,7 +226,9 @@ const VariantsDashboard = () => {
         [handleOpenDetails, handleOpenInPlayground, handleDeploy, handleDelete],
     )
 
-    // Tab items
+    // Tab items. Phase 6.2: hide the Deployments tab when current workflow
+    // is an evaluator (evaluators don't deploy). Stale-bookmark rewrite
+    // handled by the effect below this useMemo.
     const tabItems = useMemo(
         () => [
             {
@@ -230,18 +240,32 @@ const VariantsDashboard = () => {
                     </span>
                 ),
             },
-            {
-                key: "deployments",
-                label: (
-                    <span className="inline-flex items-center gap-2">
-                        <CloudArrowUpIcon />
-                        Deployments
-                    </span>
-                ),
-            },
+            ...(isCurrentWorkflowEvaluator
+                ? []
+                : [
+                      {
+                          key: "deployments",
+                          label: (
+                              <span className="inline-flex items-center gap-2">
+                                  <CloudArrowUpIcon />
+                                  Deployments
+                              </span>
+                          ),
+                      },
+                  ]),
         ],
-        [],
+        [isCurrentWorkflowEvaluator],
     )
+
+    // Phase 6.2: stale-bookmark URL rewrite. If the user lands on
+    // /apps/[evaluator_id]/variants?tab=deployments, flip them to the default
+    // tab. The deployments tab itself is already hidden above; this handles
+    // the URL-direct case.
+    useEffect(() => {
+        if (isCurrentWorkflowEvaluator && activeTab === "deployments") {
+            setActiveTab("variants")
+        }
+    }, [isCurrentWorkflowEvaluator, activeTab, setActiveTab])
     const headerTabsProps = useMemo(
         () => ({
             items: tabItems,
@@ -293,27 +317,31 @@ const VariantsDashboard = () => {
                 >
                     Compare
                 </Button>
-                <DeployVariantButton
-                    type="default"
-                    label="Deploy"
-                    disabled={!selectedRevisionId || selectedCount > 1}
-                    revisionId={selectedRevisionId}
-                />
-                <Button
-                    type="primary"
-                    icon={<CodeSimpleIcon size={14} />}
-                    data-tour="api-code-button"
-                    onClick={() => {
-                        openDeploymentsDrawer({
-                            initialWidth: 1200,
-                            revisionId: selectedRevisionId,
-                            mode: "variant",
-                        })
-                        recordWidgetEvent("integration_snippet_viewed")
-                    }}
-                >
-                    Use API
-                </Button>
+                {!isCurrentWorkflowEvaluator && (
+                    <>
+                        <DeployVariantButton
+                            type="default"
+                            label="Deploy"
+                            disabled={!selectedRevisionId || selectedCount > 1}
+                            revisionId={selectedRevisionId}
+                        />
+                        <Button
+                            type="primary"
+                            icon={<CodeSimpleIcon size={14} />}
+                            data-tour="api-code-button"
+                            onClick={() => {
+                                openDeploymentsDrawer({
+                                    initialWidth: 1200,
+                                    revisionId: selectedRevisionId,
+                                    mode: "variant",
+                                })
+                                recordWidgetEvent("integration_snippet_viewed")
+                            }}
+                        >
+                            Use API
+                        </Button>
+                    </>
+                )}
             </div>
         ),
         [
@@ -323,6 +351,7 @@ const VariantsDashboard = () => {
             openComparisonModal,
             openDeploymentsDrawer,
             recordWidgetEvent,
+            isCurrentWorkflowEvaluator,
         ],
     )
 
@@ -335,6 +364,7 @@ const VariantsDashboard = () => {
                 filters={filtersNode}
                 primaryActions={actionsNode}
                 displayMode={displayMode}
+                hideDeployActions={isCurrentWorkflowEvaluator}
             />
         </div>
     )
@@ -359,7 +389,11 @@ const VariantsDashboard = () => {
     )
 
     return (
-        <PageLayout title="Registry" headerTabsProps={headerTabsProps} className="grow min-h-0">
+        <PageLayout
+            title="Registry"
+            headerTabsProps={isCurrentWorkflowEvaluator ? undefined : headerTabsProps}
+            className="grow min-h-0"
+        >
             {activeTab === "deployments" ? deploymentsContent : variantContent}
         </PageLayout>
     )

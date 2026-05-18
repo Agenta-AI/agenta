@@ -2,11 +2,18 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Analytics response with user-specified metric specs.
+ */
 export interface AnalyticsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of time buckets returned. */
     count?: number | undefined;
+    /** Time-bucketed aggregates. Each bucket's `metrics` dict is keyed by the dotted `path` of the corresponding `MetricSpec`. */
     buckets?: AgentaApi.MetricsBucket[] | undefined;
+    /** The resolved query used to compute the buckets. */
     query?: AgentaApi.TracingQuery | undefined;
+    /** The resolved metric specs applied in each bucket. */
     specs?: AgentaApi.MetricSpec[] | undefined;
 }

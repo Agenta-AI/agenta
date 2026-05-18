@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface WorkflowRevisionsLogRequest {
+    /** Log query. Supply `workflow_id`, `workflow_variant_id`, or `workflow_revision_id` to scope the log, and an optional `depth`. */
     workflow: AgentaApi.WorkflowRevisionsLog;
 }

@@ -12,9 +12,21 @@ from .windowing import Windowing
 class TestsetsResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    testsets: typing.Optional[typing.List[Testset]] = None
-    windowing: typing.Optional[Windowing] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of testsets returned on this page.
+    """
+    
+    testsets: typing.Optional[typing.List[Testset]] = pydantic.Field(default=None)
+    """
+    Testset artifacts matching the query, without testcases.
+    """
+    
+    windowing: typing.Optional[Windowing] = pydantic.Field(default=None)
+    """
+    Cursor for the next page, if more results exist.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

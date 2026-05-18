@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Envelope for a list of evaluator revisions.
+ */
 export interface EvaluatorRevisionsResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of revisions in `evaluator_revisions`. */
     count?: number | undefined;
+    /** Matching evaluator revisions. */
     evaluator_revisions?: AgentaApi.EvaluatorRevision[] | undefined;
 }

@@ -11,8 +11,16 @@ from .simple_testset import SimpleTestset
 class SimpleTestsetsResponse(UniversalBaseModel):
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    testsets: typing.Optional[typing.List[SimpleTestset]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of simple testsets returned.
+    """
+    
+    testsets: typing.Optional[typing.List[SimpleTestset]] = pydantic.Field(default=None)
+    """
+    Simple testsets, each with its latest revision testcases merged in.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

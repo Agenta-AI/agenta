@@ -2,9 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Response from `POST /simple/traces/query`.
+ */
 export interface SimpleTracesResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Number of matching traces in this page. */
     count?: number | undefined;
+    /** The matching traces in the high-level `SimpleTrace` shape. */
     traces?: AgentaApi.SimpleTrace[] | undefined;
 }

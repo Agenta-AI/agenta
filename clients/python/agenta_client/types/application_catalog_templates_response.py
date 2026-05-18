@@ -9,10 +9,21 @@ from .application_catalog_template import ApplicationCatalogTemplate
 
 
 class ApplicationCatalogTemplatesResponse(UniversalBaseModel):
+    """
+    List of catalog templates.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    templates: typing.Optional[typing.List[ApplicationCatalogTemplate]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of templates returned.
+    """
+    
+    templates: typing.Optional[typing.List[ApplicationCatalogTemplate]] = pydantic.Field(default=None)
+    """
+    Built-in and custom templates an application can be created from. Each template carries a `key`, a `uri`, and the JSON Schemas that applications of that type expose.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

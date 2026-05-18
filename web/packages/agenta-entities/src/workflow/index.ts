@@ -90,6 +90,7 @@ export {
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
     isOnlineCapableEvaluator,
+    hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
     // Output schema utilities
     resolveInputSchema,
@@ -277,6 +278,7 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
+    fullPagePlaygroundEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,

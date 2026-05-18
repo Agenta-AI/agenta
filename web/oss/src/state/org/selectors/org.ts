@@ -6,6 +6,7 @@ import {queryClient} from "@/oss/lib/api/queryClient"
 import {Org, OrgDetails} from "@/oss/lib/Types"
 import type {User} from "@/oss/lib/Types"
 import {fetchAllOrgsList, fetchSingleOrg} from "@/oss/services/organization/api"
+import {fetchProject} from "@/oss/services/project"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom} from "@/oss/state/session"
@@ -180,6 +181,7 @@ const normalizeOrgIdentifier = async (
     get: (a: any) => any,
 ): Promise<{orgId: string; workspaceId: string | null}> => {
     const orgs = get(orgsAtom) as Org[]
+    const {projectId} = get(appIdentifiersAtom)
 
     if (Array.isArray(orgs) && orgs.some((org) => org.id === id)) {
         return {orgId: id, workspaceId: null}
@@ -188,6 +190,18 @@ const normalizeOrgIdentifier = async (
     const mapped = resolveOrgId(id)
     if (mapped) {
         return {orgId: mapped, workspaceId: id}
+    }
+
+    if (projectId) {
+        try {
+            const project = await fetchProject(projectId)
+            if (project?.organization_id) {
+                cacheWorkspaceOrgPair(project.workspace_id ?? id, project.organization_id)
+                return {orgId: project.organization_id, workspaceId: project.workspace_id ?? id}
+            }
+        } catch {
+            // Fall back to treating the route id as an organization id.
+        }
     }
 
     return {orgId: id, workspaceId: null}

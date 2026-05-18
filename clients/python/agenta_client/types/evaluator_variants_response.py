@@ -9,10 +9,21 @@ from .evaluator_variant import EvaluatorVariant
 
 
 class EvaluatorVariantsResponse(UniversalBaseModel):
+    """
+    Envelope for a list of evaluator variants.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    evaluator_variants: typing.Optional[typing.List[EvaluatorVariant]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of variants in `evaluator_variants`.
+    """
+    
+    evaluator_variants: typing.Optional[typing.List[EvaluatorVariant]] = pydantic.Field(default=None)
+    """
+    Matching evaluator variants.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

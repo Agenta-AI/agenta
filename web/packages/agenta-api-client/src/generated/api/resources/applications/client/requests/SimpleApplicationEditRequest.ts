@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleApplicationEditRequest {
     application_id: string;
+    /** Fields to change. `id` must match the path. Supplying `data` commits a new revision with that configuration; supplying `flags`/`tags`/`meta` commits a revision with the updated header but the existing `data`. */
     application: AgentaApi.SimpleApplicationEdit;
 }

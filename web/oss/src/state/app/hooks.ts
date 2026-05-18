@@ -8,6 +8,13 @@ import {useAppState} from "@/oss/state/appState"
 import {appsQueryAtom, recentAppIdAtom} from "./atoms/fetcher"
 import {currentAppAtom, appsAtom} from "./selectors/app"
 
+/**
+ * @deprecated for new code. Use `useWorkflowsData()` from `@/oss/state/workflow`
+ * for workflow-typed access (returns combined apps + evaluators with per-type
+ * filters and unified loading state). Existing callers remain supported —
+ * `useAppsData()` still returns apps only and is the authoritative writer for
+ * `recentAppIdAtom`.
+ */
 export const useAppsData = () => {
     const {data: apps, isPending, isLoading, error, refetch} = useAtomValue(appsQueryAtom)
     const currentApp = useAtomValue(currentAppAtom)

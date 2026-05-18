@@ -30,13 +30,30 @@ const lightFastTags = buildAcceptanceTags({
     speed: TestSpeedType.FAST,
 })
 
+const createInviteEmail = (scope: string) =>
+    `${scope}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@agenta.test`
+
+const waitForInviteResponse = async (page: any) => {
+    const response = await page.waitForResponse(
+        (res: any) =>
+            res.request().method() === "POST" &&
+            res.url().includes("/workspaces/") &&
+            res.url().includes("/invite?"),
+        {timeout: 15000},
+    )
+
+    if (!response.ok()) {
+        throw new Error(`Invite request failed (${response.status()}): ${await response.text()}`)
+    }
+}
+
 /**
  * Invite a member via the EE flow (email sent) and wait for their row to appear
  * in the members table with "Invitation Pending" status.
  * Returns the invited email so callers can locate the row.
  */
 const invitePendingMember = async (page: any, apiHelpers: any, uiHelpers: any): Promise<string> => {
-    const testEmail = `test-member-${Date.now()}@agenta-e2e.test`
+    const testEmail = createInviteEmail("test-member")
 
     const basePath = apiHelpers.getProjectScopedBasePath()
     await page.goto(`${basePath}/settings`, {waitUntil: "domcontentloaded"})
@@ -51,7 +68,10 @@ const invitePendingMember = async (page: any, apiHelpers: any, uiHelpers: any): 
     const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
     await expect(inviteModal).toBeVisible({timeout: 15000})
     await inviteModal.getByPlaceholder("member@organization.com").fill(testEmail)
-    await inviteModal.getByRole("button", {name: "Invite"}).click()
+    await Promise.all([
+        waitForInviteResponse(page),
+        inviteModal.getByRole("button", {name: "Invite"}).click(),
+    ])
     await expect(inviteModal).not.toBeVisible({timeout: 15000})
 
     // Wait for the pending row to appear in the refreshed table
@@ -67,7 +87,7 @@ const membersTests = () => {
         {tag: lightFastTags},
         async ({page, apiHelpers, uiHelpers}) => {
             test.setTimeout(60000)
-            const testEmail = `test-member-invite-${Date.now()}@agenta-e2e.test`
+            const testEmail = createInviteEmail("test-member-invite")
 
             await scenarios.given("the user is authenticated", async () => {
                 await expectAuthenticatedSession(page)
@@ -77,6 +97,7 @@ const membersTests = () => {
                 const basePath = apiHelpers.getProjectScopedBasePath()
                 await page.goto(`${basePath}/settings`, {waitUntil: "domcontentloaded"})
                 await uiHelpers.expectPath("/settings")
+                await page.waitForLoadState("networkidle")
                 await expect(page.getByRole("button", {name: "Invite Members"})).toBeVisible({
                     timeout: 15000,
                 })
@@ -104,7 +125,10 @@ const membersTests = () => {
 
             await scenarios.and("the user submits the invitation", async () => {
                 const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
-                await inviteModal.getByRole("button", {name: "Invite"}).click()
+                await Promise.all([
+                    waitForInviteResponse(page),
+                    inviteModal.getByRole("button", {name: "Invite"}).click(),
+                ])
                 await expect(inviteModal).not.toBeVisible({timeout: 15000})
             })
 

@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface ApplicationEditRequest {
     application_id: string;
+    /** Artifact fields to update. The `id` must match the `application_id` in the URL path. */
     application: AgentaApi.ApplicationEdit;
 }

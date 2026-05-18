@@ -11,9 +11,9 @@ import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
-import ListOfApps from "./components/ListOfApps"
 import ListOfOrgs from "./components/ListOfOrgs"
 import SidebarMenu from "./components/SidebarMenu"
+import WorkflowEntityCard from "./components/WorkflowEntityCard"
 import {useSidebarConfig} from "./hooks/useSidebarConfig"
 import SettingsSidebar from "./SettingsSidebar"
 import {SidebarConfig} from "./types"
@@ -133,8 +133,10 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
                                         {appItems.length > 0 && (
                                             <>
                                                 <Divider className="my-1" />
-                                                <div className="px-2">
-                                                    <ListOfApps collapsed={isSidebarCollapsed} />
+                                                <div className="px-2 pt-1 pb-2">
+                                                    <WorkflowEntityCard
+                                                        collapsed={isSidebarCollapsed}
+                                                    />
                                                 </div>
                                                 <SidebarMenu
                                                     menuProps={{

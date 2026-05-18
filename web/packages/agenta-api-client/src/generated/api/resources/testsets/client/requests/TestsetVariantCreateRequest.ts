@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface TestsetVariantCreateRequest {
+    /** Variant to create on an existing testset. Pass `testset_id` to identify the parent artifact. */
     testset_variant: AgentaApi.TestsetVariantCreate;
 }

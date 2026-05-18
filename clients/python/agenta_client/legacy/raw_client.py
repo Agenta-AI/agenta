@@ -23,6 +23,17 @@ class RawLegacyClient:
     
     def fetch_legacy_analytics(self, *, focus: typing.Optional[Focus] = None, format: typing.Optional[Format] = None, oldest: typing.Optional[FetchLegacyAnalyticsRequestOldest] = None, newest: typing.Optional[FetchLegacyAnalyticsRequestNewest] = None, limit: typing.Optional[int] = None, interval: typing.Optional[int] = None, rate: typing.Optional[float] = None, filter: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OldAnalyticsResponse]:
         """
+        Aggregate span metrics using the fixed legacy schema.
+        
+        Returns time-bucketed aggregates with a fixed set of fields
+        (`count`, `duration`, `costs`, `tokens`) split into `total` and
+        `errors`. The shape predates `specs`-driven analytics and is kept
+        for the existing observability dashboards that consume it.
+        
+        New integrations should prefer `POST /tracing/analytics/query`,
+        which accepts `specs` and can summarize arbitrary span attributes,
+        not just the four fixed metrics.
+        
         Parameters
         ----------
         focus : typing.Optional[Focus]
@@ -82,6 +93,17 @@ class AsyncRawLegacyClient:
     
     async def fetch_legacy_analytics(self, *, focus: typing.Optional[Focus] = None, format: typing.Optional[Format] = None, oldest: typing.Optional[FetchLegacyAnalyticsRequestOldest] = None, newest: typing.Optional[FetchLegacyAnalyticsRequestNewest] = None, limit: typing.Optional[int] = None, interval: typing.Optional[int] = None, rate: typing.Optional[float] = None, filter: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OldAnalyticsResponse]:
         """
+        Aggregate span metrics using the fixed legacy schema.
+        
+        Returns time-bucketed aggregates with a fixed set of fields
+        (`count`, `duration`, `costs`, `tokens`) split into `total` and
+        `errors`. The shape predates `specs`-driven analytics and is kept
+        for the existing observability dashboards that consume it.
+        
+        New integrations should prefer `POST /tracing/analytics/query`,
+        which accepts `specs` and can summarize arbitrary span attributes,
+        not just the four fixed metrics.
+        
         Parameters
         ----------
         focus : typing.Optional[Focus]

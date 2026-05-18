@@ -9,5 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface FolderCreateRequest {
+    /** Folder to create. `slug` is required; `parent_id` nests the new folder under an existing one. */
     folder: AgentaApi.FolderCreate;
 }

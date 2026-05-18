@@ -121,6 +121,17 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
 
             const hasUserTraceType = userFilters.some(isTraceType)
 
+            // The soft default for the trace_type filter is always
+            // `"invocation"`. Earlier we flipped to `"annotation"` when the
+            // current workflow context was an evaluator, because standalone
+            // evaluator runs at the time only emitted annotation traces.
+            // That's no longer true — standalone evaluator runs in the
+            // playground now emit invocation traces with `references.
+            // application` set (see `runnableSetup.ts`, evaluator branch),
+            // so the app-scoped `/apps/{evaluatorId}/observability` page
+            // should show those by default rather than the more rare
+            // annotation flow. Users who want annotations can still pick
+            // the filter manually.
             const softDefaults: Filter[] = []
             if (defaultEnabled && !hasUserTraceType && tab === "traces") {
                 softDefaults.push({

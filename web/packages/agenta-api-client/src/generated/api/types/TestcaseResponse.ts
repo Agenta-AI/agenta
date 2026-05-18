@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface TestcaseResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** 1 if a testcase was returned, 0 otherwise. */
     count?: number | undefined;
+    /** The testcase blob. `data` carries the user-defined columns; `testcase_dedup_id` (inside `data`) is the caller-supplied dedup key when present. */
     testcase?: (AgentaApi.TestcaseOutput | null) | undefined;
 }

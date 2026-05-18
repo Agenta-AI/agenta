@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface TracesResponse {
     support_id?: (string | null) | undefined;
     support_ts?: (string | null) | undefined;
+    /** Total number of matching traces in the window. */
     count?: number | undefined;
+    /** List of traces in the canonical `Traces` shape. For the map-shaped payload keyed by `trace_id`, call `POST /tracing/spans/query` with `focus="trace"`. */
     traces?: (AgentaApi.TraceOutput[] | null) | undefined;
 }

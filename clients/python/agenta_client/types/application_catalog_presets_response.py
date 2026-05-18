@@ -9,10 +9,21 @@ from .application_catalog_preset import ApplicationCatalogPreset
 
 
 class ApplicationCatalogPresetsResponse(UniversalBaseModel):
+    """
+    List of catalog presets scoped to one template.
+    """
     support_id: typing.Optional[str] = None
     support_ts: typing.Optional[dt.datetime] = None
-    count: typing.Optional[int] = None
-    presets: typing.Optional[typing.List[ApplicationCatalogPreset]] = None
+    count: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    Number of presets returned.
+    """
+    
+    presets: typing.Optional[typing.List[ApplicationCatalogPreset]] = pydantic.Field(default=None)
+    """
+    Named parameter sets for the template. Use a preset's `data` as the first revision when creating an application from a template.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
