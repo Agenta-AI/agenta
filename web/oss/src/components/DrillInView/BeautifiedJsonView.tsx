@@ -126,36 +126,215 @@ const EDITOR_RESET_CLASSES = [
 const DEFAULT_MAX_RENDER_DEPTH = 5
 const DEFAULT_EXPAND_DEPTH = 2
 
+const tryParseJsonString = (value: string): unknown | null => {
+    const trimmed = value.trim()
+    if (!trimmed || (trimmed[0] !== "{" && trimmed[0] !== "[")) return null
+    try {
+        const parsed = JSON.parse(trimmed)
+        return typeof parsed === "object" && parsed !== null ? parsed : null
+    } catch {
+        return null
+    }
+}
+
+const getTextPartContent = (rec: Record<string, unknown>): string | null => {
+    if (rec.type !== "text") return null
+    if (typeof rec.text === "string") return rec.text
+    if (typeof rec.content === "string") return rec.content
+    return null
+}
+
+const getNormalizedToolArgs = (raw: unknown): unknown => {
+    if (typeof raw === "string") {
+        return tryParseJsonString(raw) ?? raw
+    }
+    return raw
+}
+
+const getNormalizedToolResult = (raw: unknown): unknown => {
+    if (typeof raw === "string") {
+        return tryParseJsonString(raw) ?? raw
+    }
+    return raw
+}
+
+const formatToolCall = (name: string, rawArgs: unknown): string => {
+    const args = getNormalizedToolArgs(rawArgs)
+    if (!args || (typeof args === "object" && Object.keys(args as object).length === 0)) {
+        return `${name}()`
+    }
+    try {
+        return `${name}(${JSON.stringify(args, null, 2)})`
+    } catch {
+        return `${name}(...)`
+    }
+}
+
+const getToolCallPartText = (rec: Record<string, unknown>): string | null => {
+    if (rec.type !== "tool-call" && rec.type !== "tool_call") return null
+    const name = rec.toolName ?? rec.name
+    if (typeof name !== "string") return null
+    return formatToolCall(name, rec.input ?? rec.args ?? rec.arguments)
+}
+
+const getToolResultPartText = (rec: Record<string, unknown>): string | null => {
+    if (rec.type !== "tool-result" && rec.type !== "tool_result") return null
+    const output = rec.output as Record<string, unknown> | undefined
+    const value = getNormalizedToolResult(output?.value ?? output ?? rec.result ?? rec.content)
+    return typeof value === "string" ? value : JSON.stringify(value, null, 2)
+}
+
+interface StructuredMessagePart {
+    kind: "tool-call" | "tool-result"
+    name: string
+    value: unknown
+}
+
+const isToolCallPart = (rec: Record<string, unknown>): boolean =>
+    rec.type === "tool-call" || rec.type === "tool_call"
+
+const isToolResultPart = (rec: Record<string, unknown>): boolean =>
+    rec.type === "tool-result" ||
+    rec.type === "tool_result" ||
+    rec.type === "tool-call-response" ||
+    rec.type === "tool_call_response"
+
+const getStructuredMessagePart = (part: unknown): StructuredMessagePart | null => {
+    if (!part || typeof part !== "object" || Array.isArray(part)) return null
+
+    const rec = part as Record<string, unknown>
+    if (isToolCallPart(rec)) {
+        const name = rec.toolName ?? rec.name
+        const rawArgs = rec.input ?? rec.args ?? rec.arguments
+        return {
+            kind: "tool-call",
+            name: typeof name === "string" && name ? name : "tool call",
+            value: getNormalizedToolArgs(rawArgs),
+        }
+    }
+
+    if (isToolResultPart(rec)) {
+        const output = rec.output as Record<string, unknown> | undefined
+        const name = rec.toolName ?? rec.name
+        const result = getNormalizedToolResult(output?.value ?? output ?? rec.result ?? rec.content)
+        return {
+            kind: "tool-result",
+            name: `${typeof name === "string" && name ? name : "tool"} result`,
+            value: result,
+        }
+    }
+
+    return null
+}
+
+const getMessagePartText = (part: unknown): string | null => {
+    if (!part || typeof part !== "object" || Array.isArray(part)) {
+        return part === null || part === undefined ? "" : String(part)
+    }
+
+    const rec = part as Record<string, unknown>
+    return (
+        getTextPartContent(rec) ??
+        getToolCallPartText(rec) ??
+        getToolResultPartText(rec) ??
+        (typeof rec.text === "string" ? rec.text : null) ??
+        (typeof rec.content === "string" ? rec.content : null)
+    )
+}
+
+const getStructuredMessageText = (content: unknown): string | null => {
+    if (!content || typeof content !== "object") return null
+
+    if (Array.isArray(content)) {
+        const parts = content
+            .map(getMessagePartText)
+            .filter((part): part is string => part !== null)
+        return parts.length > 0 ? parts.join("\n") : null
+    }
+
+    return getMessagePartText(content)
+}
+
+const getMessageContentParts = (content: unknown): unknown[] | null => {
+    if (Array.isArray(content)) return content
+
+    if (typeof content === "string") {
+        const parsed = tryParseJsonString(content)
+        if (Array.isArray(parsed)) return parsed
+        if (
+            parsed &&
+            typeof parsed === "object" &&
+            Array.isArray((parsed as Record<string, unknown>).parts)
+        ) {
+            return (parsed as Record<string, unknown>).parts as unknown[]
+        }
+    }
+
+    if (content && typeof content === "object" && !Array.isArray(content)) {
+        const rec = content as Record<string, unknown>
+        if (Array.isArray(rec.parts)) return rec.parts
+    }
+
+    return null
+}
+
+const getMessageContentDisplay = (
+    content: unknown,
+): {text: string; structuredParts: StructuredMessagePart[]} => {
+    const parts = getMessageContentParts(content)
+    if (!parts) {
+        return {text: getMessageText(content), structuredParts: []}
+    }
+
+    const textParts: string[] = []
+    const structuredParts: StructuredMessagePart[] = []
+
+    for (const part of parts) {
+        const structuredPart = getStructuredMessagePart(part)
+        if (structuredPart) {
+            structuredParts.push(structuredPart)
+            continue
+        }
+
+        const textPart = getMessagePartText(part)
+        if (textPart) textParts.push(textPart)
+    }
+
+    return {text: textParts.join("\n"), structuredParts}
+}
+
 const simplifyValue = (value: unknown): unknown => {
     if (!value || typeof value !== "object") return value
 
     const rec = value as Record<string, unknown>
 
-    // AI SDK text part: {type: "text", text: "hello"} -> "hello"
-    if (rec.type === "text" && typeof rec.text === "string") {
-        return rec.text
+    // Text part: AI SDK uses {text}; PydanticAI/OpenAI parts may use {content}.
+    const textPartContent = getTextPartContent(rec)
+    if (textPartContent !== null) {
+        return textPartContent
     }
 
-    // AI SDK tool-call: {type: "tool-call", toolName: "fn", input: {...}} -> "fn({...})"
-    if (rec.type === "tool-call" && typeof rec.toolName === "string") {
-        const args = rec.input ?? rec.args
-        if (!args || (typeof args === "object" && Object.keys(args as object).length === 0)) {
-            return `${rec.toolName}()`
-        }
-        try {
-            return `${rec.toolName}(${JSON.stringify(args, null, 2)})`
-        } catch {
-            return `${rec.toolName}(...)`
+    // Tool-call part: AI SDK uses tool-call/toolName/input; PydanticAI uses tool_call/name/arguments.
+    if (isToolCallPart(rec)) {
+        return {
+            ...(rec.id ? {id: rec.id} : {}),
+            name: rec.toolName ?? rec.name ?? "tool",
+            arguments: getNormalizedToolArgs(rec.input ?? rec.args ?? rec.arguments),
         }
     }
 
-    // AI SDK tool-result envelope: {type: "tool-result", output: {value: X}} -> X
-    if (rec.type === "tool-result" && rec.output !== undefined) {
+    // Tool result/response envelope: unwrap to its structured result payload.
+    if (isToolResultPart(rec)) {
         const output = rec.output as Record<string, unknown> | undefined
-        if (output && typeof output === "object" && output.value !== undefined) {
-            return output.value
+        const result = getNormalizedToolResult(output?.value ?? output ?? rec.result ?? rec.content)
+        if (rec.id || rec.name || rec.toolName) {
+            return {
+                ...(rec.id ? {id: rec.id} : {}),
+                name: rec.toolName ?? rec.name ?? "tool",
+                result,
+            }
         }
-        return rec.output
+        return result
     }
 
     // Single-element array of a simplifiable item
@@ -220,43 +399,21 @@ const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
 
 const getMessageText = (content: unknown): string => {
     if (content === null || content === undefined) return ""
-    if (typeof content === "string") return content
+    if (typeof content === "string") {
+        const parsed = tryParseJsonString(content)
+        const parsedText = parsed ? getStructuredMessageText(parsed) : null
+        return parsedText ?? content
+    }
 
     if (content && typeof content === "object" && !Array.isArray(content)) {
         const rec = content as Record<string, unknown>
-        if (rec.type === "text" && typeof rec.text === "string") return rec.text
-        if (rec.type === "tool-call" && typeof rec.toolName === "string") {
-            const args = rec.args ?? rec.input
-            return args ? `${rec.toolName}(${JSON.stringify(args, null, 2)})` : String(rec.toolName)
-        }
-        if (rec.type === "tool-result") {
-            const output = rec.output as Record<string, unknown> | undefined
-            const value = output?.value ?? output ?? rec.result
-            return typeof value === "string" ? value : JSON.stringify(value, null, 2)
-        }
+        const partText = getMessagePartText(rec)
+        if (partText !== null) return partText
     }
 
     if (Array.isArray(content)) {
-        const parts: string[] = []
-        for (const c of content) {
-            const rec = c as Record<string, unknown> | null
-            if (!rec || typeof rec !== "object") {
-                parts.push(String(c))
-                continue
-            }
-            if (rec.type === "text" && typeof rec.text === "string") {
-                parts.push(rec.text)
-            } else if (rec.type === "tool-call" && typeof rec.toolName === "string") {
-                parts.push(`[tool: ${rec.toolName}]`)
-            } else if (rec.type === "tool-result") {
-                const output = rec.output as Record<string, unknown> | undefined
-                const value = output?.value ?? output ?? rec.result
-                parts.push(typeof value === "string" ? value : JSON.stringify(value, null, 2))
-            } else if (typeof rec.text === "string") {
-                parts.push(rec.text)
-            }
-        }
-        if (parts.length > 0) return parts.join("\n")
+        const partsText = getStructuredMessageText(content)
+        if (partsText !== null) return partsText
     }
 
     try {
@@ -338,11 +495,11 @@ const ScalarValue = ({value}: {value: unknown}) => {
 
 const CopyButton = ({value}: {value: unknown}) => {
     const [copied, setCopied] = useState(false)
-    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const timerRef = useRef<number | null>(null)
 
     useEffect(
         () => () => {
-            if (timerRef.current !== null) clearTimeout(timerRef.current)
+            if (timerRef.current !== null) window.clearTimeout(timerRef.current)
         },
         [],
     )
@@ -355,12 +512,16 @@ const CopyButton = ({value}: {value: unknown}) => {
             try {
                 await navigator.clipboard.writeText(text)
                 setCopied(true)
-                if (timerRef.current !== null) clearTimeout(timerRef.current)
+                if (timerRef.current !== null) window.clearTimeout(timerRef.current)
                 timerRef.current = window.setTimeout(() => setCopied(false), 1200)
             } catch {}
         },
         [value],
     )
+
+    const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
+        e.stopPropagation()
+    }, [])
 
     return (
         <button
@@ -368,6 +529,7 @@ const CopyButton = ({value}: {value: unknown}) => {
             aria-label={copied ? "Copied" : "Copy to clipboard"}
             className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto border border-transparent rounded-sm text-[var(--ant-color-text-quaternary)] cursor-pointer shrink-0 hover:text-[var(--ant-color-text)] hover:bg-[var(--ant-color-bg-container)] hover:border-[var(--ant-color-border)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none"
             onClick={handleCopy}
+            onKeyDown={handleKeyDown}
         >
             {copied ? (
                 <span className="text-[11px] text-green-6 font-medium">Copied</span>
@@ -409,6 +571,7 @@ const NodeRow = memo(function NodeRow({
     const [open, setOpen] = useState(defaultOpen)
     const toggle = useCallback(() => setOpen((o) => !o), [])
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.target !== e.currentTarget) return
         if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
             setOpen((o) => !o)
@@ -481,7 +644,6 @@ const NodeRow = memo(function NodeRow({
 // and shows a "Show less" pill at the bottom.
 
 const TRUNCATE_HEIGHT_PX = 160
-const EXPAND_SENTINEL_PX = 9999
 
 const PILL_BUTTON_CLASSES =
     "text-[11px] font-medium text-[var(--ant-color-text-secondary)] bg-[var(--ant-color-fill-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)] border border-solid border-[var(--ant-color-border-secondary)] rounded-full px-3 py-0.5 cursor-pointer focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none motion-safe:transition-colors"
@@ -515,8 +677,8 @@ const TruncatedMessageBody = memo(function TruncatedMessageBody({
     return (
         <div className="relative">
             <div
-                className="overflow-hidden motion-safe:transition-[max-height] motion-safe:duration-200"
-                style={{maxHeight: isTruncated ? TRUNCATE_HEIGHT_PX : EXPAND_SENTINEL_PX}}
+                className={`${isTruncated ? "overflow-hidden" : ""} motion-safe:transition-[max-height] motion-safe:duration-200`}
+                style={{maxHeight: isTruncated ? TRUNCATE_HEIGHT_PX : undefined}}
             >
                 <div ref={measureRef}>
                     <EditorProvider
@@ -588,21 +750,26 @@ const getToolCallArgs = (tc: unknown): unknown => {
     const obj = tc as Record<string, unknown> | null
     const fn = obj?.function as Record<string, unknown> | undefined
     const raw = fn?.arguments ?? obj?.arguments ?? obj?.input ?? obj?.args
-    if (typeof raw === "string") {
-        try {
-            return JSON.parse(raw)
-        } catch {
-            return raw
-        }
-    }
-    return raw
+    return getNormalizedToolArgs(raw)
 }
 
-const getMessageMeta = (text: string, toolCalls?: unknown[]): string => {
+const getMessageMeta = (
+    text: string,
+    toolCalls?: unknown[],
+    structuredParts?: StructuredMessagePart[],
+): string => {
     const parts: string[] = []
     if (text) parts.push(`${text.length} chars`)
-    if (toolCalls?.length) {
-        parts.push(`${toolCalls.length} tool ${toolCalls.length === 1 ? "call" : "calls"}`)
+    const toolCallCount =
+        (toolCalls?.length ?? 0) +
+        (structuredParts?.filter((part) => part.kind === "tool-call").length ?? 0)
+    const toolResultCount =
+        structuredParts?.filter((part) => part.kind === "tool-result").length ?? 0
+    if (toolCallCount) {
+        parts.push(`${toolCallCount} tool ${toolCallCount === 1 ? "call" : "calls"}`)
+    }
+    if (toolResultCount) {
+        parts.push(`${toolResultCount} tool ${toolResultCount === 1 ? "result" : "results"}`)
     }
     return parts.join(", ") || "empty"
 }
@@ -620,7 +787,10 @@ const MessageNodeRow = memo(function MessageNodeRow({
 }) {
     const role = (msg.role || "").toLowerCase()
     const roleColor = ROLE_COLOR_CLASSES[role] ?? DEFAULT_ROLE_COLOR_CLASS
-    const text = getMessageText(msg.content)
+    const {text, structuredParts} = useMemo(
+        () => getMessageContentDisplay(msg.content),
+        [msg.content],
+    )
     const editorId = `${keyPrefix}-msg-${index}`
     const toolCalls = msg.tool_calls
 
@@ -641,8 +811,9 @@ const MessageNodeRow = memo(function MessageNodeRow({
 
     const body = useMemo(() => {
         const hasToolCalls = toolCalls && toolCalls.length > 0
+        const hasStructuredParts = structuredParts.length > 0
 
-        if (parsedContent) {
+        if (parsedContent && !hasStructuredParts) {
             return (
                 <div className="flex flex-col gap-1">
                     <RecursiveNode
@@ -657,11 +828,21 @@ const MessageNodeRow = memo(function MessageNodeRow({
         }
 
         const hasText = text.length > 0
-        if (!hasText && !hasToolCalls) return null
+        if (!hasText && !hasToolCalls && !hasStructuredParts) return null
 
         return (
             <div className="flex flex-col gap-1">
                 {hasText && <TruncatedMessageBody editorId={editorId} text={text} />}
+                {structuredParts.map((part, i) => (
+                    <RecursiveNode
+                        key={`${part.kind}-${i}`}
+                        name={part.name}
+                        value={part.value}
+                        keyPrefix={`${editorId}-part-${i}`}
+                        depth={1}
+                        expandDepth={2}
+                    />
+                ))}
                 {hasToolCalls &&
                     toolCalls.map((tc, i) => (
                         <RecursiveNode
@@ -675,16 +856,16 @@ const MessageNodeRow = memo(function MessageNodeRow({
                     ))}
             </div>
         )
-    }, [text, toolCalls, editorId, parsedContent])
+    }, [text, toolCalls, editorId, parsedContent, structuredParts])
 
     return (
         <NodeRow
             keyLabel={label}
-            meta={getMessageMeta(text, toolCalls)}
+            meta={getMessageMeta(text, toolCalls, structuredParts)}
             isMessage
             collapsible
             defaultOpen
-            value={text || (toolCalls ? JSON.stringify(toolCalls) : "")}
+            value={msg.content ?? (toolCalls ? JSON.stringify(toolCalls) : "")}
             body={body}
         />
     )
