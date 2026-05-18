@@ -287,7 +287,7 @@ jobs:
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          package_json_file: web/package.json
 
       - name: Install auth bootstrap dependencies
         if: steps.auth_bootstrap.outputs.enabled == 'true'
@@ -655,7 +655,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          package_json_file: web/package.json
 
       - name: Install dependencies
         working-directory: web
