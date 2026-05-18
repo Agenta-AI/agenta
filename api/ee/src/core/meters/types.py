@@ -12,6 +12,8 @@ from ee.src.core.entitlements.types import Counter, Gauge
 from ee.src.core.subscriptions.types import SubscriptionDTO
 
 
+# Frozen at import time. Tests that mock `env.agenta.uuid_namespace` must do
+# so before this module is imported, or reload it after the mock is in place.
 AGENTA_METERS_NAMESPACE_UUID = uuid5(env.agenta.uuid_namespace, "meters")
 
 

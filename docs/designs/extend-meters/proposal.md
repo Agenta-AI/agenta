@@ -240,6 +240,8 @@ Call sites in `api/oss/src/apis/fastapi/tracing/router.py`:
 
 Deprecated `/preview/spans/*` and `/preview/traces/*` mounts resolve through the same router instances, so the check fires there too. The legacy `TracingRouter` at `/tracing/*` is a separate class — its handlers are *not* covered by the per-method router-layer call, by design: the legacy router is deprecated and there is no equivalent `TRACES_INGESTED` enforcement on it either.
 
+**Explicitly excluded** from `TRACES_RETRIEVED`: analytics, sessions, and users endpoints (`/spans/analytics/query`, `/spans/sessions/query`, `/spans/users/query`, and the legacy `/tracing/spans/analytics`). `TRACES_RETRIEVED` counts traces leaving the system as traces or spans; analytics surfaces return aggregates and the session/user surfaces return IDs, so they are not retrieval paths. If you ever add a new surface that *does* return trace/span data, wire the check; analytics aggregates stay out.
+
 All `check_entitlements` calls on the read side pass `cache=True` (soft check). On `not allowed`, the router logs a warning and returns `429 Too Many Requests`. With `limit=None` everywhere today the helper is a no-op.
 
 ## Write-side enforcement (`EVALUATIONS_RUN`)

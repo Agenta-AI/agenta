@@ -14,10 +14,13 @@ Enum reshape:
 Schema reshape:
   - Adds `workspace_id`, `project_id`, `user_id`, `day` (all nullable).
   - Adds deterministic `meter_id` UUID, populated via `compute_meter_id`.
+  - Drops the legacy composite PK `(organization_id, key, year, month)`
+    BEFORE relaxing `year`/`month` to nullable — Postgres refuses to
+    drop NOT NULL on a PK column.
   - Relaxes `year`/`month` to nullable (drops the `(0,0)` gauge sentinel).
-  - Swaps the composite PK `(organization_id, key, year, month)` for
-    `(meter_id)`; recreates the old PK shape as a non-unique secondary
-    index (extended with `day`).
+  - Backfills `meter_id` for every row.
+  - Recreates the old PK shape as a non-unique secondary index
+    (extended with `day`), then installs the new PK on `(meter_id)`.
 
 Pre-migration sanity (run before applying):
     SELECT count(*) FROM meters WHERE year IS NULL OR month IS NULL;
@@ -235,7 +238,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # 1. Reverse the schema reshape (PK, index, new columns, nullability).
+    # 1. Remove the new PK/index before restoring the legacy shape.
     op.drop_constraint("meters_pkey", TABLE_NAME, type_="primary")
     op.drop_index("idx_meters_org_key_period", table_name=TABLE_NAME)
 
@@ -263,13 +266,7 @@ def downgrade() -> None:
         server_default="0",
     )
 
-    op.create_primary_key(
-        "meters_pkey",
-        TABLE_NAME,
-        ["organization_id", "key", "year", "month"],
-    )
-
-    # 2. Reverse the enum reshape.
+    # 2. Reverse the enum reshape while no PK depends on `key`.
     # `TRACES_RETRIEVED` rows would block the type narrowing — drop them
     # explicitly. The other three values map back to their legacy labels via
     # CASE inside the USING clause.
@@ -302,3 +299,10 @@ def downgrade() -> None:
     )
     op.execute(sa.text(f"DROP TYPE {ENUM_NAME}"))
     op.execute(sa.text(f"ALTER TYPE {TEMP_ENUM_NAME} RENAME TO {ENUM_NAME}"))
+
+    # 3. Recreate the legacy PK after all downgraded column shapes are final.
+    op.create_primary_key(
+        "meters_pkey",
+        TABLE_NAME,
+        ["organization_id", "key", "year", "month"],
+    )
