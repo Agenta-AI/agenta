@@ -64,7 +64,17 @@ class TestBillingPeriodBasicRules:
         assert (year, month) == (2025, 7)
 
     def test_defaults_to_utcnow_when_no_now(self):
-        """If now is not provided, should use UTC now."""
+        """If now is not provided, should use UTC now.
+
+        Known boundary flake: if this test executes across a
+        month/year rollover (~zero-millisecond window per month), the
+        first call reads `datetime.now()` *inside* the helper and the
+        second one reads it here, and they straddle the boundary. The
+        whole point of the assertion is to prove the helper actually
+        calls `datetime.now()` by default, so pre-capturing `now` and
+        passing it in would defeat the test. Accepted as-is — this
+        suite is `tests/manual/`, not CI, and the window is tiny.
+        """
         year, month = monthly_period_from(anchor=None)
         now = datetime.now(timezone.utc)
         assert year == now.year

@@ -16,6 +16,7 @@ if is_ee():
 
     from ee.src.utils.entitlements import (
         check_entitlements,
+        scope_from,
         Gauge,
     )
 
@@ -132,9 +133,14 @@ async def remove_user_from_workspace(
         skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
         if not skip_meter:
+            # Decrement the user gauge in the *target* workspace's owning
+            # org (loaded via the path-param `{workspace_id}`), not the
+            # caller's ambient org — cross-org admin actions otherwise
+            # land the `-1` in the wrong meter.
             await check_entitlements(  # type: ignore
                 key=Gauge.USERS,  # type: ignore
                 delta=-1,
+                scope=scope_from(organization_id=project.organization_id),  # type: ignore
             )
 
         delete_user_from_workspace = await workspace_manager.remove_user_from_workspace(

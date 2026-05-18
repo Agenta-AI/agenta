@@ -386,10 +386,15 @@ class TracingRouter:
             else:
                 trace_count = len(traces) if traces else 0
             if trace_count > 0:
-                await check_entitlements(  # type: ignore
+                allowed, _, _ = await check_entitlements(  # type: ignore
                     key=Counter.TRACES_RETRIEVED,  # type: ignore
                     delta=trace_count,
                 )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=429,
+                        detail="You have reached your trace retrieval quota for this period.",
+                    )
 
         spans_response = OTelTracingResponse(
             count=count,
@@ -635,10 +640,15 @@ class TracingRouter:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
         if is_ee() and trace:
-            await check_entitlements(  # type: ignore
+            allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=1,
             )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         if not trace:
             return OTelTracingResponse()
@@ -1090,10 +1100,15 @@ class SpansRouter:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
         if is_ee() and spans:
-            await check_entitlements(  # type: ignore
+            allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=len({s.trace_id for s in spans if getattr(s, "trace_id", None)}),
             )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         return SpansResponse(
             count=len(spans),
@@ -1151,10 +1166,15 @@ class SpansRouter:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
         if is_ee() and spans:
-            await check_entitlements(  # type: ignore
+            allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=len({s.trace_id for s in spans if getattr(s, "trace_id", None)}),
             )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         return SpansResponse(
             count=len(spans),
@@ -1195,10 +1215,15 @@ class SpansRouter:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
         if is_ee() and span:
-            await check_entitlements(  # type: ignore
+            allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=1,
             )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         return SpanResponse(
             count=1 if span else 0,
@@ -1514,10 +1539,15 @@ class TracesRouter:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
         if is_ee() and traces:
-            await check_entitlements(  # type: ignore
+            allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=len(traces),
             )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         return TracesResponse(count=len(traces), traces=traces)
 
@@ -1769,10 +1799,15 @@ class TracesRouter:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
         if is_ee() and traces_list:
-            await check_entitlements(  # type: ignore
+            allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=len(traces_list),
             )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         return TracesResponse(
             count=len(traces_list),
@@ -1818,10 +1853,15 @@ class TracesRouter:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
         if is_ee() and trace:
-            await check_entitlements(  # type: ignore
+            allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=1,
             )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         return TraceResponse(
             count=1 if trace else 0,

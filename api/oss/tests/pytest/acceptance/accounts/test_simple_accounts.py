@@ -47,8 +47,20 @@ class TestSimpleAccountsCreate:
             "/admin/simple/accounts/",
             json={
                 "accounts": {
-                    "u1": {"user": {"email": f"u1-{uid}@test.agenta.ai"}},
-                    "u2": {"user": {"email": f"u2-{uid}@test.agenta.ai"}},
+                    "u1": {
+                        "user": {"email": f"u1-{uid}@test.agenta.ai"},
+                        "options": {
+                            "seed_defaults": False,
+                            "create_api_keys": False,
+                        },
+                    },
+                    "u2": {
+                        "user": {"email": f"u2-{uid}@test.agenta.ai"},
+                        "options": {
+                            "seed_defaults": False,
+                            "create_api_keys": False,
+                        },
+                    },
                 }
             },
         )

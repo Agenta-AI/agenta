@@ -290,6 +290,22 @@ class MetersDAO(MetersDAOInterface):
         key: Optional[str] = None,
         period: Optional[MeterPeriod] = None,
     ) -> list[MeterDTO]:
+        """Fetch meter rows matching the given filters.
+
+        WARNING: every parameter is optional. Passing `scope=None` (or a
+        `MeterScope()` with every dimension `None`) means "no scope
+        filter applied" and returns *every meter row in the table*.
+        This is intentionally permitted for the rare "all-meters" admin
+        case, but callers must pass a tenant-bound `MeterScope` for any
+        per-tenant read. As of this revision the only callers are:
+
+          - `MetersService.fetch` (passes through)
+          - `BillingRouter.fetch_usage` (passes org-only scope)
+          - `check_entitlements` soft-check path (passes the projected scope)
+
+        None of them currently relies on the unbounded behavior. Audit
+        callers before broadening the surface.
+        """
         async with engine.core_session() as session:
             stmt = select(MeterDBE)  # NO RISK OF DEADLOCK
 

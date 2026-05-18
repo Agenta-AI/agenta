@@ -30,7 +30,11 @@ def _create_account(admin_api, *, email):
                             "password": "DefaultPass1!",
                         }
                     ],
-                    "options": {"seed_defaults": True, "create_identities": True},
+                    "options": {
+                        "seed_defaults": False,
+                        "create_identities": True,
+                        "create_api_keys": False,
+                    },
                 }
             }
         },

@@ -14,6 +14,7 @@ from ee.src.utils.permissions import (
 )
 from ee.src.utils.entitlements import (
     check_entitlements,
+    scope_from,
     Tracker,
     Flag,
     NOT_ENTITLED_RESPONSE,
@@ -183,8 +184,13 @@ async def update_organization(
             )
 
         if payload.flags is not None:
+            # The handler mutates `organization_id` (path param), which may
+            # differ from the caller's ambient org. Project the entitlement
+            # check onto the target org so the right plan's `Flag.ACCESS`
+            # gate is consulted.
             check, _, _ = await check_entitlements(
                 key=Flag.ACCESS,
+                scope=scope_from(organization_id=UUID(organization_id)),
             )
             if not check:
                 return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)

@@ -78,11 +78,15 @@ class MeterPeriod(BaseModel):
             raise ValueError("month requires year")
 
         if self.month is not None:
+            # Use the same `day` value that `date(...)` sees — `self.day`
+            # may be `None`, in which case we treat it as 1 (the
+            # `MeterPeriod(year=Y, month=M)` shape is "the whole month").
+            _day = self.day if self.day is not None else 1
             try:
-                date(self.year, self.month, self.day or 1)  # type: ignore[arg-type]
+                date(self.year, self.month, _day)  # type: ignore[arg-type]
             except ValueError as e:
                 raise ValueError(
-                    f"invalid date {self.year:04d}-{self.month:02d}-{self.day:02d}: {e}"  # type: ignore[str-format]
+                    f"invalid date {self.year:04d}-{self.month:02d}-{_day:02d}: {e}"  # type: ignore[str-format]
                 ) from e
 
         return self

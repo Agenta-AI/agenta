@@ -97,10 +97,10 @@ For design context, see [proposal.md](./proposal.md). Pre-PR analysis: [research
 
 ## Read-side enforcement (`TRACES_RETRIEVED`)
 
-- [x] Wired at the router layer in `api/oss/src/apis/fastapi/tracing/router.py` (consistent with `TRACES_INGESTED` ingest sites at OTLP, sync ingest, async worker).
-- [x] Coverage: `query_spans`, `fetch_spans`, `fetch_span`, `query_traces`, `fetch_traces`, `fetch_trace`. Deprecated `/preview/*` mounts share the same router instances.
-- [x] Delta: `len(traces)` or `len({s.trace_id for s in spans})`; singletons use 1/0.
-- [x] `cache=True` (soft check). Overshoot warning, never block. With `limit=None` everywhere today the helper is a no-op.
+- [x] Wired at the router layer in `api/oss/src/apis/fastapi/tracing/router.py` — 8 call sites across `SpansRouter`, `TracesRouter`, and the deprecated `TracingRouter` (`query_spans` + `fetch_trace`), so legacy `/tracing/*` and `/preview/*` mounts are both covered.
+- [x] Delta: `len(traces)` for trace-shaped responses, `len({s.trace_id for s in spans})` for span-shaped responses, `1`/`0` for singletons.
+- [x] Hard adjust at each site (no `cache=` — `cache=False` is the default). Atomically upserts the meter row, so usage is persisted whether or not a limit is set.
+- [x] Capture `allowed` and raise `HTTPException(429, "You have reached your trace retrieval quota for this period.")` on `False`. Independent of the `strict` quota field — `strict` controls whether the meter row commits past the limit, the handler's 429 is on the boolean either way.
 - [x] Sessions / users / analytics are not instrumented (metadata, not traces).
 
 ## Usage exposure

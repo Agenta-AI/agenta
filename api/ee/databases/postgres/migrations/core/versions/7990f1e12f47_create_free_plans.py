@@ -12,7 +12,7 @@ from time import time
 
 from alembic import context
 
-from sqlalchemy import Connection, func, insert, select, update
+from sqlalchemy import Connection, func, insert, select, text, update
 from sqlalchemy.orm import load_only
 
 import stripe
@@ -199,10 +199,8 @@ def upgrade() -> None:
                 # include scope/period dimensions that don't exist at this
                 # revision's point in the chain. Raw SQL matches the schema
                 # as it stood when this migration was originally authored.
-                from sqlalchemy import text as _sa_text
-
                 session.execute(
-                    _sa_text(
+                    text(
                         """
                         INSERT INTO meters (
                             organization_id, key, year, month, value, synced
@@ -262,10 +260,8 @@ def upgrade() -> None:
                 # NOTE: `APPLICATIONS` was removed from the Meters enum in a
                 # later migration. We use raw SQL here so module import does
                 # not depend on the Python enum value still being present.
-                from sqlalchemy import text as _sa_text
-
                 session.execute(
-                    _sa_text(
+                    text(
                         """
                         INSERT INTO meters (
                             organization_id, key, year, month, value, synced

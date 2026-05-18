@@ -32,6 +32,12 @@ Downgrade:
     is reversed.
   - `TRACES_RETRIEVED` rows would block the type narrowing and are deleted
     explicitly before the swap.
+  - Rows whose identity depends on `workspace_id` / `project_id` / `user_id`
+    / `day` are deleted before the legacy PK is rebuilt — the old schema
+    has no representation for finer scopes or daily granularity, so
+    several distinct new-shape rows would otherwise collapse onto the
+    same legacy-PK tuple and break the rebuild with a duplicate-key
+    violation. This delete is lossy by design.
 
 Revision ID: 9d3e8f0a1b2c
 Revises: e6f7a8b9c0d1
@@ -159,6 +165,17 @@ def upgrade() -> None:
         server_default=None,
     )
 
+    # 5b. Relax `organization_id` to NULL to match the ORM (`ScopeDBA`
+    # now declares it nullable). Without this the DB schema and the
+    # mapped model drift, and any future caller that inserts an
+    # unbound/global-scope meter would fail on a NOT NULL violation.
+    op.alter_column(
+        TABLE_NAME,
+        "organization_id",
+        existing_type=PG_UUID(as_uuid=True),
+        nullable=True,
+    )
+
     # 6. Promote (0, 0) gauge sentinel to real NULLs.
     op.execute(
         sa.text(
@@ -168,8 +185,18 @@ def upgrade() -> None:
     )
 
     # 7. Backfill meter_id via the canonicalizer.
-    # Importing here keeps the canonical form in one place — the core types
-    # module — and guarantees the migration cannot drift from runtime.
+    #
+    # We deliberately import the runtime `compute_meter_id` (and its
+    # supporting `MeterScope` / `MeterPeriod` / `Meters` value objects)
+    # rather than freezing a copy of the canonicalization rules inside
+    # this migration. The trade-off is documented in
+    # `docs/designs/extend-meters/proposal.md` under the canonicalizer
+    # trust model: the runtime is the *single* source of truth for meter
+    # identity. Carrying a duplicate implementation in this migration
+    # would re-introduce the exact dual-source-of-truth problem that
+    # produced PR-02 (the key-case backfill mismatch). If the canonical
+    # form ever needs to change, the change requires a re-backfill
+    # migration anyway — at which point both sides move together.
     from ee.src.core.meters.types import (
         compute_meter_id,
         MeterScope,
@@ -258,6 +285,25 @@ def downgrade() -> None:
     op.drop_constraint("meters_pkey", TABLE_NAME, type_="primary")
     op.drop_index("idx_meters_org_key_period", table_name=TABLE_NAME)
 
+    # 1b. Delete every row whose identity depends on dimensions the legacy
+    # schema does not have. After this PR, multiple rows can legitimately
+    # differ only by `workspace_id`/`project_id`/`user_id`/`day` (e.g.
+    # `TRACES_RETRIEVED` rows are per-user/per-day). Dropping those
+    # columns would collapse them onto the same legacy-PK tuple
+    # `(organization_id, key, year, month)` and the legacy PK recreation
+    # below would fail with a duplicate-key error. This delete is lossy
+    # by design — the old schema has no representation for finer scopes
+    # or daily granularity, so there is nothing to preserve.
+    op.execute(
+        sa.text(
+            f"DELETE FROM {TABLE_NAME} WHERE "
+            f"workspace_id IS NOT NULL "
+            f"OR project_id IS NOT NULL "
+            f"OR user_id IS NOT NULL "
+            f"OR day IS NOT NULL"
+        )
+    )
+
     op.drop_column(TABLE_NAME, "meter_id")
     op.drop_column(TABLE_NAME, "day")
     op.drop_column(TABLE_NAME, "user_id")
@@ -266,6 +312,17 @@ def downgrade() -> None:
 
     op.execute(sa.text(f"UPDATE {TABLE_NAME} SET year = 0 WHERE year IS NULL"))
     op.execute(sa.text(f"UPDATE {TABLE_NAME} SET month = 0 WHERE month IS NULL"))
+
+    # Restore `organization_id` to NOT NULL before the legacy PK is
+    # recreated. Any unbound/global-scope rows are deleted (they cannot
+    # roundtrip — the old schema had no representation for them).
+    op.execute(sa.text(f"DELETE FROM {TABLE_NAME} WHERE organization_id IS NULL"))
+    op.alter_column(
+        TABLE_NAME,
+        "organization_id",
+        existing_type=PG_UUID(as_uuid=True),
+        nullable=False,
+    )
 
     op.alter_column(
         TABLE_NAME,

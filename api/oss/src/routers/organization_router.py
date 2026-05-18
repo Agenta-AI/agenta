@@ -1,4 +1,5 @@
 from typing import List
+from uuid import UUID
 
 from fastapi.responses import JSONResponse
 from fastapi import Request, BackgroundTasks
@@ -31,6 +32,7 @@ if is_ee():
 
     from ee.src.utils.entitlements import (
         check_entitlements,
+        scope_from,
         Tracker,
         Gauge,
         NOT_ENTITLED_RESPONSE,
@@ -237,9 +239,14 @@ async def invite_user_to_organization(
             skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
             if not skip_meter:
+                # The route operates on the workspace selected by the
+                # path-param `{organization_id}`. Project the entitlement
+                # check onto the target org so the right org's user
+                # gauge gets the `+1`, not the caller's ambient org.
                 check, _, _ = await check_entitlements(  # type: ignore
                     key=Gauge.USERS,  # type: ignore
                     delta=1,
+                    scope=scope_from(organization_id=UUID(organization_id)),  # type: ignore
                 )
 
                 if not check:

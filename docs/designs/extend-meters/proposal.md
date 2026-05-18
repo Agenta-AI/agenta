@@ -238,11 +238,11 @@ Call sites in `api/oss/src/apis/fastapi/tracing/router.py`:
 - `TracesRouter.fetch_traces` (~1460).
 - `TracesRouter.fetch_trace` (~1503).
 
-Deprecated `/preview/spans/*` and `/preview/traces/*` mounts resolve through the same router instances, so the check fires there too. The legacy `TracingRouter` at `/tracing/*` is a separate class — its handlers are *not* covered by the per-method router-layer call, by design: the legacy router is deprecated and there is no equivalent `TRACES_INGESTED` enforcement on it either.
+Deprecated `/preview/spans/*` and `/preview/traces/*` mounts resolve through the same router instances, so the check fires there too. The legacy `TracingRouter` at `/tracing/*` is a separate class but its trace/span retrieval handlers (`query_spans`, `fetch_trace`) are also wired with the same `TRACES_RETRIEVED` check — eight call sites total across the three router classes.
 
 **Explicitly excluded** from `TRACES_RETRIEVED`: analytics, sessions, and users endpoints (`/spans/analytics/query`, `/spans/sessions/query`, `/spans/users/query`, and the legacy `/tracing/spans/analytics`). `TRACES_RETRIEVED` counts traces leaving the system as traces or spans; analytics surfaces return aggregates and the session/user surfaces return IDs, so they are not retrieval paths. If you ever add a new surface that *does* return trace/span data, wire the check; analytics aggregates stay out.
 
-All `check_entitlements` calls on the read side pass `cache=True` (soft check). On `not allowed`, the router logs a warning and returns `429 Too Many Requests`. With `limit=None` everywhere today the helper is a no-op.
+`check_entitlements` calls on the read side run in hard-adjust mode (no `cache=` kwarg — `cache=False` is the default). Each call atomically upserts the meter row via `MetersDAO.adjust()` and returns `(allowed, meter, rollback)`. The router captures `allowed` and raises `HTTPException(429, "You have reached your trace retrieval quota for this period.")` when `False`. With `limit=None` everywhere today every call returns `allowed=True`, but usage is persisted regardless — `/billing/usage` shows the right counter values immediately. Setting a real limit on any plan starts producing 429s without further code change. The `strict` field on `Quota` is a separate dial that operators tune per plan: `strict=True` makes the meter row refuse to commit past the limit; `strict=False` (default) lets the row commit but `allowed` still flips to `False` on overshoot. The handler's 429 contract is independent of `strict`.
 
 ## Write-side enforcement (`EVALUATIONS_RUN`)
 
