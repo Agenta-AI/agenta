@@ -307,7 +307,9 @@ class MetersDAO(MetersDAOInterface):
         callers before broadening the surface.
         """
         async with engine.core_session() as session:
-            stmt = select(MeterDBE)  # NO RISK OF DEADLOCK
+            stmt = select(MeterDBE).options(
+                joinedload(MeterDBE.subscription)
+            )  # NO RISK OF DEADLOCK
 
             if scope is not None:
                 if scope.organization_id is not None:

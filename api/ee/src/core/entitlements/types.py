@@ -331,6 +331,7 @@ ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
                 period=Period.DAILY,
                 scope=Scope.USER,
             ),
@@ -413,6 +414,7 @@ ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
                 scope=Scope.USER,
                 period=Period.DAILY,
             ),
@@ -495,6 +497,7 @@ ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
                 scope=Scope.USER,
                 period=Period.DAILY,
             ),
@@ -573,6 +576,7 @@ ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
                 scope=Scope.USER,
                 period=Period.DAILY,
             ),
@@ -605,6 +609,7 @@ ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
                 scope=Scope.USER,
                 period=Period.DAILY,
             ),
@@ -635,6 +640,7 @@ ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
                 scope=Scope.USER,
                 period=Period.DAILY,
             ),
@@ -665,6 +671,7 @@ ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
                 scope=Scope.USER,
                 period=Period.DAILY,
             ),
