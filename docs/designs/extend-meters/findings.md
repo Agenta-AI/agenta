@@ -13,6 +13,8 @@ A sixth Copilot pass on 2026-05-18 11:30Z surfaced 9 new distinct findings (PR-3
 
 A seventh Copilot pass on 2026-05-18 12:53Z surfaced 3 new distinct findings (PR-41 through PR-43). Plus PR-44 — an internal staging incident discovered during deployment of the pass-6 fixes. All four closed: PR-41 (`/billing/usage` rewritten to per-caller scoped read — same projection `check_entitlements` uses; no more aggregation against a per-user limit; `organization_id` path/wrapper param dropped, identity reads ambient `AuthScope`); PR-42 (`MetersDAO.fetch.key` and the service/interface tightened to `Optional[Meters]`, with the one runtime caller converting `Counter`/`Gauge` → `Meters[key.name]` at the boundary — closes the silent soft-check fail-open without a DB migration); PR-43 (`check_entitlements` cache preflight now mirrors the DAO's strict/non-strict split so Layer 1 is never stricter than Layer 2); PR-44 (staging migration crashed on 2 corrupt `(year=2025, month=0)` rows that the new calendar validator correctly rejected — operator-fixed the rows, audited prod clean, no code change). 69/69 EE unit tests still pass.
 
+An eighth Copilot pass on 2026-05-18 14:52Z surfaced 1 new finding (PR-45) — a regression introduced by PR-41: the rewrite called `scope_from(scope=None)` which had been deliberately raising since PR-15, so `/billing/usage` crashed on the first org-scoped quota. Closed: PR-45 collapsed the public/private split — `scope_from` is now the single helper (ambient by default, `scope=None` means `Scope.ORGANIZATION`, explicit `organization_id` still supported, both-args still raises). `_scope_from` removed. `check_entitlements` and `/billing/usage` now share the same call shape. `test_scope_from.py` rewritten for the unified contract; 68/68 EE unit tests pass.
+
 ## Rules
 
 - Findings cite `file:Lstart-Lend` against the current working tree.
@@ -21,7 +23,7 @@ A seventh Copilot pass on 2026-05-18 12:53Z surfaced 3 new distinct findings (PR
 
 ## Notes
 
-- Sync runs: 2026-05-18, seven passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed `75e7b8472` ("final CR") → PR-32..PR-40. Pass 7 (2026-05-18 12:53Z): Copilot reviewed the post-pass-6 tree → PR-41..PR-43. PR-44 is an internal staging-deployment incident.
+- Sync runs: 2026-05-18, eight passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed `75e7b8472` ("final CR") → PR-32..PR-40. Pass 7 (2026-05-18 12:53Z): Copilot reviewed the post-pass-6 tree → PR-41..PR-43. PR-44 is an internal staging-deployment incident. Pass 8 (2026-05-18 14:52Z): Copilot reviewed the post-pass-7 tree → PR-45.
 - Resolve queue priority order: P0 → P1 → P2 → P3.
 - **Rule (from user 2026-05-18):** sync's first step is ALWAYS to save new findings to this file, before any code change or proposed-fix discussion.
 
@@ -30,6 +32,21 @@ A seventh Copilot pass on 2026-05-18 12:53Z surfaced 3 new distinct findings (PR
 (none)
 
 ## Closed Findings
+
+### [CLOSED] PR-45 — `scope_from` unified: ambient by default, `scope=None` means ORGANIZATION; private `_scope_from` removed (P0, high)
+
+- **Category**: Correctness / API contract
+- **Files**: `api/ee/src/utils/entitlements.py` (rewrote `scope_from`, deleted `_scope_from`); `api/ee/src/apis/fastapi/billing/router.py` (kept `scope_from(scope=quota.scope)`, dropped private-helper import); `api/ee/tests/pytest/unit/test_scope_from.py` (rewrote to exercise the public helper only)
+- **PR comment**: [discussion_r3259844430](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3259844430)
+- **Background**: The original `scope_from(scope=None)` raised by design (PR-15) to prevent the silent-fail-open path inside `check_entitlements`. That precaution worked but pushed `check_entitlements` onto a private `_scope_from` helper that took `(auth_scope, scope)` directly. The pass-7 `/billing/usage` rewrite (PR-41) reached for the public `scope_from(scope=quota.scope)` and crashed on every org-scoped quota.
+- **Fix shipped**: Collapsed the public/private split. `scope_from` is now the single public helper:
+  - `scope_from()` / `scope_from(scope=None)` → ambient `AuthScope` at `Scope.ORGANIZATION` granularity.
+  - `scope_from(scope=Scope.X)` → ambient at granularity X.
+  - `scope_from(organization_id=UUID(...))` → explicit org-only, no ambient lookup (workers / bootstrap).
+  - `scope_from(scope=X, organization_id=Y)` → `ValueError` (ambiguous).
+  Removed `_scope_from`. `check_entitlements` now uses `scope_from(scope=quota.scope)` directly. `billing/router.py` was already calling the same shape; one import line tidied. The PR-15 safety against silent fail-open is preserved: `get_auth_scope()` raises `AuthContextMissing` when no auth context is published, so no caller can accidentally read a half-populated scope.
+- **Tests**: `test_scope_from.py` rewritten to exercise only the public `scope_from`. Pins the new contract (no-args/None/ORGANIZATION are equivalent), the explicit-org-id branch, ambient projection at every granularity, and the both-args rejection. 68/68 EE unit tests pass.
+- **Action**: Reply on the GitHub thread and resolve.
 
 ### [CLOSED] PR-41 — `/billing/usage` now reads the single meter row at the caller's projected scope; no aggregation, no path-param (P1, high)
 

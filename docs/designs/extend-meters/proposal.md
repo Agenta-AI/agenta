@@ -210,10 +210,13 @@ Called once from the EE entrypoint at startup. Module-level singletons hold the 
 
 ### Scope helpers
 
-`scope_from(*, scope=None, organization_id=None) -> MeterScope`: exactly one source keyword required.
+`scope_from(*, scope=None, organization_id=None) -> MeterScope` — single public entrypoint with two modes:
 
-- `scope=Scope.X`: projects the ambient `AuthScope` to granularity X. Used by HTTP-bound callers.
-- `organization_id=UUID(...)`: minimal org-only scope. Used by bootstrap and background workers without a request context.
+- **Ambient projection** (no `organization_id`): projects the ambient `AuthScope` (ContextVar) at `scope`'s granularity. `scope=None` is treated as `Scope.ORGANIZATION` — the common case where `quota.scope=None` flows through unchanged. Raises `AuthContextMissing` if no auth context is published. Used by HTTP-bound callers (`check_entitlements`, `/billing/usage`, handlers).
+- **Explicit org-only** (`organization_id=UUID(...)`, `scope` omitted/None): minimal org-only `MeterScope` with no ambient lookup. Used by bootstrap and background workers without a request context.
+- Passing both `scope` and `organization_id` raises `ValueError` — ambiguous.
+
+The previous private `_scope_from(auth_scope, scope)` helper is gone; the contract above lives entirely in `scope_from`. Callers pass `quota.scope` through directly without a `None → ORGANIZATION` branch at the call site.
 
 `period_from(*, period=None, anchor=None) -> MeterPeriod`: builds a `MeterPeriod` for the current moment at the requested granularity.
 
