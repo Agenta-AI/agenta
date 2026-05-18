@@ -15,3 +15,13 @@
 
 export type {RealEvaluationScenario, RealScenarioSourceParams} from "./realScenarioSource"
 export {makeRealScenarioSource} from "./realScenarioSource"
+
+// Hydrate transform — joins each scenario chunk to its correlated entities
+// (results, metrics, testcases, traces) via injected HydrateFetchers.
+export type {
+    HydratableScenario,
+    HydratedScenarioRow,
+    HydrateScenariosTransformParams,
+    HydrateFetchers,
+} from "./hydrateScenariosTransform"
+export {makeHydrateScenariosTransform, DEFAULT_HYDRATE_FETCHERS} from "./hydrateScenariosTransform"
