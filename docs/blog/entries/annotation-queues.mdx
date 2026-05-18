@@ -1,0 +1,57 @@
+---
+title: "Annotation Queues"
+slug: annotation-queues
+date: 2026-05-18
+tags: [v0.97.0]
+description: "Run error analysis, collect SME feedback, bootstrap test sets from traces, and label test sets with rubrics or ground truth."
+---
+
+<div style={{display: "flex", justifyContent: "center", marginTop: "20px", marginBottom: "20px", flexDirection: "column", alignItems: "center"}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/8beqiSWI0iE"
+    title="Annotation Queues in Agenta"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+## The workflow this is for
+
+The most useful thing you can do when building an LLM app is read your traces. You find the failures, label what went wrong, and turn the worst ones into test cases. Then you run those test cases against your evaluators.
+
+Until now, that loop happened outside Agenta. Annotation queues bring it inside.
+
+A queue holds a batch of traces or a batch of test cases. You attach a scoring schema (defined in the Evaluator Playground), assign reviewers, and watch progress as they work through it. The annotations live on the trace or test case they belong to, and a reviewed trace queue can be exported as a labeled test set in one step.
+
+## A walkthrough: error analysis on production traces
+
+You ship a new prompt. Over the next day, support tickets come in about hallucinated answers. You open observability, filter for the affected traces, and pick out fifty that look suspect.
+
+Click **Add to queue**. Create a new queue and attach a human evaluator with two questions: "Is the answer correct?" (yes / no) and "If not, what went wrong?" (free text).
+
+Your QA engineer opens the queue. Each scenario appears in a focused review view: the trace details on one side, your instructions on the other, the form below. They score one and move to the next.
+
+When the queue is done, you have fifty labeled examples of how the prompt fails in production. Export the queue as a test set, and the annotations come along as columns. The next version of the prompt can be evaluated against ground truth your team produced, not against assumptions.
+
+## Three other things the same workflow does
+
+**SME feedback.** Hand a queue to a domain expert who doesn't need to learn the rest of Agenta. They see the trace, the instructions, and the form. Nothing else to figure out.
+
+**Bootstrapping a test set from real traffic.** Sample production traces, review them, export the queue as a test set. You start with examples that look like your real users instead of examples you imagined.
+
+**Adding ground truth or rubrics to test sets.** Put an existing test set into a queue, attach an evaluator that captures the reference answer or scoring rubric, and label them. The annotations become available to your evaluators on the next run.
+
+## Setting one up
+
+1. Open the Evaluator Playground and define a human evaluator with the questions you want answered.
+2. Go to **Annotations → Queues** and create a new queue. Pick the kind (traces or test cases) and attach the evaluator.
+3. Add items to the queue. From observability, select traces and click **Add to queue**. From a test set, add rows the same way. Or POST to the queue API from your own code.
+4. Reviewers open the queue and work through scenarios.
+5. (For trace queues) When you're done, export the queue as a test set.
+
+## Getting started
+
+A walkthrough video is above. For more context and to leave feedback, see the [roadmap discussion](https://github.com/Agenta-AI/agenta/discussions/4009).
