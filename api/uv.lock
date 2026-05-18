@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenta"
-version = "0.99.8"
+version = "0.99.9"
 source = { editable = "../sdks/python" }
 dependencies = [
     { name = "agenta-client" },
@@ -68,7 +68,7 @@ dev = [
 
 [[package]]
 name = "agenta-client"
-version = "0.99.8"
+version = "0.99.9"
 source = { editable = "../clients/python" }
 dependencies = [
     { name = "httpx" },
@@ -248,7 +248,7 @@ wheels = [
 
 [[package]]
 name = "api"
-version = "0.99.8"
+version = "0.99.9"
 source = { virtual = "." }
 dependencies = [
     { name = "agenta" },
