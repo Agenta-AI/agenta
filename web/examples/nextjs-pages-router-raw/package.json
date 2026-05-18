@@ -3,7 +3,7 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
-    "description": "Spike app: Next.js 15 Pages Router + AI SDK v6 + raw OpenTelemetry. Phase 3a app for ts-sdk-tracing design. See docs/design/ts-sdk-tracing/.",
+    "description": "Spike app: Next.js 16 Pages Router + AI SDK v6 + raw OpenTelemetry. Phase 3a app for ts-sdk-tracing design. See docs/design/ts-sdk-tracing/.",
     "scripts": {
         "dev": "next dev --port 3103",
         "build": "next build",
@@ -29,7 +29,7 @@
         "@opentelemetry/semantic-conventions": "^1.40.0",
         "ai": "^6.0.177",
         "dotenv": "^16.4.7",
-        "next": "15.5.15",
+        "next": "16.2.6",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
         "zod": "^3.25.76"

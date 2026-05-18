@@ -10,6 +10,7 @@ packages:
   - 'examples/*'
   - 'examples/.shared/*'
 allowBuilds:
+  '@parcel/watcher': true
   '@swc/core': true
   browser-tabs-lock: false
   core-js: true

@@ -4,7 +4,7 @@
  * any AI SDK call runs. There is no Next.js-style auto-register hook;
  * import order in this file is the only seam.
  *
- * Captured as P-TANSTACK-NN (instrumentation-via-import-order) in the
+ * Captured as P-TANSTACK-01 (instrumentation-via-import-order) in the
  * pain log: a single import-order regression silently disables tracing
  * with no warning, no error, no diagnostic. The framework relies on a
  * convention that's invisible to any static check.

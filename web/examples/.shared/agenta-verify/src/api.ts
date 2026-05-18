@@ -31,7 +31,7 @@ export interface AgentaApiClient {
      * underlying client.
      *
      * NOTE: `service.name` is NOT queryable on Agenta today (OTel Resource
-     * attributes don't survive the adapter pipeline — captured as P-NODE-03).
+     * attributes don't survive the adapter pipeline — captured as P-NODE-01).
      * Spike apps must filter on something they control per-call: `ag.user.id`
      * or `ag.session.id` set to a unique-per-run value, typically.
      */
@@ -69,7 +69,7 @@ export interface AgentaApiOptions {
      * but passing it explicitly is correct + self-documenting.
      *
      * NOTE: SDK's `init({projectId})` accepts this option but silently
-     * ignores it (P-NODE-06). We append it to `?project_id=` in the
+     * ignores it (SDK-REQ-03 in status.md). We append it to `?project_id=` in the
      * request URL ourselves.
      */
     projectId?: string
@@ -85,13 +85,13 @@ export function createAgentaApiClient(opts: AgentaApiOptions = {}): AgentaApiCli
     // The SDK's `AgentaApiEnvironment.Default` is "/api" — it assumes the host
     // string already includes the /api prefix when explicitly passed. Real
     // users will type just the origin (matches every .env.example everywhere),
-    // so we normalize here. Captured as P-NODE-02 in the pain log; the SDK
+    // so we normalize here. Captured as SDK-REQ-02 in status.md; the SDK
     // should accept either origin or origin+/api transparently.
     const sdk = opts.sdkClient ?? init({host: appendApiPrefix(opts.host), apiKey: opts.apiKey})
 
     // Project UUID gets threaded into every request as `?project_id=<uuid>`
     // because Agenta reads it from query params (NOT headers, NOT body).
-    // SDK's init({projectId}) ignores it (P-NODE-06), so we set per-call
+    // SDK's init({projectId}) ignores it (SDK-REQ-03 in status.md), so we set per-call
     // queryParams on every request from here.
     const requestOptions = opts.projectId ? {queryParams: {project_id: opts.projectId}} : undefined
 

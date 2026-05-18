@@ -51,7 +51,7 @@ async function main(): Promise<void> {
         // is the workaround.
         filterAttribute: {path: "ag.user.id", value: RUN_ID},
         // Only `ai.generateText` is checked here. Per-call metadata doesn't
-        // propagate to `ai.toolCall` child spans (P-NODE-04), so filtering by
+        // propagate to `ai.toolCall` child spans (P-NODE-03), so filtering by
         // user.id never returns siblings. Tool call presence is verified via
         // the parent span's `ag.data.outputs.toolCalls` payload below.
         expectSpans: ["ai.generateText"],

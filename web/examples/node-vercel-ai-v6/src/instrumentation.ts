@@ -67,7 +67,7 @@ const SERVICE_NAME = `vercel-ai-spike-${APP_NAME}`
 
 // Agenta reads `project_id` from QUERY PARAMS (not headers), even on the OTLP
 // ingest endpoint. Project-scoped API keys make this implicit, but explicit
-// is safer and self-documenting. See P-NODE-06 for the SDK-side gap.
+// is safer and self-documenting. See SDK-REQ-03 in status.md for the SDK-side gap.
 const otlpUrl = AGENTA_PROJECT_ID
     ? `${AGENTA_HOST}${AGENTA_OTLP_PATH}?project_id=${encodeURIComponent(AGENTA_PROJECT_ID)}`
     : `${AGENTA_HOST}${AGENTA_OTLP_PATH}`

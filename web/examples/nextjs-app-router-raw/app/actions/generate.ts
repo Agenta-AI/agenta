@@ -2,8 +2,8 @@
  * Server Action — direct generateText invocation, no API route between
  * the browser and the model.
  *
- * Tests the RSC context-propagation footgun called out in P-NODE-N (TBD)
- * and design-doc premise 9: do per-call OTel spans created inside a
+ * Tests the RSC context-propagation footgun called out in design-doc
+ * premise 9: do per-call OTel spans created inside a
  * Server Action correctly attach to the React render context, or do
  * they end up orphaned when Next batches RSC renders?
  *

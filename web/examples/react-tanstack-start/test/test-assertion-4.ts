@@ -6,7 +6,7 @@
  * auto-discovery hook. Instrumentation fires by virtue of being the FIRST
  * import in `src/server.ts`. This assertion catches the regression where
  * a refactor moves the import below something that calls AI SDK first —
- * silent loss of all traces (P-TANSTACK-NN).
+ * silent loss of all traces (P-TANSTACK-01).
  */
 
 import {APP_BASE} from "./_helpers"

@@ -30,10 +30,12 @@
  *   │ through the user's globally-registered OTel provider.       │
  *   │ ~150 lines of code is the v0 wedge.                         │
  *   │                                                             │
- *   │ Mahmoud-aligned backend-led alternative: ship a thinner JS  │
- *   │ shim that POSTs Mastra spans raw to a dedicated Agenta      │
- *   │ endpoint, and the backend handles OTLP + ag.* mapping. Out  │
- *   │ of scope for this PoC; captured in pain log P-MASTRA-NN.    │
+ *   │ Backend-led alternative (aligned with team direction): ship │
+ *   │ a thinner JS shim that POSTs Mastra spans raw to a          │
+ *   │ dedicated Agenta endpoint, and the backend handles OTLP +   │
+ *   │ ag.* mapping. Out of scope for this PoC; discussed in       │
+ *   │ docs/design/ts-sdk-tracing/summary.md (Strategic            │
+ *   │ alternative: backend-led integration).                       │
  *   └─────────────────────────────────────────────────────────────┘
  */
 

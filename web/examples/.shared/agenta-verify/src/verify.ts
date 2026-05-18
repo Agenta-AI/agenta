@@ -35,7 +35,7 @@ export interface VerifyOptions {
      * query returns ONLY this run's spans.
      *
      * **Why not `service.name`?** OTel Resource attributes don't survive
-     * Agenta's adapter pipeline today (see P-NODE-03 in the pain log).
+     * Agenta's adapter pipeline today (see P-NODE-01 in the pain log).
      * Spike apps must filter on something they control per-call. Common
      * choice: `ag.user.id` set to a unique-per-run UUID.
      */
@@ -87,7 +87,7 @@ export interface VerifyOptions {
     /**
      * Agenta project UUID. Threaded into every API request as `?project_id=<uuid>`
      * (Agenta reads it from query params, not headers). Project-scoped API keys
-     * make this implicit, but explicit is safer. See P-NODE-06.
+     * make this implicit, but explicit is safer. See SDK-REQ-03 in status.md.
      */
     projectId?: string
 

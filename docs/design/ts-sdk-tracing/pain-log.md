@@ -516,6 +516,12 @@ So Pages Router edge has stricter static analysis at build time than App Router 
 
 **Backend-fixable: no (2026-05-12 analysis).** `next build` rejects the import before runtime — nothing ever ships. Backend never gets to see anything. JS-side wedge: SDK ships an eval-free edge bundle that passes Pages-edge static dynamic-code-eval check. See `summary.md` § "Backend-fixable subset (AI SDK)".
 
+**Next.js 16 update (2026-05-18): RESOLVED at build time, RUNTIME issue persists.** Re-verified empirically on Next.js 16.2.6 (Turbopack as default builder). A new `pages/api/edge-chat.ts` was added to the spike app with the same shape as Phase 2a's App Router edge route (inline raw-OTel `BasicTracerProvider` + `OTLPTraceExporter` import). Result:
+- **`next build` succeeds.** Turbopack's static analysis no longer rejects `@opentelemetry/exporter-trace-otlp-http`. Pages Router edge routes can ship raw OTel.
+- **At runtime, the same edge-isolate-freeze issue that affects App Router edge (P-APP-RAW-01) applies here too.** The route returns 200 OK with the LLM response, but emits 0 spans because the OTLP `fetch` is killed mid-flight when the isolate freezes. So while the build-time barrier is gone, the runtime tracing problem persists.
+
+Net implication for `ts-sdk-tracing` v1: the SDK still needs the eval-free edge bundle with `waitUntil` enrollment, because the runtime issue (P-APP-RAW-01) was always the harder problem. Next.js 16 makes the SDK MORE useful for Pages Router users (they can now actually use the edge bundle, not just App Router users), not less.
+
 ### Next.js Pages Router — `@vercel/otel` (P-PAGES-VERCEL-*)
 
 ## P-PAGES-VERCEL-01: Pages Router `streamText` + `pipeUIMessageStreamToResponse` produces EMPTY `ag.metrics.tokens` on the parent span
@@ -607,6 +613,16 @@ pipeUIMessageStreamToResponse({response: res, stream: result.toUIMessageStream()
 **Processor-choice independence verified (2026-05-12):** unlike P-APP-VERCEL-01 which is fixable by switching to `SimpleSpanProcessor`, **P-PAGES-VERCEL-01 reproduces under BOTH `BatchSpanProcessor` AND `SimpleSpanProcessor`.** Empirically tested: changing `@vercel/otel`'s `spanProcessors` from Batch to Simple while keeping `pipeUIMessageStreamToResponse` produces the same empty `ag.metrics.tokens` result. This makes sense from the mechanism: `CompositeSpanProcessor.onEnd` force-ends the child span BEFORE the wrapped processor sees it — so the choice of wrapped processor (Batch vs Simple) only affects EXPORT timing, not the force-end race that destroys the token writes. **Following Agenta's docs (which use `SimpleSpanProcessor`) does NOT save users from this bug.** Genuine JS-side wedge.
 
 **Backend-fixable: no (2026-05-12 analysis).** `@vercel/otel`'s `CompositeSpanProcessor.onEnd` force-ends the streamText span BEFORE AI SDK writes `ai.usage.*` — the token attributes are never written to the span at all. Backend receives the span with empty token data; can't reconstruct what wasn't sent. JS-side wedge: streamText lifecycle wrapper that owns span end (same wedge as P-NODE-02). See `summary.md` § "Backend-fixable subset (AI SDK)".
+
+**Next.js 16 re-verification (2026-05-18): mechanism worse than originally documented, fix recommendation flipped.** Re-tested on Next.js 16.2.6 (Turbopack default builder). Direct Agenta-side trace queries against the spike-emitted trace:
+
+- `ai.streamText` parent: `ag.metrics.tokens.*` missing — expected.
+- `ai.streamText.doStream` child: `ag.metrics.tokens.*` ALSO missing — **NOT expected.** The original Next 15.5.15 spike noted that the child fired earlier (from the provider call) and likely retained `ai.usage.*`. Empirically on Next 16 the child is also empty.
+- `fetch POST https://api.openai.com/v1/responses` grandchild: `ag.metrics.tokens.*` ALSO missing.
+
+Most plausible mechanism (not source-traced through Next 16's `@vercel/otel` yet): the `CompositeSpanProcessor.onEnd` force-end fires not just on the parent but also on `.doStream` (which is still open when `pipeUIMessageStreamToResponse` returns synchronously while the OpenAI Responses API stream is still draining). AI SDK's `setAttributes({ai.usage.*})` lands on an already-ended `.doStream` and is dropped.
+
+**Consequence for the fix path.** The original P-PAGES-VERCEL-01 design recommendation (read-time enricher on the Agenta backend that rolls `.doStream`'s `incremental.*` up to the parent's `cumulative.*`) **cannot work** on Next 16 — no span has token data to roll up FROM. The fix moves to a JS-side helper (`agentaPipeUIMessageStreamToResponse`) that owns the token-attribute writes onto an Agenta-controlled span before any outer force-end fires. Promoted from contingency to v1 deliverable in [rfc.md §11.5](../ts-sdk/rfc.md#115-jsside-helper-pipeuimessagestreamtoresponse-fixes-p-pages-vercel-01) and [proposal.md §5.2](../ts-sdk/proposal.md#52-javascript-track--agentasdk-tracing) based on this finding.
 
 ### React TanStack Start (P-TANSTACK-*)
 
@@ -1209,7 +1225,61 @@ Either fix benefits ALL Agenta users (Python SDK, raw OTel, AI SDK, Mastra) with
 
 ---
 
+## P-COMMON-02: Next.js 16 / Turbopack stricter module resolution exposes missing transitive `@opentelemetry/sdk-trace-base` declarations on `@vercel/otel` apps
+
+**Framework:** common (Next.js 16+, applies to any app using `@vercel/otel` + `SimpleSpanProcessor`)
+**Severity:**
+  - User impact: low
+  - Self-recoverable: yes
+  - Silent failure: no (build error)
+
+**Discovered:** 2026-05-18 during the four Next.js spike apps' re-run on Next.js 16.2.6 (Turbopack as default builder).
+
+**The friction (code that exists today):**
+
+Spike apps `nextjs-app-router-vercel` and `nextjs-pages-router-vercel` both import `SimpleSpanProcessor` from `@opentelemetry/sdk-trace-base` inside their `instrumentation.ts` (override `@vercel/otel`'s default `BatchSpanProcessor` to avoid P-APP-VERCEL-01 / P-NODE-02). On Next.js 15.5.15 + webpack + pnpm's lenient hoisting, this worked transitively — `@vercel/otel` listed `@opentelemetry/sdk-trace-base` as a dep and pnpm hoisted it where Next's webpack could resolve it. On Next.js 16.2.6 + Turbopack:
+
+```
+./instrumentation.ts:5:0
+Module not found: Can't resolve '@opentelemetry/sdk-trace-base'
+
+> 1 | import { registerOTel } from "@vercel/otel"
+> 2 | import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base"
+       ^
+
+Build error occurred
+```
+
+**Fix:** add `@opentelemetry/sdk-trace-base` to `dependencies` explicitly in `package.json` (alongside `@vercel/otel`). pnpm install and rebuild — Turbopack resolves it correctly. Both `nextjs-app-router-vercel/package.json` and `nextjs-pages-router-vercel/package.json` needed this on 2026-05-18.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// Users on @agenta/sdk-tracing pass an `init({...})` call instead of
+// hand-wiring registerOTel + SimpleSpanProcessor:
+import { init } from "@agenta/sdk-tracing"
+
+init({ host, apiKey, projectId })
+// → SDK has @opentelemetry/sdk-trace-base as a direct dep; users never
+//   import it themselves. Turbopack's stricter resolution sees a single
+//   declared dep on the SDK package and resolves it.
+```
+
+**Why this matters for v1 setup docs.** `@agenta/sdk-tracing` already declares `@opentelemetry/sdk-trace-base` as a direct dep (it ships `SimpleSpanProcessor` internally). So users on the SDK don't hit this. But users on the migration path (hand-wiring `@vercel/otel` + processor override per Agenta's current Vercel-AI-SDK docs) DO hit it on Next.js 16. Setup docs need an explicit "if you're on Next.js 16+ and not yet on `@agenta/sdk-tracing`, add `@opentelemetry/sdk-trace-base` to your `package.json`" callout.
+
+**Backend-fixable: no.** Build-time module resolution; never reaches the wire.
+
+**Implication for `ts-sdk-tracing` v1.** Reinforces the "one `init()` call" value prop. Users on the SDK never see this. Users hand-wiring keep paying the framework-tightening tax — Turbopack today, something else tomorrow.
+
+---
+
 ## P-BRAINTRUST-01: Braintrust OTLP endpoint silently swallows spans on data-plane mismatch — projects auto-create but logs land nowhere
+
+**Framework:** braintrust
+**Severity:**
+  - User impact: high
+  - Self-recoverable: yes
+  - Silent failure: yes
 
 **Discovered:** Phase 8 (2026-05-12), during user-driven empirical verification of secondary backends via REST API.
 
@@ -1220,12 +1290,42 @@ Either fix benefits ALL Agenta users (Python SDK, raw OTel, AI SDK, Mastra) with
 **Repro:**
 
 1. Sign up a Braintrust org on EU plane (some EU enterprise customers, GDPR-restricted setups, etc).
-2. Wire `@opentelemetry/exporter-trace-otlp-proto` with `url: "https://api.braintrust.dev/otel/v1/traces"` (the docs default) and `Authorization: Bearer <key>` + `x-bt-parent: project_name:my-app`.
+2. Wire `@opentelemetry/exporter-trace-otlp-proto` with the US-default URL:
+
+   ```ts
+   // The friction — docs-default URL silently swallows EU-org spans
+   new OTLPTraceExporter({
+       url: "https://api.braintrust.dev/otel/v1/traces", // ← US plane, default in their docs
+       headers: {
+           Authorization: `Bearer ${process.env.BRAINTRUST_API_KEY}`,
+           "x-bt-parent": "project_name:my-app",
+       },
+   })
+   ```
+
 3. Generate a `streamText` call — exporter logs say "registered", no errors at runtime.
 4. Open Braintrust UI → my-app project → empty.
 5. `curl -X POST https://api.braintrust.dev/v1/project_logs/<project_id>/fetch -H "Authorization: Bearer <key>"` → returns **HTTP 421 `DataPlaneRedirectError`** with `RedirectUrl: https://api-eu.braintrust.dev`.
 
 The 421 redirect is sent on the **log-fetch** path, but the **OTLP ingestion** path on US plane silently swallows the request. The OTel exporter doesn't follow the redirect because OTLP/proto doesn't expect 3xx redirects per spec — and the 421 returned to OTLP requests is undocumented behavior.
+
+**The ideal sketch (what would close this on the user's side):**
+
+```ts
+// What the SDK would do if it knew about Braintrust's plane semantics:
+//   - resolve plane from the API key (Braintrust keys are plane-scoped) OR
+//   - probe the gateway and follow the 421 redirect transparently
+//
+// Closest pragmatic fix until Braintrust does either: pin the URL from env so
+// EU orgs don't silently default to US.
+new OTLPTraceExporter({
+    url: process.env.BRAINTRUST_OTLP_URL ?? "https://api.braintrust.dev/otel/v1/traces",
+    headers: {
+        Authorization: `Bearer ${process.env.BRAINTRUST_API_KEY}`,
+        "x-bt-parent": `project_name:${process.env.BRAINTRUST_PROJECT}`,
+    },
+})
+```
 
 **Mechanism:** Braintrust's project metadata appears to replicate across both planes (so project listing works on either side), but log/trace storage is plane-bound. OTLP requests to the wrong plane are accepted by their gateway, project auto-creation completes (presumably written to a shared metadata service), but the trace payload never makes it into the data store. The OTLP response is 200 OK so the OTel SDK has no signal to retry or redirect.
 
@@ -1243,11 +1343,47 @@ The 421 redirect is sent on the **log-fetch** path, but the **OTLP ingestion** p
 
 ## P-LANGFUSE-01: Langfuse stores all spans (including non-LLM) when receiving raw OTLP — no server-side scope filter
 
+**Framework:** langfuse
+**Severity:**
+  - User impact: med
+  - Self-recoverable: yes
+  - Silent failure: no
+
 **Discovered:** Phase 8 (2026-05-12), during empirical UI comparison.
 
 **Earlier wrong claim:** an earlier revision of `summary.md` P-COMMON-01 said "Langfuse's `@langfuse/otel` v5+ ships a SpanProcessor filter dropping non-LLM-scope spans before export — known industry precedent." This was used to argue P-COMMON-01 is solvable Langfuse-style.
 
-**Empirical reality:** when sending raw OTLP to `https://cloud.langfuse.com/api/public/otel/v1/traces` (i.e., NOT using `@langfuse/otel`), Langfuse stores **every span** — including Next.js HTTP wrapper spans with null input/output. Verified by querying their REST API: 11 traces for the Phase 2b app, with multiple `POST /api/chat/route` and `GET /api/sentinels/route` rows that have `input: null, output: null`. The scope filter lives **inside their JS SDK**, running client-side before export.
+**Empirical reality (the friction):** when sending raw OTLP to Langfuse (NOT using their JS SDK), Langfuse stores every span — including Next.js HTTP wrapper spans with null input/output.
+
+```ts
+// What we wired in Phase 8 — same SDK-less OTLP path every customer uses if
+// they fan out to multiple backends from one OpenTelemetry pipeline:
+new SimpleSpanProcessor(
+    new OTLPTraceExporter({
+        url: "https://cloud.langfuse.com/api/public/otel/v1/traces",
+        headers: { Authorization: `Basic ${btoa(`${pk}:${sk}`)}` },
+    }),
+)
+// REST verification afterwards (their GET /api/public/traces) returned 11
+// traces for the Phase 2b app — multiple POST /api/chat/route and
+// GET /api/sentinels/route rows with input: null, output: null.
+// The scope-filter logic that produces "clean" trace lists lives only
+// inside @langfuse/otel's LangfuseSpanProcessor, running client-side.
+```
+
+**The ideal sketch (what we'd want of any OTLP backend, including Agenta):**
+
+```python
+# Scope-based filter applied at the ingest / display layer, not as a
+# client-side SpanProcessor. Same logic Langfuse's SDK applies — just
+# applied where it actually scales (one place, all clients benefit).
+def is_llm_relevant(span: Span) -> bool:
+    return (
+        any(k.startswith(("ai.", "gen_ai.")) for k in span.attributes)
+        or "ag.data.inputs" in span.attributes
+        or "ag.data.outputs" in span.attributes
+    )
+```
 
 **Implication for the strategic comparison:**
 

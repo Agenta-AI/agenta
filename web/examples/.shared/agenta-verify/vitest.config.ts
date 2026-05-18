@@ -9,7 +9,7 @@ import {fileURLToPath} from "node:url"
  * to type-check everything in the worktree. Pinning `root` keeps test discovery
  * local.
  *
- * Pain log candidate (P-NODE-NN): "raw OTel + spike-verify in a Next.js
+ * Pain log candidate (not yet filed): "raw OTel + spike-verify in a Next.js
  * monorepo: vitest inherits the workspace tsconfig and OOMs on first run unless
  * you scope `root` and avoid the parent tsconfig graph."
  */

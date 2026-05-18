@@ -7,7 +7,7 @@
  *
  *  Phase 1 LOCK condition: if Agenta's adapter has drifted on metadata key
  *  names (e.g. expects `userID` not `userId`) this assertion fails loudly
- *  and gets a P-NODE-NN entry.
+ *  and gets a new pain-log entry.
  */
 
 import "dotenv/config"

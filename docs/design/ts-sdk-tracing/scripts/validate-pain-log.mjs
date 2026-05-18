@@ -36,6 +36,8 @@ const KNOWN_FRAMEWORKS = new Set([
     "nuxt",
     "mastra",
     "common",
+    "braintrust",
+    "langfuse",
 ])
 
 const FRAMEWORK_PREFIX = {
@@ -48,6 +50,8 @@ const FRAMEWORK_PREFIX = {
     nuxt: "P-NUXT-",
     mastra: "P-MASTRA-",
     common: "P-COMMON-",
+    braintrust: "P-BRAINTRUST-",
+    langfuse: "P-LANGFUSE-",
 }
 
 const SEVERITY_AXES = {

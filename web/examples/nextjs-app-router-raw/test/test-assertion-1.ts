@@ -7,8 +7,8 @@
  * round-tripped userId.
  *
  * Why Server Action specifically: it's the path most exposed to the RSC
- * context-propagation footgun (P-NODE-N TBD if we hit it). If it works
- * here, the basic instrumentation hook + per-app sentinel are sound.
+ * context-propagation footgun. If it works here, the basic instrumentation
+ * hook + per-app sentinel are sound.
  */
 
 import {verifyTrace} from "@agenta/spike-verify"

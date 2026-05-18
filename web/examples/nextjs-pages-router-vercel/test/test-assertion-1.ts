@@ -43,13 +43,28 @@ async function main(): Promise<void> {
         filterAttribute: {path: "ag.user.id", value: RUN_ID},
         expectSpans: ["ai.streamText"],
         expectAttributes: {
-            // P-PAGES-VERCEL-01 still reproduces under SimpleSpanProcessor
-            // (verified 2026-05-12). The bug is in @vercel/otel's
-            // `CompositeSpanProcessor.onEnd` force-end logic — independent
-            // of whether the wrapped processor is Batch or Simple. The
-            // CompositeSpanProcessor force-ends ai.streamText before AI SDK
-            // writes ai.usage.*, so token attrs never land regardless of
-            // export timing. Hence token check stays disabled in this app.
+            // Token verification: query the consumer-facing `cumulative.prompt`
+            // path. This is what evaluations/service.py:137 and the metrics
+            // endpoint at tracing/service.py:94 actually read.
+            //
+            // KNOWN-FAILING TODAY (expected): this check fails because the
+            // backend's incremental→cumulative tree-walker (trees.py:237-437)
+            // is invoked only at INGEST time (service.py:146) and is scoped
+            // to spans within a single OTLP batch. With SimpleSpanProcessor
+            // (Agenta-recommended), each ended span is exported as its own
+            // OTLP request, so `ai.streamText.doStream` (child, has tokens)
+            // and `ai.streamText` (parent, force-ended by @vercel/otel before
+            // tokens land) never arrive together. The walker can't roll up
+            // across batches, parent's `cumulative` stays unset.
+            //
+            // The fix is a READ-TIME post-query enricher that re-runs the
+            // walker on the assembled trace before returning it to consumers
+            // — see docs/design/ts-sdk/rfc.md §4.4 and §11.4.
+            //
+            // This test is the regression check: it will PASS once the
+            // read-time enricher ships. Until then it documents the gap.
+            "ag.metrics.tokens.cumulative.prompt": (n: unknown) =>
+                typeof n === "number" && n > 0,
             "ag.user.id": RUN_ID,
             "ag.session.id": RUN_ID,
             "ag.meta.request.model": "gpt-4o-mini",
