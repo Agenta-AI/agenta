@@ -82,7 +82,7 @@ Used by `counters` and `gauges` map values.
 
 ### Flag keys
 
-`rbac`, `access`, `domains`, `sso`. Values are booleans.
+`rbac`, `audit`, `access`, `domains`, `sso`. Values are booleans.
 
 ### Counter keys
 
@@ -91,10 +91,10 @@ Used by `counters` and `gauges` map values.
 `traces_ingested` and `events_ingested` are independent retention domains: each has its own
 counter, its own retention window, its own admin flush endpoint
 (`/admin/spans/flush` and `/admin/events/flush`), and its own cron
-schedule. Setting one does not affect the other. `events_ingested` is a
-retention-only counter — it is not metered (no Stripe report, no
-write-path adjusts an `events_ingested` meter row); operators set its
-`retention` per plan to bound how long event rows live.
+schedule. Setting one does not affect the other. `events_ingested` is
+also an enforced usage counter: event publishing performs a soft quota
+check before queueing, the events worker applies the authoritative meter
+adjust, and operators can set `limit` as well as `retention` per plan.
 
 `traces_retrieved` is the only counter with a non-default `scope` and
 `period` in the code defaults: `scope=user`, `period=daily`, declared on
@@ -129,6 +129,7 @@ starting point for any further customization via `AGENTA_ACCESS_PLANS`:
     "description": "Self-hosted enterprise — full access, no quotas.",
     "flags": {
       "rbac": true,
+      "audit": true,
       "access": true,
       "domains": true,
       "sso": true
@@ -149,7 +150,7 @@ starting point for any further customization via `AGENTA_ACCESS_PLANS`:
 
 What's notable about the code-default shape:
 
-- **All four flags are `true`.** RBAC, access controls, custom domains, and SSO are all on by default.
+- **All five flags are `true`.** RBAC, audit-log access, access controls, custom domains, and SSO are all on by default.
 - **No counter has a `limit`.** Every counter is `limit: null` (omitted), so the meters layer tracks usage but never blocks a request. `strict: true` is structurally present so it kicks in the moment a `limit` is added.
 - **`traces_ingested` retention is unset.** The tracing-flush job iterates plans and skips this one — traces are kept forever unless you opt in.
 - **`events_ingested` retention is also unset.** Same behavior for events.

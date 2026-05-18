@@ -336,11 +336,11 @@ Spans and events are completely independent: separate DAOs
 (`SpansAdminRouter`, `EventsAdminRouter`), separate cron files, separate
 Redis locks. The two flushes can run concurrently.
 
-`Counter.EVENTS_INGESTED` is part of the entitlement system as a
-retention-only counter: there is no write-path that adjusts an
-`events_ingested` meter row, the slug is deliberately not in the
-`meters_type` Postgres enum, and the counter is not in `REPORTS`. The
-events flush job walks the effective plan map and respects each plan's
+`Counter.EVENTS_INGESTED` is part of the entitlement system as an
+enforced event-usage counter with an independent retention dimension.
+Event publishing performs the L1 soft check and the events worker applies
+the authoritative L2 meter adjustment; operators may configure both
+`limit` and `retention` per plan. The events flush job walks the effective plan map and respects each plan's
 `Counter.EVENTS_INGESTED.retention`. Per-plan defaults align with each
 plan's `Counter.TRACES_INGESTED` retention:
 `Quota(period=Period.MONTHLY, retention=Retention.MONTHLY)` on Hobby,
