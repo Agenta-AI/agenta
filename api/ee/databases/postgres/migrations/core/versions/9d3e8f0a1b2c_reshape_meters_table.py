@@ -170,7 +170,12 @@ def upgrade() -> None:
     # 7. Backfill meter_id via the canonicalizer.
     # Importing here keeps the canonical form in one place — the core types
     # module — and guarantees the migration cannot drift from runtime.
-    from ee.src.core.meters.types import compute_meter_id, MeterScope, MeterPeriod
+    from ee.src.core.meters.types import (
+        compute_meter_id,
+        MeterScope,
+        MeterPeriod,
+        Meters,
+    )
 
     rows = (
         bind.execute(
@@ -184,6 +189,17 @@ def upgrade() -> None:
     )
 
     for row in rows:
+        # `key::text` returns the Postgres enum LABEL (member name, upper
+        # case like `TRACES_INGESTED`). Runtime DAO calls hand the Python
+        # enum to `compute_meter_id`, which extracts `.value` (lower case
+        # like `traces_ingested`). Normalize the migration-side key to the
+        # value form so backfilled rows share an identity with runtime
+        # writes for the same logical meter. Without this, every legacy
+        # row gets a different `meter_id` than the runtime would produce
+        # and duplicate rows appear after deployment.
+        key_label = row["key"]
+        key_value = Meters[key_label].value  # `TRACES_INGESTED` -> `traces_ingested`
+
         mid = compute_meter_id(
             scope=MeterScope(
                 organization_id=row["organization_id"],
@@ -196,9 +212,9 @@ def upgrade() -> None:
                 month=row["month"],
                 day=row["day"],
             ),
-            key=row["key"],
+            key=key_value,
         )
-        # Match by the (now legacy) composite PK columns.
+        # WHERE still matches on the database label (no cast surprises).
         bind.execute(
             sa.text(
                 "UPDATE meters SET meter_id = :mid "
@@ -210,7 +226,7 @@ def upgrade() -> None:
             {
                 "mid": mid,
                 "org": row["organization_id"],
-                "key": row["key"],
+                "key": key_label,
                 "year": row["year"],
                 "month": row["month"],
             },

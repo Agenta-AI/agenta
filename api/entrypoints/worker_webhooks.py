@@ -11,6 +11,8 @@ from oss.src.utils.env import env
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
 
+from ee.src.utils.entitlements import bootstrap_entitlements_services
+
 
 import agenta as ag
 
@@ -52,6 +54,10 @@ def main() -> int:
         # Validate environment
         warn_deprecated_env_vars()
         validate_required_env_vars()
+
+        # Wire EE entitlement services so `check_entitlements` works in
+        # this worker process (no-op when EE is not enabled).
+        bootstrap_entitlements_services()
 
         log.info("[WEBHOOKS] Starting Taskiq worker with Redis Streams")
 

@@ -377,6 +377,20 @@ class TracingRouter:
             spans = None
             traces = None
 
+        if is_ee() and (spans or traces):
+            # Delta is distinct trace count, regardless of response shape.
+            if spans:
+                trace_count = len(
+                    {s.trace_id for s in spans if getattr(s, "trace_id", None)}
+                )
+            else:
+                trace_count = len(traces) if traces else 0
+            if trace_count > 0:
+                await check_entitlements(  # type: ignore
+                    key=Counter.TRACES_RETRIEVED,  # type: ignore
+                    delta=trace_count,
+                )
+
         spans_response = OTelTracingResponse(
             count=count,
             spans=spans,
@@ -624,7 +638,6 @@ class TracingRouter:
             await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=1,
-                cache=True,
             )
 
         if not trace:
@@ -1080,7 +1093,6 @@ class SpansRouter:
             await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=len({s.trace_id for s in spans if getattr(s, "trace_id", None)}),
-                cache=True,
             )
 
         return SpansResponse(
@@ -1142,7 +1154,6 @@ class SpansRouter:
             await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=len({s.trace_id for s in spans if getattr(s, "trace_id", None)}),
-                cache=True,
             )
 
         return SpansResponse(
@@ -1187,7 +1198,6 @@ class SpansRouter:
             await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=1,
-                cache=True,
             )
 
         return SpanResponse(
@@ -1507,7 +1517,6 @@ class TracesRouter:
             await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=len(traces),
-                cache=True,
             )
 
         return TracesResponse(count=len(traces), traces=traces)
@@ -1763,7 +1772,6 @@ class TracesRouter:
             await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=len(traces_list),
-                cache=True,
             )
 
         return TracesResponse(
@@ -1813,7 +1821,6 @@ class TracesRouter:
             await check_entitlements(  # type: ignore
                 key=Counter.TRACES_RETRIEVED,  # type: ignore
                 delta=1,
-                cache=True,
             )
 
         return TraceResponse(

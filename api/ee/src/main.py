@@ -21,7 +21,7 @@ from ee.src.apis.fastapi.billing.router import BillingRouter
 from ee.src.apis.fastapi.organizations.router import (
     router as organization_router,
 )
-from ee.src.utils.entitlements import register_entitlement_services
+from ee.src.utils.entitlements import bootstrap_entitlements_services
 
 # DBS --------------------------------------------------------------------------
 
@@ -46,8 +46,9 @@ subscription_service = SubscriptionsService(
     meters_service=meters_service,
 )
 
-# Wire entitlements module against the freshly-built services.
-register_entitlement_services(
+# Wire entitlements module against the freshly-built services so the
+# `BillingRouter` and the entitlements helper share one instance each.
+bootstrap_entitlements_services(
     meters_service=meters_service,
     subscriptions_service=subscription_service,
 )

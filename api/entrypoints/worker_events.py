@@ -16,6 +16,8 @@ from oss.src.utils.env import env
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.logging import get_module_logger
 
+from ee.src.utils.entitlements import bootstrap_entitlements_services
+
 log = get_module_logger(__name__)
 
 
@@ -23,6 +25,10 @@ async def main_async() -> int:
     try:
         warn_deprecated_env_vars()
         validate_required_env_vars()
+
+        # Wire EE entitlement services so `check_entitlements` works in
+        # this worker process (no-op when EE is not enabled).
+        bootstrap_entitlements_services()
 
         redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
 

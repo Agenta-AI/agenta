@@ -25,15 +25,17 @@ from ee.src.models.db_models import OrganizationMemberDB
 from oss.src.models.db_models import ProjectDB
 from ee.src.models.extended.deprecated_models import DeprecatedOrganizationDB
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
-from ee.src.dbs.postgres.meters.dbes import MeterDBE
 from ee.src.core.subscriptions.types import FREE_PLAN
-from ee.src.core.entitlements.types import Gauge
 
-# Historical reference: `Gauge.APPLICATIONS` was removed from the Python catalog
-# in the meters reshape (see migration that follows). The literal value is
-# preserved here so this historical migration replays correctly on fresh DBs;
-# the dropped rows are deleted again by the meters reshape migration.
+# Historical reference: both `Gauge.APPLICATIONS` and the legacy `Gauge.USERS`
+# enum label predate the meters reshape that adds `meter_id`, `workspace_id`,
+# `project_id`, `user_id`, and `day` columns. This migration writes meter rows
+# via raw SQL so a fresh replay does not hit "column does not exist" against
+# the live ORM model — the reshape migration that follows is what introduces
+# those columns. Once that migration runs, the rows written here either get
+# their `meter_id` backfilled (USERS) or get deleted (APPLICATIONS).
 _LEGACY_APPLICATIONS_KEY = "APPLICATIONS"
+_LEGACY_USERS_KEY = "USERS"
 
 stripe.api_key = env.stripe.api_key
 
@@ -192,65 +194,37 @@ def upgrade() -> None:
                 # xdt = xtf - xti
                 # log.info(" - GET ORGANIZATION MEMBERS: %s ms", int(xdt * 1000))
 
-                # xti = time()
-                # --> CHECK IF USERS METER EXISTS
-                key = Gauge.USERS
-                value = nof_members
-                synced = 0
-                # organization_id = organization_id
-                year = 0
-                month = 0
+                # --> CREATE OR UPDATE USERS METER (legacy)
+                # NOTE: `MeterDBE` cannot be used here — its mapped columns
+                # include scope/period dimensions that don't exist at this
+                # revision's point in the chain. Raw SQL matches the schema
+                # as it stood when this migration was originally authored.
+                from sqlalchemy import text as _sa_text
 
-                users_meter_exists = (
-                    session.execute(
-                        select(MeterDBE).where(
-                            MeterDBE.organization_id == organization_id,
-                            MeterDBE.key == key,
-                            MeterDBE.year == year,
-                            MeterDBE.month == month,
+                session.execute(
+                    _sa_text(
+                        """
+                        INSERT INTO meters (
+                            organization_id, key, year, month, value, synced
+                        ) VALUES (
+                            :organization_id,
+                            CAST(:key AS meters_type),
+                            :year, :month, :value, :synced
                         )
-                    )
-                    .scalars()
-                    .first()
+                        ON CONFLICT (organization_id, key, year, month)
+                        DO UPDATE SET value = EXCLUDED.value, synced = EXCLUDED.synced
+                        """
+                    ),
+                    {
+                        "organization_id": organization_id,
+                        "key": _LEGACY_USERS_KEY,
+                        "year": 0,
+                        "month": 0,
+                        "value": nof_members,
+                        "synced": 0,
+                    },
                 )
-                # <-- CHECK IF USERS METER EXISTS
-                # xtf = time()
-                # xdt = xtf - xti
-                # log.info(" - CHECK IF USERS METER EXISTS: %s ms", int(xdt * 1000))
-
-                # xti = time()
-                # --> CREATE OR UPDATE USERS METER
-                if not users_meter_exists:
-                    query = insert(MeterDBE).values(
-                        organization_id=organization_id,
-                        key=key,
-                        year=year,
-                        month=month,
-                        value=value,
-                        synced=synced,
-                    )
-
-                    session.execute(query)
-                else:
-                    query = (
-                        update(MeterDBE)
-                        .where(
-                            MeterDBE.organization_id == organization_id,
-                            MeterDBE.key == key,
-                            MeterDBE.year == year,
-                            MeterDBE.month == month,
-                        )
-                        .values(
-                            value=value,
-                            synced=synced,
-                        )
-                    )
-
-                    session.execute(query)
                 # <-- CREATE OR UPDATE USERS METER
-                # xtf = time()
-                # xdt = xtf - xti
-                # log.info(" - CREATE OR UPDATE USERS METER: %s ms", int(xdt * 1000))
 
                 # xti = time()
                 # --> GET ORGANIZATION PROJECTS

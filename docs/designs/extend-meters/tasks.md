@@ -79,7 +79,7 @@ For design context, see [proposal.md](./proposal.md). Pre-PR analysis: [research
 ## Entitlements
 
 - [x] `check_entitlements(*, key, delta=None, cache=False, scope=None, period=None)`.
-- [x] Composition-root injection: `register_entitlement_services(meters_service=..., subscriptions_service=...)` wires the dependencies once at EE startup. Module-level singletons hold the references.
+- [x] Composition-root injection: `register_entitlements_services(meters_service=..., subscriptions_service=...)` wires the dependencies once at EE startup. Module-level singletons hold the references.
 - [x] `scope_from(*, scope=None, organization_id=None)` projects the ambient `AuthScope` or builds an org-only `MeterScope`.
 - [x] `period_from(*, period=None, anchor=None)` returns a `MeterPeriod` for the current moment.
 - [x] Cache key includes scope + period + key (`model_dump(mode="json")`).

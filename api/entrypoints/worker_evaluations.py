@@ -11,6 +11,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.env import env
 from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
+
+from ee.src.utils.entitlements import bootstrap_entitlements_services
 from oss.src.core.evaluations.runtime.locks import run_worker_heartbeat
 
 from oss.src.dbs.postgres.queries.dbes import (
@@ -201,6 +203,10 @@ def main() -> int:
         # Validate environment
         warn_deprecated_env_vars()
         validate_required_env_vars()
+
+        # Wire EE entitlement services so `check_entitlements` works in
+        # this worker process (no-op when EE is not enabled).
+        bootstrap_entitlements_services()
 
         log.info("[EVAL] Starting Taskiq worker with Redis Streams")
 

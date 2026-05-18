@@ -38,7 +38,7 @@ _meters_service_singleton: Optional[MetersService] = None
 _subscriptions_service_singleton: Optional[SubscriptionsService] = None
 
 
-def register_entitlement_services(
+def register_entitlements_services(
     *,
     meters_service: MetersService,
     subscriptions_service: SubscriptionsService,
@@ -51,11 +51,56 @@ def register_entitlement_services(
     _subscriptions_service_singleton = subscriptions_service
 
 
+def bootstrap_entitlements_services(
+    *,
+    meters_service: Optional[MetersService] = None,
+    subscriptions_service: Optional[SubscriptionsService] = None,
+) -> None:
+    """Build default `MetersService` and `SubscriptionsService` (when not
+    provided) and register them with the entitlements module.
+
+    Convenience for entrypoints that don't already have the services built
+    — worker processes that just need `check_entitlements()` to work, and
+    the EE HTTP entrypoint when it doesn't care to thread the services
+    through itself.
+
+    Pass the services in when you already have them (the HTTP entrypoint
+    does, since `BillingRouter` shares them). Pass `None` to let this
+    function build them — useful for worker entrypoints.
+
+    No-op when EE is not enabled, so OSS-only worker entrypoints can call
+    this unconditionally without pulling EE imports into their startup
+    path beyond this one symbol.
+    """
+    from oss.src.utils.common import is_ee
+
+    if not is_ee():
+        return
+
+    # Imports are EE-only; deferred so the OSS binary never executes them.
+    from ee.src.dbs.postgres.meters.dao import MetersDAO
+    from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
+
+    if meters_service is None:
+        meters_service = MetersService(meters_dao=MetersDAO())
+
+    if subscriptions_service is None:
+        subscriptions_service = SubscriptionsService(
+            subscriptions_dao=SubscriptionsDAO(),
+            meters_service=meters_service,
+        )
+
+    register_entitlements_services(
+        meters_service=meters_service,
+        subscriptions_service=subscriptions_service,
+    )
+
+
 def _meters_service() -> MetersService:
     if _meters_service_singleton is None:
         raise RuntimeError(
             "entitlements: MetersService not registered. "
-            "Call register_entitlement_services() from the composition root."
+            "Call register_entitlements_services() from the composition root."
         )
     return _meters_service_singleton
 
@@ -64,7 +109,7 @@ def _subscriptions_service() -> SubscriptionsService:
     if _subscriptions_service_singleton is None:
         raise RuntimeError(
             "entitlements: SubscriptionsService not registered. "
-            "Call register_entitlement_services() from the composition root."
+            "Call register_entitlements_services() from the composition root."
         )
     return _subscriptions_service_singleton
 
@@ -402,13 +447,12 @@ async def _check_entitlements(
         raise EntitlementsException(f"No quota found for key [{key}] in plan [{plan}]")
 
     # Fall back to helpers for the ambient HTTP-request case when the
-    # caller did not pass explicit values.
+    # caller did not pass explicit values. We project the ambient
+    # AuthScope down to `quota.scope` directly via `_scope_from` —
+    # `scope_from(scope=None)` raises by design, and `quota.scope=None`
+    # is the common case (means organization-scoped).
     _scope: MeterScope = (
-        scope
-        if scope is not None
-        else scope_from(
-            scope=quota.scope,
-        )
+        scope if scope is not None else _scope_from(get_auth_scope(), quota.scope)
     )
     _period: MeterPeriod = (
         period

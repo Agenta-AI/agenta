@@ -199,7 +199,7 @@ Error policy:
 `MetersService` and `SubscriptionsService` are wired at the composition root, not imported into the entitlements module (which would create a circular dependency through the meters DAO):
 
 ```python
-register_entitlement_services(
+register_entitlements_services(
     meters_service=...,
     subscriptions_service=...,
 )

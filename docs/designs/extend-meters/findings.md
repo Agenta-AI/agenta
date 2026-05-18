@@ -1,18 +1,24 @@
 # Extend Meters — Findings
 
-- **Sources**: deep scan of code + docs at 2026-05-18
+- **Sources**: deep scan of code + docs at 2026-05-18; sync against [PR #4347](https://github.com/Agenta-AI/agenta/pull/4347) review comments
 - **Branch**: `feat/clean-up-meters`
 - **Path**: `docs/designs/extend-meters`
 - **Depth**: `deep`
 
 ## Summary
 
-Fresh-context scan against the rewritten [proposal.md](./proposal.md) and [tasks.md](./tasks.md). Most of the shipped surface lines up with the docs. One real bug was hit at migration time (PK / NOT NULL ordering) and has been fixed in [9d3e8f0a1b2c_reshape_meters_table.py](../../../api/ee/databases/postgres/migrations/core/versions/9d3e8f0a1b2c_reshape_meters_table.py). Two open items remain, both low-impact: legacy `/tracing/spans/analytics` is not metered, and the meter namespace UUID is frozen at import time (test-only concern).
+Sync pulled in 11 inline review comments from two Copilot review passes on PR #4347. All resolved. Three (PR-01, PR-04, PR-09) were already fixed pre-sync. Resolve passes closed PR-02 + PR-07 (P0 — migration key-case backfill bug and silent fail-open on org-scoped quotas), PR-05 + PR-06 + PR-03 / PR-08 (P1 — worker entitlement bootstrap, legacy migration USERS-meter block, `cache=True` reads never persisting), and PR-10 + PR-11 (P2 — manual billing-period test + new helper tests, deprecated `TracingRouter.query_spans` metering).
 
 ## Rules
 
 - Findings cite `file:Lstart-Lend` against the current working tree.
-- Confidence only `high` when directly read from current code.
+- PR comments are quoted with their `discussion_rNNN` ID for traceability.
+- Confidence `high` only when directly read from current code.
+
+## Notes
+
+- Sync run: 2026-05-18. PR HEAD: `d21c76bd70b31a144a455cd986ce5c016c63dbc6`.
+- Resolve queue priority order: P0 → P1 → P2 → P3.
 
 ## Open Findings
 
@@ -20,103 +26,86 @@ Fresh-context scan against the rewritten [proposal.md](./proposal.md) and [tasks
 
 ## Closed Findings
 
-### [CLOSED] F-12 — `AGENTA_METERS_NAMESPACE_UUID` is frozen at module import time (P3, low)
+### [CLOSED] PR-11 — Deprecated `TracingRouter.query_spans` now metered (P2, medium)
+
+- **Category**: Completeness
+- **Files**: `api/oss/src/apis/fastapi/tracing/router.py` — `TracingRouter.query_spans`
+- **PR comment**: [discussion_r3257069425](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257069425)
+- **Fix shipped**: Added a `check_entitlements(key=Counter.TRACES_RETRIEVED, delta=trace_count)` call to the deprecated `TracingRouter.query_spans` handler, after the result is materialized. Delta is computed by response shape: distinct trace IDs when the response is span-flat, `len(traces)` when it's the trace-tree map. Same pattern as the new `SpansRouter` / `TracesRouter` handlers. `fetch_trace` on the legacy router was already metered. Other legacy handlers (`fetch_legacy_analytics`, `list_sessions`, `list_users`) deliberately stay unmetered — analytics returns aggregates, sessions/users return IDs, none of them are trace-retrieval surfaces. Total `TRACES_RETRIEVED` call sites: 8 (7 new routers + 1 legacy).
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-03 / PR-08 — `TRACES_RETRIEVED` now persisted via single hard-check (P1, high)
+
+- **Category**: Correctness / Completeness
+- **Files**: `api/oss/src/apis/fastapi/tracing/router.py` (7 call sites)
+- **PR comments**: [discussion_r3257069401](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257069401), [discussion_r3257428444](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257428444)
+- **Fix shipped**: Dropped `cache=True` from every `TRACES_RETRIEVED` call site. `cache=False` is the default in `check_entitlements`, so the kwarg simply goes away — each read path is now a single synchronous hard-check that calls `MetersDAO.adjust()` and atomically upserts `meter_id` row + increments value. No async worker for reads; the request-path adjust is the source of accounting. The six `TRACES_INGESTED` soft-checks (OTLP gate + other ingest sites) keep `cache=True` — they're paired with the authoritative hard-check in the async tracing worker, which is the intended two-layer ingestion pattern.
+- **Action**: Reply on the two GitHub threads and resolve.
+
+### [CLOSED] PR-05 — Worker entrypoints don't register entitlement services (P1, high)
+
+- **Category**: Completeness
+- **Files**: `api/ee/src/utils/entitlements.py` (`bootstrap_entitlements_services`), `api/ee/src/main.py`, `api/entrypoints/worker_{tracing,events,evaluations,webhooks}.py`
+- **PR comments**: [discussion_r3257428520](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257428520), [discussion_r3257428551](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257428551)
+- **Fix shipped**: New `bootstrap_entitlements_services(*, meters_service=None, subscriptions_service=None)` helper in `entitlements.py`. When services are not passed, it constructs default `MetersService` + `SubscriptionsService` against fresh DAOs and registers them; when passed (the HTTP entrypoint case), it uses the caller's instances so `BillingRouter` and the entitlements helper share one each. No-op when EE is not enabled, so OSS-only entrypoints can call it unconditionally without dragging EE imports into startup. All four worker entrypoints (`worker_tracing`, `worker_events`, `worker_evaluations`, `worker_webhooks`) now call `bootstrap_entitlements_services()` after `validate_required_env_vars()`. `api/ee/src/main.py` switched from `register_entitlement_services` to `bootstrap_entitlements_services` for symmetry.
+- **Action**: Reply on the two GitHub threads and resolve.
+
+### [CLOSED] PR-06 — Historical migration `7990f1e12f47` USERS-meter block converted to raw SQL (P1, high)
+
+- **Category**: Migration / Compatibility
+- **Files**: `api/ee/databases/postgres/migrations/core/versions/7990f1e12f47_create_free_plans.py`
+- **PR comments**: [discussion_r3257069460](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257069460), [discussion_r3257428499](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257428499)
+- **Fix shipped**: Removed the `MeterDBE` import and the `Gauge` import. Added `_LEGACY_USERS_KEY = "USERS"` constant alongside `_LEGACY_APPLICATIONS_KEY`. Replaced the `select/insert/update(MeterDBE)` branch with a single raw `INSERT … ON CONFLICT (organization_id, key, year, month) DO UPDATE SET value = EXCLUDED.value, synced = EXCLUDED.synced` using `CAST(:key AS meters_type)` — same pattern as the APPLICATIONS block. The block-level comment now spells out the rationale: live `MeterDBE` columns don't exist at this revision's point in the migration chain, so raw SQL pins the schema as it stood when the migration was authored.
+- **Action**: Reply on the two GitHub threads and resolve.
+
+### [CLOSED] PR-10 — Manual billing-period test updated; new unit tests added (P2, high)
 
 - **Category**: Testing
-- **Files**: `api/ee/src/core/meters/types.py:L15-L17`
-- **Evidence**: `AGENTA_METERS_NAMESPACE_UUID = uuid5(env.agenta.uuid_namespace, "meters")` runs once at import. If a test mocks `env.agenta.uuid_namespace` after the module is imported, the canonicalizer keeps the import-time value.
-- **Decision**: Documented inline with a comment at the site so future test authors mocking env see the constraint. No code restructuring needed — existing `test_compute_meter_id.py` does not re-mock env between cases.
+- **Files**: `api/ee/tests/manual/test_billing_period.py`, new: `api/ee/tests/pytest/unit/test_period_from.py`, new: `api/ee/tests/pytest/unit/test_scope_from.py`
+- **PR comment**: [discussion_r3257428482](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257428482)
+- **Fix shipped**: Updated import from `from ee.src.utils.billing import compute_billing_period` → `from ee.src.utils.entitlements import monthly_period_from`. All 30 call sites switched from 3-tuple unpacking `year, month, _ =` to 2-tuple `year, month =`. Test function names left in place since the semantic coverage (anchor day rollover, December year-boundary, February edge cases, exhaustive parametric grid) still applies to the new helper.
+- **New tests added** to cover helpers that had no regression net:
+  - `test_period_from.py` — `period_from` shape per `Period` enum (None / YEARLY / MONTHLY / DAILY), anchor handling on MONTHLY (year rollover included), anchor ignored on DAILY, parametric "granularity sets exactly the expected dims".
+  - `test_scope_from.py` — `scope_from` exclusivity contract (no source / both sources / `scope=None` all raise), ambient-projection equivalence at each granularity, regression net for the silent fail-open bug (the `scope_from(scope=None)` raise is now explicitly asserted), `_scope_from(None) == _scope_from(Scope.ORGANIZATION)` invariant that backs the default fallback.
+- **Action**: Reply on the GitHub thread and resolve.
 
-### [CLOSED] F-00 — Migration crashes on `ALTER COLUMN year DROP NOT NULL` while column is in PK (P0, high)
+### [CLOSED] PR-07 — `check_entitlements` silently fails open for org-scoped quotas (P0, high)
+
+- **Category**: Correctness / Security
+- **Files**: `api/ee/src/utils/entitlements.py:L405-L414`
+- **PR comment**: [discussion_r3257428393](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257428393)
+- **Fix shipped**: Replaced `scope_from(scope=quota.scope)` with `_scope_from(get_auth_scope(), quota.scope)` when the caller didn't pass an explicit scope. `_scope_from` already maps `None` / `Scope.ORGANIZATION` to an org-only `MeterScope`; `scope_from`'s "exactly one source keyword" contract stays as-is for callers that need explicit projection. Inline comment documents the rationale.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-02 — Migration `meter_id` backfill key-case mismatch (P0, high)
 
 - **Category**: Migration / Correctness
-- **Files**: `api/ee/databases/postgres/migrations/core/versions/9d3e8f0a1b2c_reshape_meters_table.py:L136-L165`
-- **Evidence**: Migration runtime log:
+- **Files**: `api/ee/databases/postgres/migrations/core/versions/9d3e8f0a1b2c_reshape_meters_table.py:L165-L222`
+- **PR comment**: [discussion_r3257428423](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257428423)
+- **Fix shipped**: Backfill now reads `db_label = row["key"]` (uppercase Postgres enum member name, e.g. `"TRACES_INGESTED"`) and translates to the Python enum value `key_value = Meters[db_label].value` (lowercase `"traces_ingested"`) before calling `compute_meter_id`. The SQL `WHERE` keeps the database label form to avoid cast surprises. Migration imports now include `Meters`. Inline comment documents why. Canonicalizer contract unchanged — it still hashes what it's given verbatim.
+- **Action**: Reply on the GitHub thread and resolve.
 
-  ```text
-  ALTER TABLE meters ALTER COLUMN year DROP NOT NULL
-  asyncpg.exceptions.InvalidTableDefinitionError: column "year" is in a primary key
-  ```
+### [CLOSED] PR-01 — Migration relaxes `year`/`month` to NULL while still in PK (P0, high)
 
-- **Cause**: Step "Relax year/month to nullable" ran before step "Drop the old PK". Postgres requires every PK column to stay `NOT NULL`.
-- **Fix shipped**: Step ordering swapped — `op.drop_constraint("meters_pkey", ...)` now runs immediately after the column additions (step 4) and *before* the `alter_column` calls on `year`/`month` (step 5). Backfill, NOT NULL on `meter_id`, secondary index, and new PK follow. Downgrade is the mirror: drop new PK + index → drop new columns → backfill `year`/`month` zeros → `NOT NULL DEFAULT 0` → reverse the enum type-swap → recreate the legacy composite PK last (after `key` is back to the old enum and `year`/`month` are NOT NULL again). Migration docstring also reordered to describe the actual step order.
-- **Status**: fixed in the current revision (upgrade + downgrade).
+- **Category**: Migration / Correctness
+- **Files**: `api/ee/databases/postgres/migrations/core/versions/9d3e8f0a1b2c_reshape_meters_table.py:L141-L157`
+- **PR comment**: [discussion_r3257069353](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257069353)
+- **Status**: Fixed in current tree (drop PK at step 4, before alter_column at step 5). Same fix on downgrade (recreate composite PK last, after enum + NOT NULL restored).
+- **Action**: Reply on the GitHub thread with the resolution and mark resolved.
 
-### [CLOSED] F-01 — All four counters declared on every plan (high)
+### [CLOSED] PR-04 — Downgrade recreates legacy PK before deleting `TRACES_RETRIEVED` / scope-dim rows (P1, high)
 
-- **Category**: Completeness
-- **Files**: `api/ee/src/core/entitlements/types.py:L312-L682`
-- **Evidence**: Each of the seven plan blocks declares `EVALUATIONS_RUN`, `TRACES_INGESTED`, `TRACES_RETRIEVED`, `CREDITS_CONSUMED` under `Tracker.COUNTERS` and `USERS` under `Tracker.GAUGES`. `TRACES_RETRIEVED` is `Quota(scope=Scope.USER, period=Period.DAILY)` on every plan.
+- **Category**: Migration / Correctness
+- **Files**: `api/ee/databases/postgres/migrations/core/versions/9d3e8f0a1b2c_reshape_meters_table.py:L237-L305`
+- **PR comment**: [discussion_r3257069353](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257069353) (second site)
+- **Status**: Fixed in current tree. Downgrade now: drop new PK + index → drop new columns → restore year/month NOT NULL DEFAULT 0 → reverse enum type-swap (which includes deleting TRACES_RETRIEVED rows) → recreate composite PK last.
+- **Action**: Reply and resolve on GitHub.
 
-### [CLOSED] F-02 — `EVALUATIONS_RUN` +1/-1 wiring correct in all three handlers (high)
+### [CLOSED] PR-09 — Same as PR-01, duplicate flag (P0, high)
 
-- **Files**: `api/oss/src/apis/fastapi/evaluations/router.py`
-- **Evidence**: `EvaluationsRouter.create_runs`, `SimpleEvaluationsRouter.create_evaluation`, `SimpleQueuesRouter.create_simple_queue` each: `check_entitlements(key=Counter.EVALUATIONS_RUN, delta=N)` → `HTTPException(429)` on `not allowed` → `try/except Exception:` around the service call with `delta=-N` refund.
-- **Note**: refund triggers on any `Exception`, not narrowed to "internal errors". Acceptable broad-safety trade-off — domain exceptions (validation, conflict) will also refund. Worth a sentence in [proposal.md](./proposal.md) under "Write-side enforcement" so the breadth is explicit.
+- **PR comment**: [discussion_r3257428423](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257428423) flagged migration ordering as a duplicate concern alongside the key-case bug. The ordering half is fixed (PR-01); the key-case half is PR-02 (open).
+- **Action**: Reply pointing to PR-02 for the open key-case issue and noting the ordering fix.
 
-### [CLOSED] F-03 — `TRACES_RETRIEVED` soft-check on all six read paths (high)
+### [CLOSED] F-00 through F-16 — pre-sync scan findings
 
-- **Files**: `api/oss/src/apis/fastapi/tracing/router.py:L476, L863, L915, L954, L1250, L1460, L1503`
-- **Evidence**: All six paths call `check_entitlements(key=Counter.TRACES_RETRIEVED, cache=True, delta=...)` with the correct delta shape (`len(traces)` / `len({s.trace_id for s in spans})` / `1 or 0` for singletons).
-
-### [CLOSED] F-04 — Analytics / users / sessions endpoints intentionally excluded from `TRACES_RETRIEVED` (medium)
-
-- **Category**: Completeness
-- **Files**: `api/oss/src/apis/fastapi/tracing/router.py` — `fetch_legacy_analytics` (`/tracing/spans/analytics`, L187-L234), `query_analytics` / `query_sessions` / `query_users` (`/spans/analytics/query`, `/spans/sessions/query`, `/spans/users/query`).
-- **Evidence**: None of these handlers call `check_entitlements(key=Counter.TRACES_RETRIEVED, ...)` and none should. `TRACES_RETRIEVED` counts traces *leaving the system as traces or spans*. Analytics endpoints return aggregates; users/sessions endpoints return IDs. They are not trace/span retrieval surfaces.
-- **Decision**: Exclusion is intentional and consistent across new and legacy mounts. Documented in [proposal.md](./proposal.md) under "Read-side enforcement".
-
-### [CLOSED] F-05 — `query_spans_or_traces` direct callers (low, theoretical)
-
-- **Files**: `api/oss/src/apis/fastapi/tracing/router.py:L263-L268`
-- **Evidence**: Only HTTP-bound callers reach this method; billing usage reads the meters table directly via DAO. No real gap.
-
-### [CLOSED] F-06 — `adjust()` `ON CONFLICT (meter_id)` uses the PK (high)
-
-- **Files**: `api/ee/src/dbs/postgres/meters/dao.py:L421-L434`, `api/ee/src/dbs/postgres/meters/dbes.py:L11-L37`
-- **Evidence**: Conflict target is `[MeterDBE.meter_id]`; `PrimaryKeyConstraint("meter_id")` in `__table_args__`. PK satisfies the uniqueness requirement; no additional unique index needed.
-
-### [CLOSED] F-07 — Soft-check cache invalidation policy is consistent with intent (high)
-
-- **Files**: `api/ee/src/utils/entitlements.py:L424-L509`
-- **Evidence**: Soft check (`cache=True`) never rejects (returns `allowed=True` on overshoot warning); hard check (`cache=False`) invalidates on rejection and updates on success. Cache invalidation policy is correct for the two modes.
-
-### [CLOSED] F-08 — Migration backfill order is correct relative to the enum swap (high)
-
-- **Files**: `api/ee/databases/postgres/migrations/core/versions/9d3e8f0a1b2c_reshape_meters_table.py`
-- **Evidence**: Enum type-swap completes (step 2) before the meter_id backfill loop (step 7), so `key::text` already holds the renamed values when the loop reads it. `WHERE organization_id = :org AND key::text = :key AND year IS NOT DISTINCT FROM :year ...` correctly matches on the renamed key.
-
-### [CLOSED] F-09 — `MeterDTO._populate_meter_id` re-validates on every construct (low)
-
-- **Files**: `api/ee/src/core/meters/types.py:L157-L180`
-- **Evidence**: The validator instantiates `MeterScope` and `MeterPeriod` to delegate validation. This is intentional (single source of truth) and the overhead is negligible at runtime volume. Not a finding to act on; recorded for future readers.
-
-### [CLOSED] F-10 — `MeterDTO.with_period` recomputes `meter_id` correctly (high)
-
-- **Files**: `api/ee/src/core/meters/types.py:L182-L199`
-- **Evidence**: Sets `meter_id = None` in the dump before `MeterDTO(**data)`, so the validator re-runs `compute_meter_id`.
-
-### [CLOSED] F-11 — `monthly_period_from` anchor semantics (medium)
-
-- **Files**: `api/ee/src/utils/entitlements.py:L175-L203`
-- **Evidence**: `if not anchor or now.day < anchor: return (now.year, now.month)` else advance one month. Matches Stripe's inclusive-on-anchor-day semantics used elsewhere in the codebase. No off-by-one.
-
-### [CLOSED] F-13 — Enum rename deployment window (medium)
-
-- **Files**: `api/ee/databases/postgres/migrations/core/versions/9d3e8f0a1b2c_reshape_meters_table.py`
-- **Evidence**: The transactional type-swap is atomic. Application code uses `Counter.TRACES_INGESTED` / `Counter.EVALUATIONS_RUN` only; there is no `Counter.TRACES` reference left to bind to the old enum value. Deployment ordering is operational, not a code-level gap.
-
-### [CLOSED] F-14 — DAILY rollup sum in `/billing/usage` (high)
-
-- **Files**: `api/ee/src/apis/fastapi/billing/router.py:L943-L957`
-- **Evidence**: `value += meter.value or 0` across all rows matching `(key, year, month, day)` — correct, because `TRACES_RETRIEVED` is `scope=Scope.USER` and the org-rollup card sums across users.
-
-### [CLOSED] F-15 — `test_compute_meter_id.py` coverage (high)
-
-- **Files**: `api/ee/tests/pytest/unit/test_compute_meter_id.py`
-- **Evidence**: Namespace derivation, determinism, str/enum key equivalence, None semantics, distinct scope/period shapes, UUID case insensitivity, and hierarchy validation for both `MeterScope` and `MeterPeriod`. No DAO upsert integration tests — possible future addition, not a blocker.
-
-### [CLOSED] F-16 — Frontend usage card consumes `period` / `scope` (high)
-
-- **Files**: `web/ee/src/services/billing/types.d.ts:L15-L23`, `web/ee/src/components/pages/settings/Billing/index.tsx:L170-L171`, `web/ee/src/components/pages/settings/Billing/assets/types.d.ts:L12-L15`
-- **Evidence**: `UsagePeriod = "yearly" | "monthly" | "daily" | null`, `UsageScope` typed. Billing page passes `info.period` and `info.scope` to the per-card component. Backend `/billing/usage` already returns both fields. End-to-end aligned.
+All 17 internal scan findings were already triaged in the prior pass. The PR review comments don't introduce new ones not covered here; they re-flag PR-01 (was F-00, fixed) and surface the new items captured as PR-02 through PR-11.
