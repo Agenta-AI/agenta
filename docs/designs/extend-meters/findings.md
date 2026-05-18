@@ -29,7 +29,28 @@ An eighth Copilot pass on 2026-05-18 14:52Z surfaced 1 new finding (PR-45) — a
 
 ## Open Findings
 
-(none)
+### [OPEN] PR-46 — Three `EVALUATIONS_RUN` write handlers leak charges when the service returns empty/None silently (P1, high, in-progress)
+
+- **Origin**: sync
+- **Lens**: verification
+- **Confidence**: high
+- **Status**: in-progress
+- **Category**: Correctness / Quota accounting
+- **Files**: `api/oss/src/apis/fastapi/evaluations/router.py:579-615` (`EvaluationsRouter.create_runs`), `api/oss/src/apis/fastapi/evaluations/router.py:1925-1954` (`SimpleEvaluationsRouter.create_evaluation`), `api/oss/src/apis/fastapi/evaluations/router.py:2292-2316` (`SimpleQueuesRouter.create_simple_queue`); cross-ref `api/oss/src/dbs/postgres/evaluations/dao.py:133` (`@suppress_exceptions(default=[], exclude=[EntityCreationConflict])`), `api/oss/src/core/evaluations/service.py:1804` (`simple_evaluations.create -> Optional[SimpleEvaluation]`), `api/oss/src/core/evaluations/service.py:3338` (`simple_queues.create -> Optional[SimpleQueue]`).
+- **PR comment**: [discussion_r3260318614](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3260318614) — Copilot, 2026-05-18 16:01Z
+- **Summary**: Each handler charges `EVALUATIONS_RUN` before calling the service, then refunds only on `except Exception`. But each service path can fail silently — `evaluations_service.create_runs` returns `[]` when the underlying DAO suppresses non-conflict exceptions (`suppress_exceptions(default=[], exclude=[EntityCreationConflict])`); `simple_evaluations.create` returns `None` on missing data; `simple_queues.create` returns `None` on missing data or evaluators. In every silent-failure case the handler returns `count=0` (or a 200 with no entity) while keeping the full charge on the meter.
+- **Evidence (verified)**: code reads as quoted. The PR description explicitly calls out the broad refund as "the conservative choice for an in-flight quota write, so a failed create never leaves a counted-but-not-created row" (proposal.md "Write-side enforcement") — but that contract only holds on the *exception* path. The silent-return path is the gap.
+- **Activation Condition**: live every time the DAO swallows a non-conflict exception (DB transient, network blip, constraint violation other than conflict) for `create_runs`; live every time `simple_evaluations`/`simple_queues` receives malformed input that trips the early `return None` guards.
+- **Cause**: The refund path was designed around the assumption that "service failure ⇒ exception". The DAO's `suppress_exceptions(default=[])` decorator and the early `return None` guards inside the simple services violate that assumption, but the router never reconciled.
+- **Suggested Fix**: Refund the difference between what was charged and what actually got created:
+
+  - `EvaluationsRouter.create_runs`: charged `N = len(runs_create_request.runs)`. After the call, refund `N - len(runs)` if `len(runs) < N`. Negative refunds are no-ops because `delta=0` short-circuits the `check_entitlements` cache preflight (PR-43's `_delta <= quota.limit and current < quota.limit` allows it but does no work). Code shape: `created = len(runs); shortfall = delta - created; if shortfall > 0 and is_ee(): await check_entitlements(key=Counter.EVALUATIONS_RUN, delta=-shortfall)`.
+  - `SimpleEvaluationsRouter.create_evaluation`: charged `1`. If `evaluation is None`, refund `1`. Code shape: `if evaluation is None and is_ee(): await check_entitlements(key=Counter.EVALUATIONS_RUN, delta=-1)`.
+  - `SimpleQueuesRouter.create_simple_queue`: charged `1`. If `queue is None`, refund `1`. Same shape as above.
+
+  Existing `try/except Exception:` refund paths stay as-is for the genuine-exception case. The new "shortfall" refund only fires on the silent-return path.
+- **Alternatives**: (a) Make the DAO/service raise instead of swallowing — bigger blast radius (touches `suppress_exceptions` semantics across many callers, would need broader audit) and the simple-service `return None` guards are deliberate input-validation no-ops, not exceptional cases. (b) Move the quota charge to *after* the service call — closer to "charge only what was created", but loses the soft-check property that current overage blocks the request before the work happens. The current "charge first, refund on mismatch" pattern is the right shape; the silent-return path just needs to be plumbed.
+- **Recommendation**: Suggested fix. Ship at all three sites in one patch.
 
 ## Closed Findings
 

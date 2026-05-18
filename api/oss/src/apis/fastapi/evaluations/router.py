@@ -607,6 +607,17 @@ class EvaluationsRouter:
                 )
             raise
 
+        # The DAO suppresses non-conflict exceptions and returns []
+        # silently; refund the shortfall between charge and actual
+        # creations so the meter only counts runs that landed.
+        if is_ee() and runs_create_request.runs:
+            shortfall = len(runs_create_request.runs) - len(runs)
+            if shortfall > 0:
+                await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=-shortfall,
+                )
+
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
@@ -1952,6 +1963,15 @@ class SimpleEvaluationsRouter:
                 )
             raise
 
+        # `create` returns None silently on malformed input (early-guard
+        # `return None` paths). Refund the charge so the meter only counts
+        # evaluations that actually landed.
+        if is_ee() and evaluation is None:
+            await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=-1,
+            )
+
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
@@ -2314,6 +2334,14 @@ class SimpleQueuesRouter:
                     delta=-1,
                 )
             raise
+
+        # `create` returns None silently on malformed input. Refund the
+        # charge so the meter only counts queues that actually landed.
+        if is_ee() and queue is None:
+            await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=-1,
+            )
 
         return SimpleQueueResponse(
             count=1 if queue else 0,
