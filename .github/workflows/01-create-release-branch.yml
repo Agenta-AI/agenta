@@ -62,8 +62,10 @@ jobs:
           npm install semver -g
 
           cd web
-          pnpm version $BUMP_TYPE
-          WEB_VERSION=$(pnpm pkg get version | tr -d '"')
+          current_version=$(pnpm pkg get version | tr -d '"')
+          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          pnpm pkg set version="$new_version"
+          WEB_VERSION=$new_version
 
           cd ee
           current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')

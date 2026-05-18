@@ -23,14 +23,19 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: docs/package.json
 
       - name: Download latest OpenAPI spec
         run: curl -sSf "https://cloud.agenta.ai/api/openapi.json" -o docs/docs/reference/openapi.json
 
       - name: Install docs dependencies
         working-directory: docs
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Clean existing generated API docs
         working-directory: docs
