@@ -25,3 +25,32 @@ export type {
     HydrateFetchers,
 } from "./hydrateScenariosTransform"
 export {makeHydrateScenariosTransform, DEFAULT_HYDRATE_FETCHERS} from "./hydrateScenariosTransform"
+
+// Column resolver — declarative, driven by run.data.steps[].type and the
+// run's column mappings. Groups columns by source (testset / application /
+// evaluator / metrics) so the UI can mirror the screenshot's grouped header
+// layout with no name-collision risk across multiple evaluators.
+export type {
+    RunStep,
+    RunMapping,
+    RunSchema,
+    ResolveSource,
+    ResolvedColumn,
+    ResolveContext,
+    StepResolver,
+    ResolveMappingsOptions,
+    ColumnGroup,
+    ResolvedColumnGroup,
+} from "./resolveMappings"
+export {
+    DEFAULT_STEP_RESOLVERS,
+    resolveFromTestcase,
+    resolveFromTrace,
+    resolveFromMetric,
+    composeResolvers,
+    findInTrace,
+    getAtPath,
+    resolveMappings,
+    computeColumnGroup,
+    groupResolvedColumns,
+} from "./resolveMappings"
