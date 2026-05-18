@@ -1,5 +1,7 @@
 # Extend Meters Research
 
+> **Historical baseline.** This document captures the pre-PR state of the codebase as of 2026-03-16. It is not maintained against the shipped code — see [proposal.md](./proposal.md) and the source tree for the current shape. Kept here so the gap analysis ([gap.md](./gap.md)) has something to refer to.
+
 ## Scope of this research
 
 This document describes the current state of metering, entitlements, and tracing read paths in the codebase as of 2026-03-16. It focuses on what already exists for usage tracking and what would need to change to support a soft global tracing read limit measured in spans read.

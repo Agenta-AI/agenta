@@ -1,5 +1,7 @@
 # Extend Meters Gap Analysis
 
+> **Historical baseline.** This is the gap analysis written *before* the PR landed. It pairs with [research.md](./research.md). For what shipped, see [proposal.md](./proposal.md).
+
 ## Target capability
 
 The requested capability is a soft global tracing read limit, likely expressed as "spans read", optionally enabled by environment variable, and potentially tracked at finer scopes than organization alone (`workspace_id`, `project_id`, `user_id`, `day`).

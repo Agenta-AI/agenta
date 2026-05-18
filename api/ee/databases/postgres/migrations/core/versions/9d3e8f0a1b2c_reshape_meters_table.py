@@ -133,7 +133,14 @@ def upgrade() -> None:
         sa.Column("meter_id", PG_UUID(as_uuid=True), nullable=True),
     )
 
-    # 4. Relax year/month to nullable; drop the `0` sentinel default.
+    # 4. Drop the legacy PK before making year/month nullable.
+    #
+    # PostgreSQL requires every primary-key column to stay NOT NULL, so the
+    # legacy composite PK cannot remain in place while we relax the old
+    # `(year, month)` gauge sentinel into real NULLs.
+    op.drop_constraint("meters_pkey", TABLE_NAME, type_="primary")
+
+    # 5. Relax year/month to nullable; drop the `0` sentinel default.
     op.alter_column(
         TABLE_NAME,
         "year",
@@ -149,7 +156,7 @@ def upgrade() -> None:
         server_default=None,
     )
 
-    # 5. Promote (0, 0) gauge sentinel to real NULLs.
+    # 6. Promote (0, 0) gauge sentinel to real NULLs.
     op.execute(
         sa.text(
             f"UPDATE {TABLE_NAME} SET year = NULL, month = NULL "
@@ -157,7 +164,7 @@ def upgrade() -> None:
         )
     )
 
-    # 6. Backfill meter_id via the canonicalizer.
+    # 7. Backfill meter_id via the canonicalizer.
     # Importing here keeps the canonical form in one place — the core types
     # module — and guarantees the migration cannot drift from runtime.
     from ee.src.core.meters.types import compute_meter_id, MeterScope, MeterPeriod
@@ -206,15 +213,13 @@ def upgrade() -> None:
             },
         )
 
-    # 7. Constraint changes: enforce meter_id NOT NULL, swap the PK.
+    # 8. Constraint changes: enforce meter_id NOT NULL, install the new PK.
     op.alter_column(
         TABLE_NAME,
         "meter_id",
         existing_type=PG_UUID(as_uuid=True),
         nullable=False,
     )
-
-    op.drop_constraint("meters_pkey", TABLE_NAME, type_="primary")
 
     # Recreate the old PK shape as a non-unique secondary index — the
     # /billing/usage org-rollup and entitlements soft-check paths depend on
