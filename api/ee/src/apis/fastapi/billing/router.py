@@ -1,5 +1,4 @@
 from typing import Any, Dict
-from uuid import UUID
 from json import loads, decoder
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
@@ -16,6 +15,8 @@ from oss.src.utils.caching import acquire_lock, release_lock, renew_lock
 from oss.src.utils.env import env
 
 from ee.src.utils.entitlements import period_from, scope_from
+from ee.src.core.meters.types import Meters, MeterPeriod
+from oss.src.utils.context import get_auth_scope
 
 from oss.src.services.db_manager import (
     get_user_with_id,
@@ -857,10 +858,13 @@ class BillingRouter:
             content={"status": "success"},
         )
 
-    async def fetch_usage(
-        self,
-        organization_id: str,
-    ):
+    async def fetch_usage(self):
+        # Identity comes from the ambient AuthScope (set by the auth
+        # middleware). The route wrapper has already done permission
+        # checks; no path/query params for tenant identity — that would
+        # introduce a path-param-vs-ambient mismatch surface.
+        organization_id = str(get_auth_scope().organization_id)
+
         subscription = await self.subscription_service.read(
             organization_id=organization_id,
         )
@@ -879,16 +883,6 @@ class BillingRouter:
                 content={"status": "error", "message": "Plan not found"},
             )
 
-        _anchor_period = period_from(period=Period.MONTHLY, anchor=subscription.anchor)
-
-        (
-            anchor_year,
-            anchor_month,
-        ) = (
-            _anchor_period.year,
-            _anchor_period.month,
-        )
-
         entitlements = ENTITLEMENTS.get(plan)
 
         if not entitlements:
@@ -897,74 +891,37 @@ class BillingRouter:
                 content={"status": "error", "message": "Entitlements not found"},
             )
 
-        meters = await self.meters_service.fetch(
-            scope=scope_from(organization_id=UUID(organization_id)),
-        )
-
-        _today_period = period_from(period=Period.DAILY)
-
-        (
-            _today_year,
-            _today_month,
-            _today_day,
-        ) = (
-            _today_period.year,
-            _today_period.month,
-            _today_period.day,
-        )
-
         usage = {}
 
+        # Per-caller usage: read the single meter row matching the
+        # caller's ambient scope projected to the granularity each quota
+        # declares (`scope_from(scope=quota.scope)` mirrors the helper
+        # `check_entitlements` uses, so numerator and denominator stay
+        # at the same scope). Avoids the previous bug where a per-user
+        # DAILY counter was summed across users but reported against a
+        # per-user `limit`.
         for tracker in [Tracker.COUNTERS, Tracker.GAUGES]:
             for key in list(entitlements[tracker].keys()):
                 quota: Quota = entitlements[tracker][key]
-                value = 0
+
+                _scope = scope_from(scope=quota.scope)
 
                 if quota.period is None:
-                    # Gauges: non-periodic, year/month/day all None.
-                    for meter in meters:
-                        if (
-                            meter.key == key
-                            and meter.year is None
-                            and meter.month is None
-                        ):
-                            value = meter.value
-                            break
+                    _period = MeterPeriod()
                 elif quota.period == Period.MONTHLY:
-                    for meter in meters:
-                        if (
-                            meter.key == key
-                            and meter.year == anchor_year
-                            and meter.month == anchor_month
-                            and meter.day is None
-                        ):
-                            value = meter.value
-                            break
-                elif quota.period == Period.DAILY:
-                    # DAILY counters are typically declared at finer-than-org
-                    # scope (e.g. `TRACES_RETRIEVED` is `scope=Scope.USER`),
-                    # which means the DAO persists one row per user/day. The
-                    # billing usage card shows an org-level rollup, so we sum
-                    # every matching row for today instead of breaking on the
-                    # first match the way the MONTHLY/YEARLY branches do.
-                    for meter in meters:
-                        if (
-                            meter.key == key
-                            and meter.year == _today_year
-                            and meter.month == _today_month
-                            and meter.day == _today_day
-                        ):
-                            value += meter.value or 0
-                elif quota.period == Period.YEARLY:
-                    for meter in meters:
-                        if (
-                            meter.key == key
-                            and meter.year == _today_year
-                            and meter.month is None
-                            and meter.day is None
-                        ):
-                            value = meter.value
-                            break
+                    _period = period_from(
+                        period=Period.MONTHLY,
+                        anchor=subscription.anchor,
+                    )
+                else:
+                    _period = period_from(period=quota.period)
+
+                rows = await self.meters_service.fetch(
+                    scope=_scope,
+                    key=Meters[key.name],
+                    period=_period,
+                )
+                value = (rows[0].value if rows else 0) or 0
 
                 usage[key] = {
                     "value": value,
@@ -1317,6 +1274,4 @@ class BillingRouter:
             ):
                 return FORBIDDEN_RESPONSE
 
-        return await self.fetch_usage(
-            organization_id=request.state.organization_id,
-        )
+        return await self.fetch_usage()

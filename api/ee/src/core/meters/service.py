@@ -8,7 +8,7 @@ from oss.src.utils.env import env
 
 from ee.src.core.entitlements.types import Quota
 from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
-from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod
+from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 from ee.src.core.meters.interfaces import MetersDAOInterface
 
 log = get_module_logger(__name__)
@@ -45,7 +45,7 @@ class MetersService:
         self,
         *,
         scope: MeterScope,
-        key: Optional[str] = None,
+        key: Optional[Meters] = None,
         period: Optional[MeterPeriod] = None,
     ) -> List[MeterDTO]:
         return await self.meters_dao.fetch(

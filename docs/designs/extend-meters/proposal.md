@@ -185,9 +185,10 @@ Behavior:
 
 - If `scope` is omitted, the function projects the ambient `AuthScope` ContextVar down to the granularity declared by `quota.scope` (using `scope_from(scope=quota.scope)`).
 - If `period` is omitted, it computes the current bucket via `period_from(period=quota.period, anchor=...)`.
-- Soft mode (`cache=True`): Redis-first read with two-tier cache (60s local, 24h Redis). DB fallback when cold. Never writes.
+- Soft mode (`cache=True`): Redis-first read with two-tier cache (60s local, 24h Redis). DB fallback when cold. Never writes. The cache-mode preflight mirrors the DAO's strict/non-strict predicate exactly — strict uses `current + delta <= limit`, non-strict uses `delta <= limit and current < limit` — so Layer 1 (cache) is never stricter than Layer 2 (the authoritative DAO upsert).
 - Hard mode (`cache=False`): atomic DAO `adjust()` upsert with returning.
 - Cache key: `{scope, period, key}` projected via `model_dump(mode="json")`.
+- DB-fallback key binding: the soft-check DB fallback converts the inbound `Counter`/`Gauge` to a `Meters` member by name (`Meters[key.name]`) before calling `MetersDAO.fetch`. The DAO column is `SQLEnum(Meters, name="meters_type")` with name-binding (uppercase Python enum names); passing a `Counter` raw would bind the lowercase `.value` and silently miss every row. `MetersDAO.fetch.key` and `MetersService.fetch.key` are typed `Optional[Meters]` so the type system catches future drift.
 
 Error policy:
 
@@ -258,9 +259,9 @@ There is no `EvaluationQuotaExceeded` domain exception or HTTP-exception subclas
 
 ## Usage exposure
 
-`/billing/usage` (`api/ee/src/apis/fastapi/billing/router.py`) iterates `entitlements[Tracker.COUNTERS]` and emits one row per counter. The response now includes `period` and `scope` (both nullable strings) alongside `value`, `limit`, `free`, `strict`.
+`/billing/usage` (`api/ee/src/apis/fastapi/billing/router.py`) iterates `entitlements[Tracker.COUNTERS] | entitlements[Tracker.GAUGES]` and emits one row per quota. The response includes `period` and `scope` (both nullable strings) alongside `value`, `limit`, `free`, `strict`.
 
-The DAILY branch sums rather than breaks on first match: `TRACES_RETRIEVED` is `scope=Scope.USER`, so the DAO persists one row per user/day. The billing card shows an org rollup, so every matching row for today is summed.
+The endpoint reads **per-caller**, not org-rollup. For each quota, the scope is projected via `scope_from(scope=quota.scope)` from the ambient `AuthScope` (same projection `check_entitlements` uses) and the period via `period_from(period=quota.period, anchor=subscription.anchor)`. `MetersService.fetch(scope=_scope, key=Meters[key.name], period=_period)` returns 0 or 1 row; `value` is that row's `value`. Numerator and denominator therefore always sit at the same scope: a per-user limit pairs with a per-user value, never an org-summed value. The route has no path/query/wrapper `organization_id` param — identity comes from the ambient context via `get_auth_scope()`.
 
 Frontend types in `web/ee/src/services/billing/types.d.ts` carry `period?: UsagePeriod` and `scope?: UsageScope`. The usage card renders the descriptors.
 

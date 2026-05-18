@@ -19,7 +19,7 @@ from ee.src.core.entitlements.types import (
     ENTITLEMENTS,
 )
 from ee.src.core.meters.service import MetersService
-from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod
+from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 
 log = get_module_logger(__name__)
 
@@ -482,10 +482,13 @@ async def _check_entitlements(
             current_value = cached_value
 
         else:
-            # 5.2. Fallback to DB fetch for current bucket only
+            # 5.2. Fallback to DB fetch for current bucket only.
+            # `key` here is a Counter or Gauge (Flag short-circuited above);
+            # its .value is lowercase. MetersDAO.fetch filters MeterDBE.key
+            # which binds Meters by *name* (uppercase). Cross by name.
             meters = await _meters_service().fetch(
                 scope=_scope,
-                key=key,
+                key=Meters[key.name],
                 period=_period,
             )
 
@@ -502,9 +505,20 @@ async def _check_entitlements(
                 ttl=24 * 60 * 60,  # 24 hours (Redis TTL)
             )
 
-        # 5.3. Decide based on quota
-        proposed_value = current_value + (delta or 0)
-        allowed = quota.limit is None or proposed_value <= quota.limit
+        # 5.3. Decide based on quota. Mirror MetersDAO.adjust's
+        # strict/non-strict predicate so Layer 1 is never stricter than
+        # Layer 2 — otherwise the cache fast-path 429s requests the
+        # authoritative worker would have accepted.
+        _delta = delta or 0
+        if quota.limit is None:
+            allowed = True
+        elif quota.strict:
+            allowed = current_value + _delta <= quota.limit
+        else:
+            # Non-strict: predictable self-overshoot rejected
+            # (delta <= limit), plus cross-the-line-once gate
+            # (current < limit). Already-at-or-over-limit rows deny.
+            allowed = _delta <= quota.limit and current_value < quota.limit
 
         return allowed, None, None
 

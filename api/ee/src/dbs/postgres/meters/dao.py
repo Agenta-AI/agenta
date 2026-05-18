@@ -11,7 +11,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.shared.engine import engine
 
 from ee.src.core.entitlements.types import Quota
-from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod
+from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 from ee.src.core.subscriptions.types import SubscriptionDTO
 from ee.src.core.meters.interfaces import MetersDAOInterface
 from ee.src.dbs.postgres.meters.dbes import MeterDBE
@@ -287,7 +287,7 @@ class MetersDAO(MetersDAOInterface):
         self,
         *,
         scope: Optional[MeterScope] = None,
-        key: Optional[str] = None,
+        key: Optional[Meters] = None,
         period: Optional[MeterPeriod] = None,
     ) -> list[MeterDTO]:
         """Fetch meter rows matching the given filters.
