@@ -1,6 +1,6 @@
 from typing import Optional
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class DefaultPlan(str, Enum):
@@ -67,6 +67,7 @@ class Counter(str, Enum):
     TRACES_INGESTED = "traces_ingested"
     TRACES_RETRIEVED = "traces_retrieved"
     CREDITS_CONSUMED = "credits_consumed"
+    EVENTS_INGESTED = "events_ingested"
 
 
 class Gauge(str, Enum):
@@ -112,17 +113,23 @@ class Quota(BaseModel):
     # pre-existing `monthly=True` semantics.
     period: Optional[Period] = None
 
+    model_config = ConfigDict(extra="forbid")
+
 
 class Probe(BaseModel):
     period: Optional[Period] = None
     # `delta = None` is equivalent to `False` (absolute value, not a delta).
     delta: Optional[bool] = None
 
+    model_config = ConfigDict(extra="forbid")
+
 
 class Bucket(BaseModel):
     capacity: Optional[int] = None  # max tokens in the bucket
     rate: Optional[int] = None  # tokens added per minute
     algorithm: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class Category(str, Enum):
@@ -157,6 +164,8 @@ class Throttle(BaseModel):
     mode: Mode
     categories: list[Category] | None = None
     endpoints: list[tuple[Method, str]] | None = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 ENDPOINTS = {
@@ -366,6 +375,10 @@ DEFAULT_ENTITLEMENTS = {
                 strict=True,
                 period=Period.MONTHLY,
             ),
+            Counter.EVENTS_INGESTED: Quota(
+                retention=Retention.MONTHLY,
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -447,6 +460,10 @@ DEFAULT_ENTITLEMENTS = {
                 free=100,
                 limit=100,
                 strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.EVENTS_INGESTED: Quota(
+                retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
             ),
         },
@@ -532,6 +549,10 @@ DEFAULT_ENTITLEMENTS = {
                 strict=True,
                 period=Period.MONTHLY,
             ),
+            Counter.EVENTS_INGESTED: Quota(
+                retention=Retention.YEARLY,
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -611,6 +632,9 @@ DEFAULT_ENTITLEMENTS = {
                 strict=True,
                 period=Period.MONTHLY,
             ),
+            Counter.EVENTS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -640,6 +664,9 @@ DEFAULT_ENTITLEMENTS = {
             ),
             Counter.CREDITS_CONSUMED: Quota(
                 strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.EVENTS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
         },
@@ -675,6 +702,7 @@ CONSTRAINTS = {
             Counter.TRACES_INGESTED,
             Counter.TRACES_RETRIEVED,
             Counter.CREDITS_CONSUMED,
+            Counter.EVENTS_INGESTED,
         ],
     },
 }

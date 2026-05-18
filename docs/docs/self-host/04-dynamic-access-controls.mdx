@@ -75,27 +75,35 @@ Used by `counters` and `gauges` map values.
 |-------|------|---------|-------------|
 | `free` | integer \| null | `null` | Free-tier allowance before metered billing kicks in. |
 | `limit` | integer \| null | `null` | Hard cap; `null` = unlimited. |
-| `monthly` | boolean | `null` | True if the counter resets monthly. Counters only. |
-| `strict` | boolean | `false` | If true, requests exceeding the limit are blocked instead of metered. |
-| `retention` | integer | `null` | Retention period in **minutes**. Used by `counters.traces` for span flush. |
+| `strict` | boolean \| null | `null` | If `true`, the request that would cross the limit is itself rejected (no "one free overshoot"). `null` is treated as `false`. |
+| `retention` | integer \| null | `null` | Retention window in **minutes**. Must be one of the canonical `Retention` enum values: `0` (ephemeral), `60` (hourly), `1440` (daily), `44640` (monthly ≈ 31d), `131040` (quarterly ≈ 91d), `525600` (yearly ≈ 365d). Used by `traces_ingested` and `events_ingested` for retention flush. |
+| `scope` | string \| null | `null` | Granularity of the meter row: `"organization"` (default when `null`), `"workspace"`, `"project"`, or `"user"`. |
+| `period` | string \| null | `null` | Metering bucket: `"daily"`, `"monthly"`, `"yearly"`. `null` means non-periodic (used for gauges). Replaces the pre-reshape `monthly: true` boolean. |
 
 ### Flag keys
 
-`hooks`, `rbac`, `access`, `domains`, `sso`. Values are booleans.
+`rbac`, `access`, `domains`, `sso`. Values are booleans.
 
 ### Counter keys
 
-`traces`, `events`, `evaluations`, `evaluators`, `annotations`, `credits`.
+`evaluations_run`, `traces_ingested`, `traces_retrieved`, `credits_consumed`, `events_ingested`.
 
-`traces` and `events` are independent: each has its own counter, its own
-retention period, its own admin flush endpoint (`/admin/spans/flush` and
-`/admin/events/flush`), and its own cron schedule. Setting one does not
-affect the other. The default for `events.retention` is `null` (kept
-forever); opt in by setting it via overlay or full plan override.
+`traces_ingested` and `events_ingested` are independent retention domains: each has its own
+counter, its own retention window, its own admin flush endpoint
+(`/admin/spans/flush` and `/admin/events/flush`), and its own cron
+schedule. Setting one does not affect the other. `events_ingested` is a
+retention-only counter — it is not metered (no Stripe report, no
+write-path adjusts an `events_ingested` meter row); operators set its
+`retention` per plan to bound how long event rows live.
+
+`traces_retrieved` is the only counter with a non-default `scope` and
+`period` in the code defaults: `scope=user`, `period=daily`, declared on
+every plan with `limit=null` (unlimited). Operators who want to cap
+per-user daily reads set `limit` via env override.
 
 ### Gauge keys
 
-`users`, `applications`.
+`users`.
 
 ### `Throttle` shape
 
@@ -115,27 +123,31 @@ forever); opt in by setting it via overlay or full plan override.
   "cloud_v0_hobby": {
     "description": "Hobby — operator-facing description.",
     "flags": {
-      "hooks": false,
       "rbac": false,
       "access": false,
       "domains": false,
       "sso": false
     },
     "counters": {
-      "traces": {"limit": 5000, "free": 5000, "monthly": true, "retention": 44640},
-      "evaluations": {"limit": 20, "free": 20, "monthly": true, "strict": true}
+      "traces_ingested": {"limit": 5000, "free": 5000, "period": "monthly", "retention": 44640},
+      "traces_retrieved": {"strict": true, "period": "daily", "scope": "user"},
+      "evaluations_run": {"limit": 20, "free": 20, "period": "monthly", "strict": true},
+      "credits_consumed": {"limit": 100, "free": 100, "period": "monthly", "strict": true},
+      "events_ingested": {"period": "monthly", "retention": 44640}
     },
     "gauges": {
-      "users": {"limit": 2, "free": 2, "strict": true},
-      "applications": {"strict": true}
+      "users": {"limit": 2, "free": 2, "strict": true}
     }
   },
   "cloud_v0_pro": {
     "description": "Production team plan.",
-    "flags": {"hooks": true, "rbac": false, "access": false, "domains": false, "sso": false},
+    "flags": {"rbac": false, "access": false, "domains": false, "sso": false},
     "counters": {
-      "traces": {"free": 10000, "monthly": true, "retention": 131040},
-      "evaluations": {"monthly": true, "strict": true}
+      "traces_ingested": {"free": 10000, "period": "monthly", "retention": 131040},
+      "traces_retrieved": {"strict": true, "period": "daily", "scope": "user"},
+      "evaluations_run": {"period": "monthly", "strict": true},
+      "credits_consumed": {"limit": 100, "free": 100, "period": "monthly", "strict": true},
+      "events_ingested": {"period": "monthly", "retention": 131040}
     },
     "gauges": {
       "users": {"limit": 10, "free": 3, "strict": true}
@@ -341,18 +353,18 @@ that should use `AGENTA_ACCESS_PLANS`.
 | Field | Merge behavior |
 |-------|----------------|
 | `description` | Replaces the base description. |
-| `flags` | Per-key replace (`{"hooks": true}` only changes `hooks`). |
-| `counters` / `gauges` | Per-quota field-merge: `{"traces": {"retention": X}}` keeps existing `free` / `limit` / `monthly` / `strict`. Pass `null` to clear a field. |
+| `flags` | Per-key replace (`{"rbac": true}` only changes `rbac`). |
+| `counters` / `gauges` | Per-quota field-merge: `{"traces_ingested": {"retention": X}}` keeps existing `free` / `limit` / `period` / `scope` / `strict`. Pass `null` to clear a field. Unknown fields fail startup (e.g. legacy `monthly` is rejected). |
 | `throttles[category]` | Looks up the existing throttle whose `categories` is `[category]`, then field-merges `bucket` and replaces `mode`. Fails fast if no single-category throttle matches. |
 
 ### Examples
 
-Bump trace retention to 30 days (43200 minutes):
+Bump trace retention to monthly (44640 minutes — one of the canonical `Retention` enum values):
 
 ```json
 {
   "counters": {
-    "traces": {"retention": 43200}
+    "traces_ingested": {"retention": 44640}
   }
 }
 ```
@@ -372,7 +384,7 @@ Both at once:
 
 ```json
 {
-  "counters": {"traces": {"retention": 43200}},
+  "counters": {"traces_ingested": {"retention": 44640}},
   "throttles": {"standard": {"bucket": {"rate": 7200}}}
 }
 ```

@@ -35,7 +35,7 @@ class EventsRouter:
     @intercept_exceptions()
     async def flush(self):
         """Apply events retention across all plans that define
-        ``Counter.EVENTS.retention``. Wrapped in a Redis lock so concurrent
+        ``Counter.EVENTS_INGESTED.retention``. Wrapped in a Redis lock so concurrent
         cron triggers no-op cleanly.
         """
         log.info("[flush-events] [endpoint] Trigger")

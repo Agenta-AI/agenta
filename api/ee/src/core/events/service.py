@@ -1,8 +1,8 @@
 """EE events service (retention).
 
 Walks the effective plan map and, for each plan that defines a non-null
-``Counter.EVENTS.retention``, deletes events older than the retention
-cutoff for projects whose org subscribes to that plan.
+``Counter.EVENTS_INGESTED.retention``, deletes events older than the
+retention cutoff for projects whose org subscribes to that plan.
 
 Parallel to ``ee.src.core.tracing.service.TracingService`` (same shape,
 different counter and DAO). Both names live in EE; the OSS counterparts
@@ -52,7 +52,7 @@ class EventsService:
                 continue
 
             events_quota = (entitlements.get(Tracker.COUNTERS) or {}).get(
-                Counter.EVENTS
+                Counter.EVENTS_INGESTED
             )
 
             if not events_quota or events_quota.retention is None:

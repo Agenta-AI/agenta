@@ -3,7 +3,7 @@
 Validates plan iteration logic (which plans get flushed) and the project-paging
 loop. The DAO is mocked because the SQL against the events table is exercised
 in integration; here we just verify the service drives the DAO correctly based
-on each plan's ``Counter.EVENTS.retention``.
+on each plan's ``Counter.EVENTS_INGESTED.retention``.
 """
 
 from datetime import datetime, timezone
@@ -13,20 +13,26 @@ from uuid import uuid4
 
 import pytest
 
-from ee.src.core.entitlements.types import Counter, Quota, Tracker
+from ee.src.core.entitlements.types import (
+    Counter,
+    Period,
+    Quota,
+    Retention,
+    Tracker,
+)
 from ee.src.core.events.service import EventsService
 
 
-def _plan_with_retention(retention_minutes: int | None) -> dict:
+def _plan_with_retention(retention: Retention | None) -> dict:
     return {
         Tracker.COUNTERS: {
-            Counter.EVENTS: Quota(monthly=True, retention=retention_minutes),
+            Counter.EVENTS_INGESTED: Quota(period=Period.MONTHLY, retention=retention),
         }
     }
 
 
 def _plan_without_events() -> dict:
-    return {Tracker.COUNTERS: {Counter.TRACES: Quota(monthly=True)}}
+    return {Tracker.COUNTERS: {Counter.TRACES_INGESTED: Quota(period=Period.MONTHLY)}}
 
 
 @pytest.mark.asyncio
@@ -52,7 +58,7 @@ async def test_flush_skips_plans_without_events_retention(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_flush_pages_projects_then_deletes(monkeypatch):
-    plans = {"plan_a": _plan_with_retention(60)}  # 1 hour retention
+    plans = {"plan_a": _plan_with_retention(Retention.HOURLY)}  # 1 hour retention
     monkeypatch.setattr("ee.src.core.events.service.get_plans", lambda: plans)
 
     project_a = uuid4()
@@ -83,8 +89,8 @@ async def test_flush_pages_projects_then_deletes(monkeypatch):
 @pytest.mark.asyncio
 async def test_flush_continues_on_per_plan_failure(monkeypatch):
     plans = {
-        "plan_a": _plan_with_retention(60),
-        "plan_b": _plan_with_retention(60),
+        "plan_a": _plan_with_retention(Retention.HOURLY),
+        "plan_b": _plan_with_retention(Retention.HOURLY),
     }
     monkeypatch.setattr("ee.src.core.events.service.get_plans", lambda: plans)
 

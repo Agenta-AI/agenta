@@ -78,7 +78,7 @@ check (used for contact-sales tiers).
 | `base.type` | string | `"flat"` (single fee) or `"tiered"` (volume-based). |
 | `base.currency` | string | ISO currency code, e.g. `"USD"`. |
 | `base.amount` | number | Base price in major units (dollars, euros…). |
-| `<meter>.type` | string | `"tiered"`. Per-meter add-on pricing — meter slug is the key (`users`, `traces`, …). |
+| `<meter>.type` | string | `"tiered"`. Per-meter add-on pricing — `<meter>` is a display key (e.g. `users`, `traces`, …) shown on the pricing card. This is frontend display copy, not the entitlement counter slug; the canonical counter/gauge slugs are used in [`AGENTA_BILLING_PRICING.stripe.meters`](#stripe-block) below. |
 | `<meter>.currency` | string | ISO currency code. |
 | `<meter>.tiers` | array | Each tier: `{limit?, amount, rate?}`. |
 
@@ -160,7 +160,7 @@ Unknown top-level keys fail startup. The free plan typically has only
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `line_items` | array | yes | Passed verbatim to Stripe `checkout.Session.create` / `Subscription.create`. Each entry: `{price, quantity?}`. |
-| `meters` | object | no | Per-meter price IDs. Keys are counter/gauge slugs (`users`, `traces`, …). Values: `{price}`. Used by usage reporting to find the right Stripe subscription item. |
+| `meters` | object | no | Per-meter price IDs. Keys are canonical counter/gauge slugs from [`Counter`/`Gauge`](./04-dynamic-access-controls.mdx#counter-keys) (`users`, `traces_ingested`, …). Values: `{price}`. Used by usage reporting to find the right Stripe subscription item. Only counters in the `REPORTS` allowlist are actually reported to Stripe — today that's `traces_ingested` and `users`. Declaring price IDs for other slugs (e.g. `traces_retrieved`, `evaluations_run`, `credits_consumed`, `events_ingested`) is accepted by the parser but those meters are not pushed to Stripe. |
 
 ### Example
 
@@ -174,11 +174,11 @@ Unknown top-level keys fail startup. The free plan typically has only
       "line_items": [
         {"price": "price_base_pro", "quantity": 1},
         {"price": "price_users_pro", "quantity": 1},
-        {"price": "price_traces_pro"}
+        {"price": "price_traces_ingested_pro"}
       ],
       "meters": {
-        "users":  {"price": "price_users_pro"},
-        "traces": {"price": "price_traces_pro"}
+        "users":            {"price": "price_users_pro"},
+        "traces_ingested":  {"price": "price_traces_ingested_pro"}
       }
     }
   }

@@ -14,6 +14,14 @@ from ee.src.core.meters.interfaces import MetersDAOInterface
 
 log = get_module_logger(__name__)
 
+# Value-based identity sets for routing `meter.key` (a `Meters` enum) to its
+# entitlement-side family. Using `meter.key.value in {...}` instead of
+# `meter.key.name in Gauge.__members__` keeps these checks correct if the
+# entitlement enums are ever renamed without touching the meter-side `Meters`
+# enum or vice-versa — names can drift, slug values cannot.
+_GAUGE_SLUGS: frozenset[str] = frozenset(g.value for g in Gauge)
+_COUNTER_SLUGS: frozenset[str] = frozenset(c.value for c in Counter)
+
 # Initialize Stripe only if enabled
 if env.stripe.enabled:
     stripe.api_key = env.stripe.api_key
@@ -167,7 +175,7 @@ class MetersService:
                         meters_to_bump.append(meter)
                         continue
 
-                    if meter.key.name in Gauge.__members__.keys():
+                    if meter.key.value in _GAUGE_SLUGS:
                         try:
                             price_id = get_stripe_meter_price(
                                 meter.subscription.plan,
@@ -237,7 +245,7 @@ class MetersService:
                             error_count += 1
                             continue
 
-                    if meter.key.name in Counter.__members__.keys():
+                    if meter.key.value in _COUNTER_SLUGS:
                         try:
                             event_name = meter.key.value
                             delta = max(meter.value - meter.synced, 0)
