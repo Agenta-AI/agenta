@@ -1,7 +1,7 @@
 from typing import Tuple, Callable, Optional
 
 from ee.src.core.entitlements.types import Quota
-from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod
+from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 
 
 class MetersDAOInterface:
@@ -34,7 +34,7 @@ class MetersDAOInterface:
         self,
         *,
         scope: MeterScope,
-        key: Optional[str] = None,
+        key: Optional[Meters] = None,
         period: Optional[MeterPeriod] = None,
     ) -> list[MeterDTO]:
         """
@@ -44,7 +44,10 @@ class MetersDAOInterface:
         Parameters:
         - scope: MeterScope identifying the org and any finer dimensions
           (workspace/project/user) to filter on.
-        - key: Optional meter key (Counter/Gauge) to filter on.
+        - key: Optional Meters member to filter on. Callers holding a
+          Counter/Gauge/Flag must convert via Meters[counter.name] — the DB
+          column binds by Python enum *name* (uppercase), not value
+          (lowercase), so a Counter passed raw would silently miss rows.
         - period: Optional MeterPeriod bucket (year/month/day) to filter on.
 
         Returns:

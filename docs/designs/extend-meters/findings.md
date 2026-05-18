@@ -11,6 +11,8 @@ Sync pulled in 11 inline review comments from two Copilot review passes on PR #4
 
 A sixth Copilot pass on 2026-05-18 11:30Z surfaced 9 new distinct findings (PR-32 through PR-40). All nine closed: PR-32 (intentional — CLOUD_V0_AGENTA_AI is meant to be unlimited on credits, no change); PR-33 (`workspace_router.remove_user_from_workspace` now loads owner from target workspace's org); PR-34 (re-added `if delta > 0:` guard around both `tracing/router.py` ingest soft checks); PR-35 (`MetersDAO.adjust` strict/non-strict predicates rewritten per user-defined truth table — strict denies any predictable overshoot; non-strict denies predictable self-overshoot but permits the one cross-the-line request from below; seven new unit tests pin the table); PR-36 (`AuthContext` model now `frozen=True`); PR-37/PR-38/PR-39/PR-40 (proposal.md + summary.md aligned with shipped semantics — `strict=True` everywhere on `TRACES_RETRIEVED`, hard-check on reads, broad refund on writes). All eighteen `test_meters_dao_strict_soft.py` unit tests pass.
 
+A seventh Copilot pass on 2026-05-18 12:53Z surfaced 3 new distinct findings (PR-41 through PR-43). Plus PR-44 — an internal staging incident discovered during deployment of the pass-6 fixes. All four closed: PR-41 (`/billing/usage` rewritten to per-caller scoped read — same projection `check_entitlements` uses; no more aggregation against a per-user limit; `organization_id` path/wrapper param dropped, identity reads ambient `AuthScope`); PR-42 (`MetersDAO.fetch.key` and the service/interface tightened to `Optional[Meters]`, with the one runtime caller converting `Counter`/`Gauge` → `Meters[key.name]` at the boundary — closes the silent soft-check fail-open without a DB migration); PR-43 (`check_entitlements` cache preflight now mirrors the DAO's strict/non-strict split so Layer 1 is never stricter than Layer 2); PR-44 (staging migration crashed on 2 corrupt `(year=2025, month=0)` rows that the new calendar validator correctly rejected — operator-fixed the rows, audited prod clean, no code change). 69/69 EE unit tests still pass.
+
 ## Rules
 
 - Findings cite `file:Lstart-Lend` against the current working tree.
@@ -19,7 +21,7 @@ A sixth Copilot pass on 2026-05-18 11:30Z surfaced 9 new distinct findings (PR-3
 
 ## Notes
 
-- Sync runs: 2026-05-18, six passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed the post-resolve tree (commit `75e7b8472` "final CR") and surfaced 9 new threads → 9 distinct findings PR-32..PR-40, awaiting user decisions.
+- Sync runs: 2026-05-18, seven passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed `75e7b8472` ("final CR") → PR-32..PR-40. Pass 7 (2026-05-18 12:53Z): Copilot reviewed the post-pass-6 tree → PR-41..PR-43. PR-44 is an internal staging-deployment incident.
 - Resolve queue priority order: P0 → P1 → P2 → P3.
 - **Rule (from user 2026-05-18):** sync's first step is ALWAYS to save new findings to this file, before any code change or proposed-fix discussion.
 
@@ -28,6 +30,49 @@ A sixth Copilot pass on 2026-05-18 11:30Z surfaced 9 new distinct findings (PR-3
 (none)
 
 ## Closed Findings
+
+### [CLOSED] PR-41 — `/billing/usage` now reads the single meter row at the caller's projected scope; no aggregation, no path-param (P1, high)
+
+- **Category**: Correctness / UX consistency
+- **Files**: `api/ee/src/apis/fastapi/billing/router.py` — `fetch_usage` rewritten; route wrapper `fetch_usage_user_route` no longer threads `organization_id`.
+- **PR comment**: [discussion_r3259033683](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3259033683)
+- **Fix shipped**: Per-caller usage. For each quota, scope is projected via `scope_from(scope=quota.scope)` from the ambient `AuthScope` (same projection `check_entitlements` uses), period via `period_from(period=quota.period, anchor=subscription.anchor)`. `meters_service.fetch(scope=_scope, key=Meters[key.name], period=_period)` returns 0 or 1 row; `value` is that row's `value`. Numerator and denominator now sit at the same scope (per-user `value` vs per-user `limit` for `TRACES_RETRIEVED`). The DAILY summing branch is gone; the `organization_id` path/wrapper param was dropped — `fetch_usage()` reads ambient identity via `get_auth_scope()`. No more sum-across-users-with-per-user-limit displays.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-42 — `MetersDAO.fetch` typed `Optional[Meters]`; call sites convert `Counter`/`Gauge` via `Meters[name]` (P0, high)
+
+- **Category**: Correctness / Fail-open security
+- **Files**: `api/ee/src/core/meters/interfaces.py`, `api/ee/src/dbs/postgres/meters/dao.py`, `api/ee/src/core/meters/service.py`, `api/ee/src/utils/entitlements.py`
+- **PR comment**: [discussion_r3259033736](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3259033736)
+- **Fix shipped**: Tightened the API surface. `MetersDAOInterface.fetch.key`, `MetersDAO.fetch.key`, and `MetersService.fetch.key` are now `Optional[Meters]`. The one runtime caller passing a `Counter`/`Gauge` (`entitlements.py:489`) converts at the boundary with `Meters[key.name]` — by-name lookup that matches the column's name-binding (uppercase). DB column stays `SQLEnum(Meters, name="meters_type")` without `values_callable`; no DB migration. The soft-check DB fallback now finds the row on cache miss; the silent fail-open is closed. 69/69 EE unit tests pass.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-43 — `check_entitlements` cache-mode preflight mirrors the DAO's strict/non-strict predicate (P1, medium)
+
+- **Category**: Correctness / Strict-vs-non-strict parity
+- **Files**: `api/ee/src/utils/entitlements.py:508-522`
+- **PR comment**: [discussion_r3259033762](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3259033762)
+- **Fix shipped**: Cache preflight rewritten so Layer 1 is never stricter than Layer 2. `quota.limit is None` → allow; `quota.strict` → `current + delta <= limit`; non-strict → `delta <= limit and current < limit` (mirrors the DAO's predicate per PR-35's truth table). Non-strict counters can now cross the line once from below in cache mode, matching the authoritative DAO call.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-44 — Migration crashed on staging on corrupt `(year=2025, month=0)` rows; operator healed (P0, high)
+
+- **Category**: Migration / Data quality
+- **Files**: data only — `meters` on `agenta_demo_core_v0_96_0` (staging) had 2 corrupt rows for org `019542f2-e0e9-7fd2-9866-0639d88fa929` (`EVALUATIONS | 2025/0`, `TRACES | 2025/0`).
+- **Trigger**: `alembic upgrade head` on staging, 2026-05-18 12:59:51Z. The backfill loop in `9d3e8f0a1b2c_reshape_meters_table.py:237` constructed `MeterPeriod(year=2025, month=0, day=None)`, which the new (correctly strict) calendar validator rejected with `invalid date 2025-00-01: month must be in 1..12`.
+- **Resolution**: Operator-fixed the corrupt rows in staging (and audited prod — clean). Pre-PR code only ever wrote `(0, 0)` gauge sentinels or `(year>0, month in 1..12)` periodic counters via `compute_billing_period`, so the partial-sentinel rows came from external manual edits or a deleted legacy code path. The migration is unchanged — validator behavior is correct; the input was the problem. Audit query for future re-runs:
+
+  ```sql
+  SELECT ctid, organization_id, key::text AS key, year, month, value, synced
+  FROM meters
+  WHERE NOT (
+      (year = 0 AND month = 0)
+      OR (year > 0 AND month BETWEEN 1 AND 12)
+  )
+  ORDER BY organization_id, key, year, month;
+  ```
+
+- **Action**: No GitHub thread (internal incident). Documented for future migration re-runs on other environments.
 
 ### [CLOSED] PR-33 — `workspace_router.remove_user_from_workspace` now loads `owner` from target workspace's org (P1, medium)
 
