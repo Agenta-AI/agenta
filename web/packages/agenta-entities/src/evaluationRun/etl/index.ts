@@ -66,3 +66,23 @@ export {
     type ChunkCacheStats,
     type BuildMoleculeFetchersOptions,
 } from "./cacheAwareFetchers"
+
+// Cache diagnostics — inspect the TanStack cache + atom family sizes
+export {
+    DEFAULT_DIAGNOSTIC_PREFIXES,
+    inspectCache,
+    inspectMemory,
+    clearCacheByPrefix,
+    type CacheDiagnostics,
+    type CacheSliceStats,
+    type MemorySnapshot,
+} from "./cacheDiagnostics"
+// Atom family registry — direct access for tests / advanced consumers
+export {
+    inspectAtomFamilies,
+    clearAllAtomFamilies,
+    instrumentedAtomFamily,
+    type AtomFamilyStats,
+    type InstrumentedAtomFamily,
+    type InstrumentedAtomFamilyOptions,
+} from "../../shared/molecule/instrumentedAtomFamily"
