@@ -85,6 +85,7 @@
         "prismjs": ">=1.30.0",
         "typescript": "5.8.3",
         "usehooks-ts": "^3.0.0",
+        "@vitest/coverage-v8": "^4.1.4",
         "vitest": "^4.1.4",
         "jotai": "^2.16.1",
         "jotai-family": "^1.0.1"
