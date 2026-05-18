@@ -30,12 +30,17 @@ import {
     getItemsAtPath,
     type DataPath,
 } from "@agenta/shared/utils"
+import type {PathItem} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import {createMolecule, extendMolecule, createControllerAtomFamily} from "../../shared"
-import type {StoreOptions, PathItem, LoadableRow, LoadableColumn} from "../../shared"
+// Deep-import from shared/molecule to bypass the contaminated shared barrel.
+import type {LoadableRow, LoadableColumn} from "../../shared/entityBridge"
+import {createControllerAtomFamily} from "../../shared/molecule/createControllerAtomFamily"
+import {createMolecule} from "../../shared/molecule/createMolecule"
+import {extendMolecule} from "../../shared/molecule/extendMolecule"
+import type {StoreOptions} from "../../shared/molecule/types"
 import type {Column, Testcase} from "../core"
 import {createLocalTestcase} from "../core"
 

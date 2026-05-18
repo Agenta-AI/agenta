@@ -47,15 +47,16 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import {
-    createMolecule,
-    extendMolecule,
-    normalizeValueForComparison,
-    createControllerAtomFamily,
-    type AtomFamily,
-    type StoreOptions,
-    type FlexibleWritableAtomFamily,
-} from "../../shared"
+// Deep-import from shared/molecule to bypass the contaminated shared barrel.
+import {createControllerAtomFamily} from "../../shared/molecule/createControllerAtomFamily"
+import {normalizeValueForComparison} from "../../shared/molecule/createEntityDraftState"
+import {createMolecule} from "../../shared/molecule/createMolecule"
+import {extendMolecule} from "../../shared/molecule/extendMolecule"
+import type {
+    AtomFamily,
+    StoreOptions,
+    FlexibleWritableAtomFamily,
+} from "../../shared/molecule/types"
 import type {TraceSpan} from "../core"
 import {extractAgData, extractInputs, extractOutputs} from "../utils"
 
