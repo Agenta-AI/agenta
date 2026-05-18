@@ -11,44 +11,44 @@ services:
 
   api:
     build:
-      context: ../../../api
-      dockerfile: ee/docker/Dockerfile.gh
+      context: ../../..
+      dockerfile: api/ee/docker/Dockerfile.gh
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
   worker-evaluations:
     build:
-      context: ../../../api
-      dockerfile: ee/docker/Dockerfile.gh
+      context: ../../..
+      dockerfile: api/ee/docker/Dockerfile.gh
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
   worker-tracing:
     build:
-      context: ../../../api
-      dockerfile: ee/docker/Dockerfile.gh
+      context: ../../..
+      dockerfile: api/ee/docker/Dockerfile.gh
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
   cron:
     build:
-      context: ../../../api
-      dockerfile: ee/docker/Dockerfile.gh
+      context: ../../..
+      dockerfile: api/ee/docker/Dockerfile.gh
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
   alembic:
     build:
-      context: ../../../api
-      dockerfile: ee/docker/Dockerfile.gh
+      context: ../../..
+      dockerfile: api/ee/docker/Dockerfile.gh
     command: sh -c "python -m ee.databases.postgres.migrations.runner"
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
   services:
     build:
-      context: ../../../services
-      dockerfile: ee/docker/Dockerfile.gh
+      context: ../../..
+      dockerfile: services/ee/docker/Dockerfile.gh
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
