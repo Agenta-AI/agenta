@@ -623,10 +623,34 @@ const MessageNodeRow = memo(function MessageNodeRow({
         [msg.role, roleColor],
     )
 
+    const parsedContent = useMemo(() => {
+        if (role !== "tool" || !text) return null
+        try {
+            const parsed = JSON.parse(text)
+            return typeof parsed === "object" && parsed !== null ? parsed : null
+        } catch {
+            return null
+        }
+    }, [role, text])
+
     const body = useMemo(() => {
-        const hasText = text.length > 0
         const hasToolCalls = toolCalls && toolCalls.length > 0
 
+        if (parsedContent) {
+            return (
+                <div className="flex flex-col gap-1">
+                    <RecursiveNode
+                        name="result"
+                        value={parsedContent}
+                        keyPrefix={`${editorId}-result`}
+                        depth={1}
+                        expandDepth={2}
+                    />
+                </div>
+            )
+        }
+
+        const hasText = text.length > 0
         if (!hasText && !hasToolCalls) return null
 
         return (
@@ -645,7 +669,7 @@ const MessageNodeRow = memo(function MessageNodeRow({
                     ))}
             </div>
         )
-    }, [text, toolCalls, editorId])
+    }, [text, toolCalls, editorId, parsedContent])
 
     return (
         <NodeRow
