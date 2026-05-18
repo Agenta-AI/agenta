@@ -841,6 +841,62 @@ Estimated resident memory after scrolling through N scenarios with default setti
 
 The Phase 3a eviction policy caps resident memory to **(N_windows × 2 × chunk_size × row_size)** instead of growing with cumulative scroll. For N=3 above/below, chunk=200, row=~1 KB combined: ~2.4 MB resident regardless of how far the user has scrolled. Plus the survivors (dirty / pinned / active row).
 
+### Chunk size selection — the RTT vs over-fetch trade-off
+
+Choosing chunk size for a paginated store is a real architectural decision, not an arbitrary default. The trade-off:
+
+```mermaid
+flowchart LR
+    Small["small chunks<br/>(e.g. 25)"]
+    Big["big chunks<br/>(e.g. 200)"]
+
+    Small -->|"many RTTs<br/>minimal over-fetch"| ProSmall["✓ no wasted rows<br/>✗ high first-paint latency<br/>✗ N round-trips for N×limit rows"]
+    Big -->|"1-2 RTTs<br/>significant over-fetch on cancel"| ProBig["✓ fast first paint<br/>✓ minimal RTT count<br/>✗ over-fetched rows on viewport cancel"]
+
+    style Small fill:#dcefff,stroke:#1971c2
+    style Big fill:#fff4d6,stroke:#d4a017
+```
+
+Three forces:
+
+1. **First-paint latency.** Time to fill the visible viewport. Big chunks fill it in fewer RTTs; small chunks need more.
+2. **Over-fetch.** When viewport-driven cancellation fires, the last chunk that triggered cancellation was already in flight. Big chunks mean larger "wasted" rows in that last request.
+3. **Backend cost.** Large chunks consume more server resources per request (query memory, serialization) but reduce total request count.
+
+#### Measured trade-off (PoC, real backend, 300-scenario eval run, 100% hit ratio)
+
+| Chunk size | Viewport target | Chunks before stop | Rows fetched | Over-fetch | RTTs | First-paint |
+|---|---|---|---|---|---|---|
+| 25 | 200 matches | 8 | 200 | 0 | 8 | ~42 ms (chunk 1) + 7×10 ms = ~110 ms |
+| 200 | 20 matches | 1 | 200 | 180 (9× viewport) | 1 | ~74 ms |
+| 1000 | 20 matches | 1 (estimated) | 1000 | 980 (49× viewport) | 1 | ~150 ms (larger payload) |
+
+Notice: chunk_size=200 with viewport=20 over-fetches **9× viewport size**. The cost is bounded — at most one chunk's worth beyond the viewport target — but real. At 500 bytes per scenario, that's ~90 KB of "wasted" network traffic per filter operation.
+
+#### Recommended sizing per consumer pattern
+
+| Use case | Expected hit ratio | Suggested chunk size | Rationale |
+|---|---|---|---|
+| Unfiltered scenario list | 100% | viewport size × 2 | Fill viewport in 1 RTT, accept moderate over-fetch |
+| High-hit-ratio filter (>50%) | 50-100% | viewport size × 2 | Same — over-fetch acceptable for fewer RTTs |
+| Low-hit-ratio filter (10-50%) | 10-50% | viewport size × 4 | Compensate for filter shrinkage — need more raw rows |
+| Very-low-hit-ratio filter (<10%) | <10% | force v2 server escalation | Client-side wasteful; escalate per filter RFC C3 |
+| Bulk export / no viewport | n/a (full scan) | 500-1000 | Maximize per-RTT efficiency; no over-fetch concern |
+| ETL pipeline (no viewport) | n/a | 500-1000 | Same — full-stream consumers don't waste anything |
+
+The current `evaluationPreviewTableStore` default of `chunk_size=200` works for typical V-table viewports (20-50 visible rows) at the cost of moderate over-fetch on viewport-fill cancellation. **Not a default to over-think; just one with a knowable cost.**
+
+#### What this means for filter UX
+
+The over-fetch cost is bounded and small per individual filter operation, but it multiplies under interactive use. A user typing characters in a filter input (even with 250ms debounce) may fire 3-5 filter operations per keystroke session. At chunk_size=200 with viewport=20, each operation costs ~90 KB of wasted network traffic. Over a 10-character filter input session, that's ~1 MB of waste.
+
+Two mitigations:
+
+1. **Reduce chunk_size for filter mode** — when a filter is active, the paginated store could halve its chunk size (down to ~100). Trade some RTTs for less waste.
+2. **Server-filter escalation** — at sufficient row counts (>10k loaded — see filter RFC C3), the engine switches to v2 backend filtering, which avoids the trade-off entirely (server returns only matched rows).
+
+The architecture supports both; the consumer (filter UI) chooses.
+
 ### Required disciplines from the filter RFC
 
 These are mandatory at the consumer level — they're not optional optimizations:

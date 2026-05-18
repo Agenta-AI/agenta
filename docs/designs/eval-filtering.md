@@ -579,6 +579,31 @@ metricsMolecule.cache.evictMany(scenarioIds)   // batch
 
 The paginated store's eviction policy calls these as part of its sliding-window cleanup.
 
+### C6. Chunk size selection (over-fetch vs RTT trade-off)
+
+Filter operations that trigger viewport-fill cancellation pay an over-fetch cost: the chunk that triggered cancellation was already in flight, so its remaining rows are "wasted." Big chunks reduce RTT count but amplify per-operation over-fetch.
+
+**Verified empirically (PoC against real backend, 300-row eval run, 100% hit ratio):**
+
+| chunk_size | viewport | Over-fetch | RTTs |
+|---|---|---|---|
+| 25 | 200 | 0 | 8 |
+| 200 | 20 | 180 (9× viewport) | 1 |
+| 1000 | 20 | 980 (49× viewport) | 1 |
+
+The over-fetch is bounded (at most one chunk's worth beyond viewport target) but multiplies under interactive filtering — 5 keystrokes × 9× over-fetch = ~45× viewport worth of wasted network.
+
+**Filter-mode chunk size guidance** (full sizing table lives in [eval-package-architecture.md "Chunk size selection"](./eval-package-architecture.md#chunk-size-selection--the-rtt-vs-over-fetch-trade-off)):
+
+| Filter state | Recommended chunk size | Why |
+|---|---|---|
+| No filter | viewport × 2 | Fast first-paint, moderate over-fetch acceptable |
+| High-hit filter (>50%) | viewport × 2 | Same |
+| Medium-hit filter (10-50%) | viewport × 4 | Compensate for filter shrinkage |
+| Tier 3 / low-hit (<10%) | Force v2 escalation (see C3) | Client-side wasteful at scale |
+
+Optionally: paginated stores can halve their chunk size when a filter is active to trade RTTs for reduced waste. The architecture supports this; the consumer chooses.
+
 ### Performance regimes
 
 For sizing expectations:
