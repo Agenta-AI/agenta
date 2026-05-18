@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-05-18-annotation-queues",
+        "title": "Annotation Queues",
+        "description": "Annotate traces and test sets and turn them into evals.",
+        "link": "https://agenta.ai/docs/changelog/annotation-queues"
+    },
+    {
         "id": "changelog-2026-03-11-deployment-webhooks-github-automations",
         "title": "Webhooks and GitHub Automations",
         "description": "Trigger webhooks or GitHub Actions when a prompt deployment happens in Agenta.",
