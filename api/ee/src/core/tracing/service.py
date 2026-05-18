@@ -41,7 +41,7 @@ class TracingService:
                 continue
 
             traces_quota = (entitlements.get(Tracker.COUNTERS) or {}).get(
-                Counter.TRACES
+                Counter.TRACES_INGESTED
             )
 
             if not traces_quota or traces_quota.retention is None:

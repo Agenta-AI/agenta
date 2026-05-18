@@ -56,8 +56,6 @@ class Tracker(str, Enum):
 
 
 class Flag(str, Enum):
-    # HISTORY = "history"
-    HOOKS = "hooks"
     RBAC = "rbac"
     ACCESS = "access"
     DOMAINS = "domains"
@@ -65,17 +63,14 @@ class Flag(str, Enum):
 
 
 class Counter(str, Enum):
-    TRACES = "traces"
-    EVENTS = "events"
-    EVALUATIONS = "evaluations"
-    EVALUATORS = "evaluators"
-    ANNOTATIONS = "annotations"
-    CREDITS = "credits"
+    EVALUATIONS_RUN = "evaluations_run"
+    TRACES_INGESTED = "traces_ingested"
+    TRACES_RETRIEVED = "traces_retrieved"
+    CREDITS_CONSUMED = "credits_consumed"
 
 
 class Gauge(str, Enum):
     USERS = "users"
-    APPLICATIONS = "applications"
 
 
 class Constraint(str, Enum):
@@ -83,7 +78,7 @@ class Constraint(str, Enum):
     READ_ONLY = "read_only"
 
 
-class Period(str, Enum):
+class Retention(int, Enum):
     EPHEMERAL = 0  # instant
     HOURLY = 60  # 1 hour = 60 minutes
     DAILY = 1440  # 24 hours = 1 day = 1440 minutes
@@ -92,17 +87,36 @@ class Period(str, Enum):
     YEARLY = 525600  # 365 days = 8760 hours = 525600 minutes
 
 
+class Period(str, Enum):
+    DAILY = "daily"
+    MONTHLY = "monthly"
+    YEARLY = "yearly"
+
+
+class Scope(str, Enum):
+    ORGANIZATION = "organization"
+    WORKSPACE = "workspace"
+    PROJECT = "project"
+    USER = "user"
+
+
 class Quota(BaseModel):
     free: Optional[int] = None
     limit: Optional[int] = None
-    monthly: Optional[bool] = None
-    strict: Optional[bool] = False
-    retention: Optional[int] = None
+    # `strict = None` is equivalent to `False` (non-strict).
+    strict: Optional[bool] = None
+    retention: Optional[Retention] = None
+    # `scope = None` means organization-scoped (today's behavior).
+    scope: Optional[Scope] = None
+    # `period = None` means non-periodic (gauge); `MONTHLY` matches the
+    # pre-existing `monthly=True` semantics.
+    period: Optional[Period] = None
 
 
 class Probe(BaseModel):
-    monthly: Optional[bool] = False
-    delta: Optional[bool] = False
+    period: Optional[Period] = None
+    # `delta = None` is equivalent to `False` (absolute value, not a delta).
+    delta: Optional[bool] = None
 
 
 class Bucket(BaseModel):
@@ -183,7 +197,7 @@ DEFAULT_CATALOG = [
         "description": "Great for hobby projects and POCs.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_HOBBY.value,
-        "retention": Period.MONTHLY.value,
+        "retention": Retention.MONTHLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -205,7 +219,7 @@ DEFAULT_CATALOG = [
         "description": "For production projects.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_PRO.value,
-        "retention": Period.QUARTERLY.value,
+        "retention": Retention.QUARTERLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -256,7 +270,7 @@ DEFAULT_CATALOG = [
         "description": "For scale, security, and support.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_BUSINESS.value,
-        "retention": Period.YEARLY.value,
+        "retention": Retention.YEARLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -323,45 +337,40 @@ DEFAULT_CATALOG = [
 DEFAULT_ENTITLEMENTS = {
     DefaultPlan.CLOUD_V0_HOBBY: {
         Tracker.FLAGS: {
-            Flag.HOOKS: False,
             Flag.RBAC: False,
             Flag.ACCESS: False,
             Flag.DOMAINS: False,
             Flag.SSO: False,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(
-                limit=5_000,
-                monthly=True,
-                free=5_000,
-                retention=Period.MONTHLY.value,
-            ),
-            Counter.EVENTS: Quota(
-                limit=5_000,
-                monthly=True,
-                free=5_000,
-                retention=Period.MONTHLY.value,
-            ),
-            Counter.EVALUATIONS: Quota(
-                limit=20,
-                monthly=True,
+            Counter.EVALUATIONS_RUN: Quota(
                 free=20,
+                limit=20,
                 strict=True,
+                period=Period.MONTHLY,
             ),
-            Counter.CREDITS: Quota(
-                limit=100,
-                monthly=True,
-                free=100,
+            Counter.TRACES_INGESTED: Quota(
+                free=5_000,
+                limit=5_000,
+                retention=Retention.MONTHLY,
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_RETRIEVED: Quota(
                 strict=True,
+                period=Period.DAILY,
+                scope=Scope.USER,
+            ),
+            Counter.CREDITS_CONSUMED: Quota(
+                free=100,
+                limit=100,
+                strict=True,
+                period=Period.MONTHLY,
             ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
-                limit=2,
-                strict=True,
                 free=2,
-            ),
-            Gauge.APPLICATIONS: Quota(
+                limit=2,
                 strict=True,
             ),
         },
@@ -414,42 +423,37 @@ DEFAULT_ENTITLEMENTS = {
     },
     DefaultPlan.CLOUD_V0_PRO: {
         Tracker.FLAGS: {
-            Flag.HOOKS: True,
             Flag.RBAC: False,
             Flag.ACCESS: False,
             Flag.DOMAINS: False,
             Flag.SSO: False,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(
-                monthly=True,
-                free=10_000,
-                retention=Period.QUARTERLY.value,
-            ),
-            Counter.EVENTS: Quota(
-                limit=10_000,
-                monthly=True,
-                free=10_000,
-                retention=Period.QUARTERLY.value,
-            ),
-            Counter.EVALUATIONS: Quota(
-                monthly=True,
+            Counter.EVALUATIONS_RUN: Quota(
                 strict=True,
+                period=Period.MONTHLY,
             ),
-            Counter.CREDITS: Quota(
-                limit=100,
-                monthly=True,
+            Counter.TRACES_INGESTED: Quota(
+                free=10_000,
+                retention=Retention.QUARTERLY,
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
+                scope=Scope.USER,
+                period=Period.DAILY,
+            ),
+            Counter.CREDITS_CONSUMED: Quota(
                 free=100,
+                limit=100,
                 strict=True,
+                period=Period.MONTHLY,
             ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
-                limit=10,
-                strict=True,
                 free=3,
-            ),
-            Gauge.APPLICATIONS: Quota(
+                limit=10,
                 strict=True,
             ),
         },
@@ -502,40 +506,35 @@ DEFAULT_ENTITLEMENTS = {
     },
     DefaultPlan.CLOUD_V0_BUSINESS: {
         Tracker.FLAGS: {
-            Flag.HOOKS: True,
             Flag.RBAC: True,
             Flag.ACCESS: True,
             Flag.DOMAINS: True,
             Flag.SSO: True,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(
-                monthly=True,
-                free=1_000_000,
-                retention=Period.YEARLY.value,
-            ),
-            Counter.EVENTS: Quota(
-                limit=1_000_000,
-                monthly=True,
-                free=1_000_000,
-                retention=Period.YEARLY.value,
-            ),
-            Counter.EVALUATIONS: Quota(
-                monthly=True,
+            Counter.EVALUATIONS_RUN: Quota(
                 strict=True,
+                period=Period.MONTHLY,
             ),
-            Counter.CREDITS: Quota(
-                limit=100,
-                monthly=True,
+            Counter.TRACES_INGESTED: Quota(
+                free=1_000_000,
+                retention=Retention.YEARLY,
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
+                scope=Scope.USER,
+                period=Period.DAILY,
+            ),
+            Counter.CREDITS_CONSUMED: Quota(
                 free=100,
+                limit=100,
                 strict=True,
+                period=Period.MONTHLY,
             ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
-                strict=True,
-            ),
-            Gauge.APPLICATIONS: Quota(
                 strict=True,
             ),
         },
@@ -588,90 +587,94 @@ DEFAULT_ENTITLEMENTS = {
     },
     DefaultPlan.CLOUD_V0_AGENTA_AI: {
         Tracker.FLAGS: {
-            Flag.HOOKS: True,
             Flag.RBAC: True,
             Flag.ACCESS: True,
             Flag.DOMAINS: True,
             Flag.SSO: True,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(
-                monthly=True,
-            ),
-            Counter.EVENTS: Quota(
-                monthly=True,
-            ),
-            Counter.EVALUATIONS: Quota(
-                monthly=True,
+            Counter.EVALUATIONS_RUN: Quota(
                 strict=True,
+                period=Period.MONTHLY,
             ),
-            Counter.CREDITS: Quota(
-                limit=100_000,
-                monthly=True,
-                free=100_000,
+            Counter.TRACES_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_RETRIEVED: Quota(
                 strict=True,
+                scope=Scope.USER,
+                period=Period.DAILY,
+            ),
+            Counter.CREDITS_CONSUMED: Quota(
+                free=100,
+                limit=100,
+                strict=True,
+                period=Period.MONTHLY,
             ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
                 strict=True,
             ),
-            Gauge.APPLICATIONS: Quota(
-                strict=True,
-            ),
         },
     },
     DefaultPlan.SELF_HOSTED_ENTERPRISE: {
         Tracker.FLAGS: {
-            Flag.HOOKS: True,
             Flag.RBAC: True,
             Flag.ACCESS: True,
             Flag.DOMAINS: True,
             Flag.SSO: True,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(
-                monthly=True,
+            Counter.EVALUATIONS_RUN: Quota(
+                strict=True,
+                period=Period.MONTHLY,
             ),
-            Counter.EVENTS: Quota(
-                monthly=True,
+            Counter.TRACES_INGESTED: Quota(
+                period=Period.MONTHLY,
             ),
-            Counter.EVALUATIONS: Quota(
-                monthly=True,
+            Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
+                scope=Scope.USER,
+                period=Period.DAILY,
             ),
-            Counter.CREDITS: Quota(
-                monthly=True,
+            Counter.CREDITS_CONSUMED: Quota(
+                strict=True,
+                period=Period.MONTHLY,
             ),
         },
         Tracker.GAUGES: {
-            Gauge.USERS: Quota(),
-            Gauge.APPLICATIONS: Quota(),
+            Gauge.USERS: Quota(
+                strict=True,
+            ),
         },
     },
 }
 
 
 REPORTS = [
-    Counter.TRACES.value,
+    Counter.TRACES_INGESTED.value,
     Gauge.USERS.value,
 ]
 
 CONSTRAINTS = {
     Constraint.BLOCKED: {
         Tracker.FLAGS: [
-            Flag.HOOKS,
             Flag.RBAC,
+            Flag.ACCESS,
+            Flag.DOMAINS,
+            Flag.SSO,
         ],
         Tracker.GAUGES: [
             Gauge.USERS,
-            Gauge.APPLICATIONS,
         ],
     },
     Constraint.READ_ONLY: {
         Tracker.COUNTERS: [
-            Counter.TRACES,
-            Counter.EVENTS,
-            Counter.EVALUATIONS,
+            Counter.EVALUATIONS_RUN,
+            Counter.TRACES_INGESTED,
+            Counter.TRACES_RETRIEVED,
+            Counter.CREDITS_CONSUMED,
         ],
     },
 }

@@ -1,6 +1,6 @@
 import os
 import hashlib
-from uuid import getnode
+from uuid import UUID, getnode, uuid5, NAMESPACE_DNS
 from json import loads
 from urllib.parse import urlparse
 
@@ -654,6 +654,8 @@ class AgentaConfig(BaseModel):
 
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
+
+    uuid_namespace: UUID = uuid5(NAMESPACE_DNS, "agenta")
 
     runtime_prefix: str = os.getenv("AGENTA_RUNTIME_PREFIX") or ""
 

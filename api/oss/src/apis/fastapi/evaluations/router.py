@@ -2,7 +2,7 @@ from typing import Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Request, Query, HTTPException
+from fastapi import APIRouter, Request, Query, HTTPException, status as http_status
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -104,6 +104,7 @@ from oss.src.core.evaluations.types import (
 if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.utils.entitlements import check_entitlements, Counter
 
 
 log = get_module_logger(__name__)
@@ -578,12 +579,33 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        runs = await self.evaluations_service.create_runs(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            runs=runs_create_request.runs,
-        )
+            delta = len(runs_create_request.runs)
+            if delta:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=delta,
+                )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly evaluations quota.",
+                    )
+
+        try:
+            runs = await self.evaluations_service.create_runs(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                runs=runs_create_request.runs,
+            )
+        except Exception:
+            # Internal error after the quota was charged — refund.
+            if is_ee() and runs_create_request.runs:
+                await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=-len(runs_create_request.runs),
+                )
+            raise
 
         runs_response = EvaluationRunsResponse(
             count=len(runs),
@@ -1902,14 +1924,33 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=1,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="You have reached your monthly evaluations quota.",
+                )
+
         evaluation_create = evaluation_create_request.evaluation
 
-        evaluation = await self.simple_evaluations_service.create(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            evaluation=evaluation_create,
-        )
+        try:
+            evaluation = await self.simple_evaluations_service.create(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                evaluation=evaluation_create,
+            )
+        except Exception:
+            # Internal error after the quota was charged — refund.
+            if is_ee():
+                await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=-1,
+                )
+            raise
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -2179,7 +2220,7 @@ class SimpleQueuesRouter:
 
         self.router.add_api_route(
             "/",
-            self.create_queue,
+            self.create_simple_queue,
             methods=["POST"],
             operation_id="create_simple_queue",
             response_model=SimpleQueueResponse,
@@ -2188,7 +2229,7 @@ class SimpleQueuesRouter:
 
         self.router.add_api_route(
             "/query",
-            self.query_queues,
+            self.query_simple_queues,
             methods=["POST"],
             operation_id="query_simple_queues",
             response_model=SimpleQueuesResponse,
@@ -2197,7 +2238,7 @@ class SimpleQueuesRouter:
 
         self.router.add_api_route(
             "/{queue_id}",
-            self.fetch_queue,
+            self.fetch_simple_queue,
             methods=["GET"],
             operation_id="fetch_simple_queue",
             response_model=SimpleQueueResponse,
@@ -2206,7 +2247,7 @@ class SimpleQueuesRouter:
 
         self.router.add_api_route(
             "/{queue_id}/scenarios/query",
-            self.query_queue_scenarios,
+            self.query_simple_queue_scenarios,
             methods=["POST"],
             operation_id="query_simple_queue_scenarios",
             response_model=SimpleQueueScenariosResponse,
@@ -2215,7 +2256,7 @@ class SimpleQueuesRouter:
 
         self.router.add_api_route(
             "/{queue_id}/traces/",
-            self.add_queue_traces,
+            self.add_simple_queue_traces,
             methods=["POST"],
             operation_id="add_simple_queue_traces",
             response_model=SimpleQueueIdResponse,
@@ -2224,7 +2265,7 @@ class SimpleQueuesRouter:
 
         self.router.add_api_route(
             "/{queue_id}/testcases/",
-            self.add_queue_testcases,
+            self.add_simple_queue_testcases,
             methods=["POST"],
             operation_id="add_simple_queue_testcases",
             response_model=SimpleQueueIdResponse,
@@ -2234,7 +2275,7 @@ class SimpleQueuesRouter:
     # SIMPLE QUEUES -----------------------------------------------------------
 
     @intercept_exceptions()
-    async def create_queue(
+    async def create_simple_queue(
         self,
         request: Request,
         *,
@@ -2248,12 +2289,31 @@ class SimpleQueuesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        queue = await self.simple_queues_service.create(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            queue=queue_create_request.queue,
-        )
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=1,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="You have reached your monthly evaluations quota.",
+                )
+
+        try:
+            queue = await self.simple_queues_service.create(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                queue=queue_create_request.queue,
+            )
+        except Exception:
+            # Internal error after the quota was charged — refund.
+            if is_ee():
+                await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=-1,
+                )
+            raise
 
         return SimpleQueueResponse(
             count=1 if queue else 0,
@@ -2262,7 +2322,7 @@ class SimpleQueuesRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=SimpleQueuesResponse(), exclude=[HTTPException])
-    async def query_queues(
+    async def query_simple_queues(
         self,
         request: Request,
         *,
@@ -2298,7 +2358,7 @@ class SimpleQueuesRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=SimpleQueueResponse(), exclude=[HTTPException])
-    async def fetch_queue(
+    async def fetch_simple_queue(
         self,
         request: Request,
         *,
@@ -2327,7 +2387,7 @@ class SimpleQueuesRouter:
     @suppress_exceptions(
         default=SimpleQueueScenariosResponse(), exclude=[HTTPException]
     )
-    async def query_queue_scenarios(
+    async def query_simple_queue_scenarios(
         self,
         request: Request,
         *,
@@ -2374,7 +2434,7 @@ class SimpleQueuesRouter:
         )
 
     @intercept_exceptions()
-    async def add_queue_traces(
+    async def add_simple_queue_traces(
         self,
         request: Request,
         *,
@@ -2403,8 +2463,8 @@ class SimpleQueuesRouter:
             )
 
         queue_id = await self.simple_queues_service.add_traces(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
+            project_id=UUID(request.state.project_id),  # type: ignore
+            user_id=UUID(request.state.user_id),  # type: ignore
             #
             queue_id=queue_id,
             #
@@ -2417,7 +2477,7 @@ class SimpleQueuesRouter:
         )
 
     @intercept_exceptions()
-    async def add_queue_testcases(
+    async def add_simple_queue_testcases(
         self,
         request: Request,
         *,
@@ -2446,8 +2506,8 @@ class SimpleQueuesRouter:
             )
 
         queue_id = await self.simple_queues_service.add_testcases(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
+            project_id=UUID(request.state.project_id),  # type: ignore
+            user_id=UUID(request.state.user_id),  # type: ignore
             #
             queue_id=queue_id,
             #
