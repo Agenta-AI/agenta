@@ -1,11 +1,10 @@
 {
     "name": "@agenta/oss",
-    "version": "0.99.8",
+    "version": "0.99.9",
     "private": true,
     "engines": {
         "node": "24.x"
     },
-    "packageManager": "pnpm@10.30.0",
     "scripts": {
         "dev": "next dev --turbopack",
         "dev:local": "ENV_FILE=.local.env next dev",
@@ -55,7 +54,7 @@
         "@lexical/selection": "^0.40.0",
         "@lexical/table": "^0.40.0",
         "@lexical/utils": "^0.40.0",
-        "@next/bundle-analyzer": "15.5.15",
+        "@next/bundle-analyzer": "15.5.18",
         "@phosphor-icons/react": "^2.1.10",
         "@reduxjs/toolkit": "^2.8.2",
         "@scalar/openapi-parser": "^0.24.13",
@@ -97,7 +96,7 @@
         "lodash": "^4.17.23",
         "lucide-react": "^0.475.0",
         "motion": "^12.0.0",
-        "next": "15.5.16",
+        "next": "15.5.18",
         "papaparse": "^5.5.3",
         "postcss": "^8.5.10",
         "posthog-js": "^1.223.3",

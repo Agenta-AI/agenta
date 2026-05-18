@@ -3,3 +3,11 @@ packages:
   - 'ee'
   - 'tests'
   - 'packages/*'
+allowBuilds:
+  '@swc/core': true
+  browser-tabs-lock: false
+  core-js: true
+  esbuild: true
+  protobufjs: false
+  sharp: true
+  unrs-resolver: true
