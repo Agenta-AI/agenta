@@ -365,7 +365,6 @@ async def check_project_has_role_or_permission(
         # For non-demo members, check if RBAC is enabled
         # If RBAC is disabled, grant full access (current behavior for paid plans)
         check, _, _ = await check_entitlements(
-            organization_id=project.organization_id,
             key=Flag.RBAC,
         )
 

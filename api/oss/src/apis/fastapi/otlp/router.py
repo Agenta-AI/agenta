@@ -183,11 +183,10 @@ class OTLPRouter:
                 delta = sum(1 for span in spans if span.parent_id is None)
 
                 if delta > 0:
-                    allowed, _, _ = await check_entitlements(
-                        organization_id=UUID(request.state.organization_id),
-                        key=Counter.TRACES,
+                    allowed, _, _ = await check_entitlements(  # type: ignore
+                        key=Counter.TRACES_INGESTED,  # type: ignore
                         delta=delta,
-                        use_cache=True,
+                        cache=True,
                     )
 
                     if not allowed:

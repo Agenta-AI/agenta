@@ -1,7 +1,7 @@
 import uuid_utils.compat as uuid
 
 from sqlalchemy.dialects.postgresql import JSONB, JSON
-from sqlalchemy import Column, String, UUID, TIMESTAMP, func, Integer
+from sqlalchemy import Column, String, UUID, TIMESTAMP, func, Integer, SmallInteger
 
 
 class OrganizationScopeDBA:
@@ -28,6 +28,53 @@ class ProjectScopeDBA:
     project_id = Column(
         UUID(as_uuid=True),
         nullable=False,
+    )
+
+
+class UserScopeDBA:
+    __abstract__ = True
+
+    user_id = Column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
+
+
+class ScopeDBA:
+    __abstract__ = True
+
+    organization_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+    workspace_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+    project_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+    user_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
+
+class PeriodDBA:
+    __abstract__ = True
+
+    year = Column(
+        SmallInteger,
+        nullable=True,
+    )
+    month = Column(
+        SmallInteger,
+        nullable=True,
+    )
+    day = Column(
+        SmallInteger,
+        nullable=True,
     )
 
 

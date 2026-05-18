@@ -1,10 +1,11 @@
-from typing import Union, Optional, Callable
+from datetime import datetime, timezone
+from typing import Union, Optional, Callable, Tuple
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.context import AuthScope, get_auth_scope
 
-from ee.src.utils.billing import compute_billing_period
 from fastapi.responses import JSONResponse
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.entitlements.types import (
@@ -12,24 +13,60 @@ from ee.src.core.entitlements.types import (
     Flag,
     Counter,
     Gauge,
+    Period,
     Plan,
+    Scope,
     ENTITLEMENTS,
 )
 from ee.src.core.meters.service import MetersService
-from ee.src.core.meters.types import MeterDTO
-from ee.src.dbs.postgres.meters.dao import MetersDAO
-from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
+from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod
 
 log = get_module_logger(__name__)
 
-meters_service = MetersService(
-    meters_dao=MetersDAO(),
-)
 
-subscriptions_service = SubscriptionsService(
-    subscriptions_dao=SubscriptionsDAO(),
-    meters_service=meters_service,
-)
+# ---------------------------------------------------------------------------
+# Service injection.
+#
+# `check_entitlements` depends on `MetersService` and `SubscriptionsService`.
+# The composition root (api/ee/src/main.py) builds these once and registers
+# them here at startup. Importing concrete DAOs into this module would
+# create a circular dependency with `ee.src.dbs.postgres.meters.dao`, which
+# is why the wiring lives in the entrypoint, not here.
+# ---------------------------------------------------------------------------
+
+_meters_service_singleton: Optional[MetersService] = None
+_subscriptions_service_singleton: Optional[SubscriptionsService] = None
+
+
+def register_entitlement_services(
+    *,
+    meters_service: MetersService,
+    subscriptions_service: SubscriptionsService,
+) -> None:
+    """Composition-root hook: wire the services this module depends on.
+    Called once from the EE entrypoint at startup, before any handler runs.
+    """
+    global _meters_service_singleton, _subscriptions_service_singleton
+    _meters_service_singleton = meters_service
+    _subscriptions_service_singleton = subscriptions_service
+
+
+def _meters_service() -> MetersService:
+    if _meters_service_singleton is None:
+        raise RuntimeError(
+            "entitlements: MetersService not registered. "
+            "Call register_entitlement_services() from the composition root."
+        )
+    return _meters_service_singleton
+
+
+def _subscriptions_service() -> SubscriptionsService:
+    if _subscriptions_service_singleton is None:
+        raise RuntimeError(
+            "entitlements: SubscriptionsService not registered. "
+            "Call register_entitlement_services() from the composition root."
+        )
+    return _subscriptions_service_singleton
 
 
 class EntitlementsException(Exception):
@@ -57,21 +94,209 @@ def NOT_ENTITLED_RESPONSE(tracker=None) -> JSONResponse:
     )
 
 
+def _scope_from(
+    auth_scope: AuthScope,
+    scope: Optional[Scope],
+) -> MeterScope:
+    """Project a fully-populated `AuthScope` down to a `MeterScope` at the
+    granularity selected by `scope`.
+
+    Dimensions below the selected granularity are nulled out — meter rows
+    at a given granularity must not carry coordinates below their declared
+    level (a workspace-granularity meter row has no `project_id` or
+    `user_id`).
+
+    `scope=None` is treated as `Scope.ORGANIZATION` (the safest default).
+    """
+
+    if scope is None or scope == Scope.ORGANIZATION:
+        return MeterScope(
+            organization_id=auth_scope.organization_id,
+        )
+
+    if scope == Scope.WORKSPACE:
+        return MeterScope(
+            organization_id=auth_scope.organization_id,
+            workspace_id=auth_scope.workspace_id,
+        )
+
+    if scope == Scope.PROJECT:
+        return MeterScope(
+            organization_id=auth_scope.organization_id,
+            workspace_id=auth_scope.workspace_id,
+            project_id=auth_scope.project_id,
+        )
+
+    if scope == Scope.USER:
+        return MeterScope(
+            organization_id=auth_scope.organization_id,
+            workspace_id=auth_scope.workspace_id,
+            project_id=auth_scope.project_id,
+            user_id=auth_scope.user_id,
+        )
+
+    return MeterScope(
+        organization_id=auth_scope.organization_id,
+    )
+
+
+def scope_from(
+    *,
+    scope: Optional[Scope] = None,
+    organization_id: Optional[UUID] = None,
+) -> MeterScope:
+    """Build a `MeterScope` from one of several sources. Exactly one
+    keyword must be provided:
+
+      - `scope=Scope.X`: project the ambient `AuthScope` (auth ContextVar)
+        down to granularity X. Raises `AuthContextMissing` if no auth
+        context is set. Used by HTTP-bound callers (handlers, soft-check
+        helpers).
+
+      - `organization_id=UUID(...)`: minimal org-only `MeterScope`. Used by
+        bootstrap operations and background workers that target a specific
+        org without an ambient request context.
+    """
+
+    if scope is not None and organization_id is None:
+        return _scope_from(get_auth_scope(), scope)
+
+    if organization_id is not None and scope is None:
+        return MeterScope(
+            organization_id=organization_id,
+        )
+
+    raise ValueError(
+        "scope_from() requires exactly one source keyword "
+        "(`scope` or `organization_id`)"
+    )
+
+
+def monthly_period_from(
+    *,
+    now: Optional[datetime] = None,
+    anchor: Optional[int] = None,
+) -> Tuple[int, int]:
+    """Compute the current `(year, month)` MONTHLY billing window, honoring
+    a Stripe-style anchor day.
+
+    Args:
+        now: The current datetime (defaults to utcnow). Must be timezone-aware.
+        anchor: The anchor day of the month (1-31). `None`/`0` means
+            "natural calendar month".
+
+    Returns:
+        Tuple of (year, month).
+    """
+
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    if not anchor or now.day < anchor:
+        return now.year, now.month
+
+    # On or after the anchor — advance to the next month.
+    if now.month == 12:
+        return now.year + 1, 1
+
+    return now.year, now.month + 1
+
+
+def period_from(
+    *,
+    period: Optional[Period] = None,
+    anchor: Optional[int] = None,
+) -> MeterPeriod:
+    """Build a `MeterPeriod` for the current moment at the requested
+    granularity.
+
+      - `period=Period.X`: the granularity. `None` returns an empty
+        `MeterPeriod` (non-periodic gauge).
+      - `anchor=N` (optional, only meaningful with `Period.MONTHLY`): honor
+        a Stripe-style monthly billing anchor (e.g. period rolls over on
+        the 17th rather than the 1st).
+    """
+
+    if period is None:
+        return MeterPeriod()
+
+    now = datetime.now(timezone.utc)
+
+    if period == Period.YEARLY:
+        return MeterPeriod(year=now.year)
+
+    if period == Period.MONTHLY:
+        # MONTHLY is the only granularity that honors a billing anchor.
+        year, month = monthly_period_from(now=now, anchor=anchor)
+        return MeterPeriod(year=year, month=month)
+
+    if period == Period.DAILY:
+        return MeterPeriod(year=now.year, month=now.month, day=now.day)
+
+    return MeterPeriod()
+
+
 async def check_entitlements(
-    organization_id: UUID,
+    *,
     key: Union[Flag, Counter, Gauge],
     delta: Optional[int] = None,
-    # soft-check mode
-    use_cache: Optional[bool] = False,
+    # soft-check mode: True = Redis-cached read, never writes DB.
+    cache: Optional[bool] = False,
+    # `scope` and `period` are projected MeterScope / MeterPeriod values.
+    # If omitted, the function builds defaults using the helpers below:
+    #   - scope:  scope_from(scope=quota.scope)  [ambient]
+    #   - period: period_from(period=quota.period, anchor=anchor)
+    # Callers without an ambient AuthScope (bootstrap, background workers
+    # iterating over orgs) MUST pass `scope=` explicitly.
+    scope: Optional[MeterScope] = None,
+    period: Optional[MeterPeriod] = None,
 ) -> tuple[bool, Optional[MeterDTO], Optional[Callable]]:
     """
     Checks entitlements for flags, counters, or gauges.
-    - If `use_cache=True`, performs a soft-check:
+    - If `cache=True`, performs a soft-check:
         1. Tries Redis cached value first.
         2. Falls back to DB fetch if cache is cold.
         3. NEVER writes to DB.
     - Otherwise, performs a full atomic adjust() in DB.
+
+    Error policy:
+    - `EntitlementsException` (config / programming bugs — invalid key,
+      missing plan, no subscription) propagates. These are not transient.
+    - All other exceptions (Redis, DB, network) are caught and the call
+      fails open: returns `(True, None, None)`. A meter-side glitch must
+      never block a request — callers can rely on that.
     """
+    try:
+        return await _check_entitlements(
+            key=key,
+            delta=delta,
+            cache=cache,
+            scope=scope,
+            period=period,
+        )
+    except EntitlementsException:
+        raise
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning("[entitlements] check failed; failing open", exc_info=True)
+        return True, None, None
+
+
+async def _check_entitlements(
+    *,
+    key: Union[Flag, Counter, Gauge],
+    delta: Optional[int],
+    cache: Optional[bool],
+    scope: Optional[MeterScope],
+    period: Optional[MeterPeriod],
+) -> tuple[bool, Optional[MeterDTO], Optional[Callable]]:
+    # Identity resolution: derive organization_id from the caller-provided
+    # scope when present, otherwise from the ambient AuthScope. This is
+    # needed before the quota lookup (we need to know the org to load its
+    # subscription).
+    if scope is not None:
+        organization_id = scope.organization_id
+    else:
+        organization_id = get_auth_scope().organization_id
     # -------------------------------------------------------------- #
     # 1. Parse key type (Flag / Counter / Gauge)
     # -------------------------------------------------------------- #
@@ -111,11 +336,11 @@ async def check_entitlements(
     )
 
     if subscription_data is None:
-        subscription = await subscriptions_service.read(
+        subscription = await _subscriptions_service().read(
             organization_id=str(organization_id),
         )
 
-        if not subscription:
+        if not subscription or subscription.plan is None:
             raise EntitlementsException(
                 f"No subscription found for organization [{organization_id}]"
             )
@@ -176,19 +401,32 @@ async def check_entitlements(
     if not quota:
         raise EntitlementsException(f"No quota found for key [{key}] in plan [{plan}]")
 
-    # Compute current year/month based on anchor
-    year, month = compute_billing_period(anchor=anchor)
-
+    # Fall back to helpers for the ambient HTTP-request case when the
+    # caller did not pass explicit values.
+    _scope: MeterScope = (
+        scope
+        if scope is not None
+        else scope_from(
+            scope=quota.scope,
+        )
+    )
+    _period: MeterPeriod = (
+        period
+        if period is not None
+        else period_from(
+            period=quota.period,
+            anchor=anchor,
+        )
+    )
     # -------------------------------------------------------------- #
     # 5. Soft-check mode (Layer 1)
     # -------------------------------------------------------------- #
-    if use_cache:
-        # 5.1. Try Redis cache first
+    if cache:
+        # 5.1. Try Redis cache first — keyed on the full identity.
         cache_key = {
-            "organization_id": str(organization_id),
+            "scope": _scope.model_dump(mode="json"),
+            "period": _period.model_dump(mode="json"),
             "key": key.value,
-            "year": str(year) if quota.monthly else "-",
-            "month": str(month) if quota.monthly else "-",
         }
 
         cached_value = await get_cache(
@@ -200,12 +438,11 @@ async def check_entitlements(
             current_value = cached_value
 
         else:
-            # 5.2. Fallback to DB fetch for current billing period only
-            meters = await meters_service.fetch(
-                organization_id=str(organization_id),
+            # 5.2. Fallback to DB fetch for current bucket only
+            meters = await _meters_service().fetch(
+                scope=_scope,
                 key=key,
-                year=year,
-                month=month,
+                period=_period,
             )
 
             current_value = (meters[0].value if meters else 0) or 0
@@ -232,22 +469,24 @@ async def check_entitlements(
     # -------------------------------------------------------------- #
 
     meter = MeterDTO(
-        organization_id=organization_id,
-        key=key,
+        organization_id=_scope.organization_id,
+        workspace_id=_scope.workspace_id,
+        project_id=_scope.project_id,
+        user_id=_scope.user_id,
+        key=key,  # type: ignore[arg-type]
         delta=delta,
     )
 
-    check, meter, _ = await meters_service.adjust(
+    check, meter, _ = await _meters_service().adjust(
         meter=meter,
         quota=quota,
         anchor=anchor,
     )
 
     cache_key = {
-        "organization_id": str(organization_id),
+        "scope": _scope.model_dump(mode="json"),
+        "period": _period.model_dump(mode="json"),
         "key": key.value,
-        "year": str(year) if quota.monthly else "-",
-        "month": str(month) if quota.monthly else "-",
     }
 
     if check:
@@ -271,7 +510,15 @@ async def check_entitlements(
 
     # TODO: remove this line
     log.info(
-        f"[METERS] adjusting: {organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'allow' if check else 'deny '} | {meter.key}: {meter.value - meter.synced} [{meter.value}]"
+        f"[METERS] adjusting: {_scope.organization_id} | "
+        f"{_scope.workspace_id} | "
+        f"{_scope.project_id} | "
+        f"{_scope.user_id} | "
+        f"{(meter.year if meter.year else '    ')}-"
+        f"{(meter.month if meter.month else '  ')}-"
+        f"{(meter.day if meter.day else '  ')} | "
+        f"{'allow' if check else 'deny '} | "
+        f"{meter.key}: {(meter.value or 0) - (meter.synced or 0)} [{meter.value}]"
     )
 
     return check is True, meter, _

@@ -1,4 +1,5 @@
 from typing import Any, Dict
+from uuid import UUID
 from json import loads, decoder
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
@@ -14,7 +15,7 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import acquire_lock, release_lock, renew_lock
 from oss.src.utils.env import env
 
-from ee.src.utils.billing import compute_billing_period
+from ee.src.utils.entitlements import period_from, scope_from
 
 from oss.src.services.db_manager import (
     get_user_with_id,
@@ -24,7 +25,14 @@ from oss.src.services.db_manager import (
 from ee.src.services import db_manager_ee
 from ee.src.utils.permissions import check_action_access
 from ee.src.models.shared_models import Permission
-from ee.src.core.entitlements.types import ENTITLEMENTS, CATALOG, Tracker, Quota
+from ee.src.core.entitlements.types import (
+    ENTITLEMENTS,
+    CATALOG,
+    Tracker,
+    Quota,
+    Period,
+    Scope,
+)
 from ee.src.core.subscriptions.types import Event, Plan
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingService
@@ -853,8 +861,6 @@ class BillingRouter:
         self,
         organization_id: str,
     ):
-        now = datetime.now(timezone.utc)
-
         subscription = await self.subscription_service.read(
             organization_id=organization_id,
         )
@@ -866,19 +872,45 @@ class BillingRouter:
             )
 
         plan = subscription.plan
-        anchor_day = subscription.anchor
-        anchor_year, anchor_month = compute_billing_period(now=now, anchor=anchor_day)
+
+        if not plan:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"status": "error", "message": "Plan not found"},
+            )
+
+        _anchor_period = period_from(period=Period.MONTHLY, anchor=subscription.anchor)
+
+        (
+            anchor_year,
+            anchor_month,
+        ) = (
+            _anchor_period.year,
+            _anchor_period.month,
+        )
 
         entitlements = ENTITLEMENTS.get(plan)
 
         if not entitlements:
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
-                content={"status": "error", "message": "Plan not found"},
+                content={"status": "error", "message": "Entitlements not found"},
             )
 
         meters = await self.meters_service.fetch(
-            organization_id=organization_id,
+            scope=scope_from(organization_id=UUID(organization_id)),
+        )
+
+        _today_period = period_from(period=Period.DAILY)
+
+        (
+            _today_year,
+            _today_month,
+            _today_day,
+        ) = (
+            _today_period.year,
+            _today_period.month,
+            _today_period.day,
         )
 
         usage = {}
@@ -888,20 +920,62 @@ class BillingRouter:
                 quota: Quota = entitlements[tracker][key]
                 value = 0
 
-                for meter in meters:
-                    if meter.key == key:
-                        # Gauges use month=0 (non-periodic), always match
-                        if meter.month == 0:
+                if quota.period is None:
+                    # Gauges: non-periodic, year/month/day all None.
+                    for meter in meters:
+                        if (
+                            meter.key == key
+                            and meter.year is None
+                            and meter.month is None
+                        ):
                             value = meter.value
-                        # Counters: match both year and month for the current billing period
-                        elif meter.year == anchor_year and meter.month == anchor_month:
+                            break
+                elif quota.period == Period.MONTHLY:
+                    for meter in meters:
+                        if (
+                            meter.key == key
+                            and meter.year == anchor_year
+                            and meter.month == anchor_month
+                            and meter.day is None
+                        ):
                             value = meter.value
+                            break
+                elif quota.period == Period.DAILY:
+                    # DAILY counters are typically declared at finer-than-org
+                    # scope (e.g. `TRACES_RETRIEVED` is `scope=Scope.USER`),
+                    # which means the DAO persists one row per user/day. The
+                    # billing usage card shows an org-level rollup, so we sum
+                    # every matching row for today instead of breaking on the
+                    # first match the way the MONTHLY/YEARLY branches do.
+                    for meter in meters:
+                        if (
+                            meter.key == key
+                            and meter.year == _today_year
+                            and meter.month == _today_month
+                            and meter.day == _today_day
+                        ):
+                            value += meter.value or 0
+                elif quota.period == Period.YEARLY:
+                    for meter in meters:
+                        if (
+                            meter.key == key
+                            and meter.year == _today_year
+                            and meter.month is None
+                            and meter.day is None
+                        ):
+                            value = meter.value
+                            break
 
                 usage[key] = {
                     "value": value,
                     "limit": quota.limit,
                     "free": quota.free,
-                    "monthly": quota.monthly is True,
+                    "period": quota.period.value if quota.period else None,
+                    "scope": (
+                        quota.scope.value
+                        if quota.scope is not None
+                        else Scope.ORGANIZATION.value
+                    ),
                     "strict": quota.strict is True,
                 }
 

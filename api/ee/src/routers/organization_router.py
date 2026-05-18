@@ -184,7 +184,6 @@ async def update_organization(
 
         if payload.flags is not None:
             check, _, _ = await check_entitlements(
-                organization_id=organization_id,
                 key=Flag.ACCESS,
             )
             if not check:

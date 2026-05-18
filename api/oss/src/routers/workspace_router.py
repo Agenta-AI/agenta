@@ -132,9 +132,8 @@ async def remove_user_from_workspace(
         skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
         if not skip_meter:
-            await check_entitlements(
-                organization_id=request.state.organization_id,
-                key=Gauge.USERS,
+            await check_entitlements(  # type: ignore
+                key=Gauge.USERS,  # type: ignore
                 delta=-1,
             )
 

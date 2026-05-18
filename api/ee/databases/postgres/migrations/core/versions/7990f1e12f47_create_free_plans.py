@@ -29,6 +29,12 @@ from ee.src.dbs.postgres.meters.dbes import MeterDBE
 from ee.src.core.subscriptions.types import FREE_PLAN
 from ee.src.core.entitlements.types import Gauge
 
+# Historical reference: `Gauge.APPLICATIONS` was removed from the Python catalog
+# in the meters reshape (see migration that follows). The literal value is
+# preserved here so this historical migration replays correctly on fresh DBs;
+# the dropped rows are deleted again by the meters reshape migration.
+_LEGACY_APPLICATIONS_KEY = "APPLICATIONS"
+
 stripe.api_key = env.stripe.api_key
 
 log = get_module_logger(__name__)
@@ -278,62 +284,35 @@ def upgrade() -> None:
                 # log.info(" - ITERATE OVER PROJECTS: %s ms", int(xdt * 1000))
 
                 # xti = time()
-                # --> CHECK IF APPLICATIONS METER EXISTS
-                key = Gauge.APPLICATIONS
-                # value = value
-                synced = 0
-                # organization_id = organization_id
-                year = 0
-                month = 0
+                # --> CREATE OR UPDATE APPLICATIONS METER (legacy)
+                # NOTE: `APPLICATIONS` was removed from the Meters enum in a
+                # later migration. We use raw SQL here so module import does
+                # not depend on the Python enum value still being present.
+                from sqlalchemy import text as _sa_text
 
-                applications_meter_exists = (
-                    session.execute(
-                        select(MeterDBE).where(
-                            MeterDBE.organization_id == organization_id,
-                            MeterDBE.key == key,
-                            MeterDBE.year == year,
-                            MeterDBE.month == month,
+                session.execute(
+                    _sa_text(
+                        """
+                        INSERT INTO meters (
+                            organization_id, key, year, month, value, synced
+                        ) VALUES (
+                            :organization_id,
+                            CAST(:key AS meters_type),
+                            :year, :month, :value, :synced
                         )
-                    )
-                    .scalars()
-                    .first()
+                        ON CONFLICT (organization_id, key, year, month)
+                        DO UPDATE SET value = EXCLUDED.value, synced = EXCLUDED.synced
+                        """
+                    ),
+                    {
+                        "organization_id": organization_id,
+                        "key": _LEGACY_APPLICATIONS_KEY,
+                        "year": 0,
+                        "month": 0,
+                        "value": value,
+                        "synced": 0,
+                    },
                 )
-                # <-- CHECK IF APPLICATIONS METER EXISTS
-                # xtf = time()
-                # xdt = xtf - xti
-                # log.info(
-                #     " - CHECK IF APPLICATIONS METER EXISTS: %s ms", int(xdt * 1000)
-                # )
-
-                # xti = time()
-                # --> CREATE OR UPDATE APPLICATIONS METER
-                if not applications_meter_exists:
-                    query = insert(MeterDBE).values(
-                        organization_id=organization_id,
-                        key=key,
-                        year=year,
-                        month=month,
-                        value=value,
-                        synced=synced,
-                    )
-
-                    session.execute(query)
-                else:
-                    query = (
-                        update(MeterDBE)
-                        .where(
-                            MeterDBE.organization_id == organization_id,
-                            MeterDBE.key == key,
-                            MeterDBE.year == year,
-                            MeterDBE.month == month,
-                        )
-                        .values(
-                            value=value,
-                            synced=synced,
-                        )
-                    )
-
-                    session.execute(query)
                 # <-- CREATE OR UPDATE APPLICATIONS METER
                 # xtf = time()
                 # xdt = xtf - xti
