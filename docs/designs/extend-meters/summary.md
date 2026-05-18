@@ -34,4 +34,28 @@ The catalog cleanup drops two dead `Counter` values (`EVALUATORS`, `ANNOTATIONS`
 
 **Shared DBAs.** The composed `ScopeDBA` in `oss.src.dbs.postgres.shared.dbas` (only consumer is `MeterDBA`) is relaxed to `nullable=True` for all four scope columns. The individual `OrganizationScopeDBA` / `WorkspaceScopeDBA` / `ProjectScopeDBA` / `UserScopeDBA` mixins keep `nullable=False` — other tenant-bound tables continue to require their scope.
 
-**Tests and docs.** Four unit-test files in `api/ee/tests/pytest/unit/` pin the new helpers: `test_compute_meter_id.py` (determinism, None-means-not-applicable, string/enum key equivalence, scope and period hierarchy validation, calendar rejection), `test_period_from.py` (`Period.None`/`YEARLY`/`MONTHLY`/`DAILY` shape, anchor honored on MONTHLY with year rollover, anchor ignored on DAILY), `test_scope_from.py` (exclusivity contract — including a regression net that `scope_from(scope=None)` raises so the silent fail-open path it caused can't come back, plus ambient projection at every granularity), and `test_meters_dao_strict_soft.py` (pins `check`'s always-strict `current + delta <= limit` rule across delta sign, missing row, and `limit=None`; pins `adjust`'s strict-vs-non-strict predicate divergence by compiling the upsert statement and string-matching the WHERE clause — strict must emit `greatest(value + delta, 0) <= limit`, non-strict must emit `value < limit` without the delta term — plus the full predictable-overshoot truth table covering both modes: `delta > limit` short-circuits in Python without a DB call; `current=limit, delta>0` denies in both modes; `current<limit, current+delta>limit` denies in strict and allows in non-strict; `current+delta=limit` allows in both modes). The manual exhaustive billing-period grid in `tests/manual/test_billing_period.py` was migrated from the deleted `compute_billing_period` to the new `monthly_period_from` (2-tuple return). `docs/designs/extend-meters/` carries the design story: `research.md` and `gap.md` as historical baselines, `proposal.md` and `tasks.md` describing what shipped, and `findings.md` with the deep-scan + PR-review results (48 review threads from six passes — 5× Copilot and 1× CodeRabbit — covering 37 distinct findings, all closed and resolved on GitHub). The full test suite (`api/`, `services/`, `sdks/python/`) runs green: 1908 passing (1053 api + 143 services + 712 sdk), 9 unrelated skips, 23 xfails for live-LLM / live-webhook / deprecated-SDK fixtures.
+## Tests
+
+|          | acceptance     | integration    | unit            |
+|----------|----------------|----------------|-----------------|
+| web      | +0 / ~0 / -0   | +0 / ~0 / -0   | +0  / ~0  / -0  |
+| services | +0 / ~0 / -0   | +0 / ~0 / -0   | +0  / ~0  / -0  |
+| api      | +0 / ~3 / -0   | +0 / ~0 / -0   | +55 / ~29 / -0  |
+| sdk      | +0 / ~0 / -0   | +0 / ~0 / -0   | +0  / ~0  / -0  |
+
+## Migrations
+
+Yes. **Schema migration** and **data migration** in a single transactional Alembic revision `9d3e8f0a1b2c_reshape_meters_table`:
+
+- Schema: reshapes `meters` (new `meter_id` PK, new `workspace_id` / `project_id` / `user_id` / `day` columns, relaxes `organization_id` / `year` / `month` to nullable, rebuilds indexes).
+- Data: deletes `APPLICATIONS` rows, remaps `TRACES` / `CREDITS` / `EVALUATIONS` rows to `TRACES_INGESTED` / `CREDITS_CONSUMED` / `EVALUATIONS_RUN`, backfills `meter_id` per row using the runtime canonicalizer, promotes `(year=0, month=0)` gauge sentinels to real `NULL`s.
+
+The historical migration `7990f1e12f47_create_free_plans.py` was also patched (raw-SQL replay) so a fresh-DB upgrade still works without the now-removed `Gauge.APPLICATIONS` Python enum member.
+
+## Env vars
+
+**No env vars added, edited, or removed.** Operators have nothing to change in their `.env` for this PR.
+
+## Tests and docs
+
+Four unit-test files in `api/ee/tests/pytest/unit/` pin the new helpers: `test_compute_meter_id.py` (determinism, None-means-not-applicable, string/enum key equivalence, scope and period hierarchy validation, calendar rejection), `test_period_from.py` (`Period.None`/`YEARLY`/`MONTHLY`/`DAILY` shape, anchor honored on MONTHLY with year rollover, anchor ignored on DAILY), `test_scope_from.py` (exclusivity contract — including a regression net that `scope_from(scope=None)` raises so the silent fail-open path it caused can't come back, plus ambient projection at every granularity), and `test_meters_dao_strict_soft.py` (pins `check`'s always-strict `current + delta <= limit` rule across delta sign, missing row, and `limit=None`; pins `adjust`'s strict-vs-non-strict predicate divergence by compiling the upsert statement and string-matching the WHERE clause — strict must emit `greatest(value + delta, 0) <= limit`, non-strict must emit `value < limit` without the delta term — plus the full predictable-overshoot truth table covering both modes: `delta > limit` short-circuits in Python without a DB call; `current=limit, delta>0` denies in both modes; `current<limit, current+delta>limit` denies in strict and allows in non-strict; `current+delta=limit` allows in both modes). The manual exhaustive billing-period grid in `tests/manual/test_billing_period.py` was migrated from the deleted `compute_billing_period` to the new `monthly_period_from` (2-tuple return). `docs/designs/extend-meters/` carries the design story: `research.md` and `gap.md` as historical baselines, `proposal.md` and `tasks.md` describing what shipped, and `findings.md` with the deep-scan + PR-review results (48 review threads from six passes — 5× Copilot and 1× CodeRabbit — covering 37 distinct findings, all closed and resolved on GitHub). The full test suite (`api/`, `services/`, `sdks/python/`) runs green: 1908 passing (1053 api + 143 services + 712 sdk), 9 unrelated skips, 23 xfails for live-LLM / live-webhook / deprecated-SDK fixtures.
