@@ -63,14 +63,14 @@ jobs:
 
           echo "Bumping web"
           cd web
-          current_version=$(pnpm pkg get version | tr -d '"')
+          current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
           pnpm pkg set version="$new_version"
           WEB_VERSION=$new_version
 
           echo "Bumping web/ee"
           cd ee
-          current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
+          current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
           pnpm pkg set version="$new_version"
           EE_VERSION=$new_version
@@ -78,7 +78,7 @@ jobs:
 
           echo "Bumping web/oss"
           cd oss
-          current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
+          current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
           pnpm pkg set version="$new_version"
           OSS_VERSION=$new_version
@@ -86,7 +86,7 @@ jobs:
 
           echo "Bumping web/packages/agenta-api-client"
           cd packages/agenta-api-client
-          current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
+          current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
           pnpm pkg set version="$new_version"
           TS_CLIENT_VERSION=$new_version

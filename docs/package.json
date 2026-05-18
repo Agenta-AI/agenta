@@ -2,7 +2,7 @@
   "name": "doc",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@10.30.0",
+  "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start --port 5000 --host 0.0.0.0 --config docusaurus.config.dev.ts",
