@@ -7,11 +7,20 @@ on:
   schedule:
     # Run daily at 06:00 UTC
     - cron: "0 6 * * *"
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   update-api-docs:
     name: Update API reference docs
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/'))
     runs-on: ubuntu-latest
 
     steps:

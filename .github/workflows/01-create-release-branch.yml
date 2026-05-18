@@ -61,12 +61,14 @@ jobs:
 
           npm install semver -g
 
+          echo "Bumping web"
           cd web
           current_version=$(pnpm pkg get version | tr -d '"')
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
           pnpm pkg set version="$new_version"
           WEB_VERSION=$new_version
 
+          echo "Bumping web/ee"
           cd ee
           current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
@@ -74,6 +76,7 @@ jobs:
           EE_VERSION=$new_version
           cd ..
 
+          echo "Bumping web/oss"
           cd oss
           current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
@@ -81,6 +84,7 @@ jobs:
           OSS_VERSION=$new_version
           cd ..
 
+          echo "Bumping web/packages/agenta-api-client"
           cd packages/agenta-api-client
           current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
@@ -90,20 +94,24 @@ jobs:
 
           cd ..
 
+          echo "Bumping clients/python"
           cd clients/python
-          PY_CLIENT_VERSION=$(uv version --bump "$BUMP_TYPE" --short --no-sync)
+          PY_CLIENT_VERSION=$(uv version --bump "$BUMP_TYPE" --short --frozen)
           cd ../..
 
+          echo "Bumping sdks/python"
           cd sdks/python
-          PY_SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short --no-sync)
+          PY_SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short --frozen)
           cd ../..
 
+          echo "Bumping api"
           cd api
-          API_VERSION=$(uv version --bump "$BUMP_TYPE" --short --no-sync)
+          API_VERSION=$(uv version --bump "$BUMP_TYPE" --short --frozen)
           cd ..
 
+          echo "Bumping services"
           cd services
-          SERVICES_VERSION=$(uv version --bump "$BUMP_TYPE" --short --no-sync)
+          SERVICES_VERSION=$(uv version --bump "$BUMP_TYPE" --short --frozen)
           cd ..
 
           WEB_VERSION=$(echo "$WEB_VERSION" | tr -d '[:space:]')
