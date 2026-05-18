@@ -1,9 +1,7 @@
-export type Plan =
-    | "cloud_v0_hobby"
-    | "cloud_v0_pro"
-    | "cloud_v0_business"
-    | "cloud_v0_enterprise"
-    | "self_hosted_enterprise"
+// Plan slugs are dynamic at runtime (env-overridable via AGENTA_ACCESS_PLANS).
+// API responses carry plain strings; the `DefaultPlan` enum in `@/oss/lib/Types`
+// holds the known default slug constants for use in conditional checks.
+export type Plan = string
 
 export interface SubscriptionType {
     plan: Plan
@@ -12,19 +10,24 @@ export interface SubscriptionType {
     free_trial: boolean
 }
 
-interface UsageKeyType {
+export type UsagePeriod = "yearly" | "monthly" | "daily" | null
+export type UsageScope = "organization" | "workspace" | "project" | "user"
+
+export interface UsageKeyType {
     value: number
     limit: number | null
     free: number
-    monthly: boolean
+    period?: UsagePeriod
+    scope?: UsageScope
     strict: boolean
 }
 
 export interface DataUsageType {
-    traces: UsageKeyType
-    users: UsageKeyType
-    prompts: UsageKeyType
-    jobs: UsageKeyType
+    traces_ingested?: UsageKeyType
+    traces_retrieved?: UsageKeyType
+    credits_consumed?: UsageKeyType
+    users?: UsageKeyType
+    [key: string]: UsageKeyType | undefined
 }
 
 interface PriceInfo {

@@ -135,7 +135,7 @@ export class BillingClient {
      *
      * @example
      *     await client.billing.createCheckout({
-     *         plan: "cloud_v0_hobby",
+     *         plan: "plan",
      *         success_url: "success_url"
      *     })
      */
@@ -258,7 +258,7 @@ export class BillingClient {
      *
      * @example
      *     await client.billing.switchPlans({
-     *         plan: "cloud_v0_hobby"
+     *         plan: "plan"
      *     })
      */
     public switchPlans(

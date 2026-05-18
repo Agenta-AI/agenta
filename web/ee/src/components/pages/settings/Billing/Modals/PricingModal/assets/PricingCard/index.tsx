@@ -2,7 +2,7 @@ import {memo, useMemo} from "react"
 
 import {Card, Button, Typography} from "antd"
 
-import {Plan} from "@/oss/lib/Types"
+import {DefaultPlan} from "@/oss/lib/Types"
 
 import {PricingCardProps} from "../types"
 
@@ -17,11 +17,11 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
             return true
         }
 
-        if (currentPlan?.plan === Plan.Enterprise) {
+        if (currentPlan?.plan === DefaultPlan.Enterprise) {
             return true
         }
 
-        if (currentPlan?.plan === Plan.Business && plan.plan === Plan.Pro) {
+        if (currentPlan?.plan === DefaultPlan.Business && plan.plan === DefaultPlan.Pro) {
             return true
         }
 
@@ -45,12 +45,14 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
                     <Button
                         disabled={isDisabled}
                         className="w-full"
-                        type={currentPlan?.plan == Plan.Enterprise ? "link" : "primary"}
+                        type={currentPlan?.plan == DefaultPlan.Enterprise ? "link" : "primary"}
                         onClick={() =>
                             window.open("https://cal.com/mahmoud-mabrouk-ogzgey/demo", "_blank")
                         }
                     >
-                        {currentPlan?.plan == Plan.Enterprise ? "Current plan" : "Talk to us"}
+                        {currentPlan?.plan == DefaultPlan.Enterprise
+                            ? "Current plan"
+                            : "Talk to us"}
                     </Button>
                 ) : (
                     <Button
@@ -61,14 +63,14 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
                         type={
                             currentPlan?.plan === plan.plan
                                 ? "link"
-                                : plan.plan === Plan.Hobby
+                                : plan.plan === DefaultPlan.Hobby
                                   ? "text"
                                   : "default"
                         }
                     >
                         {currentPlan?.plan === plan.plan
                             ? "Current plan"
-                            : plan.plan === Plan.Hobby
+                            : plan.plan === DefaultPlan.Hobby
                               ? "Move to Hobby"
                               : `Upgrade to ${plan.title}`}
                     </Button>

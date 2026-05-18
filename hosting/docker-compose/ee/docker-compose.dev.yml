@@ -299,6 +299,7 @@ services:
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
             - ../../../api/ee/src/crons/meters.sh:/meters.sh
             - ../../../api/ee/src/crons/spans.sh:/spans.sh
+            - ../../../api/ee/src/crons/events.sh:/events.sh
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}

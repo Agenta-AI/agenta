@@ -86,7 +86,9 @@ try:
     )
     from ee.src.core.subscriptions.types import (  # type: ignore[import]
         get_default_plan as _ee_get_default_plan,
-        Plan as _EePlan,
+    )
+    from ee.src.core.entitlements.controls import (  # type: ignore[import]
+        get_plans as _ee_get_plans,
     )
     from ee.src.core.meters.service import MetersService as _EeMetersService  # type: ignore[import]
     from ee.src.dbs.postgres.meters.dao import MetersDAO as _EeMetersDAO  # type: ignore[import]
@@ -613,18 +615,19 @@ class PlatformAdminAccountsService:
             if is_ee():
                 try:
                     sub_create = (dto.subscriptions or {}).get(org_ref)
-                    plan = (
-                        _EePlan(sub_create.plan)
-                        if sub_create
-                        else _ee_get_default_plan()
-                    )
+                    plan = sub_create.plan if sub_create else _ee_get_default_plan()  # type: ignore
+                    if plan not in _ee_get_plans():  # type: ignore
+                        raise AdminValidationError(
+                            f"Subscription plan '{plan}' for organization "
+                            f"'{org_ref}' is not in the effective plan set."
+                        )
                     sub = await _ee_subscription_service.start_plan(
                         organization_id=str(org_db.id),
                         plan=plan,
                     )
                     account.subscriptions = account.subscriptions or {}
                     account.subscriptions[org_ref] = AdminSubscriptionRead(
-                        plan=plan.value,
+                        plan=plan,
                         active=sub.active if sub else None,
                     )
                 except Exception as exc:

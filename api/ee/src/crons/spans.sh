@@ -14,7 +14,7 @@ RESPONSE=$(curl \
     -w "\nHTTP_STATUS:%{http_code}\n" \
     -X POST \
     -H "Authorization: Access ${AGENTA_AUTH_KEY}" \
-    "http://api:8000/admin/billing/usage/flush" 2>&1) || CURL_EXIT=$?
+    "http://api:8000/admin/spans/flush" 2>&1) || CURL_EXIT=$?
 
 if [ -n "${CURL_EXIT:-}" ]; then
     echo "❌ CURL failed with exit code: ${CURL_EXIT}"

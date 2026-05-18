@@ -5,7 +5,7 @@ import {Spin, Typography} from "antd"
 
 import useURL from "@/oss/hooks/useURL"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
-import {Plan} from "@/oss/lib/Types"
+import {DefaultPlan} from "@/oss/lib/Types"
 import {
     checkoutNewSubscription,
     switchSubscription,
@@ -34,10 +34,10 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
                 // 2. subscription-pan is cloud_v0_hobby then we trigger the checkout endpoint
                 // 3. if the user can custom plan like cloud_v0_business then we trigger the switch endpoint
 
-                if (plan.plan === Plan.Hobby && subscription?.plan !== Plan.Hobby) {
+                if (plan.plan === DefaultPlan.Hobby && subscription?.plan !== DefaultPlan.Hobby) {
                     onCancelSubscription()
                     return
-                } else if (!subscription || subscription?.plan === Plan.Hobby) {
+                } else if (!subscription || subscription?.plan === DefaultPlan.Hobby) {
                     const data = await checkoutNewSubscription({
                         plan: plan.plan,
                         success_url: `${getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")}${projectURL || ""}/settings?tab=billing`,

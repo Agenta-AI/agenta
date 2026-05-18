@@ -1,6 +1,6 @@
 import os
 import hashlib
-from uuid import getnode
+from uuid import UUID, getnode, uuid5, NAMESPACE_DNS
 from json import loads
 from urllib.parse import urlparse
 
@@ -374,23 +374,89 @@ class StripeConfig(BaseModel):
     )
     webhook_secret: str | None = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-    pricing: dict | None = None
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        try:
-            self.pricing = loads(
-                os.getenv("STRIPE_PRICING") or os.getenv("AGENTA_PRICING") or "{}"
-            )
-        except Exception:
-            self.pricing = {}
-
     model_config = ConfigDict(extra="ignore")
 
     @property
     def enabled(self) -> bool:
         """Stripe enabled if API key present"""
         return bool(self.api_key)
+
+
+def _load_json_env_raw(name: str) -> object | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        return loads(raw)
+    except Exception as e:
+        raise ValueError(f"{name} is not valid JSON: {e}") from e
+
+
+def _load_json_env_dict(name: str) -> dict | None:
+    """Parse `name` as a JSON object, or return None if unset/empty."""
+    value = _load_json_env_raw(name)
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be a JSON object, got {type(value).__name__}")
+    return value
+
+
+def _load_json_env_list(name: str) -> list | None:
+    """Parse `name` as a JSON array, or return None if unset/empty."""
+    value = _load_json_env_raw(name)
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError(f"{name} must be a JSON array, got {type(value).__name__}")
+    return value
+
+
+class AccessControls(BaseModel):
+    """Access controls configuration (plans + roles + default plan).
+
+    JSON env vars are parsed here at startup. Schema validation happens in
+    ``ee.src.core.entitlements.controls``.
+
+    `default_plan` lives here (not under `agenta`) because it's part of the
+    access-controls surface: it selects which entry of the effective plan
+    map a new organization is onboarded onto, even on Stripe-disabled
+    deployments. The legacy `AGENTA_DEFAULT_PLAN` env var is still honored.
+    """
+
+    plans: dict | None = _load_json_env_dict("AGENTA_ACCESS_PLANS")
+    roles: dict | None = _load_json_env_dict("AGENTA_ACCESS_ROLES")
+    roles_overlay: dict | None = _load_json_env_dict("AGENTA_ACCESS_ROLES_OVERLAY")
+    default_plan: str | None = (
+        os.getenv("AGENTA_ACCESS_DEFAULT_PLAN")
+        or os.getenv("AGENTA_DEFAULT_PLAN")
+        or None
+    )
+    default_plan_overlay: dict | None = _load_json_env_dict(
+        "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY"
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class BillingSettings(BaseModel):
+    """Billing settings configuration (catalog + Stripe pricing).
+
+    JSON env vars are parsed here at startup. Schema validation happens in
+    ``ee.src.core.subscriptions.settings``. The free-plan marker and
+    reverse-trial duration live per-entry inside ``AGENTA_BILLING_PRICING``
+    (`{"free": true}` / `{"trial": N}`) — there is intentionally no separate
+    ``AGENTA_BILLING_FREE_PLAN`` / ``AGENTA_BILLING_TRIAL_PLAN`` /
+    ``AGENTA_BILLING_TRIAL_DAYS`` env var.
+    """
+
+    catalog: list | None = _load_json_env_list("AGENTA_BILLING_CATALOG")
+    pricing: dict | None = _load_json_env_dict("AGENTA_BILLING_PRICING")
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class SendgridConfig(BaseModel):
@@ -580,6 +646,8 @@ class AgentaConfig(BaseModel):
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
 
+    uuid_namespace: UUID = uuid5(NAMESPACE_DNS, "agenta")
+
     runtime_prefix: str = os.getenv("AGENTA_RUNTIME_PREFIX") or ""
 
     auto_migrations: bool = (
@@ -589,7 +657,6 @@ class AgentaConfig(BaseModel):
     ).lower() in _TRUTHY
 
     demos: str = os.getenv("AGENTA_DEMOS") or ""
-    default_plan: str | None = os.getenv("AGENTA_DEFAULT_PLAN") or None
 
     # None when unset/empty = unrestricted; non-empty set = only these emails can create orgs
     org_creation_allowlist: set | None = {
@@ -753,6 +820,8 @@ class EnvironSettings(BaseModel):
     postgres: PostgresConfig = PostgresConfig()
     alembic: AlembicConfig = AlembicConfig()
     composio: ComposioConfig = ComposioConfig()
+    access_controls: AccessControls = AccessControls()
+    billing: BillingSettings = BillingSettings()
 
     model_config = ConfigDict(extra="ignore")
 
