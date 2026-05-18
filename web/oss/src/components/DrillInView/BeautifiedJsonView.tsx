@@ -467,6 +467,140 @@ const NodeRow = memo(function NodeRow({
     )
 })
 
+// ── TruncatedMessageBody ───────────────────────────────────────────────
+//
+// Wraps the editor for a chat message. When the content exceeds
+// TRUNCATE_HEIGHT_PX the body is clamped with a bottom fade overlay and
+// a centered "Show more" pill. Clicking the pill expands to full height
+// and shows a "Show less" pill at the bottom.
+
+const TRUNCATE_HEIGHT_PX = 160
+const EXPAND_SENTINEL_PX = 9999
+
+const PILL_BUTTON_CLASSES =
+    "text-[11px] font-medium text-[var(--ant-color-text-secondary)] bg-[var(--ant-color-fill-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)] border border-solid border-[var(--ant-color-border-secondary)] rounded-full px-3 py-0.5 cursor-pointer focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none motion-safe:transition-colors"
+
+const TruncatedMessageBody = memo(function TruncatedMessageBody({
+    editorId,
+    text,
+}: {
+    editorId: string
+    text: string
+}) {
+    const measureRef = useRef<HTMLDivElement>(null)
+    const [needsTruncation, setNeedsTruncation] = useState(false)
+    const [expanded, setExpanded] = useState(false)
+
+    useEffect(() => {
+        setExpanded(false)
+        const el = measureRef.current
+        if (!el) return
+        const check = () => setNeedsTruncation(el.scrollHeight > TRUNCATE_HEIGHT_PX + 8)
+        check()
+        const observer = new ResizeObserver(check)
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [text])
+
+    const toggle = useCallback(() => setExpanded((v) => !v), [])
+
+    const isTruncated = needsTruncation && !expanded
+
+    return (
+        <div className="relative">
+            <div
+                className="overflow-hidden motion-safe:transition-[max-height] motion-safe:duration-200"
+                style={{maxHeight: isTruncated ? TRUNCATE_HEIGHT_PX : EXPAND_SENTINEL_PX}}
+            >
+                <div ref={measureRef}>
+                    <EditorProvider
+                        key={text}
+                        id={editorId}
+                        initialValue={text}
+                        showToolbar={false}
+                        enableTokens={false}
+                        readOnly
+                        className={EDITOR_RESET_CLASSES}
+                    >
+                        <MarkdownModeSync isMarkdownView={false} />
+                        <EditorWrapper
+                            initialValue={text}
+                            disabled
+                            showToolbar={false}
+                            noProvider
+                            readOnly
+                            boundHeight={false}
+                        />
+                    </EditorProvider>
+                </div>
+            </div>
+
+            {isTruncated ? (
+                <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center">
+                    <div
+                        className="w-full h-10 bg-gradient-to-t from-[var(--ant-color-bg-container)] to-transparent pointer-events-none"
+                        aria-hidden="true"
+                    />
+                    <div className="w-full flex justify-center pb-1 bg-[var(--ant-color-bg-container)]">
+                        <button
+                            type="button"
+                            onClick={toggle}
+                            aria-expanded={false}
+                            className={PILL_BUTTON_CLASSES}
+                        >
+                            Show more
+                        </button>
+                    </div>
+                </div>
+            ) : null}
+
+            {needsTruncation && expanded ? (
+                <div className="flex justify-center pt-1 pb-0.5">
+                    <button
+                        type="button"
+                        onClick={toggle}
+                        aria-expanded={true}
+                        className={PILL_BUTTON_CLASSES}
+                    >
+                        Show less
+                    </button>
+                </div>
+            ) : null}
+        </div>
+    )
+})
+
+// ── Tool call helpers ───────────────────────────────────────────────────
+
+const getToolCallName = (tc: unknown): string => {
+    const obj = tc as Record<string, unknown> | null
+    const fn = obj?.function as Record<string, unknown> | undefined
+    return String(fn?.name || obj?.name || "tool")
+}
+
+const getToolCallArgs = (tc: unknown): unknown => {
+    const obj = tc as Record<string, unknown> | null
+    const fn = obj?.function as Record<string, unknown> | undefined
+    const raw = fn?.arguments ?? obj?.arguments ?? obj?.input ?? obj?.args
+    if (typeof raw === "string") {
+        try {
+            return JSON.parse(raw)
+        } catch {
+            return raw
+        }
+    }
+    return raw
+}
+
+const getMessageMeta = (text: string, toolCalls?: unknown[]): string => {
+    const parts: string[] = []
+    if (text) parts.push(`${text.length} chars`)
+    if (toolCalls?.length) {
+        parts.push(`${toolCalls.length} tool ${toolCalls.length === 1 ? "call" : "calls"}`)
+    }
+    return parts.join(", ") || "empty"
+}
+
 // ── MessageNodeRow ──────────────────────────────────────────────────────
 
 const MessageNodeRow = memo(function MessageNodeRow({
@@ -474,7 +608,7 @@ const MessageNodeRow = memo(function MessageNodeRow({
     index,
     keyPrefix,
 }: {
-    msg: {role: string; content: unknown}
+    msg: {role: string; content: unknown; tool_calls?: unknown[]}
     index: number
     keyPrefix: string
 }) {
@@ -482,45 +616,45 @@ const MessageNodeRow = memo(function MessageNodeRow({
     const roleColor = ROLE_COLOR_CLASSES[role] ?? DEFAULT_ROLE_COLOR_CLASS
     const text = getMessageText(msg.content)
     const editorId = `${keyPrefix}-msg-${index}`
+    const toolCalls = msg.tool_calls
 
     const label = useMemo(
         () => <span className={`font-medium capitalize ${roleColor}`}>{msg.role || "—"}</span>,
         [msg.role, roleColor],
     )
 
-    const body = useMemo(
-        () => (
-            <EditorProvider
-                key={text}
-                id={editorId}
-                initialValue={text}
-                showToolbar={false}
-                enableTokens={false}
-                readOnly
-                className={EDITOR_RESET_CLASSES}
-            >
-                <MarkdownModeSync isMarkdownView={false} />
-                <EditorWrapper
-                    initialValue={text}
-                    disabled
-                    showToolbar={false}
-                    noProvider
-                    readOnly
-                    boundHeight={false}
-                />
-            </EditorProvider>
-        ),
-        [editorId, text],
-    )
+    const body = useMemo(() => {
+        const hasText = text.length > 0
+        const hasToolCalls = toolCalls && toolCalls.length > 0
+
+        if (!hasText && !hasToolCalls) return null
+
+        return (
+            <div className="flex flex-col gap-1">
+                {hasText && <TruncatedMessageBody editorId={editorId} text={text} />}
+                {hasToolCalls &&
+                    toolCalls.map((tc, i) => (
+                        <RecursiveNode
+                            key={i}
+                            name={getToolCallName(tc)}
+                            value={getToolCallArgs(tc)}
+                            keyPrefix={`${editorId}-tc-${i}`}
+                            depth={1}
+                            expandDepth={2}
+                        />
+                    ))}
+            </div>
+        )
+    }, [text, toolCalls, editorId])
 
     return (
         <NodeRow
             keyLabel={label}
-            meta={`${text.length} chars`}
+            meta={getMessageMeta(text, toolCalls)}
             isMessage
             collapsible
             defaultOpen
-            value={text}
+            value={text || (toolCalls ? JSON.stringify(toolCalls) : "")}
             body={body}
         />
     )
