@@ -116,6 +116,8 @@ import uuid_utils.compat as uuid_compat
 from oss.src.core.events.dtos import Event
 from oss.src.core.events.streaming import publish_event
 from oss.src.core.events.types import EventType, RequestType
+from oss.src.utils.common import is_ee
+from oss.src.utils.context import AuthContextMissing, get_auth_scope
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -129,23 +131,37 @@ MAX_REFERENCES = 1000
 
 
 class _Scope:
-    """Resolved request scope for event publication.
+    """Resolved scope for event publication.
 
-    `enabled` is True only when the request carried at minimum a usable
+    Carries the fullest scope available at emit time so downstream
+    consumers (L1 / L2 entitlements, retention flush, future workspace-
+    granularity reporting) never have to re-resolve identity from a
+    `project_id`. `AuthScope` always populates all four UUIDs when set,
+    and `request.state` populates them on authenticated requests.
+
+    `enabled` is True only when the scope carries at minimum a usable
     `project_id` and `user_id`. Callers should pass scope to a publish
     helper unconditionally — the helper short-circuits when not enabled.
     """
 
-    __slots__ = ("organization_id", "project_id", "user_id", "enabled")
+    __slots__ = (
+        "organization_id",
+        "workspace_id",
+        "project_id",
+        "user_id",
+        "enabled",
+    )
 
     def __init__(
         self,
         *,
         organization_id: Optional[UUID],
+        workspace_id: Optional[UUID] = None,
         project_id: Optional[UUID],
         user_id: Optional[UUID],
     ) -> None:
         self.organization_id = organization_id
+        self.workspace_id = workspace_id
         self.project_id = project_id
         self.user_id = user_id
         self.enabled = project_id is not None and user_id is not None
@@ -162,18 +178,50 @@ def _parse_uuid(value: Any) -> Optional[UUID]:
         return None
 
 
-def request_scope(request: Any) -> _Scope:
-    """Extract organization_id, project_id, user_id UUIDs from request.state.
+def _scope_from_auth_context() -> Optional[_Scope]:
+    """Resolve scope from the ambient `AuthScope` ContextVar.
 
-    Returns a `_Scope` whose `enabled` flag is True only when project_id and
-    user_id are usable. Callers do not need to None-check fields.
+    Returns `None` when no auth context is set (admin/Access endpoints,
+    public endpoints, background tasks without explicit setup). Returns
+    a populated `_Scope` otherwise — `AuthScope` always carries all four
+    UUIDs (organization, workspace, project, user) when present.
     """
+    try:
+        auth_scope = get_auth_scope()
+    except AuthContextMissing:
+        return None
+    return _Scope(
+        organization_id=auth_scope.organization_id,
+        workspace_id=auth_scope.workspace_id,
+        project_id=auth_scope.project_id,
+        user_id=auth_scope.user_id,
+    )
+
+
+def request_scope(request: Any) -> _Scope:
+    """Resolve scope for event publication.
+
+    Prefers the ambient `AuthScope` (set by the auth middleware on every
+    authenticated tenant request and propagated through nested async
+    work) because it always carries `organization_id`. Falls back to
+    `request.state` so unit tests that hand-craft a `SimpleNamespace`
+    `state` still work, and so that publish call sites that legitimately
+    run outside an auth context (none today) keep their current behavior.
+
+    Returns a `_Scope` whose `enabled` flag is True only when project_id
+    and user_id are usable. Callers do not need to None-check fields.
+    """
+    auth_scope = _scope_from_auth_context()
+    if auth_scope is not None and auth_scope.enabled:
+        return auth_scope
+
     state = getattr(request, "state", None)
     if state is None:
-        return _Scope(organization_id=None, project_id=None, user_id=None)
+        return auth_scope or _Scope(organization_id=None, project_id=None, user_id=None)
 
     return _Scope(
         organization_id=_parse_uuid(getattr(state, "organization_id", None)),
+        workspace_id=_parse_uuid(getattr(state, "workspace_id", None)),
         project_id=_parse_uuid(getattr(state, "project_id", None)),
         user_id=_parse_uuid(getattr(state, "user_id", None)),
     )
@@ -197,6 +245,58 @@ def _build_event(
     )
 
 
+async def _check_l1_events_quota(
+    *,
+    organization_id: Optional[UUID],
+    event_type_value: str,
+) -> bool:
+    """L1 soft check for `Counter.EVENTS_INGESTED` at the publish boundary.
+
+    Returns True when the event is allowed (over-quota orgs return False
+    and the caller drops the publish silently — no HTTP error). Mirrors
+    the `cache=True` soft-check pattern used by `Counter.TRACES_INGESTED`
+    at trace-ingest call sites, but never raises so the caller's response
+    is unaffected by an entitlements glitch.
+
+    No-ops on OSS (no EE entitlements stack) and when `organization_id`
+    is unknown (cannot scope the check). Authoritative consumption
+    happens in the events worker's L2 check.
+    """
+    if not is_ee():
+        return True
+
+    if organization_id is None:
+        # Without an org we cannot scope the soft check. The events worker
+        # still gets a chance to perform the authoritative L2 check using
+        # whichever scope the envelope (or DB lookup) provides.
+        return True
+
+    try:
+        # Deferred import: EE-only symbols stay out of the OSS import graph.
+        from ee.src.utils.entitlements import (  # noqa: PLC0415
+            check_entitlements,
+            scope_from,
+        )
+        from ee.src.core.entitlements.types import Counter  # noqa: PLC0415
+
+        allowed, _, _ = await check_entitlements(
+            key=Counter.EVENTS_INGESTED,
+            delta=1,
+            cache=True,
+            scope=scope_from(organization_id=organization_id),
+        )
+        return bool(allowed)
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Fail open — a meter glitch must never block the caller. The L2
+        # authoritative check in the worker is the source of truth.
+        log.warning(
+            "[EVENTS] L1 quota soft-check failed for %s; failing open",
+            event_type_value,
+            exc_info=True,
+        )
+        return True
+
+
 async def _safe_publish(
     *,
     organization_id: Optional[UUID],
@@ -206,7 +306,21 @@ async def _safe_publish(
     """Publish an event, swallowing failures after logging.
 
     The caller's HTTP response must not be affected by publish failures.
+    Runs the L1 `Counter.EVENTS_INGESTED` soft check first; over-quota
+    orgs drop the event silently. The authoritative L2 check + adjust
+    runs in `EventsWorker.process_batch`.
     """
+    allowed = await _check_l1_events_quota(
+        organization_id=organization_id,
+        event_type_value=event.event_type.value,
+    )
+    if not allowed:
+        log.info(
+            "[EVENTS] L1 quota exceeded, dropping %s",
+            event.event_type.value,
+        )
+        return
+
     try:
         await publish_event(
             organization_id=organization_id,
@@ -597,22 +711,39 @@ async def publish_revision_event(
     not call this helper from a service method for a read action — internal
     lookups happen all the time and would produce duplicate/spurious events.
 
-    Pass either `request` (router-layer call) OR explicit scope arguments
-    (service-layer call like environments commit).
+    Scope resolution order:
+      1. explicit kwargs (`organization_id` / `project_id` / `user_id`),
+      2. the ambient `AuthScope` (set by the auth middleware on every
+         authenticated tenant request and propagated through nested async
+         work — this is how service-layer commits pick up `organization_id`),
+      3. `request.state` (legacy fallback for tests that hand-craft a state).
 
-    Skips publishing when:
-    - request is provided but lacks usable project_id/user_id
+    Skips publishing when scope cannot be resolved (no `project_id` /
+    `user_id`), or when the action's payload is empty:
     - single-shape action (retrieve/fetch/commit): no revision returned, or
       explicit count <= 0
     - list-shape (query/log) action: empty result list
     """
+    # Resolve organization_id from the ambient AuthScope when not explicitly
+    # passed in. Service-layer commits do not have a `request`, but the auth
+    # middleware has already set the AuthScope ContextVar for the originating
+    # HTTP request, and ContextVars propagate through nested async work.
+    if organization_id is None:
+        auth_scope = _scope_from_auth_context()
+        if auth_scope is not None:
+            organization_id = auth_scope.organization_id
+            project_id = project_id or auth_scope.project_id
+            user_id = user_id or auth_scope.user_id
+
     if request is not None:
         scope = request_scope(request)
         if not scope.enabled:
             return
-        organization_id = scope.organization_id
-        project_id = scope.project_id
-        user_id = scope.user_id
+        # `request_scope` already prefers AuthScope; only override fields
+        # that were not explicitly passed in.
+        organization_id = organization_id or scope.organization_id
+        project_id = project_id or scope.project_id
+        user_id = user_id or scope.user_id
 
     if project_id is None or user_id is None:
         return

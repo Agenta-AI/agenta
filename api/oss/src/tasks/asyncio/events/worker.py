@@ -14,7 +14,8 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, scope_from, Flag
+    from ee.src.utils.entitlements import check_entitlements, scope_from
+    from ee.src.core.entitlements.types import Counter
 
 if TYPE_CHECKING:
     from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
@@ -31,8 +32,11 @@ class EventsWorker:
     1. Read batch from Redis Streams (XREADGROUP)
     2. Deserialize events from bytes
     3. Group by project_id
-    4. Check entitlements per org (EE only)
-    5. Ingest events per project if allowed
+    4. Authoritative L2 quota per org (EE only):
+       `Counter.EVENTS_INGESTED` — atomic adjust per org with the full
+       per-org delta. Mirrors the tracing worker's
+       `Counter.TRACES_INGESTED` pattern. Over-quota orgs are dropped.
+    5. Ingest events per project if the org is within quota
     6. Dispatch to webhooks (if configured)
     7. ACK + DEL messages
     """
@@ -200,34 +204,68 @@ class EventsWorker:
         total_ingested = 0
         allowed_batches = []
 
-        for project_batch in batches:
-            if project_batch["organization_id"] and is_ee():
-                try:
-                    allowed, _, _ = await check_entitlements(  # type: ignore
-                        key=Flag.ACCESS,  # type: ignore
-                        cache=True,
-                        scope=scope_from(  # type: ignore
-                            organization_id=project_batch["organization_id"]
-                        ),
-                    )
-                except Exception:
-                    log.error(
-                        "[EVENTS] Entitlements check failed",
-                        organization_id=str(project_batch["organization_id"]),
-                        exc_info=True,
-                    )
+        # L2 `Counter.EVENTS_INGESTED` — authoritative usage meter charged
+        # once per org with the full per-org delta in this batch. Mirrors
+        # the tracing worker's per-org quota pattern.
+        #
+        # The "is the org entitled to the events feature at all?" question
+        # is intentionally NOT enforced at ingest — retention (configured
+        # per plan via `Counter.EVENTS_INGESTED.retention`) takes care of
+        # plan-tier scoping, and `Flag.AUDIT` is enforced at the query side
+        # (`POST /events/query`). Always-accept-at-ingest means an upgrade
+        # makes historical events queryable immediately, without backfill.
+        org_allowed: Dict[UUID, bool] = {}
+        events_per_org: Dict[UUID, int] = {}
+
+        if is_ee():
+            for project_batch in batches:
+                org_id = project_batch["organization_id"]
+                if org_id is None:
+                    continue
+                events_per_org[org_id] = events_per_org.get(org_id, 0) + len(
+                    project_batch["events"]
+                )
+
+            for org_id, delta in events_per_org.items():
+                if delta <= 0:
+                    org_allowed[org_id] = True
                     continue
 
-                if not allowed:
-                    log.warning(
-                        "[EVENTS] Access denied by entitlements, dropping org batch",
-                        organization_id=str(project_batch["organization_id"]),
-                        batch_size=len(project_batch["events"]),
+                try:
+                    # L2: authoritative counter check + adjust. Charge the
+                    # full per-org delta in one call so the meter advances
+                    # atomically.
+                    quota_allowed, _, _ = await check_entitlements(  # type: ignore
+                        key=Counter.EVENTS_INGESTED,  # type: ignore
+                        delta=delta,
+                        scope=scope_from(organization_id=org_id),  # type: ignore
                     )
-                    # Intentionally drop and ACK: events for an org that isn't
-                    # entitled will never become processable in this batch. Keeping
-                    # them in the PEL would block the consumer — wontfix by design.
+                except Exception:
+                    # On error, drop the org's events to stay conservative.
+                    # Matches the tracing worker's safety stance.
+                    log.error(
+                        "[EVENTS] L2 quota check failed",
+                        organization_id=str(org_id),
+                        exc_info=True,
+                    )
+                    org_allowed[org_id] = False
                     continue
+
+                if not quota_allowed:
+                    log.warning(
+                        "[EVENTS] Quota exceeded, dropping org batch",
+                        organization_id=str(org_id),
+                        delta=delta,
+                    )
+                    org_allowed[org_id] = False
+                    continue
+
+                org_allowed[org_id] = True
+
+        for project_batch in batches:
+            org_id = project_batch["organization_id"]
+            if is_ee() and org_id and not org_allowed.get(org_id, True):
+                continue
 
             total_ingested += await self.service.ingest(
                 project_id=project_batch["project_id"],

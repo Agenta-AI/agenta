@@ -10,6 +10,12 @@ from oss.src.utils.exceptions import intercept_exceptions
 if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.utils.entitlements import (
+        check_entitlements,
+        NOT_ENTITLED_RESPONSE,
+        Flag,
+        Tracker,
+    )
 
 
 class EventsRouter:
@@ -46,6 +52,12 @@ class EventsRouter:
                 permission=Permission.VIEW_SPANS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+            check, _, _ = await check_entitlements(  # type: ignore
+                key=Flag.AUDIT,  # type: ignore
+            )
+            if not check:
+                return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)  # type: ignore
 
         events = await self.events_service.query(
             project_id=UUID(request.state.project_id),

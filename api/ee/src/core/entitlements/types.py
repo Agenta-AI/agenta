@@ -57,6 +57,7 @@ class Tracker(str, Enum):
 
 class Flag(str, Enum):
     RBAC = "rbac"
+    AUDIT = "audit"
     ACCESS = "access"
     DOMAINS = "domains"
     SSO = "sso"
@@ -347,6 +348,7 @@ DEFAULT_ENTITLEMENTS = {
     DefaultPlan.CLOUD_V0_HOBBY: {
         Tracker.FLAGS: {
             Flag.RBAC: False,
+            Flag.AUDIT: False,
             Flag.ACCESS: False,
             Flag.DOMAINS: False,
             Flag.SSO: False,
@@ -437,6 +439,7 @@ DEFAULT_ENTITLEMENTS = {
     DefaultPlan.CLOUD_V0_PRO: {
         Tracker.FLAGS: {
             Flag.RBAC: False,
+            Flag.AUDIT: False,
             Flag.ACCESS: False,
             Flag.DOMAINS: False,
             Flag.SSO: False,
@@ -524,6 +527,7 @@ DEFAULT_ENTITLEMENTS = {
     DefaultPlan.CLOUD_V0_BUSINESS: {
         Tracker.FLAGS: {
             Flag.RBAC: True,
+            Flag.AUDIT: True,
             Flag.ACCESS: True,
             Flag.DOMAINS: True,
             Flag.SSO: True,
@@ -609,6 +613,7 @@ DEFAULT_ENTITLEMENTS = {
     DefaultPlan.CLOUD_V0_AGENTA_AI: {
         Tracker.FLAGS: {
             Flag.RBAC: True,
+            Flag.AUDIT: True,
             Flag.ACCESS: True,
             Flag.DOMAINS: True,
             Flag.SSO: True,
@@ -645,6 +650,7 @@ DEFAULT_ENTITLEMENTS = {
     DefaultPlan.SELF_HOSTED_ENTERPRISE: {
         Tracker.FLAGS: {
             Flag.RBAC: True,
+            Flag.AUDIT: True,
             Flag.ACCESS: True,
             Flag.DOMAINS: True,
             Flag.SSO: True,
@@ -696,6 +702,7 @@ CONSTRAINTS = {
             Flag.ACCESS,
             Flag.DOMAINS,
             Flag.SSO,
+            Flag.AUDIT,
         ],
         Tracker.GAUGES: [
             Gauge.USERS,

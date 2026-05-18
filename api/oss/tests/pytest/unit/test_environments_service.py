@@ -114,8 +114,11 @@ async def test_commit_environment_revision_publishes_state_and_grouped_diff():
         ),
     )
 
+    # The environments service now delegates emission to the shared
+    # `publish_revision_event` helper, which calls `publish_event` from
+    # `core.events.utils`. Patch at the new site.
     with patch(
-        "oss.src.core.environments.service.publish_event",
+        "oss.src.core.events.utils.publish_event",
         new=AsyncMock(),
     ) as publish_event:
         await service.commit_environment_revision(
