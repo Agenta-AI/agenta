@@ -131,10 +131,12 @@ const simplifyValue = (value: unknown): unknown => {
 
     const rec = value as Record<string, unknown>
 
+    // AI SDK text part: {type: "text", text: "hello"} -> "hello"
     if (rec.type === "text" && typeof rec.text === "string") {
         return rec.text
     }
 
+    // AI SDK tool-call: {type: "tool-call", toolName: "fn", input: {...}} -> "fn({...})"
     if (rec.type === "tool-call" && typeof rec.toolName === "string") {
         const args = rec.input ?? rec.args
         if (!args || (typeof args === "object" && Object.keys(args as object).length === 0)) {
@@ -147,6 +149,7 @@ const simplifyValue = (value: unknown): unknown => {
         }
     }
 
+    // AI SDK tool-result envelope: {type: "tool-result", output: {value: X}} -> X
     if (rec.type === "tool-result" && rec.output !== undefined) {
         const output = rec.output as Record<string, unknown> | undefined
         if (output && typeof output === "object" && output.value !== undefined) {
@@ -155,11 +158,13 @@ const simplifyValue = (value: unknown): unknown => {
         return rec.output
     }
 
+    // Single-element array of a simplifiable item
     if (Array.isArray(value) && value.length === 1) {
         const simplified = simplifyValue(value[0])
         if (simplified !== value[0]) return simplified
     }
 
+    // Multi-element array: simplify each element, join strings
     if (Array.isArray(value) && value.length > 1) {
         const simplified = value.map(simplifyValue)
         const changed = simplified.some((s, i) => s !== value[i])
@@ -171,6 +176,7 @@ const simplifyValue = (value: unknown): unknown => {
         }
     }
 
+    // Strip metadata noise keys from objects
     if (!Array.isArray(value)) {
         const keys = Object.keys(rec)
         const noiseKeys = keys.filter((k) => METADATA_NOISE_KEYS.has(k))
