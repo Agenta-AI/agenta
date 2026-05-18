@@ -131,9 +131,9 @@ operators without requiring full plan overrides.
 User-driven design change: events become a retainable domain; retention
 moves out of billing.
 
-- [x] Add `Counter.EVENTS` to `entitlements/types.py`.
-- [x] Add default `Quota(monthly=True)` (no retention) to all seven plans in `DEFAULT_ENTITLEMENTS`.
-- [x] Add `Counter.EVENTS` to `CONSTRAINTS[Constraint.READ_ONLY]`.
+- [x] Add `Counter.EVENTS_INGESTED` to `entitlements/types.py` (retention-only counter — not metered, not in the `meters_type` Postgres enum, not in `REPORTS`).
+- [x] Declare `Counter.EVENTS_INGESTED` on every plan in `DEFAULT_ENTITLEMENTS` with per-plan retention aligned to the plan's `Counter.TRACES_INGESTED` retention: `Quota(period=Period.MONTHLY, retention=Retention.MONTHLY)` on Hobby, `QUARTERLY` on Pro, `YEARLY` on Business, and `retention=None` (unlimited) on Agenta and Self-hosted Enterprise.
+- [x] Add `Counter.EVENTS_INGESTED` to `CONSTRAINTS[Constraint.READ_ONLY]`.
 - [x] New `EventsRetentionDAO` at `api/ee/src/dbs/postgres/events/dao.py` (independent from OSS `EventsDAO`).
 - [x] New `EventsRetentionService.flush_events` at `api/ee/src/core/events/retention.py`.
 - [x] New admin router `EventsAdminRouter` at `api/ee/src/apis/fastapi/events/router.py` → `POST /admin/events/flush`.

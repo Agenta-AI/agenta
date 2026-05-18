@@ -80,9 +80,11 @@ Abbreviated example:
   "cloud_v0_pro": {
     "description": "Production team plan.",
     "counters": {
-      "traces": {"free": 50000, "monthly": true, "retention": 131040},
-      "events": {"monthly": true},
-      "credits": {"limit": 500, "free": 500, "monthly": true, "strict": true}
+      "traces_ingested":  {"free": 50000, "period": "monthly", "retention": 131040},
+      "traces_retrieved": {"strict": true, "period": "daily", "scope": "user"},
+      "evaluations_run":  {"period": "monthly", "strict": true},
+      "credits_consumed": {"limit": 500, "free": 500, "period": "monthly", "strict": true},
+      "events_ingested":  {"period": "monthly", "retention": 131040}
     },
     "gauges": {
       "users": {"limit": 5, "free": 5, "strict": true}
@@ -179,20 +181,20 @@ Merge semantics:
 - `description` replaces.
 - `flags` per-key replace.
 - `counters` / `gauges` per-quota field merge (overlay keeps existing
-  `free`/`limit`/`monthly`/`strict` if not specified). Pass `null` to clear.
+  `free`/`limit`/`period`/`scope`/`strict`/`retention` if not specified).
+  Pass `null` to clear. Unknown fields fail startup (`Quota` has
+  `extra="forbid"`, so legacy `monthly` would be rejected).
 - `throttles[category]` looks up the existing single-category throttle on
   the base plan and field-merges its `bucket`. Multi-category or
   endpoint-keyed throttles can't be addressed via overlay — operators who
   need that should use `AGENTA_ACCESS_PLANS`.
 
-Example — bump trace retention to 30 days (43200 minutes) and raise the
-standard throttle rate without touching capacity:
+Example — bump trace retention to monthly (44640 minutes, one of the
+canonical `Retention` enum values) and raise the standard throttle rate
+without touching capacity:
 
 ```json
-{
-  "counters": {"traces": {"retention": 43200}},
-  "throttles": {"standard": {"bucket": {"rate": 7200}}}
-}
+{"counters": {"traces_ingested": {"retention": 44640}}, "throttles": {"standard": {"bucket": {"rate": 7200}}}}
 ```
 
 ## Billing Settings
@@ -320,11 +322,20 @@ Spans and events are completely independent: separate DAOs
 (`SpansAdminRouter`, `EventsAdminRouter`), separate cron files, separate
 Redis locks. The two flushes can run concurrently.
 
-`Counter.EVENTS` is part of the entitlement system; the events flush job
-walks the effective plan map and respects each plan's
-`Counter.EVENTS.retention`. Defaults: `Quota(monthly=True)` on every plan
-(no retention by default — events are kept forever unless an operator
-opts in via overlay or full plan override).
+`Counter.EVENTS_INGESTED` is part of the entitlement system as a
+retention-only counter: there is no write-path that adjusts an
+`events_ingested` meter row, the slug is deliberately not in the
+`meters_type` Postgres enum, and the counter is not in `REPORTS`. The
+events flush job walks the effective plan map and respects each plan's
+`Counter.EVENTS_INGESTED.retention`. Per-plan defaults align with each
+plan's `Counter.TRACES_INGESTED` retention:
+`Quota(period=Period.MONTHLY, retention=Retention.MONTHLY)` on Hobby,
+`QUARTERLY` on Pro, `YEARLY` on Business, and `retention=None`
+(unlimited) on Agenta and Self-hosted Enterprise — so events on the
+three standard cloud plans roll over on the same schedule as traces,
+and self-hosted deployments retain events indefinitely unless an
+operator opts in via `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` or a full
+plan override.
 
 ## Stripe Implications
 

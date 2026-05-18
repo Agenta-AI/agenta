@@ -69,9 +69,13 @@ section freezes the pre-change state of the system.
   - **Resolution:** old endpoint removed (hard cut). Two independent
     admin endpoints: `POST /admin/spans/flush` and
     `POST /admin/events/flush`. Each owns its own service, DAO, cron,
-    and Redis lock namespace. `Counter.EVENTS` added to the entitlement
-    system; default `Quota(monthly=True)` on every plan preserves
-    pre-change behavior (no flush by default).
+    and Redis lock namespace. `Counter.EVENTS_INGESTED` added to the
+    entitlement system as a retention-only counter (not metered; not in
+    `meters_type` Postgres enum; not in `REPORTS`); per-plan defaults
+    align with each plan's trace-retention window —
+    `Quota(period=Period.MONTHLY, retention=Retention.MONTHLY)` on Hobby,
+    `QUARTERLY` on Pro, `YEARLY` on Business, and `retention=None`
+    (unlimited) on Agenta and Self-hosted Enterprise.
 
 ## Safety Gaps
 

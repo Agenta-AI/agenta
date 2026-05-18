@@ -287,9 +287,14 @@ These weren't in the original research but emerged from `scan-codebase` /
   `env.agenta.default_plan`; now `env.access_controls.default_plan` since
   it's part of the access-controls surface (used even when Stripe is
   disabled).
-- **`Counter.EVENTS` added.** Events are not metered today (no write-path
-  hop), but the retention dimension applies. Default `Quota(monthly=True)`
-  on every plan — no retention by default to match pre-change behavior.
+- **`Counter.EVENTS_INGESTED` added.** Events are not metered today
+  (no write-path adjusts an `events_ingested` meter row, and the slug is
+  not in the `meters_type` Postgres enum), but the retention dimension
+  applies. Per-plan defaults align with each plan's
+  `Counter.TRACES_INGESTED` retention: `Quota(period=Period.MONTHLY,
+  retention=Retention.MONTHLY)` on Hobby, `QUARTERLY` on Pro, `YEARLY`
+  on Business, and `retention=None` (unlimited) on Agenta and
+  Self-hosted Enterprise.
 - **Throttle middleware falls back to free-plan throttles** for unknown
   plans instead of letting requests through unthrottled (FIND-013).
 

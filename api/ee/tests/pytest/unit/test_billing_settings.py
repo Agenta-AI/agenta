@@ -119,6 +119,14 @@ class TestNormalizePricingEntry:
                 "p", {"stripe": {"meters": {"users": {}}}}
             )
 
+    def test_empty_pricing_entry_rejected(self):
+        """`{}` would pass the unknown-keys check but contribute nothing and
+        silently 400 at checkout. Require at least one of `free`/`stripe`."""
+        with pytest.raises(
+            ValueError, match="must declare at least one of 'free' or 'stripe'"
+        ):
+            settings._normalize_pricing_entry("my_plan", {})
+
 
 # ---------------------------------------------------------------------------
 # Pricing parser (full payload)

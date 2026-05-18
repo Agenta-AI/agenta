@@ -116,45 +116,92 @@ per-user daily reads set `limit` via env override.
 | `categories` | array \| null | Endpoint categories the throttle applies to. |
 | `endpoints` | array \| null | Explicit `[method, path]` pairs. |
 
-### Example
+### Example — `self_hosted_enterprise` (the code-default for self-hosted)
+
+When `STRIPE_ENABLED=false` and `AGENTA_ACCESS_DEFAULT_PLAN` is unset,
+signup onboards new organizations on `self_hosted_enterprise`. This is the
+operative plan for almost every self-hosted deployment, and the canonical
+shape to use as a starting point for any further customization via
+`AGENTA_ACCESS_PLANS`:
 
 ```json
 {
-  "cloud_v0_hobby": {
-    "description": "Hobby — operator-facing description.",
+  "self_hosted_enterprise": {
+    "description": "Self-hosted enterprise — full access, no quotas.",
     "flags": {
-      "rbac": false,
-      "access": false,
-      "domains": false,
-      "sso": false
+      "rbac": true,
+      "access": true,
+      "domains": true,
+      "sso": true
     },
     "counters": {
-      "traces_ingested": {"limit": 5000, "free": 5000, "period": "monthly", "retention": 44640},
-      "traces_retrieved": {"strict": true, "period": "daily", "scope": "user"},
-      "evaluations_run": {"limit": 20, "free": 20, "period": "monthly", "strict": true},
-      "credits_consumed": {"limit": 100, "free": 100, "period": "monthly", "strict": true},
-      "events_ingested": {"period": "monthly", "retention": 44640}
+      "evaluations_run":  {"strict": true, "period": "monthly"},
+      "traces_ingested":  {"period": "monthly"},
+      "traces_retrieved": {"strict": true, "scope": "user", "period": "daily"},
+      "credits_consumed": {"strict": true, "period": "monthly"},
+      "events_ingested":  {"period": "monthly"}
     },
     "gauges": {
-      "users": {"limit": 2, "free": 2, "strict": true}
-    }
-  },
-  "cloud_v0_pro": {
-    "description": "Production team plan.",
-    "flags": {"rbac": false, "access": false, "domains": false, "sso": false},
-    "counters": {
-      "traces_ingested": {"free": 10000, "period": "monthly", "retention": 131040},
-      "traces_retrieved": {"strict": true, "period": "daily", "scope": "user"},
-      "evaluations_run": {"period": "monthly", "strict": true},
-      "credits_consumed": {"limit": 100, "free": 100, "period": "monthly", "strict": true},
-      "events_ingested": {"period": "monthly", "retention": 131040}
-    },
-    "gauges": {
-      "users": {"limit": 10, "free": 3, "strict": true}
+      "users": {"strict": true}
     }
   }
 }
 ```
+
+What's notable about the code-default shape:
+
+- **All four flags are `true`.** RBAC, access controls, custom domains, and SSO are all on by default.
+- **No counter has a `limit`.** Every counter is `limit: null` (omitted), so the meters layer tracks usage but never blocks a request. `strict: true` is structurally present so it kicks in the moment a `limit` is added.
+- **`traces_ingested` retention is unset.** The tracing-flush job iterates plans and skips this one — traces are kept forever unless you opt in.
+- **`events_ingested` retention is also unset.** Same behavior for events.
+- **`users` is unlimited.** No seat cap; `strict: true` would only enforce if you add a `limit`.
+
+:::tip Prefer the overlay for one-knob tweaks
+Restating the whole plan via `AGENTA_ACCESS_PLANS` is necessary only when
+you want to define the full effective plan catalog from scratch (or run
+several plans side-by-side). For changing one or two fields on the
+default plan, [`AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`](#agenta_access_default_plan_overlay)
+is the right tool — see the worked examples below.
+:::
+
+### Worked example — per-user, per-day trace-retrieval limit
+
+`Counter.TRACES_RETRIEVED` ships on `self_hosted_enterprise` with
+`scope=user`, `period=daily`, `strict=true`, and `limit=null` (unlimited).
+The structural plumbing is in place; setting a real number flips the cap
+on without any code change.
+
+Use [`AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`](#agenta_access_default_plan_overlay)
+to cap each user at 1,000 trace retrievals per day. Restate every quota
+field explicitly — the overlay is a field-merge, so fields you omit
+inherit from the base, but spelling everything out makes the intended
+shape obvious in a diff and survives future changes to the base plan:
+
+```json
+{"counters": {"traces_retrieved": {"limit": 1000, "strict": true, "period": "daily", "scope": "user"}}}
+```
+
+What it means at runtime:
+
+- The meters DAO persists one row per `(organization_id, workspace_id, project_id, user_id, year, month, day, key)` tuple. Different users get different rows; the same user on different days gets different rows.
+- Every trace/span fetch or query handler runs `check_entitlements(key=Counter.TRACES_RETRIEVED, delta=<distinct traces returned>)` in hard-adjust mode. The first request that would push that user's daily counter past 1000 gets `HTTP 429 Too Many Requests` and the meter is not bumped — because `strict=true` makes the DAO predicate `greatest(value + delta, 0) <= limit`, the request that crosses the line is itself rejected (no "one free overshoot").
+- `/billing/usage` shows an org rollup — it sums every matching row for today across users, so the card reflects total org-wide daily retrievals. The per-user cap is enforced; the org-wide display is informational.
+- The counter is not in `REPORTS` so it is never pushed to Stripe — it is tracked and surfaced internally and to customers but not billed.
+
+This is the pattern for any per-scope, per-period counter: the meters
+layer handles the per-row bookkeeping automatically based on what the
+quota declares for `scope` and `period`.
+
+### Worked example — seat cap via overlay
+
+To cap `users` at 50 seats for a single-instance self-hosted deployment,
+set the overlay with every gauge field restated explicitly:
+
+```json
+{"gauges": {"users": {"limit": 50, "strict": true}}}
+```
+
+The gauge starts blocking the 51st invite immediately after restart.
 
 ## `AGENTA_ACCESS_ROLES`
 
@@ -197,13 +244,48 @@ permission sets are code-defined:
 Org-scope `viewer` having no permissions is intentional: organizations don't
 have a permission concept today — `viewer` is purely a membership marker.
 
-### Example
+### Examples
 
-Add a `reviewer` role at the project scope:
+:::warning Override semantics: replace, not merge
+`AGENTA_ACCESS_ROLES` is an **override**, not an overlay. For any scope you
+name in the JSON, the parser **replaces the default extras**
+(`admin`/`developer`/`editor`/`annotator` on the `workspace` and `project`
+scopes) with whatever you provide. The platform minima (`owner` and
+`viewer`) are always re-synthesized, but the default extras are not.
+
+This matters because `project_members.role` rows are populated with
+workspace-role slugs at write time. An operator who names only `reviewer`
+in `project` keeps `owner`/`viewer`/`reviewer` and silently strips every
+existing project member of their permissions. **If your intent is to
+*add* one role on top of the defaults, use
+[`AGENTA_ACCESS_ROLES_OVERLAY`](#agenta_access_roles_overlay) instead.**
+:::
+
+#### Override the full project-scope catalog (destructive — restate everything)
 
 ```json
 {
   "project": [
+    {
+      "role": "admin",
+      "description": "Full management of project members and configuration.",
+      "permissions": ["*"]
+    },
+    {
+      "role": "developer",
+      "description": "Standard contributor.",
+      "permissions": ["read_system", "edit_evaluation", "view_evaluation", "edit_testset", "view_testset"]
+    },
+    {
+      "role": "editor",
+      "description": "Edit-level contributor.",
+      "permissions": ["read_system", "view_evaluation", "view_testset"]
+    },
+    {
+      "role": "annotator",
+      "description": "Annotates traces for evaluation.",
+      "permissions": ["read_system", "view_spans", "edit_annotations"]
+    },
     {
       "role": "reviewer",
       "description": "Can inspect runs and annotate traces.",
@@ -213,12 +295,33 @@ Add a `reviewer` role at the project scope:
 }
 ```
 
-After applying that override, `/workspace/roles/` and member serialization
-return `owner`, `viewer`, and `reviewer` for the project scope. Workspace
-and organization scopes are untouched.
+After applying this override, `/workspace/roles/` and member serialization
+return `owner`, `viewer`, `admin`, `developer`, `editor`, `annotator`, and
+`reviewer` for the project scope. Workspace and organization scopes are
+untouched. The `permissions` arrays restate the default-extras' permissions
+verbatim because the override does not inherit from them — anything you
+don't list is dropped.
+
+#### Add a single role on top of the defaults (use the overlay)
+
+```json
+{
+  "project": {
+    "reviewer": {
+      "description": "Can inspect runs and annotate traces.",
+      "permissions": ["read_system", "view_evaluation_runs", "edit_annotations"]
+    }
+  }
+}
+```
+
+Set this as `AGENTA_ACCESS_ROLES_OVERLAY` (not `AGENTA_ACCESS_ROLES`).
+Default extras stay; `reviewer` is appended. See [the overlay
+section](#agenta_access_roles_overlay) for full semantics.
 
 The `permissions` array entries must be valid `Permission` enum members or
-the wildcard `"*"`. Unknown permissions fail startup.
+the wildcard `"*"`. Unknown permissions fail startup. See [Reference: Permission slugs](#reference-permission-slugs)
+for the canonical list.
 
 ## `AGENTA_ACCESS_ROLES_OVERLAY`
 
@@ -227,11 +330,17 @@ scope — useful when you want to define a completely custom role catalog.
 The overlay solves the smaller case: tweak one field on one existing role,
 or add a single new role, without restating everything else.
 
+:::note Scope of effect
+The roles overlay (and the role catalog generally) is **plan-independent**
+— roles are not part of the plan map. A roles overlay applies to every
+organization regardless of which plan they are on. This is the opposite
+of [`AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`](#agenta_access_default_plan_overlay),
+which only patches the resolved default plan.
+:::
+
 ### Targeting
 
-The overlay accepts **only the `project` scope key today**. The patch is
-applied to both the `workspace` and `project` scopes because they share
-the same default role set. Setting `workspace` or `organization` as a
+The overlay accepts **only the `project` scope key today**. Setting `workspace` or `organization` as a
 top-level key fails startup with a clear error — silent ignore would
 mislead operators.
 
@@ -259,43 +368,23 @@ mislead operators.
 
 ### Examples
 
-Give the `editor` role one extra permission on top of its default set:
+Give the `editor` role one extra permission on top of its default set
+(`permissions` replaces the array — restate the full list you want):
 
 ```json
-{
-  "project": {
-    "editor": {
-      "permissions": ["edit_annotations", "view_evaluation_runs", "read_system", "view_billing"]
-    }
-  }
-}
+{"project": {"editor": {"permissions": ["edit_annotations", "view_evaluation_runs", "read_system", "view_billing"]}}}
 ```
-
-(Note: `permissions` replaces the array; restate the full list you want.)
 
 Add a new `auditor` role to both workspace and project:
 
 ```json
-{
-  "project": {
-    "auditor": {
-      "description": "Audit-only access.",
-      "permissions": ["read_system"]
-    }
-  }
-}
+{"project": {"auditor": {"description": "Audit-only access.", "permissions": ["read_system"]}}}
 ```
 
 Rename the `annotator` description without touching its permissions:
 
 ```json
-{
-  "project": {
-    "annotator": {
-      "description": "Annotates traces for evaluation."
-    }
-  }
-}
+{"project": {"annotator": {"description": "Annotates traces for evaluation."}}}
 ```
 
 ### Validation
@@ -313,14 +402,12 @@ Failures at startup:
 
 ## `AGENTA_ACCESS_DEFAULT_PLAN`
 
-Plan slug assigned to new organizations on signup. Must resolve to one of the
-slugs in the effective plan map. When unset, falls back to:
+Plan slug assigned to new organizations on signup. Must resolve to one of
+the slugs in the effective plan map. When unset, falls back to
+`self_hosted_enterprise` (the self-hosted default).
 
-- `cloud_v0_hobby` when Stripe is enabled, or
-- `self_hosted_enterprise` when Stripe is disabled.
-
-The legacy `AGENTA_DEFAULT_PLAN` env var is still honored; the canonical form
-takes precedence when both are set.
+The legacy `AGENTA_DEFAULT_PLAN` env var is still honored; the canonical
+form takes precedence when both are set.
 
 ## `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`
 
@@ -328,6 +415,15 @@ Self-hosted operators often want to tweak one or two entitlement values on
 the default plan (trace retention, a throttle rate, a flag) without restating
 the whole plan via `AGENTA_ACCESS_PLANS`. The overlay env var does exactly
 that.
+
+:::note Scope of effect
+This overlay is **plan-targeted** — it patches only the plan that
+`AGENTA_ACCESS_DEFAULT_PLAN` resolves to (`self_hosted_enterprise` by
+default, or whatever you set explicitly). Organizations on any other plan
+are unaffected. This is the opposite of
+[`AGENTA_ACCESS_ROLES_OVERLAY`](#agenta_access_roles_overlay), which is
+plan-independent and applies to every organization.
+:::
 
 ### Targeting
 
@@ -359,34 +455,24 @@ that should use `AGENTA_ACCESS_PLANS`.
 
 ### Examples
 
-Bump trace retention to monthly (44640 minutes — one of the canonical `Retention` enum values):
+Bump trace retention to monthly (44640 minutes — one of the canonical
+[`Retention`](#reference-retention) enum values):
 
 ```json
-{
-  "counters": {
-    "traces_ingested": {"retention": 44640}
-  }
-}
+{"counters": {"traces_ingested": {"retention": 44640}}}
 ```
 
 Raise the STANDARD throttle's rate to 7200 tokens/minute without touching
 the capacity:
 
 ```json
-{
-  "throttles": {
-    "standard": {"bucket": {"rate": 7200}}
-  }
-}
+{"throttles": {"standard": {"bucket": {"rate": 7200}}}}
 ```
 
 Both at once:
 
 ```json
-{
-  "counters": {"traces_ingested": {"retention": 44640}},
-  "throttles": {"standard": {"bucket": {"rate": 7200}}}
-}
+{"counters": {"traces_ingested": {"retention": 44640}}, "throttles": {"standard": {"bucket": {"rate": 7200}}}}
 ```
 
 ### Validation
@@ -400,6 +486,76 @@ Failures at startup (same idiom as the other access-controls env vars):
 - patching a single-category throttle that doesn't exist on the base plan
   (e.g. overlaying `ai_services` on `self_hosted_enterprise`, which has no
   AI-services throttle by default) → fail
+
+## Reference
+
+These tables list the canonical slug sets for the enums referenced
+throughout the schema. Operator JSON must use exactly these values — any
+other slug fails startup with a clear Pydantic error pointing at the
+offending field.
+
+### Reference: `Period`
+
+Metering bucket — controls how often the counter resets and which
+year/month/day coordinates each meter row lands on. `null` means
+non-periodic (used for gauges).
+
+| Slug | Bucket |
+|------|--------|
+| `"daily"` | Resets per calendar day (`year` + `month` + `day` set on the meter row). |
+| `"monthly"` | Resets per calendar month, honoring the subscription's `anchor` day (`year` + `month` set). |
+| `"yearly"` | Resets per calendar year (`year` set). |
+
+### Reference: `Scope`
+
+Meter-row granularity — controls which row a `check_entitlements()` call
+reads and writes. `null` is treated as `"organization"`.
+
+| Slug | Row identity |
+|------|--------------|
+| `"organization"` | One row per organization (the historical default). |
+| `"workspace"` | One row per `(organization_id, workspace_id)`. |
+| `"project"` | One row per `(organization_id, workspace_id, project_id)`. |
+| `"user"` | One row per `(organization_id, workspace_id, project_id, user_id)`. |
+
+The DAO writes the full hierarchy needed by the declared scope and leaves
+finer dimensions `NULL`. A counter declared with `scope: "user"` therefore
+yields multiple rows per period (one per user); `/billing/usage` sums them
+for the org-level rollup display while `check_entitlements` enforces the
+per-user cap.
+
+### Reference: `Retention`
+
+Retention window in **minutes**. Must be one of the canonical values — an
+arbitrary integer is rejected at startup. Used by `traces_ingested` and
+`events_ingested`; the per-domain retention flush jobs delete data older
+than the cutoff.
+
+| Slug name | Minutes | Approx. window |
+|-----------|---------|----------------|
+| `EPHEMERAL` | `0` | Instant (no retention). |
+| `HOURLY` | `60` | 1 hour. |
+| `DAILY` | `1440` | 1 day. |
+| `MONTHLY` | `44640` | 31 days. |
+| `QUARTERLY` | `131040` | 91 days. |
+| `YEARLY` | `525600` | 365 days. |
+
+Operator JSON passes the integer (e.g. `"retention": 44640`), not the slug
+name.
+
+### Reference: Permission slugs
+
+The full set of valid permission slugs is defined on the `Permission` enum
+in [`api/ee/src/models/shared_models.py`](https://github.com/Agenta-AI/agenta/blob/main/api/ee/src/models/shared_models.py).
+That file is the canonical source — refer to it directly when authoring a
+custom role.
+
+`"*"` is the wildcard (full access) and is reserved for the platform
+`owner` minima role; custom roles should not use it.
+
+If you reference a permission slug that does not exist in the enum,
+startup fails with `Unknown permission '<slug>'` so typos surface
+immediately.
 
 ## Operational guidance
 

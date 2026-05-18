@@ -176,6 +176,12 @@ def _normalize_pricing_entry(slug: str, entry: Any) -> Dict[str, Any]:
             "meters": dict(meters),
         }
 
+    if not normalized:
+        raise ValueError(
+            f"AGENTA_BILLING_PRICING['{slug}'] must declare at least one of "
+            "'free' or 'stripe'."
+        )
+
     return normalized
 
 

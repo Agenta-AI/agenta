@@ -92,10 +92,13 @@ class SubscriptionsService:
                 "AGENTA_BILLING_TRIAL_DAYS to be configured."
             )
 
-        # Asserted by `trial_enabled()` — narrow types for the rest of the body.
         trial_days = get_trial_days()
         trial_plan = get_trial_plan()
-        assert trial_days is not None and trial_plan is not None
+        if trial_days is None or trial_plan is None:
+            raise EventException(
+                "Reverse trial invoked without configured trial state "
+                "(trial_days and trial_plan must both be set)."
+            )
         free_plan = get_free_plan()
 
         now = datetime.now(tz=timezone.utc)
