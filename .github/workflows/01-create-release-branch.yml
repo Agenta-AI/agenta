@@ -96,22 +96,22 @@ jobs:
 
           echo "Bumping clients/python"
           cd clients/python
-          PY_CLIENT_VERSION=$(uv version --bump "$BUMP_TYPE" --short --frozen)
+          PY_CLIENT_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
           cd ../..
 
           echo "Bumping sdks/python"
           cd sdks/python
-          PY_SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short --frozen)
+          PY_SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
           cd ../..
 
           echo "Bumping api"
           cd api
-          API_VERSION=$(uv version --bump "$BUMP_TYPE" --short --frozen)
+          API_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
           cd ..
 
           echo "Bumping services"
           cd services
-          SERVICES_VERSION=$(uv version --bump "$BUMP_TYPE" --short --frozen)
+          SERVICES_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
           cd ..
 
           WEB_VERSION=$(echo "$WEB_VERSION" | tr -d '[:space:]')
