@@ -30,7 +30,12 @@ const env = {
     chunkSize: Number(process.env.AGENTA_CHUNK_SIZE ?? 50),
     viewportTarget: Number(process.env.AGENTA_VIEWPORT_TARGET ?? 20),
     filterStatus: process.env.AGENTA_FILTER_STATUS ?? "success",
+    jsonOutput: process.env.AGENTA_OUTPUT === "json",
 }
+
+// In JSON mode, suppress decorative output; everything goes through structured
+// emit at the end. Critical errors still go to stderr.
+const log = env.jsonOutput ? () => {} : console.log.bind(console)
 
 for (const [k, v] of Object.entries({
     apiUrl: env.apiUrl,
@@ -49,18 +54,18 @@ for (const [k, v] of Object.entries({
 // ============================================================================
 
 function section(title: string): void {
-    console.log("\n" + "═".repeat(72))
-    console.log("  " + title)
-    console.log("═".repeat(72))
+    log("\n" + "═".repeat(72))
+    log("  " + title)
+    log("═".repeat(72))
 }
 
 function subsection(title: string): void {
-    console.log("\n──  " + title + "  " + "─".repeat(Math.max(0, 65 - title.length)))
+    log("\n──  " + title + "  " + "─".repeat(Math.max(0, 65 - title.length)))
 }
 
 function row(label: string, value: string | number): void {
     const padded = label.padEnd(28)
-    console.log(`  ${padded} ${value}`)
+    log(`  ${padded} ${value}`)
 }
 
 function fmtBytes(bytes: number): string {
@@ -148,12 +153,37 @@ async function main() {
     // Configure shared axios with auth
     // ========================================================================
 
+    // Network instrumentation — count every HTTP request the engine triggers
+    interface HttpCall {
+        method: string
+        path: string
+        durationMs: number
+        bytes: number
+        timestamp: number
+    }
+    const httpCalls: HttpCall[] = []
+
     configureAxios({
         requestInterceptor: (config) => {
             if (config.headers && !config.headers.get("Authorization")) {
                 config.headers.set("Authorization", `ApiKey ${env.apiKey}`)
             }
+            // Stamp request start for latency measurement
+            ;(config as unknown as {__startedAt: number}).__startedAt = performance.now()
             return config
+        },
+        responseInterceptor: (response) => {
+            const startedAt = (response.config as unknown as {__startedAt?: number}).__startedAt
+            const durationMs = startedAt ? performance.now() - startedAt : 0
+            const bytes = JSON.stringify(response.data ?? "").length
+            httpCalls.push({
+                method: response.config.method?.toUpperCase() ?? "?",
+                path: (response.config.url ?? "?").replace(/^.+\/api/, ""),
+                durationMs,
+                bytes,
+                timestamp: Date.now(),
+            })
+            return response
         },
     })
 
@@ -223,9 +253,22 @@ async function main() {
                 windowing?: {next?: string | null}
             }
             const rows = data?.scenarios ?? []
-            const apiCursor = data?.windowing?.next ?? null
-            const fallback = rows.length === limit ? (rows[rows.length - 1]?.id ?? null) : null
-            const nextCursor = apiCursor ?? fallback
+
+            // Cursor resolution with three cases (see realScenarioSource.ts for full
+            // rationale). Improvement over the original OSS pattern: if server
+            // explicitly returned `windowing: {...}` (even with next=null), trust it.
+            // Only fall back to last-row-id when server omitted windowing entirely.
+            // Plus: items.length < limit → definitive end (no cursor).
+            const windowingPresent = data?.windowing !== undefined
+            const apiNext = data?.windowing?.next ?? null
+            const heuristicFallback =
+                rows.length === limit ? (rows[rows.length - 1]?.id ?? null) : null
+            const definitivelyExhausted = rows.length < limit
+            const nextCursor: string | null = definitivelyExhausted
+                ? null
+                : windowingPresent
+                  ? apiNext
+                  : (apiNext ?? heuristicFallback)
 
             return {
                 rows,
@@ -311,7 +354,7 @@ async function main() {
 
     section("Execution")
 
-    console.log(
+    log(
         "\n  " +
             "chunk".padStart(5) +
             "  " +
@@ -329,7 +372,7 @@ async function main() {
             "  " +
             "cursor",
     )
-    console.log("  " + "─".repeat(96))
+    log("  " + "─".repeat(96))
 
     const abort = new AbortController()
     let aborted = false
@@ -382,7 +425,7 @@ async function main() {
                 heapDelta: heap,
             })
 
-            console.log(
+            log(
                 "  " +
                     String(chunkCount).padStart(5) +
                     "  " +
@@ -418,7 +461,7 @@ async function main() {
                 aborted = true
                 stopReason = "viewport-fill"
                 cancellationLatencyMs = performance.now() - abortStart
-                console.log(
+                log(
                     `\n  ▸ Viewport filled (${env.viewportTarget} matches reached at chunk ${chunkCount}); aborting`,
                 )
                 break
@@ -516,7 +559,50 @@ async function main() {
                 `(${overFetchPct.toFixed(0)}% over)`,
         )
     }
+    row(
+        "Rows per RTT",
+        `${(scannedTotal / Math.max(chunkCount, 1)).toFixed(0)} ` +
+            `(${chunkCount} RTT(s) for ${scannedTotal} rows)`,
+    )
     row("Effective scan rate", `${Math.round((scannedTotal / loopElapsed) * 1000)} rows/sec`)
+
+    // ========================================================================
+    // Network detail — every HTTP request the pipeline triggered
+    // ========================================================================
+
+    subsection("Network requests (HTTP)")
+
+    const callsByPath = new Map<string, HttpCall[]>()
+    for (const call of httpCalls) {
+        const list = callsByPath.get(call.path) ?? []
+        list.push(call)
+        callsByPath.set(call.path, list)
+    }
+    for (const [path, calls] of callsByPath.entries()) {
+        const totalMs = calls.reduce((a, c) => a + c.durationMs, 0)
+        const totalBytes = calls.reduce((a, c) => a + c.bytes, 0)
+        const medianMs = quantile(
+            calls.map((c) => c.durationMs).sort((a, b) => a - b),
+            0.5,
+        )
+        row(
+            path,
+            `${calls.length} calls, ${totalMs.toFixed(1)} ms total ` +
+                `(median ${medianMs.toFixed(1)} ms), ` +
+                `${(totalBytes / 1024).toFixed(1)} KB received`,
+        )
+    }
+    row(
+        "Total HTTP requests",
+        `${httpCalls.length} ` +
+            `(${(httpCalls.length / Math.max(chunkCount, 1)).toFixed(2)} per pipeline chunk)`,
+    )
+    const totalNetworkMs = httpCalls.reduce((a, c) => a + c.durationMs, 0)
+    row(
+        "Total HTTP wall-clock",
+        `${totalNetworkMs.toFixed(1)} ms ` +
+            `(${((totalNetworkMs / Math.max(loopElapsed, 1)) * 100).toFixed(1)}% of loop time)`,
+    )
 
     subsection("Memory dynamics")
     const peakHeap = Math.max(...metrics.map((m) => m.heapDelta))
@@ -575,7 +661,7 @@ async function main() {
 
     for (const [name, ok, detail] of guarantees) {
         const mark = ok ? "✓" : "✗"
-        console.log(`  ${mark} ${name.padEnd(32)} ${detail}`)
+        log(`  ${mark} ${name.padEnd(32)} ${detail}`)
     }
 
     subsection("Entities-package integration")
@@ -608,12 +694,124 @@ async function main() {
 
     for (const [name, ok, detail] of entitiesChecks) {
         const mark = ok ? "✓" : "✗"
-        console.log(`  ${mark} ${name.padEnd(36)} ${detail}`)
+        log(`  ${mark} ${name.padEnd(36)} ${detail}`)
     }
 
     const allOk = guarantees.every(([, ok]) => ok) && entitiesChecks.every(([, ok]) => ok)
 
     section(allOk ? "OK — all checks passed" : "FAILED — see ✗ above")
+
+    // ========================================================================
+    // JSON output — full report as a single structured object
+    // Always emitted to stderr OR stdout depending on AGENTA_OUTPUT mode
+    // ========================================================================
+
+    const report = {
+        config: {
+            apiUrl: env.apiUrl,
+            projectId: env.projectId,
+            runId: env.runId,
+            chunkSize: env.chunkSize,
+            viewportTarget: env.viewportTarget,
+            filterStatus: env.filterStatus,
+        },
+        runtime: {
+            nodeVersion: process.version,
+            startedAt: new Date(overallStart).toISOString(),
+            totalElapsedMs: totalElapsed,
+            loopElapsedMs: loopElapsed,
+        },
+        outcome: {
+            stopReason,
+            aborted,
+            cancellationLatencyMs: aborted ? cancellationLatencyMs : null,
+            datasetCoverage: stopReason === "exhausted" ? "complete" : "partial",
+            datasetSize: stopReason === "exhausted" ? scannedTotal : null,
+            allChecksPassed: allOk,
+        },
+        throughput: {
+            chunksProcessed: chunkCount,
+            rowsRequested: scannedTotal,
+            rowsMatched: matchedTotal,
+            rowsLoadedIntoSink: loadedTotal,
+            hitRatioPct: (matchedTotal / Math.max(scannedTotal, 1)) * 100,
+            overFetchedRows: stopReason === "viewport-fill" ? matchedTotal - env.viewportTarget : 0,
+            overFetchedPct:
+                stopReason === "viewport-fill"
+                    ? ((matchedTotal - env.viewportTarget) / env.viewportTarget) * 100
+                    : 0,
+            rowsPerRtt: scannedTotal / Math.max(chunkCount, 1),
+            effectiveRowsPerSec: Math.round((scannedTotal / Math.max(loopElapsed, 1)) * 1000),
+        },
+        latency: {
+            perChunkTotalMs: {
+                median: quantile(totalMsList, 0.5),
+                p95: quantile(totalMsList, 0.95),
+                max: totalMsList.length > 0 ? Math.max(...totalMsList) : 0,
+            },
+            stageBreakdown: {
+                fetchTotalMs: fetchMsList.reduce((a, b) => a + b, 0),
+                transformTotalMs: txMsList.reduce((a, b) => a + b, 0),
+                sinkTotalMs: sinkLatencies.reduce((a, b) => a + b, 0),
+                networkDominancePct:
+                    (fetchMsList.reduce((a, b) => a + b, 0) /
+                        Math.max(
+                            metrics.reduce((sum, m) => sum + m.totalMs, 0),
+                            0.001,
+                        )) *
+                    100,
+            },
+        },
+        network: {
+            totalRequests: httpCalls.length,
+            requestsPerChunk: httpCalls.length / Math.max(chunkCount, 1),
+            totalWallClockMs: httpCalls.reduce((a, c) => a + c.durationMs, 0),
+            totalBytesReceived: httpCalls.reduce((a, c) => a + c.bytes, 0),
+            byEndpoint: Array.from(callsByPath.entries()).map(([path, calls]) => ({
+                path,
+                count: calls.length,
+                totalMs: calls.reduce((a, c) => a + c.durationMs, 0),
+                medianMs: quantile(
+                    calls.map((c) => c.durationMs).sort((a, b) => a - b),
+                    0.5,
+                ),
+                bytes: calls.reduce((a, c) => a + c.bytes, 0),
+            })),
+        },
+        memory: {
+            peakHeapDeltaBytes: peakHeap,
+            finalHeapDeltaBytes: finalHeap,
+            gcEventsObserved: gcEvents,
+        },
+        chunks: metrics.map((m) => ({
+            chunk: m.chunk,
+            scanned: m.scannedThisChunk,
+            matched: m.matchedThisChunk,
+            loaded: m.loadedThisChunk,
+            fetchMs: m.fetchMs,
+            transformMs: m.transformMs,
+            sinkMs: m.sinkMs,
+            totalMs: m.totalMs,
+            heapDeltaBytes: m.heapDelta,
+            cursorAfter: m.cursorPrefix,
+        })),
+        assertions: {
+            engine: guarantees.map(([name, ok, detail]) => ({name, ok, detail})),
+            entitiesIntegration: entitiesChecks.map(([name, ok, detail]) => ({name, ok, detail})),
+        },
+    }
+
+    if (env.jsonOutput) {
+        // JSON-only mode: write the report to stdout as the sole output
+        console.log(JSON.stringify(report, null, 2))
+    } else {
+        // Human-readable mode: report was already printed above. Emit a final
+        // marker for tooling that wants to parse the JSON too.
+        console.log("\n──  Machine-readable report (set AGENTA_OUTPUT=json for stdout-only)  ──")
+        console.log("__REPORT_JSON_START__")
+        console.log(JSON.stringify(report))
+        console.log("__REPORT_JSON_END__")
+    }
 }
 
 main()

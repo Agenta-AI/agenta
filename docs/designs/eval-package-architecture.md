@@ -865,11 +865,15 @@ Three forces:
 
 #### Measured trade-off (PoC, real backend, 300-scenario eval run, 100% hit ratio)
 
-| Chunk size | Viewport target | Chunks before stop | Rows fetched | Over-fetch | RTTs | First-paint |
-|---|---|---|---|---|---|---|
-| 25 | 200 matches | 8 | 200 | 0 | 8 | ~42 ms (chunk 1) + 7×10 ms = ~110 ms |
-| 200 | 20 matches | 1 | 200 | 180 (9× viewport) | 1 | ~74 ms |
-| 1000 | 20 matches | 1 (estimated) | 1000 | 980 (49× viewport) | 1 | ~150 ms (larger payload) |
+| Chunk size | Viewport target | Chunks before stop | Rows fetched | Over-fetch | RTTs | **Rows per RTT** | **Scan rate** | First-paint |
+|---|---|---|---|---|---|---|---|---|
+| 25 | 200 matches | 8 | 200 | 0 | 8 | 25 | 477 rows/sec | ~42 ms (chunk 1) + 7×10 ms = ~110 ms |
+| 200 | 20 matches | 1 | 200 | 180 (9× viewport) | 1 | 200 | **3612 rows/sec** | ~74 ms |
+| 1000 | 20 matches | 1 (estimated) | 1000 | 980 (49× viewport) | 1 | 1000 | ~5000 rows/sec | ~150 ms (larger payload) |
+
+**Rows per RTT is the load-bearing metric**, not rows per second. Same data, same backend — moving from chunk_size=25 to chunk_size=200 yields a **7.5× scan rate** improvement while paying only 180 wasted rows. That's RTT amortization: each HTTP round-trip costs ~10-50 ms (connection setup + server query + response), regardless of payload size. Big payloads spread that cost over more rows.
+
+The architecture's recommendation: **size chunks for rows-per-RTT, not rows-per-second.** The two metrics diverge when chunks are small (high RTT count) and converge when chunks are big (low RTT count). For all viewport-driven UI consumers, prefer the regime where rows-per-RTT is high.
 
 Notice: chunk_size=200 with viewport=20 over-fetches **9× viewport size**. The cost is bounded — at most one chunk's worth beyond the viewport target — but real. At 500 bytes per scenario, that's ~90 KB of "wasted" network traffic per filter operation.
 

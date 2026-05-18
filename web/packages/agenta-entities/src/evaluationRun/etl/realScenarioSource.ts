@@ -129,26 +129,37 @@ export function makeRealScenarioSource(
                 const data: ScenariosResponse = await res.json()
                 const items = Array.isArray(data?.scenarios) ? data.scenarios : []
 
-                // The backend's response shape:
-                //   - "windowing.next" is the canonical cursor when present
-                //   - When the backend omits windowing entirely (current default for
-                //     scenarios/query), fall back to last-row-id when items.length === limit
-                //     — this matches the existing OSS pattern in
-                //     `fetchEvaluationScenarioWindow` at atoms/table/scenarios.ts.
-                //   - When items.length < limit, we've exhausted the stream.
-                const nextFromServer = data?.windowing?.next ?? null
+                // Cursor resolution — three cases:
+                //   1. Server returned a `windowing` object with `next: <string>`:
+                //      authoritative — use it.
+                //   2. Server returned `windowing: {next: null}` (or omitted next
+                //      within a present windowing object): authoritative end-of-stream.
+                //      Skip the heuristic fallback; no extra RTT.
+                //   3. Server omitted `windowing` entirely (current local Agenta
+                //      behavior for /evaluations/scenarios/query): we don't know.
+                //      Use last-row-id heuristic when items.length === limit,
+                //      matching the OSS fallback in fetchEvaluationScenarioWindow.
+                //      Costs one extra RTT at end-of-stream (the "phantom chunk").
+                const windowingPresent = data?.windowing !== undefined
+                const apiNext = data?.windowing?.next ?? null
                 const fallbackCursor =
                     items.length === chunkSize ? (items[items.length - 1]?.id ?? null) : null
-                const next = nextFromServer ?? fallbackCursor
+                const next: string | null = windowingPresent
+                    ? apiNext // Trust the server's explicit signal
+                    : (apiNext ?? fallbackCursor) // Server doesn't provide windowing — heuristic
+
+                // Also short-circuit if we got fewer rows than requested — definitive end
+                const definitivelyExhausted = items.length < chunkSize
+                const finalCursor: string | null = definitivelyExhausted ? null : next
 
                 yield {
                     items,
-                    cursor: next,
+                    cursor: finalCursor,
                     meta: {page: chunkIdx, hint: "real-scenarios"},
                 }
 
-                if (!next) return
-                cursor = next
+                if (!finalCursor) return
+                cursor = finalCursor
                 chunkIdx++
             }
         },
