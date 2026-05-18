@@ -3,7 +3,8 @@
 canonical `AGENTA_BILLING_PRICING` shape consumed by
 `ee.src.core.subscriptions.settings`.
 
-Old (flat) shape — one entry per plan, top-level keys are meter slugs:
+Old (flat) shape — one entry per plan, top-level keys are Stripe-side
+meter event names chosen by the operator (`"users"`, `"traces"`, …):
 
     {
         "cloud_v0_pro": {
@@ -15,7 +16,13 @@ Old (flat) shape — one entry per plan, top-level keys are meter slugs:
 
 New (canonical) shape — `line_items` is what Stripe sees on checkout;
 `meters` is how `meters/service.py` finds the price ID for a given meter
-(counter/gauge slug) when reporting usage.
+when reporting usage. The `meters` keys remain the **Stripe-side meter
+event names** (the operator-configured identifiers on the Stripe
+dashboard, e.g. `"users"`, `"traces"`), not the internal `Counter`/`Gauge`
+slugs — the internal slug → Stripe-side name map lives in
+`ee.src.core.entitlements.types.STRIPE_METER_NAMES`. This converter is
+therefore a structural reshape only; the meter-slot names pass through
+unchanged.
 
     {
         "cloud_v0_pro": {

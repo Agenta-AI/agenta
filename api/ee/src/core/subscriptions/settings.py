@@ -17,13 +17,12 @@ from oss.src.utils.logging import get_module_logger
 from ee.src.core.entitlements.controls import get_plans
 from ee.src.core.entitlements.types import (
     DEFAULT_CATALOG,
-    Counter,
     DefaultPlan,
-    Gauge,
+    STRIPE_METER_NAMES,
 )
 
 
-_VALID_METER_KEYS: set[str] = {c.value for c in Counter} | {g.value for g in Gauge}
+_VALID_METER_KEYS: set[str] = set(STRIPE_METER_NAMES.values())
 _VALID_CATALOG_TYPES: set[str] = {"standard", "custom"}
 
 
@@ -112,9 +111,12 @@ def _normalize_pricing_entry(slug: str, entry: Any) -> Dict[str, Any]:
             }
         }
 
-    `meters` keys must be valid counter/gauge slugs. They are looked up by
-    `ee.src.core.meters.service` to report quantities to the right Stripe
-    subscription item.
+    `meters` keys are **Stripe-side meter event names** (operator-configured
+    on the Stripe dashboard; `"users"`, `"traces"`, …), not the internal
+    `Counter` / `Gauge` slugs. The mapping from internal slug to Stripe-side
+    name lives in `ee.src.core.entitlements.types.STRIPE_METER_NAMES`;
+    `ee.src.core.meters.service` resolves the internal slug through that
+    map before looking up the price ID here.
     """
     if not isinstance(entry, dict):
         raise ValueError(f"AGENTA_BILLING_PRICING['{slug}'] must be an object")
@@ -162,8 +164,10 @@ def _normalize_pricing_entry(slug: str, entry: Any) -> Dict[str, Any]:
             if meter_key not in _VALID_METER_KEYS:
                 raise ValueError(
                     f"AGENTA_BILLING_PRICING['{slug}'].stripe.meters['{meter_key}'] "
-                    "is not a valid Counter/Gauge slug. Allowed keys: "
-                    f"{sorted(_VALID_METER_KEYS)}."
+                    "is not a recognized Stripe meter event name. Allowed keys: "
+                    f"{sorted(_VALID_METER_KEYS)} (configured on the Stripe "
+                    "dashboard; the internal Counter/Gauge slug → Stripe name "
+                    "map lives in entitlements/types.py STRIPE_METER_NAMES)."
                 )
             if not isinstance(meter_entry, dict) or "price" not in meter_entry:
                 raise ValueError(
@@ -388,9 +392,12 @@ def get_stripe_meter_price(
 ) -> Optional[str]:
     """Return the Stripe price ID for a given (plan, meter) pair.
 
-    `meter` is a counter or gauge slug (e.g. "users", "traces"). Used by
-    `meters/service.py` to find the Stripe subscription item to report usage to.
-    Returns None when the plan has no pricing or the meter has no price wired up.
+    `meter` is a **Stripe-side meter event name** (e.g. `"users"`,
+    `"traces"`) — the operator-configured identifier on the Stripe dashboard,
+    not the internal `Counter` / `Gauge` slug. Callers in `meters/service.py`
+    resolve the internal slug through `STRIPE_METER_NAMES` before calling
+    this. Returns `None` when the plan has no pricing or the meter has no
+    price wired up.
     """
     if not plan or not meter:
         return None

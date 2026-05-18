@@ -684,6 +684,11 @@ REPORTS = [
     Gauge.USERS.value,
 ]
 
+STRIPE_METER_NAMES: dict[str, str] = {
+    Counter.TRACES_INGESTED.value: "traces",
+    Gauge.USERS.value: "users",
+}
+
 CONSTRAINTS = {
     Constraint.BLOCKED: {
         Tracker.FLAGS: [

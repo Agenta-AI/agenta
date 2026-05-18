@@ -1,6 +1,6 @@
 # Findings: Dynamic Access and Billing
 
-Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45..da0548d5e`) against the `proposal.md` and `gap.md` in this folder. Code was read independently before reconciling against `tasks.md`. Findings from a subsequent PR #4330 external review (Copilot) appended as FIND-014..019 — all closed. FIND-020 added from a local migration-tree audit and resolved on user direction by rebasing this branch's migration after the meters reshape. All findings resolved. See [Open Findings](#open-findings) and [Closed Findings](#closed-findings) for current state.
+Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45..da0548d5e`) against the `proposal.md` and `gap.md` in this folder. Code was read independently before reconciling against `tasks.md`. Findings from PR #4330 external review (Copilot) appended as FIND-014..019 — all closed. FIND-020 added from a local migration-tree audit and resolved on user direction by rebasing this branch's migration after the meters reshape. A second sync pass against PR #4330 added FIND-021 (`migrate_stripe_pricing.py` emits legacy meter slugs that fail new validation) and FIND-022 (stale `Counter.EVENTS` / `Counter.TRACES` references in adjacent design folders) — both currently open, pending user decision. See [Open Findings](#open-findings) and [Closed Findings](#closed-findings) for current state.
 
 ## Sources
 
@@ -27,7 +27,7 @@ Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45
 Initial scan surfaced 13 findings: one P0 (project-scope RBAC regression), four P1 (closed-enum holdouts and validation gaps), and the rest P2/P3 hygiene — all resolved on this branch. PR #4330 external review (Copilot) added six more:
 
 - **Closed:** FIND-014 (P2, design-doc retention defaults updated to match shipped code), FIND-015 (P3, override-vs-overlay terminology tightened in MDX), FIND-016 (P1, acceptance tests fixed by renaming `member`→`viewer`), FIND-017 (P2, `assert` replaced with explicit `if/raise EventException` in trial-checkout), FIND-018 (P3, `_normalize_pricing_entry` now rejects empty `{}` with a slug-pointing error; covered by new unit test), FIND-019 (P3, `existing_type=sa.String()` threaded through both `alter_column` calls in the member→viewer migration), FIND-020 (P0, EE `core` migration tree fork resolved by chaining `a1b2c3d4e5f7` after `9d3e8f0a1b2c`).
-- **Open:** (none — all findings resolved as of this sync).
+- **Open:** FIND-021 (P1, no mapping between internal `Counter`/`Gauge` slugs and Stripe-side meter event names — runtime sends `event_name="traces_ingested"` but the Stripe dashboard's meter is `"traces"`; same root cause behind the converter symptom Copilot flagged), FIND-022 (P3, stale `Counter.EVENTS` / `Counter.TRACES` references in `data-retention/` and `ee-self-hosting/` design folders).
 
 EE unit suite (102 tests) green after the changes.
 
@@ -45,7 +45,81 @@ EE unit suite (102 tests) green after the changes.
 
 ## Open Findings
 
-(none)
+### FIND-021 — [OPEN] No mapping between internal Counter/Gauge slugs and Stripe-side meter event names; `traces_ingested` won't route to a Stripe meter configured as `"traces"`
+
+- ID: FIND-021
+- Origin: sync
+- Lens: validation
+- Severity: P1
+- Confidence: high
+- Status: needs-user-decision
+- Category: Migration
+- Summary: The runtime sends `event_name = meter.key.value` to [`stripe.billing.MeterEvent.create`](../../../api/ee/src/core/meters/service.py) (line 250) — i.e. `"traces_ingested"`, the value of `Counter.TRACES_INGESTED`. But the Stripe meter on the dashboard was configured against the pre-rename slug `"traces"`, and the per-meter price IDs live on Stripe subscription items keyed by that same `"traces"` name. With the meters reshape that renamed the Counter from `TRACES` to `TRACES_INGESTED`, the runtime now emits a Stripe event with a name no Stripe-side meter recognizes — Stripe silently drops the event (or rejects with an "unknown meter" error in strict mode). Same class of bug for the corresponding price-id lookup in `stripe.meters`. The internal slug rename was a one-sided change that broke the external Stripe wiring.
+- Evidence:
+  - Runtime at [meters/service.py:250](../../../api/ee/src/core/meters/service.py#L250) — `event_name = meter.key.value` is the only source of the Stripe-side event name; no remap.
+  - [meters/service.py:180-183](../../../api/ee/src/core/meters/service.py#L180-L183) — `get_stripe_meter_price(plan, meter.key.value)` uses the same `meter.key.value` to look up the price ID under `stripe.meters` in the env config; the env config was written by the operator against the Stripe-side meter names.
+  - [subscriptions/settings.py:161-167](../../../api/ee/src/core/subscriptions/settings.py#L161-L167) — `_VALID_METER_KEYS` rejects any `stripe.meters` key that isn't in `{c.value for c in Counter} | {g.value for g in Gauge}`, so the operator can't simply use the Stripe-side `"traces"` name in `AGENTA_BILLING_PRICING` — the validator forces them to use `"traces_ingested"`. Both sides of the Stripe wiring are pinned to the internal slug.
+  - Converter at [migrate_stripe_pricing.py:97-98](migrate_stripe_pricing.py#L97-L98) — emits `meters[meter_key]` using the *input slot-name* (`"traces"`), which fails the validator above for the same reason. (This is the surface Copilot's review comment landed on; the root cause is the missing mapping, not the converter alone.)
+- Files:
+  - [api/ee/src/core/meters/service.py](../../../api/ee/src/core/meters/service.py) (runtime — `event_name` source, `get_stripe_meter_price` call)
+  - [api/ee/src/core/subscriptions/settings.py](../../../api/ee/src/core/subscriptions/settings.py) (validator + `get_stripe_meter_price` impl)
+  - [api/ee/src/core/entitlements/types.py](../../../api/ee/src/core/entitlements/types.py) (Counter / Gauge enums)
+  - [docs/designs/dynamic-access-and-billing/migrate_stripe_pricing.py](migrate_stripe_pricing.py) (converter)
+- Cause: The meters reshape renamed internal Counter values (e.g. `traces` → `traces_ingested`), but the Stripe-side meter event names and operator-facing pricing-config keys remained at the original names. The two surfaces are not the same — the internal slug is a code identifier, the Stripe meter name is an external configuration the operator owns — but the current code treats them as identical by passing `meter.key.value` to Stripe and as the lookup key into `stripe.meters`.
+- Explanation: Without a mapping, the meters reshape can never land without an externally-coordinated Stripe-dashboard rename for every deployment that previously had a `"traces"` meter configured. With a mapping, the internal slug stays canonical and the Stripe-side name stays stable; operators do not need to touch their Stripe configuration when Agenta renames internal Counter values, and existing pricing JSON continues to validate.
+- Suggested Fix (user-suggested approach: add a mapping as a global var):
+  - Define a single source of truth at module scope in [`entitlements/types.py`](../../../api/ee/src/core/entitlements/types.py) (alongside the Counter / Gauge enums) mapping each internal `Counter` / `Gauge` member to its Stripe-side meter event name:
+
+    ```python
+    # Internal Counter/Gauge slug → external Stripe meter event name.
+    # The runtime uses this when emitting `stripe.billing.MeterEvent.create(event_name=...)`
+    # and when looking up the price ID under `AGENTA_BILLING_PRICING.stripe.meters`.
+    # The Stripe-side names are operator-owned (configured once on the Stripe
+    # dashboard); changing an internal Counter value here does not require any
+    # Stripe-dashboard change.
+    STRIPE_METER_NAMES: dict[str, str] = {
+        Counter.TRACES_INGESTED.value:  "traces",
+        Gauge.USERS.value:              "users",
+        # Add a row here when a new counter/gauge becomes Stripe-reportable
+        # (i.e. when it enters `REPORTS`). Counter values not in REPORTS do
+        # not appear here.
+    }
+    ```
+
+  - Use the mapping in two places:
+    1. [meters/service.py:250](../../../api/ee/src/core/meters/service.py#L250) — `event_name = STRIPE_METER_NAMES[meter.key.value]` (with a clear `KeyError` → `[report] Skipping ... no Stripe meter mapping` log line that falls through the existing skipped-meter path).
+    2. [subscriptions/settings.py](../../../api/ee/src/core/subscriptions/settings.py) — change `_VALID_METER_KEYS` to use `set(STRIPE_METER_NAMES.values())` (the **Stripe-side** names) instead of `{c.value for c in Counter} | {g.value for g in Gauge}`. The operator's `AGENTA_BILLING_PRICING.stripe.meters.<slot>.price` is then keyed on Stripe-side names (matching what they configured on Stripe), and `get_stripe_meter_price(plan, meter.key.value)` does the lookup via `STRIPE_METER_NAMES[meter.key.value]`.
+  - Update the converter at [migrate_stripe_pricing.py](migrate_stripe_pricing.py) to be a no-op transform on the meter slot-names — it reads `"traces"` and writes `"traces"`, no remap needed because the schema now agrees with the Stripe-side names. Tighten the script's docstring to reflect this.
+  - Update the operator docs at [04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx) and [05-dynamic-billing-settings.mdx](../../docs/self-host/05-dynamic-billing-settings.mdx) to document that the `stripe.meters` keys are the **Stripe-side meter event names**, not the internal Counter slugs, and that the set of valid keys is determined by the `STRIPE_METER_NAMES` table.
+- Alternatives:
+  - Rename the Stripe-side meters on every operator's Stripe dashboard to match the new internal slug (`"traces"` → `"traces_ingested"`). Rejected: operationally invasive, requires coordinated downtime per deployment, and any future internal rename would require the same dance again.
+  - Make the mapping operator-configurable per plan via an extra `stripe.meters.<slot>.event_name` field. Could be added later as a layer on top of the global default if any deployment needs to override the canonical map; not required for the initial fix.
+- Sources: User-direction ("the Stripe meters and prices are associated to 'traces' not 'traces_ingested'", "maybe add a mapping as a global var"); PR #4330 Copilot review (comment id 3260473541, thread `PRRT_kwDOJbjazM6C5oCs`) flagged the converter-surface symptom of the same root cause.
+
+### FIND-022 — [OPEN] Stale `Counter.EVENTS.retention` / `Counter.TRACES.retention` references in data-retention design docs
+
+- ID: FIND-022
+- Origin: sync
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: needs-user-decision
+- Category: Consistency
+- Summary: Three documents in `docs/designs/data-retention/` and `docs/design/ee-self-hosting/` still reference the pre-reshape enum members `Counter.EVENTS.retention` and `Counter.TRACES.retention`. The shipped enum uses the `_INGESTED` suffix (`Counter.EVENTS_INGESTED`, `Counter.TRACES_INGESTED`). Operators grepping for these symbols when reading retention design notes won't find them in the code.
+- Evidence:
+  - [docs/designs/data-retention/README.md:34, :36](../data-retention/README.md) — references `Counter.EVENTS.retention` and `Counter.TRACES.retention`.
+  - [docs/designs/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md) — same legacy names per Copilot's note.
+  - [docs/design/ee-self-hosting/research.md:531](../../design/ee-self-hosting/research.md#L531) — `Counter.TRACES.retention` and `Counter.EVENTS.retention` in the new "Span and event retention" section.
+- Files:
+  - [docs/designs/data-retention/README.md](../data-retention/README.md)
+  - [docs/designs/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md)
+  - [docs/design/ee-self-hosting/research.md](../../design/ee-self-hosting/research.md)
+- Cause: Doc-vs-code drift after the meters reshape renamed `Counter.TRACES` → `Counter.TRACES_INGESTED` and added `Counter.EVENTS_INGESTED`. The retention design docs were written against the pre-reshape names and not updated.
+- Explanation: Same class as FIND-014 — the dynamic-access-and-billing design folder was already brought in sync; this finding extends the cleanup to the adjacent `data-retention` and `ee-self-hosting` design folders. Each file gets a mechanical `Counter.EVENTS` → `Counter.EVENTS_INGESTED` and `Counter.TRACES` → `Counter.TRACES_INGESTED` rename, plus a sanity check that no other stale enum references remain.
+- Suggested Fix:
+  - Sed-style rename across the three files: `Counter.EVENTS` → `Counter.EVENTS_INGESTED`, `Counter.TRACES` → `Counter.TRACES_INGESTED` (carefully — only when the context is enum member access, not when the string slug `events` / `traces` is being discussed as a config value).
+  - Grep `docs/` for any remaining `Counter\.\(EVENTS\|TRACES\|EVALUATIONS\|CREDITS\)\b` references that aren't `_INGESTED` / `_RUN` / `_CONSUMED` / `_RETRIEVED` and address them too.
+- Sources: PR #4330 Copilot review (comment ids 3260473592 + 3260473627, threads `PRRT_kwDOJbjazM6C5oDW` + `PRRT_kwDOJbjazM6C5oDv`).
 
 ## Closed Findings
 

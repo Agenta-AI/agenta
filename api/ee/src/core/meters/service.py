@@ -7,7 +7,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 
 from ee.src.core.entitlements.types import Quota
-from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
+from ee.src.core.entitlements.types import Counter, Gauge, REPORTS, STRIPE_METER_NAMES
 from ee.src.core.subscriptions.settings import get_stripe_meter_price
 from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 from ee.src.core.meters.interfaces import MetersDAOInterface
@@ -177,9 +177,18 @@ class MetersService:
 
                     if meter.key.value in _GAUGE_SLUGS:
                         try:
+                            stripe_meter_name = STRIPE_METER_NAMES.get(meter.key.value)
+                            if not stripe_meter_name:
+                                log.warn(
+                                    f"[report] Skipping meter {meter.organization_id}/{meter.key} - no Stripe meter mapping"
+                                )
+                                skipped_count += 1
+                                meters_to_bump.append(meter)
+                                continue
+
                             price_id = get_stripe_meter_price(
                                 meter.subscription.plan,
-                                meter.key.value,
+                                stripe_meter_name,
                             )
 
                             if not price_id:
@@ -247,7 +256,14 @@ class MetersService:
 
                     if meter.key.value in _COUNTER_SLUGS:
                         try:
-                            event_name = meter.key.value
+                            event_name = STRIPE_METER_NAMES.get(meter.key.value)
+                            if not event_name:
+                                log.warn(
+                                    f"[report] Skipping meter {meter.organization_id}/{meter.key} - no Stripe meter mapping"
+                                )
+                                skipped_count += 1
+                                meters_to_bump.append(meter)
+                                continue
                             delta = max(meter.value - meter.synced, 0)
 
                             if delta == 0:
