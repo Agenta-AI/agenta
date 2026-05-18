@@ -86,3 +86,27 @@ export {
     type InstrumentedAtomFamily,
     type InstrumentedAtomFamilyOptions,
 } from "../../shared/molecule/instrumentedAtomFamily"
+
+// Post-hydrate predicate filter — value-equality against resolved UI columns.
+// Per eval-filtering.md §D2: this is the v1 frontend transform over already-
+// loaded metric data. v2 server-side filter swaps the source's `filtering`
+// param and this transform becomes a no-op.
+export {
+    makeRowPredicateFilter,
+    unwrapStatsForCompare,
+    type RowPredicate,
+    type PredicateFilterOptions,
+} from "./rowPredicateFilter"
+
+// Hit-ratio meter — v1→v2 escalation signal (reports the regime; doesn't
+// swap engines today). Per eval-filtering.md §D2 + §C3: tracks rolling
+// (matched/scanned) and recommends escalating to v2 when the ratio falls
+// below threshold.
+export {
+    createHitRatioMeter,
+    type HitRatioMeter,
+    type HitRatioMeterOptions,
+    type HitRatioRegime,
+    type HitRatioState,
+    type HitRatioWindow,
+} from "./hitRatioMeter"
