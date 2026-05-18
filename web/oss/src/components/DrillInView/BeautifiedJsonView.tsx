@@ -491,6 +491,7 @@ const MessageNodeRow = memo(function MessageNodeRow({
     const body = useMemo(
         () => (
             <EditorProvider
+                key={text}
                 id={editorId}
                 initialValue={text}
                 showToolbar={false}
