@@ -517,6 +517,11 @@ async def _check_entitlements(
         workspace_id=_scope.workspace_id,
         project_id=_scope.project_id,
         user_id=_scope.user_id,
+        #
+        year=_period.year,
+        month=_period.month,
+        day=_period.day,
+        #
         key=key,  # type: ignore[arg-type]
         delta=delta,
     )

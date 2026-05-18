@@ -57,9 +57,21 @@ def _normalize_period_on_meter(
     quota: Quota,
     anchor: Optional[int],
 ) -> MeterDTO:
-    """If the quota has a period, snap meter (year, month, day) to the current bucket."""
+    """If the quota has a period AND the meter has no period set, snap
+    (year, month, day) to the current bucket.
+
+    Trusting a pre-populated period lets callers (most notably
+    `check_entitlements` with an explicit `period=` kwarg, and future
+    backdated-adjustment callers) pass an explicit bucket through to the
+    DAO without the normalizer silently rewriting it to the current
+    bucket — which would create a mismatch between the cache key (built
+    on the caller's period) and the row actually upserted.
+    """
 
     if quota.period is None:
+        return meter
+
+    if meter.year is not None or meter.month is not None or meter.day is not None:
         return meter
 
     period = period_from(period=quota.period, anchor=anchor)

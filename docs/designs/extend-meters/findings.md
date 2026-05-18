@@ -7,7 +7,7 @@
 
 ## Summary
 
-Sync pulled in 11 inline review comments from two Copilot review passes on PR #4347. All resolved. Three (PR-01, PR-04, PR-09) were already fixed pre-sync. Resolve passes closed PR-02 + PR-07 (P0 — migration key-case backfill bug and silent fail-open on org-scoped quotas), PR-05 + PR-06 + PR-03 / PR-08 (P1 — worker entitlement bootstrap, legacy migration USERS-meter block, `cache=True` reads never persisting), and PR-10 + PR-11 (P2 — manual billing-period test + new helper tests, deprecated `TracingRouter.query_spans` metering).
+Sync pulled in 11 inline review comments from two Copilot review passes on PR #4347, all closed. A third Copilot pass on 2026-05-18 09:24Z surfaced 6 more threads (3 distinct findings — PR-12, PR-13, PR-14; the 4 worker-import comments are duplicates of PR-13). All three closed: PR-13 (`is_ee()` guard on EE imports in worker entrypoints), PR-14 (`MeterDTO` validates supplied `meter_id` against canonical and logs + recomputes on mismatch), PR-12 (`check_entitlements` hard adjust now honors explicit `period` end-to-end via two-pronged fix in entitlements helper + DAO normalizer).
 
 ## Rules
 
@@ -17,7 +17,7 @@ Sync pulled in 11 inline review comments from two Copilot review passes on PR #4
 
 ## Notes
 
-- Sync run: 2026-05-18. PR HEAD: `d21c76bd70b31a144a455cd986ce5c016c63dbc6`.
+- Sync run: 2026-05-18 (two passes — pre-resolve and post-PR-11 fix). PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (first pass) and `a54e99803c365c9c57d418b1ee7368e694c6db88` (second pass, picks up PR-12 / PR-13 / PR-14).
 - Resolve queue priority order: P0 → P1 → P2 → P3.
 
 ## Open Findings
@@ -25,6 +25,30 @@ Sync pulled in 11 inline review comments from two Copilot review passes on PR #4
 (none)
 
 ## Closed Findings
+
+### [CLOSED] PR-12 — `check_entitlements` hard adjust now honors explicit `period` end-to-end (P2, high)
+
+- **Category**: Correctness
+- **Files**: `api/ee/src/utils/entitlements.py:L515-L527`, `api/ee/src/dbs/postgres/meters/dao.py:L55-L78`
+- **PR comment**: [discussion_r3257749819](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257749819)
+- **Fix shipped**: Two-pronged. (1) In `check_entitlements`, the `MeterDTO` built for the hard adjust now carries `year=_period.year, month=_period.month, day=_period.day` so the validator computes a `meter_id` consistent with the cache key. (2) `_normalize_period_on_meter` in the DAO now early-returns when the meter already has any of `year`/`month`/`day` set — the normalizer only snaps to the current bucket when the caller did not specify one. Together, an explicit `period=` argument flows through the cache, the DTO's `meter_id`, and the DB upsert without rewrite. Updated docstring documents the contract.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-14 — `MeterDTO` now validates supplied `meter_id` against canonical, recomputes on mismatch (P2, medium)
+
+- **Category**: Correctness / Soundness
+- **Files**: `api/ee/src/core/meters/types.py:L159-L200`
+- **PR comment**: [discussion_r3257750100](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257750100)
+- **Fix shipped**: `_populate_meter_id` always computes `canonical = compute_meter_id(scope, period, key)`. If the caller supplied a `meter_id` that differs from canonical, the module-level `log` (matching the codebase pattern — `log = get_module_logger(__name__)` at the top of the module) emits a warning and the canonical value is written back. No raise, no silent override: mismatches are recoverable but loud, which makes `compute_meter_id` the real single source of truth.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-13 — EE imports in worker entrypoints not guarded by `is_ee()` (P1, high)
+
+- **Category**: Compatibility
+- **Files**: `api/entrypoints/worker_tracing.py`, `api/entrypoints/worker_events.py`, `api/entrypoints/worker_evaluations.py`, `api/entrypoints/worker_webhooks.py`
+- **PR comments**: [discussion_r3257749892](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257749892), [discussion_r3257749928](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257749928), [discussion_r3257749968](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257749968), [discussion_r3257750016](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257750016)
+- **Fix shipped**: Wrapped `from ee.src.utils.entitlements import bootstrap_entitlements_services` in `if is_ee():` at module load time in all four worker entrypoints, and guarded the call site the same way. OSS-only builds where the `ee.*` package isn't on the path no longer crash at worker startup. Matches the existing `if is_ee(): import ...` pattern in `api/entrypoints/routers.py:319`.
+- **Action**: Reply on all four GitHub threads and resolve.
 
 ### [CLOSED] PR-11 — Deprecated `TracingRouter.query_spans` now metered (P2, medium)
 

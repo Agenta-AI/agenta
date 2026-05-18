@@ -7,12 +7,16 @@ from taskiq.cli.worker.run import run_worker
 from taskiq.cli.worker.args import WorkerArgs
 from taskiq_redis import RedisStreamBroker
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.env import env
 from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
 
-from ee.src.utils.entitlements import bootstrap_entitlements_services
+# Guard EE imports — see worker_tracing.py for the rationale.
+if is_ee():
+    from ee.src.utils.entitlements import bootstrap_entitlements_services
+
 from oss.src.core.evaluations.runtime.locks import run_worker_heartbeat
 
 from oss.src.dbs.postgres.queries.dbes import (
@@ -205,8 +209,9 @@ def main() -> int:
         validate_required_env_vars()
 
         # Wire EE entitlement services so `check_entitlements` works in
-        # this worker process (no-op when EE is not enabled).
-        bootstrap_entitlements_services()
+        # this worker process. Gated on `is_ee()` to match the import above.
+        if is_ee():
+            bootstrap_entitlements_services()
 
         log.info("[EVAL] Starting Taskiq worker with Redis Streams")
 

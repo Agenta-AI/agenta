@@ -30,6 +30,7 @@ import sys
 import asyncio
 from redis.asyncio import Redis
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.env import env
@@ -39,7 +40,11 @@ from oss.src.core.tracing.service import TracingService
 
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
-from ee.src.utils.entitlements import bootstrap_entitlements_services
+# Guard EE imports at module load — an OSS worker build must not require
+# the `ee.*` package to be importable. The matching `is_ee()` branch in
+# `main_async` calls `bootstrap_entitlements_services()`.
+if is_ee():
+    from ee.src.utils.entitlements import bootstrap_entitlements_services
 
 log = get_module_logger(__name__)
 
@@ -61,8 +66,10 @@ async def main_async() -> int:
         validate_required_env_vars()
 
         # Wire EE entitlement services so `check_entitlements` works in
-        # this worker process (no-op when EE is not enabled).
-        bootstrap_entitlements_services()
+        # this worker process. Gated on `is_ee()` because the import is
+        # also gated above — in OSS builds the symbol does not exist.
+        if is_ee():
+            bootstrap_entitlements_services()
 
         # Create durable Redis client for streams
         redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)

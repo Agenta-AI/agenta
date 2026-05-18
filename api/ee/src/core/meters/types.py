@@ -7,9 +7,13 @@ from datetime import date
 from pydantic import BaseModel, model_validator
 
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.entitlements.types import Counter, Gauge
 from ee.src.core.subscriptions.types import SubscriptionDTO
+
+
+log = get_module_logger(__name__)
 
 
 # Frozen at import time. Tests that mock `env.agenta.uuid_namespace` must do
@@ -172,12 +176,26 @@ class MeterDTO(BaseModel):
             day=self.day,
         )
 
-        if self.meter_id is None:
-            self.meter_id = compute_meter_id(
-                scope=scope,
-                period=period,
-                key=self.key,
+        # `compute_meter_id` is the single source of truth for meter
+        # identity. If a caller supplied a `meter_id`, validate it against
+        # the canonical value; on mismatch, log a warning and overwrite
+        # with the canonical ID so DAO upserts can never land under a
+        # non-canonical PK. Mismatches are recoverable but loud.
+        canonical = compute_meter_id(
+            scope=scope,
+            period=period,
+            key=self.key,
+        )
+
+        if self.meter_id is not None and self.meter_id != canonical:
+            log.warning(
+                "[meters] supplied meter_id=%s does not match canonical=%s "
+                "for scope/period/key — overwriting with canonical",
+                self.meter_id,
+                canonical,
             )
+
+        self.meter_id = canonical
 
         return self
 
