@@ -157,46 +157,34 @@ async function main() {
     const {atom} = await import("jotai")
     const {axios, configureAxios} = await import("@agenta/shared/api")
     const {createPaginatedEntityStore} =
-        await import("../../packages/agenta-entities/src/shared/paginated/createPaginatedEntityStore")
-    const {runLoop, makeSourceFromPaginatedStore} =
-        await import("../../packages/agenta-entities/src/etl")
+        await import("../src/shared/paginated/createPaginatedEntityStore")
+    const {runLoop, makeSourceFromPaginatedStore} = await import("../src/etl")
     const {makeHydrateScenariosTransform, DEFAULT_HYDRATE_FETCHERS} =
-        await import("../../packages/agenta-entities/src/evaluationRun/etl/hydrateScenariosTransform")
+        await import("../src/evaluationRun/etl/hydrateScenariosTransform")
     const {buildMoleculeBackedFetchers} =
-        await import("../../packages/agenta-entities/src/evaluationRun/etl/cacheAwareFetchers")
-    type EntityCacheStats =
-        import("../../packages/agenta-entities/src/evaluationRun/etl/cacheAwareFetchers").EntityCacheStats
-    type ChunkCacheStats =
-        import("../../packages/agenta-entities/src/evaluationRun/etl/cacheAwareFetchers").ChunkCacheStats
+        await import("../src/evaluationRun/etl/cacheAwareFetchers")
+    type EntityCacheStats = import("../src/evaluationRun/etl/cacheAwareFetchers").EntityCacheStats
+    type ChunkCacheStats = import("../src/evaluationRun/etl/cacheAwareFetchers").ChunkCacheStats
     const {resolveMappings, groupResolvedColumns} =
-        await import("../../packages/agenta-entities/src/evaluationRun/etl/resolveMappings")
-    const {makeRowPredicateFilter} =
-        await import("../../packages/agenta-entities/src/evaluationRun/etl/rowPredicateFilter")
-    type RowPredicate =
-        import("../../packages/agenta-entities/src/evaluationRun/etl/rowPredicateFilter").RowPredicate
-    const {createHitRatioMeter} =
-        await import("../../packages/agenta-entities/src/evaluationRun/etl/hitRatioMeter")
-    type HitRatioRegime =
-        import("../../packages/agenta-entities/src/evaluationRun/etl/hitRatioMeter").HitRatioRegime
+        await import("../src/evaluationRun/etl/resolveMappings")
+    const {makeRowPredicateFilter} = await import("../src/evaluationRun/etl/rowPredicateFilter")
+    type RowPredicate = import("../src/evaluationRun/etl/rowPredicateFilter").RowPredicate
+    const {createHitRatioMeter} = await import("../src/evaluationRun/etl/hitRatioMeter")
+    type HitRatioRegime = import("../src/evaluationRun/etl/hitRatioMeter").HitRatioRegime
     const {inspectCache, clearCacheByPrefix, inspectMemory, DEFAULT_DIAGNOSTIC_PREFIXES} =
-        await import("../../packages/agenta-entities/src/evaluationRun/etl/cacheDiagnostics")
-    const {inspectAtomFamilies} =
-        await import("../../packages/agenta-entities/src/shared/molecule/instrumentedAtomFamily")
+        await import("../src/evaluationRun/etl/cacheDiagnostics")
+    const {inspectAtomFamilies} = await import("../src/shared/molecule/instrumentedAtomFamily")
     type ResolvedColumnGroup =
-        import("../../packages/agenta-entities/src/evaluationRun/etl/resolveMappings").ResolvedColumnGroup
-    type ResolvedColumn =
-        import("../../packages/agenta-entities/src/evaluationRun/etl/resolveMappings").ResolvedColumn
-    type Transform<In, Out> = import("../../packages/agenta-entities/src/etl/core/types").Transform<
-        In,
-        Out
-    >
-    type Sink<T> = import("../../packages/agenta-entities/src/etl/core/types").Sink<T>
-    type Chunk<T> = import("../../packages/agenta-entities/src/etl/core/types").Chunk<T>
-    type Source<T> = import("../../packages/agenta-entities/src/etl/core/types").Source<T>
+        import("../src/evaluationRun/etl/resolveMappings").ResolvedColumnGroup
+    type ResolvedColumn = import("../src/evaluationRun/etl/resolveMappings").ResolvedColumn
+    type Transform<In, Out> = import("../src/etl/core/types").Transform<In, Out>
+    type Sink<T> = import("../src/etl/core/types").Sink<T>
+    type Chunk<T> = import("../src/etl/core/types").Chunk<T>
+    type Source<T> = import("../src/etl/core/types").Source<T>
     type HydratedScenarioRow<T> =
-        import("../../packages/agenta-entities/src/evaluationRun/etl/hydrateScenariosTransform").HydratedScenarioRow<T>
+        import("../src/evaluationRun/etl/hydrateScenariosTransform").HydratedScenarioRow<T>
     type HydratableScenario =
-        import("../../packages/agenta-entities/src/evaluationRun/etl/hydrateScenariosTransform").HydratableScenario
+        import("../src/evaluationRun/etl/hydrateScenariosTransform").HydratableScenario
 
     // ========================================================================
     // Header
@@ -1161,8 +1149,7 @@ async function main() {
     // atom family isn't exercised by default — we exercise it explicitly
     // here so the diagnostic surface shows the real cost of subscribing
     // to atoms on top of the bulk-cache path.
-    const {traceEntityAtomFamily} =
-        await import("../../packages/agenta-entities/src/trace/state/store")
+    const {traceEntityAtomFamily} = await import("../src/trace/state/store")
     for (const hr of matchedRows) {
         for (const traceId of Object.keys(hr.traces)) {
             // Just creating the atom adds traceId to the family's tracking
@@ -1299,11 +1286,9 @@ async function main() {
     )
 
     const {evaluationResultMolecule, evaluationMetricMolecule} =
-        await import("../../packages/agenta-entities/src/evaluationRun/state")
-    const {prefetchTestcasesByIds: rePrefetchTc} =
-        await import("../../packages/agenta-entities/src/testcase/state/prefetch")
-    const {prefetchTracesByIds: rePrefetchTr} =
-        await import("../../packages/agenta-entities/src/trace/state/prefetch")
+        await import("../src/evaluationRun/state")
+    const {prefetchTestcasesByIds: rePrefetchTc} = await import("../src/testcase/state/prefetch")
+    const {prefetchTracesByIds: rePrefetchTr} = await import("../src/trace/state/prefetch")
 
     const reprefetchResults = await evaluationResultMolecule.actions.prefetchByScenarioIds({
         projectId: env.projectId,
@@ -1406,8 +1391,7 @@ async function main() {
 
     // Now demonstrate atom-level cleanup. Each instrumented family has its
     // own `.clear()` action that drops every memoized param.
-    const {clearAllAtomFamilies} =
-        await import("../../packages/agenta-entities/src/shared/molecule/instrumentedAtomFamily")
+    const {clearAllAtomFamilies} = await import("../src/shared/molecule/instrumentedAtomFamily")
     const removedAtomParams = clearAllAtomFamilies()
     const finalAtomFamilies = inspectAtomFamilies()
     const finalTotal = finalAtomFamilies.reduce((a, f) => a + f.size, 0)
