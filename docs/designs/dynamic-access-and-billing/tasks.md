@@ -179,9 +179,28 @@ extra permission) or add a single new role without restating the full
   - [hosting/docker-compose/ee/env.ee.dev.example](../../../hosting/docker-compose/ee/env.ee.dev.example)
   - [hosting/docker-compose/ee/env.ee.gh.example](../../../hosting/docker-compose/ee/env.ee.gh.example)
 
+## Post-PR-#4330 Hardening
+
+Surfaced by Copilot review on PR #4330 and a local migration-tree audit.
+All seven findings (FIND-014..020) closed; details in [findings.md](findings.md).
+
+- [x] FIND-014 — sync design-folder text (`research.md`, `gap.md`, `proposal.md`, `tasks.md`) to the shipped `Counter.EVENTS_INGESTED` per-plan retention values (MONTHLY/QUARTERLY/YEARLY on Hobby/Pro/Business; `None` on Agenta/Self-hosted). MDX docs already matched.
+- [x] FIND-015 — tighten override-vs-overlay terminology in [04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx): `:::warning Override semantics` callout under `AGENTA_ACCESS_ROLES`; two H4 examples ("Override the full project-scope catalog" vs "Add a single role on top of the defaults"); `:::note Scope of effect` callouts on both overlay sections distinguishing plan-independent (`_ROLES_OVERLAY`) vs plan-targeted (`_DEFAULT_PLAN_OVERLAY`).
+- [x] FIND-016 — rename `"role": "member"` → `"role": "viewer"` in three acceptance test sites: [test_memberships.py:52](../../../api/ee/tests/pytest/acceptance/accounts/test_memberships.py#L52), [test_transfer_ownership.py:65, :118](../../../api/ee/tests/pytest/acceptance/accounts/test_transfer_ownership.py#L65). No deprecation alias added — admin endpoint is internal-only.
+- [x] FIND-017 — replace `assert trial_days is not None and trial_plan is not None` with explicit `if/raise EventException(...)` in [subscriptions/service.py:95-101](../../../api/ee/src/core/subscriptions/service.py#L95-L101) so the guard survives `python -O` / `PYTHONOPTIMIZE`. Comment annotated to document the rationale.
+- [x] FIND-018 — require at least one of `free` or `stripe` per pricing entry in [`_normalize_pricing_entry`](../../../api/ee/src/core/subscriptions/settings.py); empty `{}` now fails startup with a slug-pointing message instead of silently 400-ing at checkout. Added [test_billing_settings.py::test_empty_pricing_entry_rejected](../../../api/ee/tests/pytest/unit/test_billing_settings.py) to lock in the behavior.
+- [x] FIND-019 — thread `existing_type=sa.String()` through both `op.alter_column` calls in [a1b2c3d4e5f7_unify_org_member_role_to_viewer.py](../../../api/ee/databases/postgres/migrations/core/versions/a1b2c3d4e5f7_unify_org_member_role_to_viewer.py); imported `sqlalchemy as sa`. No behavior change on PostgreSQL today; survives a future dialect addition or column-type change upstream.
+- [x] FIND-020 — linearize the EE `core` Alembic tree after the `feat/clean-up-meters` merge: rebased `a1b2c3d4e5f7.down_revision` from `"e6f7a8b9c0d1"` to `"9d3e8f0a1b2c"` so the org-role unification chains after the meters reshape. Verified single head via `python find_head.py core` from `api/ee/databases/postgres/migrations/` — output is now `Heads: ['a1b2c3d4e5f7']`.
+- [x] Pydantic `extra="forbid"` added to `Quota`, `Probe`, `Bucket`, `Throttle` so operator typos in `AGENTA_ACCESS_PLANS` / `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` (most commonly leftover `"monthly": true` from the pre-reshape config) fail startup with a clear field-pointing error.
+- [x] Meters-service Stripe-reporting routes switched from name-based identity (`meter.key.name in Gauge.__members__`) to value-based (`meter.key.value in _GAUGE_SLUGS`) so dispatch survives future enum renames.
+- [x] MDX docs at [04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx) refocused on `self_hosted_enterprise` examples (this page lives in `docs/self-host/`); cloud-plan flavor moved out. Added worked example for per-user / per-day `TRACES_RETRIEVED` cap via `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`, plus a Reference section with `Period` / `Scope` / `Retention` value tables and a pointer to the `Permission` enum source.
+- [x] PR threads on PR #4330 replied + resolved for FIND-014..020 (6 of 7 review threads on the PR now resolved).
+
 ## Validation
 
 - [x] `ruff format` clean.
 - [x] `ruff check` clean.
-- [x] EE unit suite green (156 tests).
+- [x] EE unit suite green (156 tests + 1 new for FIND-018).
+- [x] `test_billing_settings.py` green (33/33).
+- [x] `find_head.py core` single-head after FIND-020 rebase.
 - [ ] Full unit/integration/acceptance suites in `api`, `sdk`, `services`, `web` — run manually by the maintainer.

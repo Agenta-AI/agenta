@@ -305,6 +305,20 @@ Invalid controls fail startup with a clear message:
 - Reserved role slugs (`owner`, `viewer`) redefined → fail.
 - Roles overlay with a top-level key other than `project` → fail.
 - Roles overlay adding a new role without `permissions` → fail.
+- Pricing entry that defines neither `free` nor `stripe` (empty `{}`) →
+  fail. Without this guard a typo'd entry would silently 400 at checkout;
+  the slug-pointing startup error makes the cause obvious.
+- Quota / Throttle / Bucket / Probe model with unknown fields (most
+  commonly a leftover `"monthly": true` from the pre-reshape config) →
+  fail. Pydantic `extra="forbid"` rejects the typo at parse time with a
+  field-pointing error.
+
+Trial-checkout path (`SubscriptionsService.start_reverse_trial`) uses an
+explicit `if trial_days is None or trial_plan is None: raise EventException(...)`
+guard rather than `assert`, so the runtime invariant survives `python -O`
+/ `PYTHONOPTIMIZE` and a misconfigured trial state fails loudly at the
+domain boundary rather than silently sending `None` values into Stripe
+metadata.
 
 ## Retention Split
 
