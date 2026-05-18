@@ -1,12 +1,17 @@
 """Regression net for `MetersDAO.adjust` / `check` strict-vs-soft semantics.
 
-The DAO has two predicate branches depending on `quota.strict`:
+The DAO has two predicate branches depending on `quota.strict`. Both modes
+reject predictable self-overshoot — a single request whose `delta` alone
+exceeds the limit is always denied (Python-side fast-path). The modes
+diverge on what happens when the current value is already at-or-over the
+limit:
 
-  * strict      → `value + delta <= limit`  (block as soon as the new total
-                  would exceed the limit)
-  * soft (non-) → `value <= limit`           (allow one overshoot — the
-                  current row is at-or-below limit, but the update may push
-                  past)
+  * strict      → `greatest(value + delta, 0) <= limit`
+                  Rejects any request that would cross the limit. The
+                  request itself is denied; no "one free overshoot".
+  * non-strict  → `value < limit`  (plus the shared `delta <= limit` rule)
+                  Permits the request that crosses the line from below.
+                  Already-at-or-over-limit rows reject the next write.
 
 `check` is unconditionally strict (`adjusted_value <= quota.limit`).
 
@@ -249,11 +254,16 @@ class TestAdjustStrictVsSoft:
         assert "<= 10" in sql
 
     @pytest.mark.asyncio
-    async def test_soft_emits_value_only_predicate(self, monkeypatch):
-        """Soft mode gates on `value <= limit` — current value only.
+    async def test_nonstrict_emits_value_strictly_less_than_limit_predicate(
+        self, monkeypatch
+    ):
+        """Non-strict mode gates the SQL predicate on `value < limit`.
 
-        This is the historical behavior that allows one overshoot. Pinning
-        it so an accidental rewrite of the soft branch surfaces here.
+        The shared `delta <= limit` rule is enforced Python-side in the
+        fast-path above the upsert. The SQL clause is the one that lets
+        a request cross the line from below (current=9 + delta=2 with
+        limit=10 → SQL says 9 < 10 → allow), while denying any row
+        already at-or-over limit.
         """
         session = _Session(row=(7,))
         _patch_session(monkeypatch, session)
@@ -265,17 +275,150 @@ class TestAdjustStrictVsSoft:
         )
 
         sql = _extract_where_sql(session.executed_statements[0])
-
-        # Soft: predicate is `meters.value <= limit` — `+ delta` must not appear
-        # in the WHERE clause (it still appears in SET, which is fine).
-        # Easiest invariant: the WHERE has `value <= 10` but no `+ 2` between
-        # `WHERE` and the end of the predicate.
         lowered = sql.lower()
         where_idx = lowered.rfind("where")
         assert where_idx != -1, "WHERE clause not emitted"
         where_clause = lowered[where_idx:]
-        assert "meters.value <= 10" in where_clause
+        # Strict-less-than against limit; no `+ delta` term in the WHERE.
+        assert "meters.value < 10" in where_clause
+        assert "<= 10" not in where_clause
         assert "+ 2" not in where_clause and "+2" not in where_clause
+
+    # ---------------------------------------------------------------------
+    # User-defined truth table (2026-05-18): `current + delta` vs `limit=10`
+    #
+    #   | Case               | Strict | Non-strict |
+    #   |--------------------|--------|------------|
+    #   | 0 + 12 huge delta  | deny   | deny       |
+    #   | 10 + 2 at limit    | deny   | deny       |
+    #   |  9 + 2 1-over      | deny   | allow      |
+    #   |  8 + 2 fills       | allow  | allow      |
+    #
+    # Strict denials below the predictable-overshoot rule are decided by
+    # the SQL `greatest(value + delta, 0) <= limit` predicate; the test
+    # simulates the DB returning no row when the predicate filters the
+    # update out (i.e. RETURNING is empty → allowed=False).
+    # ---------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_huge_delta_denied_in_strict(self, monkeypatch):
+        """0 + 12 with limit=10 → predictable self-overshoot → deny.
+
+        Python-side fast-path; no DB call should land.
+        """
+        session = _Session(row=None)
+        _patch_session(monkeypatch, session)
+
+        dao = MetersDAO()
+        allowed, _, _ = await dao.adjust(
+            meter=_meter(delta=12),
+            quota=Quota(limit=10, strict=True),
+        )
+
+        assert allowed is False
+        assert session.executed_statements == [], (
+            "delta > limit must short-circuit before issuing SQL"
+        )
+
+    @pytest.mark.asyncio
+    async def test_huge_delta_denied_in_nonstrict(self, monkeypatch):
+        """0 + 12 with limit=10 → predictable self-overshoot → deny.
+
+        Non-strict shares the same `delta <= limit` rule as strict.
+        """
+        session = _Session(row=None)
+        _patch_session(monkeypatch, session)
+
+        dao = MetersDAO()
+        allowed, _, _ = await dao.adjust(
+            meter=_meter(delta=12),
+            quota=Quota(limit=10, strict=False),
+        )
+
+        assert allowed is False
+        assert session.executed_statements == []
+
+    @pytest.mark.asyncio
+    async def test_at_limit_denied_in_strict(self, monkeypatch):
+        """10 + 2 with limit=10 → strict SQL predicate filters the row
+        out (greatest(10+2, 0) > 10) → RETURNING empty → deny."""
+        session = _Session(row=None)
+        _patch_session(monkeypatch, session)
+
+        dao = MetersDAO()
+        allowed, _, _ = await dao.adjust(
+            meter=_meter(delta=2),
+            quota=Quota(limit=10, strict=True),
+        )
+
+        assert allowed is False
+        # The DAO still issues the upsert; the DB-side predicate is what
+        # rejects this row. Verify it carried the expected shape.
+        assert len(session.executed_statements) == 1
+
+    @pytest.mark.asyncio
+    async def test_at_limit_denied_in_nonstrict(self, monkeypatch):
+        """10 + 2 with limit=10 → non-strict SQL predicate `value < 10`
+        rejects current=10 → RETURNING empty → deny."""
+        session = _Session(row=None)
+        _patch_session(monkeypatch, session)
+
+        dao = MetersDAO()
+        allowed, _, _ = await dao.adjust(
+            meter=_meter(delta=2),
+            quota=Quota(limit=10, strict=False),
+        )
+
+        assert allowed is False
+        assert len(session.executed_statements) == 1
+
+    @pytest.mark.asyncio
+    async def test_one_over_denied_in_strict(self, monkeypatch):
+        """9 + 2 with limit=10 → strict SQL predicate `greatest(9+2, 0) > 10`
+        rejects → deny."""
+        session = _Session(row=None)
+        _patch_session(monkeypatch, session)
+
+        dao = MetersDAO()
+        allowed, _, _ = await dao.adjust(
+            meter=_meter(delta=2),
+            quota=Quota(limit=10, strict=True),
+        )
+
+        assert allowed is False
+
+    @pytest.mark.asyncio
+    async def test_one_over_allowed_in_nonstrict(self, monkeypatch):
+        """9 + 2 with limit=10 → non-strict SQL predicate `9 < 10` → allow.
+
+        This is the cross-the-line-once case: the request itself crosses
+        from below the limit and is permitted; the subsequent at-limit
+        request would then be denied by the same predicate.
+        """
+        session = _Session(row=(11,))  # post-update value
+        _patch_session(monkeypatch, session)
+
+        dao = MetersDAO()
+        allowed, _, _ = await dao.adjust(
+            meter=_meter(delta=2),
+            quota=Quota(limit=10, strict=False),
+        )
+
+        assert allowed is True
+
+    @pytest.mark.asyncio
+    async def test_fills_exactly_allowed_in_both_modes(self, monkeypatch):
+        """8 + 2 with limit=10 → equal to limit → allowed in both modes."""
+        for strict in (True, False):
+            session = _Session(row=(10,))
+            _patch_session(monkeypatch, session)
+
+            dao = MetersDAO()
+            allowed, _, _ = await dao.adjust(
+                meter=_meter(delta=2),
+                quota=Quota(limit=10, strict=strict),
+            )
+            assert allowed is True, f"strict={strict}: 8+2 should allow"
 
     @pytest.mark.asyncio
     async def test_strict_blocks_when_proposed_value_exceeds_limit(self, monkeypatch):

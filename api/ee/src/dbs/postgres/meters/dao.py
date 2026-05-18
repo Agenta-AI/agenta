@@ -383,21 +383,43 @@ class MetersDAO(MetersDAOInterface):
         # 1. Normalize meter period to the current bucket if the quota is periodic.
         meter = _normalize_period_on_meter(meter, quota, anchor)
 
-        # 2. Calculate proposed value (starting from 0)
+        # 2. Compute the value to seed on insert (used by the upsert
+        #    statement below and as the fallback when the predicate
+        #    denies). Clamp to 0 to match the SQL-side `greatest(..., 0)`.
         desired_value = meter.value if meter.value is not None else (meter.delta or 0)
         desired_value = max(desired_value, 0)
 
-        # 3. Block insert if quota exceeded
-        if quota.limit is not None and desired_value > quota.limit:
-            return (
-                False,
-                MeterDTO(
-                    **meter.model_dump(exclude={"value", "synced"}),
-                    value=0,
-                    synced=0,
-                ),
-                lambda: None,
-            )
+        # 3. Python-side fast-path: reject any predictable self-overshoot
+        #    (a write that, on its own, would push the meter past the limit
+        #    regardless of the row's current state). Absolute writes use
+        #    meter.value; delta writes use meter.delta. Concurrent races
+        #    that turn a permissible write into an overshoot are caught by
+        #    the SQL predicate below, not here.
+        if quota.limit is not None:
+            if meter.value is not None and meter.value > quota.limit:
+                return (
+                    False,
+                    MeterDTO(
+                        **meter.model_dump(exclude={"value", "synced"}),
+                        value=0,
+                        synced=0,
+                    ),
+                    lambda: None,
+                )
+            if (
+                meter.value is None
+                and meter.delta is not None
+                and meter.delta > quota.limit
+            ):
+                return (
+                    False,
+                    MeterDTO(
+                        **meter.model_dump(exclude={"value", "synced"}),
+                        value=0,
+                        synced=0,
+                    ),
+                    lambda: None,
+                )
 
         where_clauses = []
 
@@ -405,7 +427,9 @@ class MetersDAO(MetersDAOInterface):
         if quota.limit is None:
             where_clauses.append(literal(True))
 
-        # Strict mode: use the adjusted value check
+        # Strict mode: block any predictable overshoot — current + delta
+        # must stay at or under the limit. The greatest(..., 0) clamp
+        # keeps refund deltas from going negative.
         elif quota.strict:
             if meter.delta is not None:
                 adjusted_expr = func.greatest(MeterDBE.value + meter.delta, 0)
@@ -416,9 +440,19 @@ class MetersDAO(MetersDAOInterface):
 
             where_clauses.append(adjusted_expr <= quota.limit)
 
-        # Soft mode: just compare current value
+        # Non-strict mode: same predictable-overshoot rule for the
+        # request itself (delta <= limit, enforced by the Python-side
+        # fast-path above), plus the SQL clause `value < limit` so a
+        # request from below the limit can cross-the-line once. Already-
+        # at-or-over-limit rows reject the next write — this is what
+        # distinguishes strict from non-strict.
         else:
-            where_clauses.append(MeterDBE.value <= quota.limit)
+            if meter.delta is not None:
+                where_clauses.append(MeterDBE.value < quota.limit)
+            elif meter.value is not None:
+                where_clauses.append(literal(meter.value <= quota.limit))
+            else:
+                raise ValueError("Either delta or value must be set")
 
         # Now safely combine the conditions
         where = None

@@ -269,16 +269,20 @@ class TracingRouter:
                 if spans_request.traces
                 else sum(1 for s in (spans_request.spans or []) if s.parent_id is None)
             )
-            allowed, _, _ = await check_entitlements(  # type: ignore
-                key=Counter.TRACES_INGESTED,  # type: ignore
-                delta=delta,
-                cache=True,
-            )
-            if not allowed:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="You have reached your monthly quota limit.",
+            # Skip the soft check for zero-count requests so an already-over
+            # meter doesn't 429 a request that wouldn't add any usage.
+            # Mirrors the OTLP path and the authoritative tracing worker.
+            if delta > 0:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    key=Counter.TRACES_INGESTED,  # type: ignore
+                    delta=delta,
+                    cache=True,
                 )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly quota limit.",
+                    )
 
         dropped: OTelLinks = []
 
@@ -1642,16 +1646,20 @@ class TracesRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
             delta = len(traces_request.traces) if traces_request.traces else 0
-            allowed, _, _ = await check_entitlements(  # type: ignore
-                key=Counter.TRACES_INGESTED,  # type: ignore
-                delta=delta,
-                cache=True,
-            )
-            if not allowed:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="You have reached your monthly quota limit.",
+            # Skip the soft check for zero-count requests so an already-over
+            # meter doesn't 429 a request that wouldn't add any usage.
+            # Mirrors the OTLP path and the authoritative tracing worker.
+            if delta > 0:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    key=Counter.TRACES_INGESTED,  # type: ignore
+                    delta=delta,
+                    cache=True,
                 )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly quota limit.",
+                    )
 
         traces = self._extract_trace_map(traces_request)
         if not traces:

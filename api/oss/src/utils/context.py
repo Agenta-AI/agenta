@@ -94,7 +94,7 @@ def parse_credentials(header_value: str) -> Credentials:
 
 
 class AuthContext(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     # Discriminated on `kind` — Pydantic picks the right variant when
     # the context is reconstructed from a dict (rare, but free).

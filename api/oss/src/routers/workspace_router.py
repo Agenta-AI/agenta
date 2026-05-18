@@ -127,7 +127,10 @@ async def remove_user_from_workspace(
                 },
             )
 
-        owner = await db_manager.get_organization_owner(request.state.organization_id)
+        # Load the owner of the *target* workspace's org (not the caller's
+        # ambient org) so the agenta.ai skip-meter exemption and the meter
+        # decrement below agree on which organization is being acted on.
+        owner = await db_manager.get_organization_owner(project.organization_id)
         owner_domain = owner.email.split("@")[-1].lower() if owner else ""
         user_domain = email.split("@")[-1].lower()
         skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"

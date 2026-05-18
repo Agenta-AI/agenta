@@ -9,6 +9,8 @@
 
 Sync pulled in 11 inline review comments from two Copilot review passes on PR #4347, all closed. A third Copilot pass on 2026-05-18 09:24Z surfaced 6 more threads (3 distinct findings — PR-12, PR-13, PR-14; the 4 worker-import comments are duplicates of PR-13). All three closed. A fourth Copilot pass on 2026-05-18 09:56Z surfaced 8 more threads → 7 distinct findings (PR-15 through PR-21). All seven closed. A fifth pass on 2026-05-18 09:57Z from CodeRabbit (different reviewer bot) surfaced 13 more threads → 10 new distinct findings (PR-22 through PR-31), plus 3 duplicates (PR-16/PR-20/PR-21 — CodeRabbit was running against a pre-fix HEAD). All ten closed: PR-22 (hoisted `text` import), PR-23 (canonicalizer trust model documented), PR-24 (downgrade deletes scoped/daily rows), PR-25 (audited + documented), PR-26 (boundary flake documented), PR-27 (verified by `run-tests.py` — `ValidationError` subclasses `ValueError`, tests pass), PR-28/PR-30 (OSS Gauge.USERS scopes target org from path), PR-29 (wontfix — trust the auth middleware contract, reply on the thread), PR-31 (findings.md doc reconcile).
 
+A sixth Copilot pass on 2026-05-18 11:30Z surfaced 9 new distinct findings (PR-32 through PR-40). All nine closed: PR-32 (intentional — CLOUD_V0_AGENTA_AI is meant to be unlimited on credits, no change); PR-33 (`workspace_router.remove_user_from_workspace` now loads owner from target workspace's org); PR-34 (re-added `if delta > 0:` guard around both `tracing/router.py` ingest soft checks); PR-35 (`MetersDAO.adjust` strict/non-strict predicates rewritten per user-defined truth table — strict denies any predictable overshoot; non-strict denies predictable self-overshoot but permits the one cross-the-line request from below; seven new unit tests pin the table); PR-36 (`AuthContext` model now `frozen=True`); PR-37/PR-38/PR-39/PR-40 (proposal.md + summary.md aligned with shipped semantics — `strict=True` everywhere on `TRACES_RETRIEVED`, hard-check on reads, broad refund on writes). All eighteen `test_meters_dao_strict_soft.py` unit tests pass.
+
 ## Rules
 
 - Findings cite `file:Lstart-Lend` against the current working tree.
@@ -17,7 +19,7 @@ Sync pulled in 11 inline review comments from two Copilot review passes on PR #4
 
 ## Notes
 
-- Sync runs: 2026-05-18, three passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit).
+- Sync runs: 2026-05-18, six passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed the post-resolve tree (commit `75e7b8472` "final CR") and surfaced 9 new threads → 9 distinct findings PR-32..PR-40, awaiting user decisions.
 - Resolve queue priority order: P0 → P1 → P2 → P3.
 - **Rule (from user 2026-05-18):** sync's first step is ALWAYS to save new findings to this file, before any code change or proposed-fix discussion.
 
@@ -26,6 +28,94 @@ Sync pulled in 11 inline review comments from two Copilot review passes on PR #4
 (none)
 
 ## Closed Findings
+
+### [CLOSED] PR-33 — `workspace_router.remove_user_from_workspace` now loads `owner` from target workspace's org (P1, medium)
+
+- **Category**: Correctness / Cross-org consistency
+- **Files**: `api/oss/src/routers/workspace_router.py:129-148`
+- **PR comment**: [discussion_r3258523782](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523782)
+- **Fix shipped**: `owner = await db_manager.get_organization_owner(project.organization_id)` (target workspace's org), replacing the prior `request.state.organization_id` (caller's ambient org). `skip_meter` exemption and the `Gauge.USERS -1` decrement now agree on the same organization. Comment block documents the cross-org rationale.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-34 — Tracing-router ingest soft check re-gated by `if delta > 0:` to match OTLP / worker (P1, medium)
+
+- **Category**: Correctness / Soft-check parity
+- **Files**: `api/oss/src/apis/fastapi/tracing/router.py` — `SpansRouter.ingest_spans` and `TracesRouter.ingest_traces`
+- **PR comment**: [discussion_r3258523832](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523832)
+- **Fix shipped**: Both `check_entitlements` calls wrapped in `if delta > 0:`, mirroring `api/oss/src/apis/fastapi/otlp/router.py:220` (`if delta > 0:`) and `api/oss/src/tasks/asyncio/tracing/worker.py:261` (`if is_ee() and delta > 0:`). Zero-count ingest requests no longer 429 on an existing overage. Inline comment names the parity rationale at both sites.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-35 — `MetersDAO.adjust` strict and non-strict predicates rewritten per user-defined semantics (P1, high)
+
+- **Category**: Correctness / Limit semantics
+- **Files**: `api/ee/src/dbs/postgres/meters/dao.py:376-446`; tests: `api/ee/tests/pytest/unit/test_meters_dao_strict_soft.py`
+- **PR comment**: [discussion_r3258523750](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523750)
+- **User-defined truth table (2026-05-18)** (`current + delta` against `limit=10`):
+
+  | Case                   | Strict | Non-strict |
+  |------------------------|--------|------------|
+  | 0 + 12 (huge delta)    | deny   | deny       |
+  | 10 + 2 (at limit)      | deny   | deny       |
+  | 9 + 2 (1-over)         | deny   | allow      |
+  | 8 + 2 (exactly fills)  | allow  | allow      |
+
+  Rule: predictable self-overshoot (`delta > limit`) is rejected by both modes. The modes diverge on already-at-or-over-limit rows: strict denies, non-strict permits the one cross-the-line request from below.
+
+- **Fix shipped**:
+  1. Python-side fast-path rewritten to reject predictable self-overshoot in both modes: absolute writes (`meter.value > limit`) and delta writes (`meter.delta > limit`) early-return `(False, ...)` with no DB call.
+  2. Strict-mode SQL predicate unchanged — already matched the spec: `greatest(value + delta, 0) <= limit` (delta path), `greatest(meter.value, 0) <= limit` (absolute path).
+  3. Non-strict SQL predicate changed from `MeterDBE.value <= quota.limit` to `MeterDBE.value < quota.limit` for the delta path (the shared `delta <= limit` is enforced Python-side; the SQL clause is the cross-the-line-once gate). Absolute non-strict path emits `literal(meter.value <= quota.limit)`.
+  4. `desired_value` rebuilt as a local (used by the upsert insert seed and the deny-path fallback) — no longer the gate for rejection.
+- **Tests**: replaced `test_soft_emits_value_only_predicate` (pinned the old `value <= limit` behavior) with `test_nonstrict_emits_value_strictly_less_than_limit_predicate`. Added the user's truth table as seven new cases: `test_huge_delta_denied_in_{strict,nonstrict}`, `test_at_limit_denied_in_{strict,nonstrict}`, `test_one_over_denied_in_strict`, `test_one_over_allowed_in_nonstrict`, `test_fills_exactly_allowed_in_both_modes`. 18/18 tests pass (`uv run pytest ee/tests/pytest/unit/test_meters_dao_strict_soft.py`).
+- **Action**: Reply on the GitHub thread quoting the truth table and resolve.
+
+### [CLOSED] PR-36 — `AuthContext` now `frozen=True` (P2, medium)
+
+- **Category**: API hardening / Defensive design
+- **Files**: `api/oss/src/utils/context.py:96-97`
+- **PR comment**: [discussion_r3258523931](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523931)
+- **Fix shipped**: `model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)`. Top-level `AuthContext` now matches its already-frozen `AuthScope` / `ApiKeyCredentials` / `SecretCredentials` fields. Reinforces the PR-29 contract that the ambient `AuthContext` is either fully populated or absent and never mutated mid-request.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-37 — `proposal.md` "Limit semantics" item 6 rewritten to match the catalog and the user-defined predicate table (P2, high)
+
+- **Category**: Documentation drift
+- **Files**: `docs/designs/extend-meters/proposal.md` item 6 in "Locked decisions"
+- **PR comment**: [discussion_r3258523640](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523640)
+- **Fix shipped**: Item 6 retitled "Limit semantics" and rewritten to spell out `TRACES_RETRIEVED` is `strict=True` on every plan; describes the strict-vs-non-strict predicate split per the PR-35 user-defined table. Removes the stale `strict=False` / "overshoot is allowed" claim.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-38 — `proposal.md` "Write-side enforcement" paragraph aligned with the broad-refund implementation (P3, high)
+
+- **Category**: Documentation drift
+- **Files**: `docs/designs/extend-meters/proposal.md` — "Write-side enforcement" pattern paragraph
+- **PR comment**: [discussion_r3258523682](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523682)
+- **Fix shipped**: Pattern paragraph rewritten — "on **any** exception, refund with `delta=-N` and re-raise. Domain exceptions therefore also refund (broad-safety trade-off — the conservative choice for an in-flight quota write, so a failed create never leaves a counted-but-not-created row)." Matches the PR description and the actual handler code.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-39 — `summary.md` `TRACES_RETRIEVED` wording aligned with hard-adjust + strict=True semantics (P3, medium)
+
+- **Category**: Documentation drift
+- **Files**: `docs/designs/extend-meters/summary.md:13`
+- **PR comment**: [discussion_r3258523719](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523719)
+- **Fix shipped**: "soft-check fires after every span/trace fetch or query" replaced with "hard-check fires after every span/trace fetch or query (...); declared `strict=True` everywhere, so the request that would cross a real limit is itself rejected." Also rephrased the evaluation-run refund clause to "broad refund on any exception" to align with the PR-38 fix.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-40 — `proposal.md` "Read-side enforcement" trailing paragraph rewritten to match the strict-everywhere catalog (P3, high)
+
+- **Category**: Documentation drift / Contract clarity
+- **Files**: `docs/designs/extend-meters/proposal.md` — last paragraph of "Read-side enforcement"
+- **PR comment**: [discussion_r3258523892](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523892)
+- **Fix shipped**: Last paragraph replaced — the stale "`strict=False` (default) lets the row commit but `allowed` still flips to `False` on overshoot" sentence is gone. Replacement: "`TRACES_RETRIEVED` is declared `strict=True` on every plan, so the DAO predicate is `greatest(value + delta, 0) <= limit` — the request that crosses the line is itself rejected (no 'one free overshoot'). See locked-decision item 6 above for the strict/non-strict predicate split." Coherent with PR-35 / PR-37 / PR-39.
+- **Action**: Reply on the GitHub thread and resolve.
+
+### [CLOSED] PR-32 — `CLOUD_V0_AGENTA_AI.CREDITS_CONSUMED` drop of `free=100_000` / `limit=100_000` was intentional (P1, high)
+
+- **Category**: Correctness / Plan semantics
+- **Files**: `api/ee/src/core/entitlements/types.py:647-650`
+- **PR comment**: [discussion_r3258523869](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523869) — Copilot, 2026-05-18 11:30Z
+- **Resolution**: Confirmed by user (2026-05-18) — the drop was desired. CLOUD_V0_AGENTA_AI is the internal Agenta plan and is meant to be unlimited on credits. No code change.
+- **Action**: Reply on the GitHub thread explaining the intentional change and resolve.
 
 ### [CLOSED] PR-27 — Unit tests catching `ValueError` are correct; `pydantic.ValidationError` subclasses `ValueError` (P2, high)
 
