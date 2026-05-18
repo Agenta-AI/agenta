@@ -65,14 +65,14 @@ jobs:
           cd web
           current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
-          pnpm pkg set version="$new_version"
+          npm pkg set version="$new_version"
           WEB_VERSION=$new_version
 
           echo "Bumping web/ee"
           cd ee
           current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
-          pnpm pkg set version="$new_version"
+          npm pkg set version="$new_version"
           EE_VERSION=$new_version
           cd ..
 
@@ -80,7 +80,7 @@ jobs:
           cd oss
           current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
-          pnpm pkg set version="$new_version"
+          npm pkg set version="$new_version"
           OSS_VERSION=$new_version
           cd ..
 
@@ -88,7 +88,7 @@ jobs:
           cd packages/agenta-api-client
           current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
-          pnpm pkg set version="$new_version"
+          npm pkg set version="$new_version"
           TS_CLIENT_VERSION=$new_version
           cd ../..
 
