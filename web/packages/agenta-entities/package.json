@@ -16,7 +16,10 @@
         "test": "pnpm run types:check && pnpm run lint",
         "test:etl": "tsx --test src/etl/__tests__/runLoop.guarantees.test.ts",
         "test:etl:memory": "node --expose-gc --import tsx --test src/etl/__tests__/runLoop.memory.test.ts src/etl/__tests__/runLoop.overhead.test.ts src/etl/__tests__/runLoop.benchmark.test.ts",
-        "test:etl:longrun": "node --expose-gc --import tsx --test src/etl/__tests__/runLoop.leak.test.ts"
+        "test:etl:longrun": "pnpm run test:etl:longrun:engine && pnpm run test:etl:longrun:molecules && pnpm run test:etl:longrun:combined",
+        "test:etl:longrun:engine": "node --expose-gc --import tsx --test --test-force-exit src/etl/__tests__/runLoop.leak.test.ts",
+        "test:etl:longrun:molecules": "node --expose-gc --import tsx --test --test-force-exit src/evaluationRun/state/__tests__/molecules.leak.test.ts",
+        "test:etl:longrun:combined": "node --expose-gc --import tsx --test --test-force-exit src/etl/__tests__/runLoop.combinedLeak.test.ts"
     },
     "exports": {
         ".": "./src/index.ts",

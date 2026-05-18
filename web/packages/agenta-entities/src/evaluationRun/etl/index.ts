@@ -54,3 +54,15 @@ export {
     computeColumnGroup,
     groupResolvedColumns,
 } from "./resolveMappings"
+
+// Molecule-backed cache-aware fetchers — all 4 entity types go through
+// the entity layer (TanStack cache read, bulk-fetch misses, write-back).
+export {
+    buildMoleculeBackedFetchers,
+    MOLECULE_BACKED_HYDRATE_FETCHERS,
+    CACHE_AWARE_HYDRATE_FETCHERS, // @deprecated alias
+    cacheAwareFetchTestcases,
+    type EntityCacheStats,
+    type ChunkCacheStats,
+    type BuildMoleculeFetchersOptions,
+} from "./cacheAwareFetchers"
