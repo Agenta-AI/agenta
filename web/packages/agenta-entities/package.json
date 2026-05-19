@@ -16,6 +16,7 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
         "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
