@@ -213,9 +213,9 @@ For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`bui
 
 ### SDK source in preview builds
 
-API and services Dockerfiles can install a local SDK from `./sdk` inside each image build context. In Railway preview CI, the workflow copies repo-root `sdk/` into `api/sdk` and `services/sdk` before building images. This guarantees preview images use the branch SDK instead of falling back to the pip package when SDK changes.
+API and services Dockerfiles build from the repo root so they can install the branch-local Python SDK and generated Python client directly from `sdks/python` and `clients/python`. Railway preview CI and the local helper script use that same root build context, so no SDK/client injection step is needed.
 
-The `hosting/docker-compose/*gh*.yml` files are not part of the Railway preview CI path. If you build locally with those compose files and need to force branch SDK usage, either use `hosting/railway/oss/scripts/build-and-push-images.sh` or copy `sdk/` into `api/sdk` and `services/sdk` before running `docker compose build`.
+The `hosting/docker-compose/*gh*.yml` files use the same model for Python images: API and Services build from the repo root, while Web keeps `web/` as its context.
 
 ### Smoke check options
 

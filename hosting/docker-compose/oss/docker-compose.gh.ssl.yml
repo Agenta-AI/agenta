@@ -30,8 +30,8 @@ services:
     api:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn entrypoints.routers:app
@@ -88,8 +88,8 @@ services:
     worker-evaluations:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -126,8 +126,8 @@ services:
     worker-tracing:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -164,8 +164,8 @@ services:
     worker-webhooks:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -205,8 +205,8 @@ services:
     worker-events:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -246,8 +246,8 @@ services:
     cron:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         init: true
         command: supercronic /app/crontab
@@ -272,8 +272,8 @@ services:
     alembic:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
         # === STORAGE ============================================== #
@@ -293,8 +293,8 @@ services:
     services:
         # === IMAGE ================================================ #
         build:
-            context: ../../../services
-            dockerfile: oss/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: services/oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn entrypoints.main:app
