@@ -335,7 +335,9 @@ class LogfireAdapter(BaseAdapter):
                     features.data["outputs"] = {"result": final_result}
                 else:
                     assistant_msgs = [
-                        m for m in all_messages if m.get("role") == "assistant"
+                        m
+                        for m in all_messages
+                        if isinstance(m, dict) and m.get("role") == "assistant"
                     ]
                     if assistant_msgs:
                         features.data["outputs"] = {"result": assistant_msgs[-1]}
