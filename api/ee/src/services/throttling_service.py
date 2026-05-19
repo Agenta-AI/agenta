@@ -26,6 +26,7 @@ from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 log = get_module_logger(__name__)
 
 _warned_no_throttles = False
+_warned_fallback_pairs: set[tuple[str | None, str | None]] = set()
 
 meters_service = MetersService(
     meters_dao=MetersDAO(),
@@ -209,12 +210,15 @@ async def throttling_middleware(request: Request, call_next):
                 _warned_no_throttles = True
             return await call_next(request)
 
-        log.warning(
-            "[throttling] Falling back to free-plan throttles",
-            org=organization_id,
-            plan=plan,
-            fallback=fallback_plan,
-        )
+        pair = (plan, fallback_plan)
+        if pair not in _warned_fallback_pairs:
+            log.warning(
+                "[throttling] Falling back to free-plan throttles",
+                org=organization_id,
+                plan=plan,
+                fallback=fallback_plan,
+            )
+            _warned_fallback_pairs.add(pair)
         plan = fallback_plan
         entitlements = fallback_entitlements or {}
 

@@ -19,6 +19,7 @@ from ee.src.core.subscriptions.settings import (
     get_trial_plan,
     get_trial_days,
     get_stripe_line_items,
+    require_pricing,
     trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
@@ -99,6 +100,14 @@ class SubscriptionsService:
                 "Reverse trial invoked without configured trial state "
                 "(trial_days and trial_plan must both be set)."
             )
+        try:
+            line_items = require_pricing(
+                trial_plan,
+                purpose="Reverse trial signup",
+            )
+        except ValueError as e:
+            raise EventException(str(e)) from e
+
         free_plan = get_free_plan()
 
         now = datetime.now(tz=timezone.utc)
@@ -142,7 +151,7 @@ class SubscriptionsService:
 
         stripe_subscription = stripe.Subscription.create(
             customer=customer_id,
-            items=get_stripe_line_items(trial_plan),
+            items=line_items,
             #
             # automatic_tax={"enabled": True},
             metadata={

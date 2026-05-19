@@ -76,11 +76,11 @@ Used by `counters` and `gauges` map values.
 | `scope` | string \| null | `null` | Granularity of the meter row: `"organization"` (default when `null`), `"workspace"`, `"project"`, or `"user"`. |
 | `period` | string \| null | `null` | Metering bucket: `"daily"`, `"monthly"`, `"yearly"`. `null` means non-periodic (used for gauges). Replaces the pre-reshape `monthly: true` boolean. |
 
-### Flag keys
+### Flag keys {#flag-keys}
 
 `rbac`, `access`, `domains`, `sso`. Values are booleans.
 
-### Counter keys
+### Counter keys {#counter-keys}
 
 `evaluations_run`, `traces_ingested`, `traces_retrieved`, `credits_consumed`, `events_ingested`.
 
@@ -96,11 +96,11 @@ long event rows live.
 every plan with `limit=null` (unlimited). Operators who want to cap
 per-user daily reads set `limit` via env override.
 
-### Gauge keys
+### Gauge keys {#gauge-keys}
 
 `users`.
 
-### `Throttle` shape
+### `Throttle` shape {#throttles}
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -314,7 +314,7 @@ section](#agenta_access_roles_overlay) for full semantics.
 The `permissions` array entries must be valid `Permission` enum members or
 the wildcard `"*"`. Unknown permissions fail startup.
 
-## `AGENTA_ACCESS_ROLES_OVERLAY`
+## `AGENTA_ACCESS_ROLES_OVERLAY` {#agenta_access_roles_overlay}
 
 Use this when you want to add one role or patch one existing role without
 restating the full `AGENTA_ACCESS_ROLES` catalog. The overlay is
@@ -377,7 +377,7 @@ unset to use `self_hosted_enterprise`.
 The legacy `AGENTA_DEFAULT_PLAN` env var is still honored; the canonical
 form takes precedence when both are set.
 
-## `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`
+## `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` {#agenta_access_default_plan_overlay}
 
 Self-hosted operators often want to tweak one or two entitlement values on
 the default plan (trace retention, a throttle rate, a flag) without restating

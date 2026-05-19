@@ -32,7 +32,7 @@ This evaluator attempts to parse the output as JSON. It returns `true` if a vali
 The JSON Field Match evaluator has been replaced by [JSON Multi-Field Match](#json-multi-field-match). The new evaluator supports multiple fields, nested paths, and provides per-field scoring. Existing configurations will continue to work, but we recommend migrating to the new evaluator.
 :::
 
-## JSON Multi-Field Match
+## JSON Multi-Field Match {#json-multi-field-match}
 
 The JSON Multi-Field Match evaluator compares multiple fields between two JSON objects and reports a score for each field. This evaluator is ideal for entity extraction tasks where you need to validate that specific fields (like name, email, or address) match the expected values.
 

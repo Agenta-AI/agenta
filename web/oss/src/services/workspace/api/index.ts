@@ -11,15 +11,20 @@ import {getProjectValues} from "@/oss/state/project"
 //  - delete: DELETE data from server
 
 export const fetchAllWorkspaceRoles = async (ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
-
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/workspaces/roles?project_id=${projectId}`,
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
-    return response.data as Omit<WorkspaceRole, "permissions">[]
+    // Read workspace-scope roles from /access/roles and project to the legacy
+    // `{role_name, role_description}` shape callers expect.
+    const response = await axios.get(`${getAgentaApiUrl()}/access/roles`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+    const data = response.data as Record<
+        "organization" | "workspace" | "project",
+        {role: string; description?: string | null; permissions: string[]}[]
+    >
+    const workspaceRoles = data?.workspace ?? []
+    return workspaceRoles.map((entry) => ({
+        role_name: entry.role,
+        role_description: entry.description ?? "",
+    })) as Omit<WorkspaceRole, "permissions">[]
 }
 
 export const assignWorkspaceRole = async (

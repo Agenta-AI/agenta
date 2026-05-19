@@ -325,6 +325,20 @@ def _parse_roles_override(decoded: Any) -> Dict[str, List[Dict[str, Any]]]:
         # Minima first, then validated extras.
         result[scope] = _minima_for(scope) + extras
 
+    # TEMP: workspace and project use the same role set at runtime (the only
+    # caller of `workspace`-scope roles today is the Invite Members modal,
+    # which is really inviting to the underlying project). Operators almost
+    # always override only `project` via AGENTA_ACCESS_ROLES; without this
+    # mirror, custom roles silently disappear from the workspace catalog.
+    # Remove once the workspace/project scope split is reconciled.
+    if "project" in decoded and "workspace" not in decoded:
+        project_extras = [
+            entry
+            for entry in result["project"]
+            if entry["role"] not in {DefaultRole.OWNER.value, DefaultRole.VIEWER.value}
+        ]
+        result["workspace"] = _minima_for("workspace") + project_extras
+
     return result
 
 
