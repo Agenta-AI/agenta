@@ -1,0 +1,64 @@
+---
+id: fetch-billing-pricing
+title: "Fetch Pricing"
+description: "Return the effective pricing map: plan slug -> normalized pricing."
+sidebar_label: "Fetch Pricing"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdU01v2zAM/SsCTxug2dmOPgxLhy4L2hVBu53SIFFkxlYny5pEB8sM//eB/kibYr9gvhjiI0XyvacWSBURsjVcGWuNK2AjIceog/FkagcZ3CM1wQkqUeDhgJrMEYUPRhtXiEr5THirnIi2KcS7j8LVoVLW/MF8Skoe3aP7ZkKoQxS7+eL67vt8e7W8vV3eLbar++Xn5d1iJ9SBMIijsiZX3DmdLupPj+5NRBQ7xCQGneg6YBKb/XnOmEQkMq6IyfY8wXYcYIuOwmn3NgEJtcfQ37jMIYMDki63+2H1KR0kBIy+dhEjZC18mM34d8nKQ6M1xnhorLgfk0GCrh2hI05X3lujh1WeIte0EHWJlerRPDcMKbsKPBKZode/4xQalEAnj5BBvX9CTdC9DkggQxZ7xYaBxBdeT4zKitW4XsefhAqprJmEArnYKyohg3QkI30mI2I4YmCTtNAEy0nKG+jkdCyJfJamttbKlnWkAd5wpW6CoVNfOl8tb/D0FVWOAbL15mXCAxMzMHCZ1k5LKm9u8AQSnKr4PG+orMPoDpBgWJRyqOLtjDvUffnIybxAR0rMV0t4bfALiBVUuldw6tTDIF8sG7M0VX04USYFCVgpwyChqj6dEdaImRvazJL3yYxDvo5UKfeixaDT6sz4xXzts6v+s7c4Skv4m1JvlXHMTs9yO9pxDaMd2aAjPRsJbDIG23avIv4Itus4/KvBwF7bSDiqYNSelV9vOjkZg234E08sqtbo2fZHZZvBX6+eK9vz/EQW19+h6/4C21bPlg==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Pricing"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/billing/pricing"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return the effective pricing map: plan slug -&gt; normalized pricing.
+
+Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
+(see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-billing-pricing.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-billing-pricing.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
