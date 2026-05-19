@@ -131,9 +131,7 @@ the wrong storage; a database or remote config service would be needed.
 | Variable | Type | Purpose |
 | --- | --- | --- |
 | `AGENTA_BILLING_CATALOG` | JSON array | Per-plan display metadata for `/billing/plans`. |
-| `AGENTA_BILLING_PRICING` | JSON object | Stripe line items, per-meter price IDs, free-plan marker. |
-| `AGENTA_BILLING_TRIAL_PLAN` | string | Plan slug for reverse-trial. |
-| `AGENTA_BILLING_TRIAL_DAYS` | integer | Trial length in days. Both trial vars must be set together. |
+| `AGENTA_BILLING_PRICING` | JSON object | Flat pricing entries per plan slug: `{slug: {free?: bool, trial?: int_days, <stripe_slot>: {price, quantity?}}}`. At most one entry may carry `free: true`; at most one may carry `trial: N` (positive int days). |
 
 ### Pydantic representation
 
@@ -253,12 +251,12 @@ All validation runs at API startup; failures are fail-fast.
   `cloud_v0_hobby` only if it exists in the effective plan map (otherwise
   startup fails).
 
-### Trial vars
+### Trial marker
 
-- `AGENTA_BILLING_TRIAL_PLAN` and `AGENTA_BILLING_TRIAL_DAYS` must be set
-  together (or both unset).
-- Trial plan must be in the effective plan map.
-- Trial days must be a positive integer.
+- Trial config lives inline on the pricing entry as `{trial: N}` (positive
+  int days). At most one entry across the whole pricing map may carry it.
+- The trial plan slug is the pricing-entry key carrying the marker; it must
+  exist in the effective plan map.
 
 ## Decisions Made During Implementation
 

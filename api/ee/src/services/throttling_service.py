@@ -25,6 +25,7 @@ from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 
 log = get_module_logger(__name__)
 
+# Per-process warn-once flags; races may dupe a warning, never breaks routing.
 _warned_no_throttles = False
 _warned_fallback_pairs: set[tuple[str | None, str | None]] = set()
 

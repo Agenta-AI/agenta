@@ -24,14 +24,14 @@ Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45
 
 ## Summary
 
-Initial scan surfaced 13 findings: one P0 (project-scope RBAC regression), four P1 (closed-enum holdouts and validation gaps), and the rest P2/P3 hygiene — all resolved on this branch. PR #4330 external review (Copilot) added six more (FIND-014..019), then a migration audit added FIND-020, then a second sync pass added FIND-021..023. The latest Copilot review (commit `91a60dd6`, 2026-05-19T14:38) added six more findings (FIND-030..035), all open and `needs-user-decision`.
+Initial scan surfaced 13 findings: one P0 (project-scope RBAC regression), four P1 (closed-enum holdouts and validation gaps), and the rest P2/P3 hygiene — all resolved on this branch. PR #4330 external review (Copilot) added six more (FIND-014..019), then a migration audit added FIND-020, then a second sync pass added FIND-021..023. The latest Copilot review (commit `91a60dd6`, 2026-05-19T14:38) added six more findings (FIND-030..035); all dispositioned by user on the same pass — three fixed in code, three closed `wontfix` with reasoning.
 
-- **Open (sixth sync pass — Copilot review at `91a60dd6`):** FIND-030 (P3, leftover `echo "cron test ..."` debug line in `events.txt`), FIND-031 (P3, `None in get_plans()` guard wants an explicit `if not plan:` predicate in Stripe-event handler), FIND-032 (P2, `research.md` lines 135-137 still advertise removed `AGENTA_BILLING_TRIAL_PLAN` / `AGENTA_BILLING_TRIAL_DAYS` env vars), FIND-033 (P3, `_expand_permissions` in `converters.py` discards every non-wildcard slug when `*` is mixed with other entries), FIND-034 (P3, `_load_json_env_dict(...)` evaluated at class-definition time in `env.py` produces mutable singleton + import-time `ValueError`), FIND-035 (P3, module-level `_warned_no_throttles` / `_warned_fallback_pairs` flags in `throttling_service.py` mutated without a lock across asyncio tasks / workers).
+- **Closed (sixth sync pass — Copilot review at `91a60dd6`):** FIND-030 (P3, `wontfix` — the every-minute echo is an intentional cron-alive heartbeat present in both `events.txt` and `spans.txt`, not a leftover; Copilot misread it as debug code), FIND-031 (P3, fixed — added explicit `if not plan:` guard in the Stripe webhook handler so missing metadata returns a clear "Missing plan metadata on Stripe event" 400 instead of `Unknown plan 'None'`), FIND-032 (P2, fixed — removed the two `AGENTA_BILLING_TRIAL_*` env-var rows + the "Trial vars" sub-section from `research.md` and replaced with the per-pricing-entry `{trial: N}` marker, matching what shipped), FIND-033 (P3, `wontfix` — the wildcard-discards-extras behavior is correct: `owner = ["*"]` means everything; mixed inputs would be redundant, and non-enum slugs are filtered upstream at the access-controls boundary), FIND-034 (P3, `wontfix` — Pydantic evaluates field defaults at class-body time; the resulting parsed dict is a singleton, but no code mutates `EnvironSettings` instances so the latent mutability concern is theoretical), FIND-035 (P3, fixed by adding a one-line comment documenting that the warn-once flags race-but-don't-break; Copilot's `lru_cache` / logging-filter alternatives are deferred — the actual once-per-process semantics already work).
 - **Closed (docs style pass):** FIND-026 (P2, roles-overlay docs now lead with a deployment-wide root-slug shape instead of public `project` targeting), FIND-027 (P3, redundant default-plan overlay merge-semantics table removed), FIND-028 (P3, `Retention` enum reference table removed from operator docs), FIND-029 (P3, implementation-heavy reference section removed and the page trimmed toward the neighboring self-host how-to style).
 - **Closed (PR #4330 + migration audit):** FIND-014 (P2, design-doc retention defaults updated to match shipped code), FIND-015 (P3, override-vs-overlay terminology tightened in MDX), FIND-016 (P1, acceptance tests fixed by renaming `member`→`viewer`), FIND-017 (P2, `assert` replaced with explicit `if/raise EventException` in trial-checkout), FIND-018 (P3, `_normalize_pricing_entry` now rejects empty `{}` with a slug-pointing error; covered by new unit test), FIND-019 (P3, `existing_type=sa.String()` threaded through both `alter_column` calls in the member→viewer migration), FIND-020 (P0, EE `core` migration tree fork resolved by chaining `a1b2c3d4e5f7` after `9d3e8f0a1b2c`).
 - **Closed (earlier sync passes):** FIND-021 (P1, `STRIPE_METER_NAMES` mapping added in `entitlements/types.py`; `meters/service.py` looks up event name + price via the mapping with a skip-path log; `subscriptions/settings.py` switched to flat pricing shape with operator-owned `traces` / `users` slot names plus reserved `free` / `trial` markers; `migrate_stripe_pricing.py` rewritten as an annotation helper for `free` / `trial`), FIND-022 (P3, mechanical `Counter.EVENTS` → `Counter.EVENTS_INGESTED` and `Counter.TRACES` → `Counter.TRACES_INGESTED` rename across `data-retention/README.md`, `data-retention/data-retention-periods.initial.specs.md`, and `ee-self-hosting/research.md`), FIND-023 (P2, `test_access_controls.py` fixture and tests migrated to `Counter.TRACES_INGESTED` / `Period.MONTHLY` / `Retention.MONTHLY` / `Flag.ACCESS`; 61/61 pass), FIND-024 (P3, Copilot-flagged stale `scripts/migrate_stripe_pricing.py` path in a validator error message — already resolved as a side-effect of the FIND-021 pricing rewrite; verified `grep` returns no matches), FIND-025 (P3, Copilot-flagged stale `Revises: e6f7a8b9c0d1` docstring header on `a1b2c3d4e5f7_unify_org_member_role_to_viewer.py` left over from the FIND-020 rebase — docstring updated to `Revises: 9d3e8f0a1b2c` to match `down_revision`).
 
-EE unit suite green after the prior fixes: `test_access_controls.py` 61/61, `test_billing_settings.py` + `test_controls_env_override.py` 83/83. The six new findings introduced this pass have not been touched in code yet.
+EE unit suite green after the prior fixes: `test_access_controls.py` 61/61, `test_billing_settings.py` + `test_controls_env_override.py` 83/83. The three fixes from this pass (FIND-031 Stripe-event guard, FIND-032 doc cleanup, FIND-035 comment) are localized and don't change behavior beyond the failure messages.
 
 ## Rules
 
@@ -47,16 +47,20 @@ EE unit suite green after the prior fixes: `test_access_controls.py` 61/61, `tes
 
 ## Open Findings
 
-### FIND-030 — [OPEN] Leftover `echo "cron test ..."` debug entry in `events.txt`
+_None._
+
+## Closed Findings
+
+### FIND-030 — [CLOSED] `echo "cron test ..."` line flagged as debug — actually a cron-alive heartbeat in both `events.txt` and `spans.txt`
 
 - ID: FIND-030
 - Origin: sync
 - Lens: external review
 - Severity: P3
 - Confidence: high
-- Status: needs-user-decision
+- Status: wontfix
 - Category: Hygiene
-- Summary: Line 1 of `api/ee/src/crons/events.txt` runs `echo "cron test $(date)" >> /proc/1/fd/1 2>&1` every minute, in every deployment, with no functional purpose. Container logs pick up one entry per minute forever; nothing else consumes the output.
+- Summary: Line 1 of `api/ee/src/crons/events.txt` runs `echo "cron test $(date)" >> /proc/1/fd/1 2>&1` every minute. Copilot flagged this as a leftover debug entry. On verification the same line is present in `api/ee/src/crons/spans.txt`, i.e. it's an intentional cron-alive heartbeat for both jobs, not residual debugging.
 - Evidence: `sed -n '1,5p' api/ee/src/crons/events.txt` →
 
   ```cron
@@ -68,17 +72,18 @@ EE unit suite green after the prior fixes: `test_access_controls.py` 61/61, `tes
   - [api/ee/src/crons/events.txt](../../../api/ee/src/crons/events.txt)
 - Cause: Cron-wiring smoke test left in place after verifying the new EE events flush job runs in the container.
 - Explanation: Cosmetic and operationally noisy. The intended cadence is the `7,37 * * * *` events-flush row; the every-minute echo is the residual smoke check.
-- Suggested Fix: Delete line 1. Keep only the `7,37 * * * *` events flush schedule. If the smoke-check value is "prove cron is alive", a no-op heartbeat that logs hourly (or that the cron framework already surfaces) is the right replacement; the every-minute echo is not.
+- Suggested Fix: None — keep both heartbeats. Per-minute log noise is the explicit operator-visible signal that cron is running; reducing cadence would defeat the purpose.
+- Resolution: User direction — close `wontfix`. Verified `spans.txt` carries the same `* * * * * root echo "cron test ..."` line, confirming the per-minute echo is the intended heartbeat for both flush jobs, not a leftover. No code change.
 - Sources: PR #4330 Copilot review (comment id `3267161176`, thread `PRRT_kwDOJbjazM6DMEdA`, commit `91a60dd6`).
 
-### FIND-031 — [OPEN] Stripe-event handler resolves `None in get_plans()` instead of explicit empty-plan guard
+### FIND-031 — [CLOSED] Stripe-event handler resolves `None in get_plans()` instead of explicit empty-plan guard
 
 - ID: FIND-031
 - Origin: sync
 - Lens: external review
 - Severity: P3
 - Confidence: medium
-- Status: needs-user-decision
+- Status: fixed
 - Category: Soundness
 - Summary: At [api/ee/src/apis/fastapi/billing/router.py:395-396](../../../api/ee/src/apis/fastapi/billing/router.py#L395-L396), the Stripe-webhook plan resolution reads `plan = _stripe_get(metadata, "plan")` and then guards `if plan not in get_plans():`. When metadata is absent, `plan` is `None`; `None in get_plans()` is `False`; the code returns `Unknown plan 'None'` with a 400. The pre-refactor `Plan(plan)` raised a clearer error. Copilot suggests an explicit `if not plan:` predicate before the catalog check so missing metadata produces a distinct error from a typo in the slug.
 - Evidence: [api/ee/src/apis/fastapi/billing/router.py:395-409](../../../api/ee/src/apis/fastapi/billing/router.py#L395-L409) — `plan` may be `None`; the 400 message currently embeds the literal `'None'`.
@@ -99,16 +104,17 @@ EE unit suite green after the prior fixes: `test_access_controls.py` 61/61, `tes
       ...
   ```
 
+- Resolution: Applied the explicit `if not plan:` guard at [api/ee/src/apis/fastapi/billing/router.py:396-409](../../../api/ee/src/apis/fastapi/billing/router.py#L396-L409). Missing `plan` metadata now returns a 400 with `"Missing plan metadata on Stripe event"`; unknown-slug case keeps the existing `Unknown plan '<slug>'` message. `ruff` clean.
 - Sources: PR #4330 Copilot review (comment id `3267161284`, thread `PRRT_kwDOJbjazM6DMEdC`, commit `91a60dd6`).
 
-### FIND-032 — [OPEN] `research.md` still advertises removed `AGENTA_BILLING_TRIAL_PLAN` / `AGENTA_BILLING_TRIAL_DAYS` env vars
+### FIND-032 — [CLOSED] `research.md` still advertised removed `AGENTA_BILLING_TRIAL_PLAN` / `AGENTA_BILLING_TRIAL_DAYS` env vars
 
 - ID: FIND-032
 - Origin: sync
 - Lens: external review
 - Severity: P2
 - Confidence: high
-- Status: needs-user-decision
+- Status: fixed
 - Category: Consistency
 - Summary: After the FIND-021 pricing reshape, the trial-flow config collapsed into a per-entry `{trial: N}` marker on `AGENTA_BILLING_PRICING`; `BillingSettings` no longer carries `trial_plan` / `trial_days`. `summary.md` was updated, but [research.md:135-137](research.md#L135-L137) and [research.md:258](research.md#L258) still list `AGENTA_BILLING_TRIAL_PLAN` and `AGENTA_BILLING_TRIAL_DAYS` in the env-vars table as if shipped. The PR description body may also still reference them (Copilot flagged both). Operators reading the design folder will configure removed env vars.
 - Evidence: `grep -n "AGENTA_BILLING_TRIAL_PLAN\|AGENTA_BILLING_TRIAL_DAYS" docs/designs/dynamic-access-and-billing/research.md` → lines 135, 136, 258. `summary.md` line 13 already explains the collapse; `migrate_stripe_pricing.py` is the annotation helper.
@@ -120,16 +126,17 @@ EE unit suite green after the prior fixes: `test_access_controls.py` 61/61, `tes
 - Suggested Fix:
   - In [research.md](research.md): drop the two `AGENTA_BILLING_TRIAL_*` rows from the env-vars table (lines 135-137), drop the trial-vars bullet at line 258, and re-state the per-pricing-entry `{trial: N}` marker as the only shipped trial configuration. Cross-reference `summary.md` line 13 / 27 wording for consistency.
   - Edit the PR #4330 description body on GitHub to remove `AGENTA_BILLING_TRIAL_PLAN` / `AGENTA_BILLING_TRIAL_DAYS` from any "Env vars" section and replace with the `{trial: N}` marker description.
-- Sources: PR #4330 Copilot review (suppressed comment 1, commit `91a60dd6`, 2026-05-19T14:38:28Z); [docs/designs/dynamic-access-and-billing/research.md:135-137,258](research.md#L135-L137).
+- Resolution: Removed the two `AGENTA_BILLING_TRIAL_*` rows from the env-vars table in [research.md](research.md) and replaced the "Trial vars" sub-section with a "Trial marker" sub-section that describes the per-pricing-entry `{trial: N}` shape. `grep` for either env var across this design folder is now clean. The PR body still needs a manual edit on GitHub (out-of-band; user direction marked the doc fix as sufficient since these vars were "never released").
+- Sources: PR #4330 Copilot review (suppressed comment 1, commit `91a60dd6`, 2026-05-19T14:38:28Z); [docs/designs/dynamic-access-and-billing/research.md:131-134](research.md#L131-L134).
 
-### FIND-033 — [OPEN] `_expand_permissions` in `converters.py` drops every non-wildcard slug when `*` is mixed with other entries
+### FIND-033 — [CLOSED] `_expand_permissions` in `converters.py` drops every non-wildcard slug when `*` is mixed with other entries
 
 - ID: FIND-033
 - Origin: sync
 - Lens: external review
 - Severity: P3
 - Confidence: high
-- Status: needs-user-decision
+- Status: wontfix
 - Category: Correctness
 - Summary: [api/ee/src/services/converters.py:20-29](../../../api/ee/src/services/converters.py#L20-L29) — `_expand_permissions` returns the full `Permission` enum whenever `"*"` appears anywhere in the input. Today only the platform-synthesized `owner` role stores `["*"]` exclusively, so this is benign. But env-overridable roles via `AGENTA_ACCESS_ROLES` / `AGENTA_ACCESS_ROLES_OVERLAY` could legitimately combine `"*"` with extras (e.g. a future "owner-plus" role), or include a custom slug that isn't a `Permission` enum member; in the latter case Pydantic rejects the whole `WorkspacePermission.permissions` list with `enum`-validation, producing a 500 at the API boundary.
 - Evidence: Current implementation:
@@ -164,16 +171,17 @@ EE unit suite green after the prior fixes: `test_access_controls.py` 61/61, `tes
   ```
 
   Imports `get_module_logger` if not already in scope. Decide whether the silent-drop today (only theoretical) is acceptable to keep, or whether the merge-and-warn behavior is preferred.
+- Resolution: User direction — close `wontfix`. The wildcard-discards-extras behavior is the correct semantic for the access-controls model: `owner = ["*"]` means "every permission"; any other slug alongside `*` is redundant by definition. The Pydantic-enum-rejection risk for unknown custom slugs is already prevented upstream — `_validate_permission` in [controls.py](../../../api/ee/src/core/entitlements/controls.py) rejects anything not in `Permission` (or the literal `*`) at parse time, so a non-enum slug cannot reach `_expand_permissions`. No code change.
 - Sources: PR #4330 Copilot review (suppressed comment 2, commit `91a60dd6`, 2026-05-19T14:38:28Z).
 
-### FIND-034 — [OPEN] `_load_json_env_dict(...)` evaluated at class-definition time produces import-time `ValueError` + mutable singleton
+### FIND-034 — [CLOSED] `_load_json_env_dict(...)` evaluated at class-definition time produces import-time `ValueError` + mutable singleton
 
 - ID: FIND-034
 - Origin: sync
 - Lens: external review
 - Severity: P3
 - Confidence: high
-- Status: needs-user-decision
+- Status: wontfix
 - Category: Soundness
 - Summary: In [api/oss/src/utils/env.py:430-440, 456-457](../../../api/oss/src/utils/env.py#L430-L457), `AccessControls` and `BillingSettings` declare JSON-bearing fields with `_load_json_env_dict("AGENTA_...")` / `_load_json_env_list("AGENTA_...")` as field **defaults**. Pydantic evaluates field defaults once when the class body executes — i.e. at module import time. Two consequences: (a) any `ValueError` from the loader surfaces as a class-body traceback at module import, not a clean `pydantic.ValidationError` at `EnvironSettings()` instantiation; (b) the parsed dict / list becomes a mutable singleton shared across all instances of the settings class. Switching to `default_factory=lambda: _load_json_env_dict("AGENTA_...")` defers evaluation to instantiation and gives each instance a private object.
 - Evidence: [api/oss/src/utils/env.py:430-432](../../../api/oss/src/utils/env.py#L430-L432):
@@ -201,16 +209,17 @@ EE unit suite green after the prior fixes: `test_access_controls.py` 61/61, `tes
   ```
 
   Same shape for `BillingSettings`. Confirm tests that previously relied on the singleton (mutating the parsed dict in one test and seeing it in another) still pass; they shouldn't be relying on that, but if they are, the change is observable.
+- Resolution: User direction — close `wontfix`. The latent mutability risk only matters if instances mutate the parsed dict, and nothing does. Tests stand up `EnvironSettings` via subprocess (see `Notes` in this doc); they don't share or mutate the singleton. The import-time `ValueError` symptom is also fine — `_load_json_env_dict` already raises a clear message identifying the offending env var, and startup fails the same way under `default_factory`. No code change.
 - Sources: PR #4330 Copilot review (suppressed comment 3, commit `91a60dd6`, 2026-05-19T14:38:28Z).
 
-### FIND-035 — [OPEN] Module-level warned-once flags in `throttling_service.py` mutated without a lock
+### FIND-035 — [CLOSED] Module-level warned-once flags in `throttling_service.py` mutated without a lock
 
 - ID: FIND-035
 - Origin: sync
 - Lens: external review
 - Severity: P3
 - Confidence: medium
-- Status: needs-user-decision
+- Status: fixed
 - Category: Soundness
 - Summary: [api/ee/src/services/throttling_service.py:28-29](../../../api/ee/src/services/throttling_service.py#L28-L29) declares `_warned_no_throttles: bool` and `_warned_fallback_pairs: set[tuple[str | None, str | None]]` at module scope, then reads/writes them from `throttling_middleware` (an asyncio coroutine that can run concurrently across tasks; under multi-worker deployments each process has its own copy). The race is benign for a warning-suppression flag — worst case the warning logs a few extra times — but the pattern obscures the once-only intent and is non-trivial to make process-safe.
 - Evidence: [api/ee/src/services/throttling_service.py:28-29](../../../api/ee/src/services/throttling_service.py#L28-L29), [throttling_service.py:202-213](../../../api/ee/src/services/throttling_service.py#L202-L213). Multi-worker deployments (gunicorn / uvicorn workers) will warn once per worker — already the intended behavior, but the implementation says "module-level mutable global" which is not how operators expect to read it.
@@ -229,9 +238,8 @@ EE unit suite green after the prior fixes: `test_access_controls.py` 61/61, `tes
     ```
 
     Note: `lru_cache` keys on the arg tuple, so the first call wins per unique `(org_id, plan, fallback)` triple — which is closer to what `_warned_fallback_pairs` already does. Decide whether process-level once or pair-level once is the desired intent.
+- Resolution: User direction — keep the current implementation, add a brief comment at [api/ee/src/services/throttling_service.py:28-30](../../../api/ee/src/services/throttling_service.py#L28-L30): `# Per-process warn-once flags; races may dupe a warning, never breaks routing.` The deeper `lru_cache` / logging-filter refactors are out of scope; the once-per-process intent is now visible at the call site.
 - Sources: PR #4330 Copilot review (suppressed comment 4, commit `91a60dd6`, 2026-05-19T14:38:28Z).
-
-## Closed Findings
 
 ### FIND-026 — [CLOSED] Roles-overlay docs still expose `project` as an internal implementation scope
 

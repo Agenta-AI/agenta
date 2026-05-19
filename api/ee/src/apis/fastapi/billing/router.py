@@ -394,6 +394,18 @@ class BillingRouter:
                     )
 
                 plan = _stripe_get(metadata, "plan")
+                if not plan:
+                    log.warn(
+                        "Skipping stripe event: %s (missing plan metadata)",
+                        stripe_event.type,
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "status": "error",
+                            "message": "Missing plan metadata on Stripe event",
+                        },
+                    )
                 if plan not in get_plans():
                     log.warn(
                         "Skipping stripe event: %s (unknown plan %s)",
