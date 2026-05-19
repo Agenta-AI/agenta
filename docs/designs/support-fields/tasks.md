@@ -91,9 +91,10 @@ After this batch, `Support` should only be imported by
         to assert `support_ctx.get()` is populated after the decorated
         call and that the returned payload is the bare default (no
         support fields on it).
-  - [ ] Keep `test_intercept_exceptions_includes_support_metadata` as-is
-        (the `detail` payload is unchanged); optionally extend it to
-        also assert `support_ctx.get()` is set.
+  - [ ] Rewrite `test_intercept_exceptions_includes_support_metadata`
+        to assert `support_id` / `support_ts` are absent from
+        `HTTPException.detail` and present via `support_ctx.get()` (the
+        response headers carry them; the body does not).
 - [ ] Add `test_support_headers_middleware_emits_headers` —
       integration-style with a `TestClient`, hit a suppress-decorated
       route that raises, assert `x-ag-support-id` / `x-ag-support-ts`

@@ -33,7 +33,7 @@ dependencies = [
     "jinja2>=3,<4",
     "orjson>=3,<4",
     "python-jsonpath>=2,<3",
-    "daytona>=0.175,<0.176",
+    "daytona>=0.176,<0.177",
 ]
 
 [project.urls]

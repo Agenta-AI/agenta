@@ -207,10 +207,13 @@ After this, `Support` is only imported by `exceptions.py` itself
 - `test_support_fields_exist_on_api_response_model` — **delete** (the
   whole point is they don't exist there anymore).
 - `test_suppress_exceptions_attaches_support_to_response` — rewrite to
-  assert that after the decorated function runs, `request.state.support`
-  is set and has UTC timestamp + non-empty id.
-- `test_intercept_exceptions_includes_support_metadata` — keep, still
-  asserts `detail["support_id"]` and `detail["support_ts"]`.
+  assert that after the decorated function runs, `support_ctx.get()` is
+  populated with a UTC timestamp + non-empty id, and the returned
+  payload is the bare default (no support fields on it).
+- `test_intercept_exceptions_includes_support_metadata` — rewrite to
+  assert `support_id` / `support_ts` are absent from
+  `HTTPException.detail` and present via `support_ctx.get()` (response
+  headers carry them; the body does not).
 - New: `test_support_headers_middleware_emits_headers` — integration-style
   test that hits a suppress-decorated route, asserts both headers
   present.
@@ -242,8 +245,12 @@ The schema for success responses becomes clean. Customers reading
 [fetch-folder](https://agenta.ai/docs/reference/api/fetch-folder) no
 longer see two mystery fields.
 
-The suppressed-failure body is the only breaking change on the wire — any
-client reading `response.support_id` on a fetch/query that gracefully
-failed will need to read the header instead. We assess this as
-low-impact: the field shipped 3 weeks ago, is only populated on the
-failure branch, and there's no documented client guidance to read it.
+Three response shapes change on the wire (see table above): suppressed
+failures, intercepted 5xx errors, and intercepted 409 conflicts all stop
+carrying `support_id` / `support_ts` in the body and emit them only as
+response headers. Clients reading `response.support_id` on a
+gracefully-failed fetch/query, or reading `detail.support_id` on a 5xx
+or 409, will need to read the headers instead. We assess this as
+low-impact: the body fields shipped 3 weeks ago, were only populated on
+non-success branches, and there's no documented client guidance to read
+them.

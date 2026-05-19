@@ -3,6 +3,10 @@
 # Shared helpers for Railway deployment scripts.
 # Source this file; do not execute it directly.
 
+if [ -z "${RAILWAY_TOKEN:-}" ] && [ -n "${RAILWAY_API_TOKEN:-}" ]; then
+    export RAILWAY_TOKEN="$RAILWAY_API_TOKEN"
+fi
+
 railway_repo_root() {
     cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd
 }

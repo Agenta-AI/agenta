@@ -110,7 +110,3 @@
   before merging), they need the same treatment.
 - This doesn't add a request-id header. That's a separate, related
   improvement and could land in the same middleware later.
-- This doesn't change the `detail` shape on 5xx errors. If we ever want
-  to also clean those up (e.g. emit support only as headers and remove
-  from body), that's a follow-up — but it would be a real wire break
-  and probably isn't worth it.

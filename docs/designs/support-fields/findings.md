@@ -4,6 +4,7 @@
 
 - Branch: `fix/clean-up-support-attributes` (base `release/v0.99.10`)
 - PR: [#4325](https://github.com/Agenta-AI/agenta/pull/4325) (sync pulled 4 Copilot review comments from review `4316541442` submitted 2026-05-19)
+- Also tracked on [PR #4347](https://github.com/Agenta-AI/agenta/pull/4347): the support-fields design docs were carried into the `feat/clean-up-meters` branch; a 12th Copilot review pass on 2026-05-19T12:17Z surfaced 4 new comments against these docs (F-011 through F-014 below).
 - Design docs in this folder: `research.md`, `gap.md`, `proposal.md`, `tasks.md`
 - Implementation diff vs. `main`: 23 files (~927 / -208)
 - Touched code reviewed:
@@ -47,9 +48,53 @@ Sync-derived findings (closed):
 
 ## Open Findings
 
-None — all ten findings (six from the original scan, four from the PR #4325 sync) are resolved on this branch. See Closed Findings below.
+### [OPEN] F-015 — PR description doesn't mention the support-header wire-shape change (P2, high, needs-user-action)
+
+- **Origin**: PR #4347 sync, 13th Copilot pass (2026-05-19T12:42Z)
+- **PR comment**: [discussion_r3266334503](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266334503) on `api/oss/src/utils/exceptions.py:180`
+- **Background**: Removing `support_id` / `support_ts` from `HTTPException.detail` is a client-visible wire-shape change for intercepted 5xx and 409 responses, but PR #4347's description focuses on metering/auth changes and does not call out the support-header migration. Copilot is asking the author to add a section to the PR body so reviewers and client maintainers don't miss the response-shape change.
+- **Action (user)**: Edit the PR #4347 description (`gh pr edit 4347 --body …` or the web UI) to add a short section under "Wire-shape changes" that names the three affected response shapes (suppressed-failure body, intercepted 5xx `detail`, intercepted 409 `detail`) and the corresponding headers (`x-ag-support-id`, `x-ag-support-ts`). The wire-table at `docs/designs/support-fields/proposal.md:234-239` is the source of truth.
+
+### [DUPLICATE — will close after commit] F-011-dup / F-012-dup — Copilot 13th pass re-flagged the same drift on the pre-fix tree
+
+- **Origin**: PR #4347 sync, 13th Copilot pass (2026-05-19T12:42Z)
+- **PR comments**: [discussion_r3266334422](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266334422) (tasks.md:96, dup of F-011); [discussion_r3266334536](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266334536) (proposal.md:213, dup of F-012)
+- **Background**: Copilot's 13th pass ran against commit `ec12ccfa7` ("clean up findings") which predates my F-011 / F-012 doc rewrites (still uncommitted in working tree). Once those edits land in a commit, the next Copilot pass should mark these threads as already-addressed; the underlying content is the same drift already fixed.
+- **Action**: Commit the F-011..F-014 doc rewrites; reply on both threads pointing at the new commit and resolve.
 
 ## Closed Findings
+
+### [CLOSED] F-011 — `tasks.md` §6 test bullet rewritten to describe the headers-only `intercept_exceptions` contract
+
+- **Origin**: PR #4347 sync, 12th Copilot pass
+- **PR comment**: [discussion_r3266169058](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266169058)
+- **File**: `docs/designs/support-fields/tasks.md` §6, ~L94-L97
+- **Fix shipped**: Replaced the "keep [the test] as-is (the `detail` payload is unchanged)" bullet with "Rewrite `test_intercept_exceptions_includes_support_metadata` to assert `support_id` / `support_ts` are absent from `HTTPException.detail` and present via `support_ctx.get()` (the response headers carry them; the body does not)."
+- **Action**: GitHub thread replied to ([discussion_r3266331024](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266331024)) and resolved.
+
+### [CLOSED] F-012 — `proposal.md` §6 test paragraph rewritten to describe the headers-only contract
+
+- **Origin**: PR #4347 sync, 12th Copilot pass
+- **PR comment**: [discussion_r3266169079](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266169079)
+- **File**: `docs/designs/support-fields/proposal.md` §6, ~L209-L218
+- **Fix shipped**: Rewrote both test bullets to match the shipped implementation. `test_suppress_exceptions_attaches_support_to_response` now uses `support_ctx.get()` (not `request.state.support`) and asserts the payload carries no support fields. `test_intercept_exceptions_includes_support_metadata` now asserts the fields are absent from `HTTPException.detail` and present via `support_ctx.get()`.
+- **Action**: GitHub thread replied to ([discussion_r3266331250](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266331250)) and resolved.
+
+### [CLOSED] F-013 — `proposal.md` client-impact paragraph now covers all three wire-shape changes
+
+- **Origin**: PR #4347 sync, 12th Copilot pass
+- **PR comment**: [discussion_r3266169097](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266169097)
+- **File**: `docs/designs/support-fields/proposal.md` "What changes for clients" section, ~L245-L252
+- **Fix shipped**: Replaced the "suppressed-failure body is the only breaking change on the wire" paragraph with one that names all three changing response shapes (suppressed failures, intercepted 5xx, intercepted 409) and tells clients to read `x-ag-support-id` / `x-ag-support-ts` headers instead of body fields. Matches the table at L234-L239.
+- **Action**: GitHub thread replied to ([discussion_r3266331507](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266331507)) and resolved.
+
+### [CLOSED] F-014 — `gap.md` "does NOT solve" stale bullet removed
+
+- **Origin**: PR #4347 sync, 12th Copilot pass
+- **PR comment**: [discussion_r3266169147](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266169147)
+- **File**: `docs/designs/support-fields/gap.md` "What this does NOT solve" section, ~L113-L116
+- **Fix shipped**: Deleted the bullet that claimed "this doesn't change the `detail` shape on 5xx errors" — the cleanup *did* land in this PR (intercepted 5xx and 409 `detail` no longer carry `support_id` / `support_ts`; see proposal.md table). The remaining bullets in the section are still accurate.
+- **Action**: GitHub thread replied to ([discussion_r3266331729](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266331729)) and resolved.
 
 ### [CLOSED] F-001 — Production middleware order silently dropped the support headers
 
