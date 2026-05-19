@@ -110,3 +110,14 @@ export {
     type HitRatioState,
     type HitRatioWindow,
 } from "./hitRatioMeter"
+
+// Predicate → entity slice resolver — drives filter-aware hydrate so we
+// don't fetch slices the active predicate(s) never touch (e.g. skip
+// trace fetches when the filter only references evaluator metrics).
+// Same direction-inverted convention as resolveMappings (which goes
+// column → value); this goes column → entity-slice.
+export {
+    predicateToEntitySlices,
+    type EntitySlice,
+    type PredicateSliceResult,
+} from "./predicateToEntitySlices"
