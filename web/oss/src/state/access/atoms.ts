@@ -40,16 +40,20 @@ export const plansQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["access", "plans"],
         queryFn: async (): Promise<PlansCatalog> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/access/plans`, {
-                _ignoreError: true,
-            } as any)
+            const response = await axios.get(`${getAgentaApiUrl()}/access/plans`)
             return response.data
         },
         staleTime: 1000 * 60 * 10,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
+        refetchOnMount: true,
         enabled: isEE() && sessionExists,
-        retry: false,
+        retry: (failureCount, error) => {
+            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
+                return false
+            }
+            return failureCount < 2
+        },
     }
 })
 
@@ -61,10 +65,11 @@ interface CurrentSubscription {
     type?: string
 }
 
-// Same queryKey shape as `web/ee/src/state/billing/atoms.ts:subscriptionQueryAtom`
-// so React Query dedupes the request across the two consumers (the EE Billing
-// UI's hook and `useEntitlements`). Keep the shapes aligned if either side
-// changes.
+// Same queryKey + queryFn shape as `web/ee/src/state/billing/atoms.ts:subscriptionQueryAtom`
+// so React Query treats them as one cache entry. Diverging the queryFn (e.g.
+// adding try/catch here) causes whichever atom mounts first to dictate the
+// cached shape — the symptom is the EE Billing UI working but `useEntitlements`
+// reading stale `undefined` until a hard reload. Keep the two in lockstep.
 export const currentSubscriptionQueryAtom = atomWithQuery((get) => {
     const profileQuery = get(profileQueryAtom)
     const user = profileQuery.data as {id?: string} | undefined
@@ -73,22 +78,23 @@ export const currentSubscriptionQueryAtom = atomWithQuery((get) => {
     const sessionExists = get(sessionExistsAtom)
     return {
         queryKey: ["billing", "subscription", projectId, user?.id, organizationId],
-        queryFn: async (): Promise<CurrentSubscription | null> => {
-            try {
-                const response = await axios.get(
-                    `${getAgentaApiUrl()}/billing/subscription?project_id=${projectId}`,
-                    {_ignoreError: true} as any,
-                )
-                return response.data
-            } catch {
-                return null
-            }
+        queryFn: async (): Promise<CurrentSubscription> => {
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/billing/subscription?project_id=${projectId}`,
+            )
+            return response.data
         },
         staleTime: 1000 * 60 * 5,
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
         refetchOnReconnect: false,
+        refetchOnMount: true,
         enabled: isEE() && sessionExists && !!organizationId && !!user && !!projectId,
-        retry: false,
+        retry: (failureCount, error) => {
+            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
+                return false
+            }
+            return failureCount < 2
+        },
     }
 })
 
@@ -97,15 +103,19 @@ export const rolesQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["access", "roles"],
         queryFn: async (): Promise<RolesCatalog> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/access/roles`, {
-                _ignoreError: true,
-            } as any)
+            const response = await axios.get(`${getAgentaApiUrl()}/access/roles`)
             return response.data
         },
         staleTime: 1000 * 60 * 10,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
+        refetchOnMount: true,
         enabled: isEE() && sessionExists,
-        retry: false,
+        retry: (failureCount, error) => {
+            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
+                return false
+            }
+            return failureCount < 2
+        },
     }
 })

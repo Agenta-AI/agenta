@@ -1,6 +1,6 @@
 # Findings: Dynamic Access and Billing
 
-Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45..da0548d5e`) against the `proposal.md` and `gap.md` in this folder. Code was read independently before reconciling against `tasks.md`. Findings from PR #4330 external review (Copilot) appended as FIND-014..019 — all closed. FIND-020 added from a local migration-tree audit and resolved on user direction by rebasing this branch's migration after the meters reshape. A second sync pass against PR #4330 added FIND-021 (Stripe meter mapping), FIND-022 (stale `Counter.EVENTS` / `Counter.TRACES` references in adjacent design folders), and FIND-023 (stale enum references in `test_access_controls.py`) — all closed in this same pass. A third sync pass picked up FIND-024 from a follow-up Copilot review comment (stale `scripts/` path in a validator error message); already resolved as a side-effect of the FIND-021 pricing rewrite. A fourth sync pass added FIND-025 (Copilot, migration docstring `Revises:` header out of sync with `down_revision` after the FIND-020 rebase) and resolved it on the same pass. See [Closed Findings](#closed-findings) for current state.
+Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45..da0548d5e`) against the `proposal.md` and `gap.md` in this folder. Code was read independently before reconciling against `tasks.md`. Findings from PR #4330 external review (Copilot) appended as FIND-014..019 — all closed. FIND-020 added from a local migration-tree audit and resolved on user direction by rebasing this branch's migration after the meters reshape. A second sync pass against PR #4330 added FIND-021 (Stripe meter mapping), FIND-022 (stale `Counter.EVENTS` / `Counter.TRACES` references in adjacent design folders), and FIND-023 (stale enum references in `test_access_controls.py`) — all closed in this same pass. A third sync pass picked up FIND-024 from a follow-up Copilot review comment (stale `scripts/` path in a validator error message); already resolved as a side-effect of the FIND-021 pricing rewrite. A fourth sync pass added FIND-025 (Copilot, migration docstring `Revises:` header out of sync with `down_revision` after the FIND-020 rebase) and resolved it on the same pass. A fifth sync pass against PR #4330 on 2026-05-19 added FIND-026..029 from unresolved reviewer threads on the self-host access-controls docs; all four were resolved by applying Mahmoud's docs-style direction. See [Closed Findings](#closed-findings) for current state.
 
 ## Sources
 
@@ -24,8 +24,9 @@ Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45
 
 ## Summary
 
-Initial scan surfaced 13 findings: one P0 (project-scope RBAC regression), four P1 (closed-enum holdouts and validation gaps), and the rest P2/P3 hygiene — all resolved on this branch. PR #4330 external review (Copilot) added six more (FIND-014..019), then a migration audit added FIND-020, then a second sync pass added FIND-021..023:
+Initial scan surfaced 13 findings: one P0 (project-scope RBAC regression), four P1 (closed-enum holdouts and validation gaps), and the rest P2/P3 hygiene — all resolved on this branch. PR #4330 external review (Copilot) added six more (FIND-014..019), then a migration audit added FIND-020, then a second sync pass added FIND-021..023. The latest docs-only reviewer feedback has also been resolved:
 
+- **Closed (docs style pass):** FIND-026 (P2, roles-overlay docs now lead with a deployment-wide root-slug shape instead of public `project` targeting), FIND-027 (P3, redundant default-plan overlay merge-semantics table removed), FIND-028 (P3, `Retention` enum reference table removed from operator docs), FIND-029 (P3, implementation-heavy reference section removed and the page trimmed toward the neighboring self-host how-to style).
 - **Closed (PR #4330 + migration audit):** FIND-014 (P2, design-doc retention defaults updated to match shipped code), FIND-015 (P3, override-vs-overlay terminology tightened in MDX), FIND-016 (P1, acceptance tests fixed by renaming `member`→`viewer`), FIND-017 (P2, `assert` replaced with explicit `if/raise EventException` in trial-checkout), FIND-018 (P3, `_normalize_pricing_entry` now rejects empty `{}` with a slug-pointing error; covered by new unit test), FIND-019 (P3, `existing_type=sa.String()` threaded through both `alter_column` calls in the member→viewer migration), FIND-020 (P0, EE `core` migration tree fork resolved by chaining `a1b2c3d4e5f7` after `9d3e8f0a1b2c`).
 - **Closed (latest sync):** FIND-021 (P1, `STRIPE_METER_NAMES` mapping added in `entitlements/types.py`; `meters/service.py` looks up event name + price via the mapping with a skip-path log; `subscriptions/settings.py` switched to flat pricing shape with operator-owned `traces` / `users` slot names plus reserved `free` / `trial` markers; `migrate_stripe_pricing.py` rewritten as an annotation helper for `free` / `trial`), FIND-022 (P3, mechanical `Counter.EVENTS` → `Counter.EVENTS_INGESTED` and `Counter.TRACES` → `Counter.TRACES_INGESTED` rename across `data-retention/README.md`, `data-retention/data-retention-periods.initial.specs.md`, and `ee-self-hosting/research.md`), FIND-023 (P2, `test_access_controls.py` fixture and tests migrated to `Counter.TRACES_INGESTED` / `Period.MONTHLY` / `Retention.MONTHLY` / `Flag.ACCESS`; 61/61 pass), FIND-024 (P3, Copilot-flagged stale `scripts/migrate_stripe_pricing.py` path in a validator error message — already resolved as a side-effect of the FIND-021 pricing rewrite; verified `grep` returns no matches), FIND-025 (P3, Copilot-flagged stale `Revises: e6f7a8b9c0d1` docstring header on `a1b2c3d4e5f7_unify_org_member_role_to_viewer.py` left over from the FIND-020 rebase — docstring updated to `Revises: 9d3e8f0a1b2c` to match `down_revision`).
 
@@ -48,6 +49,58 @@ EE unit suite green after the changes: `test_access_controls.py` 61/61, `test_bi
 _None._
 
 ## Closed Findings
+
+### FIND-026 — [CLOSED] Roles-overlay docs still expose `project` as an internal implementation scope
+
+- ID: FIND-026
+- Origin: sync
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed
+- Category: Documentation
+- Summary: The `AGENTA_ACCESS_ROLES_OVERLAY` section explained targeting in terms of `project` and accepted payload shapes. Reviewer feedback said this was unclear because the overlay applies deployment-wide, so `project` read like a data-model leak.
+- Resolution: Applied Mahmoud's docs-direction fix in [04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx). The public overlay section now leads with the root role-slug shape (`{"auditor": ...}`), states that the overlay is deployment-wide, removes the public scoped `{ "project": ... }` shape, and updates examples to avoid the `project` wrapper. The `AGENTA_ACCESS_ROLES` example for adding one role now also points at the root overlay shape.
+- Sources: PR #4330 review comments `3260270639`, `3260309541`, `3260364827`, and approval review `4319528861`.
+
+### FIND-027 — [CLOSED] Default-plan overlay merge-semantics table is redundant for how-to docs
+
+- ID: FIND-027
+- Origin: sync
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed
+- Category: Documentation
+- Summary: Reviewer feedback marked the default-plan overlay merge-semantics table as redundant and too detailed for the docs style.
+- Resolution: Removed the `### Merge semantics` table from the `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` section in [04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx). The operator-facing page keeps the shape note and examples; deeper merge semantics remain in the design materials.
+- Sources: PR #4330 review comment `3266735312`.
+
+### FIND-028 — [CLOSED] Retention enum reference table should not be in operator docs
+
+- ID: FIND-028
+- Origin: sync
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed
+- Category: Documentation
+- Summary: Reviewer feedback said the `Retention` reference table should not be part of the operator docs.
+- Resolution: Removed the `### Reference: Retention` table from [04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx), along with the broader enum-reference section. The quota field table still gives operators the supported retention minute values inline where they configure them.
+- Sources: PR #4330 review comment `3266744354`.
+
+### FIND-029 — [CLOSED] Access-controls page needs docs-style pass against existing how-to format
+
+- ID: FIND-029
+- Origin: sync
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed
+- Category: Documentation
+- Summary: Reviewer feedback asked for the page to follow the same format/style as other documentation how-to pages.
+- Resolution: Trimmed [04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx) toward the neighboring self-host how-to style by removing the implementation-heavy enum-reference section, dropping the redundant merge-semantics table, and simplifying the roles-overlay section to operator-facing behavior and examples. The page still contains schema tables where needed for authoring JSON, but no longer carries the extra internal reference block Mahmoud flagged.
+- Sources: PR #4330 review comments `3266744354`, `3266735312`, `3260270639`; approval review `4319528861`.
 
 ### FIND-021 — [CLOSED] No mapping between internal Counter/Gauge slugs and Stripe-side meter event names; `traces_ingested` won't route to a Stripe meter configured as `"traces"`
 

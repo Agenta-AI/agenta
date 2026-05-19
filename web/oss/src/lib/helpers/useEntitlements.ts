@@ -35,6 +35,13 @@ export const useEntitlements = () => {
     const hasRBAC = !!flags?.rbac
     const hasHooks = !!flags?.hooks
 
+    // Both queries must resolve before flags are meaningful. While either is
+    // pending, every `has*` read returns `false`, which is indistinguishable
+    // from "feature disabled" — callers that gate UI on these should defer
+    // rendering until `isLoading` is false to avoid a flash of the locked
+    // state on first paint / soft navigation.
+    const isLoading = subscriptionQuery.isPending || plansQuery.isPending
+
     return {
         hasAccessControl,
         hasDomains,
@@ -42,5 +49,6 @@ export const useEntitlements = () => {
         hasRBAC,
         hasHooks,
         plan,
+        isLoading,
     }
 }
