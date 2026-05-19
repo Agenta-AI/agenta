@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EnvironmentRevisionResolveResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     environment_revision?: (AgentaApi.EnvironmentRevision | null) | undefined;
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;

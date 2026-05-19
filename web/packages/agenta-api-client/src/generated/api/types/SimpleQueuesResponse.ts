@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SimpleQueuesResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     queues?: AgentaApi.SimpleQueue[] | undefined;
     windowing?: (AgentaApi.Windowing | null) | undefined;

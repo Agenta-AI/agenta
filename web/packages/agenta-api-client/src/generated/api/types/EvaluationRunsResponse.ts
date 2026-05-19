@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EvaluationRunsResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     runs?: AgentaApi.EvaluationRun[] | undefined;
     windowing?: (AgentaApi.Windowing | null) | undefined;

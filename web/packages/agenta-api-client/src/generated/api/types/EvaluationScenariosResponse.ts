@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EvaluationScenariosResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     scenarios?: AgentaApi.EvaluationScenario[] | undefined;
     windowing?: (AgentaApi.Windowing | null) | undefined;

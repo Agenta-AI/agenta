@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EvaluationResultsResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     results?: AgentaApi.EvaluationResult[] | undefined;
 }

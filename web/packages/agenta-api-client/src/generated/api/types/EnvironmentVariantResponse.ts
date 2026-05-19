@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EnvironmentVariantResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     environment_variant?: (AgentaApi.EnvironmentVariant | null) | undefined;
 }

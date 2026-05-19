@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import typing
 
 import pydantic
@@ -10,6 +11,8 @@ from .simple_query import SimpleQuery
 
 
 class SimpleQueriesResponse(UniversalBaseModel):
+    support_id: typing.Optional[str] = None
+    support_ts: typing.Optional[dt.datetime] = None
     count: typing.Optional[int] = None
     queries: typing.Optional[typing.List[SimpleQuery]] = None
     

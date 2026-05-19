@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface AnnotationLinkResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     annotation_link?: (AgentaApi.OTelLinkOutput | null) | undefined;
 }
