@@ -499,12 +499,3 @@ export interface User {
     username: string
     email: string
 }
-
-// billings
-export enum Plan {
-    Hobby = "cloud_v0_hobby",
-    Pro = "cloud_v0_pro",
-    Business = "cloud_v0_business",
-    Enterprise = "cloud_v0_enterprise",
-    SelfHostedEnterprise = "self_hosted_enterprise",
-}

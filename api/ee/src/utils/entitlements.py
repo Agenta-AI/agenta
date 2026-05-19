@@ -14,10 +14,9 @@ from ee.src.core.entitlements.types import (
     Counter,
     Gauge,
     Period,
-    Plan,
     Scope,
-    ENTITLEMENTS,
 )
+from ee.src.core.entitlements.controls import get_plan_entitlements
 from ee.src.core.meters.service import MetersService
 from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 
@@ -381,7 +380,7 @@ async def _check_entitlements(
             )
 
         subscription_data = {
-            "plan": subscription.plan.value,
+            "plan": subscription.plan,
             "anchor": subscription.anchor,
         }
 
@@ -391,10 +390,11 @@ async def _check_entitlements(
             value=subscription_data,
         )
 
-    plan = Plan(subscription_data.get("plan"))
+    plan = subscription_data.get("plan")
     anchor = subscription_data.get("anchor")
 
-    if plan not in ENTITLEMENTS:
+    entitlements = get_plan_entitlements(plan)
+    if not entitlements:
         raise EntitlementsException(f"Missing plan [{plan}] in entitlements")
 
     # -------------------------------------------------------------- #
@@ -402,10 +402,11 @@ async def _check_entitlements(
     # -------------------------------------------------------------- #
 
     if flag:
-        if flag not in ENTITLEMENTS[plan][Tracker.FLAGS]:
+        flags = entitlements.get(Tracker.FLAGS) or {}
+        if flag not in flags:
             raise EntitlementsException(f"Invalid flag: {flag} for plan [{plan}]")
 
-        check = ENTITLEMENTS[plan][Tracker.FLAGS][flag]
+        check = flags[flag]
 
         if flag.name != "RBAC":
             # TODO: remove this line
@@ -422,16 +423,18 @@ async def _check_entitlements(
     quota = None
 
     if counter:
-        if counter not in ENTITLEMENTS[plan][Tracker.COUNTERS]:
+        counters = entitlements.get(Tracker.COUNTERS) or {}
+        if counter not in counters:
             raise EntitlementsException(f"Invalid counter: {counter} for plan [{plan}]")
 
-        quota = ENTITLEMENTS[plan][Tracker.COUNTERS][counter]
+        quota = counters[counter]
 
     if gauge:
-        if gauge not in ENTITLEMENTS[plan][Tracker.GAUGES]:
+        gauges = entitlements.get(Tracker.GAUGES) or {}
+        if gauge not in gauges:
             raise EntitlementsException(f"Invalid gauge: {gauge} for plan [{plan}]")
 
-        quota = ENTITLEMENTS[plan][Tracker.GAUGES][gauge]
+        quota = gauges[gauge]
 
     if not quota:
         raise EntitlementsException(f"No quota found for key [{key}] in plan [{plan}]")

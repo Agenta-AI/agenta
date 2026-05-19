@@ -2,8 +2,8 @@ from datetime import datetime, timezone, timedelta
 
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.subscriptions.types import Plan
-from ee.src.core.entitlements.types import ENTITLEMENTS, Tracker, Counter
+from ee.src.core.entitlements.types import Tracker, Counter
+from ee.src.core.entitlements.controls import get_plans
 from ee.src.dbs.postgres.tracing.dao import TracingDAO
 
 
@@ -32,22 +32,20 @@ class TracingService:
         total_traces = 0
         total_spans = 0
 
-        for plan in Plan:
+        for plan, entitlements in get_plans().items():
             total_plans += 1
 
-            entitlements = ENTITLEMENTS.get(plan)
-
             if not entitlements:
-                log.info(f"[flush] [{plan.value}] Skipped (no entitlements)")
+                log.info(f"[flush] [{plan}] Skipped (no entitlements)")
                 total_skipped += 1
                 continue
 
-            traces_quota = entitlements.get(Tracker.COUNTERS, {}).get(
+            traces_quota = (entitlements.get(Tracker.COUNTERS) or {}).get(
                 Counter.TRACES_INGESTED
             )
 
             if not traces_quota or traces_quota.retention is None:
-                log.info(f"[flush] [{plan.value}] Skipped (unlimited retention)")
+                log.info(f"[flush] [{plan}] Skipped (unlimited retention)")
                 total_skipped += 1
                 continue
 
@@ -55,7 +53,7 @@ class TracingService:
             cutoff = datetime.now(timezone.utc) - timedelta(minutes=retention_minutes)
 
             log.info(
-                f"[flush] [{plan.value}] Processing with cutoff={cutoff.isoformat()} (retention={retention_minutes} minutes)"
+                f"[flush] [{plan}] Processing with cutoff={cutoff.isoformat()} (retention={retention_minutes} minutes)"
             )
 
             try:
@@ -70,12 +68,12 @@ class TracingService:
                 total_spans += plan_spans
 
                 log.info(
-                    f"[flush] [{plan.value}] ✅ Completed: {plan_traces} traces, {plan_spans} spans"
+                    f"[flush] [{plan}] ✅ Completed: {plan_traces} traces, {plan_spans} spans"
                 )
 
             except Exception:
                 log.error(
-                    f"[flush] [{plan.value}] ❌ Failed",
+                    f"[flush] [{plan}] ❌ Failed",
                     exc_info=True,
                 )
 
@@ -90,7 +88,7 @@ class TracingService:
     async def _flush_spans_for_plan(
         self,
         *,
-        plan: Plan,
+        plan: str,
         cutoff: datetime,
         max_projects_per_batch: int,
         max_traces_per_batch: int,
@@ -102,7 +100,7 @@ class TracingService:
 
         while True:
             project_ids = await self.tracing_dao.fetch_projects_with_plan(
-                plan=plan.value,
+                plan=plan,
                 project_id=last_project_id,
                 max_projects=max_projects_per_batch,
             )
