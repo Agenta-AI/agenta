@@ -152,21 +152,6 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
     // same microtask into one bulk fetch per slice.
     const materializer = useCellMaterialization({projectId, runId})
 
-    // Lookahead prefetch on page-load. When pagination loads a new page
-    // of scenarios, proactively request results + metrics for those
-    // scenarios through the materializer. By the time the user scrolls
-    // those cells into view, the data is already cached and cells render
-    // instantly. testcases + traces are requested by cells once results
-    // land (their IDs aren't known until then). Skipped when sliceMode
-    // === "all" because page-level hydrate already covered it.
-    useLookaheadPrefetch({
-        projectId,
-        runId,
-        rows: pagination.rows,
-        materializer,
-        sliceMode,
-    })
-
     // (predicate state is declared above so the hydrate hook can consume it.)
 
     const filteredRows = useMemo(() => {
@@ -193,6 +178,29 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
         }
         return out
     }, [pagination.rows, predicate, schema, projectId, runId])
+
+    // Lookahead prefetch for the constructed viewport.
+    //
+    // Critical: we pass `filteredRows`, NOT `pagination.rows`. With a
+    // predicate active, the viewport-fill loop may have loaded 10x more
+    // pagination pages than the user actually sees — prefetching for
+    // every loaded scenario would waste ~94% of the work on rows that
+    // get filtered out. See useLookaheadPrefetch's file header for
+    // details.
+    //
+    // No predicate: filteredRows == pagination.rows  → behaves identically.
+    // With predicate: filteredRows is the matched subset → only those
+    // rows get cell-data prefetched ahead of view.
+    //
+    // Skipped when sliceMode === "all" — page-level hydrate already
+    // covered every slice for every scenario.
+    useLookaheadPrefetch({
+        projectId,
+        runId,
+        rows: filteredRows,
+        materializer,
+        sliceMode,
+    })
 
     // Viewport-fill loop for client-side filtering.
     //

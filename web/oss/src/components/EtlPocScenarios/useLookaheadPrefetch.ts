@@ -1,24 +1,50 @@
 /**
- * useLookaheadPrefetch — proactive cell-data prefetch on page load.
+ * useLookaheadPrefetch — proactive cell-data prefetch for the
+ * constructed viewport.
  *
- * Background: cells materialize their own slices on mount (via the
- * cell-side materializer). That works for visible cells but lags when
- * the user scrolls into a freshly-loaded page — cells mount, request,
- * wait for the fetch to land, then render.
+ * Background: cells materialize their own slices on mount. That works
+ * for visible cells but lags when the user scrolls into freshly-loaded
+ * rows — cells mount, request, wait for the fetch to land, then render.
  *
- * This hook closes that gap: when pagination loads a new page (50 new
- * scenarios appear in `pagination.rows`), proactively request all 4
- * entity slices for those scenarios. The materializer dedupes against
- * existing cache and batches concurrent requests, so by the time the
- * user scrolls cells into view their data is already cached.
+ * Why the input is filteredRows (NOT pagination.rows):
+ *
+ * With a predicate active, the IVT's "viewport page" is constructed
+ * from multiple pagination pages. The viewport-fill loop may load
+ * pagination pages 1-10 to accumulate 30 matched rows. Of the 500
+ * scenarios in `pagination.rows`, only ~30 will be visible — the
+ * other 470 are unmatched and immediately filtered out.
+ *
+ * Prefetching all 500 would waste ~94% of the work, especially the
+ * stage-2 testcase/trace fetches (one round-trip per unmatched row's
+ * IDs). Operating on `filteredRows` instead targets only what the
+ * user will see.
+ *
+ *   No predicate:   filteredRows == pagination.rows  → no behavior change
+ *   With predicate: filteredRows ⊂ pagination.rows  → prefetch only matched
+ *
+ * Trade-off: filteredRows includes "pending" rows (passed the filter
+ * because their data hasn't loaded yet — see `matchesPredicate`'s
+ * keep-visible-until-known fallback). Those may later drop out as
+ * predicate slices land and the filter re-evaluates. We'll have
+ * prefetched extra data for those — but the predicate-driven page
+ * hydrate already fetches the predicate slices for them, so stage 1
+ * is net zero extra cost. Stage 2 over-prefetches for "pending →
+ * unmatched" rows; acceptable in exchange for not flashing rows
+ * in/out of the viewport during predicate evaluation.
+ *
+ * Two stages, both routed through the materializer (dedup + batching
+ * reused for free):
+ *   stage 1: rows in filteredRows → request results + metrics
+ *   stage 2: on hydrationVersion bump, derive testcase_id / trace_id
+ *            from cached results, request those slices
  *
  * Effective behavior:
- *   visible viewport (page N) ─── cells already materialized
- *   +1 page (page N+1)        ─── data prefetched, cells render instantly
+ *   visible viewport          ─── cells already materialized
+ *   constructed +1 page worth ─── data prefetched, cells render instantly
  *   any earlier page          ─── still in cache from when user scrolled past
  *
- * Disabled when sliceMode === "all" — the page-level hydrate already
- * fetched everything, no lookahead needed.
+ * Disabled when sliceMode === "all" — page-level hydrate already
+ * fetched everything for every scenario, no lookahead needed.
  */
 
 import {useEffect, useRef} from "react"
@@ -33,6 +59,11 @@ import {hydrationVersionAtom, type SliceFetchMode} from "./useHydrateScenarios"
 export interface UseLookaheadPrefetchArgs {
     projectId: string | null
     runId: string | null
+    /**
+     * IMPORTANT: pass `filteredRows` (post-predicate), NOT `pagination.rows`.
+     * The lookahead must target the constructed viewport — see the file
+     * header for the full rationale.
+     */
     rows: ScenarioThinRow[]
     materializer: CellMaterializer
     /**
