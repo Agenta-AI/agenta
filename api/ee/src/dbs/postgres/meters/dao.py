@@ -292,35 +292,28 @@ class MetersDAO(MetersDAOInterface):
     ) -> list[MeterDTO]:
         """Fetch meter rows matching the given filters.
 
-        Filter semantics (PR-48):
+        Scope: `scope=None` and `MeterScope()` (all dims unset) both skip
+        the scope filter — admin/rollup escape. Any other `MeterScope`
+        binds every scope dim uniformly (`None` → `IS NULL`).
 
-          - `scope=None` / `period=None` applies no filter on that family
-            at all. This is the "rollup" escape hatch and must be used
-            with care.
-          - When a `MeterScope` / `MeterPeriod` object is supplied, every
-            dimension is bound uniformly — a `None` dimension means
-            `column IS NULL`, not "any value". This is required because
-            a `None` dimension is part of the canonical meter identity
-            ("not applicable at this grain"). Without `IS NULL` binding,
-            an org-scoped/monthly read would also match finer-scoped or
-            daily rows for the same `(org, key, year, month)`.
-
-        WARNING: passing `scope=None` returns every meter row in the
-        table. As of this revision the only callers are:
-
-          - `MetersService.fetch` (passes through)
-          - `BillingRouter.fetch_usage` (passes the projected scope)
-          - `check_entitlements` soft-check path (passes the projected scope)
-
-        None of them currently relies on the unbounded behavior. Audit
-        callers before broadening the surface.
+        Period: `period=None` skips the period filter; `MeterPeriod()`
+        pins lifetime/gauge-sentinel rows (`year/month/day IS NULL`). Any
+        other `MeterPeriod` binds every period dim uniformly.
         """
         async with engine.core_session() as session:
             stmt = select(MeterDBE).options(
                 joinedload(MeterDBE.subscription)
             )  # NO RISK OF DEADLOCK
 
-            if scope is not None:
+            if scope is not None and any(
+                dim is not None
+                for dim in (
+                    scope.organization_id,
+                    scope.workspace_id,
+                    scope.project_id,
+                    scope.user_id,
+                )
+            ):
                 stmt = stmt.filter_by(organization_id=scope.organization_id)
                 stmt = stmt.filter_by(workspace_id=scope.workspace_id)
                 stmt = stmt.filter_by(project_id=scope.project_id)

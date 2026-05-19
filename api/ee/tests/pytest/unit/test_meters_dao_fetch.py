@@ -3,13 +3,14 @@
 When a `MeterScope` or `MeterPeriod` object is supplied, every dimension
 is bound — a `None` dimension means `column IS NULL`, not "any value".
 Without that, an org-scoped/monthly read would also match finer-scoped
-or daily roWRK for the same `(org, key, year, month)`, because the
+or daily rows for the same `(org, key, year, month)`, because the
 canonical meter identity treats `None` dimensions as "not applicable at
 this grain".
 
-`scope=None` / `period=None` remain a documented escape hatch: no filter
-on that family is applied at all. `MeterScope()` with no org bound is
-the analogous escape inside the scope family.
+`scope=None` and `MeterScope()` both skip the scope filter (admin/rollup
+escape — a row with no org/workspace/project/user is not a meaningful
+canonical identity). `period=None` skips the period filter; `MeterPeriod()`
+pins the lifetime/gauge-sentinel grain (a real canonical identity).
 
 These tests pin both the per-dimension `IS NULL` binding and the
 all-None / partial-None escape hatches.
@@ -118,7 +119,7 @@ class TestFetchScopeFilters:
 
     @pytest.mark.asyncio
     async def test_workspace_scope_binds_below_to_is_null(self, monkeypatch):
-        """workspace-scoped read should not match project/user roWRK."""
+        """workspace-scoped read should not match project/user rows."""
         session = _Session()
         _patch_session(monkeypatch, session)
 
@@ -168,11 +169,26 @@ class TestFetchScopeFilters:
         assert "project_id" not in sql
         assert "user_id" not in sql
 
+    @pytest.mark.asyncio
+    async def test_empty_scope_is_equivalent_to_scope_none(self, monkeypatch):
+        """`MeterScope()` (all dims unset) is treated as the same admin escape as `scope=None`."""
+        session = _Session()
+        _patch_session(monkeypatch, session)
+
+        dao = MetersDAO()
+        await dao.fetch(scope=MeterScope())
+
+        sql = _where_sql(session.executed_statements[0]).lower()
+        assert "organization_id" not in sql
+        assert "workspace_id" not in sql
+        assert "project_id" not in sql
+        assert "user_id" not in sql
+
 
 class TestFetchPeriodFilters:
     @pytest.mark.asyncio
     async def test_monthly_period_binds_day_to_is_null(self, monkeypatch):
-        """MONTHLY read (year, month, day=None) must not match DAILY roWRK."""
+        """MONTHLY read (year, month, day=None) must not match DAILY rows."""
         session = _Session()
         _patch_session(monkeypatch, session)
 
@@ -202,7 +218,7 @@ class TestFetchPeriodFilters:
 
     @pytest.mark.asyncio
     async def test_empty_period_binds_all_to_is_null(self, monkeypatch):
-        """`MeterPeriod()` (no period) → all three IS NULL — pins lifetime roWRK."""
+        """`MeterPeriod()` (no period) → all three IS NULL — pins lifetime rows."""
         session = _Session()
         _patch_session(monkeypatch, session)
 
