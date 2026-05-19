@@ -25,7 +25,9 @@ import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entiti
 import type {EntitySlice} from "@agenta/entities/evaluationRun/etl"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {traceSpanMolecule} from "@agenta/entities/trace"
+import {getDefaultStore} from "jotai"
 import {useSetAtom} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 
 import {hydrationVersionAtom} from "./useHydrateScenarios"
 
@@ -43,6 +45,18 @@ interface BatchState {
     queues: Record<EntitySlice, MaterializeRequest[]>
     /** Per-slice "currently fetching IDs" so we don't double-fire. */
     inflightIds: Record<EntitySlice, Set<string>>
+    /**
+     * Per-slice "tried and got nothing back" IDs. The most common cause
+     * is HTTP 429 rate-limiting on the trace endpoint — the molecule's
+     * prefetch swallows the error and returns empty, leaving the cache
+     * empty. Without this set, the cell rerenders forever in a tight
+     * retry loop (cache empty → request → 429 → still empty → repeat).
+     *
+     * Marked permanently for the session — user must reload to retry.
+     * If we wanted automatic retry we'd add a TTL here; for the test
+     * page, manual reload is simpler than tracking backoff windows.
+     */
+    failedIds: Record<EntitySlice, Set<string>>
     /** True if a drain is already scheduled this tick. */
     scheduled: boolean
 }
@@ -55,8 +69,38 @@ const initialBatchState = (): BatchState => ({
         testcases: new Set(),
         traces: new Set(),
     },
+    failedIds: {
+        results: new Set(),
+        metrics: new Set(),
+        testcases: new Set(),
+        traces: new Set(),
+    },
     scheduled: false,
 })
+
+/**
+ * Cache key shape for each slice. After a fetch resolves, we look up
+ * whether the cache actually contains data for each requested ID — if
+ * not, we know the fetch failed (rate-limited, network blip, etc.) and
+ * mark the ID as failed so we don't loop.
+ */
+const cacheKeyFor = (
+    slice: EntitySlice,
+    projectId: string,
+    runId: string,
+    id: string,
+): unknown[] => {
+    switch (slice) {
+        case "results":
+            return ["evaluation-results", projectId, runId, id]
+        case "metrics":
+            return ["evaluation-metrics", projectId, runId, id]
+        case "testcases":
+            return ["testcase", projectId, id]
+        case "traces":
+            return ["trace-entity", projectId, id]
+    }
+}
 
 interface UseCellMaterializationArgs {
     projectId: string | null
@@ -112,6 +156,30 @@ export const useCellMaterialization = ({
         for (const id of testcaseIds) state.inflightIds.testcases.add(id)
         for (const id of traceIds) state.inflightIds.traces.add(id)
 
+        // Resolve the shared QueryClient once so the post-fetch
+        // "did this id actually land in cache?" check is a sync read.
+        const qc = getDefaultStore().get(queryClientAtom)
+
+        // Helper: after a slice's bulk fetch settles, for each id we
+        // requested, check whether the cache now holds data for it. If
+        // not, the fetch failed silently (most commonly 429 rate-limit
+        // on traces) — mark the id as failed so request() skips it on
+        // future renders. Without this we loop: request → 429 → cache
+        // still empty → request fires again on the next render → 429
+        // again → repeat forever.
+        const markFailures = (slice: EntitySlice, ids: string[]) => {
+            if (!qc) return
+            for (const id of ids) {
+                state.inflightIds[slice].delete(id)
+                const cached = qc.getQueryData(
+                    cacheKeyFor(slice, projectId, runId, id) as readonly unknown[],
+                )
+                if (cached === undefined) {
+                    state.failedIds[slice].add(id)
+                }
+            }
+        }
+
         try {
             await Promise.all([
                 scenarioIdsForResults.length > 0
@@ -121,10 +189,7 @@ export const useCellMaterialization = ({
                               runId,
                               scenarioIds: scenarioIdsForResults,
                           })
-                          .finally(() => {
-                              for (const id of scenarioIdsForResults)
-                                  state.inflightIds.results.delete(id)
-                          })
+                          .finally(() => markFailures("results", scenarioIdsForResults))
                     : Promise.resolve(),
                 scenarioIdsForMetrics.length > 0
                     ? evaluationMetricMolecule.actions
@@ -133,22 +198,17 @@ export const useCellMaterialization = ({
                               runId,
                               scenarioIds: scenarioIdsForMetrics,
                           })
-                          .finally(() => {
-                              for (const id of scenarioIdsForMetrics)
-                                  state.inflightIds.metrics.delete(id)
-                          })
+                          .finally(() => markFailures("metrics", scenarioIdsForMetrics))
                     : Promise.resolve(),
                 testcaseIds.length > 0
                     ? testcaseMolecule.actions
                           .prefetchByIds({projectId, testcaseIds})
-                          .finally(() => {
-                              for (const id of testcaseIds) state.inflightIds.testcases.delete(id)
-                          })
+                          .finally(() => markFailures("testcases", testcaseIds))
                     : Promise.resolve(),
                 traceIds.length > 0
-                    ? traceSpanMolecule.actions.prefetchByIds({projectId, traceIds}).finally(() => {
-                          for (const id of traceIds) state.inflightIds.traces.delete(id)
-                      })
+                    ? traceSpanMolecule.actions
+                          .prefetchByIds({projectId, traceIds})
+                          .finally(() => markFailures("traces", traceIds))
                     : Promise.resolve(),
             ])
 
@@ -180,6 +240,10 @@ export const useCellMaterialization = ({
                   ? req.traceId
                   : req.scenarioId
         if (!id) return
+        // Skip if a previous drain for this id failed (most often 429
+        // rate-limit on the trace endpoint). Without this guard the cell
+        // would re-request on every render and pile on more 429s.
+        if (state.failedIds[slice].has(id)) return
         // Skip if this id is already being fetched by an earlier batch.
         if (state.inflightIds[slice].has(id)) return
         // Also skip if a sibling cell already queued the same id this tick.
