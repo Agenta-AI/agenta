@@ -2,8 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-from oss.src.utils.exceptions import Support
-
 from oss.src.core.shared.dtos import (
     Link,
     Windowing,
@@ -34,21 +32,21 @@ class InvocationQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class InvocationResponse(Support):
+class InvocationResponse(BaseModel):
     count: int = 0
     invocation: Optional[Invocation] = None
 
 
-class InvocationsResponse(Support):
+class InvocationsResponse(BaseModel):
     count: int = 0
     invocations: List[Invocation] = []
 
 
-class InvocationLinkResponse(Support):
+class InvocationLinkResponse(BaseModel):
     count: int = 0
     invocation_link: Optional[Link] = None
 
 
-class InvocationLinksResponse(Support):
+class InvocationLinksResponse(BaseModel):
     count: int = 0
     invocation_links: List[Link] = []
