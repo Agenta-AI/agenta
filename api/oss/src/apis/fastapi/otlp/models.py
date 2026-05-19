@@ -1,7 +1,6 @@
 from typing import List, Optional
 from datetime import datetime
 
-from oss.src.utils.exceptions import Support
 from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.otel.dtos import (
@@ -13,7 +12,7 @@ from oss.src.core.otel.dtos import (
 )
 
 
-class CollectStatusResponse(Support):
+class CollectStatusResponse(BaseModel):
     """OTLP endpoint readiness response."""
 
     status: str = Field(
@@ -24,7 +23,7 @@ class CollectStatusResponse(Support):
     )
 
 
-class OTelTracingResponse(Support):
+class OTelTracingResponse(BaseModel):
     count: Optional[int] = None
     spans: List[OTelSpanDTO]
 
@@ -99,6 +98,6 @@ class LegacyAnalyticsResponse(LegacySummary):
     data: List[LegacyDataPoint]
 
 
-class OldAnalyticsResponse(Support):
+class OldAnalyticsResponse(BaseModel):
     count: Optional[int] = None
     buckets: List[BucketDTO]

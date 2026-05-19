@@ -9,4 +9,8 @@ export interface UsageProgressBarProps {
     limit: number
     used: number
     free: number
+    /** "yearly" | "monthly" | "daily" | null — null means non-periodic (gauge). */
+    period?: "yearly" | "monthly" | "daily" | null
+    /** "organization" | "workspace" | "project" | "user". */
+    scope?: "organization" | "workspace" | "project" | "user"
 }

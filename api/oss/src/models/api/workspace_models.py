@@ -4,7 +4,6 @@ from typing import Optional, List
 from pydantic import BaseModel
 
 from oss.src.models.api.api_models import TimestampModel
-from oss.src.models.shared_models import CanonicalWorkspaceRole
 
 
 class Workspace(BaseModel):
@@ -16,7 +15,10 @@ class Workspace(BaseModel):
 
 class InviteRequest(BaseModel):
     email: str
-    roles: Optional[List[CanonicalWorkspaceRole]] = None
+    # Role slugs are dynamic at runtime (env-overridable via AGENTA_ACCESS_ROLES);
+    # validation against the effective workspace catalog happens at the API
+    # boundary via `ee.src.core.entitlements.controls.get_role`.
+    roles: Optional[List[str]] = None
 
 
 class InviteToken(BaseModel):

@@ -59,7 +59,8 @@ const Settings: React.FC = () => {
     const {user} = useProfileData()
     const {selectedOrg} = useOrgData()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
-    const canShowBilling = isEE() && isBillingEnabled() && isOwner
+    const canShowBilling = isEE() && isOwner
+    const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
@@ -116,14 +117,14 @@ const Settings: React.FC = () => {
                         case "automations":
                             return "Automations"
                         case "billing":
-                            return "Usage & Billing"
+                            return billingEnabled ? "Usage & Billing" : "Usage"
                         default:
                             return resolvedTab
                     }
                 })(),
             },
         }
-    }, [canViewApiKeys, resolvedTab])
+    }, [canViewApiKeys, resolvedTab, billingEnabled])
 
     useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab, resolvedTab])
 
@@ -160,7 +161,10 @@ const Settings: React.FC = () => {
             case "apiKeys":
                 return {content: <APIKeys />, title: "API Keys"}
             case "billing":
-                return {content: <Billing />, title: "Usage & Billing"}
+                return {
+                    content: <Billing />,
+                    title: billingEnabled ? "Usage & Billing" : "Usage",
+                }
             case "automations":
                 return {content: <Automations />, title: "Automations"}
             case "projects":
@@ -179,6 +183,7 @@ const Settings: React.FC = () => {
         handleCopyProjectId,
         isDemoOrg,
         isOwner,
+        billingEnabled,
     ])
 
     return (

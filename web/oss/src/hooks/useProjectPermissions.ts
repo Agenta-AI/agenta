@@ -1,37 +1,24 @@
 import {useCallback, useMemo} from "react"
 
+import {useAtomValue} from "jotai"
+
 import {isEE} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
+import {rolesQueryAtom} from "@/oss/state/access/atoms"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 
 type ProjectPermission = string
 type ProjectRole = string
-type CanonicalProjectRole = "owner" | "admin" | "developer" | "editor" | "annotator" | "viewer"
-
-const FALLBACK_ROLE_PERMISSIONS: Record<CanonicalProjectRole, ProjectPermission[]> = {
-    owner: ["*"],
-    admin: ["view_api_keys", "edit_api_keys", "add_new_user_to_workspace", "modify_user_roles"],
-    developer: ["view_api_keys", "edit_api_keys"],
-    editor: [],
-    annotator: [],
-    viewer: [],
-}
-
-const isCanonicalProjectRole = (role: string | null | undefined): role is CanonicalProjectRole =>
-    role === "owner" ||
-    role === "admin" ||
-    role === "developer" ||
-    role === "editor" ||
-    role === "annotator" ||
-    role === "viewer"
 
 export const useProjectPermissions = () => {
     const {selectedOrg, loading: orgLoading} = useOrgData()
     const {user: signedInUser} = useProfileData()
     const {project, projectId, isLoading: projectLoading} = useProjectData()
     const {hasRBAC} = useEntitlements()
+    const rolesQuery = useAtomValue(rolesQueryAtom)
+    const projectRoleCatalog = rolesQuery.data?.project ?? []
     const selectedOrgId = selectedOrg?.id ?? null
     const selectedProjectId = project?.project_id ?? projectId ?? null
 
@@ -81,15 +68,22 @@ export const useProjectPermissions = () => {
                 return new Set(matchingRole.permissions.filter(Boolean))
             }
 
-            if (isCanonicalProjectRole(selectedProjectRole)) {
-                return new Set(FALLBACK_ROLE_PERMISSIONS[selectedProjectRole])
+            // Member entry lacks permissions for this role — fall back to the
+            // effective project role catalog from /access/roles. Avoids a stale
+            // hardcoded fallback when operators define custom roles via
+            // AGENTA_ACCESS_ROLES.
+            const catalogRole = projectRoleCatalog.find(
+                (entry) => entry.role === selectedProjectRole,
+            )
+            if (catalogRole?.permissions?.length) {
+                return new Set(catalogRole.permissions.filter(Boolean))
             }
         }
 
         return new Set(
             currentMember?.roles?.flatMap((role) => role.permissions ?? []).filter(Boolean) ?? [],
         )
-    }, [currentMember?.roles, selectedProjectRole])
+    }, [currentMember?.roles, projectRoleCatalog, selectedProjectRole])
 
     const roles = useMemo(() => {
         const next = new Set(
@@ -136,7 +130,9 @@ export const useProjectPermissions = () => {
         isReady,
         selectedOrgId,
         selectedProjectId,
-        canExportData: hasRole("owner") || hasRole("admin") || hasRole("developer"),
+        // Export is gated by API-key access: exporting data means producing
+        // an artifact that gets consumed by API-key authenticated workflows.
+        canExportData: hasPermission("view_api_keys") && hasPermission("edit_api_keys"),
         canViewApiKeys: hasPermission("view_api_keys"),
         canEditApiKeys: hasPermission("edit_api_keys"),
     }
