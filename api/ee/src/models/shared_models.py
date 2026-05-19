@@ -153,6 +153,9 @@ class Permission(str, Enum):
     VIEW_EVALUATION_QUEUES = "view_evaluation_queues"
     EDIT_EVALUATION_QUEUES = "edit_evaluation_queues"
 
+    # Events
+    VIEW_EVENTS = "view_events"
+
     # Tools
     VIEW_TOOLS = "view_tools"
     EDIT_TOOLS = "edit_tools"
@@ -228,6 +231,7 @@ class Permission(str, Enum):
             cls.EDIT_ENVIRONMENTS,
             cls.EDIT_APP_ENVIRONMENT_DEPLOYMENT,
             cls.CREATE_APP_ENVIRONMENT_DEPLOYMENT,
+            cls.VIEW_EVENTS,
         ]
         ADMIN_PERMISSIONS = DEVELOPER_PERMISSIONS + [
             cls.EDIT_WORKSPACE,

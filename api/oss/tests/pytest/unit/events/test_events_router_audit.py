@@ -40,7 +40,7 @@ async def test_query_events_allows_audit_entitled_org():
         ),
         patch(
             "oss.src.apis.fastapi.events.router.Permission",
-            new=SimpleNamespace(VIEW_SPANS="view_spans"),
+            new=SimpleNamespace(VIEW_EVENTS="view_events"),
             create=True,
         ),
         patch(
@@ -100,7 +100,7 @@ async def test_query_events_blocks_audit_unentitled_org():
         ),
         patch(
             "oss.src.apis.fastapi.events.router.Permission",
-            new=SimpleNamespace(VIEW_SPANS="view_spans"),
+            new=SimpleNamespace(VIEW_EVENTS="view_events"),
             create=True,
         ),
         patch(
