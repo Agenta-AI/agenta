@@ -299,6 +299,9 @@ class LogfireAdapter(BaseAdapter):
         if not tool_name:
             return
 
+        if features.data:
+            return
+
         tool_args = bag.span_attributes.get(
             "tool_arguments"
         ) or bag.span_attributes.get("gen_ai.tool.call.arguments")
@@ -330,19 +333,28 @@ class LogfireAdapter(BaseAdapter):
         if all_messages_str:
             all_messages = _try_parse_json(all_messages_str)
             if isinstance(all_messages, list):
-                features.data["inputs"] = {"messages": all_messages}
-                if final_result is not None:
-                    features.data["outputs"] = {"result": final_result}
-                else:
-                    assistant_msgs = [
+                normalized = _normalize_pydantic_messages(all_messages)
+                if normalized:
+                    input_msgs = [
                         m
-                        for m in all_messages
+                        for m in normalized
+                        if isinstance(m, dict) and m.get("role") != "assistant"
+                    ]
+                    output_msgs = [
+                        m
+                        for m in normalized
                         if isinstance(m, dict) and m.get("role") == "assistant"
                     ]
-                    if assistant_msgs:
-                        features.data["outputs"] = {"result": assistant_msgs[-1]}
+                    if input_msgs:
+                        features.data["inputs"] = {"prompt": input_msgs}
+                    if output_msgs:
+                        features.data["outputs"] = {"completion": output_msgs}
+                    elif final_result is not None:
+                        features.data["outputs"] = {"completion": final_result}
+                else:
+                    features.data["inputs"] = {"messages": all_messages}
         elif final_result is not None:
-            features.data["outputs"] = {"result": final_result}
+            features.data["outputs"] = {"completion": final_result}
 
     def _parse_events(self, events_str: str) -> List[Dict[str, Any]]:
         try:

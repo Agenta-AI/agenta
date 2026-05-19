@@ -273,6 +273,25 @@ class TestToolSpanData:
 
         assert features.data["outputs"] == "not json, just text"
 
+    def test_tool_does_not_override_chat_data(self, adapter):
+        """If chat extraction already populated features.data, tool extraction skips."""
+        bag = _make_bag(
+            {
+                "gen_ai.operation.name": "chat",
+                "gen_ai.system": "openai",
+                "gen_ai.input.messages": dumps(
+                    [{"role": "user", "parts": [{"type": "text", "content": "hi"}]}]
+                ),
+                "gen_ai.tool.name": "some_tool",
+                "tool_arguments": '{"key": "value"}',
+            }
+        )
+        features = SpanFeatures()
+        adapter.process(bag, features)
+
+        assert "prompt" in features.data["inputs"]
+        assert "name" not in features.data["inputs"]
+
 
 # ── Agent Span Data Extraction ──────────────────────────────────────
 
@@ -302,8 +321,13 @@ class TestAgentSpanData:
         features = SpanFeatures()
         adapter.process(bag, features)
 
-        assert features.data["inputs"]["messages"] == all_messages
-        assert features.data["outputs"]["result"] == "Hello!"
+        assert features.data["inputs"]["prompt"] == [
+            {"role": "system", "content": "You are helpful."},
+            {"role": "user", "content": "hi"},
+        ]
+        assert features.data["outputs"]["completion"] == [
+            {"role": "assistant", "content": "Hello!", "finish_reason": "stop"}
+        ]
 
     def test_agent_with_final_result_only(self, adapter):
         bag = _make_bag(
@@ -316,7 +340,7 @@ class TestAgentSpanData:
         features = SpanFeatures()
         adapter.process(bag, features)
 
-        assert features.data["outputs"]["result"] == "Some response"
+        assert features.data["outputs"]["completion"] == "Some response"
         assert "inputs" not in features.data
 
     def test_agent_extracts_last_assistant_as_output(self, adapter):
@@ -336,9 +360,35 @@ class TestAgentSpanData:
         features = SpanFeatures()
         adapter.process(bag, features)
 
-        assert features.data["inputs"]["messages"] == all_messages
-        last_assistant = all_messages[-1]
-        assert features.data["outputs"]["result"] == last_assistant
+        assert features.data["inputs"]["prompt"] == [
+            {"role": "user", "content": "hello"},
+            {"role": "user", "content": "again"},
+        ]
+        assert features.data["outputs"]["completion"] == [
+            {"role": "assistant", "content": "first"},
+            {"role": "assistant", "content": "second"},
+        ]
+
+    def test_agent_with_unknown_message_format_falls_back(self, adapter):
+        """Messages that don't match {role, parts} format are stored raw."""
+        unknown_messages = [
+            {
+                "kind": "request",
+                "parts": [{"part_kind": "user-prompt", "content": "hi"}],
+            },
+            {"kind": "response", "parts": [{"part_kind": "text", "content": "hello"}]},
+        ]
+        bag = _make_bag(
+            {
+                "gen_ai.operation.name": "invoke_agent",
+                "pydantic_ai.all_messages": dumps(unknown_messages),
+                "agent_name": "agent",
+            }
+        )
+        features = SpanFeatures()
+        adapter.process(bag, features)
+
+        assert features.data["inputs"]["messages"] == unknown_messages
 
     def test_agent_does_not_override_chat_data(self, adapter):
         """If chat extraction already populated features.data, agent extraction skips."""
@@ -758,11 +808,23 @@ class TestRealisticSpans:
         features = SpanFeatures()
         adapter.process(bag, features)
 
-        assert features.data["inputs"]["messages"] == all_messages
-        assert (
-            features.data["outputs"]["result"]
-            == "I'm your concierge agent here at The Agenta Grand Hotel."
-        )
+        assert features.data["inputs"]["prompt"] == [
+            {"role": "system", "content": "You are the concierge agent..."},
+            {"role": "user", "content": "hi"},
+            {"role": "user", "content": "I wanted to know your name"},
+        ]
+        assert features.data["outputs"]["completion"] == [
+            {
+                "role": "assistant",
+                "content": "Hello, Sarah! How can I assist you today?",
+                "finish_reason": "stop",
+            },
+            {
+                "role": "assistant",
+                "content": "I'm your concierge agent here at The Agenta Grand Hotel.",
+                "finish_reason": "stop",
+            },
+        ]
         assert features.type["node"] == "agent"
         assert features.meta["agent_name"] == "agent"
         assert (
