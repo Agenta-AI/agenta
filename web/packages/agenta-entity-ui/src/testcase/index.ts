@@ -15,3 +15,8 @@ export type {
     TestcaseDataEditorProps,
     TestcaseDataEditorSurface,
 } from "./TestcaseDataEditor.types"
+export {useTestcaseDrawerNavigation} from "./useTestcaseDrawerNavigation"
+export type {
+    TestcaseDrawerNavigation,
+    UseTestcaseDrawerNavigationParams,
+} from "./useTestcaseDrawerNavigation"
