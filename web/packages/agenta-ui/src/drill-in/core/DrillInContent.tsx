@@ -18,7 +18,7 @@
  * - showMessage: Displays notifications (for copy feedback)
  */
 
-import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import type {
     DataType,
@@ -134,6 +134,10 @@ export function DrillInContent({
     onPathChange,
     getFieldViewModeOptions,
     getDefaultFieldViewMode,
+    getFieldTypeChip,
+    collapseSignal,
+    viewModeResetSignal,
+    fieldHeaderVariant = "card",
     // Injected renderers
     FieldRenderer = DefaultFieldRenderer,
     SchemaRenderer,
@@ -177,6 +181,8 @@ export function DrillInContent({
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
     const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
     const [viewModes, setViewModes] = useState<Record<string, string>>({})
+    const lastCollapseSignalRef = useRef(collapseSignal)
+    const lastViewModeResetSignalRef = useRef(viewModeResetSignal)
 
     // Notify parent when path changes (for persistence across navigation)
     useEffect(() => {
@@ -397,6 +403,28 @@ export function DrillInContent({
         return currentLevelItems.filter((item) => !excludeKeys.includes(item.key))
     }, [currentLevelItems, isAtInitialPathLevel, excludeKeys])
 
+    useEffect(() => {
+        if (!collapseSignal) return
+        if (lastCollapseSignalRef.current === collapseSignal) return
+        lastCollapseSignalRef.current = collapseSignal
+        setCollapsedFields((prev) => {
+            const allCollapsed = filteredLevelItems.every(
+                (item) => prev[`${currentPath.join(".")}.${item.key}`],
+            )
+            const next: Record<string, boolean> = {}
+            for (const item of filteredLevelItems) {
+                next[`${currentPath.join(".")}.${item.key}`] = !allCollapsed
+            }
+            return next
+        })
+    }, [collapseSignal, currentPath, filteredLevelItems])
+
+    useEffect(() => {
+        if (lastViewModeResetSignalRef.current === viewModeResetSignal) return
+        lastViewModeResetSignalRef.current = viewModeResetSignal
+        setViewModes({})
+    }, [viewModeResetSignal])
+
     // Check if a value is expandable
     const isExpandable = useCallback(
         (value: unknown): boolean => {
@@ -531,15 +559,23 @@ export function DrillInContent({
         [currentPath, getValue, valueToString, setValue, valueMode],
     )
 
+    const isFlatVariant = fieldHeaderVariant === "flat"
+    const outerWrapperClass = isFlatVariant ? "flex flex-col" : "flex flex-col gap-2"
+    const fieldsWrapperClass = isFlatVariant ? "flex flex-col" : "flex flex-col gap-2"
+    const fieldWrapperClass = isFlatVariant
+        ? "flex flex-col border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
+        : "flex flex-col gap-2"
+    const fieldBodyClass = isFlatVariant ? "px-4 pb-2" : "px-4"
+
     // Content to render
     const content = (
-        <div className="flex flex-col gap-2">
+        <div className={outerWrapperClass}>
             {/* Optional header content */}
             {headerContent}
 
             {/* Breadcrumb navigation and add controls */}
             {(!hideBreadcrumb || showAddControls) && (
-                <div className="flex flex-col gap-2 px-3 py-2">
+                <div className={`flex flex-col gap-2 px-3 ${isFlatVariant ? "py-1" : "py-2"}`}>
                     <div className="flex items-center gap-2">
                         {!hideBreadcrumb && (
                             <div className="flex-1">
@@ -569,7 +605,7 @@ export function DrillInContent({
                 <div className="text-gray-500 text-sm">No items to display</div>
             )}
 
-            <div className="flex flex-col gap-2">
+            <div className={fieldsWrapperClass}>
                 {filteredLevelItems.map((item) => {
                     const fieldKey = `${currentPath.join(".")}.${item.key}`
                     // When drilling into a primitive, currentPath already contains the full path
@@ -666,10 +702,11 @@ export function DrillInContent({
                         !(hideSingleFieldHeader && filteredLevelItems.length === 1)
 
                     return (
-                        <div key={item.key} className="flex flex-col gap-2">
+                        <div key={item.key} className={fieldWrapperClass}>
                             {/* Field header */}
                             {showFieldHeader && (
                                 <DrillInFieldHeader
+                                    variant={fieldHeaderVariant}
                                     name={item.name}
                                     value={item.value}
                                     isCollapsed={isCollapsed}
@@ -701,6 +738,7 @@ export function DrillInContent({
                                     isMapped={isMapped}
                                     mappedColumn={mappedColumn}
                                     nestedMappingCount={nestedMappingCount}
+                                    typeChip={getFieldTypeChip?.(item.value)}
                                     viewModeOptions={
                                         fieldViewModeOptions.length > 0
                                             ? fieldViewModeOptions
@@ -716,7 +754,7 @@ export function DrillInContent({
 
                             {/* Field content - always visible when showCollapse is false */}
                             {(!resolvedShowFieldCollapse || !isCollapsed) && (
-                                <div className="px-4">
+                                <div className={fieldBodyClass}>
                                     {(() => {
                                         // Get schema at this path for schema-driven rendering
                                         const typedPath: (string | number)[] = fullPath.map(

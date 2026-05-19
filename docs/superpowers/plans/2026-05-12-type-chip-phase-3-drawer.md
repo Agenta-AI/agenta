@@ -4,7 +4,11 @@
 
 **Goal:** Implement the ProposalV2 drill-in direction on the testcase drawer: remove the Fields/JSON toggle from the main chrome header, add `DrillInRootToolbar` as a sub-header (label + filter + collapse-all + view-mode select + copy), add a `typeChip` slot to `DrillInFieldHeader`, and wire per-field "View as ▾" dropdowns driven by `getViewOptions`.
 
-**Architecture:** `DrillInRootToolbar` is a new reusable component in `@agenta/ui/drill-in`. `DrillInUIContext` gains a `featureFlags.enableFormView` field so `JsonObjectField` can opt into the rail-style form view without prop drilling. The drawer shell (`TestcaseDrawer.tsx` in `@agenta/entity-ui`) owns the chrome changes: removing the Fields/JSON toggle, mounting `DrillInRootToolbar`, and adding `rootViewMode` to `TestcaseDrawerContentRenderProps`. The OSS content renderer (`TestcaseEditDrawer/index.tsx`) receives `rootViewMode` via render props and wires `typeChip` + per-field "View as" into `DrillInFieldHeader`.
+**Architecture:** `DrillInRootToolbar` is a new reusable component in `@agenta/ui/drill-in`. `DrillInUIContext` gains a `featureFlags.enableFormView` field so `JsonObjectField` can opt into the rail-style form view without prop drilling.
+
+TypeChip injection: a new `getFieldTypeChip?: (value: unknown) => ReactNode` callback is added to `DrillInContentProps` in `coreTypes.ts`. `DrillInContent` passes the result to each `DrillInFieldHeader` as the `typeChip` prop. Since `EntityDualViewEditor` explicitly lists props to `EntityDrillInView` (no spread), `getFieldTypeChip` + the existing view-mode callbacks (`enableFieldViewModes`, `getFieldViewModeOptions`, `getDefaultFieldViewMode`) must also be added to `EntityDualViewEditorProps` and explicitly forwarded.
+
+Root view mode: the shell (`TestcaseDrawer.tsx` in `@agenta/entity-ui`) manages `rootViewMode` state and mounts `DrillInRootToolbar`. It passes `rootViewMode` to the content renderer via `TestcaseDrawerContentRenderProps`. The content renderer (`TestcaseEditDrawer/index.tsx`) passes `getDefaultFieldViewMode={() => rootViewMode}` + `key={rootViewMode}` to `EntityDualViewEditor` — the `key` forces a remount on mode change, resetting all per-field overrides cleanly.
 
 **Tech Stack:** React, TypeScript, `@agenta/ui/drill-in`, `@agenta/ui/type-chip`, Ant Design (Select for view-mode dropdown)
 
@@ -26,11 +30,14 @@
 |---|---|---|
 | Modify | `web/packages/agenta-ui/src/drill-in/context/DrillInUIContext.tsx` | Add `featureFlags?: { enableFormView?: boolean }` to `DrillInUIComponents` |
 | Create | `web/packages/agenta-ui/src/drill-in/core/DrillInRootToolbar.tsx` | Sub-header: label + filter + collapse-all + view-mode select + copy |
-| Modify | `web/packages/agenta-ui/src/drill-in/index.ts` | Export `DrillInRootToolbar` |
+| Modify | `web/packages/agenta-ui/src/drill-in/index.ts` | Export `DrillInRootToolbar` and `RootViewMode` |
 | Modify | `web/packages/agenta-ui/src/drill-in/core/DrillInFieldHeader.tsx` | Add `typeChip?: ReactNode` slot |
+| Modify | `web/packages/agenta-ui/src/drill-in/coreTypes.ts` | Add `getFieldTypeChip?: (value: unknown) => ReactNode` to `DrillInContentProps` |
+| Modify | `web/packages/agenta-ui/src/drill-in/core/DrillInContent.tsx` | Wire `getFieldTypeChip` → pass `typeChip` to each `DrillInFieldHeader` |
 | Modify | `web/packages/agenta-ui/src/drill-in/FieldRenderers/JsonObjectField.tsx` | Rail-style form view, gated behind `featureFlags.enableFormView` |
-| Modify | `web/packages/agenta-entity-ui/src/testcase/TestcaseDrawer.tsx` | Remove Fields/JSON toggle from chrome, add `rootViewMode` state, mount `DrillInRootToolbar`, extend `TestcaseDrawerContentRenderProps` |
-| Modify | `web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx` | Consume `rootViewMode` from render props, pass `typeChip` + per-field view options to `DrillInFieldHeader` |
+| Modify | `web/oss/src/components/DrillInView/EntityDualViewEditor.tsx` | Add `getFieldTypeChip`, `enableFieldViewModes`, `getFieldViewModeOptions`, `getDefaultFieldViewMode` to props; forward to `EntityDrillInView` |
+| Modify | `web/packages/agenta-entity-ui/src/testcase/TestcaseDrawer.tsx` | Remove Fields/JSON toggle, add `rootViewMode` state, mount `DrillInRootToolbar`, extend `TestcaseDrawerContentRenderProps` with `rootViewMode` |
+| Modify | `web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx` | Receive `rootViewMode`; pass `getFieldTypeChip`, `enableFieldViewModes`, view-mode callbacks, `key={rootViewMode}` to `EntityDualViewEditor` |
 
 ---
 
@@ -85,7 +92,10 @@ git commit -m "feat(@agenta/ui): add featureFlags.enableFormView to DrillInUICon
 import {memo} from "react"
 import {Copy, ArrowsInLineVertical, Funnel} from "@phosphor-icons/react"
 
-export type RootViewMode = "text" | "markdown" | "json" | "yaml" | "form"
+// Reuse ViewMode from getViewOptions rather than redefining the same union.
+// This keeps the vocabulary in one place and avoids type drift.
+import type {ViewMode} from "../utils/getViewOptions"
+export type RootViewMode = ViewMode  // "text" | "markdown" | "json" | "yaml" | "form"
 
 export interface DrillInRootToolbarProps {
     /** Testcase or variable-set label shown on the left */
@@ -374,6 +384,100 @@ git commit -m "feat(@agenta/ui): add typeChip slot to DrillInFieldHeader"
 
 ---
 
+## Task 3b: Wire `getFieldTypeChip` through `DrillInContent`
+
+`DrillInContent` is the component that renders field headers. It needs to accept a `getFieldTypeChip` callback and pass its result to each `DrillInFieldHeader`. The callback is added to `DrillInContentProps` in `coreTypes.ts` (which `EntityDrillInViewProps` inherits automatically via its `extends Omit<DrillInContentProps, ...>`).
+
+**Files:**
+- Modify: `web/packages/agenta-ui/src/drill-in/coreTypes.ts`
+- Modify: `web/packages/agenta-ui/src/drill-in/core/DrillInContent.tsx`
+
+- [ ] **Add `getFieldTypeChip` to `DrillInContentProps`** — insert after the `getDefaultFieldViewMode` callback (around line 309) in `coreTypes.ts`:
+
+```typescript
+/**
+ * Optional callback to render a TypeChip for each field header.
+ * Receives the field's current value; return a <TypeChip value={v} /> node.
+ * Return undefined to skip chip for a field.
+ * Gated at the call site — pass undefined to disable entirely.
+ */
+getFieldTypeChip?: (value: unknown) => ReactNode
+```
+
+- [ ] **Wire in `DrillInContent`** — find the `<DrillInFieldHeader` render block (around line 672). Destructure `getFieldTypeChip` from props and pass the result:
+
+```typescript
+// Destructure at top of DrillInContent function (with other props):
+getFieldTypeChip,
+
+// In the DrillInFieldHeader call:
+<DrillInFieldHeader
+    {/* ...existing props... */}
+    typeChip={getFieldTypeChip?.(item.value)}
+/>
+```
+
+- [ ] **Verify TypeScript compiles**
+
+```bash
+cd web && pnpm --filter @agenta/ui types:check
+```
+
+- [ ] **Commit**
+
+```bash
+git add web/packages/agenta-ui/src/drill-in/coreTypes.ts \
+        web/packages/agenta-ui/src/drill-in/core/DrillInContent.tsx
+git commit -m "feat(@agenta/ui): add getFieldTypeChip callback to DrillInContent"
+```
+
+---
+
+## Task 3c: Thread new props through `EntityDualViewEditor`
+
+`EntityDualViewEditor` explicitly lists every prop it passes to `EntityDrillInView` — it does NOT spread remaining props. The new callbacks (`getFieldTypeChip`, `enableFieldViewModes`, `getFieldViewModeOptions`, `getDefaultFieldViewMode`) must be added to `EntityDualViewEditorProps` and forwarded explicitly. `EntityDrillInView` already accepts them (via `EntityDrillInViewProps extends Omit<DrillInContentProps, ...>`).
+
+**Files:**
+- Modify: `web/oss/src/components/DrillInView/EntityDualViewEditor.tsx`
+
+- [ ] **Add props to `EntityDualViewEditorProps`** — insert after the `excludeKeys` prop (around line 68):
+
+```typescript
+// TypeChip injection
+getFieldTypeChip?: (value: unknown) => React.ReactNode
+// Field-level view mode selector
+enableFieldViewModes?: boolean
+getFieldViewModeOptions?: import("@agenta/ui/drill-in").DrillInContentProps["getFieldViewModeOptions"]
+getDefaultFieldViewMode?: import("@agenta/ui/drill-in").DrillInContentProps["getDefaultFieldViewMode"]
+```
+
+- [ ] **Forward to `EntityDrillInView`** — find the `<EntityDrillInView` render block (around line 252) and add the four new props:
+
+```tsx
+<EntityDrillInView
+    {/* ...existing props (entityId, entity, columns, ...) */}
+    getFieldTypeChip={getFieldTypeChip}
+    enableFieldViewModes={enableFieldViewModes}
+    getFieldViewModeOptions={getFieldViewModeOptions}
+    getDefaultFieldViewMode={getDefaultFieldViewMode}
+/>
+```
+
+- [ ] **Verify TypeScript compiles + lint**
+
+```bash
+cd web && pnpm lint-fix
+```
+
+- [ ] **Commit**
+
+```bash
+git add web/oss/src/components/DrillInView/EntityDualViewEditor.tsx
+git commit -m "feat(DrillInView): thread getFieldTypeChip and view-mode callbacks through EntityDualViewEditor"
+```
+
+---
+
 ## Task 4: Form view rail style in `JsonObjectField` (flag-gated)
 
 **Files:**
@@ -424,11 +528,11 @@ git commit -m "feat(@agenta/ui): add flag-gated rail-style form view to JsonObje
 
 ## Task 5: Wire everything — shell + content
 
-The drawer is now split across two layers:
-- **Shell** (`@agenta/entity-ui` — `TestcaseDrawer.tsx`): chrome, nav, session state, view mode
-- **Content** (OSS — `TestcaseEditDrawer/index.tsx`): field rendering, `DrillInFieldHeader`, TypeChip
+The drawer is split across two layers:
+- **Shell** (`@agenta/entity-ui` — `TestcaseDrawer.tsx`): chrome, nav, session state, root view mode
+- **Content** (OSS — `TestcaseEditDrawer/index.tsx`): renders `EntityDualViewEditor`, passes TypeChip + view mode callbacks
 
-The chrome changes (remove old toggle, add sub-header toolbar) go in the package shell. The TypeChip + per-field view mode wiring goes in the OSS content renderer, which receives state via `TestcaseDrawerContentRenderProps`.
+The shell manages `rootViewMode` state and mounts `DrillInRootToolbar`. It passes `rootViewMode` to the content renderer via `TestcaseDrawerContentRenderProps`. The content renderer passes `getFieldTypeChip`, `enableFieldViewModes`, `getFieldViewModeOptions`, `getDefaultFieldViewMode`, and `key={rootViewMode}` to `EntityDualViewEditor` — the `key` resets all per-field view mode state whenever root mode changes.
 
 ---
 
@@ -437,15 +541,15 @@ The chrome changes (remove old toggle, add sub-header toolbar) go in the package
 **Files:**
 - Modify: `web/packages/agenta-entity-ui/src/testcase/TestcaseDrawer.tsx`
 
-- [ ] **Add imports**
+- [ ] **Add imports** — `DrillInRootToolbar` and `RootViewMode` are already exported from `@agenta/ui/drill-in` (added in Task 2):
 
 ```typescript
+import {DrillInRootToolbar, type RootViewMode} from "@agenta/ui/drill-in"
 import {useState, useCallback} from "react"
 import {Button, Select, Tooltip} from "antd"
-import {DrillInRootToolbar, type RootViewMode} from "@agenta/ui/drill-in"
 ```
 
-- [ ] **Extend `TestcaseDrawerContentRenderProps`** — add `rootViewMode` and the two state-management callbacks so the content renderer can read and override the mode:
+- [ ] **Extend `TestcaseDrawerContentRenderProps`** — add only `rootViewMode`; per-field state is managed internally by `DrillInContent`:
 
 ```typescript
 export interface TestcaseDrawerContentRenderProps {
@@ -455,20 +559,16 @@ export interface TestcaseDrawerContentRenderProps {
     onPathChange: (path: string[]) => void
     // Added for Phase 3:
     rootViewMode: RootViewMode
-    fieldViewModes: Record<string, RootViewMode>
-    onFieldViewModeChange: (fieldKey: string, mode: RootViewMode) => void
 }
 ```
 
-- [ ] **Add view-mode state** in the component function body:
+- [ ] **Add `rootViewMode` state** in the component function body:
 
 ```typescript
 const [rootViewMode, setRootViewMode] = useState<RootViewMode>("text")
-const [fieldViewModes, setFieldViewModes] = useState<Record<string, RootViewMode>>({})
 
 const handleRootViewModeChange = useCallback((mode: RootViewMode) => {
     setRootViewMode(mode)
-    setFieldViewModes({})
 }, [])
 
 const handleCollapseAll = useCallback(() => {
@@ -482,9 +582,9 @@ If `collapseSignal` state doesn't already exist, add it:
 const [collapseSignal, setCollapseSignal] = useState(0)
 ```
 
-- [ ] **Remove the Fields/JSON `Segmented` toggle** from the chrome header — search for the `Segmented` or similar toggle in the header JSX and delete it. View mode is now controlled by `DrillInRootToolbar`.
+- [ ] **Remove the Fields/JSON `Segmented` toggle** from the chrome header — find and delete the `<Segmented>` block and its `editMode` state since the view mode is now controlled by `DrillInRootToolbar`.
 
-- [ ] **Mount `DrillInRootToolbar` below the chrome header** — insert it just above the scrollable body:
+- [ ] **Mount `DrillInRootToolbar` below the chrome header** — insert just above the scrollable drawer body:
 
 ```tsx
 <DrillInRootToolbar
@@ -500,7 +600,7 @@ const [collapseSignal, setCollapseSignal] = useState(0)
 />
 ```
 
-- [ ] **Pass new render props to `renderContent`** — in the `renderContent(...)` call site, add the new fields:
+- [ ] **Pass `rootViewMode` to `renderContent`** — in the `renderContent(...)` call site:
 
 ```typescript
 renderContent({
@@ -509,16 +609,13 @@ renderContent({
     initialPath,
     onPathChange: setInitialPath,
     rootViewMode,
-    fieldViewModes,
-    onFieldViewModeChange: (key, mode) =>
-        setFieldViewModes((prev) => ({...prev, [key]: mode})),
 })
 ```
 
 - [ ] **Verify TypeScript compiles**
 
 ```bash
-cd web && pnpm --filter @agenta/entity-ui types:check 2>/dev/null || cd web && pnpm lint-fix
+cd web && pnpm lint-fix
 ```
 
 - [ ] **Commit**
@@ -535,7 +632,7 @@ git commit -m "feat(@agenta/entity-ui): add DrillInRootToolbar sub-header and ro
 **Files:**
 - Modify: `web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx`
 
-This is `TestcaseEditDrawerContent` — the content injected via `renderContent`. It now receives `rootViewMode`, `fieldViewModes`, `onFieldViewModeChange` from `TestcaseDrawerContentRenderProps`.
+`TestcaseEditDrawerContent` renders `EntityDualViewEditor` — it does NOT call `DrillInFieldHeader` directly. TypeChip and view mode flow through props added to `EntityDualViewEditor` in Task 3c. The `key={rootViewMode}` prop forces a full remount when root mode changes, resetting all per-field view mode overrides that `DrillInContent` tracks internally.
 
 - [ ] **Add imports**
 
@@ -544,47 +641,52 @@ import {getViewOptions, type RootViewMode} from "@agenta/ui/drill-in"
 import {TypeChip} from "@agenta/ui/type-chip"
 ```
 
-- [ ] **Destructure new render props** — update the component signature to receive the new fields:
+- [ ] **Add `rootViewMode` to `TestcaseEditDrawerContentProps`** — the content renderer receives this from `TestcaseDrawerContentRenderProps`:
 
 ```typescript
-const TestcaseEditDrawerContent = forwardRef<
-    TestcaseEditDrawerContentRef,
-    TestcaseEditDrawerContentProps
->(({
-    testcaseId,
-    columns,
-    isNewRow,
-    onClose,
-    editMode,
-    onEditModeChange,
-    initialPath,
-    onPathChange,
-    rootViewMode,          // ← new
-    fieldViewModes,        // ← new
-    onFieldViewModeChange, // ← new
-}, ref) => {
+interface TestcaseEditDrawerContentProps {
+    testcaseId: string
+    columns: Column[]
+    isNewRow: boolean
+    onClose: () => void
+    editMode: EditMode
+    onEditModeChange?: (mode: EditMode) => void
+    initialPath?: string[]
+    onPathChange?: (path: string[]) => void
+    rootViewMode?: RootViewMode  // ← new; defaults to "text"
+}
 ```
 
-- [ ] **Pass `typeChip` to each `DrillInFieldHeader`** — in the field renderer loop, add:
+- [ ] **Destructure `rootViewMode`** in the component body (with a default):
+
+```typescript
+const {
+    ...,
+    rootViewMode = "text",
+} = props
+```
+
+- [ ] **Pass TypeChip and view mode callbacks to `EntityDualViewEditor`**:
 
 ```tsx
-<DrillInFieldHeader
+<EntityDualViewEditor
     {/* ...existing props... */}
-    typeChip={<TypeChip value={fieldValue} />}
+    key={rootViewMode}
+    enableFieldViewModes
+    getFieldViewModeOptions={({value}) => getViewOptions(value)}
+    getDefaultFieldViewMode={({options}) =>
+        options.includes(rootViewMode) ? rootViewMode : (options[0] ?? "json")
+    }
+    getFieldTypeChip={(value) => <TypeChip value={value} />}
 />
 ```
 
-- [ ] **Wire per-field "View as ▾"** — add view mode props to each `DrillInFieldHeader`:
-
-```tsx
-<DrillInFieldHeader
-    {/* ...existing props... */}
-    typeChip={<TypeChip value={fieldValue} />}
-    viewModeOptions={getViewOptions(fieldValue).map((o) => ({value: o.value, label: o.label}))}
-    viewMode={fieldViewModes[fieldKey] ?? rootViewMode}
-    onViewModeChange={(mode) => onFieldViewModeChange(fieldKey, mode as RootViewMode)}
-/>
-```
+Notes:
+- `key={rootViewMode}` — forces remount on root mode change, resetting per-field overrides in `DrillInContent`'s internal state
+- `enableFieldViewModes` — shows the "View as ▾" dropdown in each `DrillInFieldHeader`
+- `getFieldViewModeOptions` — supplies per-field options via `getViewOptions(value)`. Note: arrays return only `[json, yaml]` — no `chat` view in Phase 3 scope. Messages arrays will show JSON/YAML only.
+- `getDefaultFieldViewMode` — uses `rootViewMode` as the default when it's valid for that field type; falls back to the field's first available option otherwise (e.g., object fields can't use `"text"` so they fall back to `"json"`)
+- `getFieldTypeChip` — renders `<TypeChip value={v} />` for each field; flows through `DrillInContent` → `DrillInFieldHeader.typeChip`
 
 - [ ] **Verify TypeScript compiles + lint**
 
@@ -597,15 +699,16 @@ cd web && pnpm lint-fix
 Expected:
 - Main chrome: navigation arrows, testcase title, Add to queue — no Fields/JSON toggle
 - Sub-header: testcase label on left, filter + collapse + `[ Text ▾ ]` + copy on right
-- Each field header: TypeChip between the caret and field name
-- Changing root view mode resets all per-field overrides
-- Per-field "View as ▾" shows options from `getViewOptions` for that value type
+- Each field header: TypeChip (e.g. `[string]`, `[object]`) between caret and field name
+- Per-field "View as ▾" shows options from `getViewOptions` for that value type (string → Text/Markdown/JSON/YAML; object → JSON/YAML)
+- Changing root view mode resets all per-field overrides (fields remount)
+- No Fields/JSON toggle anywhere
 
 - [ ] **Commit**
 
 ```bash
 git add web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx
-git commit -m "feat(testcase-drawer): wire TypeChip and per-field view mode in TestcaseEditDrawerContent"
+git commit -m "feat(testcase-drawer): wire TypeChip and per-field view mode via EntityDualViewEditor"
 ```
 
 ---

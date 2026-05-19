@@ -34,6 +34,8 @@ interface TestcaseEditDrawerProps {
         commitMessage?: string
     }) => Promise<string | null>
     isSavingTestset?: boolean
+    /** Optional evaluator-metric renderer (forwarded to the drawer shell). */
+    renderEvaluatorMetrics?: (testcaseId: string) => ReactNode
 }
 
 const TestcaseEditDrawer = ({
@@ -57,25 +59,17 @@ const TestcaseEditDrawer = ({
     )
 
     const renderContent = useCallback(
-        ({
-            editMode,
-            onEditModeChange,
-            initialPath,
-            onPathChange,
-        }: TestcaseDrawerContentRenderProps): ReactNode => (
+        ({initialPath, onPathChange}: TestcaseDrawerContentRenderProps): ReactNode => (
             <TestcaseEditDrawerContent
                 key={testcaseId}
                 testcaseId={testcaseId!}
                 columns={columns}
                 isNewRow={isNewRow}
-                onClose={onClose}
-                editMode={editMode}
-                onEditModeChange={onEditModeChange}
                 initialPath={initialPath}
                 onPathChange={onPathChange}
             />
         ),
-        [testcaseId, columns, isNewRow, onClose],
+        [testcaseId, columns, isNewRow],
     )
 
     const renderAddToQueue = useCallback(

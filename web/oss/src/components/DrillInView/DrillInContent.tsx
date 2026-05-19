@@ -67,7 +67,7 @@ function MarkdownViewSync({isMarkdownView}: {isMarkdownView: boolean}) {
     return null
 }
 
-type FieldViewMode = "json" | "yaml" | "rendered-json" | "text" | "markdown" | "raw"
+type FieldViewMode = "json" | "yaml" | "rendered-json" | "text" | "markdown" | "raw" | "form"
 
 const VIEW_MODE_LABELS: Record<FieldViewMode, string> = {
     json: "JSON",
@@ -76,6 +76,7 @@ const VIEW_MODE_LABELS: Record<FieldViewMode, string> = {
     text: "Text",
     markdown: "Markdown",
     raw: "Raw",
+    form: "Form",
 }
 
 export interface PathItem {
@@ -137,6 +138,29 @@ export interface DrillInContentProps {
     onPathChange?: (path: string[]) => void
     /** Enables explicit view mode selector for field content (JSON/YAML/Rendered JSON/Text/Markdown) */
     enableFieldViewModes?: boolean
+    /** Optional callback to resolve available view modes for a field */
+    getFieldViewModeOptions?: (params: {
+        value: unknown
+        dataType: DataType
+        item: PathItem
+        fieldKey: string
+        fullPath: string[]
+    }) => {value: string; label: string}[]
+    /** Optional callback to select the default view mode for a field */
+    getDefaultFieldViewMode?: (params: {
+        value: unknown
+        dataType: DataType
+        item: PathItem
+        fieldKey: string
+        fullPath: string[]
+        options: string[]
+    }) => string
+    /** Optional callback to render a TypeChip for each field header */
+    getFieldTypeChip?: (value: unknown) => ReactNode
+    /** Increment this value to collapse all visible fields in the current drill-in level */
+    collapseSignal?: number
+    /** Change this value to clear field-level view mode overrides without remounting the view */
+    viewModeResetSignal?: string | number
     /** Hide breadcrumb row (useful when parent already handles navigation layout) */
     hideBreadcrumb?: boolean
     /** Hide all field headers and render only the editor content blocks */
@@ -200,6 +224,11 @@ export function DrillInContent({
     initialPath,
     onPathChange,
     enableFieldViewModes = false,
+    getFieldViewModeOptions: getExternalFieldViewModeOptions,
+    getDefaultFieldViewMode: getExternalDefaultFieldViewMode,
+    getFieldTypeChip,
+    collapseSignal,
+    viewModeResetSignal,
     hideBreadcrumb = false,
     hideFieldHeaders = false,
     hideSingleFieldHeader = false,
@@ -223,6 +252,8 @@ export function DrillInContent({
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
     const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
     const [viewModes, setViewModes] = useState<Record<string, FieldViewMode>>({})
+    const lastCollapseSignalRef = useRef(collapseSignal)
+    const lastViewModeResetSignalRef = useRef(viewModeResetSignal)
 
     // Track markdown toggle functions per field (registered by EditorMarkdownToggleExposer)
     const markdownToggleFnsRef = useRef<Map<string, () => void>>(new Map())
@@ -475,6 +506,23 @@ export function DrillInContent({
         return currentLevelItems.filter((item) => !excludeKeys.includes(item.key))
     }, [currentLevelItems, isAtInitialPathLevel, excludeKeys])
 
+    useEffect(() => {
+        if (!collapseSignal) return
+        if (lastCollapseSignalRef.current === collapseSignal) return
+        lastCollapseSignalRef.current = collapseSignal
+        const nextCollapsed: Record<string, boolean> = {}
+        for (const item of filteredLevelItems) {
+            nextCollapsed[`${currentPath.join(".")}.${item.key}`] = true
+        }
+        setCollapsedFields(nextCollapsed)
+    }, [collapseSignal, currentPath, filteredLevelItems])
+
+    useEffect(() => {
+        if (lastViewModeResetSignalRef.current === viewModeResetSignal) return
+        lastViewModeResetSignalRef.current = viewModeResetSignal
+        setViewModes({})
+    }, [viewModeResetSignal])
+
     // Check if a value is expandable
     const isExpandable = useCallback(
         (value: unknown): boolean => {
@@ -511,7 +559,7 @@ export function DrillInContent({
         [valueToString],
     )
 
-    const getFieldViewModeOptions = useCallback(
+    const resolveFieldViewModeOptions = useCallback(
         (
             value: unknown,
             dataType: DataType,
@@ -813,15 +861,33 @@ export function DrillInContent({
                               ).length
                             : 0
 
-                        const fieldViewModeOptions = getFieldViewModeOptions(
-                            item.value,
-                            dataType,
-                            item.originalStringValue,
-                        )
-                        const defaultViewMode = getDefaultFieldViewMode(
-                            item.value,
-                            fieldViewModeOptions.map((opt) => opt.value),
-                        )
+                        const fieldViewModeOptions = getExternalFieldViewModeOptions
+                            ? getExternalFieldViewModeOptions({
+                                  value: item.value,
+                                  dataType,
+                                  item,
+                                  fieldKey,
+                                  fullPath,
+                              }).map((option) => ({
+                                  value: option.value as FieldViewMode,
+                                  label: option.label,
+                              }))
+                            : resolveFieldViewModeOptions(
+                                  item.value,
+                                  dataType,
+                                  item.originalStringValue,
+                              )
+                        const availableModes = fieldViewModeOptions.map((opt) => opt.value)
+                        const defaultViewMode =
+                            (getExternalDefaultFieldViewMode?.({
+                                value: item.value,
+                                dataType,
+                                item,
+                                fieldKey,
+                                fullPath,
+                                options: availableModes,
+                            }) as FieldViewMode | undefined) ??
+                            getDefaultFieldViewMode(item.value, availableModes)
                         const selectedViewMode =
                             fieldViewModeOptions.find((opt) => opt.value === viewModes[fieldKey])
                                 ?.value ?? defaultViewMode
@@ -883,6 +949,7 @@ export function DrillInContent({
                                                 isMapped={isMapped}
                                                 mappedColumn={mappedColumn}
                                                 nestedMappingCount={nestedMappingCount}
+                                                typeChip={getFieldTypeChip?.(item.value)}
                                                 viewModeOptions={
                                                     fieldViewModeOptions.length > 0
                                                         ? fieldViewModeOptions
@@ -943,6 +1010,7 @@ export function DrillInContent({
                                         isMapped={isMapped}
                                         mappedColumn={mappedColumn}
                                         nestedMappingCount={nestedMappingCount}
+                                        typeChip={getFieldTypeChip?.(item.value)}
                                         viewModeOptions={
                                             fieldViewModeOptions.length > 0
                                                 ? fieldViewModeOptions
@@ -1314,10 +1382,7 @@ function renderFieldContent({
         const originalWasString = typeof item.value === "string"
 
         // For nested objects/arrays (not originally strings), use JSON editor (read-only)
-        if (
-            !originalWasString &&
-            (dataType === "json-object" || dataType === "json-array" || dataType === "messages")
-        ) {
+        if (!originalWasString && (dataType === "json-object" || dataType === "json-array")) {
             return (
                 <JsonEditorWithLocalState
                     editorKey={`${fullPath.join("-")}-raw-editor`}
@@ -1332,10 +1397,7 @@ function renderFieldContent({
         // For primitives, behavior depends on whether we're in string mode (stringified JSON structure)
         let rawValue = stringValue
 
-        if (
-            originalWasString &&
-            (dataType === "json-object" || dataType === "json-array" || dataType === "messages")
-        ) {
+        if (originalWasString && (dataType === "json-object" || dataType === "json-array")) {
             // String-encoded JSON: show as escaped string literal
             try {
                 const parsed = JSON.parse(stringValue)
@@ -1449,7 +1511,8 @@ function renderFieldContent({
                             value: idx,
                             label: `${idx + 1}. ${getPreview(arrItem)}`,
                         }))}
-                        onSelect={(idx: number) => {
+                        onSelect={(idx) => {
+                            if (idx == null) return
                             setCurrentPath([...fullPath, String(idx)])
                         }}
                     />

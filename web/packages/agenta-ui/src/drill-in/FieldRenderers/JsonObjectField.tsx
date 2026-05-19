@@ -7,6 +7,8 @@
 
 import {ChatMessageEditor, MarkdownToggleButton} from "@agenta/ui/chat-message"
 
+import {useDrillInUI} from "../context/DrillInUIContext"
+
 import {isChatMessageObject} from "./fieldUtils"
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
 import type {JsonObjectFieldProps} from "./types"
@@ -24,6 +26,8 @@ export function JsonObjectField({
     rootTitle,
 }: JsonObjectFieldProps) {
     const originalWasString = typeof item.value === "string"
+    const {featureFlags} = useDrillInUI()
+    const enableFormView = featureFlags?.enableFormView ?? false
 
     // Check if this is a single chat message object - render as ChatMessageEditor
     // Parse outside of render to avoid try/catch around JSX (ESLint react-hooks/error-boundaries)
@@ -79,28 +83,40 @@ export function JsonObjectField({
 
     // Default: JSON editor for objects
     return (
-        <JsonEditorWithLocalState
-            editorKey={`${fullPath.join("-")}-editor`}
-            initialValue={stringValue}
-            onValidChange={(value) => {
-                const shouldStringify = valueMode === "string" || originalWasString
-                if (shouldStringify) {
-                    setValue(fullPath, value)
-                } else {
-                    setValue(fullPath, JSON.parse(value))
-                }
-            }}
-            onPropertyClick={(clickedPath) => {
-                // Internal navigation
-                const pathParts = clickedPath.split(".")
-                setCurrentPath([...fullPath, ...pathParts])
+        <div
+            style={
+                enableFormView
+                    ? {
+                          paddingLeft: 16,
+                          borderLeft: "2px solid rgba(5,23,41,0.10)",
+                          marginLeft: 4,
+                      }
+                    : undefined
+            }
+        >
+            <JsonEditorWithLocalState
+                editorKey={`${fullPath.join("-")}-editor`}
+                initialValue={stringValue}
+                onValidChange={(value) => {
+                    const shouldStringify = valueMode === "string" || originalWasString
+                    if (shouldStringify) {
+                        setValue(fullPath, value)
+                    } else {
+                        setValue(fullPath, JSON.parse(value))
+                    }
+                }}
+                onPropertyClick={(clickedPath) => {
+                    // Internal navigation
+                    const pathParts = clickedPath.split(".")
+                    setCurrentPath([...fullPath, ...pathParts])
 
-                // Also call external handler if provided
-                if (onPropertyClick) {
-                    const navigationPath = [rootTitle, ...fullPath, ...pathParts].join(".")
-                    onPropertyClick(navigationPath)
-                }
-            }}
-        />
+                    // Also call external handler if provided
+                    if (onPropertyClick) {
+                        const navigationPath = [rootTitle, ...fullPath, ...pathParts].join(".")
+                        onPropertyClick(navigationPath)
+                    }
+                }}
+            />
+        </div>
     )
 }

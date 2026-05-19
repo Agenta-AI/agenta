@@ -22,7 +22,7 @@ const PlaygroundFocusDrawer = () => {
     }, [rowIds, rowId])
 
     const testCaseLabel = useMemo(
-        () => (currentRowIndex >= 0 ? `testcase ${currentRowIndex + 1}` : ""),
+        () => (currentRowIndex >= 0 ? `Testcase ${currentRowIndex + 1}` : ""),
         [currentRowIndex],
     )
 
