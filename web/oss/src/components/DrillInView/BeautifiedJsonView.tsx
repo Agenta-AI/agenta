@@ -581,7 +581,7 @@ const NodeRow = memo(function NodeRow({
     return (
         <div className={isSection ? "pt-1 first:pt-0" : ""}>
             <div
-                className={`group/row flex items-baseline gap-2 py-1 px-1 rounded-sm min-h-[24px] select-none ${collapsible ? "cursor-pointer" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
+                className={`group/row flex items-baseline gap-2 py-1 px-1 rounded-sm min-h-[24px] select-none ${collapsible ? "cursor-pointer sticky top-0 z-[1] bg-[var(--ant-color-bg-container)]" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
                 onClick={collapsible ? toggle : undefined}
                 role={collapsible ? "button" : undefined}
                 tabIndex={collapsible ? 0 : undefined}
