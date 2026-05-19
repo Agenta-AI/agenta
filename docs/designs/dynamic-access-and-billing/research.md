@@ -285,10 +285,10 @@ These weren't in the original research but emerged from `scan-codebase` /
   `env.agenta.default_plan`; now `env.access_controls.default_plan` since
   it's part of the access-controls surface (used even when Stripe is
   disabled).
-- **`Counter.EVENTS_INGESTED` added.** Events are not metered today
-  (no write-path adjusts an `events_ingested` meter row, and the slug is
-  not in the `meters_type` Postgres enum), but the retention dimension
-  applies. Per-plan defaults align with each plan's
+- **`Counter.EVENTS_INGESTED` added.** Events now have an independent
+  usage counter as well as a retention dimension: the publish path runs
+  a soft quota check and the events worker performs the authoritative
+  meter adjustment. Per-plan defaults align with each plan's
   `Counter.TRACES_INGESTED` retention: `Quota(period=Period.MONTHLY,
   retention=Retention.MONTHLY)` on Hobby, `QUARTERLY` on Pro, `YEARLY`
   on Business, and `retention=None` (unlimited) on Agenta and

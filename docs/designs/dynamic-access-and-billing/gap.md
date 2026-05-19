@@ -70,9 +70,10 @@ section freezes the pre-change state of the system.
     admin endpoints: `POST /admin/spans/flush` and
     `POST /admin/events/flush`. Each owns its own service, DAO, cron,
     and Redis lock namespace. `Counter.EVENTS_INGESTED` added to the
-    entitlement system as a retention-only counter (not metered; not in
-    `meters_type` Postgres enum; not in `REPORTS`); per-plan defaults
-    align with each plan's trace-retention window —
+    entitlement system as an independent events usage + retention counter;
+    the event publisher performs the soft quota check and the worker applies
+    the authoritative meter adjustment. Per-plan retention defaults align
+    with each plan's trace-retention window —
     `Quota(period=Period.MONTHLY, retention=Retention.MONTHLY)` on Hobby,
     `QUARTERLY` on Pro, `YEARLY` on Business, and `retention=None`
     (unlimited) on Agenta and Self-hosted Enterprise.
