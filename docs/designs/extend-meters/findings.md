@@ -19,6 +19,8 @@ A ninth Copilot pass on 2026-05-18 16:01Z surfaced 1 new finding (PR-46): the th
 
 A tenth Copilot pass on 2026-05-18 16:35Z surfaced 1 doc-only finding (PR-47): the `tasks.md` Usage-exposure checklist still claimed `/billing/usage` "DAILY branch sums across rows" — stale relative to the pass-7 per-caller rewrite that already landed in `proposal.md` and `summary.md`. Closed: rewrote the checklist item to describe the per-caller projected-scope read. No code change.
 
+An eleventh Copilot pass on 2026-05-19 07:08Z surfaced 1 new finding (PR-48): `MetersDAO.fetch` treated `None` dimensions on a supplied `MeterScope`/`MeterPeriod` as wildcards, so an org-scoped monthly read could also match finer-scoped or DAILY rows for the same `(org, key, year, month)`. Today the bug was masked because no quota mixed "org-grain + DAILY" or "workspace-grain + MONTHLY", but the contract was broken. Closed: `fetch` now binds `workspace_id`, `project_id`, `user_id`, `year`, `month`, `day` unconditionally (SQLAlchemy compiles `filter_by(col=None)` to `col IS NULL`); `organization_id` stays conditional to preserve the `MeterScope()` admin escape hatch; `scope=None` / `period=None` still skip the respective family. 10 new unit tests in `test_meters_dao_fetch.py` pin the per-dimension `IS NULL` binding and the escape hatches. 78/78 EE unit tests pass.
+
 ## Rules
 
 - Findings cite `file:Lstart-Lend` against the current working tree.
@@ -27,7 +29,7 @@ A tenth Copilot pass on 2026-05-18 16:35Z surfaced 1 doc-only finding (PR-47): t
 
 ## Notes
 
-- Sync runs: 2026-05-18, ten passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed `75e7b8472` ("final CR") → PR-32..PR-40. Pass 7 (2026-05-18 12:53Z): Copilot reviewed the post-pass-6 tree → PR-41..PR-43. PR-44 is an internal staging-deployment incident. Pass 8 (2026-05-18 14:52Z): Copilot reviewed the post-pass-7 tree → PR-45. Pass 9 (2026-05-18 16:01Z): Copilot reviewed the post-pass-8 tree → PR-46. Pass 10 (2026-05-18 16:35Z): Copilot reviewed the post-pass-9 tree → PR-47.
+- Sync runs: 2026-05-18, ten passes. PR HEADs: `d21c76bd70b31a144a455cd986ce5c016c63dbc6` (pass 1), `a54e99803c365c9c57d418b1ee7368e694c6db88` (pass 2 — PR-12/13/14), and post-PR-12/13/14 fix commits (pass 3 — PR-15..PR-21, awaiting commit). Pass 6 (2026-05-18 11:30Z): Copilot reviewed `75e7b8472` ("final CR") → PR-32..PR-40. Pass 7 (2026-05-18 12:53Z): Copilot reviewed the post-pass-6 tree → PR-41..PR-43. PR-44 is an internal staging-deployment incident. Pass 8 (2026-05-18 14:52Z): Copilot reviewed the post-pass-7 tree → PR-45. Pass 9 (2026-05-18 16:01Z): Copilot reviewed the post-pass-8 tree → PR-46. Pass 10 (2026-05-18 16:35Z): Copilot reviewed the post-pass-9 tree → PR-47. Pass 11 (2026-05-19 07:08Z): Copilot reviewed the post-pass-10 tree → PR-48.
 - Resolve queue priority order: P0 → P1 → P2 → P3.
 - **Rule (from user 2026-05-18):** sync's first step is ALWAYS to save new findings to this file, before any code change or proposed-fix discussion.
 
@@ -36,6 +38,15 @@ A tenth Copilot pass on 2026-05-18 16:35Z surfaced 1 doc-only finding (PR-47): t
 (none)
 
 ## Closed Findings
+
+### [CLOSED] PR-48 — `MetersDAO.fetch` now treats `None` dimensions on a supplied `MeterScope`/`MeterPeriod` as `IS NULL`, not wildcards (P1, high)
+
+- **Category**: Correctness / Read isolation
+- **Files**: `api/ee/src/dbs/postgres/meters/dao.py:286-340`; new tests `api/ee/tests/pytest/unit/test_meters_dao_fetch.py`.
+- **PR comment**: [discussion_r3266…](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266) — Copilot, 2026-05-19T07:08:14Z
+- **Background**: For a structured `MeterScope` / `MeterPeriod` the `None` dimensions are part of the canonical meter identity ("not applicable at this grain"). The DAO previously skipped the filter when each dim was `None`, so an org-scoped monthly read also matched finer-scoped or DAILY rows for the same `(org, key, year, month)`. Today the bug was masked because no quota mixes "org-scoped + DAILY" or "workspace-scoped + MONTHLY", but the contract was broken and the next per-org DAILY counter would silently aggregate.
+- **Fix shipped**: When a `MeterScope` / `MeterPeriod` object is supplied, `MetersDAO.fetch` now binds every dimension uniformly — `organization_id`, `workspace_id`, `project_id`, `user_id`, `year`, `month`, `day` — with SQLAlchemy compiling `filter_by(col=None)` to `col IS NULL`. The "all meters" admin case is reached by `scope=None` (no scope filter at all) rather than `MeterScope()`. `scope=None` / `period=None` still apply no filter on the respective family. Docstring rewritten. 10 new unit tests in `test_meters_dao_fetch.py` pin: org-scoped reads do not match workspace/project/user rows; workspace-scoped reads do not match finer; MONTHLY reads bind `day IS NULL`; DAILY reads bind every dim; `scope=None` / `period=None` / `MeterPeriod()` escape hatches preserved. 78/78 EE unit tests pass (was 68, +10 new).
+- **Action**: Reply on the GitHub thread and resolve.
 
 ### [CLOSED] PR-47 — `tasks.md` Usage-exposure checklist item updated to reflect per-caller read (P3, medium)
 
