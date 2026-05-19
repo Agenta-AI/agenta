@@ -30,6 +30,8 @@ from ee.src.core.entitlements.types import Tracker, Quota, Period, Scope
 from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
 from ee.src.core.subscriptions.settings import (
     get_catalog,
+    get_pricing,
+    get_pricing_plan,
     get_stripe_line_items,
     get_free_plan,
 )
@@ -161,6 +163,20 @@ class BillingRouter:
             self.fetch_usage_user_route,
             methods=["GET"],
             operation_id="fetch_usage",
+        )
+
+        self.router.add_api_route(
+            "/catalog",
+            self.fetch_catalog,
+            methods=["GET"],
+            operation_id="fetch_billing_catalog",
+        )
+
+        self.router.add_api_route(
+            "/pricing",
+            self.fetch_pricing,
+            methods=["GET"],
+            operation_id="fetch_billing_pricing",
         )
 
         # ADMIN ROUTER
@@ -960,6 +976,31 @@ class BillingRouter:
                 }
 
         return usage
+
+    async def fetch_catalog(self) -> list[Dict[str, Any]]:
+        """Return the effective billing catalog with pricing merged in.
+
+        Each entry carries `title`, `description`, `plan`, `type`, `features`,
+        and (when configured) a `price` block sourced from the matching
+        `AGENTA_BILLING_PRICING` entry. Pre-joining avoids a client-side
+        catalog × pricing merge by slug.
+        """
+        merged: list[Dict[str, Any]] = []
+        for entry in get_catalog():
+            item = dict(entry)
+            price = get_pricing_plan(entry.get("plan"))
+            if price is not None:
+                item["price"] = price
+            merged.append(item)
+        return merged
+
+    async def fetch_pricing(self) -> Dict[str, Dict[str, Any]]:
+        """Return the effective pricing map: plan slug -> normalized pricing.
+
+        Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
+        (see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+        """
+        return get_pricing()
 
     @intercept_exceptions()
     async def report_usage(

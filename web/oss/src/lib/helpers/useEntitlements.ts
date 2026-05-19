@@ -1,13 +1,8 @@
 import {useMemo} from "react"
 
-import {DefaultPlan} from "@/oss/lib/Types"
+import {useAtomValue} from "jotai"
 
-import {useSubscriptionDataWrapper} from "./useSubscriptionDataWrapper"
-
-// Runtime plan slugs are dynamic (env-overridable via AGENTA_ACCESS_PLANS).
-// API responses carry plain strings; the `DefaultPlan` enum in `@/oss/lib/Types`
-// is used as a labeled set of known default slug constants.
-type Plan = string
+import {currentSubscriptionQueryAtom, plansQueryAtom} from "@/oss/state/access/atoms"
 
 export enum Feature {
     ACCESS = "access",
@@ -18,58 +13,27 @@ export enum Feature {
 }
 
 /**
- * Check if a feature is entitled for a given plan
- */
-const isFeatureEntitled = (plan: Plan | undefined, feature: Feature): boolean => {
-    if (!plan) return false
-
-    // Hobby and Pro plans have no access to ACCESS, DOMAINS, or SSO
-    if (plan === DefaultPlan.Hobby || plan === DefaultPlan.Pro) {
-        return false
-    }
-
-    // Business, Enterprise, and self-hosted enterprise have access to all features
-    if (
-        plan === DefaultPlan.Business ||
-        plan === DefaultPlan.Enterprise ||
-        plan === DefaultPlan.SelfHostedEnterprise
-    ) {
-        return true
-    }
-
-    return false
-}
-
-/**
- * Hook to check entitlements for various features
+ * Read entitlements from the access-controls catalog returned by
+ * `/api/access/plans`, keyed by the org's current plan slug from
+ * `/api/billing/subscription`. The previous implementation hardcoded
+ * a slug allowlist (Hobby/Pro/Business/Enterprise) and broke for any
+ * deployment using `AGENTA_ACCESS_PLANS` with custom slugs.
  */
 export const useEntitlements = () => {
-    const {subscription} = useSubscriptionDataWrapper()
+    const subscriptionQuery = useAtomValue(currentSubscriptionQueryAtom)
+    const plansQuery = useAtomValue(plansQueryAtom)
 
-    const hasAccessControl = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.ACCESS),
-        [subscription?.plan],
-    )
+    const plan = subscriptionQuery.data?.plan
+    const flags = useMemo(() => {
+        if (!plan) return undefined
+        return plansQuery.data?.[plan]?.flags
+    }, [plan, plansQuery.data])
 
-    const hasDomains = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.DOMAINS),
-        [subscription?.plan],
-    )
-
-    const hasSSO = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.SSO),
-        [subscription?.plan],
-    )
-
-    const hasRBAC = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.RBAC),
-        [subscription?.plan],
-    )
-
-    const hasHooks = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.HOOKS),
-        [subscription?.plan],
-    )
+    const hasAccessControl = !!flags?.access
+    const hasDomains = !!flags?.domains
+    const hasSSO = !!flags?.sso
+    const hasRBAC = !!flags?.rbac
+    const hasHooks = !!flags?.hooks
 
     return {
         hasAccessControl,
@@ -77,6 +41,6 @@ export const useEntitlements = () => {
         hasSSO,
         hasRBAC,
         hasHooks,
-        plan: subscription?.plan,
+        plan,
     }
 }

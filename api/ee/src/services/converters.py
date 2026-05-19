@@ -17,6 +17,18 @@ def _role_slug(role: Any) -> str:
     return role.value if hasattr(role, "value") else str(role)
 
 
+def _expand_permissions(slugs: List[str]) -> List[str]:
+    """Expand the `"*"` wildcard to the full list of Permission enum values.
+
+    Why: `WorkspacePermission.permissions` is typed as `List[Permission]` and
+    the owner role stores `["*"]` as a wildcard. Pydantic rejects `"*"` since
+    it's not an enum member, so we materialize it at the API boundary.
+    """
+    if "*" not in slugs:
+        return slugs
+    return [p.value for p in Permission]
+
+
 async def get_workspace_in_format(
     workspace: WorkspaceDB,
     include_members: bool = True,
@@ -103,8 +115,8 @@ async def get_workspace_in_format(
                             "role_description": get_role_description(
                                 "project", _role_slug(member_role)
                             ),
-                            "permissions": get_role_permissions(
-                                "project", _role_slug(member_role)
+                            "permissions": _expand_permissions(
+                                get_role_permissions("project", _role_slug(member_role))
                             ),
                         }
                     ]
@@ -143,4 +155,4 @@ def get_all_workspace_permissions_by_role(role_name: str) -> List[str]:
 
     Resolved via access-controls (env-overridable via AGENTA_ACCESS_ROLES).
     """
-    return get_role_permissions("workspace", role_name)
+    return _expand_permissions(get_role_permissions("workspace", role_name))

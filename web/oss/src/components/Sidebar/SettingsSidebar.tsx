@@ -41,14 +41,15 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const {canViewApiKeys} = useProjectPermissions()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const canShowOrganization = isEE()
-    const canShowBilling = isEE() && isBillingEnabled() && isOwner
+    const canShowUsageBilling = isEE() && isOwner
+    const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
     const activeTab = useMemo(() => {
         const requestedTab = tab ?? settingsTab ?? "workspace"
 
         if (
             (requestedTab === "organization" && !canShowOrganization) ||
-            (requestedTab === "billing" && !canShowBilling) ||
+            (requestedTab === "billing" && !canShowUsageBilling) ||
             (requestedTab === "tools" && !canShowTools) ||
             (requestedTab === "apiKeys" && !canViewApiKeys)
         ) {
@@ -56,7 +57,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
         }
 
         return requestedTab
-    }, [canShowBilling, canShowOrganization, canShowTools, canViewApiKeys, settingsTab, tab])
+    }, [canShowUsageBilling, canShowOrganization, canShowTools, canViewApiKeys, settingsTab, tab])
 
     useEffect(() => {
         if (tab && tab !== settingsTab) {
@@ -110,15 +111,22 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                   ]
                 : []),
         ]
-        if (canShowBilling) {
+        if (canShowUsageBilling) {
             list.push({
                 key: "billing",
-                title: "Usage & Billing",
+                title: billingEnabled ? "Usage & Billing" : "Usage",
                 icon: <Receipt size={16} className="mt-0.5" />,
             })
         }
         return list
-    }, [canShowBilling, canShowOrganization, canShowTools, canViewApiKeys, isOwner])
+    }, [
+        canShowUsageBilling,
+        billingEnabled,
+        canShowOrganization,
+        canShowTools,
+        canViewApiKeys,
+        isOwner,
+    ])
 
     return (
         <section

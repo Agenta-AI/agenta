@@ -19,6 +19,7 @@ from ee.src.core.tracing.service import TracingService
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.events.service import EventsService
 
+from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
 from ee.src.apis.fastapi.spans.router import SpansRouter
 from ee.src.apis.fastapi.events.router import EventsRouter
@@ -65,6 +66,8 @@ bootstrap_entitlements_services(
 
 # APIS -------------------------------------------------------------------------
 
+access_router = AccessRouter()
+
 billing_router = BillingRouter(
     subscription_service=subscription_service,
     meters_service=meters_service,
@@ -84,6 +87,12 @@ log = get_module_logger(__name__)
 
 def extend_main(app: FastAPI):
     # ROUTES -------------------------------------------------------------------
+
+    app.include_router(
+        router=access_router.router,
+        prefix="/access",
+        tags=["Access"],
+    )
 
     app.include_router(
         router=billing_router.router,

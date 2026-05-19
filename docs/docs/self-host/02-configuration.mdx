@@ -204,7 +204,7 @@ unset.
 |----------|---------|---------|
 | `AGENTA_ACCESS_PLANS` | JSON object: plan slug → entitlements (flags, counters, gauges, throttles). | _(code defaults)_ |
 | `AGENTA_ACCESS_ROLES` | JSON object: scope → list of custom roles (additive over the `owner`/`viewer` minima). | _(code defaults)_ |
-| `AGENTA_ACCESS_ROLES_OVERLAY` | JSON object: per-role patch for workspace + project scopes (only `project` key accepted today; applied to both). Avoids restating the full scope catalog via `AGENTA_ACCESS_ROLES`. | _(no overlay)_ |
+| `AGENTA_ACCESS_ROLES_OVERLAY` | JSON object: per-role patch applied to both workspace + project scopes. Accepts either role slugs at the root or `{ "project": { ... } }`. Avoids restating the full scope catalog via `AGENTA_ACCESS_ROLES`. | _(no overlay)_ |
 | `AGENTA_ACCESS_DEFAULT_PLAN` | Plan slug assigned to new orgs on signup. (Legacy: `AGENTA_DEFAULT_PLAN`.) | `self_hosted_enterprise` |
 | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | JSON object: partial entitlement patch applied to the default plan only (trace retention, throttle rates, single flags). Avoids restating the full plan in `AGENTA_ACCESS_PLANS`. | _(no overlay)_ |
 

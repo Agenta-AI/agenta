@@ -14,23 +14,22 @@ variables. This page documents the **access** layer:
   (flags, counters, gauges, throttles).
 - `AGENTA_ACCESS_ROLES` — custom roles per scope on top of the platform
   minima (`owner` / `viewer`).
-
-The companion [Dynamic billing settings](./05-dynamic-billing-settings.mdx)
-page covers the catalog, Stripe pricing, free plan and trial flow.
+- `AGENTA_ACCESS_ROLES_OVERLAY` — small role-catalog patches that apply to
+  both workspace and project scopes.
 
 :::warning Restart required
-Both env vars are parsed once at process startup. After changing them,
+These env vars are parsed once at process startup. After changing them,
 restart **all** API and worker processes — they each load the controls into
 memory and will otherwise enforce different limits.
 :::
 
 :::tip Validation is strict
-If either var is set, validation runs at startup:
+If any override var is set, validation runs at startup:
 
 - invalid JSON → fail
 - unknown flag / counter / gauge / permission slug → fail
 - `AGENTA_ACCESS_PLANS` empty object → fail
-- plan entry with no entitlement info (no `flags`/`counters`/`gauges`/`throttles`) → fail
+- plan entry with no entitlement info and no `description` → fail
 - `AGENTA_ACCESS_ROLES` redefining the reserved `owner` or `viewer` slug → fail
 - empty scope list → fail
 - duplicate role slug within a scope → fail
@@ -41,9 +40,7 @@ Run staging deploys with the new values before pushing to production.
 ## `AGENTA_ACCESS_PLANS`
 
 JSON **object** keyed by plan slug. The set of keys is the **effective plan
-set** — every other plan reference (billing catalog, billing pricing, trial
-plan, default plan, subscription rows in the DB) must point to one of these
-slugs.
+set** — runtime plan references must point to one of these slugs.
 
 ### Top-level shape
 
@@ -56,12 +53,12 @@ slugs.
 
 ### `PlanEntry` fields
 
-Every entry must define at least one of `flags`, `counters`, `gauges`, or
-`throttles`. `description` is optional.
+Every entry must define at least one of `description`, `flags`,
+`counters`, `gauges`, or `throttles`.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `description` | string | no | Operator-facing description (not shown to users). |
+| `description` | string | one-of | Operator-facing description (not shown to users). Description-only entries are accepted for display-only/custom plans. |
 | `flags` | object | one-of | Map of flag slug → bool. See [flag keys](#flag-keys). |
 | `counters` | object | one-of | Map of counter slug → `Quota`. See [counter keys](#counter-keys). |
 | `gauges` | object | one-of | Map of gauge slug → `Quota`. See [gauge keys](#gauge-keys). |
@@ -73,7 +70,7 @@ Used by `counters` and `gauges` map values.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `free` | integer \| null | `null` | Free-tier allowance before metered billing kicks in. |
+| `free` | integer \| null | `null` | Free-tier allowance before paid or capped usage applies. |
 | `limit` | integer \| null | `null` | Hard cap; `null` = unlimited. |
 | `strict` | boolean \| null | `null` | If `true`, the request that would cross the limit is itself rejected (no "one free overshoot"). `null` is treated as `false`. |
 | `retention` | integer \| null | `null` | Retention window in **minutes**. Must be one of the canonical `Retention` enum values: `0` (ephemeral), `60` (hourly), `1440` (daily), `44640` (monthly ≈ 31d), `131040` (quarterly ≈ 91d), `525600` (yearly ≈ 365d). Used by `traces_ingested` and `events_ingested` for retention flush. |
@@ -92,9 +89,8 @@ Used by `counters` and `gauges` map values.
 counter, its own retention window, its own admin flush endpoint
 (`/admin/spans/flush` and `/admin/events/flush`), and its own cron
 schedule. Setting one does not affect the other. `events_ingested` is a
-retention-only counter — it is not metered (no Stripe report, no
-write-path adjusts an `events_ingested` meter row); operators set its
-`retention` per plan to bound how long event rows live.
+retention-only counter; operators set its `retention` per plan to bound how
+long event rows live.
 
 `traces_retrieved` is the only counter with a non-default `scope` and
 `period` in the code defaults: `scope=user`, `period=daily`, declared on
@@ -184,8 +180,8 @@ What it means at runtime:
 
 - The meters DAO persists one row per `(organization_id, workspace_id, project_id, user_id, year, month, day, key)` tuple. Different users get different rows; the same user on different days gets different rows.
 - Every trace/span fetch or query handler runs `check_entitlements(key=Counter.TRACES_RETRIEVED, delta=<distinct traces returned>)` in hard-adjust mode. The first request that would push that user's daily counter past 1000 gets `HTTP 429 Too Many Requests` and the meter is not bumped — because `strict=true` makes the DAO predicate `greatest(value + delta, 0) <= limit`, the request that crosses the line is itself rejected (no "one free overshoot").
-- `/billing/usage` shows an org rollup — it sums every matching row for today across users, so the card reflects total org-wide daily retrievals. The per-user cap is enforced; the org-wide display is informational.
-- The counter is not in `REPORTS` so it is never pushed to Stripe — it is tracked and surfaced internally and to customers but not billed.
+- The usage rollup sums every matching row for today across users, so the UI can reflect total org-wide daily retrievals. The per-user cap is enforced; the org-wide display is informational.
+- The counter is tracked and surfaced internally for enforcement and usage display.
 
 This is the pattern for any per-scope, per-period counter: the meters
 layer handles the per-row bookkeeping automatically based on what the
@@ -339,9 +335,18 @@ which only patches the resolved default plan.
 
 ### Targeting
 
-The overlay accepts **only the `project` scope key today**. Setting `workspace` or `organization` as a
-top-level key fails startup with a clear error — silent ignore would
-mislead operators.
+The overlay applies to **both `workspace` and `project` scopes** because
+those scopes share the same default role catalog in the code defaults.
+
+Two payload shapes are accepted:
+
+- shortcut form: role slugs at the root, e.g. `{ "auditor": { ... } }`
+- scoped form: `{ "project": { "auditor": { ... } } }`
+
+If you use a scope key at the root, only `project` is accepted today.
+Setting `workspace` or `organization` as a top-level key fails startup with
+a clear error — silent ignore would mislead operators. Do not mix scope keys
+and role slugs at the root.
 
 ### Shape
 
@@ -357,12 +362,24 @@ mislead operators.
 }
 ```
 
+Shortcut form:
+
+```text
+{
+  "<role_slug>": {
+    "description": "string (optional)",
+    "permissions": ["...permission slugs..."]
+  },
+  ...
+}
+```
+
 ### Merge semantics
 
 | Role exists on scope? | Behavior |
 |-----------------------|----------|
 | Yes (e.g. `editor`, `developer`, `annotator`, custom roles) | Per-field replace. Setting `permissions` swaps the array entirely; setting `description` swaps the string. Fields not set on the patch are preserved from the existing role. |
-| No (new role) | Appended. Both `description` and `permissions` must be supplied. |
+| No (new role) | Appended to both workspace and project. `permissions` must be supplied; `description` is optional. |
 | `owner` / `viewer` minima | Rejected at startup — platform-managed. |
 
 ### Examples
@@ -371,10 +388,17 @@ Give the `editor` role one extra permission on top of its default set
 (`permissions` replaces the array — restate the full list you want):
 
 ```json
-{"project": {"editor": {"permissions": ["edit_annotations", "view_evaluation_runs", "read_system", "view_billing"]}}}
+{"project": {"editor": {"permissions": ["edit_annotations", "view_evaluation_runs", "read_system", "view_spans"]}}}
 ```
 
-Add a new `auditor` role to both workspace and project:
+Add a new `auditor` role to both workspace and project using the shortcut
+form:
+
+```json
+{"auditor": {"description": "Audit-only access.", "permissions": ["read_system"]}}
+```
+
+The scoped form is equivalent:
 
 ```json
 {"project": {"auditor": {"description": "Audit-only access.", "permissions": ["read_system"]}}}
@@ -398,12 +422,13 @@ Failures at startup:
 - unknown permission slug → fail
 - new role without `permissions` → fail
 - extra fields on a patch entry → fail
+- mixing scope keys and role slugs at the root → fail
 
 ## `AGENTA_ACCESS_DEFAULT_PLAN`
 
 Plan slug assigned to new organizations on signup. Must resolve to one of
-the slugs in the effective plan map. When unset, falls back to
-`self_hosted_enterprise` (the self-hosted default).
+the slugs in the effective plan map. For self-hosted deployments, leave it
+unset to use `self_hosted_enterprise`.
 
 The legacy `AGENTA_DEFAULT_PLAN` env var is still honored; the canonical
 form takes precedence when both are set.
@@ -519,7 +544,7 @@ reads and writes. `null` is treated as `"organization"`.
 
 The DAO writes the full hierarchy needed by the declared scope and leaves
 finer dimensions `NULL`. A counter declared with `scope: "user"` therefore
-yields multiple rows per period (one per user); `/billing/usage` sums them
+yields multiple rows per period (one per user); the usage rollup sums them
 for the org-level rollup display while `check_entitlements` enforces the
 per-user cap.
 

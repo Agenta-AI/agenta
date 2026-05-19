@@ -250,12 +250,11 @@ class TestDefaults:
     def test_get_free_plan_falls_back_to_hobby(self):
         assert settings.get_free_plan() == DefaultPlan.CLOUD_V0_HOBBY.value
 
-    def test_get_trial_plan_disabled_by_default(self):
-        # No `AGENTA_BILLING_PRICING.<slug>.trial` set → trial is disabled.
+    def test_get_trial_plan_disabled_when_stripe_disabled_by_default(self):
         assert settings.get_trial_plan() is None
 
-    def test_get_trial_days_disabled_by_default(self):
+    def test_get_trial_days_disabled_when_stripe_disabled_by_default(self):
         assert settings.get_trial_days() is None
 
-    def test_trial_enabled_false_by_default(self):
+    def test_trial_enabled_false_when_stripe_disabled_by_default(self):
         assert settings.trial_enabled() is False
