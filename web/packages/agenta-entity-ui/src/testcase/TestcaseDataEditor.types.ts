@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import type {PropertyType} from "@agenta/ui/drill-in"
 
 export type TestcaseDataEditorMode = "view" | "edit"
@@ -17,12 +19,14 @@ export interface TestcaseDataEditorFeatures {
     typeChips?: boolean
     rootViewMode?: boolean
     columnMapping?: boolean
+    showProperties?: boolean
 }
 
 export interface TestcaseDataEditorResolvedFeatures {
     typeChips: boolean
     rootViewMode: boolean
     columnMapping: boolean
+    showProperties: boolean
 }
 
 export interface TestcaseDataEditorProps {
@@ -35,6 +39,8 @@ export interface TestcaseDataEditorProps {
     initialPath?: string[]
     onPathChange?: (path: string[]) => void
     className?: string
+    label?: string
+    headerSlot?: ReactNode
     columnOptions?: {value: string; label: string}[]
     mappedPaths?: Map<string, string>
     onMapToColumn?: (dataPath: string, column: string) => void

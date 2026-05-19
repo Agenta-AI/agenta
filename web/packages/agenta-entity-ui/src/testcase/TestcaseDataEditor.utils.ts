@@ -29,16 +29,19 @@ export function resolveTestcaseEditorFeatures(
             typeChips: true,
             rootViewMode: true,
             columnMapping: true,
+            showProperties: false,
         },
         playground: {
             typeChips: true,
             rootViewMode: true,
             columnMapping: false,
+            showProperties: false,
         },
         inline: {
             typeChips: true,
             rootViewMode: true,
             columnMapping: false,
+            showProperties: false,
         },
     }
 
