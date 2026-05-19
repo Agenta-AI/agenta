@@ -2,8 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-from oss.src.utils.exceptions import Support
-
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
@@ -36,7 +34,6 @@ from oss.src.core.embeds.dtos import (
     ResolutionInfo,
 )
 
-
 # ENVIRONMENTS -----------------------------------------------------------------
 
 
@@ -58,12 +55,12 @@ class EnvironmentQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class EnvironmentResponse(Support):
+class EnvironmentResponse(BaseModel):
     count: int = 0
     environment: Optional[Environment] = None
 
 
-class EnvironmentsResponse(Support):
+class EnvironmentsResponse(BaseModel):
     count: int = 0
     environments: List[Environment] = []
 
@@ -90,12 +87,12 @@ class EnvironmentVariantQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class EnvironmentVariantResponse(Support):
+class EnvironmentVariantResponse(BaseModel):
     count: int = 0
     environment_variant: Optional[EnvironmentVariant] = None
 
 
-class EnvironmentVariantsResponse(Support):
+class EnvironmentVariantsResponse(BaseModel):
     count: int = 0
     environment_variants: List[EnvironmentVariant] = []
 
@@ -141,13 +138,13 @@ class EnvironmentRevisionsLogRequest(BaseModel):
     environment: EnvironmentRevisionsLog
 
 
-class EnvironmentRevisionResponse(Support):
+class EnvironmentRevisionResponse(BaseModel):
     count: int = 0
     environment_revision: Optional[EnvironmentRevision] = None
     resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
-class EnvironmentRevisionsResponse(Support):
+class EnvironmentRevisionsResponse(BaseModel):
     count: int = 0
     environment_revisions: List[EnvironmentRevision] = []
 
@@ -173,12 +170,12 @@ class SimpleEnvironmentQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleEnvironmentResponse(Support):
+class SimpleEnvironmentResponse(BaseModel):
     count: int = 0
     environment: Optional[SimpleEnvironment] = None
 
 
-class SimpleEnvironmentsResponse(Support):
+class SimpleEnvironmentsResponse(BaseModel):
     count: int = 0
     environments: List[SimpleEnvironment] = []
 
@@ -196,7 +193,7 @@ class EnvironmentRevisionResolveRequest(BaseModel):
     error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
 
 
-class EnvironmentRevisionResolveResponse(Support):
+class EnvironmentRevisionResolveResponse(BaseModel):
     count: int = 0
     environment_revision: Optional[EnvironmentRevision] = None
     resolution_info: Optional[ResolutionInfo] = None

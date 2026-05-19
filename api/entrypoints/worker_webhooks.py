@@ -8,8 +8,13 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.env import env
 
+from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
+
+# Guard EE imports — see worker_tracing.py for the rationale.
+if is_ee():
+    from ee.src.utils.entitlements import bootstrap_entitlements_services
 
 
 import agenta as ag
@@ -52,6 +57,11 @@ def main() -> int:
         # Validate environment
         warn_deprecated_env_vars()
         validate_required_env_vars()
+
+        # Wire EE entitlement services so `check_entitlements` works in
+        # this worker process. Gated on `is_ee()` to match the import above.
+        if is_ee():
+            bootstrap_entitlements_services()
 
         log.info("[WEBHOOKS] Starting Taskiq worker with Redis Streams")
 

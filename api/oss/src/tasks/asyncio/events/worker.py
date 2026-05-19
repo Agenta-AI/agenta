@@ -14,7 +14,7 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, Flag
+    from ee.src.utils.entitlements import check_entitlements, scope_from, Flag
 
 if TYPE_CHECKING:
     from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
@@ -203,10 +203,12 @@ class EventsWorker:
         for project_batch in batches:
             if project_batch["organization_id"] and is_ee():
                 try:
-                    allowed, _, _ = await check_entitlements(
-                        organization_id=project_batch["organization_id"],
-                        key=Flag.ACCESS,
-                        use_cache=True,
+                    allowed, _, _ = await check_entitlements(  # type: ignore
+                        key=Flag.ACCESS,  # type: ignore
+                        cache=True,
+                        scope=scope_from(  # type: ignore
+                            organization_id=project_batch["organization_id"]
+                        ),
                     )
                 except Exception:
                     log.error(

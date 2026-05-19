@@ -28,6 +28,7 @@ from ee.src.core.organizations.types import (
     OrganizationUpdate,
 )
 from ee.src.models.shared_models import WorkspaceRole
+from ee.src.core.entitlements.controls import get_roles
 
 from oss.src.models.db_models import (
     OrganizationDB,
@@ -1664,21 +1665,19 @@ async def create_org_workspace_invitation(
         return invitation
 
 
-async def get_all_workspace_roles() -> List[WorkspaceRole]:
-    """
-    Retrieve all workspace roles.
+async def get_all_workspace_roles() -> List[dict]:
+    """Return the effective workspace role catalog.
 
-    Returns:
-        List[WorkspaceRole]: A list of all workspace roles in the DB.
+    Resolved via access-controls (env-overridable via `AGENTA_ACCESS_ROLES`).
+    Each entry is a dict with `role`, `description`, and `permissions`.
     """
-    workspace_roles = list(WorkspaceRole)
-    return workspace_roles
+    return get_roles("workspace")
 
 
 async def add_user_to_organization(
     organization_id: str,
     user_id: str,
-    role: str = "member",
+    role: str = "viewer",
     # is_demo: bool = False,
 ) -> None:
     async with engine.core_session() as session:

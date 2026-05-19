@@ -1,4 +1,5 @@
 from typing import List
+from uuid import UUID
 
 from fastapi.responses import JSONResponse
 from fastapi import Request, BackgroundTasks
@@ -18,7 +19,21 @@ from oss.src.models.api.workspace_models import (
     ResendInviteRequest,
     InviteToken,
 )
-from oss.src.models.shared_models import CANONICAL_ROLE_DESCRIPTIONS
+
+
+def _role_description(role: str) -> str:
+    """Resolve a workspace-role description.
+
+    In EE, source from the effective access-controls catalog (env-overridable
+    via AGENTA_ACCESS_ROLES). In OSS, no role catalog is enforced, so return
+    an empty string — invitations carry a role slug for display only.
+    """
+    if not is_ee():
+        return ""
+    from ee.src.core.entitlements.controls import get_role_description
+
+    return get_role_description("workspace", role) or ""
+
 
 if is_ee():
     from ee.src.utils.permissions import check_action_access
@@ -31,6 +46,7 @@ if is_ee():
 
     from ee.src.utils.entitlements import (
         check_entitlements,
+        scope_from,
         Tracker,
         Gauge,
         NOT_ENTITLED_RESPONSE,
@@ -129,9 +145,7 @@ async def fetch_organization_details(
             "roles": [
                 {
                     "role_name": invitation.role or "viewer",
-                    "role_description": CANONICAL_ROLE_DESCRIPTIONS.get(
-                        invitation.role or "viewer", ""
-                    ),
+                    "role_description": _role_description(invitation.role or "viewer"),
                 }
             ],
         }
@@ -237,10 +251,14 @@ async def invite_user_to_organization(
             skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
             if not skip_meter:
-                check, _, _ = await check_entitlements(
-                    organization_id=request.state.organization_id,
-                    key=Gauge.USERS,
+                # The route operates on the workspace selected by the
+                # path-param `{organization_id}`. Project the entitlement
+                # check onto the target org so the right org's user
+                # gauge gets the `+1`, not the caller's ambient org.
+                check, _, _ = await check_entitlements(  # type: ignore
+                    key=Gauge.USERS,  # type: ignore
                     delta=1,
+                    scope=scope_from(organization_id=UUID(organization_id)),  # type: ignore
                 )
 
                 if not check:

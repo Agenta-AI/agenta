@@ -29,8 +29,8 @@ services:
     api:
         # === IMAGE ================================================ #
         # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
+        #     context: ../../..
+        #     dockerfile: api/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: >
@@ -84,8 +84,8 @@ services:
     worker-evaluations:
         # === IMAGE ================================================ #
         # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
+        #     context: ../../..
+        #     dockerfile: api/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -122,8 +122,8 @@ services:
     worker-tracing:
         # === IMAGE ================================================ #
         # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
+        #     context: ../../..
+        #     dockerfile: api/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -160,8 +160,8 @@ services:
     worker-webhooks:
         # === IMAGE ================================================ #
         # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
+        #     context: ../../..
+        #     dockerfile: api/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -204,8 +204,8 @@ services:
     worker-events:
         # === IMAGE ================================================ #
         # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
+        #     context: ../../..
+        #     dockerfile: api/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -248,8 +248,8 @@ services:
     cron:
         # === IMAGE ================================================ #
         # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
+        #     context: ../../..
+        #     dockerfile: api/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         init: true
@@ -274,8 +274,8 @@ services:
     alembic:
         # === IMAGE ================================================ #
         # build:
-        #     context: ../../../api
-        #     dockerfile: oss/docker/Dockerfile.gh
+        #     context: ../../..
+        #     dockerfile: api/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
@@ -293,8 +293,8 @@ services:
     services:
         # === IMAGE ================================================ #
         # build:
-        #     context: ../../../services
-        #     dockerfile: oss/docker/Dockerfile.gh
+        #     context: ../../..
+        #     dockerfile: services/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_SERVICES_IMAGE_NAME:-agenta-services}:${AGENTA_SERVICES_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: >
