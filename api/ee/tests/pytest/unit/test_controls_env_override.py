@@ -482,19 +482,21 @@ class TestRolesOverride:
         assert lines[0] == "owner,viewer,reviewer"
         assert lines[1] == "read_system"
 
-    def test_non_overridden_scope_keeps_defaults(self):
-        # Overriding `project` does not clobber the workspace defaults.
+    def test_project_override_is_mirrored_to_workspace_today(self):
+        # TODAY: workspace and project roles must match at runtime because the
+        # workspace role catalog is used by the Invite Members flow for project
+        # membership. A project-only override therefore intentionally replaces
+        # workspace extras too, instead of leaving workspace defaults intact.
         out = _ok(
             "from ee.src.core.entitlements.controls import get_roles; "
-            "print(len(get_roles('workspace')))",
+            "print(','.join(r['role'] for r in get_roles('workspace')))",
             env_extra={
                 "AGENTA_ACCESS_ROLES": json.dumps(
                     {"project": [{"role": "reviewer", "permissions": ["read_system"]}]}
                 )
             },
         )
-        # Workspace = owner + viewer + 4 default extras (admin/developer/editor/annotator).
-        assert int(out.strip()) == 6
+        assert out.strip() == "owner,viewer,reviewer"
 
     def test_unknown_permission_fails_startup(self):
         _fails(
