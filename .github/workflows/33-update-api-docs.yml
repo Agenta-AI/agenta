@@ -7,11 +7,21 @@ on:
   schedule:
     # Run daily at 06:00 UTC
     - cron: "0 6 * * *"
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   update-api-docs:
     name: Update API reference docs
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/') &&
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
 
     steps:
@@ -19,18 +29,24 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: main
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: docs/package.json
 
       - name: Download latest OpenAPI spec
         run: curl -sSf "https://cloud.agenta.ai/api/openapi.json" -o docs/docs/reference/openapi.json
 
       - name: Install docs dependencies
         working-directory: docs
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Clean existing generated API docs
         working-directory: docs

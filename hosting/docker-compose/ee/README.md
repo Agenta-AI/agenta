@@ -56,31 +56,18 @@ The project has three images. Each has its own Dockerfile and build context:
 
 | Image | Dockerfile | Build context |
 |-------|-----------|---------------|
-| API | `api/ee/docker/Dockerfile.gh` | `api/` |
+| API | `api/ee/docker/Dockerfile.gh` | repo root (`.`) |
 | Web | `web/ee/docker/Dockerfile.gh` | `web/` |
-| Services | `services/ee/docker/Dockerfile.gh` | `services/` |
+| Services | `services/ee/docker/Dockerfile.gh` | repo root (`.`) |
 
 ### Step 1: Build
 
-The API and Services images depend on the Agenta SDK. Docker cannot follow symlinks outside the build context, so you must copy the SDK into each context before building:
+API and Services use the repo root as their build context so the local Python SDK and generated Python client are available directly at `sdks/python` and `clients/python` during the build.
 
 ```bash
-cp -r sdk api/sdk
-cp -r sdk services/sdk
-```
-
-Then build the three images:
-
-```bash
-docker build -f api/ee/docker/Dockerfile.gh -t agenta-api-ee:latest api/
+docker build -f api/ee/docker/Dockerfile.gh -t agenta-api-ee:latest .
 docker build -f web/ee/docker/Dockerfile.gh -t agenta-web-ee:latest web/
-docker build -f services/ee/docker/Dockerfile.gh -t agenta-services-ee:latest services/
-```
-
-Clean up the SDK copies afterward:
-
-```bash
-rm -rf api/sdk services/sdk
+docker build -f services/ee/docker/Dockerfile.gh -t agenta-services-ee:latest .
 ```
 
 ### Step 2: Deploy with Docker Compose
