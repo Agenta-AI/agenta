@@ -178,6 +178,38 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
         return out
     }, [pagination.rows, predicate, schema, projectId, runId])
 
+    // Viewport-fill loop for client-side filtering.
+    //
+    // The IVT fires `loadMore` when its internal scroll position approaches
+    // the bottom — which never happens if a strict predicate reduces the
+    // visible row count below the viewport height. (e.g. 1 match in 50
+    // rows: table never scrolls, `loadMore` never fires, user is stuck.)
+    //
+    // While a predicate is active, drive `loadNextPage` ourselves until
+    // either we've accumulated enough matches to fill a typical viewport
+    // (TARGET) or the dataset is exhausted (`hasMore: false`). The hook's
+    // internal `isFetching` flag de-duplicates concurrent calls.
+    //
+    // The effect re-runs after each page lands (filteredRows changes), so
+    // we naturally walk through pages one at a time. Skipped entirely when
+    // no predicate is active — IVT's native scroll-triggered loading
+    // handles that case.
+    const VIEWPORT_FILL_TARGET = 30
+    useEffect(() => {
+        if (!predicate) return
+        if (!pagination.paginationInfo.hasMore) return
+        if (pagination.paginationInfo.isFetching) return
+        const matched = filteredRows.filter((r) => !r.__isSkeleton).length
+        if (matched >= VIEWPORT_FILL_TARGET) return
+        pagination.loadNextPage()
+    }, [
+        predicate,
+        filteredRows,
+        pagination.paginationInfo.hasMore,
+        pagination.paginationInfo.isFetching,
+        pagination,
+    ])
+
     const columns = useEtlColumns({projectId, runId, schema})
 
     // Compute scenario-index per row for the sticky "#" column. The thin
