@@ -60,9 +60,22 @@ All spans share one `trace_id` per workflow run — `workflow.execute` is the pa
 - ❌ Node input/output payload values — only `items.input` / `items.output` **counts**
 - ❌ No span for the upstream LLM HTTP call itself
 
-**Mechanism**: n8n's `OtelService` (`/usr/lib/node_modules/n8n/dist/modules/otel/otel.service.js`) only wraps the workflow execution and per-node lifecycle. It doesn't instrument the code INSIDE node implementations. So an HTTP Request node to OpenAI, or a LangChain-backed "OpenAI Chat Model" node, produces ONE `node.execute` span with `n8n.node.type` metadata — and no visibility into the actual model call.
+**Mechanism (source-verified, not just empirical).** Four checks against the installed n8n image confirm this is n8n's design, not a setup gap on our side:
 
-**Cross-process propagation works partially.** With `N8N_OTEL_TRACES_INJECT_OUTBOUND=true` (default), n8n injects W3C `traceparent` headers into outbound HTTP. So if the destination service (e.g. an internal API) emits its own OTel spans, they become children of the n8n trace. **But OpenAI's API does not emit OTel, so the n8n → OpenAI hop is a dead-end for LLM telemetry** — the request leaves n8n, OpenAI processes it, the response comes back, and n8n records only `items.output` (zero in our case because the call errored).
+1. **`OtelService.init()`** in `/usr/lib/node_modules/n8n/dist/modules/otel/otel.service.js` instantiates `NodeSDK({ resource, traceExporter, sampler })`. **No `instrumentations` array is passed.** Without an `instrumentations` array, `NodeSDK` does not register any OTel auto-instrumentation — not `instrumentation-http`, not `instrumentation-undici`, not anything.
+2. **`grep -rln "registerInstrumentations\|instrumentations:" /usr/lib/node_modules/n8n/dist`** returns zero matches. n8n never registers auto-instrumentations anywhere in its dist code.
+3. **The `@opentelemetry/instrumentation-http` / `instrumentation-undici` / etc. packages ARE bundled** under `node_modules/.pnpm/`, but only as transitive peer-deps pulled by LangChain. n8n itself doesn't import or register them.
+4. **`OtelLifecycleHandler.onNodeEnd`** exposes a `customAttributes` hook that reads `ctx.taskData.metadata?.tracing` — a per-node opt-in surface where a node implementation could attach arbitrary OTel attributes (including `gen_ai.*`). **`grep` across `@n8n/n8n-nodes-langchain` and the rest of `node_modules` shows zero writes to `metadata.tracing`.** Neither the LangChain AI nodes nor any other built-in node uses this hook.
+
+So even if we'd used the purpose-built `n8n-nodes-langchain.openAi` node instead of HTTP Request, the resulting `node.execute` span would still have only `n8n.node.type = "@n8n/n8n-nodes-langchain.openAi"` and `items.input/output` counts. No model name, no prompt, no tokens. **Confirmed structurally, not just empirically.**
+
+**Three paths forward** (none of them are v1 SDK work):
+
+- An n8n upstream PR adding `metadata.tracing` writes in the LangChain AI node implementations — the cleanest fix, would benefit every n8n user.
+- A custom n8n node that wraps AI calls and sets `metadata.tracing.gen_ai_*` itself — user-installable, no n8n core change required.
+- A separate process-level OTel auto-instrumentation for LangChain JS (e.g. via `--require @arizeai/openinference-instrumentation-langchain/register`) — operates outside n8n's awareness.
+
+**Cross-process propagation works partially.** With `N8N_OTEL_TRACES_INJECT_OUTBOUND=true` (default), n8n injects W3C `traceparent` headers into outbound HTTP. If the downstream service emits its own OTel, those spans become children of the n8n trace. OpenAI's API does not, so the n8n → OpenAI hop is a dead-end for LLM telemetry.
 
 ## Config gotchas we hit and how to avoid them
 
