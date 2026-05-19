@@ -32,7 +32,7 @@
  *     [Always]   scope-change eviction on (projectId, runId) change
  */
 
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
     evaluationResultMolecule,
@@ -120,6 +120,32 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
 
     // v1 predicate filter — declared early so the hydrate hook can consume it.
     const [predicate, setPredicate] = useState<RowPredicate | null>(null)
+
+    // Programmatic scroll handle for the IVT. Used to reset scroll to row 0
+    // whenever the filter changes — without it, the viewport stays at the
+    // user's prior offset, which often lands inside the filtered list and
+    // hides the first matches.
+    const tableRef = useRef<{
+        scrollTo: (config: {index: number; align?: "top" | "bottom" | "auto"}) => void
+    } | null>(null)
+
+    // Scroll back to the top whenever the predicate changes (added,
+    // cleared, or modified). Skip the very first render — the table
+    // starts at the top anyway and we don't want a no-op scrollTo
+    // before the table mounts.
+    const firstPredicateRef = useRef(true)
+    useEffect(() => {
+        if (firstPredicateRef.current) {
+            firstPredicateRef.current = false
+            return
+        }
+        // Schedule after the render that re-evaluates filteredRows so
+        // the IVT has the new dataSource mounted before we scroll.
+        const id = requestAnimationFrame(() => {
+            tableRef.current?.scrollTo({index: 0, align: "top"})
+        })
+        return () => cancelAnimationFrame(id)
+    }, [predicate])
     // Hydrate strategy:
     //   "auto" — fetch only what the predicate needs (or all 4 when no
     //            predicate). Production-realistic default.
@@ -363,6 +389,12 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
                             bordered: true,
                             tableLayout: "fixed",
                         }}
+                        /*
+                         * tableRef gives us a handle on antd's virtual
+                         * Table for programmatic scroll. Used by the
+                         * "reset to top on predicate change" effect above.
+                         */
+                        tableRef={tableRef}
                         /*
                          * NOTE: do NOT pass `useIsolatedStore` — the cells need to
                          * read `hydrationVersionAtom` written by the hook above,
