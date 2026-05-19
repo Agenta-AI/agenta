@@ -60,6 +60,7 @@ import type {
 import type {TraceSpan} from "../core"
 import {extractAgData, extractInputs, extractOutputs} from "../utils"
 
+import {prefetchTracesByIds} from "./prefetch"
 import {spanQueryAtomFamily} from "./store"
 
 // ============================================================================
@@ -462,6 +463,22 @@ export const traceSpanMolecule = {
          * Atom family for local data (for reactive reads)
          */
         dataAtom: localDataAtomFamily,
+    },
+
+    /**
+     * Bulk actions on the trace cache (the ["trace-entity", projectId, traceId]
+     * shared TanStack slot). Symmetric with the other ETL-hydrated entities:
+     *
+     *   evaluationResultMolecule.actions.prefetchByScenarioIds
+     *   evaluationMetricMolecule.actions.prefetchByScenarioIds
+     *   testcaseMolecule.actions.prefetchByIds
+     *   traceSpanMolecule.actions.prefetchByIds  ← here
+     *
+     * The standalone `prefetchTracesByIds` export stays for backwards
+     * compatibility; this is the convention-aligned entry point.
+     */
+    actions: {
+        prefetchByIds: prefetchTracesByIds,
     },
 }
 

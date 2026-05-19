@@ -45,6 +45,7 @@ import type {Column, Testcase} from "../core"
 import {createLocalTestcase} from "../core"
 
 import {testcasesRevisionIdAtom, initializeEmptyRevisionAtom} from "./paginatedStore"
+import {prefetchTestcasesByIds} from "./prefetch"
 import {
     // Query and entity atoms
     testcaseQueryAtomFamily,
@@ -897,6 +898,18 @@ export const testcaseMolecule = {
         discardSelectionDraft: discardSelectionDraftAtom,
         /** Initialize empty revision with default testcase (for "create from scratch" flow) */
         initializeEmptyRevision: initializeEmptyRevisionAtom,
+        /**
+         * Cache-aware bulk prefetch by testcase ID list. Same shape as
+         * `evaluationResultMolecule.actions.prefetchByScenarioIds` and
+         * `evaluationMetricMolecule.actions.prefetchByScenarioIds` —
+         * makes the prefetch surface symmetric across the 4 ETL-hydrated
+         * entity types. Writes to the shared TanStack cache at
+         * `["testcase", projectId, testcaseId]`.
+         *
+         * Wraps the existing `prefetchTestcasesByIds` standalone function
+         * (kept for backwards compatibility with non-molecule consumers).
+         */
+        prefetchByIds: prefetchTestcasesByIds,
     },
 
     /**
