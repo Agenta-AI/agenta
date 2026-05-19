@@ -2,8 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-from oss.src.utils.exceptions import Support
-
 from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
@@ -32,7 +30,6 @@ from oss.src.core.queries.dtos import (
     SimpleQueryQuery,
 )
 
-
 # QUERIES ----------------------------------------------------------------------
 
 
@@ -54,12 +51,12 @@ class QueryQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class QueryResponse(Support):
+class QueryResponse(BaseModel):
     count: int = 0
     query: Optional[Query] = None
 
 
-class QueriesResponse(Support):
+class QueriesResponse(BaseModel):
     count: int = 0
     queries: List[Query] = []
 
@@ -96,12 +93,12 @@ class QueryVariantForkRequest(BaseModel):
     description: Optional[str] = None
 
 
-class QueryVariantResponse(Support):
+class QueryVariantResponse(BaseModel):
     count: int = 0
     query_variant: Optional[QueryVariant] = None
 
 
-class QueryVariantsResponse(Support):
+class QueryVariantsResponse(BaseModel):
     count: int = 0
     query_variants: List[QueryVariant] = []
 
@@ -148,12 +145,12 @@ class QueryRevisionRetrieveRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class QueryRevisionResponse(Support):
+class QueryRevisionResponse(BaseModel):
     count: int = 0
     query_revision: Optional[QueryRevision] = None
 
 
-class QueryRevisionsResponse(Support):
+class QueryRevisionsResponse(BaseModel):
     count: int = 0
     query_revisions: List[QueryRevision] = []
 
@@ -179,11 +176,11 @@ class SimpleQueryQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleQueryResponse(Support):
+class SimpleQueryResponse(BaseModel):
     count: int = 0
     query: Optional[SimpleQuery] = None
 
 
-class SimpleQueriesResponse(Support):
+class SimpleQueriesResponse(BaseModel):
     count: int = 0
     queries: List[SimpleQuery] = []
