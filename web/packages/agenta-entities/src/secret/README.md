@@ -8,10 +8,10 @@ This is a **reference implementation** of the entities/molecule pattern using it
 
 ## Folder shape
 
-```
+```text
 secret/
 ├── api/
-│   ├── api.ts            # 4 axios calls against /vault/v1/secrets/
+│   ├── api.ts            # Fern-backed wrappers around the /secrets/ resource
 │   └── index.ts
 ├── core/
 │   ├── types.ts          # DTOs, enums, provider labels/kinds

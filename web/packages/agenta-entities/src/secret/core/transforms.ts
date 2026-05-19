@@ -24,11 +24,46 @@ import {
     type StandardProviderDto,
 } from "./types"
 
+// ---------------------------------------------------------------------------
+// Provider ↔ env-var mapping (single source of truth)
+//
+// Standard provider secrets surface in the app under their env-var name
+// (e.g. `OPENAI_API_KEY`). Keeping the kind → env mapping in one place
+// avoids drift between `transformSecret` (kind → env) and `getEnvNameMap`
+// (env → kind), and lets us surface unmapped providers explicitly.
+// ---------------------------------------------------------------------------
+
+const STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, string>> = {
+    [StandardProviderKind.Openai]: "OPENAI_API_KEY",
+    [StandardProviderKind.Cohere]: "COHERE_API_KEY",
+    [StandardProviderKind.Anyscale]: "ANYSCALE_API_KEY",
+    [StandardProviderKind.Deepinfra]: "DEEPINFRA_API_KEY",
+    [StandardProviderKind.Alephalpha]: "ALEPHALPHA_API_KEY",
+    [StandardProviderKind.Groq]: "GROQ_API_KEY",
+    [StandardProviderKind.Mistral]: "MISTRAL_API_KEY",
+    [StandardProviderKind.Anthropic]: "ANTHROPIC_API_KEY",
+    [StandardProviderKind.Perplexityai]: "PERPLEXITYAI_API_KEY",
+    [StandardProviderKind.TogetherAi]: "TOGETHERAI_API_KEY",
+    [StandardProviderKind.Openrouter]: "OPENROUTER_API_KEY",
+    [StandardProviderKind.Gemini]: "GEMINI_API_KEY",
+    [StandardProviderKind.Minimax]: "MINIMAX_API_KEY",
+}
+
+// Legacy aliases that map to the same canonical env var as their primary
+// counterpart. Used only in the reverse direction (env → kind).
+const STANDARD_PROVIDER_ENV_ALIASES: Record<string, StandardProviderKind> = {
+    MISTRALAI_API_KEY: StandardProviderKind.Mistral,
+}
+
 /**
  * Transform raw `/secrets/` response items into the `LlmProvider` shape
  * used throughout the app. Standard provider secrets and custom provider
  * secrets have different wire shapes; both collapse into the common
  * `LlmProvider` representation here.
+ *
+ * Standard secrets whose `kind` isn't in `STANDARD_PROVIDER_ENV_BY_KIND`
+ * are dropped (with a warning) — the app uses the env-var name as the
+ * provider identity, so an unmapped kind would surface as a nameless row.
  */
 export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {
     return secrets.reduce((acc, secret) => {
@@ -36,30 +71,16 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
             const data = secret.data as StandardProviderDto
 
             const provider = data.kind
-            const name = provider
-            const key = data.provider.key
-
-            const envNameMap: Record<string, string> = {
-                openai: "OPENAI_API_KEY",
-                cohere: "COHERE_API_KEY",
-                anyscale: "ANYSCALE_API_KEY",
-                deepinfra: "DEEPINFRA_API_KEY",
-                alephalpha: "ALEPHALPHA_API_KEY",
-                groq: "GROQ_API_KEY",
-                mistral: "MISTRAL_API_KEY",
-                mistralai: "MISTRAL_API_KEY",
-                anthropic: "ANTHROPIC_API_KEY",
-                perplexityai: "PERPLEXITYAI_API_KEY",
-                together_ai: "TOGETHERAI_API_KEY",
-                openrouter: "OPENROUTER_API_KEY",
-                gemini: "GEMINI_API_KEY",
-                minimax: "MINIMAX_API_KEY",
+            const envName = STANDARD_PROVIDER_ENV_BY_KIND[provider as StandardProviderKind]
+            if (!envName) {
+                console.warn(`[vault] Unmapped standard provider kind "${provider}" — skipping.`)
+                return acc
             }
 
             acc.push({
-                title: name || "",
-                key,
-                name: envNameMap[provider] || "",
+                title: provider,
+                key: data.provider.key,
+                name: envName,
                 id: secret.id ?? undefined,
                 type: secret.kind,
                 created_at: secret.lifecycle?.created_at ?? undefined,
@@ -136,25 +157,19 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
 /**
  * Map the env-var name (e.g. `OPENAI_API_KEY`) used by `LlmProvider.name`
  * back to the canonical `StandardProviderKind` value used when creating
- * a standard provider secret.
+ * a standard provider secret. Derived from `STANDARD_PROVIDER_ENV_BY_KIND`
+ * so the two directions can't drift.
  *
  * Returns `undefined` for unknown env-var names; the caller is expected
  * to throw a domain error in that case.
  */
-export const getEnvNameMap = (): Record<string, StandardProviderKind> => ({
-    OPENAI_API_KEY: StandardProviderKind.Openai,
-    COHERE_API_KEY: StandardProviderKind.Cohere,
-    ANYSCALE_API_KEY: StandardProviderKind.Anyscale,
-    DEEPINFRA_API_KEY: StandardProviderKind.Deepinfra,
-    ALEPHALPHA_API_KEY: StandardProviderKind.Alephalpha,
-    GROQ_API_KEY: StandardProviderKind.Groq,
-    MISTRAL_API_KEY: StandardProviderKind.Mistral,
-    // Backward-compatible mapping for legacy Mistral provider name
-    MISTRALAI_API_KEY: StandardProviderKind.Mistral,
-    ANTHROPIC_API_KEY: StandardProviderKind.Anthropic,
-    PERPLEXITYAI_API_KEY: StandardProviderKind.Perplexityai,
-    TOGETHERAI_API_KEY: StandardProviderKind.TogetherAi,
-    OPENROUTER_API_KEY: StandardProviderKind.Openrouter,
-    GEMINI_API_KEY: StandardProviderKind.Gemini,
-    MINIMAX_API_KEY: StandardProviderKind.Minimax,
-})
+export const getEnvNameMap = (): Record<string, StandardProviderKind> => {
+    const reverse = Object.entries(STANDARD_PROVIDER_ENV_BY_KIND).reduce(
+        (acc, [kind, env]) => {
+            if (env) acc[env] = kind as StandardProviderKind
+            return acc
+        },
+        {} as Record<string, StandardProviderKind>,
+    )
+    return {...reverse, ...STANDARD_PROVIDER_ENV_ALIASES}
+}

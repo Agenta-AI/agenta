@@ -5,15 +5,6 @@
  * Fern-generated `@agentaai/api-client` via `@agenta/sdk`. The backend
  * still exposes the deprecated `/vault/v1/secrets/` mount for backwards
  * compatibility, but new callers go through the canonical path.
- *
- * The function signatures match the legacy axios wrappers exactly so
- * `state/atoms.ts` can keep its existing call sites unchanged.
- *
- * Naming convention:
- *   - fetch / fetchAll : GET single / GET all
- *   - create           : POST
- *   - update           : PUT
- *   - delete           : DELETE
  */
 
 import type {LlmProvider} from "@agenta/shared/types"
@@ -22,8 +13,18 @@ import {transformSecret} from "../core/transforms"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
 
-type CreateSecretRequest = Parameters<ReturnType<typeof getSecretsClient>["createSecret"]>[0]
-type UpdateSecretRequest = Parameters<ReturnType<typeof getSecretsClient>["updateSecret"]>[0]
+type SecretsClient = ReturnType<typeof getSecretsClient>
+
+type CreateSecretRequest = Parameters<SecretsClient["createSecret"]>[0]
+type UpdateSecretRequest = Parameters<SecretsClient["updateSecret"]>[0]
+type DeleteSecretRequest = Parameters<SecretsClient["deleteSecret"]>[0]
+
+type CreateSecretResponse = Awaited<ReturnType<SecretsClient["createSecret"]>>
+type UpdateSecretResponse = Awaited<ReturnType<SecretsClient["updateSecret"]>>
+type DeleteSecretResponse = Awaited<ReturnType<SecretsClient["deleteSecret"]>>
+
+/** Payload portion of an update — `secret_id` is supplied alongside. */
+type UpdateSecretPayload = Omit<UpdateSecretRequest, "secret_id">
 
 export const fetchVaultSecret = async ({
     projectId,
@@ -34,34 +35,26 @@ export const fetchVaultSecret = async ({
     return transformSecret(result)
 }
 
-export const createVaultSecret = async <T>({
+export const createVaultSecret = async ({
     projectId,
     payload,
 }: {
     projectId: string
-    payload: T
-}): Promise<T> => {
-    const result = await getSecretsClient().createSecret(
-        payload as unknown as CreateSecretRequest,
-        projectScopedRequest(projectId),
-    )
-    return result as unknown as T
+    payload: CreateSecretRequest
+}): Promise<CreateSecretResponse> => {
+    return getSecretsClient().createSecret(payload, projectScopedRequest(projectId))
 }
 
-export const updateVaultSecret = async <T>({
+export const updateVaultSecret = async ({
     projectId,
     secret_id,
     payload,
 }: {
     projectId: string
     secret_id: string
-    payload: T
-}): Promise<T> => {
-    const result = await getSecretsClient().updateSecret(
-        {secret_id, ...(payload as Record<string, unknown>)} as UpdateSecretRequest,
-        projectScopedRequest(projectId),
-    )
-    return result as unknown as T
+    payload: UpdateSecretPayload
+}): Promise<UpdateSecretResponse> => {
+    return getSecretsClient().updateSecret({secret_id, ...payload}, projectScopedRequest(projectId))
 }
 
 export const deleteVaultSecret = async ({
@@ -70,6 +63,7 @@ export const deleteVaultSecret = async ({
 }: {
     projectId: string
     secret_id: string
-}) => {
-    return await getSecretsClient().deleteSecret({secret_id}, projectScopedRequest(projectId))
+}): Promise<DeleteSecretResponse> => {
+    const request: DeleteSecretRequest = {secret_id}
+    return getSecretsClient().deleteSecret(request, projectScopedRequest(projectId))
 }

@@ -38,12 +38,25 @@ import {
     removeEmptyFromObjects,
 } from "@agenta/shared/utils"
 import {atom} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
 import {getEnvNameMap, transformCustomProviderPayloadData} from "../core/transforms"
-import {SecretKind, type VaultMigrationStatus} from "../core/types"
+import {SecretKind, type CreateSecretDto, type VaultMigrationStatus} from "../core/types"
+
+interface CreateMutationArgs {
+    projectId: string
+    payload: CreateSecretDto
+}
+interface UpdateMutationArgs {
+    projectId: string
+    secret_id: string
+    payload: Parameters<typeof updateVaultSecret>[0]["payload"]
+}
+interface DeleteMutationArgs {
+    projectId: string
+    secret_id: string
+}
 
 /**
  * Atom for tracking vault key migration status.
@@ -122,56 +135,31 @@ export const customSecretsAtom = atom((get) => {
 })
 
 /**
- * Helper: read the current projectId from the shared store.
- *
- * Replaces the OSS `getProjectValues()` helper. We only need `projectId`
- * here, so reading it directly from the primitive atom keeps the package
- * agnostic of OSS-only state (org, projects query, etc.).
- */
-const readProjectId = (): string | null => {
-    return getDefaultStore().get(projectIdAtom)
-}
-
-/**
  * Mutation atom for creating vault secrets.
+ *
+ * Callers pass `projectId` explicitly via `mutateAsync`. Reading it from
+ * the calling atom's `get` (and forwarding it here) keeps this atom free
+ * of `getDefaultStore()`/global-store assumptions.
  */
 export const createVaultSecretMutationAtom = atomWithMutation(() => ({
-    mutationFn: async (payload: unknown) => {
-        const projectId = readProjectId()
-        if (!projectId) {
-            throw new Error("[vault] Missing projectId for createVaultSecret")
-        }
-
-        return await createVaultSecret({projectId, payload})
-    },
+    mutationFn: ({projectId, payload}: CreateMutationArgs) =>
+        createVaultSecret({projectId, payload}),
 }))
 
 /**
  * Mutation atom for updating vault secrets.
  */
 export const updateVaultSecretMutationAtom = atomWithMutation(() => ({
-    mutationFn: async ({secret_id, payload}: {secret_id: string; payload: unknown}) => {
-        const projectId = readProjectId()
-        if (!projectId) {
-            throw new Error("[vault] Missing projectId for updateVaultSecret")
-        }
-
-        return await updateVaultSecret({projectId, secret_id, payload})
-    },
+    mutationFn: ({projectId, secret_id, payload}: UpdateMutationArgs) =>
+        updateVaultSecret({projectId, secret_id, payload}),
 }))
 
 /**
  * Mutation atom for deleting vault secrets.
  */
 export const deleteVaultSecretMutationAtom = atomWithMutation(() => ({
-    mutationFn: async (secret_id: string) => {
-        const projectId = readProjectId()
-        if (!projectId) {
-            throw new Error("[vault] Missing projectId for deleteVaultSecret")
-        }
-
-        return await deleteVaultSecret({projectId, secret_id})
-    },
+    mutationFn: ({projectId, secret_id}: DeleteMutationArgs) =>
+        deleteVaultSecret({projectId, secret_id}),
 }))
 
 /**
@@ -183,6 +171,10 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
     const standardSecrets = get(standardSecretsAtom)
     const createMutation = get(createVaultSecretMutationAtom)
     const updateMutation = get(updateVaultSecretMutationAtom)
+    const projectId = get(projectIdAtom)
+    if (!projectId) {
+        throw new Error("[vault] Missing projectId for createStandardSecret")
+    }
 
     try {
         const providerKind = envNameMap[provider.name as string]
@@ -191,8 +183,13 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
                 `[vault] Unknown provider name "${provider.name}" when creating standard secret`,
             )
         }
+        if (!provider.key) {
+            throw new Error(
+                `[vault] Missing key for provider "${provider.name}" when creating standard secret`,
+            )
+        }
 
-        const payload = {
+        const payload: CreateSecretDto = {
             header: {
                 name: provider.title,
             },
@@ -215,9 +212,9 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
         const secretId = findSecret?.id ?? provider.id
 
         if (secretId) {
-            await updateMutation.mutateAsync({secret_id: secretId, payload})
+            await updateMutation.mutateAsync({projectId, secret_id: secretId, payload})
         } else {
-            await createMutation.mutateAsync(payload)
+            await createMutation.mutateAsync({projectId, payload})
         }
     } catch (error) {
         console.error("Failed to create/update standard secret:", error)
@@ -233,18 +230,22 @@ export const createCustomSecretAtom = atom(null, async (get, set, provider: LlmP
     const customSecrets = get(customSecretsAtom)
     const createMutation = get(createVaultSecretMutationAtom)
     const updateMutation = get(updateVaultSecretMutationAtom)
+    const projectId = get(projectIdAtom)
+    if (!projectId) {
+        throw new Error("[vault] Missing projectId for createCustomSecret")
+    }
 
     try {
         const rawPayload = transformCustomProviderPayloadData(provider)
-        const payload = removeEmptyFromObjects(rawPayload)
+        const payload = removeEmptyFromObjects(rawPayload) as CreateSecretDto
 
         const findSecret = customSecrets.find((s) => s.id === provider.id)
         const secretId = findSecret?.id ?? provider.id
 
         if (secretId) {
-            await updateMutation.mutateAsync({secret_id: secretId, payload})
+            await updateMutation.mutateAsync({projectId, secret_id: secretId, payload})
         } else {
-            await createMutation.mutateAsync(payload)
+            await createMutation.mutateAsync({projectId, payload})
         }
     } catch (error) {
         console.error("Failed to create/update custom secret:", error)
@@ -257,10 +258,14 @@ export const createCustomSecretAtom = atom(null, async (get, set, provider: LlmP
  */
 export const deleteSecretAtom = atom(null, async (get, set, provider: LlmProvider) => {
     const deleteMutation = get(deleteVaultSecretMutationAtom)
+    const projectId = get(projectIdAtom)
+    if (!projectId) {
+        throw new Error("[vault] Missing projectId for deleteSecret")
+    }
 
     try {
         if (provider.id) {
-            await deleteMutation.mutateAsync(provider.id)
+            await deleteMutation.mutateAsync({projectId, secret_id: provider.id})
         }
     } catch (error) {
         console.error("Failed to delete secret:", error)
