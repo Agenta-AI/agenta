@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import typing
 
 import pydantic
@@ -15,6 +16,8 @@ class AnalyticsResponse(UniversalBaseModel):
     """
     Analytics response with user-specified metric specs.
     """
+    support_id: typing.Optional[str] = None
+    support_ts: typing.Optional[dt.datetime] = None
     count: typing.Optional[int] = pydantic.Field(default=None)
     """
     Number of time buckets returned.

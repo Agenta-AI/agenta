@@ -4,6 +4,8 @@
  * OTLP endpoint readiness response.
  */
 export interface CollectStatusResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** Readiness string. `ready` means the router is mounted and accepts OTLP ingest. */
     status: string;
 }

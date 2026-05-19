@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import typing
 
 import pydantic
@@ -19,6 +20,8 @@ class OTelTracingResponse(UniversalBaseModel):
     nested trees). The shapes here match what the ingest endpoint accepts,
     so you can round-trip data between environments.
     """
+    support_id: typing.Optional[str] = None
+    support_ts: typing.Optional[dt.datetime] = None
     count: typing.Optional[int] = pydantic.Field(default=None)
     """
     Total number of matching traces or spans in the window.

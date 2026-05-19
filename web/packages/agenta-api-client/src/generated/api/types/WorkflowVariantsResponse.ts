@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface WorkflowVariantsResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** Number of variants in this page. */
     count?: number | undefined;
     /** Workflow variants matching the query. */

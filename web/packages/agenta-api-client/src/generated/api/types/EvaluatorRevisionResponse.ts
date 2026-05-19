@@ -6,6 +6,8 @@ import type * as AgentaApi from "../index.js";
  * Envelope for a single evaluator revision.
  */
 export interface EvaluatorRevisionResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** 1 when a revision is returned, 0 otherwise. */
     count?: number | undefined;
     /** The evaluator revision, or null when none matched. */

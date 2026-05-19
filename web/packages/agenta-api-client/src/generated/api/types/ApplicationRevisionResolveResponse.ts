@@ -6,6 +6,8 @@ import type * as AgentaApi from "../index.js";
  * Response for `POST /applications/revisions/resolve`.
  */
 export interface ApplicationRevisionResolveResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** `1` when a revision was resolved, `0` otherwise. */
     count?: number | undefined;
     /** The revision with embedded references inlined into `data`. */

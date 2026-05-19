@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface TestsetsResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** Number of testsets returned on this page. */
     count?: number | undefined;
     /** Testset artifacts matching the query, without testcases. */

@@ -6,6 +6,8 @@ import type * as AgentaApi from "../index.js";
  * Envelope for a resolved evaluator revision.
  */
 export interface EvaluatorRevisionResolveResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** 1 when a revision was resolved, 0 otherwise. */
     count?: number | undefined;
     /** The resolved revision. */

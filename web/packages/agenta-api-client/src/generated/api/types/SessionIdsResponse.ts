@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SessionIdsResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** Number of session IDs in this page. */
     count?: number | undefined;
     /** Distinct values of `ag.session.id` in this page. */

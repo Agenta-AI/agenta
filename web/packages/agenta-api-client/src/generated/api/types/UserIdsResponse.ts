@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface UserIdsResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** Number of user IDs in this page. */
     count?: number | undefined;
     /** Distinct values of `ag.user.id` in this page. */

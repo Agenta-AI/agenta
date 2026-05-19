@@ -13,6 +13,8 @@ import type * as AgentaApi from "../index.js";
  * the full semantics of the `202 Accepted` response.
  */
 export interface OTelLinksResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** Number of spans that were accepted and published to the ingest stream. Compare against the number of spans you sent to detect partial failures. */
     count?: number | undefined;
     /** List of `(trace_id, span_id)` pairs for the accepted spans, in submission order. */

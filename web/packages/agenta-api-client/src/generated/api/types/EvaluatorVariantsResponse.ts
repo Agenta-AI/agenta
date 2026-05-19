@@ -6,6 +6,8 @@ import type * as AgentaApi from "../index.js";
  * Envelope for a list of evaluator variants.
  */
 export interface EvaluatorVariantsResponse {
+    support_id?: (string | null) | undefined;
+    support_ts?: (string | null) | undefined;
     /** Number of variants in `evaluator_variants`. */
     count?: number | undefined;
     /** Matching evaluator variants. */
