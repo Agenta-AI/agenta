@@ -39,6 +39,19 @@ const env = {
     // molecule layer). Used for A/B perf comparison vs the default
     // molecule-backed path. Defaults to "molecule".
     fetcherMode: (process.env.AGENTA_FETCHER_MODE ?? "molecule") as "molecule" | "raw",
+    // Comma-separated subset of `results,metrics,testcases,traces`. When
+    // set, the hydrate stage only calls those fetchers — others return
+    // empty results without network. Mirrors the test page's predicate-
+    // driven hydrate strategy (slices the active predicate doesn't touch
+    // are skipped). Use for perf A/B between "all 4 slices" baseline and
+    // "predicate-driven subset" to measure the byte/time savings.
+    // Default: all 4 slices.
+    hydrateSlices: (process.env.AGENTA_HYDRATE_SLICES ?? "results,metrics,testcases,traces")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s): s is "results" | "metrics" | "testcases" | "traces" =>
+            ["results", "metrics", "testcases", "traces"].includes(s),
+        ),
     // Post-hydrate predicate filter — see makeRowPredicateFilter docs. Wire
     // a value-equality predicate against any resolved UI column. Format:
     //   AGENTA_PREDICATE_KIND=annotation
@@ -75,6 +88,31 @@ const env = {
         | "gt"
         | "gte",
     predicate2ValueRaw: process.env.AGENTA_PREDICATE2_VALUE,
+    // Sink retention strategy:
+    //   "accumulate" (default) — sink keeps every hydrated row in memory.
+    //       Useful for full sample dumps and post-hoc inspection. Memory
+    //       grows linearly with dataset size (~65 KB/row).
+    //   "streaming" — sink updates running aggregates per row and drops
+    //       the chunk. Retains only the first row as a sample. Memory
+    //       stays bounded regardless of dataset size — mirrors what a
+    //       production sink does (write each row to atoms, then release).
+    //
+    // Aggregate counters (counts, sums, ID range, status distribution)
+    // are populated identically in both modes; only the row retention
+    // differs. All downstream report sections read from the aggregate
+    // so output looks the same except where it has to (sample count = 1).
+    sinkMode: (process.env.AGENTA_SINK_MODE ?? "accumulate") as "accumulate" | "streaming",
+    // Residual-heap walk (debug-only). When set to "1", the script tears
+    // down suspected retainers one at a time after the pipeline finishes,
+    // measures heap after each step, dumps a V8 heap snapshot to /tmp,
+    // and prints a per-step heap delta table. Disabled by default because:
+    //   - writeHeapSnapshot writes a ~50 MB file per run (wasted CI I/O)
+    //   - the teardown clears aggregate state which would pollute the
+    //     final JSON report
+    //   - the steady-state "Memory bounded" engine guarantee already
+    //     covers regression detection without any walk
+    // Use when investigating a memory regression: AGENTA_HEAP_WALK=1.
+    heapWalk: process.env.AGENTA_HEAP_WALK === "1",
 }
 
 // In JSON mode, suppress decorative output; everything goes through structured
@@ -167,7 +205,8 @@ async function main() {
     type ChunkCacheStats = import("../src/evaluationRun/etl/cacheAwareFetchers").ChunkCacheStats
     const {resolveMappings, groupResolvedColumns} =
         await import("../src/evaluationRun/etl/resolveMappings")
-    const {makeRowPredicateFilter} = await import("../src/evaluationRun/etl/rowPredicateFilter")
+    const {makeRowPredicateFilter, unwrapStatsForCompare} =
+        await import("../src/evaluationRun/etl/rowPredicateFilter")
     type RowPredicate = import("../src/evaluationRun/etl/rowPredicateFilter").RowPredicate
     const {createHitRatioMeter} = await import("../src/evaluationRun/etl/hitRatioMeter")
     type HitRatioRegime = import("../src/evaluationRun/etl/hitRatioMeter").HitRatioRegime
@@ -234,7 +273,9 @@ async function main() {
     row("Cancellation policy", "viewport-fill (matched >= viewport target)")
     row(
         "Hydrate budget",
-        "4 bulk requests per chunk: /results/query, /metrics/query, /testcases/query, /tracing/spans/query",
+        `${env.hydrateSlices.length} bulk request(s) per chunk · slices: ${env.hydrateSlices.join(", ")}${
+            env.hydrateSlices.length < 4 ? "  (slice-filtered)" : ""
+        }`,
     )
 
     subsection(`Entity-layer integration (hydrate fetchers — mode=${env.fetcherMode})`)
@@ -569,8 +610,23 @@ async function main() {
     })
     // Switchable A/B path: "molecule" goes through the entity cache,
     // "raw" calls the api functions directly. Same hydrate transform body.
-    const chosenFetchers =
+    const baseFetchers =
         env.fetcherMode === "raw" ? DEFAULT_HYDRATE_FETCHERS : moleculeBackedFetchers
+
+    // Slice-filtered fetcher wrapper — implements the test page's
+    // predicate-driven hydrate at the headless layer. Slices not in
+    // `env.hydrateSlices` resolve to empty results without network.
+    // Same `HydrateFetchers` shape as the underlying fetchers; the
+    // hydrate transform downstream is identical for both paths.
+    const slicesActive = new Set(env.hydrateSlices)
+    const chosenFetchers: typeof baseFetchers = {
+        fetchResults: slicesActive.has("results") ? baseFetchers.fetchResults : async () => [],
+        fetchMetrics: slicesActive.has("metrics") ? baseFetchers.fetchMetrics : async () => [],
+        fetchTestcases: slicesActive.has("testcases")
+            ? baseFetchers.fetchTestcases
+            : async () => new Map(),
+        fetchTraces: slicesActive.has("traces") ? baseFetchers.fetchTraces : async () => new Map(),
+    }
 
     const hydrateScenarios = makeHydrateScenariosTransform<ScenarioRow>({
         projectId: env.projectId,
@@ -747,6 +803,110 @@ async function main() {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Sink + aggregate
+    //
+    // The sink updates a running aggregate per row so downstream reports
+    // can be built without holding the full row set in memory. In
+    // `accumulate` mode we also retain every row in `matchedRows` for
+    // backwards-compatible dumps; in `streaming` mode `matchedRows` stays
+    // empty except for the captured sample row, and the chunk goes out of
+    // scope when load() returns so GC can reclaim it.
+    // ------------------------------------------------------------------
+
+    interface SinkAggregate {
+        count: number
+        scenarioIds: string[]
+        testcaseIdSet: Set<string>
+        traceIdSet: Set<string>
+        statusCounts: Map<string, number>
+        totalResults: number
+        minResults: number
+        maxResults: number
+        totalMetrics: number
+        rowsWithMetric: number
+        rowsWithTestcase: number
+        totalTraces: number
+        rowsWithTraces: number
+        // Engine-guarantee invariants — flipped false the first time
+        // a row violates the rule. Allows assertion checks without a
+        // full row scan.
+        allHaveValidId: boolean
+        allHaveJoinedEntities: boolean
+        minId: string | null
+        maxId: string | null
+        sampleRow: HydratedScenarioRow<ScenarioRow> | null
+    }
+
+    const aggregate: SinkAggregate = {
+        count: 0,
+        scenarioIds: [],
+        testcaseIdSet: new Set<string>(),
+        traceIdSet: new Set<string>(),
+        statusCounts: new Map<string, number>(),
+        totalResults: 0,
+        minResults: Number.POSITIVE_INFINITY,
+        maxResults: 0,
+        totalMetrics: 0,
+        rowsWithMetric: 0,
+        rowsWithTestcase: 0,
+        totalTraces: 0,
+        rowsWithTraces: 0,
+        allHaveValidId: true,
+        allHaveJoinedEntities: true,
+        minId: null,
+        maxId: null,
+        sampleRow: null,
+    }
+
+    function updateAggregate(hr: HydratedScenarioRow<ScenarioRow>): void {
+        aggregate.count += 1
+
+        const id = hr.scenario.id
+        if (typeof id === "string") {
+            aggregate.scenarioIds.push(id)
+            if (aggregate.minId === null || id < aggregate.minId) aggregate.minId = id
+            if (aggregate.maxId === null || id > aggregate.maxId) aggregate.maxId = id
+        }
+
+        if (typeof hr.scenario.testcase_id === "string" && hr.scenario.testcase_id) {
+            aggregate.testcaseIdSet.add(hr.scenario.testcase_id)
+        }
+        for (const r of hr.results) {
+            if (typeof r.testcase_id === "string" && r.testcase_id) {
+                aggregate.testcaseIdSet.add(r.testcase_id)
+            }
+        }
+        for (const tid of Object.keys(hr.traces)) {
+            if (typeof tid === "string" && tid) aggregate.traceIdSet.add(tid)
+        }
+
+        const status = hr.scenario.status
+        aggregate.statusCounts.set(status, (aggregate.statusCounts.get(status) ?? 0) + 1)
+
+        aggregate.totalResults += hr.results.length
+        if (hr.results.length < aggregate.minResults) aggregate.minResults = hr.results.length
+        if (hr.results.length > aggregate.maxResults) aggregate.maxResults = hr.results.length
+
+        aggregate.totalMetrics += hr.metrics.length
+        if (hr.metrics.length > 0) aggregate.rowsWithMetric += 1
+
+        if (hr.testcase !== null) aggregate.rowsWithTestcase += 1
+
+        const traceCount = Object.keys(hr.traces).length
+        aggregate.totalTraces += traceCount
+        if (traceCount > 0) aggregate.rowsWithTraces += 1
+
+        if (!(typeof hr.scenario.id === "string" && !hr.scenario.__isSkeleton)) {
+            aggregate.allHaveValidId = false
+        }
+        const hasAnyJoinedEntity =
+            hr.results.length > 0 || hr.metrics.length > 0 || hr.testcase !== null || traceCount > 0
+        if (!hasAnyJoinedEntity) aggregate.allHaveJoinedEntities = false
+
+        if (aggregate.sampleRow === null) aggregate.sampleRow = hr
+    }
+
     const matchedRows: HydratedScenarioRow<ScenarioRow>[] = []
     let finalizedRan = false
     const sinkLatencies: number[] = []
@@ -754,7 +914,15 @@ async function main() {
     const wrappedSink: Sink<HydratedScenarioRow<ScenarioRow>> = {
         async load(chunk: Chunk<HydratedScenarioRow<ScenarioRow>>) {
             const start = performance.now()
-            matchedRows.push(...chunk.items)
+            for (const item of chunk.items) updateAggregate(item)
+            if (env.sinkMode === "accumulate") {
+                matchedRows.push(...chunk.items)
+            }
+            // In "streaming" mode, chunk + chunk.items go out of scope
+            // when this function returns. The runLoop has no other
+            // reference to them. GC reclaims on the next cycle, so
+            // peak heap stays bounded by chunk size × concurrency
+            // rather than dataset size.
             const ms = performance.now() - start
             pendingSinkMs += ms
             sinkLatencies.push(ms)
@@ -1150,12 +1318,10 @@ async function main() {
     // here so the diagnostic surface shows the real cost of subscribing
     // to atoms on top of the bulk-cache path.
     const {traceEntityAtomFamily} = await import("../src/trace/state/store")
-    for (const hr of matchedRows) {
-        for (const traceId of Object.keys(hr.traces)) {
-            // Just creating the atom adds traceId to the family's tracking
-            // Set. The atom itself is lazy — we don't subscribe.
-            traceEntityAtomFamily(traceId)
-        }
+    for (const traceId of aggregate.traceIdSet) {
+        // Just creating the atom adds traceId to the family's tracking
+        // Set. The atom itself is lazy — we don't subscribe.
+        traceEntityAtomFamily(traceId)
     }
 
     const postHydrateCache = inspectCache()
@@ -1202,12 +1368,12 @@ async function main() {
     const totalAtomFamilyParams = postHydrateAtomFamilies.reduce((a, f) => a + f.size, 0)
     log(`    total params across all instrumented families: ${totalAtomFamilyParams}`)
     log("")
-    log(
-        `  ⚠ TanStack entries + atom family params persist until process exit unless explicitly evicted.`,
-    )
-    log(`    For ETL/long-run flows: evaluationResultMolecule.actions.evictByRunId(...)`)
-    log(`    + clearCacheByPrefix(['testcase','trace-entity','span'])`)
-    log(`    + family.clear() for instrumented atom families you want to release.`)
+    log(`  ⚠ In a script context, no React subscribers means TanStack's gcTime never fires.`)
+    log(`    Entity caches + atom family params persist until process exit.`)
+    log(`    Browser-side, the scenarios table's atoms subscribe → TanStack auto-GCs`)
+    log(`    after gcTime (60s for pages, 5min default for entity caches) once the user`)
+    log(`    navigates away. The gap is run-switching in the same tab — see the`)
+    log(`    "Scope-change eviction" subsection below for the controller wire-up.`)
     // Look for evidence of GC: heap went down between any two consecutive chunks
     const gcEvents = metrics.reduce((count, m, i) => {
         if (i === 0) return count
@@ -1266,53 +1432,67 @@ async function main() {
 
     subsection("Cache reuse verification (re-prefetch the same scenarios)")
 
-    const scenarioIdsForReprefetch = matchedRows.map((r) => r.scenario.id)
-    const testcaseIdsForReprefetch = Array.from(
-        new Set(
-            matchedRows
-                .flatMap((r) => [
-                    r.scenario.testcase_id,
-                    ...r.results.map((res) => res.testcase_id),
-                ])
-                .filter((v): v is string => typeof v === "string" && v.length > 0),
-        ),
-    )
-    const traceIdsForReprefetch = Array.from(
-        new Set(
-            matchedRows
-                .flatMap((r) => Object.keys(r.traces))
-                .filter((v) => typeof v === "string" && v.length > 0),
-        ),
-    )
+    // Pull from the aggregate — both modes populate these identically, so
+    // re-prefetch verification doesn't care about sink retention strategy.
+    const scenarioIdsForReprefetch = aggregate.scenarioIds.slice()
+    const testcaseIdsForReprefetch = Array.from(aggregate.testcaseIdSet)
+    const traceIdsForReprefetch = Array.from(aggregate.traceIdSet)
 
     const {evaluationResultMolecule, evaluationMetricMolecule} =
         await import("../src/evaluationRun/state")
     const {prefetchTestcasesByIds: rePrefetchTc} = await import("../src/testcase/state/prefetch")
     const {prefetchTracesByIds: rePrefetchTr} = await import("../src/trace/state/prefetch")
 
-    const reprefetchResults = await evaluationResultMolecule.actions.prefetchByScenarioIds({
-        projectId: env.projectId,
-        runId: env.runId,
-        scenarioIds: scenarioIdsForReprefetch,
-    })
-    const reprefetchMetrics = await evaluationMetricMolecule.actions.prefetchByScenarioIds({
-        projectId: env.projectId,
-        runId: env.runId,
-        scenarioIds: scenarioIdsForReprefetch,
-    })
-    const reprefetchTestcases = await rePrefetchTc({
-        projectId: env.projectId,
-        testcaseIds: testcaseIdsForReprefetch,
-    })
-    const reprefetchTraces = await rePrefetchTr({
-        projectId: env.projectId,
-        traceIds: traceIdsForReprefetch,
-    })
+    // -----------------------------------------------------------------
+    // Re-prefetch and extract ONLY the stats we'll display, immediately
+    // dropping the returned data arrays so they don't pin ~25 MB of
+    // EvaluationResult/Metric/Testcase/Trace objects on the main() stack
+    // for the rest of the script.
+    //
+    // Heap-snapshot retainer-path analysis showed all four prefetch
+    // return values being held alive via the main() closure context
+    // (internal slots 195-197 of the function context object), accounting
+    // for most of the post-eviction residual. Inlining the stat
+    // extraction keeps the function temps GC-eligible after the line
+    // they're used on.
+    // -----------------------------------------------------------------
 
-    const formatRerun = (
-        label: string,
-        s: {cacheHits: number; cacheMisses: number; fetchMs: number},
-    ) => {
+    type ReprefetchStat = {cacheHits: number; cacheMisses: number; fetchMs: number}
+    const reprefetchStats: Record<"results" | "metrics" | "testcases" | "traces", ReprefetchStat> =
+        {
+            results: await (async () => {
+                const r = await evaluationResultMolecule.actions.prefetchByScenarioIds({
+                    projectId: env.projectId,
+                    runId: env.runId,
+                    scenarioIds: scenarioIdsForReprefetch,
+                })
+                return {cacheHits: r.cacheHits, cacheMisses: r.cacheMisses, fetchMs: r.fetchMs}
+            })(),
+            metrics: await (async () => {
+                const r = await evaluationMetricMolecule.actions.prefetchByScenarioIds({
+                    projectId: env.projectId,
+                    runId: env.runId,
+                    scenarioIds: scenarioIdsForReprefetch,
+                })
+                return {cacheHits: r.cacheHits, cacheMisses: r.cacheMisses, fetchMs: r.fetchMs}
+            })(),
+            testcases: await (async () => {
+                const r = await rePrefetchTc({
+                    projectId: env.projectId,
+                    testcaseIds: testcaseIdsForReprefetch,
+                })
+                return {cacheHits: r.cacheHits, cacheMisses: r.cacheMisses, fetchMs: r.fetchMs}
+            })(),
+            traces: await (async () => {
+                const r = await rePrefetchTr({
+                    projectId: env.projectId,
+                    traceIds: traceIdsForReprefetch,
+                })
+                return {cacheHits: r.cacheHits, cacheMisses: r.cacheMisses, fetchMs: r.fetchMs}
+            })(),
+        }
+
+    const formatRerun = (label: string, s: ReprefetchStat) => {
         const total = s.cacheHits + s.cacheMisses
         const hitPct = total > 0 ? (s.cacheHits / total) * 100 : 0
         const verdict =
@@ -1322,27 +1502,49 @@ async function main() {
             `${s.cacheHits}/${total} (${hitPct.toFixed(0)}%) — ${s.fetchMs.toFixed(1)} ms network — ${verdict}`,
         )
     }
-    formatRerun("results", reprefetchResults)
-    formatRerun("metrics", reprefetchMetrics)
-    formatRerun("testcases", {
-        cacheHits: reprefetchTestcases.cacheHits,
-        cacheMisses: reprefetchTestcases.cacheMisses,
-        fetchMs: reprefetchTestcases.fetchMs,
-    })
-    formatRerun("traces", {
-        cacheHits: reprefetchTraces.cacheHits,
-        cacheMisses: reprefetchTraces.cacheMisses,
-        fetchMs: reprefetchTraces.fetchMs,
-    })
+    formatRerun("results", reprefetchStats.results)
+    formatRerun("metrics", reprefetchStats.metrics)
+    formatRerun("testcases", reprefetchStats.testcases)
+    formatRerun("traces", reprefetchStats.traces)
 
-    // ---- Eviction verification --------------------------------------
-    // After a long-run pass, callers must be able to release entity-cache
-    // memory. Use the molecule-level evictByRunId to bulk-drop everything
-    // for this run, plus clearCacheByPrefix for testcase/trace (which are
-    // run-agnostic). This section proves the cache shrinks after eviction.
+    // ---- Scope-change eviction (production-should pattern) ----------
+    //
+    // Today's reality: production does NOT call evictByRunId anywhere.
+    // The scenarios table relies on TanStack's automatic gcTime:
+    //   - pages atom (page-level scenario queries) uses gcTime: 60_000
+    //     (from createInfiniteTableStore — auto-drops 60s after unmount)
+    //   - entity molecules (results/metrics/testcases/traces) inherit
+    //     QueryClient defaults (gcTime: 5 min, no observers in script
+    //     mode) — see resultMolecule.ts:191 comment confirming this
+    //   - atom families grow monotonically; family.clear() is the only
+    //     way to release atom-level memory
+    //
+    // Run-switching in the same tab is the gap: when the user moves from
+    // run A to run B, run A's entity caches sit for up to 5 minutes
+    // before TanStack GCs them. Peak memory during the overlap = sum of
+    // both runs.
+    //
+    // This section demonstrates the eviction handler that the production
+    // scenarios controller SHOULD wire on runId change. Concretely:
+    //
+    //   useEffect(() => {
+    //     return () => {
+    //       evaluationResultMolecule.actions.evictByRunId({projectId, runId})
+    //       evaluationMetricMolecule.actions.evictByRunId({projectId, runId})
+    //       clearCacheByPrefix(["testcase", "trace-entity", "span"])
+    //       // family.clear() only if no other live view subscribes
+    //     }
+    //   }, [projectId, runId])
+    //
+    // The measurements below show what wiring that cleanup would save.
     // -----------------------------------------------------------------
 
-    subsection("Cache eviction (bounded memory for long-run scripts)")
+    subsection("Scope-change eviction (production-should handler — wire-up TODO)")
+    log("  ▸ Production today does NOT call this. Comment in resultMolecule.ts:191")
+    log("    confirms entity caches accumulate. The scenarios controller's next-PR")
+    log("    wiring should add the cleanup snippet shown above this subsection.")
+    log("    The numbers below show what that handler would release on each run switch.")
+    log("")
 
     const preEvictCache = inspectCache()
     const preEvictAtomFamilies = inspectAtomFamilies()
@@ -1399,6 +1601,229 @@ async function main() {
         "Atom family params (after clear)",
         `${finalTotal} retained, ${removedAtomParams} params removed`,
     )
+
+    // -----------------------------------------------------------------
+    // Heap accounting — measure the residual once cache + atom families
+    // are gone. This isolates "what's the cache actually costing in
+    // heap?" from "what other allocation is the pipeline holding?".
+    //
+    // The `inspectCache` byte count is `JSON.stringify(data).length` —
+    // a string-length proxy, not real heap. V8 UTF-16 strings, object
+    // property overhead, and hash maps typically push real heap to
+    // 2-5× the JSON length. Forcing GC after eviction and re-reading
+    // heapUsed gives us the actual number.
+    // -----------------------------------------------------------------
+    if (typeof globalThis.gc === "function") {
+        // Two passes: first reclaims unreferenced, second reclaims
+        // anything kept alive by the first pass's young-gen residue.
+        globalThis.gc()
+        globalThis.gc()
+    }
+    const postEvictHeapDelta = process.memoryUsage().heapUsed - baselineMem
+    const peakHeapMb = (peakHeap / 1024 / 1024).toFixed(2)
+    const postEvictHeapMb = (postEvictHeapDelta / 1024 / 1024).toFixed(2)
+    const cacheJsonKb = (postHydrateCache.totalApproxBytes / 1024).toFixed(1)
+    const cacheRealHeapBytes = peakHeap - postEvictHeapDelta
+    const cacheRealHeapMb = (cacheRealHeapBytes / 1024 / 1024).toFixed(2)
+    const proxyMultiplier =
+        postHydrateCache.totalApproxBytes > 0
+            ? cacheRealHeapBytes / postHydrateCache.totalApproxBytes
+            : 0
+    row(
+        "Heap after full eviction",
+        `${postEvictHeapMb} MB delta from baseline ` + `(was peak ${peakHeapMb} MB at end of loop)`,
+    )
+    row(
+        "Cache + atom-family real cost",
+        `${cacheRealHeapMb} MB heap freed by eviction ` +
+            `(JSON-proxy reported ${cacheJsonKb} KB — real heap ≈ ${proxyMultiplier.toFixed(1)}× the proxy)`,
+    )
+    log("  ▸ The `inspectCache` bytes column is a JSON-string-length proxy, not heap. Forcing GC")
+    log("    after eviction gives us the actual heap cost — useful for setting realistic memory")
+    log("    budgets in long-running scripts.")
+    if (typeof globalThis.gc !== "function") {
+        log(
+            "  ⚠ globalThis.gc is unavailable — run with `node --expose-gc` for accurate eviction-residual heap.",
+        )
+    }
+
+    // -----------------------------------------------------------------
+    // Residual-heap walk — measure where the leftover memory actually
+    // lives. Tear down suspected retainers one at a time and snapshot
+    // heap after each step.
+    //
+    // Each step:
+    //   1. Drop references from this script
+    //   2. Force GC (twice — moves through young/old generations)
+    //   3. Measure heapUsed delta from baseline
+    //
+    // If heap drops at step N, the resource we just released at step N
+    // was the retainer. If heap is flat across all steps, the residual
+    // is permanent infrastructure (Node module graph, JIT'd code,
+    // QueryClient prototype objects, etc.) and not addressable from
+    // userland.
+    //
+    // Gated behind AGENTA_HEAP_WALK=1 because: (a) it side-effects the
+    // aggregate state that downstream sections still need, (b) it dumps
+    // a ~50 MB heap snapshot to /tmp on every run, (c) the steady-state
+    // "Memory bounded" engine guarantee already catches regressions
+    // without it. Enable when chasing a specific retainer.
+    // -----------------------------------------------------------------
+    if (env.heapWalk && typeof globalThis.gc === "function") {
+        subsection("Residual-heap walk — where does the leftover live?")
+
+        function snapshot(label: string): number {
+            globalThis.gc!()
+            globalThis.gc!()
+            const heap = process.memoryUsage().heapUsed - baselineMem
+            return heap
+        }
+
+        const stepResults: {label: string; heapMb: number; deltaMb: number}[] = []
+        let prevHeap = snapshot("initial (post-eviction)")
+        stepResults.push({
+            label: "after cache+atoms evicted",
+            heapMb: prevHeap / 1024 / 1024,
+            deltaMb: 0,
+        })
+
+        // Step 0.5: enumerate ALL remaining TanStack keys — not just known
+        // prefixes. If anything's left, our diagnostic-prefix list is
+        // incomplete (or another subsystem is caching outside molecules).
+        const {queryClientAtom} = await import("jotai-tanstack-query")
+        const {getDefaultStore} = await import("jotai")
+        const qc = getDefaultStore().get(queryClientAtom) as
+            | {
+                  getQueryCache?: () => {
+                      getAll: () => {
+                          queryKey: unknown
+                          state: {data: unknown}
+                      }[]
+                  }
+              }
+            | undefined
+        const queries = qc?.getQueryCache?.()?.getAll?.() ?? []
+        if (queries.length > 0) {
+            const remainingByPrefix = new Map<string, {count: number; bytes: number}>()
+            for (const q of queries) {
+                const key = q.queryKey
+                const prefix = Array.isArray(key) && typeof key[0] === "string" ? key[0] : "?"
+                const data = q.state.data
+                const bytes = data === undefined ? 0 : JSON.stringify(data).length
+                const slot = remainingByPrefix.get(prefix) ?? {count: 0, bytes: 0}
+                slot.count += 1
+                slot.bytes += bytes
+                remainingByPrefix.set(prefix, slot)
+            }
+            log("\n  Remaining TanStack entries (full cache scan, all prefixes):")
+            for (const [prefix, s] of Array.from(remainingByPrefix.entries()).sort(
+                (a, b) => b[1].bytes - a[1].bytes,
+            )) {
+                log(
+                    `    ${prefix.padEnd(28)} ${String(s.count).padStart(4)} entries  ` +
+                        `${(s.bytes / 1024).toFixed(1).padStart(10)} KB JSON-proxy`,
+                )
+            }
+        } else {
+            log("\n  Remaining TanStack entries: none (cache fully drained)")
+        }
+
+        // Step 1: dispose the paginated source store
+        const beforeDispose = prevHeap
+        ;(scenariosStore as unknown as {dispose?: () => number}).dispose?.()
+        prevHeap = snapshot("after scenariosStore.dispose()")
+        stepResults.push({
+            label: "after scenariosStore.dispose()",
+            heapMb: prevHeap / 1024 / 1024,
+            deltaMb: (prevHeap - beforeDispose) / 1024 / 1024,
+        })
+
+        // Step 2: clear the in-script row/aggregate state
+        const beforeRowClear = prevHeap
+        matchedRows.length = 0
+        aggregate.scenarioIds.length = 0
+        aggregate.testcaseIdSet.clear()
+        aggregate.traceIdSet.clear()
+        aggregate.statusCounts.clear()
+        aggregate.sampleRow = null
+        prevHeap = snapshot("after matchedRows + aggregate cleared")
+        stepResults.push({
+            label: "after matchedRows + aggregate cleared",
+            heapMb: prevHeap / 1024 / 1024,
+            deltaMb: (prevHeap - beforeRowClear) / 1024 / 1024,
+        })
+
+        // (per-chunk metric arrays are tiny and still needed by later
+        // sections of the script; we don't tear them down here.)
+
+        // Step 3: dump V8 heap snapshot for offline inspection. The file
+        // can be opened in Chrome DevTools → Memory tab to see top
+        // retainers + dominator tree. Useful when nothing in userland
+        // reclaims the residual.
+        const beforeSnapshot = prevHeap
+        const v8mod = await import("node:v8")
+        const snapshotPath = `/tmp/poc-residual-heap-${env.sinkMode}-${Date.now()}.heapsnapshot`
+        try {
+            v8mod.writeHeapSnapshot(snapshotPath)
+            log(`\n  Heap snapshot written: ${snapshotPath}`)
+            log(`    open in Chrome DevTools → Memory tab → "Load snapshot"`)
+        } catch (e) {
+            log(`  ⚠ writeHeapSnapshot failed: ${e instanceof Error ? e.message : e}`)
+        }
+        prevHeap = snapshot("after heap snapshot write")
+        stepResults.push({
+            label: "after heap snapshot write",
+            heapMb: prevHeap / 1024 / 1024,
+            deltaMb: (prevHeap - beforeSnapshot) / 1024 / 1024,
+        })
+
+        // Step 4: take heap-space breakdown — what's left, by V8 space?
+        // This tells us whether the residual is in `old space` (long-lived
+        // objects) or `code space` (compiled JS) or `external` (Buffer-like).
+        const v8 = await import("node:v8")
+        const heapStats = v8.getHeapStatistics()
+        const spaceStats = v8.getHeapSpaceStatistics()
+
+        log("\n  Teardown sequence (heap residual after each step):")
+        log("  " + "─".repeat(74))
+        for (const s of stepResults) {
+            const sign = s.deltaMb > 0 ? "+" : ""
+            log(
+                `    ${s.label.padEnd(48)} ${s.heapMb.toFixed(2).padStart(7)} MB ` +
+                    `${s.deltaMb !== 0 ? `(${sign}${s.deltaMb.toFixed(2)} MB)` : ""}`,
+            )
+        }
+
+        log("\n  V8 heap space breakdown (final residual):")
+        log("  " + "─".repeat(74))
+        const sortedSpaces = [...spaceStats].sort((a, b) => b.space_used_size - a.space_used_size)
+        for (const sp of sortedSpaces) {
+            if (sp.space_used_size === 0) continue
+            log(
+                `    ${sp.space_name.padEnd(28)} ` +
+                    `${(sp.space_used_size / 1024 / 1024).toFixed(2).padStart(8)} MB used  ` +
+                    `${(sp.space_size / 1024 / 1024).toFixed(2).padStart(8)} MB allocated`,
+            )
+        }
+        log("")
+        row(
+            "Total heap size",
+            `${(heapStats.total_heap_size / 1024 / 1024).toFixed(2)} MB ` +
+                `(used ${(heapStats.used_heap_size / 1024 / 1024).toFixed(2)} MB)`,
+        )
+        row(
+            "External memory (Buffers/ArrayBuffers)",
+            `${(heapStats.external_memory / 1024 / 1024).toFixed(2)} MB`,
+        )
+        row("Native contexts", `${heapStats.number_of_native_contexts} (Node + jsdom + isolates)`)
+
+        log("")
+        log("  How to read this:")
+        log("    - Negative delta at a step = that step's resource was the retainer.")
+        log("    - All zero/positive deltas = residual is in Node infrastructure")
+        log("      (loaded modules, JIT code, QueryClient internals) — not addressable")
+        log("      from userland, only by exiting the process.")
+    }
 
     subsection("Hydration cost (correlated entity fetches per chunk)")
 
@@ -1477,130 +1902,110 @@ async function main() {
         return String(v)
     }
 
+    // Pretty-print a resolved value for the dump.
+    //
+    // The resolver returns raw stats blobs (e.g. `{type: "binary", freq: [...]}`)
+    // because the value is the same shape the molecule stores and the predicate
+    // filter / CSV exporter / rollup card all want different projections of it.
+    // For the human-readable PoC dump we apply the same unwrap the predicate
+    // filter uses (`unwrapStatsForCompare`) and tag the column so it's clear
+    // the displayed value is a projection, not the raw payload.
+    function displayValue(v: unknown): {text: string; tag: string | null} {
+        if (v === null || typeof v !== "object") {
+            return {text: shortVal(v, 80), tag: null}
+        }
+        const t = (v as {type?: string}).type
+        if (t === "binary" || t === "numeric" || t === "numeric/continuous") {
+            const unwrapped = unwrapStatsForCompare(v)
+            return {text: shortVal(unwrapped, 80), tag: `stats:${t}`}
+        }
+        return {text: shortVal(v, 80), tag: null}
+    }
+
+    // Dump a single hydrated row in the resolved-column shape — the same
+    // grouped view the scenarios table renders (Testset / Application /
+    // <Evaluator> / Metrics). Hides the raw join blob; shows only what a
+    // user would see in a cell.
     function dumpRow(hr: HydratedScenarioRow<ScenarioRow>, label: string): void {
-        log(`\n  [${label}]`)
-
-        // Materialized columns, grouped by source — mirrors the UI's
-        // grouped-header layout (Testset / Application / <Evaluator> / Metrics).
+        log(`\n  [${label}]  scenario=${hr.scenario.id}`)
         const cols = resolveColumns(hr)
-        if (cols.length > 0) {
-            const groups = groupResolvedColumns(cols)
-            log(`    UI columns (grouped by source — mirrors UI rendering):`)
-            for (const g of groups) {
-                log(
-                    `      ▸ ${g.group.label}  [${g.group.kind}${g.group.slug ? ` · ${g.group.slug}` : ""}]`,
-                )
-                for (const c of g.columns) {
-                    const sourceTag = c.source === "missing" ? "✗" : `via ${c.source}`
-                    log(
-                        `          • ${c.name.padEnd(20)} = ${shortVal(c.value, 80)}  [${sourceTag}]`,
-                    )
-                }
-            }
+        if (cols.length === 0) {
+            log(`    (no columns resolved — run schema missing?)`)
+            return
         }
-
-        log(`    scenario`)
-        log(`      id                   ${hr.scenario.id}`)
-        log(`      status               ${hr.scenario.status}`)
-        log(`      testcase_id          ${shortVal(hr.scenario.testcase_id ?? null)}`)
-        // Other scenario fields if interesting
-        const otherScenarioKeys = Object.keys(hr.scenario)
-            .filter((k) => !["id", "status", "testcase_id", "__isSkeleton"].includes(k))
-            .sort()
-        for (const k of otherScenarioKeys.slice(0, 6)) {
-            log(`      ${k.padEnd(20)} ${shortVal(hr.scenario[k])}`)
-        }
-        log(`    results (${hr.results.length})`)
-        for (const r of hr.results.slice(0, 4)) {
+        const groups = groupResolvedColumns(cols)
+        for (const g of groups) {
             log(
-                `      • step=${(r.step_key ?? "?").padEnd(14)} status=${(r.status ?? "?").padEnd(10)} trace=${shortVal(r.trace_id ?? null, 40)}`,
+                `    ▸ ${g.group.label}  [${g.group.kind}${g.group.slug ? ` · ${g.group.slug}` : ""}]`,
             )
-        }
-        if (hr.results.length > 4) {
-            log(`      … and ${hr.results.length - 4} more`)
-        }
-        log(`    metrics (${hr.metrics.length})`)
-        for (const m of hr.metrics.slice(0, 2)) {
-            log(`      • status=${(m.status ?? "?").padEnd(10)} data=${shortVal(m.data, 90)}`)
-        }
-        if (hr.metrics.length > 2) {
-            log(`      … and ${hr.metrics.length - 2} more`)
-        }
-        log(`    testcase`)
-        if (hr.testcase) {
-            log(`      id                   ${hr.testcase.id}`)
-            log(`      data                 ${shortVal(hr.testcase.data, 90)}`)
-        } else {
-            log(`      (none — no testcase_id or fetch returned null)`)
-        }
-        log(`    traces (${Object.keys(hr.traces).length})`)
-        for (const traceId of Object.keys(hr.traces).slice(0, 2)) {
-            const trace = hr.traces[traceId]
-            log(`      • ${traceId}: ${shortVal(trace, 90)}`)
-        }
-        if (Object.keys(hr.traces).length > 2) {
-            log(`      … and ${Object.keys(hr.traces).length - 2} more`)
+            for (const c of g.columns) {
+                const sourceTag = c.source === "missing" ? "✗" : `via ${c.source}`
+                const {text, tag} = displayValue(c.value)
+                const tagSuffix = tag ? `  [${tag}]` : ""
+                log(`        • ${c.name.padEnd(20)} = ${text}  [${sourceTag}]${tagSuffix}`)
+            }
         }
     }
 
-    if (matchedRows.length === 0) {
+    if (aggregate.count === 0) {
         row("Rows produced", "0 — nothing matched the predicate")
     } else {
-        row("Rows in sink", `${matchedRows.length}`)
-
-        // Aggregate join stats across all rows
-        const totalResults = matchedRows.reduce((a, r) => a + r.results.length, 0)
-        const totalMetricsInRows = matchedRows.reduce((a, r) => a + r.metrics.length, 0)
-        const rowsWithTestcase = matchedRows.filter((r) => r.testcase !== null).length
-        const totalTraces = matchedRows.reduce((a, r) => a + Object.keys(r.traces).length, 0)
+        row(
+            "Sink mode",
+            env.sinkMode === "streaming"
+                ? "streaming  (rows aggregated then released; bounded memory)"
+                : "accumulate  (every row retained for post-hoc inspection)",
+        )
+        row(
+            "Rows produced",
+            env.sinkMode === "streaming"
+                ? `${aggregate.count}  (${matchedRows.length} retained in memory, aggregates computed for all)`
+                : `${aggregate.count}  (all retained in matchedRows[])`,
+        )
+        // All numbers below come from the running aggregate — they look the
+        // same whether the sink kept rows or threw them away.
         row(
             "Results per row",
-            `${(totalResults / matchedRows.length).toFixed(2)} avg ` +
-                `(min ${Math.min(...matchedRows.map((r) => r.results.length))}, ` +
-                `max ${Math.max(...matchedRows.map((r) => r.results.length))})`,
+            `${(aggregate.totalResults / aggregate.count).toFixed(2)} avg ` +
+                `(min ${aggregate.minResults === Number.POSITIVE_INFINITY ? 0 : aggregate.minResults}, ` +
+                `max ${aggregate.maxResults})`,
         )
         row(
             "Metrics per row",
-            `${(totalMetricsInRows / matchedRows.length).toFixed(2)} avg ` +
-                `(${matchedRows.filter((r) => r.metrics.length > 0).length}/${matchedRows.length} rows have ≥1 metric)`,
+            `${(aggregate.totalMetrics / aggregate.count).toFixed(2)} avg ` +
+                `(${aggregate.rowsWithMetric}/${aggregate.count} rows have ≥1 metric)`,
         )
         row(
             "Testcase resolution",
-            `${rowsWithTestcase}/${matchedRows.length} rows joined to a testcase ` +
-                `(${((rowsWithTestcase / matchedRows.length) * 100).toFixed(0)}%)`,
+            `${aggregate.rowsWithTestcase}/${aggregate.count} rows joined to a testcase ` +
+                `(${((aggregate.rowsWithTestcase / aggregate.count) * 100).toFixed(0)}%)`,
         )
         row(
             "Traces per row",
-            `${(totalTraces / matchedRows.length).toFixed(2)} avg ` +
-                `(${matchedRows.filter((r) => Object.keys(r.traces).length > 0).length}/${matchedRows.length} rows have ≥1 trace)`,
+            `${(aggregate.totalTraces / aggregate.count).toFixed(2)} avg ` +
+                `(${aggregate.rowsWithTraces}/${aggregate.count} rows have ≥1 trace)`,
         )
 
-        // Status distribution
-        const statusCounts = new Map<string, number>()
-        for (const hr of matchedRows) {
-            statusCounts.set(hr.scenario.status, (statusCounts.get(hr.scenario.status) ?? 0) + 1)
-        }
-        const statusBreakdown = Array.from(statusCounts.entries())
+        const statusBreakdown = Array.from(aggregate.statusCounts.entries())
             .sort((a, b) => b[1] - a[1])
-            .map(([s, c]) => `${s}=${c} (${((c / matchedRows.length) * 100).toFixed(1)}%)`)
+            .map(([s, c]) => `${s}=${c} (${((c / aggregate.count) * 100).toFixed(1)}%)`)
             .join(", ")
         row("Scenario status distribution", statusBreakdown)
 
-        // ID range (UUIDv7 lex-sort = time-sort)
-        const sortedIds = matchedRows
-            .map((r) => r.scenario.id)
-            .filter((id) => typeof id === "string")
-            .sort()
-        row("ID range (first)", sortedIds[0] ?? "?")
-        row("ID range (last)", sortedIds[sortedIds.length - 1] ?? "?")
+        // UUIDv7 lex-sort = time-sort, so min/max tracked incrementally
+        // are equivalent to first/last in time order.
+        row("ID range (first)", aggregate.minId ?? "?")
+        row("ID range (last)", aggregate.maxId ?? "?")
 
-        // Dump first 2 rows in full + the last row, so we see real data
-        log("\n  Sample materialized rows (first 2 + last):")
-        for (let i = 0; i < Math.min(2, matchedRows.length); i++) {
-            dumpRow(matchedRows[i], `row ${i}`)
-        }
-        if (matchedRows.length > 2) {
-            dumpRow(matchedRows[matchedRows.length - 1], `row ${matchedRows.length - 1} (last)`)
+        // One matched row in resolved-column shape — mirrors what the
+        // scenarios table renders cell-by-cell, grouped by source.
+        const sampleForDump =
+            env.sinkMode === "accumulate" && matchedRows.length > 0
+                ? matchedRows[0]
+                : aggregate.sampleRow
+        if (sampleForDump) {
+            log("\n  Sample matched row (resolved columns — as the table would show it):")
+            dumpRow(sampleForDump, `row 0`)
         }
 
         log("")
@@ -1661,12 +2066,13 @@ async function main() {
         ["Finalize runs on exit", finalizedRan, finalizedRan ? "sink.finalize() called" : "MISSED"],
         [
             "All matched rows satisfy predicate",
-            matchedRows.every((r) => r.scenario.status === env.filterStatus),
-            `${matchedRows.length} rows, all scenario.status === "${env.filterStatus}"`,
+            aggregate.statusCounts.size === 0 ||
+                (aggregate.statusCounts.size === 1 && aggregate.statusCounts.has(env.filterStatus)),
+            `${aggregate.count} rows, all scenario.status === "${env.filterStatus}"`,
         ],
         [
             "Multi-stage transform pipeline ran",
-            hydrateMetrics.length > 0 || matchedRows.length === 0,
+            hydrateMetrics.length > 0 || aggregate.count === 0,
             `${hydrateMetrics.length} hydrate invocations after status filter`,
         ],
     ]
@@ -1694,8 +2100,8 @@ async function main() {
         ["Shared axios instance used", true, "from @agenta/shared/api with auth interceptor"],
         [
             "Rows have real EvaluationScenario shape",
-            matchedRows.every((r) => r.scenario.id && !r.scenario.__isSkeleton),
-            `${matchedRows.length} rows, all scenarios materialized (not skeleton)`,
+            aggregate.allHaveValidId,
+            `${aggregate.count} rows, all scenarios materialized (not skeleton)`,
         ],
         [
             "Source pagination went through entity layer",
@@ -1709,34 +2115,27 @@ async function main() {
         ],
         [
             "Rows joined to correlated entities",
-            matchedRows.length === 0 ||
-                matchedRows.every(
-                    (r) =>
-                        Array.isArray(r.results) &&
-                        Array.isArray(r.metrics) &&
-                        (r.testcase === null || typeof r.testcase === "object") &&
-                        typeof r.traces === "object",
-                ),
-            `${matchedRows.length} rows, each with results[]/metrics[]/testcase/traces{} populated`,
+            aggregate.count === 0 || aggregate.allHaveJoinedEntities,
+            `${aggregate.count} rows, each with results[]/metrics[]/testcase/traces{} populated`,
         ],
         [
             "Cache reuse: rerun is 100% cache hits across all 4 entities",
-            reprefetchResults.cacheMisses === 0 &&
-                reprefetchMetrics.cacheMisses === 0 &&
-                reprefetchTestcases.cacheMisses === 0 &&
-                reprefetchTraces.cacheMisses === 0,
-            `re-prefetch: results ${reprefetchResults.cacheHits}/${reprefetchResults.cacheHits + reprefetchResults.cacheMisses}, ` +
-                `metrics ${reprefetchMetrics.cacheHits}/${reprefetchMetrics.cacheHits + reprefetchMetrics.cacheMisses}, ` +
-                `testcases ${reprefetchTestcases.cacheHits}/${reprefetchTestcases.cacheHits + reprefetchTestcases.cacheMisses}, ` +
-                `traces ${reprefetchTraces.cacheHits}/${reprefetchTraces.cacheHits + reprefetchTraces.cacheMisses}`,
+            reprefetchStats.results.cacheMisses === 0 &&
+                reprefetchStats.metrics.cacheMisses === 0 &&
+                reprefetchStats.testcases.cacheMisses === 0 &&
+                reprefetchStats.traces.cacheMisses === 0,
+            `re-prefetch: results ${reprefetchStats.results.cacheHits}/${reprefetchStats.results.cacheHits + reprefetchStats.results.cacheMisses}, ` +
+                `metrics ${reprefetchStats.metrics.cacheHits}/${reprefetchStats.metrics.cacheHits + reprefetchStats.metrics.cacheMisses}, ` +
+                `testcases ${reprefetchStats.testcases.cacheHits}/${reprefetchStats.testcases.cacheHits + reprefetchStats.testcases.cacheMisses}, ` +
+                `traces ${reprefetchStats.traces.cacheHits}/${reprefetchStats.traces.cacheHits + reprefetchStats.traces.cacheMisses}`,
         ],
         [
             "Cache reuse: 0ms network on rerun",
-            reprefetchResults.fetchMs === 0 &&
-                reprefetchMetrics.fetchMs === 0 &&
-                reprefetchTestcases.fetchMs === 0 &&
-                reprefetchTraces.fetchMs === 0,
-            `rerun fetch times: results ${reprefetchResults.fetchMs.toFixed(1)}ms / metrics ${reprefetchMetrics.fetchMs.toFixed(1)}ms / testcases ${reprefetchTestcases.fetchMs.toFixed(1)}ms / traces ${reprefetchTraces.fetchMs.toFixed(1)}ms`,
+            reprefetchStats.results.fetchMs === 0 &&
+                reprefetchStats.metrics.fetchMs === 0 &&
+                reprefetchStats.testcases.fetchMs === 0 &&
+                reprefetchStats.traces.fetchMs === 0,
+            `rerun fetch times: results ${reprefetchStats.results.fetchMs.toFixed(1)}ms / metrics ${reprefetchStats.metrics.fetchMs.toFixed(1)}ms / testcases ${reprefetchStats.testcases.fetchMs.toFixed(1)}ms / traces ${reprefetchStats.traces.fetchMs.toFixed(1)}ms`,
         ],
     ]
 
@@ -1863,8 +2262,9 @@ async function main() {
             perChunk: hydrateMetrics,
         },
         pipelineOutput: (() => {
-            if (matchedRows.length === 0) {
+            if (aggregate.count === 0) {
                 return {
+                    sinkMode: env.sinkMode,
                     rowsInSink: 0,
                     idRange: {first: null, last: null},
                     statusDistribution: {},
@@ -1876,37 +2276,43 @@ async function main() {
                     },
                     sampleRows: [],
                     lastRow: null,
+                    sampleResolvedColumns: [],
                 }
             }
-            const sortedIds = matchedRows
-                .map((r) => r.scenario.id)
-                .filter((id) => typeof id === "string")
-                .sort()
             const statusCounts: Record<string, number> = {}
-            for (const r of matchedRows) {
-                statusCounts[r.scenario.status] = (statusCounts[r.scenario.status] ?? 0) + 1
-            }
-            const totalResults = matchedRows.reduce((a, r) => a + r.results.length, 0)
-            const totalMetricsInRows = matchedRows.reduce((a, r) => a + r.metrics.length, 0)
+            for (const [s, c] of aggregate.statusCounts) statusCounts[s] = c
+            // Sample retention: accumulate mode can dump the first 3 + the last
+            // matched row; streaming mode only retains the very first row, so
+            // sampleRows is at most 1 entry and lastRow is always null.
+            const sampleSource =
+                env.sinkMode === "accumulate"
+                    ? matchedRows.slice(0, 3)
+                    : aggregate.sampleRow
+                      ? [aggregate.sampleRow]
+                      : []
+            const lastRow =
+                env.sinkMode === "accumulate" && matchedRows.length > 3
+                    ? matchedRows[matchedRows.length - 1]
+                    : null
             return {
-                rowsInSink: matchedRows.length,
+                sinkMode: env.sinkMode,
+                rowsInSink: aggregate.count,
                 idRange: {
-                    first: sortedIds[0] ?? null,
-                    last: sortedIds[sortedIds.length - 1] ?? null,
+                    first: aggregate.minId,
+                    last: aggregate.maxId,
                 },
                 statusDistribution: statusCounts,
                 joinStats: {
-                    avgResultsPerRow: totalResults / matchedRows.length,
-                    avgMetricsPerRow: totalMetricsInRows / matchedRows.length,
-                    rowsWithTestcase: matchedRows.filter((r) => r.testcase !== null).length,
-                    rowsWithTraces: matchedRows.filter((r) => Object.keys(r.traces).length > 0)
-                        .length,
+                    avgResultsPerRow: aggregate.totalResults / aggregate.count,
+                    avgMetricsPerRow: aggregate.totalMetrics / aggregate.count,
+                    rowsWithTestcase: aggregate.rowsWithTestcase,
+                    rowsWithTraces: aggregate.rowsWithTraces,
                 },
-                sampleRows: matchedRows.slice(0, 3),
-                lastRow: matchedRows.length > 3 ? matchedRows[matchedRows.length - 1] : null,
+                sampleRows: sampleSource,
+                lastRow,
                 // Resolved column values per the run's mappings — what the UI
                 // would actually render for these rows.
-                sampleResolvedColumns: matchedRows.slice(0, 3).map((hr) => ({
+                sampleResolvedColumns: sampleSource.map((hr) => ({
                     scenarioId: hr.scenario.id,
                     columns: resolveColumns(hr),
                 })),
