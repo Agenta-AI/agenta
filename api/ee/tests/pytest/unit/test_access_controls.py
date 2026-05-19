@@ -184,8 +184,11 @@ class TestParseRolesOverride:
     redefine or remove the minima.
     """
 
-    def test_override_only_specified_scope_keeps_other_defaults(self):
-        # Overriding `project` only; workspace stays at the full code default.
+    def test_project_override_is_mirrored_to_workspace_today(self):
+        # TODAY: workspace and project roles must match at runtime because the
+        # workspace role catalog is used by the Invite Members flow for project
+        # membership. A project-only override therefore intentionally replaces
+        # workspace extras too, instead of leaving workspace defaults intact.
         result = controls._parse_roles_override(
             {"project": [_custom_role("reviewer", ["read_system"])]}
         )
@@ -196,9 +199,7 @@ class TestParseRolesOverride:
         # Project: minima + override (env overrides REPLACE default extras in
         # the overridden scope).
         assert proj_slugs == ["owner", "viewer", "reviewer"]
-        # Workspace: untouched code default (minima + default WorkspaceRole extras).
-        assert ws_slugs[:2] == ["owner", "viewer"]
-        assert "admin" in ws_slugs
+        assert ws_slugs == ["owner", "viewer", "reviewer"]
         # Organization: untouched (minima-only by default).
         assert org_slugs == ["owner", "viewer"]
 
