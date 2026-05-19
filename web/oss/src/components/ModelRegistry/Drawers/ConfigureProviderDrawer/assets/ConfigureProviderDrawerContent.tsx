@@ -1,15 +1,19 @@
 import React, {useEffect, useMemo, useState} from "react"
 
+import {
+    PROVIDER_KINDS,
+    PROVIDER_LABELS,
+    STANDARD_PROVIDER_KINDS,
+    useVaultSecret,
+} from "@agenta/entities/secret"
+import type {LlmProvider} from "@agenta/shared/types"
 import {SelectLLMProviderBase, type ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {capitalize} from "@agenta/ui/select-llm-provider"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
 import {Button, Form, Input, Typography} from "antd"
 import {useWatch} from "antd/lib/form/Form"
 
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isSlugInputValid} from "@/oss/lib/helpers/utils"
-import {PROVIDER_KINDS, PROVIDER_LABELS, SecretDTOProvider} from "@/oss/lib/Types"
 
 import LabelInput from "../../../assets/LabelInput"
 
@@ -103,7 +107,7 @@ const ConfigureProviderDrawerContent = ({
     const [errorMessage, setErrorMessage] = useState("")
     const {handleModifyCustomVaultSecret} = useVaultSecret()
 
-    const standardProviders = useMemo(() => [...Object.values(SecretDTOProvider)], [])
+    const standardProviders = useMemo(() => [...STANDARD_PROVIDER_KINDS], [])
     const customProviders = useMemo(() => ["azure", "bedrock", "vertex_ai", "custom"], [])
     const validProviders = useMemo(
         () => [...customProviders, ...standardProviders],

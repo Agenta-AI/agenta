@@ -35,6 +35,8 @@
         "./trace": "./src/trace/index.ts",
         "./testset": "./src/testset/index.ts",
         "./testcase": "./src/testcase/index.ts",
+        "./secret": "./src/secret/index.ts",
+        "./gatewayTool": "./src/gatewayTool/index.ts",
         "./environment": "./src/environment/index.ts",
         "./simpleQueue": "./src/simpleQueue/index.ts",
         "./evaluationQueue": "./src/evaluationQueue/index.ts",
@@ -46,6 +48,7 @@
         "./shared/invalidation": "./src/shared/invalidation/index.ts"
     },
     "dependencies": {
+        "@agentaai/api-client": "workspace:../agenta-api-client",
         "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",

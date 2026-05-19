@@ -340,6 +340,9 @@ importers:
       '@agenta/playground-ui':
         specifier: workspace:../packages/agenta-playground-ui
         version: link:../packages/agenta-playground-ui
+      '@agenta/sdk':
+        specifier: workspace:../packages/agenta-sdk
+        version: link:../packages/agenta-sdk
       '@agenta/shared':
         specifier: workspace:../packages/agenta-shared
         version: link:../packages/agenta-shared
@@ -763,6 +766,9 @@ importers:
       '@agenta/ui':
         specifier: workspace:../agenta-ui
         version: link:../agenta-ui
+      '@agentaai/api-client':
+        specifier: workspace:../agenta-api-client
+        version: link:../agenta-api-client
       '@ant-design/icons':
         specifier: '>=5.0.0'
         version: 6.2.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)

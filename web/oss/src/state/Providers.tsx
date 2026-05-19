@@ -17,6 +17,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import WebWorkerProvider from "../components/Playground/Components/WebWorkerProvider"
 import AgSWRConfig from "../lib/api/SWRConfig"
 
+import UserListener from "./profile/UserListener"
 import {SessionListener} from "./session"
 
 // Initialize the selection system with all entity configs
@@ -46,6 +47,7 @@ const GlobalStateProvider = ({children}: PropsWithChildren) => {
                 <HydrateAtoms>
                     <WebWorkerProvider>
                         <SessionListener />
+                        <UserListener />
                         {children}
                     </WebWorkerProvider>
                 </HydrateAtoms>

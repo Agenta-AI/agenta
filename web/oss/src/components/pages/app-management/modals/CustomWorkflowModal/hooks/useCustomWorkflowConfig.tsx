@@ -1,12 +1,12 @@
 import {useCallback} from "react"
 
+import {useVaultSecret} from "@agenta/entities/secret"
+import type {LlmProvider} from "@agenta/shared/types"
 import {removeTrailingSlash} from "@agenta/shared/utils"
 import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom, useStore} from "jotai"
 
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {createAppWithTemplate, ServiceType} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"

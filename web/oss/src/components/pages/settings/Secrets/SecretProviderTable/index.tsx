@@ -1,5 +1,7 @@
 import {useMemo, useState} from "react"
 
+import {useVaultSecret} from "@agenta/entities/secret"
+import type {LlmProvider} from "@agenta/shared/types"
 import {LLMIconMap} from "@agenta/ui"
 import {GearSix, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Table, Tag, Typography} from "antd"
@@ -8,9 +10,7 @@ import {ColumnsType} from "antd/es/table"
 import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
 import ConfigureProviderModal from "@/oss/components/ModelRegistry/Modals/ConfigureProviderModal"
 import DeleteProviderModal from "@/oss/components/ModelRegistry/Modals/DeleteProviderModal"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 
 const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
     const {customRowSecrets, secrets, loading} = useVaultSecret()
