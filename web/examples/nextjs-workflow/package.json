@@ -1,0 +1,43 @@
+{
+    "name": "@agenta-spike/nextjs-workflow",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Spike app: Next.js 16 + Vercel Workflow DevKit + AI SDK v6 + raw OpenTelemetry. Verifies tracing behavior inside `use step` functions and `DurableAgent` from @workflow/ai.",
+    "scripts": {
+        "dev": "next dev --port 3107",
+        "build": "next build",
+        "start": "next start --port 3107",
+        "probe:plain": "tsx test/probe-plain.ts",
+        "probe:agent": "tsx test/probe-agent.ts",
+        "probe": "pnpm run probe:plain && pnpm run probe:agent",
+        "lint": "eslint --config ../../eslint.config.mjs app/ workflows/ test/ instrumentation.ts instrumentation.node.ts --max-warnings 0",
+        "lint:fix": "eslint --config ../../eslint.config.mjs app/ workflows/ test/ instrumentation.ts instrumentation.node.ts --max-warnings 0 --fix"
+    },
+    "dependencies": {
+        "@agenta/spike-verify": "workspace:*",
+        "@ai-sdk/openai": "^3.0.63",
+        "@opentelemetry/api": "^1.9.0",
+        "@opentelemetry/exporter-trace-otlp-proto": "^0.217.0",
+        "@opentelemetry/resources": "^2.7.0",
+        "@opentelemetry/sdk-trace-base": "^2.7.0",
+        "@opentelemetry/sdk-trace-node": "^2.7.0",
+        "@opentelemetry/semantic-conventions": "^1.40.0",
+        "@workflow/ai": "^4.1.2",
+        "@workflow/next": "^4.0.5",
+        "ai": "^6.0.177",
+        "dotenv": "^16.4.7",
+        "next": "16.2.6",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+        "workflow": "^4.2.4",
+        "zod": "^3.25.76"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.10",
+        "@types/react": "^19.0.10",
+        "@types/react-dom": "^19.0.10",
+        "tsx": "^4.21.0",
+        "typescript": "5.8.3"
+    }
+}
