@@ -58,7 +58,7 @@ Sync-derived findings (closed):
 ### [DUPLICATE — will close after commit] F-011-dup / F-012-dup — Copilot 13th pass re-flagged the same drift on the pre-fix tree
 
 - **Origin**: PR #4347 sync, 13th Copilot pass (2026-05-19T12:42Z)
-- **PR comments**: [discussion_r3266330342](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266330342) (tasks.md:96, dup of F-011); [discussion_r3266330563](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266330563) (proposal.md:213, dup of F-012)
+- **PR comments**: [discussion_r3266334422](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266334422) (tasks.md:96, dup of F-011); [discussion_r3266334536](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266334536) (proposal.md:213, dup of F-012)
 - **Background**: Copilot's 13th pass ran against commit `ec12ccfa7` ("clean up findings") which predates my F-011 / F-012 doc rewrites (still uncommitted in working tree). Once those edits land in a commit, the next Copilot pass should mark these threads as already-addressed; the underlying content is the same drift already fixed.
 - **Action**: Commit the F-011..F-014 doc rewrites; reply on both threads pointing at the new commit and resolve.
 
