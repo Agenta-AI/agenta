@@ -95,23 +95,22 @@ export const useCellMaterialization = ({
         const queues = state.queues
         state.queues = {results: [], metrics: [], testcases: [], traces: []}
 
-        // Dedup IDs per slice + filter against in-flight set.
-        const scenarioIdsForResults = collectUnique(
-            queues.results,
-            "scenarioId",
-            state.inflightIds.results,
-        )
-        const scenarioIdsForMetrics = collectUnique(
-            queues.metrics,
-            "scenarioId",
-            state.inflightIds.metrics,
-        )
-        const testcaseIds = collectUnique(
-            queues.testcases,
-            "testcaseId",
-            state.inflightIds.testcases,
-        )
-        const traceIds = collectUnique(queues.traces, "traceId", state.inflightIds.traces)
+        // Dedup IDs per slice. The request() function already filtered
+        // against `inflightIds` before queueing, so collectUnique only
+        // needs to deduplicate within the current batch.
+        const scenarioIdsForResults = collectUnique(queues.results, "scenarioId")
+        const scenarioIdsForMetrics = collectUnique(queues.metrics, "scenarioId")
+        const testcaseIds = collectUnique(queues.testcases, "testcaseId")
+        const traceIds = collectUnique(queues.traces, "traceId")
+
+        // Now mark all batch IDs as in-flight (between request-time queue
+        // dedup and drain-time fetch, sibling cells may have queued more —
+        // but those went through request()'s `inflightIds.has` check).
+        // Mark before starting fetch so subsequent ticks dedupe against us.
+        for (const id of scenarioIdsForResults) state.inflightIds.results.add(id)
+        for (const id of scenarioIdsForMetrics) state.inflightIds.metrics.add(id)
+        for (const id of testcaseIds) state.inflightIds.testcases.add(id)
+        for (const id of traceIds) state.inflightIds.traces.add(id)
 
         try {
             await Promise.all([
@@ -181,10 +180,11 @@ export const useCellMaterialization = ({
                   ? req.traceId
                   : req.scenarioId
         if (!id) return
+        // Skip if this id is already being fetched by an earlier batch.
         if (state.inflightIds[slice].has(id)) return
-        // Mark as in-flight optimistically so other cells don't re-queue
-        // before the drain fires.
-        state.inflightIds[slice].add(id)
+        // Also skip if a sibling cell already queued the same id this tick.
+        // (Cheap linear check — N is the visible-cell count.)
+        if (state.queues[slice].some((r) => fieldValue(r, slice) === id)) return
         state.queues[slice].push(req)
         if (!state.scheduled) {
             state.scheduled = true
@@ -195,20 +195,15 @@ export const useCellMaterialization = ({
     return {request}
 }
 
-function collectUnique(
-    requests: MaterializeRequest[],
-    field: keyof MaterializeRequest,
-    inflight: Set<string>,
-): string[] {
+function fieldValue(r: MaterializeRequest, slice: EntitySlice): string | undefined {
+    return slice === "testcases" ? r.testcaseId : slice === "traces" ? r.traceId : r.scenarioId
+}
+
+function collectUnique(requests: MaterializeRequest[], field: keyof MaterializeRequest): string[] {
     const out = new Set<string>()
     for (const r of requests) {
         const v = r[field]
         if (typeof v !== "string" || !v) continue
-        if (inflight.has(v)) {
-            // already in flight — strip from queue (the requesting cell
-            // will re-render via hydrationVersionAtom when it lands).
-            continue
-        }
         out.add(v)
     }
     return Array.from(out)
