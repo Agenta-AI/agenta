@@ -63,6 +63,7 @@ import {scenarioThinPaginatedStore, type ScenarioThinRow} from "./scenarioPagina
 import {useCellMaterialization} from "./useCellMaterialization"
 import {useEtlColumns} from "./useEtlColumns"
 import {useHydrateScenarios, type SliceFetchMode} from "./useHydrateScenarios"
+import {useLookaheadPrefetch} from "./useLookaheadPrefetch"
 import {useScopeChangeEviction} from "./useScopeChangeEviction"
 
 const {Text} = Typography
@@ -150,6 +151,21 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
     // first render; the materializer coalesces concurrent requests in the
     // same microtask into one bulk fetch per slice.
     const materializer = useCellMaterialization({projectId, runId})
+
+    // Lookahead prefetch on page-load. When pagination loads a new page
+    // of scenarios, proactively request results + metrics for those
+    // scenarios through the materializer. By the time the user scrolls
+    // those cells into view, the data is already cached and cells render
+    // instantly. testcases + traces are requested by cells once results
+    // land (their IDs aren't known until then). Skipped when sliceMode
+    // === "all" because page-level hydrate already covered it.
+    useLookaheadPrefetch({
+        projectId,
+        runId,
+        rows: pagination.rows,
+        materializer,
+        sliceMode,
+    })
 
     // (predicate state is declared above so the hydrate hook can consume it.)
 
