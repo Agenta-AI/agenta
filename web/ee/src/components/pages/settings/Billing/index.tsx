@@ -157,6 +157,7 @@ const Billing = () => {
                     {Object.entries(usage)
                         ?.filter(([key]) => key !== "users" && key !== "applications")
                         ?.map(([key, info]) => {
+                            if (!info) return null
                             return (
                                 <UsageProgressBar
                                     key={`billing-${key}`}
@@ -166,6 +167,8 @@ const Billing = () => {
                                     strict={info.strict}
                                     isUnlimited={info.limit == null ? true : false}
                                     free={info.free}
+                                    period={info.period}
+                                    scope={info.scope}
                                 />
                             )
                         })}

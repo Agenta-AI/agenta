@@ -14,7 +14,9 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import acquire_lock, release_lock, renew_lock
 from oss.src.utils.env import env
 
-from ee.src.utils.billing import compute_billing_period
+from ee.src.utils.entitlements import period_from, scope_from
+from ee.src.core.meters.types import Meters, MeterPeriod
+from oss.src.utils.context import get_auth_scope
 
 from oss.src.services.db_manager import (
     get_user_with_id,
@@ -24,7 +26,14 @@ from oss.src.services.db_manager import (
 from ee.src.services import db_manager_ee
 from ee.src.utils.permissions import check_action_access
 from ee.src.models.shared_models import Permission
-from ee.src.core.entitlements.types import ENTITLEMENTS, CATALOG, Tracker, Quota
+from ee.src.core.entitlements.types import (
+    ENTITLEMENTS,
+    CATALOG,
+    Tracker,
+    Quota,
+    Period,
+    Scope,
+)
 from ee.src.core.subscriptions.types import Event, Plan
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingService
@@ -849,11 +858,12 @@ class BillingRouter:
             content={"status": "success"},
         )
 
-    async def fetch_usage(
-        self,
-        organization_id: str,
-    ):
-        now = datetime.now(timezone.utc)
+    async def fetch_usage(self):
+        # Identity comes from the ambient AuthScope (set by the auth
+        # middleware). The route wrapper has already done permission
+        # checks; no path/query params for tenant identity — that would
+        # introduce a path-param-vs-ambient mismatch surface.
+        organization_id = str(get_auth_scope().organization_id)
 
         subscription = await self.subscription_service.read(
             organization_id=organization_id,
@@ -866,42 +876,63 @@ class BillingRouter:
             )
 
         plan = subscription.plan
-        anchor_day = subscription.anchor
-        anchor_year, anchor_month = compute_billing_period(now=now, anchor=anchor_day)
+
+        if not plan:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"status": "error", "message": "Plan not found"},
+            )
 
         entitlements = ENTITLEMENTS.get(plan)
 
         if not entitlements:
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
-                content={"status": "error", "message": "Plan not found"},
+                content={"status": "error", "message": "Entitlements not found"},
             )
-
-        meters = await self.meters_service.fetch(
-            organization_id=organization_id,
-        )
 
         usage = {}
 
+        # Per-caller usage: read the single meter row matching the
+        # caller's ambient scope projected to the granularity each quota
+        # declares (`scope_from(scope=quota.scope)` mirrors the helper
+        # `check_entitlements` uses, so numerator and denominator stay
+        # at the same scope). Avoids the previous bug where a per-user
+        # DAILY counter was summed across users but reported against a
+        # per-user `limit`.
         for tracker in [Tracker.COUNTERS, Tracker.GAUGES]:
             for key in list(entitlements[tracker].keys()):
                 quota: Quota = entitlements[tracker][key]
-                value = 0
 
-                for meter in meters:
-                    if meter.key == key:
-                        # Gauges use month=0 (non-periodic), always match
-                        if meter.month == 0:
-                            value = meter.value
-                        # Counters: match both year and month for the current billing period
-                        elif meter.year == anchor_year and meter.month == anchor_month:
-                            value = meter.value
+                _scope = scope_from(scope=quota.scope)
+
+                if quota.period is None:
+                    _period = MeterPeriod()
+                elif quota.period == Period.MONTHLY:
+                    _period = period_from(
+                        period=Period.MONTHLY,
+                        anchor=subscription.anchor,
+                    )
+                else:
+                    _period = period_from(period=quota.period)
+
+                rows = await self.meters_service.fetch(
+                    scope=_scope,
+                    key=Meters[key.name],
+                    period=_period,
+                )
+                value = (rows[0].value if rows else 0) or 0
 
                 usage[key] = {
                     "value": value,
                     "limit": quota.limit,
                     "free": quota.free,
-                    "monthly": quota.monthly is True,
+                    "period": quota.period.value if quota.period else None,
+                    "scope": (
+                        quota.scope.value
+                        if quota.scope is not None
+                        else Scope.ORGANIZATION.value
+                    ),
                     "strict": quota.strict is True,
                 }
 
@@ -1243,6 +1274,4 @@ class BillingRouter:
             ):
                 return FORBIDDEN_RESPONSE
 
-        return await self.fetch_usage(
-            organization_id=request.state.organization_id,
-        )
+        return await self.fetch_usage()
