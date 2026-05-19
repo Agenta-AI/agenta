@@ -3,13 +3,9 @@ import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 
 import {copyToClipboard} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CaretDoubleRight, CaretDown, CaretUp, Copy, ListChecks} from "@phosphor-icons/react"
-import {Alert, Button, Dropdown, Segmented, Skeleton, Space, Tooltip} from "antd"
-
-type EditMode = "fields" | "json"
+import {Alert, Button, Dropdown, Skeleton, Space, Tooltip} from "antd"
 
 export interface TestcaseDrawerContentRenderProps {
-    editMode: EditMode
-    onEditModeChange: (mode: EditMode) => void
     initialPath: string[]
     onPathChange: (path: string[]) => void
 }
@@ -39,6 +35,12 @@ export interface TestcaseDrawerProps<TData = unknown> {
     onRestoreSessionStart: (data: TData) => void
     renderContent: (props: TestcaseDrawerContentRenderProps) => ReactNode
     renderAddToQueue?: (itemIds: string[]) => ReactNode
+    /**
+     * Optional slot for evaluator-metric chips/rows.
+     * Renders above the data editor when provided. The wrapper resolves
+     * metrics from trace/annotation data — the shell stays platform-neutral.
+     */
+    renderEvaluatorMetrics?: (testcaseId: string) => ReactNode
 }
 
 function TestcaseDrawer<TData = unknown>({
@@ -63,13 +65,13 @@ function TestcaseDrawer<TData = unknown>({
     onRestoreSessionStart,
     renderContent,
     renderAddToQueue,
+    renderEvaluatorMetrics,
 }: TestcaseDrawerProps<TData>) {
     const sessionStartDraftsRef = useRef<Map<string, TData>>(new Map())
     const sessionStartDraft = testcaseId
         ? (sessionStartDraftsRef.current.get(testcaseId) ?? null)
         : null
 
-    const [editMode, setEditMode] = useState<EditMode>("fields")
     const [isIdCopied, setIsIdCopied] = useState(false)
     const [drillInPath, setDrillInPath] = useState<string[]>([])
     const [everDirtyIds, setEverDirtyIds] = useState<Set<string>>(new Set())
@@ -107,6 +109,13 @@ function TestcaseDrawer<TData = unknown>({
         }
     }, [open, testcaseId, testcaseData])
 
+    useEffect(() => {
+        if (open) setDrillInPath([])
+    }, [testcaseId, open])
+
+    // "Apply" closes the drawer while keeping the draft.
+    // Unlike `handleCancel`, it does NOT call `onRestoreSessionStart` —
+    // the draft survives so the user can commit it later via testset save.
     const handleApply = useCallback(() => {
         onClose()
     }, [onClose])
@@ -193,22 +202,12 @@ function TestcaseDrawer<TData = unknown>({
                             Add to queue
                         </Button>
                     )}
-                    <Segmented
-                        size="small"
-                        value={editMode}
-                        onChange={(value) => setEditMode(value as EditMode)}
-                        options={[
-                            {label: "Fields", value: "fields"},
-                            {label: "JSON", value: "json"},
-                        ]}
-                    />
                 </div>
             </div>
         ),
         [
             testcaseId,
             isNewRow,
-            editMode,
             onPrevious,
             onNext,
             hasPrevious,
@@ -305,10 +304,9 @@ function TestcaseDrawer<TData = unknown>({
                             />
                         </div>
                     )}
+                    {testcaseData && testcaseId && renderEvaluatorMetrics?.(testcaseId)}
                     {testcaseData &&
                         renderContent({
-                            editMode,
-                            onEditModeChange: setEditMode,
                             initialPath: drillInPath,
                             onPathChange: setDrillInPath,
                         })}

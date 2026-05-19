@@ -1,10 +1,10 @@
-# Type Chip — Phase 1+2: Foundation + Tables
+# Type Chip — Phase 1+2: Foundation + Tables ✅ COMPLETED
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status:** Fully implemented and merged. All tasks below are done. Phase 3 is the active branch.
 
 **Goal:** Wire the chip-on-column-header proposal as a generic `InfiniteVirtualTable` feature — so any table can opt in via a `typeChips` prop — then wire the testcase table as the first consumer.
 
-**Current state:** Phase 1 utilities (`TypeChip`, `inferRenderHint`, `getViewOptions`) are already implemented in `@agenta/ui`. The testcase table has no chip wiring yet — this plan adds it at the `InfiniteVirtualTable` level so any table can opt in.
+**Current state:** ✅ Complete. All utilities, hooks, and testcase table wiring are live.
 
 **Architecture:** Type detection runs inside `InfiniteVirtualTable` via a new `useTypeChipColumns` hook. The hook receives a `getRowValue` callback (consumer-provided), samples the first 30 rows, runs `detectColumnTypes`, and enhances leaf column titles with `TypeChip` nodes. Group headers keep their `[object]` chip + `±-button` in `TestcasesTableShell` (complex consumer-owned layout), and parent/collapsed group keys opt out of the leaf-chip enhancer by returning `undefined` from `resolveHeaderVariant`. Persisted show/hide state is generic via `typeChips.storageKey` and appears in the table settings dropdown.
 
@@ -45,7 +45,7 @@ The TypeChip utilities (`TypeChip`, `inferRenderHint`, `getViewOptions`) in `@ag
 - `web/oss/src/components/TestcasesTableNew/components/TestcasesTableShell.tsx` — should contain no `TypeChip`, `ChipMode`, or chip resolver imports
 - `web/oss/src/components/TestcasesTableNew/index.tsx` — should contain no chip atom imports
 
-- [ ] **Confirm the testcase table has no chip code**
+- [x] **Confirm the testcase table has no chip code**
 
 ```bash
 grep -rn "TypeChip\|columnTypeInfo" \
@@ -54,7 +54,7 @@ grep -rn "TypeChip\|columnTypeInfo" \
 
 Expected: no output
 
-- [ ] **Confirm the group headers use caret icons (not a ±-button yet)**
+- [x] **Confirm the group headers use caret icons (not a ±-button yet)**
 
 ```bash
 grep -n "CaretRight\|CaretDown\|GroupToggleButton" \
@@ -73,7 +73,7 @@ Clean slate confirmed — proceed to Task 2.
 - Create: `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts`
 - Modify: `web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts`
 
-- [ ] **Create the file** — ported from `web/apps/design-mockups/src/components/proposed/testsetTableHelpers.ts` → `detectColumnTypes()`, with `defaultHeaderVariant` added:
+- [x] **Create the file** — ported from `web/apps/design-mockups/src/components/proposed/testsetTableHelpers.ts` → `detectColumnTypes()`, with `defaultHeaderVariant` added:
 
 ```typescript
 // web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts
@@ -220,7 +220,7 @@ export function defaultHeaderVariant(
 }
 ```
 
-- [ ] **Export from the InfiniteVirtualTable package index** — add to `web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts` after the grouped-tree-data exports:
+- [x] **Export from the InfiniteVirtualTable package index** — add to `web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts` after the grouped-tree-data exports:
 
 ```typescript
 // ============================================================================
@@ -231,7 +231,7 @@ export {defaultHeaderVariant, detectColumnTypes} from "./utils/detectColumnTypes
 export type {ColumnTypeInfo, ColumnTypePrimitive, ColumnRenderHint} from "./utils/detectColumnTypes"
 ```
 
-- [ ] **Verify TypeScript compiles**
+- [x] **Verify TypeScript compiles**
 
 ```bash
 cd web && pnpm --filter @agenta/ui types:check
@@ -239,7 +239,7 @@ cd web && pnpm --filter @agenta/ui types:check
 
 Expected: no errors
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts \
@@ -254,7 +254,7 @@ git commit -m "feat(@agenta/ui): add detectColumnTypes to InfiniteVirtualTable"
 **Files:**
 - Modify: `web/packages/agenta-ui/src/InfiniteVirtualTable/types.ts`
 
-- [ ] **Add the `TypeChipConfig` interface** — insert before the `InfiniteVirtualTableProps` interface in `types.ts`:
+- [x] **Add the `TypeChipConfig` interface** — insert before the `InfiniteVirtualTableProps` interface in `types.ts`:
 
 ```typescript
 import type {ColumnTypeInfo, ColumnTypePrimitive} from "./utils/detectColumnTypes"
@@ -299,7 +299,7 @@ export interface TypeChipConfig<RecordType> {
 }
 ```
 
-- [ ] **Add `typeChips` to `InfiniteVirtualTableProps`** — append after the `tableRef` prop inside the `InfiniteVirtualTableProps` interface:
+- [x] **Add `typeChips` to `InfiniteVirtualTableProps`** — append after the `tableRef` prop inside the `InfiniteVirtualTableProps` interface:
 
 ```typescript
 /**
@@ -311,7 +311,7 @@ export interface TypeChipConfig<RecordType> {
 typeChips?: TypeChipConfig<RecordType>
 ```
 
-- [ ] **Verify TypeScript compiles**
+- [x] **Verify TypeScript compiles**
 
 ```bash
 cd web && pnpm --filter @agenta/ui types:check
@@ -319,7 +319,7 @@ cd web && pnpm --filter @agenta/ui types:check
 
 Expected: no errors
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add web/packages/agenta-ui/src/InfiniteVirtualTable/types.ts
@@ -335,7 +335,7 @@ git commit -m "feat(@agenta/ui): add TypeChipConfig and typeChips prop to Infini
 
 Note: the file extension is `.tsx` (not `.ts`) because the hook returns JSX nodes (`<TypeChip />`, `<div>`). Other hooks in this directory that return JSX also use `.tsx` (e.g., `useExpandableRows.tsx`, `useRowHeight.tsx`).
 
-- [ ] **Create the file**
+- [x] **Create the file**
 
 ```typescript
 // web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx
@@ -447,7 +447,7 @@ export function useTypeChipColumns<R extends object>(
 }
 ```
 
-- [ ] **Verify TypeScript compiles**
+- [x] **Verify TypeScript compiles**
 
 ```bash
 cd web && pnpm --filter @agenta/ui types:check
@@ -455,7 +455,7 @@ cd web && pnpm --filter @agenta/ui types:check
 
 Expected: no errors
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx
@@ -469,29 +469,29 @@ git commit -m "feat(@agenta/ui): add useTypeChipColumns hook for type chip heade
 **Files:**
 - Modify: `web/packages/agenta-ui/src/InfiniteVirtualTable/components/InfiniteVirtualTableInner.tsx`
 
-- [ ] **Add import** — add after the existing hook imports near the top:
+- [x] **Add import** — add after the existing hook imports near the top:
 
 ```typescript
 import {useTypeChipColumns} from "../hooks/useTypeChipColumns"
 ```
 
-- [ ] **Destructure `typeChips` from props** — in the `InfiniteVirtualTableInnerBase` function signature, the props are destructured. Add `typeChips` to the destructuring:
+- [x] **Destructure `typeChips` from props** — in the `InfiniteVirtualTableInnerBase` function signature, the props are destructured. Add `typeChips` to the destructuring:
 
 ```typescript
 // Add alongside the existing destructured props:
 typeChips,
 ```
 
-- [ ] **Wire the hook** — find the line `const finalColumns = resizableProcessedColumns` and replace it:
+- [x] **Wire the hook** — find the line `const finalColumns = resizableProcessedColumns` and replace it:
 
 ```typescript
 const typeChipColumns = useTypeChipColumns(resizableProcessedColumns, dataSource, typeChips)
 const finalColumns = typeChipColumns
 ```
 
-- [ ] **Update the `InfiniteVirtualTableInnerProps` type** — the inner component's props type is derived from `InfiniteVirtualTableProps` but excludes `useIsolatedStore` and `store`. `typeChips` is already included automatically since it's part of `InfiniteVirtualTableProps`. No change needed here unless the exclusion list is explicit.
+- [x] **Update the `InfiniteVirtualTableInnerProps` type** — the inner component's props type is derived from `InfiniteVirtualTableProps` but excludes `useIsolatedStore` and `store`. `typeChips` is already included automatically since it's part of `InfiniteVirtualTableProps`. No change needed here unless the exclusion list is explicit.
 
-- [ ] **Verify TypeScript compiles + lint**
+- [x] **Verify TypeScript compiles + lint**
 
 ```bash
 cd web && pnpm --filter @agenta/ui types:check && pnpm lint-fix
@@ -499,7 +499,7 @@ cd web && pnpm --filter @agenta/ui types:check && pnpm lint-fix
 
 Expected: no errors
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add web/packages/agenta-ui/src/InfiniteVirtualTable/components/InfiniteVirtualTableInner.tsx
@@ -515,13 +515,13 @@ The testcase table uses `InfiniteVirtualTableFeatureShell`, not `InfiniteVirtual
 **Files:**
 - Modify: `web/packages/agenta-ui/src/InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx`
 
-- [ ] **Add `typeChips` to `InfiniteVirtualTableFeatureProps`** — find the interface (around line 102) and add after `tableRef`:
+- [x] **Add `typeChips` to `InfiniteVirtualTableFeatureProps`** — find the interface (around line 102) and add after `tableRef`:
 
 ```typescript
 typeChips?: InfiniteVirtualTableProps<Row>["typeChips"]
 ```
 
-- [ ] **Find where `InfiniteVirtualTable` is rendered inside the feature shell** — search for `<InfiniteVirtualTable` in the file. Pass `typeChips` through:
+- [x] **Find where `InfiniteVirtualTable` is rendered inside the feature shell** — search for `<InfiniteVirtualTable` in the file. Pass `typeChips` through:
 
 ```typescript
 <InfiniteVirtualTable
@@ -530,13 +530,13 @@ typeChips?: InfiniteVirtualTableProps<Row>["typeChips"]
 />
 ```
 
-- [ ] **Verify TypeScript compiles**
+- [x] **Verify TypeScript compiles**
 
 ```bash
 cd web && pnpm --filter @agenta/ui types:check
 ```
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add web/packages/agenta-ui/src/InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx
@@ -553,22 +553,22 @@ Create the generic persisted visibility helper in `@agenta/ui`; do not add testc
 - Create: `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipFeature.tsx`
 - Modify: `web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts`
 
-- [ ] **Create the file**
+- [x] **Create the file**
 
 ```typescript
 // web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipFeature.tsx
 // Owns persisted visibility via `typeChips.storageKey` and exposes settings menu items.
 ```
 
-- [ ] **Export the hook from `@agenta/ui/table`**
+- [x] **Export the hook from `@agenta/ui/table`**
 
-- [ ] **Verify typecheck passes**
+- [x] **Verify typecheck passes**
 
 ```bash
 cd web && pnpm --filter @agenta/ui types:check
 ```
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipFeature.tsx web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts
@@ -586,7 +586,7 @@ Leaf column TypeChip rendering is handled by `InfiniteVirtualTable` via the `typ
 **Files:**
 - Modify: `web/oss/src/components/TestcasesTableNew/components/TestcasesTableShell.tsx`
 
-- [ ] **Add imports** at the top of the file:
+- [x] **Add imports** at the top of the file:
 
 ```typescript
 import {TypeChip} from "@agenta/ui/type-chip"
@@ -595,7 +595,7 @@ import type {TypeChipConfig} from "@agenta/ui/table"
 
 Remove the `CaretRight` and `CaretDown` imports from `phosphor-react` (or `@phosphor-icons/react`) since they're replaced by the ±-button.
 
-- [ ] **Define `GroupToggleButton` inline** — add this component near the top of the file (or above the main component, outside the render function):
+- [x] **Define `GroupToggleButton` inline** — add this component near the top of the file (or above the main component, outside the render function):
 
 ```tsx
 function GroupToggleButton({
@@ -652,7 +652,7 @@ function GroupToggleButton({
 }
 ```
 
-- [ ] **Replace group header spans in `createCollapsedColumnDef`** — find the `title` JSX inside `createCollapsedColumnDef`. It currently wraps `<span onClick=...><CaretRight /></span>`. Replace the entire title with:
+- [x] **Replace group header spans in `createCollapsedColumnDef`** — find the `title` JSX inside `createCollapsedColumnDef`. It currently wraps `<span onClick=...><CaretRight /></span>`. Replace the entire title with:
 
 ```tsx
 title: (
@@ -677,7 +677,7 @@ title: (
 ),
 ```
 
-- [ ] **Replace group header spans in `renderGroupHeader`** — find the returned JSX. It currently wraps `<span role="button" onClick=...><CaretRight /> / <CaretDown /></span>`. Replace the entire return with:
+- [x] **Replace group header spans in `renderGroupHeader`** — find the returned JSX. It currently wraps `<span role="button" onClick=...><CaretRight /> / <CaretDown /></span>`. Replace the entire return with:
 
 ```tsx
 return (
@@ -707,7 +707,7 @@ return (
 
 Note: TypeChip comes before the child count badge — this matches the mockup at `web/apps/design-mockups/src/pages/solutions-tables.tsx:519-524`.
 
-- [ ] **Add `typeChips?` prop to `TestcasesTableShellProps`** and forward it to `InfiniteVirtualTableFeatureShell`:
+- [x] **Add `typeChips?` prop to `TestcasesTableShellProps`** and forward it to `InfiniteVirtualTableFeatureShell`:
 
 ```typescript
 // Add this import near the top (already imported @agenta/ui/table above for TypeChipConfig):
@@ -720,13 +720,13 @@ typeChips?: TypeChipConfig<TestcaseTableRow>
 typeChips={props.typeChips}
 ```
 
-- [ ] **Verify TypeScript compiles + lint**
+- [x] **Verify TypeScript compiles + lint**
 
 ```bash
 cd web && pnpm lint-fix
 ```
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add web/oss/src/components/TestcasesTableNew/components/TestcasesTableShell.tsx
@@ -742,7 +742,7 @@ git commit -m "feat(testcases-table): add group header ±-button and TypeChip, f
 
 Use the same OSS testcase controller that powers table cells so header detection samples the same values users see in cells.
 
-- [ ] **Add imports**
+- [x] **Add imports**
 
 ```typescript
 import {useCallback} from "react"
@@ -751,7 +751,7 @@ import {testcase} from "@/oss/state/entities/testcase"
 import type {TestcaseTableRow} from "@/oss/state/entities/testcase"
 ```
 
-- [ ] **Create `getRowValue`** — add in the component body:
+- [x] **Create `getRowValue`** — add in the component body:
 
 ```typescript
 const getRowValue = useCallback(
@@ -765,7 +765,7 @@ const getRowValue = useCallback(
 
 `testcase.selectors.cell(...)` is the same selector used by `TestcaseCell`, so detection follows dot-path columns and local drafts consistently with cell rendering.
 
-- [ ] **Pass `typeChips` to `TestcasesTableShell`**
+- [x] **Pass `typeChips` to `TestcasesTableShell`**
 
 ```tsx
 <TestcasesTableShell
@@ -778,13 +778,13 @@ const getRowValue = useCallback(
 />
 ```
 
-- [ ] **Verify TypeScript compiles + lint**
+- [x] **Verify TypeScript compiles + lint**
 
 ```bash
 cd web && pnpm lint-fix
 ```
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```bash
 git add web/oss/src/components/TestcasesTableNew/index.tsx
@@ -795,7 +795,7 @@ git commit -m "feat(testcases-table): wire typeChips prop with testcase cell sam
 
 ## Task 10: Final lint + visual verification
 
-- [ ] **Full lint-fix**
+- [x] **Full lint-fix**
 
 ```bash
 cd web && pnpm lint-fix
@@ -803,7 +803,7 @@ cd web && pnpm lint-fix
 
 Expected: clean — no lint errors
 
-- [ ] **TypeScript check on all modified packages**
+- [x] **TypeScript check on all modified packages**
 
 ```bash
 cd web && pnpm --filter @agenta/ui types:check
@@ -811,7 +811,7 @@ cd web && pnpm --filter @agenta/ui types:check
 
 Expected: no errors
 
-- [ ] **Visual verification** — open the testset table and use the table settings menu to show/hide type chips:
+- [x] **Visual verification** — open the testset table and use the table settings menu to show/hide type chips:
 
 ```bash
 cd web && pnpm dev
@@ -825,4 +825,4 @@ Expected in the browser:
 5. No regressions in cell rendering
 6. Any other table using `InfiniteVirtualTable` WITHOUT `typeChips` prop shows zero chip rendering
 
-- [ ] **Verify no chip rendering on unrelated tables** — open another table in the app (traces, evaluations) and confirm no TypeChip appears on their headers. These tables don't pass `typeChips` so nothing should change.
+- [x] **Verify no chip rendering on unrelated tables** — open another table in the app (traces, evaluations) and confirm no TypeChip appears on their headers. These tables don't pass `typeChips` so nothing should change.

@@ -42,6 +42,13 @@ export interface FieldViewModeOption {
     label: string
 }
 
+/**
+ * Visual variant for field headers in DrillInContent.
+ * - "card": legacy grey card with full control set.
+ * - "flat": Proposal V2 flat row with bottom divider, name + chip + view-mode only.
+ */
+export type FieldHeaderVariant = "card" | "flat"
+
 // ============================================================================
 // PATH & SCHEMA TYPES
 // ============================================================================
@@ -307,6 +314,25 @@ export interface DrillInContentProps {
         fullPath: string[]
         options: string[]
     }) => string
+    /**
+     * Optional callback to render a TypeChip for each field header.
+     * Return undefined to skip the chip for a field.
+     */
+    getFieldTypeChip?: (value: unknown) => ReactNode
+    /**
+     * Increment this value to collapse all visible fields in the current drill-in level.
+     */
+    collapseSignal?: number
+    /**
+     * Change this value to clear field-level view mode overrides without remounting the view.
+     */
+    viewModeResetSignal?: string | number
+    /**
+     * Visual variant for field headers.
+     * - "card" (default): grey background, rounded border, full control set.
+     * - "flat": white background with bottom border, minimal controls (Proposal V2).
+     */
+    fieldHeaderVariant?: FieldHeaderVariant
 
     // ========== RENDERER INJECTION ==========
 

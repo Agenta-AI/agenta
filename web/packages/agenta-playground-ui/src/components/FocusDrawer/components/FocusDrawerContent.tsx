@@ -6,7 +6,7 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import {Collapse, Tag} from "antd"
+import {Tag} from "antd"
 import {atom} from "jotai"
 import {useAtomValue} from "jotai"
 
@@ -374,70 +374,64 @@ const FocusDrawerContent = () => {
         <div className="flex flex-col h-full overflow-y-auto">
             {/* Data Section (testcase editor injected by OSS) */}
             {TestcaseEditor && <TestcaseEditor testcaseId={rowId} />}
-            {/* Output Section */}
-            <Collapse
-                defaultActiveKey={["output"]}
-                expandIconPlacement="start"
-                bordered={false}
-                style={{background: "transparent", borderRadius: 0}}
-                styles={{
-                    header: {
-                        borderRadius: 6,
-                        userSelect: "none",
-                        padding: "10px 16px",
-                        background: "#FAFAFA",
-                        border: "1px solid rgba(5,23,41,0.06)",
-                    },
-                    body: {borderRadius: 0, padding: "12px 16px"},
-                }}
-                items={[
-                    {
-                        key: "output",
-                        label: "Outputs",
-                        children: isComparisonView ? (
-                            <div className="overflow-x-auto">
-                                <div className="flex gap-4 min-w-fit">
-                                    {rootNodes.map((rootNode) => (
-                                        <VariantOutputColumn
-                                            key={rootNode.entityId}
-                                            rowId={rowId}
-                                            entityId={rootNode.entityId}
-                                            nodeNames={nodeNames}
-                                            downstreamNodes={compareDownstreamNodes}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-3">
-                                <NodeResultCard
-                                    name={getNodeDisplayLabel(
-                                        nodes?.find((n) => n.entityId === primaryEntityId),
-                                        nodeNames,
-                                    )}
-                                >
-                                    <div className="min-w-0">
-                                        <PrimaryOutput rowId={rowId} entityId={primaryEntityId} />
-                                    </div>
-                                </NodeResultCard>
-                                {downstreamNodes.map((node) => (
-                                    <DownstreamNodeCard
-                                        key={node.entityId}
+            {/* Output Section — header styling mirrors DrillInRootToolbar so
+                the Testcase Data and Outputs sections read as a matched pair. */}
+            <div className="flex flex-col gap-3">
+                <div
+                    className="select-none"
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "6px 16px",
+                        borderBottom: "1px solid rgba(5,23,41,0.06)",
+                        background: "#fafafa",
+                        gap: 8,
+                        minHeight: 36,
+                    }}
+                >
+                    <span style={{fontSize: 13, fontWeight: 600, color: "#051729"}}>Outputs</span>
+                </div>
+                <div className="px-4 pb-3">
+                    {isComparisonView ? (
+                        <div className="overflow-x-auto">
+                            <div className="flex gap-4 min-w-fit">
+                                {rootNodes.map((rootNode) => (
+                                    <VariantOutputColumn
+                                        key={rootNode.entityId}
                                         rowId={rowId}
-                                        node={node}
-                                        nodeName={getNodeDisplayLabel(
-                                            node,
-                                            nodeNames,
-                                            node.entityType,
-                                        )}
-                                        rootEntityId={primaryEntityId}
+                                        entityId={rootNode.entityId}
+                                        nodeNames={nodeNames}
+                                        downstreamNodes={compareDownstreamNodes}
                                     />
                                 ))}
                             </div>
-                        ),
-                    },
-                ]}
-            />
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            <NodeResultCard
+                                name={getNodeDisplayLabel(
+                                    nodes?.find((n) => n.entityId === primaryEntityId),
+                                    nodeNames,
+                                )}
+                            >
+                                <div className="min-w-0">
+                                    <PrimaryOutput rowId={rowId} entityId={primaryEntityId} />
+                                </div>
+                            </NodeResultCard>
+                            {downstreamNodes.map((node) => (
+                                <DownstreamNodeCard
+                                    key={node.entityId}
+                                    rowId={rowId}
+                                    node={node}
+                                    nodeName={getNodeDisplayLabel(node, nodeNames, node.entityType)}
+                                    rootEntityId={primaryEntityId}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }

@@ -347,22 +347,22 @@ Threshold for "long string" matches `inferRenderHint`: length > 100 or contains 
 
 ## Tasks
 
-### Phase 1 + 2 — Foundation + Tables (single PR)
+### Phase 1 + 2 — Foundation + Tables ✅ DONE
 
-**Phase 1 — already done:** `TypeChip`, `inferRenderHint`, `getViewOptions` in `@agenta/ui`.
+**Phase 1 — done:** `TypeChip`, `inferRenderHint`, `getViewOptions` in `@agenta/ui`.
 
-**Phase 2 — table integration (full detail in plan doc):**
-- [ ] Verify testcase table has no intermediate chip code (clean baseline — no files to remove)
-- [ ] Create `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts` — `detectColumnTypes()` + `defaultHeaderVariant()`
-- [ ] Add `TypeChipConfig<RecordType>` type + `typeChips?` prop to `InfiniteVirtualTableProps`
-- [ ] Create `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx` — samples rows via `getRowValue`, detects types, enhances leaf column titles (`.tsx` — renders JSX)
-- [ ] Wire `useTypeChipColumns` in `InfiniteVirtualTableInner.tsx`
-- [ ] Thread `typeChips` through `InfiniteVirtualTableFeatureShell`
-- [ ] Create `useTypeChipFeature()` in `@agenta/ui/table` for persisted visibility and settings menu UI
-- [ ] Update `TestcasesTableShell.tsx` — replace caret spans with `GroupToggleButton`, add `[object]` TypeChip to group headers, forward `typeChips` prop
-- [ ] Update `TestcasesTableNew/index.tsx` — import `testcaseMolecule` from `@agenta/entities/testcase`, create `getRowValue`, pass `typeChips` to shell
-- [ ] Verify cell components (`TestcaseCellContent`, `JsonCellContent`, `ChatMessagesCellContent`) are untouched
-- [ ] Run `pnpm lint-fix` in `web/`
+**Phase 2 — done:**
+- [x] Verified testcase table had no intermediate chip code (clean baseline)
+- [x] Created `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts`
+- [x] Added `TypeChipConfig<RecordType>` + `typeChips?` to `InfiniteVirtualTableProps`
+- [x] Created `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx`
+- [x] Wired `useTypeChipColumns` in `InfiniteVirtualTableInner.tsx`
+- [x] Threaded `typeChips` through `InfiniteVirtualTableFeatureShell`
+- [x] Created `useTypeChipFeature()` in `@agenta/ui/table` — persisted visibility via `storageKey`
+- [x] Updated `TestcasesTableShell.tsx` — `GroupToggleButton`, `[object]` TypeChip on group headers, `typeChips` forwarding
+- [x] Updated `TestcasesTableNew/index.tsx` — `getRowValue` + `typeChips` wiring
+- [x] Verified cell components untouched
+- [x] Lint clean
 
 ### Phase 3 — Testcase Drawer
 
