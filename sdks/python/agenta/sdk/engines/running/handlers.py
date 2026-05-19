@@ -162,10 +162,10 @@ from agenta.sdk.utils.resolvers import (  # noqa: E402
 _BUILTIN_HANDLER_INPUT_KEYS = frozenset({"inputs", "messages"})
 
 
-def _unwrap_envelope_inputs(
+def _normalize_envelope_inputs(
     inputs: Optional[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
-    """Unwrap the @instrument decorator's kwarg wrapper when detected.
+    """Normalize the @instrument decorator's kwarg wrapper when detected.
 
     Built-in handlers (completion_v0, chat_v0) receive a parameter named
     ``inputs``.  The @instrument decorator records function kwargs by name,
@@ -997,7 +997,7 @@ async def auto_ai_critique_v0(
         )
 
     if inputs is not None:
-        inputs = _unwrap_envelope_inputs(inputs)
+        inputs = _normalize_envelope_inputs(inputs)
         context.update(**inputs)
         context.update(
             **{
@@ -2121,7 +2121,7 @@ async def completion_v0(
             got=inputs,
         )
 
-    inputs = _unwrap_envelope_inputs(inputs)
+    inputs = _normalize_envelope_inputs(inputs)
 
     _variables = dict(inputs or {})
 
@@ -2193,7 +2193,7 @@ async def chat_v0(
             got=inputs,
         )
 
-    inputs = _unwrap_envelope_inputs(inputs)
+    inputs = _normalize_envelope_inputs(inputs)
 
     _variables = dict(inputs or {})
     _messages = _variables.pop("messages", None)

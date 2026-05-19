@@ -1,17 +1,17 @@
 """
-Unit tests for _unwrap_envelope_inputs.
+Unit tests for _normalize_envelope_inputs.
 
 The @instrument decorator on built-in handlers (completion_v0, chat_v0)
 records function kwargs by name, so traces store
 ``ag.data.inputs = {"inputs": {"country": "Tuvalu"}}``.  Online evaluation
 reads this back and passes it to the evaluator, creating a nested wrapper.
-_unwrap_envelope_inputs detects this pattern, lifts the inner dict, and
+_normalize_envelope_inputs detects this pattern, lifts the inner dict, and
 preserves wrapper-level values like chat messages.
 """
 
 import pytest
 
-from agenta.sdk.engines.running.handlers import _unwrap_envelope_inputs
+from agenta.sdk.engines.running.handlers import _normalize_envelope_inputs
 
 
 @pytest.mark.parametrize(
@@ -61,5 +61,5 @@ from agenta.sdk.engines.running.handlers import _unwrap_envelope_inputs
         ),
     ],
 )
-def test_unwrap_envelope_inputs(inputs, expected):
-    assert _unwrap_envelope_inputs(inputs) == expected
+def test_normalize_envelope_inputs(inputs, expected):
+    assert _normalize_envelope_inputs(inputs) == expected
