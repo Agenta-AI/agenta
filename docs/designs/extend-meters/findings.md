@@ -57,14 +57,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 - **Fix shipped**: All three docstrings now read `rows` (verified by grep on 2026-05-19). Line 6 was already correct (Copilot mis-listed it).
 - **Action**: GitHub thread replied to ([discussion_r3266279318](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266279318)) and resolved.
 
-### Out-of-scope (tracked here for provenance only — these belong to `docs/designs/support-fields/`)
-
-The same 12th Copilot pass also surfaced 4 findings against the `support-fields` design folder. They are not in `extend-meters` scope and should be synced into `docs/designs/support-fields/findings.md` separately:
-
-- [discussion_r3266169147](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266169147) — `support-fields/gap.md:116` "does NOT solve" item contradicts implementation.
-- [discussion_r3266169097](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266169097) — `support-fields/proposal.md:249` client-impact note omits intercepted-error body changes.
-- [discussion_r3266169079](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266169079) — `support-fields/proposal.md:213` describes old request-state/body behavior for exception tests.
-- [discussion_r3266169058](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266169058) — `support-fields/tasks.md:96` test task contradicts headers-only implementation.
+> The same 12th Copilot pass surfaced 4 more findings against `docs/designs/support-fields/*` files (also touched by this PR). They are saved under `docs/designs/support-fields/findings.md` as F-011..F-014.
 
 ## Closed Findings
 
