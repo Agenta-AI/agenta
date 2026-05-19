@@ -13,7 +13,7 @@
 
 import {describe, it, expect, beforeEach, afterEach} from "vitest"
 
-import {fetchTestcase} from "../../src/testcase/api/api"
+import {fetchTestcasesPage} from "../../src/testcase/api/api"
 import {testcaseMolecule} from "../../src/testcase"
 
 import {TEST_CONFIG, hasBackend} from "./helpers/env"
@@ -29,18 +29,13 @@ describe.skipIf(!hasBackend)("testcaseMolecule integration", () => {
             {prompt: "Integration prompt", expected: "Integration expected"},
         ])
 
-        // Fetch the testcases for the seeded revision to get a real testcase ID
-        const tc = await fetchTestcase({
+        // Fetch the first testcase that belongs to the seeded revision.
+        const page = await fetchTestcasesPage({
             projectId: TEST_CONFIG.projectId,
-            testcaseId: fixture.revisionId,
+            revisionId: fixture.revisionId,
+            limit: 1,
         })
-
-        // The testcase API may not return the testcase by revisionId directly.
-        // We query testcases from the revision store instead.
-        // If no direct testcase was returned, we skip testcase-specific tests
-        // gracefully by leaving testcaseId empty — the atom tests use serverData(id)
-        // which returns null for unknown ids, so assertions still hold.
-        testcaseId = tc?.id || ""
+        testcaseId = page.testcases[0]?.id || ""
     })
 
     afterEach(async () => {
