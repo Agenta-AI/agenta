@@ -462,6 +462,39 @@ class TestRolesOverlayParse:
         with pytest.raises(ValueError, match="Invalid AGENTA_ACCESS_ROLES_OVERLAY"):
             controls._parse_roles_overlay({"project": {"editor": {"surprise": "yes"}}})
 
+    def test_project_focused_shortcut_accepted(self):
+        # Top-level keys are role slugs (no scope wrapper).
+        overlay = controls._parse_roles_overlay(
+            {"editor": {"permissions": ["read_system"]}}
+        )
+        assert set(overlay.keys()) == {"editor"}
+        assert overlay["editor"].permissions == ["read_system"]
+
+    def test_project_focused_shortcut_rejects_reserved_role(self):
+        with pytest.raises(ValueError, match="cannot patch reserved role 'owner'"):
+            controls._parse_roles_overlay({"owner": {"permissions": ["read_system"]}})
+
+    def test_full_form_with_organization_scope_rejected(self):
+        with pytest.raises(ValueError, match="only supports the 'project' scope"):
+            controls._parse_roles_overlay(
+                {"organization": {"editor": {"permissions": ["read_system"]}}}
+            )
+
+    def test_full_form_with_workspace_scope_rejected(self):
+        with pytest.raises(ValueError, match="only supports the 'project' scope"):
+            controls._parse_roles_overlay(
+                {"workspace": {"editor": {"permissions": ["read_system"]}}}
+            )
+
+    def test_mixing_scope_and_role_keys_rejected(self):
+        with pytest.raises(ValueError, match="mixes scope keys with non-scope"):
+            controls._parse_roles_overlay(
+                {
+                    "project": {"editor": {"permissions": ["read_system"]}},
+                    "auditor": {"permissions": ["read_system"]},
+                }
+            )
+
 
 class TestRolesOverlayApply:
     def _base_roles(self) -> dict:
