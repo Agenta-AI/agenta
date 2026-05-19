@@ -223,8 +223,13 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
                         {hydration.fetchMsByEntity.traces.toFixed(0)}
                     </Tag>
                     <Tag color={hydration.activeSlices.length < 4 ? "geekblue" : "default"}>
-                        slices: {hydration.activeSlices.join(", ")}
-                        {hydration.activeSlices.length < 4 ? " (predicate-driven)" : ""}
+                        slices:{" "}
+                        {hydration.activeSlices.length === 0
+                            ? "none (cell-side on-demand)"
+                            : hydration.activeSlices.join(", ")}
+                        {hydration.activeSlices.length > 0 && hydration.activeSlices.length < 4
+                            ? " (predicate-driven)"
+                            : ""}
                     </Tag>
                     {/*
                      * Slice-fetch strategy toggle. Changing the mode resets

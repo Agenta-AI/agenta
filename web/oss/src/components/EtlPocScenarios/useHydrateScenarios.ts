@@ -92,14 +92,20 @@ const INITIAL_PROGRESS: HydrationProgress = {
 /**
  * Slice-fetch strategy for the page-level hydrate.
  *
- * - "auto" (default): when a predicate is active, fetch only the slices
- *   the predicate touches. When no predicate is active, fetch all 4 so
- *   the table renders fully on first paint. This is the smart default
- *   demonstrated in the perf comparison.
+ * - "auto" (default): page-level hydrate fetches ONLY what's needed
+ *   right now. With an active predicate that's the predicate's slice set
+ *   (so the filter can run client-side). With NO predicate that's zero
+ *   slices — cells materialize their own data on first render via the
+ *   cell-side materializer (visible-only, virtualization-aware).
+ *
+ *   Trade-off: no-predicate first paint shows skeleton cells for a few
+ *   hundred ms until the materializer's first batch lands, then fills.
+ *   In exchange the network/memory cost matches what the table actually
+ *   needs — same shape v2 server-side filtering will land on.
  *
  * - "all": always fetch all 4 slices, regardless of predicate state.
- *   Useful for A/B comparison and for workflows where the user knows
- *   they'll scroll through every column (exports, bulk actions).
+ *   Use for A/B comparison or for workflows that need every column
+ *   populated up-front (exports, bulk actions).
  */
 export type SliceFetchMode = "auto" | "all"
 
@@ -144,19 +150,25 @@ export const useHydrateScenarios = ({
     const bumpHydrationVersion = useSetAtom(hydrationVersionAtom)
 
     // Compute the slice set this hydrate pass should fetch.
-    //   - sliceMode = "all": always fetch every slice (legacy behavior).
-    //   - sliceMode = "auto" (default):
-    //     - No predicate (or no schema): fetch all 4 (display mode).
-    //     - Predicate with mapped columns: fetch only the slices the predicate
-    //       touches. Results are added implicitly when traces or testcases are
-    //       needed (testcase_id and trace_id live on result rows).
-    //     - Predicate with an unresolvable column: fall back to all 4 to stay
-    //       correct (over-fetch is safer than dropping a predicate silently).
+    //   - sliceMode = "all": always fetch every slice.
+    //   - sliceMode = "auto" (default): "pure on-demand" semantics —
+    //     - No predicate: 0 slices at page level. Cells fetch what they
+    //       need to display, virtualization-aware, via useCellMaterialization.
+    //     - Predicate with mapped columns: fetch only the slices the
+    //       predicate touches (so the filter can run client-side).
+    //       Results are added implicitly when testcases or traces are
+    //       needed (those IDs live on result rows).
+    //     - Predicate with an unresolvable column: fall back to all 4 —
+    //       over-fetch is safer than dropping a predicate silently.
     const activeSlices = useMemo<EntitySlice[]>(() => {
         if (sliceMode === "all") return ALL_SLICES
         const result = predicateToEntitySlices(schema, predicate)
-        if (result.slices.size === 0) return ALL_SLICES
         if (result.fallbackToAll) return ALL_SLICES
+        if (result.slices.size === 0) {
+            // No predicate active in auto mode → page-level hydrate is a
+            // no-op. Cells will materialize what they need on first render.
+            return []
+        }
         // Always include results when testcases or traces are needed —
         // those IDs live on result rows.
         const slices = new Set<EntitySlice>(result.slices)
@@ -191,11 +203,26 @@ export const useHydrateScenarios = ({
         const newIds = candidateIds.filter((id) => !seen.has(id))
         if (newIds.length === 0) return
 
+        const slicesToFetch = new Set(activeSlices)
+        // Pure on-demand mode: nothing to fetch at the page level. Cells
+        // handle their own materialization via useCellMaterialization. Mark
+        // these IDs as "seen" so we don't re-enter every render and skip.
+        if (slicesToFetch.size === 0) {
+            for (const id of newIds) seen.add(id)
+            setProgress((p) => ({
+                ...p,
+                hydratedScenarios: p.hydratedScenarios + newIds.length,
+                pagesHydrated: p.pagesHydrated + 1,
+                isHydrating: false,
+                lastError: null,
+            }))
+            return
+        }
+
         // Mark optimistically so a re-render mid-flight doesn't queue duplicate
         // prefetch calls for the same scenarios.
         for (const id of newIds) seen.add(id)
 
-        const slicesToFetch = new Set(activeSlices)
         const emptyOutcome = {cacheHits: 0, cacheMisses: 0, fetchMs: 0}
 
         const hydrateBatch = async () => {
