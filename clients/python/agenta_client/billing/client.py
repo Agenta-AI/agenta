@@ -224,6 +224,66 @@ class BillingClient:
         """
         _response = self._raw_client.fetch_usage(request_options=request_options)
         return _response.data
+    
+    def fetch_billing_catalog(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[typing.Dict[str, typing.Any]]:
+        """
+        Return the effective billing catalog with pricing merged in.
+        
+        Each entry carries `title`, `description`, `plan`, `type`, `features`,
+        and (when configured) a `price` block sourced from the matching
+        `AGENTA_BILLING_PRICING` entry. Pre-joining avoids a client-side
+        catalog × pricing merge by slug.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.List[typing.Dict[str, typing.Any]]
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.billing.fetch_billing_catalog()
+        """
+        _response = self._raw_client.fetch_billing_catalog(request_options=request_options)
+        return _response.data
+    
+    def fetch_billing_pricing(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Dict[str, typing.Any]]:
+        """
+        Return the effective pricing map: plan slug -> normalized pricing.
+        
+        Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
+        (see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.Dict[str, typing.Any]]
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.billing.fetch_billing_pricing()
+        """
+        _response = self._raw_client.fetch_billing_pricing(request_options=request_options)
+        return _response.data
 class AsyncBillingClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._raw_client = AsyncRawBillingClient(client_wrapper=client_wrapper)
@@ -504,4 +564,80 @@ class AsyncBillingClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_usage(request_options=request_options)
+        return _response.data
+    
+    async def fetch_billing_catalog(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[typing.Dict[str, typing.Any]]:
+        """
+        Return the effective billing catalog with pricing merged in.
+        
+        Each entry carries `title`, `description`, `plan`, `type`, `features`,
+        and (when configured) a `price` block sourced from the matching
+        `AGENTA_BILLING_PRICING` entry. Pre-joining avoids a client-side
+        catalog × pricing merge by slug.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.List[typing.Dict[str, typing.Any]]
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.billing.fetch_billing_catalog()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_billing_catalog(request_options=request_options)
+        return _response.data
+    
+    async def fetch_billing_pricing(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Dict[str, typing.Any]]:
+        """
+        Return the effective pricing map: plan slug -> normalized pricing.
+        
+        Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
+        (see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.Dict[str, typing.Any]]
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.billing.fetch_billing_pricing()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_billing_pricing(request_options=request_options)
         return _response.data

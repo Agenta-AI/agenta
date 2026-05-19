@@ -5,6 +5,8 @@
  *
  * Values are derived from EventType so the strings stay in sync.
  * To add a new subscribable event type, it must first exist in EventType.
+ * When extending this enum, regenerate Fern clients and update the
+ * "Available event types" section in `04-webhooks.mdx`.
  */
 export const WebhookEventType = {
     WebhooksSubscriptionsTested: "webhooks.subscriptions.tested",

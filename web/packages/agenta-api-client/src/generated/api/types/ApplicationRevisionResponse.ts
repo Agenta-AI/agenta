@@ -6,8 +6,6 @@ import type * as AgentaApi from "../index.js";
  * Single-revision response envelope.
  */
 export interface ApplicationRevisionResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     /** `1` when a revision was found, `0` otherwise. */
     count?: number | undefined;
     /** The application revision, including its `data` payload (prompt, model parameters, schemas, URL). */
