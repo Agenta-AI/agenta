@@ -5,7 +5,8 @@ The @instrument decorator on built-in handlers (completion_v0, chat_v0)
 records function kwargs by name, so traces store
 ``ag.data.inputs = {"inputs": {"country": "Tuvalu"}}``.  Online evaluation
 reads this back and passes it to the evaluator, creating a nested wrapper.
-_unwrap_envelope_inputs detects this pattern and extracts the inner dict.
+_unwrap_envelope_inputs detects this pattern, lifts the inner dict, and
+preserves wrapper-level values like chat messages.
 """
 
 import pytest
@@ -35,7 +36,7 @@ from agenta.sdk.engines.running.handlers import _unwrap_envelope_inputs
         ),
         pytest.param(
             {"inputs": {"country": "Tuvalu"}, "messages": [{"role": "user"}]},
-            {"country": "Tuvalu"},
+            {"country": "Tuvalu", "messages": [{"role": "user"}]},
             id="chat-wrapper-unwraps",
         ),
         pytest.param(

@@ -174,7 +174,8 @@ def _unwrap_envelope_inputs(
     creating a nested wrapper that collides with the dual-access envelope.
 
     Heuristic: if the only keys are ``inputs`` (and optionally ``messages``)
-    and ``inputs["inputs"]`` is a dict, unwrap to the inner dict.
+    and ``inputs["inputs"]`` is a dict, lift the inner inputs to the top
+    level while preserving other wrapper-level values.
     """
     if not inputs:
         return inputs
@@ -182,7 +183,9 @@ def _unwrap_envelope_inputs(
         isinstance(inputs.get("inputs"), dict)
         and inputs.keys() <= _BUILTIN_HANDLER_INPUT_KEYS
     ):
-        return inputs["inputs"]
+        unwrapped = {key: value for key, value in inputs.items() if key != "inputs"}
+        unwrapped.update(inputs["inputs"])
+        return unwrapped
     return inputs
 
 
