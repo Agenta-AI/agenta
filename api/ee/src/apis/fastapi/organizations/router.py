@@ -107,6 +107,7 @@ async def create_domain(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.DOMAINS,
     )
 
@@ -151,6 +152,7 @@ async def verify_domain(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.DOMAINS,
     )
 
@@ -179,6 +181,7 @@ async def list_domains(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.DOMAINS,
     )
 
@@ -209,6 +212,7 @@ async def refresh_domain_token(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.DOMAINS,
     )
 
@@ -241,6 +245,7 @@ async def reset_domain(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.DOMAINS,
     )
 
@@ -268,6 +273,7 @@ async def delete_domain(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.DOMAINS,
     )
 
@@ -305,6 +311,7 @@ async def create_provider(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.SSO,
     )
 
@@ -344,6 +351,7 @@ async def update_provider(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.SSO,
     )
 
@@ -381,6 +389,7 @@ async def list_providers(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.SSO,
     )
 
@@ -413,6 +422,7 @@ async def test_provider(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.SSO,
     )
 
@@ -440,6 +450,7 @@ async def delete_provider(
     await verify_user_org_access(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
+        organization_id=request.state.organization_id,
         key=Flag.SSO,
     )
 

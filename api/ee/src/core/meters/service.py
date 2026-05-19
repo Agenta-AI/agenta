@@ -8,7 +8,7 @@ from oss.src.utils.env import env
 
 from ee.src.core.entitlements.types import Quota
 from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
-from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
+from ee.src.core.meters.types import MeterDTO
 from ee.src.core.meters.interfaces import MetersDAOInterface
 
 log = get_module_logger(__name__)
@@ -44,14 +44,16 @@ class MetersService:
     async def fetch(
         self,
         *,
-        scope: MeterScope,
-        key: Optional[Meters] = None,
-        period: Optional[MeterPeriod] = None,
+        organization_id: str,
+        key: Optional[str] = None,
+        year: Optional[int] = None,
+        month: Optional[int] = None,
     ) -> List[MeterDTO]:
         return await self.meters_dao.fetch(
-            scope=scope,
+            organization_id=organization_id,
             key=key,
-            period=period,
+            year=year,
+            month=month,
         )
 
     async def check(

@@ -10,7 +10,10 @@ class MeterDBE(Base, MeterDBA):
 
     __table_args__ = (
         PrimaryKeyConstraint(
-            "meter_id",
+            "organization_id",
+            "key",
+            "year",
+            "month",
         ),
         ForeignKeyConstraint(
             ["organization_id"],
@@ -20,19 +23,6 @@ class MeterDBE(Base, MeterDBA):
             "idx_synced_value",
             "synced",
             "value",
-        ),
-        # Org-rollup scan path used by /billing/usage (filter on org only) and
-        # entitlements soft-check fallback (filter on the full prefix).
-        # Finer scope dimensions (workspace/project/user) are sparse and always
-        # filtered alongside `organization_id`, so PG handles them in-memory
-        # against the rows this index narrows down.
-        Index(
-            "idx_meters_org_key_period",
-            "organization_id",
-            "key",
-            "year",
-            "month",
-            "day",
         ),
     )
 

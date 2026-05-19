@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-
 from supertokens_python import get_all_cors_headers as get_all_supertokens_cors_headers
 from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
@@ -128,7 +127,6 @@ from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
-from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 
 from oss.src.routers import (
@@ -318,14 +316,6 @@ app = FastAPI(
 # MIDDLEWARE -------------------------------------------------------------------
 
 
-# Register SupportHeadersMiddleware first so it ends up *innermost* —
-# closest to the route handler, beneath all BaseHTTPMiddleware-style
-# middlewares (auth, analytics, throttling). BaseHTTPMiddleware runs
-# the downstream app in a child anyio task and does not propagate
-# ContextVar mutations back to the outer task, so a support middleware
-# placed above them would never see the handler's `support_ctx.set(...)`.
-app.add_middleware(SupportHeadersMiddleware)
-
 if is_ee():
     from ee.src.services.throttling_service import throttling_middleware
 
@@ -336,7 +326,9 @@ app.middleware("http")(analytics_middleware)
 
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
-app.add_middleware(get_supertokens_middleware())
+app.add_middleware(
+    get_supertokens_middleware(),
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -352,7 +344,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["Content-Type"] + get_all_supertokens_cors_headers(),
-    expose_headers=["x-ag-support-id", "x-ag-support-ts"],
 )
 
 if ee and is_ee():

@@ -1,6 +1,7 @@
 from typing import Optional, List
 
 from pydantic import BaseModel, Field
+from oss.src.utils.exceptions import Support
 
 from oss.src.core.shared.dtos import Link, Windowing
 from oss.src.core.tracing.dtos import (
@@ -65,7 +66,7 @@ class SimpleTraceQueryRequest(BaseModel):
     )
 
 
-class SimpleTraceResponse(BaseModel):
+class SimpleTraceResponse(Support):
     """Response from a single-trace create/fetch/edit."""
 
     count: int = Field(
@@ -81,7 +82,7 @@ class SimpleTraceResponse(BaseModel):
     )
 
 
-class SimpleTracesResponse(BaseModel):
+class SimpleTracesResponse(Support):
     """Response from `POST /simple/traces/query`."""
 
     count: int = Field(
@@ -94,7 +95,7 @@ class SimpleTracesResponse(BaseModel):
     )
 
 
-class SimpleTraceLinkResponse(BaseModel):
+class SimpleTraceLinkResponse(Support):
     """Response from `DELETE /simple/traces/{trace_id}`."""
 
     count: int = Field(

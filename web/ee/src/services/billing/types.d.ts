@@ -12,24 +12,19 @@ export interface SubscriptionType {
     free_trial: boolean
 }
 
-export type UsagePeriod = "yearly" | "monthly" | "daily" | null
-export type UsageScope = "organization" | "workspace" | "project" | "user"
-
-export interface UsageKeyType {
+interface UsageKeyType {
     value: number
     limit: number | null
     free: number
-    period?: UsagePeriod
-    scope?: UsageScope
+    monthly: boolean
     strict: boolean
 }
 
 export interface DataUsageType {
-    traces_ingested?: UsageKeyType
-    traces_retrieved?: UsageKeyType
-    credits_consumed?: UsageKeyType
-    users?: UsageKeyType
-    [key: string]: UsageKeyType | undefined
+    traces: UsageKeyType
+    users: UsageKeyType
+    prompts: UsageKeyType
+    jobs: UsageKeyType
 }
 
 interface PriceInfo {

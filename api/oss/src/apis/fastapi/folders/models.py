@@ -4,6 +4,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 from fastapi import HTTPException
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.folders.types import (
     Folder,
     FolderCreate,
@@ -33,7 +35,7 @@ class FolderQueryRequest(BaseModel):
     )
 
 
-class FolderResponse(BaseModel):
+class FolderResponse(Support):
     count: int = Field(
         default=0,
         description="Number of folders returned (`0` or `1`).",
@@ -44,7 +46,7 @@ class FolderResponse(BaseModel):
     )
 
 
-class FoldersResponse(BaseModel):
+class FoldersResponse(Support):
     count: int = Field(
         default=0,
         description="Number of folders in `folders`.",
@@ -55,7 +57,7 @@ class FoldersResponse(BaseModel):
     )
 
 
-class FolderIdResponse(BaseModel):
+class FolderIdResponse(Support):
     count: int = Field(
         default=0,
         description="`1` if a folder was deleted, `0` if no folder matched.",

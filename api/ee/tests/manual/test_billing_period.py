@@ -1,5 +1,5 @@
 """
-Exhaustive multivariate tests for monthly_period_from().
+Exhaustive multivariate tests for compute_billing_period().
 
 Tests all combinations of:
 - All 12 months
@@ -11,7 +11,7 @@ Tests all combinations of:
 import pytest
 from datetime import datetime, timezone
 
-from ee.src.utils.entitlements import monthly_period_from
+from ee.src.utils.billing import compute_billing_period
 
 
 # ---- Helpers ----
@@ -40,7 +40,7 @@ class TestBillingPeriodBasicRules:
         for anchor in [None, 0]:
             for month in range(1, 13):
                 now = dt(2025, month, 15)
-                year, m = monthly_period_from(now=now, anchor=anchor)
+                year, m = compute_billing_period(now=now, anchor=anchor)
                 assert (year, m) == (2025, month), (
                     f"anchor={anchor}, month={month}: expected ({2025}, {month}), got ({year}, {m})"
                 )
@@ -48,34 +48,24 @@ class TestBillingPeriodBasicRules:
     def test_day_before_anchor_returns_current_period(self):
         """Rule: If now.day < anchor, the period is (now.year, now.month)."""
         now = dt(2025, 6, 10)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2025, 6)
 
     def test_day_on_anchor_advances_to_next_month(self):
         """Rule: If now.day == anchor, the period advances to the next month."""
         now = dt(2025, 6, 15)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2025, 7)
 
     def test_day_after_anchor_advances_to_next_month(self):
         """Rule: If now.day > anchor, the period advances to the next month."""
         now = dt(2025, 6, 20)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2025, 7)
 
     def test_defaults_to_utcnow_when_no_now(self):
-        """If now is not provided, should use UTC now.
-
-        Known boundary flake: if this test executes across a
-        month/year rollover (~zero-millisecond window per month), the
-        first call reads `datetime.now()` *inside* the helper and the
-        second one reads it here, and they straddle the boundary. The
-        whole point of the assertion is to prove the helper actually
-        calls `datetime.now()` by default, so pre-capturing `now` and
-        passing it in would defeat the test. Accepted as-is — this
-        suite is `tests/manual/`, not CI, and the window is tiny.
-        """
-        year, month = monthly_period_from(anchor=None)
+        """If now is not provided, should use UTC now."""
+        year, month = compute_billing_period(anchor=None)
         now = datetime.now(timezone.utc)
         assert year == now.year
         assert month == now.month
@@ -90,37 +80,37 @@ class TestBillingPeriodDecemberBoundary:
     def test_december_day_before_anchor(self):
         """Dec 10 with anchor=15 -> (2025, 12) (still current period)."""
         now = dt(2025, 12, 10)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2025, 12)
 
     def test_december_day_on_anchor(self):
         """Dec 15 with anchor=15 -> (2026, 1) (next month = January next year)."""
         now = dt(2025, 12, 15)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2026, 1)
 
     def test_december_day_after_anchor(self):
         """Dec 20 with anchor=15 -> (2026, 1)."""
         now = dt(2025, 12, 20)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2026, 1)
 
     def test_december_31_anchor_1(self):
         """Dec 31 with anchor=1 -> (2026, 1)."""
         now = dt(2025, 12, 31)
-        year, month = monthly_period_from(now=now, anchor=1)
+        year, month = compute_billing_period(now=now, anchor=1)
         assert (year, month) == (2026, 1)
 
     def test_december_31_anchor_31(self):
         """Dec 31 with anchor=31 -> (2026, 1)."""
         now = dt(2025, 12, 31)
-        year, month = monthly_period_from(now=now, anchor=31)
+        year, month = compute_billing_period(now=now, anchor=31)
         assert (year, month) == (2026, 1)
 
     def test_december_1_anchor_1(self):
         """Dec 1 with anchor=1 -> (2026, 1)."""
         now = dt(2025, 12, 1)
-        year, month = monthly_period_from(now=now, anchor=1)
+        year, month = compute_billing_period(now=now, anchor=1)
         assert (year, month) == (2026, 1)
 
 
@@ -133,19 +123,19 @@ class TestBillingPeriodNovember:
     def test_november_on_anchor(self):
         """Nov 15 with anchor=15 -> (2025, 12)."""
         now = dt(2025, 11, 15)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2025, 12)
 
     def test_november_after_anchor(self):
         """Nov 20 with anchor=15 -> (2025, 12)."""
         now = dt(2025, 11, 20)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2025, 12)
 
     def test_november_before_anchor(self):
         """Nov 10 with anchor=15 -> (2025, 11)."""
         now = dt(2025, 11, 10)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2025, 11)
 
 
@@ -161,7 +151,7 @@ class TestBillingPeriodFebruary:
         so we stay in current period: (2025, 2).
         """
         now = dt(2025, 2, 28)
-        year, month = monthly_period_from(now=now, anchor=30)
+        year, month = compute_billing_period(now=now, anchor=30)
         assert (year, month) == (2025, 2)
 
     def test_feb28_non_leap_anchor_28(self):
@@ -169,7 +159,7 @@ class TestBillingPeriodFebruary:
         now.day (28) == anchor (28), so advance: (2025, 3).
         """
         now = dt(2025, 2, 28)
-        year, month = monthly_period_from(now=now, anchor=28)
+        year, month = compute_billing_period(now=now, anchor=28)
         assert (year, month) == (2025, 3)
 
     def test_feb28_non_leap_anchor_29(self):
@@ -177,7 +167,7 @@ class TestBillingPeriodFebruary:
         now.day (28) < anchor (29), so stay: (2025, 2).
         """
         now = dt(2025, 2, 28)
-        year, month = monthly_period_from(now=now, anchor=29)
+        year, month = compute_billing_period(now=now, anchor=29)
         assert (year, month) == (2025, 2)
 
     def test_feb29_leap_anchor_29(self):
@@ -185,7 +175,7 @@ class TestBillingPeriodFebruary:
         now.day (29) == anchor (29), so advance: (2024, 3).
         """
         now = dt(2024, 2, 29)
-        year, month = monthly_period_from(now=now, anchor=29)
+        year, month = compute_billing_period(now=now, anchor=29)
         assert (year, month) == (2024, 3)
 
     def test_feb29_leap_anchor_30(self):
@@ -193,7 +183,7 @@ class TestBillingPeriodFebruary:
         now.day (29) < anchor (30), so stay: (2024, 2).
         """
         now = dt(2024, 2, 29)
-        year, month = monthly_period_from(now=now, anchor=30)
+        year, month = compute_billing_period(now=now, anchor=30)
         assert (year, month) == (2024, 2)
 
     def test_feb29_leap_anchor_28(self):
@@ -201,19 +191,19 @@ class TestBillingPeriodFebruary:
         now.day (29) >= anchor (28), so advance: (2024, 3).
         """
         now = dt(2024, 2, 29)
-        year, month = monthly_period_from(now=now, anchor=28)
+        year, month = compute_billing_period(now=now, anchor=28)
         assert (year, month) == (2024, 3)
 
     def test_feb1_anchor_15(self):
         """Feb 1 with anchor=15 -> (2025, 2)."""
         now = dt(2025, 2, 1)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2025, 2)
 
     def test_feb15_anchor_15(self):
         """Feb 15 with anchor=15 -> (2025, 3)."""
         now = dt(2025, 2, 15)
-        year, month = monthly_period_from(now=now, anchor=15)
+        year, month = compute_billing_period(now=now, anchor=15)
         assert (year, month) == (2025, 3)
 
 
@@ -228,7 +218,7 @@ class TestBillingPeriod30DayMonths:
         now.day (30) < anchor (31), so stay: (2025, 4).
         """
         now = dt(2025, 4, 30)
-        year, month = monthly_period_from(now=now, anchor=31)
+        year, month = compute_billing_period(now=now, anchor=31)
         assert (year, month) == (2025, 4)
 
     def test_june_30_anchor_31(self):
@@ -236,7 +226,7 @@ class TestBillingPeriod30DayMonths:
         now.day (30) < anchor (31), so stay: (2025, 6).
         """
         now = dt(2025, 6, 30)
-        year, month = monthly_period_from(now=now, anchor=31)
+        year, month = compute_billing_period(now=now, anchor=31)
         assert (year, month) == (2025, 6)
 
     def test_april_30_anchor_30(self):
@@ -244,7 +234,7 @@ class TestBillingPeriod30DayMonths:
         now.day (30) >= anchor (30), so advance: (2025, 5).
         """
         now = dt(2025, 4, 30)
-        year, month = monthly_period_from(now=now, anchor=30)
+        year, month = compute_billing_period(now=now, anchor=30)
         assert (year, month) == (2025, 5)
 
 
@@ -257,13 +247,13 @@ class TestBillingPeriodJanuary:
     def test_jan1_anchor_1(self):
         """Jan 1 with anchor=1 -> (2025, 2)."""
         now = dt(2025, 1, 1)
-        year, month = monthly_period_from(now=now, anchor=1)
+        year, month = compute_billing_period(now=now, anchor=1)
         assert (year, month) == (2025, 2)
 
     def test_jan31_anchor_1(self):
         """Jan 31 with anchor=1 -> (2025, 2)."""
         now = dt(2025, 1, 31)
-        year, month = monthly_period_from(now=now, anchor=1)
+        year, month = compute_billing_period(now=now, anchor=1)
         assert (year, month) == (2025, 2)
 
 
@@ -298,7 +288,7 @@ class TestBillingPeriodExhaustive:
             pytest.skip(f"Day {day} doesn't exist in {year}-{month:02d}")
 
         now = dt(year, month, day)
-        result_year, result_month = monthly_period_from(now=now, anchor=anchor)
+        result_year, result_month = compute_billing_period(now=now, anchor=anchor)
 
         # Expected behavior:
         if not anchor or day < anchor:

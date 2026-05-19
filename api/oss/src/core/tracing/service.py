@@ -612,7 +612,6 @@ class TracingService:
         self,
         *,
         project_id: UUID,
-        #
         query: TracingQuery,
     ) -> Spans:
         spans_or_traces = await self.query_spans_or_traces(
@@ -628,7 +627,6 @@ class TracingService:
         self,
         *,
         project_id: UUID,
-        #
         trace_ids: Optional[List[str]] = None,
         span_ids: Optional[List[str]] = None,
     ) -> Spans:
@@ -668,7 +666,6 @@ class TracingService:
         self,
         *,
         project_id: UUID,
-        #
         trace_id: str,
         span_id: str,
     ) -> Optional[Span]:
@@ -683,7 +680,6 @@ class TracingService:
         self,
         *,
         project_id: UUID,
-        #
         query: TracingQuery,
     ) -> Traces:
         spans_or_traces = await self.query_spans_or_traces(
@@ -753,7 +749,6 @@ class TracingService:
         self,
         *,
         project_id: UUID,
-        #
         trace_ids: List[str],
     ) -> Traces:
         if not trace_ids:
@@ -777,7 +772,6 @@ class TracingService:
         self,
         *,
         project_id: UUID,
-        #
         trace_id: str,
     ) -> Optional[Trace]:
         normalized_trace_id = UUID(parse_trace_id_to_uuid(trace_id))

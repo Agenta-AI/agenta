@@ -1,7 +1,7 @@
 from typing import Tuple, Callable, Optional
 
 from ee.src.core.entitlements.types import Quota
-from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
+from ee.src.core.meters.types import MeterDTO
 
 
 class MetersDAOInterface:
@@ -33,25 +33,16 @@ class MetersDAOInterface:
     async def fetch(
         self,
         *,
-        scope: MeterScope,
-        key: Optional[Meters] = None,
-        period: Optional[MeterPeriod] = None,
+        organization_id: str,
     ) -> list[MeterDTO]:
         """
-        Fetch meters rooted at `scope.organization_id`, optionally narrowed by
-        finer scope dimensions, key, and/or period bucket.
+        Fetch all meters for a given organization.
 
         Parameters:
-        - scope: MeterScope identifying the org and any finer dimensions
-          (workspace/project/user) to filter on.
-        - key: Optional Meters member to filter on. Callers holding a
-          Counter/Gauge/Flag must convert via Meters[counter.name] — the DB
-          column binds by Python enum *name* (uppercase), not value
-          (lowercase), so a Counter passed raw would silently miss rows.
-        - period: Optional MeterPeriod bucket (year/month/day) to filter on.
+        - organization_id: The ID of the organization to fetch meters for.
 
         Returns:
-        - List[MeterDTO]: A list of MeterDTO objects matching the filters.
+        - List[MeterDTO]: A list of MeterDTO objects containing the meter details.
         """
         raise NotImplementedError
 
@@ -68,7 +59,6 @@ class MetersDAOInterface:
         Parameters:
         - meter: MeterDTO containing the current meter information and either `value` or `delta`.
         - quota: QuotaDTO defining the allowed quota limits.
-        - anchor: Optional billing anchor day used to compute the active period bucket.
 
         Returns:
         - allowed (bool): Whether the operation is within the allowed limits.
@@ -89,7 +79,6 @@ class MetersDAOInterface:
         Parameters:
         - meter: MeterDTO containing either `value` or `delta` for the adjustment.
         - quota: QuotaDTO defining the allowed quota limits.
-        - anchor: Optional billing anchor day used to compute the active period bucket.
 
         Returns:
         - allowed (bool): Whether the adjustment was within quota limits.

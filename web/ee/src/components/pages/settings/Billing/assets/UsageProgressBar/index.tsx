@@ -5,44 +5,17 @@ import {Space, Typography} from "antd"
 
 import {UsageProgressBarProps} from "../types"
 
-const PERIOD_SUFFIX: Record<string, string> = {
-    daily: "today",
-    monthly: "this month",
-    yearly: "this year",
-}
-
-const SCOPE_SUFFIX: Record<string, string> = {
-    user: "per user",
-    project: "per project",
-    workspace: "per workspace",
-    // organization scope is implicit — no suffix.
-}
-
-const prettifyLabel = (label: string): string => label.replace(/_/g, " ")
-
 const UsageProgressBar = ({
     label,
     limit,
     used: value,
     isUnlimited = false,
     free,
-    period,
-    scope,
 }: UsageProgressBarProps) => {
-    const suffixParts: string[] = []
-    if (scope && SCOPE_SUFFIX[scope]) {
-        suffixParts.push(SCOPE_SUFFIX[scope])
-    }
-    if (period && PERIOD_SUFFIX[period]) {
-        suffixParts.push(PERIOD_SUFFIX[period])
-    }
-    const suffix = suffixParts.length ? ` (${suffixParts.join(", ")})` : ""
-
     return (
         <div className="w-full flex flex-col gap-1">
             <Typography.Text className="text-[#586673] font-medium capitalize">
-                {prettifyLabel(label)}
-                {suffix}{" "}
+                {label}{" "}
                 {!isUnlimited && value >= limit && <WarningFilled className="text-yellow-500" />}
             </Typography.Text>
 

@@ -2,6 +2,8 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
@@ -113,7 +115,7 @@ class ApplicationQueryRequest(BaseModel):
     )
 
 
-class ApplicationResponse(BaseModel):
+class ApplicationResponse(Support):
     """Single-application response envelope."""
 
     count: int = Field(
@@ -126,7 +128,7 @@ class ApplicationResponse(BaseModel):
     )
 
 
-class ApplicationsResponse(BaseModel):
+class ApplicationsResponse(Support):
     """Paginated list of application artifacts."""
 
     count: int = Field(
@@ -233,7 +235,7 @@ class ApplicationVariantQueryRequest(BaseModel):
     )
 
 
-class ApplicationVariantResponse(BaseModel):
+class ApplicationVariantResponse(Support):
     """Single-variant response envelope."""
 
     count: int = Field(
@@ -246,7 +248,7 @@ class ApplicationVariantResponse(BaseModel):
     )
 
 
-class ApplicationVariantsResponse(BaseModel):
+class ApplicationVariantsResponse(Support):
     """Paginated list of application variants."""
 
     count: int = Field(
@@ -465,7 +467,7 @@ class ApplicationRevisionDeployRequest(BaseModel):
     )
 
 
-class ApplicationRevisionResponse(BaseModel):
+class ApplicationRevisionResponse(Support):
     """Single-revision response envelope."""
 
     count: int = Field(
@@ -488,7 +490,7 @@ class ApplicationRevisionResponse(BaseModel):
     )
 
 
-class ApplicationRevisionsResponse(BaseModel):
+class ApplicationRevisionsResponse(Support):
     """Paginated list of application revisions."""
 
     count: int = Field(
@@ -574,7 +576,7 @@ class SimpleApplicationQueryRequest(BaseModel):
     )
 
 
-class SimpleApplicationResponse(BaseModel):
+class SimpleApplicationResponse(Support):
     """Simple-application single-row response envelope."""
 
     count: int = Field(
@@ -590,7 +592,7 @@ class SimpleApplicationResponse(BaseModel):
     )
 
 
-class SimpleApplicationsResponse(BaseModel):
+class SimpleApplicationsResponse(Support):
     """Paginated list of simple-application rows."""
 
     count: int = Field(
@@ -652,7 +654,7 @@ class ApplicationRevisionResolveRequest(BaseModel):
     )
 
 
-class ApplicationRevisionResolveResponse(BaseModel):
+class ApplicationRevisionResolveResponse(Support):
     """Response for `POST /applications/revisions/resolve`."""
 
     count: int = Field(
@@ -669,7 +671,7 @@ class ApplicationRevisionResolveResponse(BaseModel):
     )
 
 
-class ApplicationCatalogTypeResponse(BaseModel):
+class ApplicationCatalogTypeResponse(Support):
     """Single catalog-type response envelope."""
 
     count: int = Field(default=0, description="`1` when found, `0` otherwise.")
@@ -679,7 +681,7 @@ class ApplicationCatalogTypeResponse(BaseModel):
     )
 
 
-class ApplicationCatalogTypesResponse(BaseModel):
+class ApplicationCatalogTypesResponse(Support):
     """List of catalog types."""
 
     count: int = Field(default=0, description="Number of types returned.")
@@ -692,7 +694,7 @@ class ApplicationCatalogTypesResponse(BaseModel):
     )
 
 
-class ApplicationCatalogTemplateResponse(BaseModel):
+class ApplicationCatalogTemplateResponse(Support):
     """Single template response envelope."""
 
     count: int = Field(default=0, description="`1` when found, `0` otherwise.")
@@ -702,7 +704,7 @@ class ApplicationCatalogTemplateResponse(BaseModel):
     )
 
 
-class ApplicationCatalogTemplatesResponse(BaseModel):
+class ApplicationCatalogTemplatesResponse(Support):
     """List of catalog templates."""
 
     count: int = Field(default=0, description="Number of templates returned.")
@@ -716,7 +718,7 @@ class ApplicationCatalogTemplatesResponse(BaseModel):
     )
 
 
-class ApplicationCatalogPresetResponse(BaseModel):
+class ApplicationCatalogPresetResponse(Support):
     """Single preset response envelope."""
 
     count: int = Field(default=0, description="`1` when found, `0` otherwise.")
@@ -726,7 +728,7 @@ class ApplicationCatalogPresetResponse(BaseModel):
     )
 
 
-class ApplicationCatalogPresetsResponse(BaseModel):
+class ApplicationCatalogPresetsResponse(Support):
     """List of catalog presets scoped to one template."""
 
     count: int = Field(default=0, description="Number of presets returned.")

@@ -12,7 +12,7 @@ from time import time
 
 from alembic import context
 
-from sqlalchemy import Connection, func, insert, select, text, update
+from sqlalchemy import Connection, func, insert, select, update
 from sqlalchemy.orm import load_only
 
 import stripe
@@ -25,17 +25,9 @@ from ee.src.models.db_models import OrganizationMemberDB
 from oss.src.models.db_models import ProjectDB
 from ee.src.models.extended.deprecated_models import DeprecatedOrganizationDB
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
+from ee.src.dbs.postgres.meters.dbes import MeterDBE
 from ee.src.core.subscriptions.types import FREE_PLAN
-
-# Historical reference: both `Gauge.APPLICATIONS` and the legacy `Gauge.USERS`
-# enum label predate the meters reshape that adds `meter_id`, `workspace_id`,
-# `project_id`, `user_id`, and `day` columns. This migration writes meter rows
-# via raw SQL so a fresh replay does not hit "column does not exist" against
-# the live ORM model — the reshape migration that follows is what introduces
-# those columns. Once that migration runs, the rows written here either get
-# their `meter_id` backfilled (USERS) or get deleted (APPLICATIONS).
-_LEGACY_APPLICATIONS_KEY = "APPLICATIONS"
-_LEGACY_USERS_KEY = "USERS"
+from ee.src.core.entitlements.types import Gauge
 
 stripe.api_key = env.stripe.api_key
 
@@ -194,35 +186,65 @@ def upgrade() -> None:
                 # xdt = xtf - xti
                 # log.info(" - GET ORGANIZATION MEMBERS: %s ms", int(xdt * 1000))
 
-                # --> CREATE OR UPDATE USERS METER (legacy)
-                # NOTE: `MeterDBE` cannot be used here — its mapped columns
-                # include scope/period dimensions that don't exist at this
-                # revision's point in the chain. Raw SQL matches the schema
-                # as it stood when this migration was originally authored.
-                session.execute(
-                    text(
-                        """
-                        INSERT INTO meters (
-                            organization_id, key, year, month, value, synced
-                        ) VALUES (
-                            :organization_id,
-                            CAST(:key AS meters_type),
-                            :year, :month, :value, :synced
+                # xti = time()
+                # --> CHECK IF USERS METER EXISTS
+                key = Gauge.USERS
+                value = nof_members
+                synced = 0
+                # organization_id = organization_id
+                year = 0
+                month = 0
+
+                users_meter_exists = (
+                    session.execute(
+                        select(MeterDBE).where(
+                            MeterDBE.organization_id == organization_id,
+                            MeterDBE.key == key,
+                            MeterDBE.year == year,
+                            MeterDBE.month == month,
                         )
-                        ON CONFLICT (organization_id, key, year, month)
-                        DO UPDATE SET value = EXCLUDED.value, synced = EXCLUDED.synced
-                        """
-                    ),
-                    {
-                        "organization_id": organization_id,
-                        "key": _LEGACY_USERS_KEY,
-                        "year": 0,
-                        "month": 0,
-                        "value": nof_members,
-                        "synced": 0,
-                    },
+                    )
+                    .scalars()
+                    .first()
                 )
+                # <-- CHECK IF USERS METER EXISTS
+                # xtf = time()
+                # xdt = xtf - xti
+                # log.info(" - CHECK IF USERS METER EXISTS: %s ms", int(xdt * 1000))
+
+                # xti = time()
+                # --> CREATE OR UPDATE USERS METER
+                if not users_meter_exists:
+                    query = insert(MeterDBE).values(
+                        organization_id=organization_id,
+                        key=key,
+                        year=year,
+                        month=month,
+                        value=value,
+                        synced=synced,
+                    )
+
+                    session.execute(query)
+                else:
+                    query = (
+                        update(MeterDBE)
+                        .where(
+                            MeterDBE.organization_id == organization_id,
+                            MeterDBE.key == key,
+                            MeterDBE.year == year,
+                            MeterDBE.month == month,
+                        )
+                        .values(
+                            value=value,
+                            synced=synced,
+                        )
+                    )
+
+                    session.execute(query)
                 # <-- CREATE OR UPDATE USERS METER
+                # xtf = time()
+                # xdt = xtf - xti
+                # log.info(" - CREATE OR UPDATE USERS METER: %s ms", int(xdt * 1000))
 
                 # xti = time()
                 # --> GET ORGANIZATION PROJECTS
@@ -256,33 +278,62 @@ def upgrade() -> None:
                 # log.info(" - ITERATE OVER PROJECTS: %s ms", int(xdt * 1000))
 
                 # xti = time()
-                # --> CREATE OR UPDATE APPLICATIONS METER (legacy)
-                # NOTE: `APPLICATIONS` was removed from the Meters enum in a
-                # later migration. We use raw SQL here so module import does
-                # not depend on the Python enum value still being present.
-                session.execute(
-                    text(
-                        """
-                        INSERT INTO meters (
-                            organization_id, key, year, month, value, synced
-                        ) VALUES (
-                            :organization_id,
-                            CAST(:key AS meters_type),
-                            :year, :month, :value, :synced
+                # --> CHECK IF APPLICATIONS METER EXISTS
+                key = Gauge.APPLICATIONS
+                # value = value
+                synced = 0
+                # organization_id = organization_id
+                year = 0
+                month = 0
+
+                applications_meter_exists = (
+                    session.execute(
+                        select(MeterDBE).where(
+                            MeterDBE.organization_id == organization_id,
+                            MeterDBE.key == key,
+                            MeterDBE.year == year,
+                            MeterDBE.month == month,
                         )
-                        ON CONFLICT (organization_id, key, year, month)
-                        DO UPDATE SET value = EXCLUDED.value, synced = EXCLUDED.synced
-                        """
-                    ),
-                    {
-                        "organization_id": organization_id,
-                        "key": _LEGACY_APPLICATIONS_KEY,
-                        "year": 0,
-                        "month": 0,
-                        "value": value,
-                        "synced": 0,
-                    },
+                    )
+                    .scalars()
+                    .first()
                 )
+                # <-- CHECK IF APPLICATIONS METER EXISTS
+                # xtf = time()
+                # xdt = xtf - xti
+                # log.info(
+                #     " - CHECK IF APPLICATIONS METER EXISTS: %s ms", int(xdt * 1000)
+                # )
+
+                # xti = time()
+                # --> CREATE OR UPDATE APPLICATIONS METER
+                if not applications_meter_exists:
+                    query = insert(MeterDBE).values(
+                        organization_id=organization_id,
+                        key=key,
+                        year=year,
+                        month=month,
+                        value=value,
+                        synced=synced,
+                    )
+
+                    session.execute(query)
+                else:
+                    query = (
+                        update(MeterDBE)
+                        .where(
+                            MeterDBE.organization_id == organization_id,
+                            MeterDBE.key == key,
+                            MeterDBE.year == year,
+                            MeterDBE.month == month,
+                        )
+                        .values(
+                            value=value,
+                            synced=synced,
+                        )
+                    )
+
+                    session.execute(query)
                 # <-- CREATE OR UPDATE APPLICATIONS METER
                 # xtf = time()
                 # xdt = xtf - xti

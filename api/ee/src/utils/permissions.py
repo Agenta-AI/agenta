@@ -17,7 +17,7 @@ from ee.src.models.shared_models import (
 
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee
-from ee.src.utils.entitlements import check_entitlements, scope_from, Flag
+from ee.src.utils.entitlements import check_entitlements, Flag
 from ee.src.services.selectors import get_user_org_and_workspace_id
 
 
@@ -363,13 +363,10 @@ async def check_project_has_role_or_permission(
 
     if not is_demo:
         # For non-demo members, check if RBAC is enabled
-        # If RBAC is disabled, grant full access (current behavior for paid plans).
-        # The flag is per-org; project it onto the target project's org so
-        # cross-org permission checks read the correct plan's RBAC setting
-        # rather than the ambient caller's plan.
+        # If RBAC is disabled, grant full access (current behavior for paid plans)
         check, _, _ = await check_entitlements(
+            organization_id=project.organization_id,
             key=Flag.RBAC,
-            scope=scope_from(organization_id=project.organization_id),
         )
 
         if not check:

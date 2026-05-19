@@ -34,7 +34,7 @@ from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import get_default_plan
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.core.meters.service import MetersService
-from ee.src.utils.entitlements import check_entitlements, scope_from, Gauge
+from ee.src.utils.entitlements import check_entitlements, Gauge
 from ee.src.core.organizations.exceptions import OrganizationCreationNotAllowedError
 
 log = get_module_logger(__name__)
@@ -297,9 +297,6 @@ async def create_organization_for_signup(
         user=user,
     )
 
-    if not isinstance(organization, OrganizationDB):
-        raise ValueError("Failed to create organization")
-
     log.info("[scopes] Organization [%s] created", organization.id)
 
     # Provision the initial signup subscription for the organization
@@ -319,9 +316,9 @@ async def create_organization_for_signup(
 
     # Check entitlements
     await check_entitlements(
+        organization_id=str(organization.id),
         key=Gauge.USERS,
         delta=1,
-        scope=scope_from(organization_id=organization.id),
     )
 
     return organization
@@ -356,9 +353,6 @@ async def create_organization_for_user(
         user=user,
     )
 
-    if not isinstance(organization, OrganizationDB):
-        raise ValueError("Failed to create organization")
-
     log.info("[scopes] Organization [%s] created", organization.id)
 
     try:
@@ -375,9 +369,9 @@ async def create_organization_for_user(
         raise
 
     await check_entitlements(
+        organization_id=str(organization.id),
         key=Gauge.USERS,
         delta=1,
-        scope=scope_from(organization_id=organization.id),
     )
 
     return organization

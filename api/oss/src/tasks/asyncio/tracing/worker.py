@@ -21,7 +21,7 @@ from oss.src.core.tracing.streaming import deserialize_span
 log = get_module_logger(__name__)
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, scope_from, Counter
+    from ee.src.utils.entitlements import check_entitlements, Counter
 
 
 class TracingWorker:
@@ -260,11 +260,12 @@ class TracingWorker:
 
             if is_ee() and delta > 0:
                 try:
-                    # Layer 2: Authoritative DB check + adjust (cache=False for hard check)
-                    allowed, meter, rollback = await check_entitlements(  # type: ignore
-                        key=Counter.TRACES_INGESTED,  # type: ignore
+                    # Layer 2: Authoritative DB check + adjust (use_cache=False for hard check)
+                    allowed, meter, rollback = await check_entitlements(
+                        organization_id=organization_id,
+                        key=Counter.TRACES,
                         delta=delta,
-                        scope=scope_from(organization_id=organization_id),  # type: ignore
+                        use_cache=False,
                     )
 
                     if not allowed:

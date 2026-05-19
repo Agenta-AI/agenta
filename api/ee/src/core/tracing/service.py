@@ -42,9 +42,7 @@ class TracingService:
                 total_skipped += 1
                 continue
 
-            traces_quota = entitlements.get(Tracker.COUNTERS, {}).get(
-                Counter.TRACES_INGESTED
-            )
+            traces_quota = entitlements.get(Tracker.COUNTERS, {}).get(Counter.TRACES)
 
             if not traces_quota or traces_quota.retention is None:
                 log.info(f"[flush] [{plan.value}] Skipped (unlimited retention)")

@@ -7,13 +7,18 @@ from contextlib import AbstractContextManager
 
 from fastapi import Request, HTTPException
 from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 
-from oss.src.utils.context import Support, support_ctx
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.exceptions import EntityCreationConflict
 
 
 log = get_module_logger(__name__)
+
+
+class Support(BaseModel):
+    support_id: Optional[str] = None
+    support_ts: Optional[datetime] = None
 
 
 def build_support() -> Support:
@@ -23,12 +28,19 @@ def build_support() -> Support:
     )
 
 
-def attach_support(support: Support) -> None:
-    """Stash support metadata in the request-scoped ContextVar.
+def attach_support(payload: Any, support: Support) -> Any:
+    if (
+        isinstance(payload, BaseModel)
+        and "support_id" in payload.__class__.model_fields
+    ):
+        return payload.model_copy(
+            update={
+                "support_id": support.support_id,
+                "support_ts": support.support_ts,
+            }
+        )
 
-    A middleware reads it on the way out and emits the headers.
-    """
-    support_ctx.set(support)
+    return payload
 
 
 def build_entity_creation_conflict_message(
@@ -109,8 +121,7 @@ def suppress_exceptions(
                         operation_id=operation_id,
                     )
 
-                attach_support(support)
-                return default
+                return attach_support(default, support)
 
         return wrapper
 
@@ -134,17 +145,17 @@ def intercept_exceptions(
                     e: EntityCreationConflict
 
                     support = build_support()
-                    attach_support(support)
                     raise ConflictException(
                         message=build_entity_creation_conflict_message(
                             conflict=e.conflict,
                             default_message=e.message,
                         ),
                         conflict=e.conflict,
+                        support_id=support.support_id,
+                        support_ts=support.support_ts,
                     ) from e
 
                 support = build_support()
-                attach_support(support)
                 operation_id = func.__name__ if hasattr(func, "__name__") else None
 
                 user_id = None
@@ -177,6 +188,8 @@ def intercept_exceptions(
                 status_code = 500
                 detail = {
                     "message": message,
+                    "support_id": support.support_id,
+                    "support_ts": support.support_ts,
                     "operation_id": operation_id,
                 }
                 detail = jsonable_encoder(detail)

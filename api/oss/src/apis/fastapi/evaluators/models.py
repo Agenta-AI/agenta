@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel, Field
+from oss.src.utils.exceptions import Support
 
 from oss.src.core.shared.dtos import (
     Windowing,
@@ -39,6 +40,7 @@ from oss.src.core.evaluators.dtos import (
     EvaluatorCatalogTemplate,
     EvaluatorCatalogPreset,
 )
+
 
 # EVALUATORS -------------------------------------------------------------------
 
@@ -100,7 +102,7 @@ class EvaluatorForkRequest(BaseModel):
     )
 
 
-class EvaluatorResponse(BaseModel):
+class EvaluatorResponse(Support):
     """Envelope for a single evaluator response."""
 
     count: int = Field(
@@ -112,7 +114,7 @@ class EvaluatorResponse(BaseModel):
     )
 
 
-class EvaluatorsResponse(BaseModel):
+class EvaluatorsResponse(Support):
     """Envelope for a list of evaluators."""
 
     count: int = Field(default=0, description="Number of evaluators in `evaluators`.")
@@ -195,7 +197,7 @@ class EvaluatorRevisionsLogRequest(BaseModel):
     )
 
 
-class EvaluatorVariantResponse(BaseModel):
+class EvaluatorVariantResponse(Support):
     """Envelope for a single evaluator variant."""
 
     count: int = Field(
@@ -207,7 +209,7 @@ class EvaluatorVariantResponse(BaseModel):
     )
 
 
-class EvaluatorVariantsResponse(BaseModel):
+class EvaluatorVariantsResponse(Support):
     """Envelope for a list of evaluator variants."""
 
     count: int = Field(
@@ -359,7 +361,7 @@ class EvaluatorRevisionDeployRequest(BaseModel):
     )
 
 
-class EvaluatorRevisionResponse(BaseModel):
+class EvaluatorRevisionResponse(Support):
     """Envelope for a single evaluator revision."""
 
     count: int = Field(
@@ -375,7 +377,7 @@ class EvaluatorRevisionResponse(BaseModel):
     )
 
 
-class EvaluatorRevisionsResponse(BaseModel):
+class EvaluatorRevisionsResponse(Support):
     """Envelope for a list of evaluator revisions."""
 
     count: int = Field(
@@ -435,7 +437,7 @@ class SimpleEvaluatorQueryRequest(BaseModel):
     )
 
 
-class SimpleEvaluatorResponse(BaseModel):
+class SimpleEvaluatorResponse(Support):
     """Envelope for a single simple evaluator."""
 
     count: int = Field(
@@ -447,7 +449,7 @@ class SimpleEvaluatorResponse(BaseModel):
     )
 
 
-class SimpleEvaluatorsResponse(BaseModel):
+class SimpleEvaluatorsResponse(Support):
     """Envelope for a list of simple evaluators."""
 
     count: int = Field(default=0, description="Number of evaluators in `evaluators`.")
@@ -490,7 +492,7 @@ class EvaluatorRevisionResolveRequest(BaseModel):
     )
 
 
-class EvaluatorRevisionResolveResponse(BaseModel):
+class EvaluatorRevisionResolveResponse(Support):
     """Envelope for a resolved evaluator revision."""
 
     count: int = Field(
@@ -554,7 +556,7 @@ class EvaluatorTemplate(BaseModel):
     )
 
 
-class EvaluatorTemplatesResponse(BaseModel):
+class EvaluatorTemplatesResponse(Support):
     """Envelope for a list of evaluator templates."""
 
     count: int = Field(default=0, description="Number of templates in `templates`.")
@@ -567,7 +569,7 @@ class EvaluatorTemplatesResponse(BaseModel):
 # EVALUATORS CATALOG -----------------------------------------------------------
 
 
-class EvaluatorCatalogTypeResponse(BaseModel):
+class EvaluatorCatalogTypeResponse(Support):
     """Envelope for a single catalog type."""
 
     count: int = Field(default=0, description="1 when a type is returned, 0 otherwise.")
@@ -577,7 +579,7 @@ class EvaluatorCatalogTypeResponse(BaseModel):
     )
 
 
-class EvaluatorCatalogTypesResponse(BaseModel):
+class EvaluatorCatalogTypesResponse(Support):
     """Envelope for a list of catalog types."""
 
     count: int = Field(default=0, description="Number of types in `types`.")
@@ -587,7 +589,7 @@ class EvaluatorCatalogTypesResponse(BaseModel):
     )
 
 
-class EvaluatorCatalogTemplateResponse(BaseModel):
+class EvaluatorCatalogTemplateResponse(Support):
     """Envelope for a single catalog template."""
 
     count: int = Field(
@@ -599,7 +601,7 @@ class EvaluatorCatalogTemplateResponse(BaseModel):
     )
 
 
-class EvaluatorCatalogTemplatesResponse(BaseModel):
+class EvaluatorCatalogTemplatesResponse(Support):
     """Envelope for a list of catalog templates."""
 
     count: int = Field(default=0, description="Number of templates in `templates`.")
@@ -609,7 +611,7 @@ class EvaluatorCatalogTemplatesResponse(BaseModel):
     )
 
 
-class EvaluatorCatalogPresetResponse(BaseModel):
+class EvaluatorCatalogPresetResponse(Support):
     """Envelope for a single catalog preset."""
 
     count: int = Field(
@@ -621,7 +623,7 @@ class EvaluatorCatalogPresetResponse(BaseModel):
     )
 
 
-class EvaluatorCatalogPresetsResponse(BaseModel):
+class EvaluatorCatalogPresetsResponse(Support):
     """Envelope for a list of catalog presets."""
 
     count: int = Field(default=0, description="Number of presets in `presets`.")

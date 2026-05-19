@@ -1,6 +1,7 @@
 from typing import Optional, List
 
 from pydantic import BaseModel, Field
+from oss.src.utils.exceptions import Support
 
 from oss.src.core.shared.dtos import (
     Windowing,
@@ -104,7 +105,7 @@ class SpanRequest(BaseModel):
     )
 
 
-class OTelLinksResponse(BaseModel):
+class OTelLinksResponse(Support):
     """Response from span ingestion.
 
     `count` reflects how many spans were successfully parsed and published
@@ -132,7 +133,7 @@ class OTelLinksResponse(BaseModel):
     )
 
 
-class LinkResponse(BaseModel):
+class LinkResponse(Support):
     count: int = Field(
         default=0,
         description="`1` if a link was returned, `0` otherwise.",
@@ -143,7 +144,7 @@ class LinkResponse(BaseModel):
     )
 
 
-class LinksResponse(BaseModel):
+class LinksResponse(Support):
     count: int = Field(default=0, description="Number of links returned.")
     links: Optional[Links] = Field(
         default=None,
@@ -151,7 +152,7 @@ class LinksResponse(BaseModel):
     )
 
 
-class TraceIdResponse(BaseModel):
+class TraceIdResponse(Support):
     count: int = Field(
         default=0,
         description="`1` if a `trace_id` was returned, `0` otherwise.",
@@ -162,7 +163,7 @@ class TraceIdResponse(BaseModel):
     )
 
 
-class TraceIdsResponse(BaseModel):
+class TraceIdsResponse(Support):
     count: int = Field(
         default=0,
         description="Number of distinct trace IDs in this response.",
@@ -176,7 +177,7 @@ class TraceIdsResponse(BaseModel):
     )
 
 
-class SpanIdResponse(BaseModel):
+class SpanIdResponse(Support):
     count: int = Field(
         default=0,
         description="`1` if a `span_id` was returned, `0` otherwise.",
@@ -187,7 +188,7 @@ class SpanIdResponse(BaseModel):
     )
 
 
-class SpanIdsResponse(BaseModel):
+class SpanIdsResponse(Support):
     count: int = Field(default=0, description="Number of distinct span IDs returned.")
     span_ids: List[str] = Field(
         default=[],
@@ -195,7 +196,7 @@ class SpanIdsResponse(BaseModel):
     )
 
 
-class OTelTracingResponse(BaseModel):
+class OTelTracingResponse(Support):
     """Response from span/trace queries.
 
     Exactly one of `spans` or `traces` is populated, controlled by the
@@ -224,7 +225,7 @@ class OTelTracingResponse(BaseModel):
     )
 
 
-class TraceResponse(BaseModel):
+class TraceResponse(Support):
     count: int = Field(
         default=0,
         description="`1` if a trace was returned, `0` otherwise.",
@@ -238,7 +239,7 @@ class TraceResponse(BaseModel):
     )
 
 
-class TracesResponse(BaseModel):
+class TracesResponse(Support):
     count: int = Field(
         default=0,
         description="Total number of matching traces in the window.",
@@ -253,7 +254,7 @@ class TracesResponse(BaseModel):
     )
 
 
-class SpanResponse(BaseModel):
+class SpanResponse(Support):
     count: int = Field(
         default=0,
         description="`1` if a span was returned, `0` otherwise.",
@@ -264,7 +265,7 @@ class SpanResponse(BaseModel):
     )
 
 
-class SpansResponse(BaseModel):
+class SpansResponse(Support):
     count: int = Field(
         default=0,
         description="Total number of matching spans in the window.",
@@ -341,7 +342,7 @@ class SpansQueryRequest(BaseModel):
     )
 
 
-class OldAnalyticsResponse(BaseModel):
+class OldAnalyticsResponse(Support):
     """Legacy analytics response with a fixed metric schema."""
 
     count: int = Field(
@@ -357,7 +358,7 @@ class OldAnalyticsResponse(BaseModel):
     )
 
 
-class AnalyticsResponse(BaseModel):
+class AnalyticsResponse(Support):
     """Analytics response with user-specified metric specs."""
 
     count: int = Field(
@@ -403,7 +404,7 @@ class SessionsQueryRequest(BaseModel):
     )
 
 
-class SessionIdsResponse(BaseModel):
+class SessionIdsResponse(Support):
     count: int = Field(default=0, description="Number of session IDs in this page.")
     session_ids: List[str] = Field(
         default=[],
@@ -432,7 +433,7 @@ class UsersQueryRequest(BaseModel):
     )
 
 
-class UserIdsResponse(BaseModel):
+class UserIdsResponse(Support):
     count: int = Field(default=0, description="Number of user IDs in this page.")
     user_ids: List[str] = Field(
         default=[],
