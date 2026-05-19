@@ -12,7 +12,7 @@ default in line with that.
 The downgrade reverses both, restoring the previous behavior.
 
 Revision ID: a1b2c3d4e5f7
-Revises: e6f7a8b9c0d1
+Revises: 9d3e8f0a1b2c
 Create Date: 2026-05-13 00:00:00.000000
 """
 
