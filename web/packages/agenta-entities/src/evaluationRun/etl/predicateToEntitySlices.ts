@@ -65,7 +65,6 @@ function sliceForPredicate(schema: RunSchema, predicate: RowPredicate): EntitySl
     for (const s of schema.steps) stepByKey.set(s.key, s)
 
     let matchedMapping: RunMapping | null = null
-    let matchedStep: RunStep | null = null
     let matchedGroup: ColumnGroup | null = null
 
     for (const m of schema.mappings) {
@@ -76,7 +75,6 @@ function sliceForPredicate(schema: RunSchema, predicate: RowPredicate): EntitySl
         if (group.kind !== predicate.groupKind) continue
         if (predicate.groupSlug != null && group.slug !== predicate.groupSlug) continue
         matchedMapping = m
-        matchedStep = step
         matchedGroup = group
         break
     }
@@ -100,19 +98,26 @@ function sliceForPredicate(schema: RunSchema, predicate: RowPredicate): EntitySl
             slices.push("results", "traces")
             break
         case "evaluator":
-            // Annotation outputs live in metrics first, with trace fallback
-            // (see composeResolvers(metric, trace) in resolveMappings).
-            // Fetch metrics; only fetch traces if the step.path doesn't look
-            // like a metrics-flat-key path. Cheap heuristic: if the path is
-            // under attributes.ag.metrics.*, it's metric-resident; otherwise
-            // we might need the trace too.
+            // Annotation outputs live in metric.data — the metric writer
+            // unfolds the evaluator's emitted attributes (incl.
+            // `attributes.ag.data.outputs.*` AND `attributes.ag.metrics.*`)
+            // as flat keys under `data[stepKey][path]`. composeResolvers
+            // does (metric → trace), so trace is only used as a fallback
+            // when an evaluator wrote span-only outputs that didn't make
+            // it into metrics — a rare edge case.
+            //
+            // For predicate hydrate we trust metric is canonical. Skipping
+            // traces here drops the heaviest endpoint (~70% of bytes,
+            // ~60% of loop time on the 1000-scenario reference run) for
+            // the common evaluator-filter case.
+            //
+            // If the predicate column ever turns out to be span-only
+            // (evaluator didn't write to metric.data), the cell-side
+            // materializer requests traces on first cell render, and the
+            // predicate filter's "keep visible until known" fallback
+            // keeps rows displayed during that lag. Correctness
+            // preserved, performance recovered.
             slices.push("results", "metrics")
-            if (matchedStep?.type === "annotation") {
-                const path = matchedMapping.step?.path ?? ""
-                if (!path.startsWith("attributes.ag.metrics.")) {
-                    slices.push("traces")
-                }
-            }
             break
         case "metrics":
             slices.push("metrics")

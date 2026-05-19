@@ -320,10 +320,15 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
                         </Tag>
                     )}
                     {predicate && (
-                        <Tag color="purple">
-                            showing {filteredRows.filter((r) => !r.__isSkeleton).length} matched /{" "}
-                            {pagination.rows.filter((r) => !r.__isSkeleton).length} loaded
-                        </Tag>
+                        <PredicateCountChip
+                            predicate={predicate}
+                            schema={schema}
+                            projectId={projectId}
+                            runId={runId}
+                            filteredRows={filteredRows}
+                            paginationRows={pagination.rows}
+                            hydrationVersion={hydrationVersion}
+                        />
                     )}
                     <span className="ml-auto text-zinc-500">
                         runId <code>{runId}</code>
@@ -368,6 +373,68 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
                 </div>
             </section>
         </CellMaterializerContext.Provider>
+    )
+}
+
+/**
+ * Header chip — distinguishes "confirmed" (predicate slices loaded +
+ * evaluator returned true) from "pending" (slices not loaded yet,
+ * matchesPredicate's keep-visible fallback). Avoids the chip oscillating
+ * between an inflated "matched" count (during predicate evaluation) and
+ * the final lower count once slices land.
+ *
+ * Recomputed on each hydrationVersion bump.
+ */
+const PredicateCountChip = ({
+    predicate,
+    schema,
+    projectId,
+    runId,
+    filteredRows,
+    paginationRows,
+    // hydrationVersion is read from the parent so React knows to re-render
+    // this chip when the molecule cache bumps. Not used in the JSX directly
+    // — the useMemo below depends on filteredRows / paginationRows /
+    // predicate / schema, which all change as the cache populates.
+    hydrationVersion: _hydrationVersion,
+}: {
+    predicate: RowPredicate
+    schema: RunSchema | null
+    projectId: string | null
+    runId: string | null
+    filteredRows: ScenarioThinRow[]
+    paginationRows: ScenarioThinRow[]
+    hydrationVersion: number
+}) => {
+    const counts = useMemo(() => {
+        let confirmed = 0
+        let pending = 0
+        if (!schema || !projectId || !runId) {
+            return {confirmed: 0, pending: 0, totalLoaded: 0}
+        }
+        for (const r of filteredRows) {
+            if (r.__isSkeleton || !r.scenarioId) continue
+            const cols = resolveOneScenarioFromCache(projectId, runId, r.scenarioId, schema)
+            if (!cols) {
+                pending += 1
+                continue
+            }
+            // Re-eval (cheap — cols already in memory) to know if this row
+            // ACTUALLY matches vs is keep-visible-until-known.
+            if (matchesPredicate(predicate, schema, projectId, runId, r.scenarioId)) {
+                confirmed += 1
+            }
+        }
+        const totalLoaded = paginationRows.filter((r) => !r.__isSkeleton).length
+        return {confirmed, pending, totalLoaded}
+    }, [filteredRows, paginationRows, predicate, schema, projectId, runId])
+
+    return (
+        <Tag color="purple">
+            {counts.confirmed} matched
+            {counts.pending > 0 && <span className="opacity-60"> · {counts.pending} pending</span>}
+            <span className="opacity-60"> / {counts.totalLoaded} loaded</span>
+        </Tag>
     )
 }
 
