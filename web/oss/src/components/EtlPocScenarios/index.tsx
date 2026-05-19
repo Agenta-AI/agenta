@@ -62,7 +62,7 @@ import PredicateFilterBar from "./PredicateFilterBar"
 import {scenarioThinPaginatedStore, type ScenarioThinRow} from "./scenarioPaginatedStore"
 import {useCellMaterialization} from "./useCellMaterialization"
 import {useEtlColumns} from "./useEtlColumns"
-import {useHydrateScenarios, type SliceFetchMode} from "./useHydrateScenarios"
+import {hydrationVersionAtom, useHydrateScenarios, type SliceFetchMode} from "./useHydrateScenarios"
 import {useLookaheadPrefetch} from "./useLookaheadPrefetch"
 import {useScopeChangeEviction} from "./useScopeChangeEviction"
 
@@ -154,6 +154,13 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
 
     // (predicate state is declared above so the hydrate hook can consume it.)
 
+    // Subscribe to hydrationVersion so filteredRows re-evaluates when the
+    // molecule cache updates. Without this, rows that initially passed
+    // through "keep visible until known" stay in filteredRows even after
+    // predicate slices land and reveal them as non-matches — the user
+    // sees stale incorrect rows until the next pagination event.
+    const hydrationVersion = useAtomValue(hydrationVersionAtom)
+
     const filteredRows = useMemo(() => {
         if (!predicate || !schema) return pagination.rows
 
@@ -177,7 +184,7 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
             }
         }
         return out
-    }, [pagination.rows, predicate, schema, projectId, runId])
+    }, [pagination.rows, predicate, schema, projectId, runId, hydrationVersion])
 
     // Lookahead prefetch for the constructed viewport.
     //
