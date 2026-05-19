@@ -52,6 +52,17 @@ export interface TestcaseDrawerProps<TData = unknown> {
     /** Whether to show the drawer-width expand action in the header. Defaults to true. */
     showExpandButton?: boolean
     /**
+     * Edit semantics.
+     * - "deferred" (default): drafts buffered, footer with Apply/Commit/Save shown.
+     * - "autoApply": edits applied live by the consumer's onChange; no footer, no
+     *   "edited" badge, no session-restore on close. Used by the playground.
+     */
+    editMode?: "deferred" | "autoApply"
+    /** Close drawer when clicking on .ant-layout outside. Defaults to false. */
+    closeOnLayoutClick?: boolean
+    /** Optional initial drawer width. When unset, falls back to size="large". */
+    initialWidth?: number
+    /**
      * Optional slot for evaluator-metric chips/rows.
      * Renders above the data editor when provided. The wrapper resolves
      * metrics from trace/annotation data — the shell stays platform-neutral.
@@ -86,8 +97,12 @@ function TestcaseDrawer<TData = unknown>({
     displayId,
     copyId,
     showExpandButton = true,
+    editMode = "deferred",
+    closeOnLayoutClick = false,
+    initialWidth,
     renderEvaluatorMetrics,
 }: TestcaseDrawerProps<TData>) {
+    const skipDeferredFlow = viewOnly || editMode === "autoApply"
     const sessionStartDraftsRef = useRef<Map<string, TData>>(new Map())
     const sessionStartDraft = testcaseId
         ? (sessionStartDraftsRef.current.get(testcaseId) ?? null)
@@ -99,7 +114,7 @@ function TestcaseDrawer<TData = unknown>({
     const [everDirtyIds, setEverDirtyIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
-        if (viewOnly) return
+        if (skipDeferredFlow) return
         if (open && testcaseId && isDirty) {
             setEverDirtyIds((prev) => {
                 if (prev.has(testcaseId)) return prev
@@ -108,7 +123,7 @@ function TestcaseDrawer<TData = unknown>({
                 return next
             })
         }
-    }, [open, testcaseId, isDirty, viewOnly])
+    }, [open, testcaseId, isDirty, skipDeferredFlow])
 
     useEffect(() => {
         if (!open) {
@@ -152,11 +167,11 @@ function TestcaseDrawer<TData = unknown>({
     }, [onSaveTestset])
 
     const handleCancel = useCallback(() => {
-        if (!viewOnly && testcaseId && sessionStartDraft) {
+        if (!skipDeferredFlow && testcaseId && sessionStartDraft) {
             onRestoreSessionStart?.(sessionStartDraft)
         }
         onClose()
-    }, [testcaseId, sessionStartDraft, onRestoreSessionStart, onClose, viewOnly])
+    }, [testcaseId, sessionStartDraft, onRestoreSessionStart, onClose, skipDeferredFlow])
 
     const handleCopyId = useCallback(async () => {
         const idToCopy = copyId ?? displayId ?? testcaseId
@@ -220,7 +235,7 @@ function TestcaseDrawer<TData = unknown>({
                     <span className="font-medium text-sm">
                         {isNewRow ? "New Testcase" : `Testcase ${testcaseNumber ?? ""}`}
                     </span>
-                    {!viewOnly && isDirty && (
+                    {!skipDeferredFlow && isDirty && (
                         <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
                             edited
                         </span>
@@ -260,7 +275,7 @@ function TestcaseDrawer<TData = unknown>({
             testcaseNumber,
             handleCancel,
             isDirty,
-            viewOnly,
+            skipDeferredFlow,
             showExpandButton,
             queueItemIds,
             renderAddToQueue,
@@ -273,9 +288,9 @@ function TestcaseDrawer<TData = unknown>({
             open={open}
             onClose={handleCancel}
             size="large"
-            width={isDrawerExpanded ? EXPANDED_DRAWER_WIDTH : undefined}
+            width={isDrawerExpanded ? EXPANDED_DRAWER_WIDTH : (initialWidth ?? undefined)}
             closeIcon={null}
-            closeOnLayoutClick={false}
+            closeOnLayoutClick={closeOnLayoutClick}
             afterOpenChange={afterOpenChange}
             destroyOnHidden
             styles={{
@@ -283,7 +298,7 @@ function TestcaseDrawer<TData = unknown>({
                 footer: {padding: "12px 24px", display: "flex", justifyContent: "flex-end"},
             }}
             footer={
-                viewOnly ? null : (
+                skipDeferredFlow ? null : (
                     <div className="w-full flex items-center justify-end gap-3">
                         <Button onClick={handleCancel}>Cancel</Button>
                         <Space.Compact>
