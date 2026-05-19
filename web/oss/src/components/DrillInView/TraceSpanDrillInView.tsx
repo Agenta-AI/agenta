@@ -389,6 +389,11 @@ export const TraceSpanDrillInView = memo(
             getDefaultJsonViewMode(availableViewModes),
         )
 
+        const viewModeKey = availableViewModes.join(",")
+        useEffect(() => {
+            setViewMode(getDefaultJsonViewMode(availableViewModes))
+        }, [viewModeKey])
+
         const isCodeMode = viewMode === "json" || viewMode === "yaml" || viewMode === "decoded-json"
         const isBeautifiedJson = viewMode === "beautified-json"
 

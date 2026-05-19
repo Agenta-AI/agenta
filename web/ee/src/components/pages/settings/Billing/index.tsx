@@ -3,11 +3,13 @@ import {useCallback, useEffect, useState} from "react"
 import {message} from "@agenta/ui/app-message"
 import {Button, Spin, Typography} from "antd"
 import dayjs from "dayjs"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {Plan} from "@/oss/lib/Types"
+import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {editSubscriptionInfo, useSubscriptionData, useUsageData} from "@/oss/services/billing"
+import {currentCatalogEntryAtom, isOnFreePlanAtom} from "@/oss/state/access/atoms"
 
 import UsageProgressBar from "./assets/UsageProgressBar"
 import AutoRenewalCancelModal from "./Modals/AutoRenewalCancelModal"
@@ -19,9 +21,13 @@ const {Link} = Typography
 const Billing = () => {
     const router = useRouter()
     const {projectURL} = useURL()
+    const billingEnabled = isBillingEnabled()
     const [isLoadingOpenBillingPortal, setIsLoadingOpenBillingPortal] = useState(false)
     const {subscription, isSubLoading, mutateSubscription} = useSubscriptionData()
     const {usage, isUsageLoading, mutateUsage} = useUsageData()
+    const isOnFreePlan = useAtomValue(isOnFreePlanAtom)
+    const currentCatalogEntry = useAtomValue(currentCatalogEntryAtom)
+    const isCustomPlan = currentCatalogEntry?.type === "custom"
     const [isOpenPricingModal, setIsOpenPricingModal] = useState(false)
     const [isOpenCancelModal, setIsOpenCancelModal] = useState(false)
 
@@ -108,47 +114,54 @@ const Billing = () => {
 
     return (
         <section className="flex flex-col gap-4">
-            <section className="w-full bg-[#F5F7FA] p-4 rounded-lg">
-                <div className="flex flex-col items-start gap-2">
-                    <Typography.Text className="text-sm font-medium">Current plan</Typography.Text>
-                    <Typography.Text className="text-lg font-bold capitalize">
-                        <SubscriptionPlanDetails subscription={subscription} />
-                    </Typography.Text>
-                    {subscription?.plan !== Plan.Hobby && (
-                        <Typography.Text className="text-[#586673]">
-                            {subscription?.free_trial
-                                ? "Trial period will end on "
-                                : "Auto renews on "}
-                            <span className="text-[#1C2C3D] font-medium">
-                                {dayjs.unix(subscription?.period_end).format("MMM D, YYYY")}
-                            </span>
+            {billingEnabled && (
+                <section className="w-full bg-[#F5F7FA] p-4 rounded-lg">
+                    <div className="flex flex-col items-start gap-2">
+                        <Typography.Text className="text-sm font-medium">
+                            Current plan
                         </Typography.Text>
-                    )}
+                        <Typography.Text className="text-lg font-bold capitalize">
+                            <SubscriptionPlanDetails subscription={subscription} />
+                        </Typography.Text>
+                        {!isOnFreePlan && (
+                            <Typography.Text className="text-[#586673]">
+                                {subscription?.free_trial
+                                    ? "Trial period will end on "
+                                    : "Auto renews on "}
+                                <span className="text-[#1C2C3D] font-medium">
+                                    {dayjs.unix(subscription?.period_end).format("MMM D, YYYY")}
+                                </span>
+                            </Typography.Text>
+                        )}
 
-                    {subscription?.plan === Plan.Enterprise ? (
-                        <Typography.Text className="text-[#586673]">
-                            For queries regarding your plan,{" "}
-                            <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo" target="_blank">
-                                click here to contact us
-                            </a>
-                        </Typography.Text>
-                    ) : subscription?.plan === Plan.Pro || subscription?.plan === Plan.Business ? (
-                        <div className="flex items-center gap-2">
+                        {isCustomPlan ? (
+                            <Typography.Text className="text-[#586673]">
+                                For queries regarding your plan,{" "}
+                                <a
+                                    href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"
+                                    target="_blank"
+                                >
+                                    click here to contact us
+                                </a>
+                            </Typography.Text>
+                        ) : !isOnFreePlan ? (
+                            <div className="flex items-center gap-2">
+                                <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
+                                    Upgrade plan
+                                </Button>
+
+                                <Link onClick={() => setIsOpenCancelModal(true)}>
+                                    Cancel subscription
+                                </Link>
+                            </div>
+                        ) : (
                             <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
                                 Upgrade plan
                             </Button>
-
-                            <Link onClick={() => setIsOpenCancelModal(true)}>
-                                Cancel subscription
-                            </Link>
-                        </div>
-                    ) : (
-                        <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
-                            Upgrade plan
-                        </Button>
-                    )}
-                </div>
-            </section>
+                        )}
+                    </div>
+                </section>
+            )}
 
             <section className="w-full bg-[#F5F7FA] p-4 rounded-lg flex flex-col items-start gap-4">
                 <Typography.Text className="text-sm font-medium">Limits</Typography.Text>
@@ -184,14 +197,16 @@ const Billing = () => {
                 </div>
 
                 <div className="w-full grid grid-cols-3 gap-4">
-                    <UsageProgressBar
-                        label={"Free"}
-                        used={usage?.users?.value}
-                        limit={usage?.users?.free as number}
-                        strict={usage?.users?.strict}
-                        isUnlimited={usage?.users?.limit == null ? true : false}
-                        free={usage?.users?.free}
-                    />
+                    {billingEnabled && (
+                        <UsageProgressBar
+                            label={"Free"}
+                            used={usage?.users?.value}
+                            limit={usage?.users?.free as number}
+                            strict={usage?.users?.strict}
+                            isUnlimited={usage?.users?.limit == null ? true : false}
+                            free={usage?.users?.free}
+                        />
+                    )}
 
                     <UsageProgressBar
                         label={"Total"}
@@ -204,15 +219,17 @@ const Billing = () => {
                 </div>
             </section>
 
-            <section className="w-full bg-[#F5F7FA] p-4 rounded-lg flex flex-col items-start gap-2">
-                <Typography.Text className="text-sm font-medium">
-                    Billing information
-                </Typography.Text>
+            {billingEnabled && (
+                <section className="w-full bg-[#F5F7FA] p-4 rounded-lg flex flex-col items-start gap-2">
+                    <Typography.Text className="text-sm font-medium">
+                        Billing information
+                    </Typography.Text>
 
-                <Button onClick={handleOpenBillingPortal} loading={isLoadingOpenBillingPortal}>
-                    Open billing portal
-                </Button>
-            </section>
+                    <Button onClick={handleOpenBillingPortal} loading={isLoadingOpenBillingPortal}>
+                        Open billing portal
+                    </Button>
+                </section>
+            )}
 
             <AutoRenewalCancelModal
                 open={isOpenCancelModal}

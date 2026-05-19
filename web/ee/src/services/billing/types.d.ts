@@ -1,9 +1,8 @@
-export type Plan =
-    | "cloud_v0_hobby"
-    | "cloud_v0_pro"
-    | "cloud_v0_business"
-    | "cloud_v0_enterprise"
-    | "self_hosted_enterprise"
+// Plan slugs are dynamic at runtime (env-overridable via AGENTA_ACCESS_PLANS).
+// API responses carry plain strings; gate UI on entitlement flags from
+// `/access/plans` or the catalog `type` from `/billing/catalog` rather than
+// branching on slug equality.
+export type Plan = string
 
 export interface SubscriptionType {
     plan: Plan
@@ -52,4 +51,7 @@ export interface BillingPlan {
     price?: PriceInfo
     features: string[]
     plan: Plan
+    // `standard` = normal selectable plan; `custom` = enterprise / contact-sales
+    // plan (no self-serve switching). Matches AGENTA_BILLING_CATALOG entries.
+    type?: "standard" | "custom"
 }

@@ -13,7 +13,10 @@
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
         "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
-        "test": "pnpm run types:check && pnpm run lint"
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -84,7 +87,11 @@
         "lexical": "^0.40.0",
         "prismjs": ">=1.30.0",
         "typescript": "5.8.3",
-        "usehooks-ts": "^3.0.0"
+        "usehooks-ts": "^3.0.0",
+        "@vitest/coverage-v8": "^4.1.4",
+        "vitest": "^4.1.4",
+        "jotai": "^2.16.1",
+        "jotai-family": "^1.0.1"
     },
     "peerDependencies": {
         "@ant-design/icons": ">=5.0.0",

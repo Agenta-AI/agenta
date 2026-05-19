@@ -137,7 +137,8 @@ api/ee/src/
 │       └── service.py               # flush_spans (retention enforcement)
 ├── crons/
 │   ├── meters.sh / meters.txt       # Cron: POST /admin/billing/usage/report
-│   └── spans.sh / spans.txt         # Cron: POST /admin/billing/usage/flush
+│   ├── spans.sh / spans.txt         # Cron: POST /admin/spans/flush
+│   └── events.sh / events.txt       # Cron: POST /admin/events/flush
 ├── dbs/postgres/
 │   ├── meters/                      # Meter DB entities + DAO
 │   ├── organizations/               # SSO providers DAO
@@ -518,9 +519,17 @@ Only `TRACES` and `USERS` are reported to Stripe (defined in `REPORTS` list).
 
 If Stripe is disabled, `MetersService.report()` returns early — no Stripe calls.
 
-### Span retention
+### Span and event retention
 
-A cron job calls `POST /admin/billing/usage/flush`. This deletes old spans based on the plan's retention period defined in the entitlement quotas (e.g., Hobby = 30 days, Pro = 90 days, Business = 365 days).
+Spans and events are independent retention domains; each has its own admin
+endpoint and its own cron schedule.
+
+- `POST /admin/spans/flush` deletes old spans based on the plan's
+  `Counter.TRACES_INGESTED.retention` (e.g., Hobby = 30 days, Pro = 90 days,
+  Business = 365 days). Triggered by `spans.sh` at `0,30 * * * *`.
+- `POST /admin/events/flush` deletes old events based on the plan's
+  `Counter.EVENTS_INGESTED.retention`. Per-plan defaults align with each
+  plan's trace-retention window. Triggered by `events.sh` at `7,37 * * * *`.
 
 ### Observations for self-hosting
 
@@ -583,7 +592,8 @@ All billing endpoints are defined in `api/ee/src/apis/fastapi/billing/router.py`
 | POST | `/subscription/cancel` | Admin: cancel by org ID | Yes |
 | POST | `/usage/report` | Sync meters to Stripe (cron) | Yes (no-ops if disabled) |
 | POST | `/usage/report/unlock` | Force-release report lock | No |
-| POST | `/usage/flush` | Span retention cleanup (cron) | No |
+| POST | `/admin/spans/flush` | Span retention cleanup (cron) | No |
+| POST | `/admin/events/flush` | Event retention cleanup (cron) | No |
 
 ### OSS endpoints with entitlement coupling
 
@@ -591,14 +601,13 @@ These OSS endpoints conditionally call `check_entitlements()` when `is_ee()`:
 
 | Endpoint | Entitlement check |
 |----------|-------------------|
-| `POST /apps/` | `Gauge.APPLICATIONS` (delta=+1), `Flag.HOOKS` |
-| `DELETE /apps/{id}/` | `Gauge.APPLICATIONS` (delta=-1) |
-| `POST /otlp/v1/traces` | `Counter.TRACES` (soft check) |
-| Tracing worker (async) | `Counter.TRACES` (hard check) |
+| `POST /otlp/v1/traces` | `Counter.TRACES_INGESTED` (soft check) |
+| Tracing worker (async) | `Counter.TRACES_INGESTED` (hard check) |
+| `POST /tracing/*/query` and read endpoints | `Counter.TRACES_RETRIEVED` (hard check, `scope=USER`, `period=DAILY`) |
 | `POST /organizations/{id}/invite/` | `Gauge.USERS` (delta=+1) |
 | `DELETE /workspaces/{id}/members/` | `Gauge.USERS` (delta=-1) |
-| `GET /permissions/verify` | `Counter.CREDITS` (delta=+1) |
-| Evaluation task completion | `Counter.EVALUATIONS` (delta=-1 on failure) |
+| `GET /permissions/verify` | `Counter.CREDITS_CONSUMED` (delta=+1) |
+| Evaluation-run creation / refund | `Counter.EVALUATIONS_RUN` (delta=+1; refund -1 on failure) |
 | Events worker | `Flag.ACCESS` |
 | Org domain/SSO endpoints | `Flag.DOMAINS`, `Flag.SSO` |
 | Org flag updates | `Flag.ACCESS` |

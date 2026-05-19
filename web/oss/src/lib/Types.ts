@@ -387,12 +387,3 @@ export interface EvaluationSettingsTemplate {
 // User type lives in @agenta/shared/types. Import from there directly —
 // re-exporting from @agenta packages is disallowed (see eslint
 // no-restricted-syntax rule for tree-shaking).
-
-// billings
-export enum Plan {
-    Hobby = "cloud_v0_hobby",
-    Pro = "cloud_v0_pro",
-    Business = "cloud_v0_business",
-    Enterprise = "cloud_v0_enterprise",
-    SelfHostedEnterprise = "self_hosted_enterprise",
-}

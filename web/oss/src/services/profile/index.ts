@@ -6,15 +6,17 @@
  * Uses standard fetchJson for consistency and reliability.
  */
 
+import type {User} from "@agenta/shared/types"
+
 import {fetchJson, getBaseUrl} from "../../lib/api/assets/fetchClient"
-import {User} from "../../lib/Types"
 
 /**
  * Update user profile via REST
  * Returns an axios-like object with `data` for compatibility
  */
 export const updateProfile = async (
-    payload: Partial<Pick<User, "username" | "email" | "avatar">> & {
+    payload: Partial<Pick<User, "username" | "email">> & {
+        avatar?: string
         preferences?: Record<string, any>
     },
 ): Promise<{data: User}> => {

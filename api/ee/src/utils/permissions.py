@@ -14,6 +14,7 @@ from ee.src.models.shared_models import (
     Permission,
     WorkspaceRole,
 )
+from ee.src.core.entitlements.controls import get_role, get_role_permissions
 
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee
@@ -82,12 +83,18 @@ def _project_has_permission(
     permission: Permission,
     members: Sequence[Any],
 ) -> bool:
-    """True if the user's role implies the given permission."""
+    """True if the user's role implies the given permission.
+
+    Role permissions are resolved via access-controls (env-overridable via
+    AGENTA_ACCESS_ROLES); not the closed `Permission.default_permissions` table.
+    """
     role = _get_project_member_role(user_id, members)
     if role is None:
         return False
-    # Permission.default_permissions was used in the old model methods
-    return permission in Permission.default_permissions(role)
+    role_slug = role.value if hasattr(role, "value") else role
+    role_permissions = get_role_permissions("project", role_slug)
+    # "*" is the wildcard owner permission — implies everything.
+    return "*" in role_permissions or permission.value in role_permissions
 
 
 async def _get_workspace_member_ids(workspace: WorkspaceDB) -> List[str]:
@@ -385,7 +392,8 @@ async def check_project_has_role_or_permission(
         return True
 
     if role is not None:
-        if role not in list(WorkspaceRole):
+        role_slug = role.value if hasattr(role, "value") else role
+        if get_role("project", role_slug) is None:
             raise Exception("Invalid role specified")
         return _project_has_role(user_id, role, project_members)
 
