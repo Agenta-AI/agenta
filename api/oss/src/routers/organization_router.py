@@ -19,7 +19,21 @@ from oss.src.models.api.workspace_models import (
     ResendInviteRequest,
     InviteToken,
 )
-from oss.src.models.shared_models import CANONICAL_ROLE_DESCRIPTIONS
+
+
+def _role_description(role: str) -> str:
+    """Resolve a workspace-role description.
+
+    In EE, source from the effective access-controls catalog (env-overridable
+    via AGENTA_ACCESS_ROLES). In OSS, no role catalog is enforced, so return
+    an empty string — invitations carry a role slug for display only.
+    """
+    if not is_ee():
+        return ""
+    from ee.src.core.entitlements.controls import get_role_description
+
+    return get_role_description("workspace", role) or ""
+
 
 if is_ee():
     from ee.src.utils.permissions import check_action_access
@@ -131,9 +145,7 @@ async def fetch_organization_details(
             "roles": [
                 {
                     "role_name": invitation.role or "viewer",
-                    "role_description": CANONICAL_ROLE_DESCRIPTIONS.get(
-                        invitation.role or "viewer", ""
-                    ),
+                    "role_description": _role_description(invitation.role or "viewer"),
                 }
             ],
         }

@@ -3,12 +3,13 @@ import {useCallback, useEffect, useState} from "react"
 import {message} from "@agenta/ui/app-message"
 import {Button, Spin, Typography} from "antd"
 import dayjs from "dayjs"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
 import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
-import {DefaultPlan} from "@/oss/lib/Types"
 import {editSubscriptionInfo, useSubscriptionData, useUsageData} from "@/oss/services/billing"
+import {currentCatalogEntryAtom, isOnFreePlanAtom} from "@/oss/state/access/atoms"
 
 import UsageProgressBar from "./assets/UsageProgressBar"
 import AutoRenewalCancelModal from "./Modals/AutoRenewalCancelModal"
@@ -24,6 +25,9 @@ const Billing = () => {
     const [isLoadingOpenBillingPortal, setIsLoadingOpenBillingPortal] = useState(false)
     const {subscription, isSubLoading, mutateSubscription} = useSubscriptionData()
     const {usage, isUsageLoading, mutateUsage} = useUsageData()
+    const isOnFreePlan = useAtomValue(isOnFreePlanAtom)
+    const currentCatalogEntry = useAtomValue(currentCatalogEntryAtom)
+    const isCustomPlan = currentCatalogEntry?.type === "custom"
     const [isOpenPricingModal, setIsOpenPricingModal] = useState(false)
     const [isOpenCancelModal, setIsOpenCancelModal] = useState(false)
 
@@ -119,7 +123,7 @@ const Billing = () => {
                         <Typography.Text className="text-lg font-bold capitalize">
                             <SubscriptionPlanDetails subscription={subscription} />
                         </Typography.Text>
-                        {subscription?.plan !== DefaultPlan.Hobby && (
+                        {!isOnFreePlan && (
                             <Typography.Text className="text-[#586673]">
                                 {subscription?.free_trial
                                     ? "Trial period will end on "
@@ -130,7 +134,7 @@ const Billing = () => {
                             </Typography.Text>
                         )}
 
-                        {subscription?.plan === DefaultPlan.Enterprise ? (
+                        {isCustomPlan ? (
                             <Typography.Text className="text-[#586673]">
                                 For queries regarding your plan,{" "}
                                 <a
@@ -140,8 +144,7 @@ const Billing = () => {
                                     click here to contact us
                                 </a>
                             </Typography.Text>
-                        ) : subscription?.plan === DefaultPlan.Pro ||
-                          subscription?.plan === DefaultPlan.Business ? (
+                        ) : !isOnFreePlan ? (
                             <div className="flex items-center gap-2">
                                 <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
                                     Upgrade plan
