@@ -47,7 +47,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 - **Background**: PR-48 normalized `fetch` so a structured `MeterScope`/`MeterPeriod` binds every `None` dim to `IS NULL` (canonical-identity semantics). The PR-48 changelog claimed `MeterScope()` survived as an admin escape; the shipped code instead bound `organization_id` unconditionally, so `fetch(scope=MeterScope())` compiled to `organization_id IS NULL AND workspace_id IS NULL AND project_id IS NULL AND user_id IS NULL`. A row with no org/workspace/project/user is meaningless as a quota target, so matching only "globally-unscoped rows" is not a useful canonical identity.
 - **Decision (user, 2026-05-19)**: Option A — `MeterScope()` is the admin escape, same as `scope=None`. (Asymmetric with periods: `MeterPeriod()` *is* a real canonical identity — the lifetime/gauge-sentinel grain — so it keeps the `IS NULL × 3` binding.)
 - **Fix shipped**: Added a `scope is not None and any(dim is not None for dim in …)` guard around the scope binding in `MetersDAO.fetch`. Period binding unchanged. Trimmed the docstring to spell out the asymmetry: `scope=None` and `MeterScope()` both skip the scope filter; `period=None` skips the period filter but `MeterPeriod()` pins the lifetime/gauge-sentinel rows. New unit test `test_empty_scope_is_equivalent_to_scope_none` pins the new contract. Test module docstring updated to match. 79/79 EE unit tests pass (was 78, +1 new). `ruff format` / `ruff check` clean.
-- **Action**: Reply on the GitHub thread and resolve.
+- **Action**: GitHub thread replied to ([discussion_r3266277146](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266277146)) and resolved.
 
 ### [CLOSED] PR-50 — Docstring typo `roWRK` → `rows` in `test_meters_dao_fetch.py` (P3, high)
 
@@ -55,7 +55,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 - **Files**: `api/ee/tests/pytest/unit/test_meters_dao_fetch.py:121, 175, 205`
 - **PR comment**: [discussion_r3266169123](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266169123) — Copilot, 2026-05-19T12:17:33Z
 - **Fix shipped**: All three docstrings now read `rows` (verified by grep on 2026-05-19). Line 6 was already correct (Copilot mis-listed it).
-- **Action**: Reply on the GitHub thread and resolve.
+- **Action**: GitHub thread replied to ([discussion_r3266279318](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266279318)) and resolved.
 
 ### Out-of-scope (tracked here for provenance only — these belong to `docs/designs/support-fields/`)
 
