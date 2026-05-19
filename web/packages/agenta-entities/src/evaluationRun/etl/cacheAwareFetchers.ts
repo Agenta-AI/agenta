@@ -113,27 +113,16 @@ export function buildMoleculeBackedFetchers(
                 cacheMisses: out.cacheMisses,
                 fetchMs: out.fetchMs,
             })
-            // The prefetch action returns a Map<traceId, TracesApiResponse>
-            // where the value is `{count, traces: {traceIdNoDashes: ...}}`.
-            // HydrateFetchers expects `Map<traceId, unknown>` — pass through.
-            // The hydrate transform's downstream resolver knows the envelope
-            // shape via findInTrace().
+            // Pass the TracesApiResponse envelope through unchanged. The
+            // envelope shape `{count, traces: {[traceIdNoDashes]: traceData}}`
+            // is the documented contract for the shared
+            // `["trace-entity", projectId, traceId]` cache key and is what
+            // every other consumer (traceEntityAtomFamily, EvalRunDetails)
+            // expects. `findInTrace` knows how to drill through it
+            // (resolveMappings.ts case 3), so the hydrate pipeline doesn't
+            // need to pre-unwrap.
             const flat = new Map<string, unknown>()
-            out.traces.forEach((envelope, traceId) => {
-                // Unwrap the {count, traces: {...}} envelope to the inner
-                // `traces[traceIdNoDashes]` object that resolveMappings
-                // expects to walk. This matches what the previous direct
-                // fetcher returned.
-                const inner = envelope?.traces
-                if (inner && typeof inner === "object") {
-                    const candidates = Object.values(inner)
-                    if (candidates.length > 0) {
-                        flat.set(traceId, candidates[0])
-                        return
-                    }
-                }
-                flat.set(traceId, envelope)
-            })
+            out.traces.forEach((envelope, traceId) => flat.set(traceId, envelope))
             return flat
         },
     }

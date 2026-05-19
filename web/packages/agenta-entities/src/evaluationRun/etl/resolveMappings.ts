@@ -206,7 +206,21 @@ export function findInTrace(trace: unknown, path: string): unknown {
         if (v !== undefined) return v
     }
 
-    // 3. {response: {tree: [...]}} (agenta format from single-trace endpoint)
+    // 3. {count, traces: {[traceIdNoDashes]: traceData}} — the
+    //    TracesApiResponse envelope written by `prefetchTracesByIds`.
+    //    Drill into each inner trace and walk it as its own envelope.
+    //    Kept distinct from step 2 because the value shape under `traces`
+    //    is a full trace object (with its own `spans`/`response`/etc.),
+    //    not a span collection — so we recurse via findInTrace, not via
+    //    walkSpanCollection.
+    if (typeof t.count === "number" && t.traces && typeof t.traces === "object") {
+        for (const inner of Object.values(t.traces as Record<string, unknown>)) {
+            const v = findInTrace(inner, path)
+            if (v !== undefined) return v
+        }
+    }
+
+    // 4. {response: {tree: [...]}} (agenta format from single-trace endpoint)
     const response = t.response
     if (response && typeof response === "object") {
         const tree = (response as Record<string, unknown>).tree
@@ -218,7 +232,7 @@ export function findInTrace(trace: unknown, path: string): unknown {
         }
     }
 
-    // 4. Envelope itself might BE a span (already stripped).
+    // 5. Envelope itself might BE a span (already stripped).
     const v = walkSpan(t, path)
     if (v !== undefined) return v
 
