@@ -36,6 +36,8 @@
         "./trace": "./src/trace/index.ts",
         "./testset": "./src/testset/index.ts",
         "./testcase": "./src/testcase/index.ts",
+        "./event": "./src/event/index.ts",
+        "./event/state": "./src/event/state/index.ts",
         "./secret": "./src/secret/index.ts",
         "./gatewayTool": "./src/gatewayTool/index.ts",
         "./environment": "./src/environment/index.ts",

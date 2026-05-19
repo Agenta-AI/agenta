@@ -50,6 +50,10 @@ const Automations = dynamic(
     },
 )
 
+const AuditLog = dynamic(() => import("@/oss/components/pages/settings/AuditLog/AuditLog"), {
+    ssr: false,
+})
+
 const Settings: React.FC = () => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
@@ -116,6 +120,8 @@ const Settings: React.FC = () => {
                             return "API Keys"
                         case "automations":
                             return "Automations"
+                        case "audit-log":
+                            return "Audit Log"
                         case "billing":
                             return billingEnabled ? "Usage & Billing" : "Usage"
                         default:
@@ -167,6 +173,8 @@ const Settings: React.FC = () => {
                 }
             case "automations":
                 return {content: <Automations />, title: "Automations"}
+            case "audit-log":
+                return {content: <AuditLog />, title: "Audit Log"}
             case "projects":
                 return {content: <ProjectsSettings />, title: "Projects"}
             default:
