@@ -1,4 +1,5 @@
 from contextvars import ContextVar, Token
+from datetime import datetime
 from typing import Literal, Optional, Union
 from uuid import UUID
 
@@ -143,3 +144,11 @@ def get_auth_credentials() -> Credentials:
 
 def get_auth_scope() -> AuthScope:
     return get_auth_context().scope
+
+
+class Support(BaseModel):
+    support_id: Optional[str] = None
+    support_ts: Optional[datetime] = None
+
+
+support_ctx: ContextVar[Optional[Support]] = ContextVar("support", default=None)

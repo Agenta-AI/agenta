@@ -292,45 +292,40 @@ class MetersDAO(MetersDAOInterface):
     ) -> list[MeterDTO]:
         """Fetch meter rows matching the given filters.
 
-        WARNING: every parameter is optional. Passing `scope=None` (or a
-        `MeterScope()` with every dimension `None`) means "no scope
-        filter applied" and returns *every meter row in the table*.
-        This is intentionally permitted for the rare "all-meters" admin
-        case, but callers must pass a tenant-bound `MeterScope` for any
-        per-tenant read. As of this revision the only callers are:
+        Scope: `scope=None` and `MeterScope()` (all dims unset) both skip
+        the scope filter — admin/rollup escape. Any other `MeterScope`
+        binds every scope dim uniformly (`None` → `IS NULL`).
 
-          - `MetersService.fetch` (passes through)
-          - `BillingRouter.fetch_usage` (passes org-only scope)
-          - `check_entitlements` soft-check path (passes the projected scope)
-
-        None of them currently relies on the unbounded behavior. Audit
-        callers before broadening the surface.
+        Period: `period=None` skips the period filter; `MeterPeriod()`
+        pins lifetime/gauge-sentinel rows (`year/month/day IS NULL`). Any
+        other `MeterPeriod` binds every period dim uniformly.
         """
         async with engine.core_session() as session:
             stmt = select(MeterDBE).options(
                 joinedload(MeterDBE.subscription)
             )  # NO RISK OF DEADLOCK
 
-            if scope is not None:
-                if scope.organization_id is not None:
-                    stmt = stmt.filter_by(organization_id=scope.organization_id)
-                if scope.workspace_id is not None:
-                    stmt = stmt.filter_by(workspace_id=scope.workspace_id)
-                if scope.project_id is not None:
-                    stmt = stmt.filter_by(project_id=scope.project_id)
-                if scope.user_id is not None:
-                    stmt = stmt.filter_by(user_id=scope.user_id)
+            if scope is not None and any(
+                dim is not None
+                for dim in (
+                    scope.organization_id,
+                    scope.workspace_id,
+                    scope.project_id,
+                    scope.user_id,
+                )
+            ):
+                stmt = stmt.filter_by(organization_id=scope.organization_id)
+                stmt = stmt.filter_by(workspace_id=scope.workspace_id)
+                stmt = stmt.filter_by(project_id=scope.project_id)
+                stmt = stmt.filter_by(user_id=scope.user_id)
 
             if key is not None:
                 stmt = stmt.filter_by(key=key)
 
             if period is not None:
-                if period.year is not None:
-                    stmt = stmt.filter_by(year=period.year)
-                if period.month is not None:
-                    stmt = stmt.filter_by(month=period.month)
-                if period.day is not None:
-                    stmt = stmt.filter_by(day=period.day)
+                stmt = stmt.filter_by(year=period.year)
+                stmt = stmt.filter_by(month=period.month)
+                stmt = stmt.filter_by(day=period.day)
 
             result = await session.execute(stmt)
             meters = result.scalars().all()
