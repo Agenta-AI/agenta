@@ -10,7 +10,6 @@ Catalog entries provide user-facing display metadata for `/billing/plans`.
 Pricing entries provide Stripe line items and the free-plan marker.
 """
 
-from os import getenv
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -422,19 +421,12 @@ def require_pricing(
         return line_items
 
     plan = slug or "<missing>"
-    legacy_hint = ""
-    if env.billing.pricing is None and getenv("STRIPE_PRICING"):
-        legacy_hint = (
-            " Legacy STRIPE_PRICING is ignored on this branch; migrate it to "
-            "AGENTA_BILLING_PRICING."
-        )
 
     raise ValueError(
         f"{purpose} requires Stripe line items for plan '{plan}', but none "
         "are configured. Set AGENTA_BILLING_PRICING with an entry for this "
         "plan containing at least one Stripe slot, for example "
         f'{{"{plan}": {{"base": {{"price": "price_...", "quantity": 1}}}}}}.'
-        f"{legacy_hint}"
     )
 
 

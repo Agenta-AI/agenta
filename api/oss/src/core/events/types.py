@@ -12,8 +12,50 @@ class RequestType(str, Enum):
 
 class EventType(str, Enum):
     UNKNOWN = "unknown"
-    ENVIRONMENTS_REVISIONS_COMMITTED = "environments.revisions.committed"
     WEBHOOKS_SUBSCRIPTIONS_TESTED = "webhooks.subscriptions.tested"
+
+    # Tracing reads
+    TRACES_FETCHED = "traces.fetched"
+    TRACES_QUERIED = "traces.queried"
+
+    # Testcase reads
+    TESTCASES_FETCHED = "testcases.fetched"
+    TESTCASES_QUERIED = "testcases.queried"
+
+    # Application revisions
+    APPLICATIONS_REVISIONS_RETRIEVED = "applications.revisions.retrieved"
+    APPLICATIONS_REVISIONS_FETCHED = "applications.revisions.fetched"
+    APPLICATIONS_REVISIONS_QUERIED = "applications.revisions.queried"
+    APPLICATIONS_REVISIONS_LOGGED = "applications.revisions.logged"
+    APPLICATIONS_REVISIONS_COMMITTED = "applications.revisions.committed"
+
+    # Query revisions
+    QUERIES_REVISIONS_RETRIEVED = "queries.revisions.retrieved"
+    QUERIES_REVISIONS_FETCHED = "queries.revisions.fetched"
+    QUERIES_REVISIONS_QUERIED = "queries.revisions.queried"
+    QUERIES_REVISIONS_LOGGED = "queries.revisions.logged"
+    QUERIES_REVISIONS_COMMITTED = "queries.revisions.committed"
+
+    # Testset revisions
+    TESTSETS_REVISIONS_RETRIEVED = "testsets.revisions.retrieved"
+    TESTSETS_REVISIONS_FETCHED = "testsets.revisions.fetched"
+    TESTSETS_REVISIONS_QUERIED = "testsets.revisions.queried"
+    TESTSETS_REVISIONS_LOGGED = "testsets.revisions.logged"
+    TESTSETS_REVISIONS_COMMITTED = "testsets.revisions.committed"
+
+    # Evaluator revisions
+    EVALUATORS_REVISIONS_RETRIEVED = "evaluators.revisions.retrieved"
+    EVALUATORS_REVISIONS_FETCHED = "evaluators.revisions.fetched"
+    EVALUATORS_REVISIONS_QUERIED = "evaluators.revisions.queried"
+    EVALUATORS_REVISIONS_LOGGED = "evaluators.revisions.logged"
+    EVALUATORS_REVISIONS_COMMITTED = "evaluators.revisions.committed"
+
+    # Environment revisions
+    ENVIRONMENTS_REVISIONS_RETRIEVED = "environments.revisions.retrieved"
+    ENVIRONMENTS_REVISIONS_FETCHED = "environments.revisions.fetched"
+    ENVIRONMENTS_REVISIONS_QUERIED = "environments.revisions.queried"
+    ENVIRONMENTS_REVISIONS_LOGGED = "environments.revisions.logged"
+    ENVIRONMENTS_REVISIONS_COMMITTED = "environments.revisions.committed"
 
 
 class RequestID(BaseModel):

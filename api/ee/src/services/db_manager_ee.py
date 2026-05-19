@@ -886,16 +886,13 @@ async def add_user_to_workspace_and_org(
 async def remove_user_from_workspace(
     workspace_id: str,
     email: str,
-) -> WorkspaceResponse:
+) -> bool:
     """
     Remove a user from a workspace.
 
     Args:
         workspace_id (str): The ID of the workspace.
         payload (UserRole): The payload containing the user email and role to remove.
-
-    Returns:
-        workspace (WorkspaceResponse): The updated workspace.
 
     Raises:
         HTTPException -- 403, from fastapi import Request
@@ -995,8 +992,6 @@ async def remove_user_from_workspace(
                     membership_id=member_joined_org.id,
                 )
 
-            await session.commit()
-
         # If there's an invitation for the provided email address, delete it
         user_workspace_invitations_query = await session.execute(
             select(InvitationDB)
@@ -1008,15 +1003,26 @@ async def remove_user_from_workspace(
                 load_only(
                     InvitationDB.id,  # type: ignore
                     InvitationDB.project_id,  # type: ignore
+                    InvitationDB.user_id,  # type: ignore
                 )
             )
         )
         user_invitations = user_workspace_invitations_query.scalars().all()
         for invitation in user_invitations:
-            await delete_invitation(str(invitation.id))
+            await session.delete(invitation)
 
-        workspace_db = await db_manager.get_workspace(workspace_id=workspace_id)
-        return await get_workspace_in_format(workspace_db)
+            log.info(
+                "[scopes] invitation deleted",
+                organization_id=str(workspace.organization_id),
+                workspace_id=str(workspace_id),
+                project_id=str(invitation.project_id),
+                user_id=str(invitation.user_id) if invitation.user_id else None,
+                membership_id=invitation.id,
+            )
+
+        await session.commit()
+
+        return True
 
 
 async def create_organization(

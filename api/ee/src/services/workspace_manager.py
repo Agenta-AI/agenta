@@ -417,7 +417,7 @@ async def accept_workspace_invitation(
 async def remove_user_from_workspace(
     workspace_id: str,
     email: str,
-) -> WorkspaceResponse:
+) -> bool:
     """
     Remove a user from a workspace.
 
@@ -426,7 +426,7 @@ async def remove_user_from_workspace(
         payload (UserRole): The payload containing the user ID and role to remove.
 
     Returns:
-        WorkspaceResponse: The updated workspace.
+        bool: True when the member or pending invitation was removed.
     """
 
     remove_user = await db_manager_ee.remove_user_from_workspace(workspace_id, email)

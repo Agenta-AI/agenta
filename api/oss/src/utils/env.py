@@ -405,6 +405,15 @@ def _load_json_env_dict(name: str) -> dict | None:
     return value
 
 
+def _load_json_env_dict_first(*names: str) -> dict | None:
+    """Parse the first set JSON object from `names`, or return None."""
+    for name in names:
+        value = _load_json_env_dict(name)
+        if value is not None:
+            return value
+    return None
+
+
 def _load_json_env_list(name: str) -> list | None:
     """Parse `name` as a JSON array, or return None if unset/empty."""
     value = _load_json_env_raw(name)
@@ -454,7 +463,11 @@ class BillingSettings(BaseModel):
     """
 
     catalog: list | None = _load_json_env_list("AGENTA_BILLING_CATALOG")
-    pricing: dict | None = _load_json_env_dict("AGENTA_BILLING_PRICING")
+    pricing: dict | None = _load_json_env_dict_first(
+        "AGENTA_BILLING_PRICING",
+        "AGENTA_PRICING",
+        "STRIPE_PRICING",
+    )
 
     model_config = ConfigDict(extra="ignore")
 
