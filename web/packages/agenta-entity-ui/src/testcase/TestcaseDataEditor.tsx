@@ -49,6 +49,8 @@ export function TestcaseDataEditor({
     initialPath,
     onPathChange,
     className,
+    label = "Testcase Data",
+    headerSlot,
     columnOptions,
     mappedPaths,
     onMapToColumn,
@@ -101,7 +103,8 @@ export function TestcaseDataEditor({
         <div className={className}>
             {resolvedFeatures.rootViewMode && (
                 <DrillInRootToolbar
-                    label="Testcase Data"
+                    label={label}
+                    headerSlot={headerSlot}
                     viewMode={rootViewMode}
                     onViewModeChange={setRootViewMode}
                     onCollapseAll={handleCollapseAll}
@@ -133,6 +136,7 @@ export function TestcaseDataEditor({
                 collapseSignal={collapseSignal}
                 viewModeResetSignal={rootViewMode}
                 enableFieldViewModes
+                showProperties={resolvedFeatures.showProperties}
                 getFieldViewModeOptions={getTestcaseViewOptions}
                 getDefaultFieldViewMode={({options}) =>
                     options.includes(rootViewMode) ? rootViewMode : (options[0] ?? "json")

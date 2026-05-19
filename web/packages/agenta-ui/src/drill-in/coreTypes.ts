@@ -279,6 +279,8 @@ export interface DrillInContentProps {
     getSchemaAtPath?: (path: (string | number)[]) => SchemaInfo | null
     /** Whether to show collapse toggle for fields (default: true) */
     showCollapse?: boolean
+    /** Whether to show object/array property counts in field headers (default: false) */
+    showProperties?: boolean
     /** Enables explicit view mode selector for field content */
     enableFieldViewModes?: boolean
     /** Hide all field headers and render only editor/content blocks */

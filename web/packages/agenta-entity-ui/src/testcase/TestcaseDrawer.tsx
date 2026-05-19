@@ -2,8 +2,18 @@ import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 
 
 import {copyToClipboard} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {CaretDoubleRight, CaretDown, CaretUp, Copy, ListChecks} from "@phosphor-icons/react"
+import {
+    CaretDoubleRight,
+    CaretDown,
+    CaretUp,
+    Copy,
+    CornersIn,
+    CornersOut,
+    ListChecks,
+} from "@phosphor-icons/react"
 import {Alert, Button, Dropdown, Skeleton, Space, Tooltip} from "antd"
+
+const EXPANDED_DRAWER_WIDTH = 1920
 
 export interface TestcaseDrawerContentRenderProps {
     initialPath: string[]
@@ -32,9 +42,15 @@ export interface TestcaseDrawerProps<TData = unknown> {
     isError: boolean
     errorMessage?: string
     isDirty: boolean
-    onRestoreSessionStart: (data: TData) => void
+    onRestoreSessionStart?: (data: TData) => void
     renderContent: (props: TestcaseDrawerContentRenderProps) => ReactNode
     renderAddToQueue?: (itemIds: string[]) => ReactNode
+    renderOutputs?: (testcaseId: string) => ReactNode
+    viewOnly?: boolean
+    displayId?: string
+    copyId?: string
+    /** Whether to show the drawer-width expand action in the header. Defaults to true. */
+    showExpandButton?: boolean
     /**
      * Optional slot for evaluator-metric chips/rows.
      * Renders above the data editor when provided. The wrapper resolves
@@ -65,6 +81,11 @@ function TestcaseDrawer<TData = unknown>({
     onRestoreSessionStart,
     renderContent,
     renderAddToQueue,
+    renderOutputs,
+    viewOnly = false,
+    displayId,
+    copyId,
+    showExpandButton = true,
     renderEvaluatorMetrics,
 }: TestcaseDrawerProps<TData>) {
     const sessionStartDraftsRef = useRef<Map<string, TData>>(new Map())
@@ -73,10 +94,12 @@ function TestcaseDrawer<TData = unknown>({
         : null
 
     const [isIdCopied, setIsIdCopied] = useState(false)
+    const [isDrawerExpanded, setIsDrawerExpanded] = useState(false)
     const [drillInPath, setDrillInPath] = useState<string[]>([])
     const [everDirtyIds, setEverDirtyIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
+        if (viewOnly) return
         if (open && testcaseId && isDirty) {
             setEverDirtyIds((prev) => {
                 if (prev.has(testcaseId)) return prev
@@ -85,7 +108,7 @@ function TestcaseDrawer<TData = unknown>({
                 return next
             })
         }
-    }, [open, testcaseId, isDirty])
+    }, [open, testcaseId, isDirty, viewOnly])
 
     useEffect(() => {
         if (!open) {
@@ -129,18 +152,19 @@ function TestcaseDrawer<TData = unknown>({
     }, [onSaveTestset])
 
     const handleCancel = useCallback(() => {
-        if (testcaseId && sessionStartDraft) {
-            onRestoreSessionStart(sessionStartDraft)
+        if (!viewOnly && testcaseId && sessionStartDraft) {
+            onRestoreSessionStart?.(sessionStartDraft)
         }
         onClose()
-    }, [testcaseId, sessionStartDraft, onRestoreSessionStart, onClose])
+    }, [testcaseId, sessionStartDraft, onRestoreSessionStart, onClose, viewOnly])
 
     const handleCopyId = useCallback(async () => {
-        if (!testcaseId) return
-        await copyToClipboard(testcaseId)
+        const idToCopy = copyId ?? displayId ?? testcaseId
+        if (!idToCopy) return
+        await copyToClipboard(idToCopy)
         setIsIdCopied(true)
         setTimeout(() => setIsIdCopied(false), 2000)
-    }, [testcaseId])
+    }, [copyId, displayId, testcaseId])
 
     const queueItemIds = useMemo(
         () => (testcaseId && !isNewRow && !testcaseId.startsWith("new-") ? [testcaseId] : []),
@@ -157,6 +181,24 @@ function TestcaseDrawer<TData = unknown>({
                         icon={<CaretDoubleRight size={14} />}
                         onClick={handleCancel}
                     />
+                    {showExpandButton && (
+                        <Tooltip
+                            title={isDrawerExpanded ? "Restore drawer width" : "Expand drawer"}
+                        >
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={
+                                    isDrawerExpanded ? (
+                                        <CornersIn size={14} />
+                                    ) : (
+                                        <CornersOut size={14} />
+                                    )
+                                }
+                                onClick={() => setIsDrawerExpanded((value) => !value)}
+                            />
+                        </Tooltip>
+                    )}
                     {(onPrevious || onNext) && (
                         <div className="flex items-center">
                             <Button
@@ -178,7 +220,7 @@ function TestcaseDrawer<TData = unknown>({
                     <span className="font-medium text-sm">
                         {isNewRow ? "New Testcase" : `Testcase ${testcaseNumber ?? ""}`}
                     </span>
-                    {isDirty && (
+                    {!viewOnly && isDirty && (
                         <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
                             edited
                         </span>
@@ -214,9 +256,12 @@ function TestcaseDrawer<TData = unknown>({
             hasNext,
             handleCopyId,
             isIdCopied,
+            isDrawerExpanded,
             testcaseNumber,
             handleCancel,
             isDirty,
+            viewOnly,
+            showExpandButton,
             queueItemIds,
             renderAddToQueue,
         ],
@@ -228,6 +273,7 @@ function TestcaseDrawer<TData = unknown>({
             open={open}
             onClose={handleCancel}
             size="large"
+            width={isDrawerExpanded ? EXPANDED_DRAWER_WIDTH : undefined}
             closeIcon={null}
             closeOnLayoutClick={false}
             afterOpenChange={afterOpenChange}
@@ -237,54 +283,56 @@ function TestcaseDrawer<TData = unknown>({
                 footer: {padding: "12px 24px", display: "flex", justifyContent: "flex-end"},
             }}
             footer={
-                <div className="w-full flex items-center justify-end gap-3">
-                    <Button onClick={handleCancel}>Cancel</Button>
-                    <Space.Compact>
-                        <Button
-                            type="primary"
-                            onClick={handleApply}
-                            disabled={!hasSessionDirty}
-                            loading={isSavingTestset}
-                        >
-                            Apply and Continue Editing
-                        </Button>
-                        <Dropdown
-                            placement="topRight"
-                            menu={{
-                                items: [
-                                    ...(onOpenCommitModal
-                                        ? [
-                                              {
-                                                  key: "commit",
-                                                  label: "Apply and Commit Changes",
-                                                  onClick: handleOpenCommitModal,
-                                                  disabled: !hasSessionDirty,
-                                              },
-                                          ]
-                                        : []),
-                                    ...(onSaveTestset
-                                        ? [
-                                              {
-                                                  key: "save",
-                                                  label: "Apply and Save Testset",
-                                                  onClick: handleSaveTestset,
-                                                  disabled: !hasSessionDirty,
-                                              },
-                                          ]
-                                        : []),
-                                ],
-                            }}
-                        >
+                viewOnly ? null : (
+                    <div className="w-full flex items-center justify-end gap-3">
+                        <Button onClick={handleCancel}>Cancel</Button>
+                        <Space.Compact>
                             <Button
                                 type="primary"
-                                icon={<CaretUp size={14} />}
-                                disabled={
-                                    !hasSessionDirty || (!onOpenCommitModal && !onSaveTestset)
-                                }
-                            />
-                        </Dropdown>
-                    </Space.Compact>
-                </div>
+                                onClick={handleApply}
+                                disabled={!hasSessionDirty}
+                                loading={isSavingTestset}
+                            >
+                                Apply and Continue Editing
+                            </Button>
+                            <Dropdown
+                                placement="topRight"
+                                menu={{
+                                    items: [
+                                        ...(onOpenCommitModal
+                                            ? [
+                                                  {
+                                                      key: "commit",
+                                                      label: "Apply and Commit Changes",
+                                                      onClick: handleOpenCommitModal,
+                                                      disabled: !hasSessionDirty,
+                                                  },
+                                              ]
+                                            : []),
+                                        ...(onSaveTestset
+                                            ? [
+                                                  {
+                                                      key: "save",
+                                                      label: "Apply and Save Testset",
+                                                      onClick: handleSaveTestset,
+                                                      disabled: !hasSessionDirty,
+                                                  },
+                                              ]
+                                            : []),
+                                    ],
+                                }}
+                            >
+                                <Button
+                                    type="primary"
+                                    icon={<CaretUp size={14} />}
+                                    disabled={
+                                        !hasSessionDirty || (!onOpenCommitModal && !onSaveTestset)
+                                    }
+                                />
+                            </Dropdown>
+                        </Space.Compact>
+                    </div>
+                )
             }
         >
             {open && testcaseId && (
@@ -304,12 +352,13 @@ function TestcaseDrawer<TData = unknown>({
                             />
                         </div>
                     )}
-                    {testcaseData && testcaseId && renderEvaluatorMetrics?.(testcaseId)}
                     {testcaseData &&
                         renderContent({
                             initialPath: drillInPath,
                             onPathChange: setDrillInPath,
                         })}
+                    {testcaseData && testcaseId && renderOutputs?.(testcaseId)}
+                    {testcaseData && testcaseId && renderEvaluatorMetrics?.(testcaseId)}
                 </>
             )}
         </EnhancedDrawer>

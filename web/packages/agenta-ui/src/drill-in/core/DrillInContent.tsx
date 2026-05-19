@@ -123,6 +123,7 @@ export function DrillInContent({
     initialPath,
     getSchemaAtPath,
     showCollapse = true,
+    showProperties = false,
     enableFieldViewModes = false,
     hideFieldHeaders = false,
     hideSingleFieldHeader = false,
@@ -565,7 +566,7 @@ export function DrillInContent({
     const fieldWrapperClass = isFlatVariant
         ? "flex flex-col border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
         : "flex flex-col gap-2"
-    const fieldBodyClass = isFlatVariant ? "px-4 pb-2" : "px-4"
+    const fieldBodyClass = isFlatVariant ? "px-4 pb-2 pt-2" : "px-4 pt-2"
 
     // Content to render
     const content = (
@@ -626,7 +627,7 @@ export function DrillInContent({
                     const isRawMode = rawModeFields[fieldKey] ?? false
                     const isCollapsed = collapsedFields[fieldKey] ?? false
                     const expandable = isExpandable(item.value)
-                    const itemCount = getItemCount(item.value)
+                    const itemCount = showProperties ? getItemCount(item.value) : undefined
                     const showRawToggle =
                         !enableFieldViewModes && editable && canToggleRawMode(dataType)
 
