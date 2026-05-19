@@ -55,12 +55,12 @@ Sync-derived findings (closed):
 - **Background**: Removing `support_id` / `support_ts` from `HTTPException.detail` is a client-visible wire-shape change for intercepted 5xx and 409 responses, but PR #4347's description focuses on metering/auth changes and does not call out the support-header migration. Copilot is asking the author to add a section to the PR body so reviewers and client maintainers don't miss the response-shape change.
 - **Action (user)**: Edit the PR #4347 description (`gh pr edit 4347 --body …` or the web UI) to add a short section under "Wire-shape changes" that names the three affected response shapes (suppressed-failure body, intercepted 5xx `detail`, intercepted 409 `detail`) and the corresponding headers (`x-ag-support-id`, `x-ag-support-ts`). The wire-table at `docs/designs/support-fields/proposal.md:234-239` is the source of truth.
 
-### [DUPLICATE — will close after commit] F-011-dup / F-012-dup — Copilot 13th pass re-flagged the same drift on the pre-fix tree
+### [CLOSED — duplicates] F-011-dup / F-012-dup — Copilot 13th pass re-flagged the same drift on the pre-fix tree
 
 - **Origin**: PR #4347 sync, 13th Copilot pass (2026-05-19T12:42Z)
 - **PR comments**: [discussion_r3266334422](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266334422) (tasks.md:96, dup of F-011); [discussion_r3266334536](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266334536) (proposal.md:213, dup of F-012)
-- **Background**: Copilot's 13th pass ran against commit `ec12ccfa7` ("clean up findings") which predates my F-011 / F-012 doc rewrites (still uncommitted in working tree). Once those edits land in a commit, the next Copilot pass should mark these threads as already-addressed; the underlying content is the same drift already fixed.
-- **Action**: Commit the F-011..F-014 doc rewrites; reply on both threads pointing at the new commit and resolve.
+- **Background**: Copilot's 13th pass ran against commit `ec12ccfa7` ("clean up findings") which predates the F-011 / F-012 doc rewrites. The underlying content is the same drift, already fixed in the working tree.
+- **Action**: Both GitHub threads replied to ([discussion_r3266354583](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266354583), [discussion_r3266354838](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266354838)) pointing at the working-tree fix; both resolved.
 
 ## Closed Findings
 

@@ -86,6 +86,10 @@ services:
                 "/sdks/python/agenta",
                 "--reload-dir",
                 "/clients/python/agenta_client",
+                "--reload-exclude",
+                "*.pyc",
+                "--reload-exclude",
+                "__pycache__",
                 "--root-path",
                 "/api",
                 "--loop",
@@ -305,6 +309,7 @@ services:
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
             - ../../../api/ee/src/crons/meters.sh:/meters.sh
             - ../../../api/ee/src/crons/spans.sh:/spans.sh
+            - ../../../api/ee/src/crons/events.sh:/events.sh
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -368,6 +373,10 @@ services:
                 "/sdks/python/agenta",
                 "--reload-dir",
                 "/clients/python/agenta_client",
+                "--reload-exclude",
+                "*.pyc",
+                "--reload-exclude",
+                "__pycache__",
                 "--root-path",
                 "/services",
                 "--loop",

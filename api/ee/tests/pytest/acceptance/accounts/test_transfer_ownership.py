@@ -62,7 +62,7 @@ class TestTransferOwnership:
                 "membership": {
                     "organization_ref": {"id": org_id},
                     "user_ref": {"id": tgt_user_id},
-                    "role": "member",
+                    "role": "viewer",
                 }
             },
         )
@@ -115,7 +115,7 @@ class TestTransferOwnership:
                 "membership": {
                     "organization_ref": {"id": org_id},
                     "user_ref": {"id": tgt_user_id},
-                    "role": "member",
+                    "role": "viewer",
                 }
             },
         )

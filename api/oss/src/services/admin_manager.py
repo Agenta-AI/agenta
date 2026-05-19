@@ -1,4 +1,4 @@
-from typing import Optional, Literal, Any, Union
+from typing import Optional, Any, Union
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -96,54 +96,27 @@ class ProjectRequest(BaseModel):
     organization_ref: Reference
 
 
-OrganizationRole = Literal[
-    "owner",
-    "admin",
-    "developer",
-    "editor",
-    "annotator",
-    "viewer",
-]
-
-
+# Role slugs are dynamic at runtime (env-overridable via AGENTA_ACCESS_ROLES);
+# validation against the effective per-scope catalog happens at the handler
+# boundary via `ee.src.core.entitlements.controls.get_role`.
 class OrganizationMembershipRequest(BaseModel):
-    role: OrganizationRole
+    role: str
     is_demo: bool
     #
     user_ref: Reference
     organization_ref: Reference
 
 
-WorkspaceRole = Literal[
-    "owner",
-    "admin",
-    "developer",
-    "editor",
-    "annotator",
-    "viewer",
-]
-
-
 class WorkspaceMembershipRequest(BaseModel):
-    role: WorkspaceRole
+    role: str
     is_demo: bool
     #
     user_ref: Reference
     workspace_ref: Reference
 
 
-ProjectRole = Literal[
-    "owner",
-    "admin",
-    "developer",
-    "editor",
-    "annotator",
-    "viewer",
-]
-
-
 class ProjectMembershipRequest(BaseModel):
-    role: ProjectRole
+    role: str
     is_demo: bool
     #
     user_ref: Reference

@@ -27,6 +27,7 @@ class Meters(str, Enum):
     TRACES_INGESTED = Counter.TRACES_INGESTED.value
     TRACES_RETRIEVED = Counter.TRACES_RETRIEVED.value
     CREDITS_CONSUMED = Counter.CREDITS_CONSUMED.value
+    EVENTS_INGESTED = Counter.EVENTS_INGESTED.value
     # GAUGES
     USERS = Gauge.USERS.value
 

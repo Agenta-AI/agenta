@@ -25,7 +25,6 @@ from ee.src.models.db_models import OrganizationMemberDB
 from oss.src.models.db_models import ProjectDB
 from ee.src.models.extended.deprecated_models import DeprecatedOrganizationDB
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
-from ee.src.core.subscriptions.types import FREE_PLAN
 
 # Historical reference: both `Gauge.APPLICATIONS` and the legacy `Gauge.USERS`
 # enum label predate the meters reshape that adds `meter_id`, `workspace_id`,
@@ -36,6 +35,14 @@ from ee.src.core.subscriptions.types import FREE_PLAN
 # their `meter_id` backfilled (USERS) or get deleted (APPLICATIONS).
 _LEGACY_APPLICATIONS_KEY = "APPLICATIONS"
 _LEGACY_USERS_KEY = "USERS"
+
+# Point-in-time literal; the runtime free-plan slug is now resolved via
+# `ee.src.core.subscriptions.settings.get_free_plan()`. Operators running
+# with a custom `AGENTA_ACCESS_PLANS` set must either keep this slug in
+# the effective plan set or declare a `"free": true` entry in
+# `AGENTA_BILLING_PRICING`. Startup validation in `settings.py` fails fast
+# when neither condition is met.
+FREE_PLAN = "cloud_v0_hobby"
 
 stripe.api_key = env.stripe.api_key
 

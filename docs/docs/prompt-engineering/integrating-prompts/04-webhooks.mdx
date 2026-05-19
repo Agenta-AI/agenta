@@ -239,6 +239,47 @@ X-Agenta-Event-Id: <event_id>
 Idempotency-Key: <delivery_id>
 ```
 
+## Available event types
+
+Agenta emits events for both read access and Git-style revision lifecycle changes. You can subscribe to any subset of the events below.
+
+### Revision lifecycle events
+
+Each major entity that has revision history exposes the same five action events:
+
+| Action | Emitted when |
+|---|---|
+| `retrieved` | A revision is retrieved by reference (slug or id) |
+| `fetched` | A revision is fetched by id (`GET /<domain>/revisions/{id}`) |
+| `queried` | A list of revisions is returned from `POST /<domain>/revisions/query` |
+| `logged` | A revision history log is returned from `POST /<domain>/revisions/log` |
+| `committed` | A new revision is committed (direct commit, simple-service create/edit, deploy, fork, etc.) |
+
+The supported domains and event names are:
+
+- `applications.revisions.{retrieved,fetched,queried,logged,committed}`
+- `queries.revisions.{retrieved,fetched,queried,logged,committed}`
+- `testsets.revisions.{retrieved,fetched,queried,logged,committed}`
+- `evaluators.revisions.{retrieved,fetched,queried,logged,committed}`
+- `environments.revisions.{retrieved,fetched,queried,logged,committed}`
+
+Revision read events (`retrieved`, `fetched`, `queried`, and `logged`) carry `references` (the artifact, variant, and revision identifiers — partial when the response does not expose all fields), `count`, and `user_id`. Commit events carry `references`, `user_id`, and optional `message`, but do not include `count`. The `environments.revisions.committed` event additionally carries `state` and `diff` describing the committed configuration, as shown in the examples above.
+
+For list events (`queried`, `logged`), `references` is an array capped at 1000 entries while `count` reflects the uncapped total.
+
+### Read events for traces and testcases
+
+- `traces.fetched` — fired by `GET /traces/{trace_id}` (carries `trace_id`) and `GET /traces/` (carries capped `trace_ids`)
+- `traces.queried` — fired by `POST /traces/query` (carries capped `trace_ids`)
+- `testcases.fetched` — fired by `GET /testcases/{testcase_id}` (carries `testcase_id`) and `GET /testcases/` (carries capped `testcase_ids`)
+- `testcases.queried` — fired by `POST /testcases/query` (carries capped `testcase_ids`)
+
+Read events always carry `user_id` and `count`. They are only emitted when `count > 0`.
+
+### System events
+
+- `webhooks.subscriptions.tested` — fired when you click `Send test` on a webhook subscription
+
 ## Authentication modes
 
 ### Using signature mode

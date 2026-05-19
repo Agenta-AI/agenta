@@ -165,7 +165,7 @@ export interface OrganizationDomain {
  * Fetch all domains for an organization
  */
 export const fetchOrganizationDomains = async (): Promise<OrganizationDomain[]> => {
-    const response = await axios.get(`${getAgentaApiUrl()}/organizations/domains`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/domains/`, {
         _ignoreError: true,
     } as any)
     return response.data
@@ -179,7 +179,7 @@ export const createOrganizationDomain = async (payload: {
     name: string
     description?: string
 }): Promise<OrganizationDomain> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains`, payload, {
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains/`, payload, {
         _ignoreError: true,
     } as any)
     return response.data
@@ -255,7 +255,7 @@ export interface OrganizationProvider {
  * Fetch all SSO providers for an organization
  */
 export const fetchOrganizationProviders = async (): Promise<OrganizationProvider[]> => {
-    const response = await axios.get(`${getAgentaApiUrl()}/organizations/providers`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/providers/`, {
         _ignoreError: true,
     } as any)
     return response.data
@@ -274,7 +274,7 @@ export const createOrganizationProvider = async (payload: {
         scopes?: string[]
     }
 }): Promise<OrganizationProvider> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/organizations/providers`, payload, {
+    const response = await axios.post(`${getAgentaApiUrl()}/organizations/providers/`, payload, {
         _ignoreError: true,
     } as any)
     return response.data
