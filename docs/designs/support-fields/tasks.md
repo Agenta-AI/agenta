@@ -35,9 +35,14 @@ Ordered for minimal-friction execution. Each task is independently testable.
   - [ ] In `suppress_exceptions`: drop the `request` lookup, call
         `attach_support(support)`, return bare `default`.
   - [ ] In `intercept_exceptions`: same — call `attach_support(support)`
-        for the side-effect, leave the `detail` payload unchanged for
-        back-compat. Apply to both the `EntityCreationConflict` branch
-        and the generic-exception branch. Keep the existing
+        for the side-effect, and strip `support_id` / `support_ts` from
+        the `detail` payload (headers-only; client visibility comes from
+        the response headers emitted by the middleware, not the body).
+        Apply to both the `EntityCreationConflict` branch (drop the
+        `support_id=` / `support_ts=` kwargs from the `ConflictException`
+        call site, since `BaseHTTPException.__init__` folds `**kwargs`
+        into `detail`) and the generic-exception branch (only `message`
+        and `operation_id` remain in `detail`). Keep the existing
         `kwargs.pop("request", None)` block that extracts `user_id`,
         `project_id`, etc. for logging — it's unrelated.
 
@@ -54,7 +59,7 @@ Ordered for minimal-friction execution. Each task is independently testable.
       next to the existing `authentication_middleware` /
       `analytics_middleware` registrations.
 
-## 4. Strip `Support` inheritance from response models
+## 5. Strip `Support` inheritance from response models
 
 For each file below, replace `class XResponse(Support):` with
 `class XResponse(BaseModel):` and remove the
@@ -78,7 +83,7 @@ For each file below, replace `class XResponse(Support):` with
 After this batch, `Support` should only be imported by
 `exceptions.py` itself, `test_exceptions.py`, and the middleware.
 
-## 5. Tests
+## 6. Tests
 
 - [ ] In `api/oss/tests/pytest/unit/utils/test_exceptions.py`:
   - [ ] Delete `test_support_fields_exist_on_api_response_model`.
@@ -96,7 +101,7 @@ After this batch, `Support` should only be imported by
 - [ ] Add `test_support_headers_absent_on_success` — same route,
       success path, assert headers absent.
 
-## 6. Smoke test in dev
+## 7. Smoke test in dev
 
 - [ ] Start API via the EE dev compose env (`hosting/docker-compose/ee/
       .env.ee.dev`). Hit a fetch endpoint with a contrived failure (e.g.
@@ -107,13 +112,13 @@ After this batch, `Support` should only be imported by
 - [ ] Hit the same endpoint on the happy path. Confirm: no headers,
       clean body.
 
-## 7. Regenerate API docs
+## 8. Regenerate API docs
 
 - [ ] Run the `update-api-docs` skill once the change is on `main`.
       Confirm the regenerated reference (e.g. fetch-folder) no longer
       shows `support_id` / `support_ts`.
 
-## 8. PR
+## 9. PR
 
 - [ ] PR title format per AGENTS.md: `fix(api): remove support fields
       from response schemas; emit as headers`.

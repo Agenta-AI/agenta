@@ -39,7 +39,7 @@
 | File | Change |
 | --- | --- |
 | `api/oss/src/utils/context.py` | Add `support_ctx: ContextVar[Optional[Support]]` next to the existing `request_id_ctx`. If a circular import appears, move `Support` here or into a small `utils/support.py`. |
-| `api/oss/src/utils/exceptions.py` | Rewrite `attach_support(support)` to call `support_ctx.set(support)`. Both decorators call `attach_support` instead of fishing `request` from kwargs. Keep `detail` payload in `intercept_exceptions` for back-compat. |
+| `api/oss/src/utils/exceptions.py` | Rewrite `attach_support(support)` to call `support_ctx.set(support)`. Both decorators call `attach_support` instead of fishing `request` from kwargs. Strip `support_id` / `support_ts` from `intercept_exceptions` `detail` (headers-only); both decorators rely on `support_ctx` + `SupportHeadersMiddleware` for client visibility. |
 | `api/entrypoints/routers.py` | Add `support_headers_middleware` that reads `support_ctx` and emits headers; register it. |
 | `api/oss/src/apis/fastapi/{annotations,applications,environments,evaluations,evaluators,folders,invocations,otlp,queries,testcases,testsets,traces,tracing,workflows}/models.py` | Remove `Support` inheritance and the `Support` import. (15 files) |
 | `api/oss/tests/pytest/unit/utils/test_exceptions.py` | Drop the schema-presence test, rewrite the suppress test to assert `support_ctx.get()`, add two header tests. |
@@ -52,7 +52,7 @@
 - Any service / DAO / core layer file. Support is still set in the API
   layer; the ContextVar just means it could be set from elsewhere too
   in the future.
-- `intercept_exceptions`'s `detail` body shape — kept for back-compat.
+- `intercept_exceptions`'s `detail` body shape, **other than removing `support_id` / `support_ts`**. `message` and `operation_id` are still emitted in the body; the support fields move to headers only.
 - EE-side code. PR #4212 only touched OSS.
 
 ### Assumptions to verify before edit

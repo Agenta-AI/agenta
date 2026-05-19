@@ -4,6 +4,7 @@ import pytest
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 
+from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.apis.fastapi.workflows.models import WorkflowResponse
 from oss.src.utils.context import Support, support_ctx
 from oss.src.utils.exceptions import (
@@ -77,54 +78,9 @@ async def test_intercept_exceptions_attaches_support_to_context():
         support_ctx.reset(token)
 
 
-class _SupportHeadersMiddleware:
-    """Local mirror of `entrypoints.routers.SupportHeadersMiddleware`.
-
-    Importing the production middleware pulls the full app composition root
-    (DAOs, services, EE wiring), which is too heavy for a unit test.
-    """
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        token = support_ctx.set(None)
-
-        async def send_with_support(message):
-            if message["type"] == "http.response.start":
-                support = support_ctx.get()
-                if support is not None:
-                    headers = list(message.get("headers", []))
-                    if support.support_id:
-                        headers.append(
-                            (
-                                b"x-ag-support-id",
-                                support.support_id.encode("latin-1"),
-                            )
-                        )
-                    if support.support_ts:
-                        headers.append(
-                            (
-                                b"x-ag-support-ts",
-                                support.support_ts.isoformat().encode("latin-1"),
-                            )
-                        )
-                    message["headers"] = headers
-            await send(message)
-
-        try:
-            await self.app(scope, receive, send_with_support)
-        finally:
-            support_ctx.reset(token)
-
-
 def _build_test_app() -> FastAPI:
     app = FastAPI()
-    app.add_middleware(_SupportHeadersMiddleware)
+    app.add_middleware(SupportHeadersMiddleware)
 
     @app.get("/fail")
     @suppress_exceptions(default={"count": 0}, verbose=False)
@@ -180,7 +136,7 @@ def _build_test_app_with_base_http_middleware() -> FastAPI:
     # `support_ctx.set(...)` becomes invisible and headers silently vanish.
     app = FastAPI()
 
-    app.add_middleware(_SupportHeadersMiddleware)
+    app.add_middleware(SupportHeadersMiddleware)
 
     async def passthrough_middleware(request: Request, call_next):
         return await call_next(request)
