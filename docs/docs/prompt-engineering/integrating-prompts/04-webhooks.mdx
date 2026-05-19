@@ -263,7 +263,7 @@ The supported domains and event names are:
 - `evaluators.revisions.{retrieved,fetched,queried,logged,committed}`
 - `environments.revisions.{retrieved,fetched,queried,logged,committed}`
 
-Revision events carry `references` (the artifact, variant, and revision identifiers — partial when the response does not expose all fields), `count`, and `user_id`. Commit events also carry optional `message`. The `environments.revisions.committed` event additionally carries `state` and `diff` describing the committed configuration, as shown in the examples above.
+Revision read events (`retrieved`, `fetched`, `queried`, and `logged`) carry `references` (the artifact, variant, and revision identifiers — partial when the response does not expose all fields), `count`, and `user_id`. Commit events carry `references`, `user_id`, and optional `message`, but do not include `count`. The `environments.revisions.committed` event additionally carries `state` and `diff` describing the committed configuration, as shown in the examples above.
 
 For list events (`queried`, `logged`), `references` is an array capped at 1000 entries while `count` reflects the uncapped total.
 

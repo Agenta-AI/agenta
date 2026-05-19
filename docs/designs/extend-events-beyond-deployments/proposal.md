@@ -211,7 +211,7 @@ Shared utilities live in `api/oss/src/core/events/utils.py`. All helpers use key
 
 Behavior:
 
-- Each helper resolves scope (`organization_id`, `project_id`, `user_id`) from `request.state` and short-circuits without raising if the scope is unusable. Callers do not need to None-check fields.
+- Each helper resolves scope (`organization_id`, `project_id`, `user_id`) from ambient `AuthScope` first, then falls back to `request.state`, and short-circuits without raising if the scope is unusable. Callers do not need to None-check fields.
 - Each helper builds an `Event` with generated `request_id`, generated `event_id`, `RequestType.UNKNOWN`, and the matching `EventType`.
 - `publish_event(...)` is called with `organization_id` and `project_id` in the envelope. `attributes` always carries `user_id`. Read/query/log events carry `count`. Commit events do not carry `count` (matching the existing `environments.revisions.committed` precedent).
 - Publish failures are caught, logged, and swallowed so the API response is unaffected.

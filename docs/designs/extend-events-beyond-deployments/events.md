@@ -75,6 +75,7 @@ Commit payload rule:
 - Add optional `message` to `environments.revisions.committed` for commit-event uniformity.
 - For the new application, query, testset, and evaluator commit events, do not include `state` or `diff` in the first version.
 - Include `message` on new commit events when present.
+- Delta commits emit exactly one `*.revisions.committed` event, after the delta is resolved into full committed data.
 
 Environment commit body shape:
 
@@ -679,6 +680,8 @@ Route: `POST /environments/revisions/log`
 ### `environments.revisions.committed`
 
 Route: `POST /environments/revisions/commit`, or any path that reaches successful environment revision commit logic.
+
+Delta commits emit exactly one `environments.revisions.committed` event, after the delta is resolved into the resulting committed state.
 
 ```json
 {

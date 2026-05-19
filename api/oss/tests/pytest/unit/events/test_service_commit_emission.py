@@ -373,6 +373,160 @@ async def test_environments_service_commit_emits_event_with_state_and_diff():
     }
 
 
+@pytest.mark.asyncio
+async def test_environments_service_delta_commit_emits_event_once():
+    from oss.src.core.environments.dtos import (
+        EnvironmentRevisionCommit,
+        EnvironmentRevisionData,
+        EnvironmentRevisionDelta,
+    )
+    from oss.src.core.environments.service import EnvironmentsService
+    from oss.src.core.shared.dtos import Reference
+
+    project_id = uuid4()
+    user_id = uuid4()
+    revision_id = uuid4()
+    artifact_id = uuid4()
+    variant_id = uuid4()
+    app_revision_id = uuid4()
+
+    environments_dao = SimpleNamespace(
+        commit_revision=AsyncMock(
+            return_value=_make_revision(
+                artifact_id=artifact_id,
+                variant_id=variant_id,
+                revision_id=revision_id,
+                slug="v7",
+                version="v7",
+            )
+        )
+    )
+
+    svc = EnvironmentsService.__new__(EnvironmentsService)
+    svc.environments_dao = environments_dao
+    svc.embeds_service = None
+    svc.query_environment_revisions = AsyncMock(
+        return_value=[
+            SimpleNamespace(
+                data=EnvironmentRevisionData(
+                    references={
+                        "app": {
+                            "application_revision": Reference(id=uuid4()),
+                        }
+                    }
+                )
+            )
+        ]
+    )
+    svc._get_previous_environment_references = AsyncMock(return_value={})
+
+    commit = EnvironmentRevisionCommit(
+        slug="v7",
+        message="Delta commit",
+        environment_id=artifact_id,
+        environment_variant_id=variant_id,
+        delta=EnvironmentRevisionDelta(
+            set={
+                "app": {
+                    "application_revision": Reference(id=app_revision_id),
+                }
+            }
+        ),
+    )
+
+    captured: List[dict] = []
+    with patch(
+        "oss.src.core.events.utils.publish_event",
+        new=_captured_publishes(captured),
+    ):
+        result = await svc.commit_environment_revision(
+            project_id=project_id,
+            user_id=user_id,
+            environment_revision_commit=commit,
+        )
+
+    assert result is not None
+    assert environments_dao.commit_revision.await_count == 1
+    assert len(captured) == 1
+    assert captured[0]["event"].event_type == EventType.ENVIRONMENTS_REVISIONS_COMMITTED
+
+
+@pytest.mark.asyncio
+async def test_testsets_service_delta_commit_emits_event_once():
+    from oss.src.core.testcases.dtos import Testcase
+    from oss.src.core.testsets.dtos import (
+        TestsetRevisionCommit,
+        TestsetRevisionData,
+        TestsetRevisionDelta,
+        TestsetRevisionDeltaColumns,
+    )
+    from oss.src.core.testsets.service import TestsetsService
+
+    project_id = uuid4()
+    user_id = uuid4()
+    revision_id = uuid4()
+    artifact_id = uuid4()
+    variant_id = uuid4()
+
+    testsets_dao = SimpleNamespace(
+        commit_revision=AsyncMock(
+            return_value=_make_revision(
+                artifact_id=artifact_id,
+                variant_id=variant_id,
+                revision_id=revision_id,
+                slug="v8",
+                version="v8",
+            )
+        )
+    )
+
+    svc = TestsetsService.__new__(TestsetsService)
+    svc.testsets_dao = testsets_dao
+    svc.testcases_service = SimpleNamespace(
+        create_testcases=AsyncMock(
+            return_value=[
+                Testcase(id=uuid4(), set_id=artifact_id, data={"prompt": "hello"})
+            ]
+        )
+    )
+    svc.fetch_testset_revision = AsyncMock(
+        return_value=SimpleNamespace(
+            testset_variant_id=variant_id,
+            description="Base revision",
+            data=TestsetRevisionData(
+                testcases=[
+                    Testcase(id=uuid4(), set_id=artifact_id, data={"prompt": "hello"})
+                ]
+            ),
+        )
+    )
+    svc._populate_testcases = AsyncMock(return_value=None)
+
+    commit = TestsetRevisionCommit(
+        message="Delta testset",
+        testset_id=artifact_id,
+        delta=TestsetRevisionDelta(
+            columns=TestsetRevisionDeltaColumns(add=["expected"])
+        ),
+    )
+
+    captured: List[dict] = []
+    with patch(
+        "oss.src.core.events.utils.publish_event",
+        new=_captured_publishes(captured),
+    ):
+        result = await svc.commit_testset_revision(
+            project_id=project_id,
+            user_id=user_id,
+            testset_revision_commit=commit,
+        )
+
+    assert result is not None
+    assert testsets_dao.commit_revision.await_count == 1
+    assert len(captured) == 1
+    assert captured[0]["event"].event_type == EventType.TESTSETS_REVISIONS_COMMITTED
+
+
 # ---------------------------------------------------------------------------
 # DAO returns None → no event published
 # ---------------------------------------------------------------------------

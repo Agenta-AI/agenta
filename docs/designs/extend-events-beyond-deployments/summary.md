@@ -40,14 +40,15 @@ The publisher side now reads scope from the ambient `AuthScope` (`ContextVar` se
 |----------|----------------|----------------|-----------------|
 | web      | +0 / ~0 / -0   | +0 / ~0 / -0   | +0  / ~0  / -0  |
 | services | +0 / ~0 / -0   | +0 / ~0 / -0   | +0  / ~0  / -0  |
-| api      | +0 / ~0 / -0   | +0 / ~0 / -0   | +44 / ~1 / -0   |
+| api      | +0 / ~0 / -0   | +0 / ~0 / -0   | +48 / ~1 / -0   |
 | sdk      | +0 / ~0 / -0   | +0 / ~0 / -0   | +0  / ~0  / -0  |
 
 Unit additions (`api/oss/tests/pytest/unit/events/`):
 
 - `test_events_utils.py` (+~30 new cases on top of the 30 originally shipped): EventType / WebhookEventType parity, attribute builders + capping, revision attribute construction across all five domains, `request_scope` semantics, AuthScope-first precedence, L1 quota allow / drop / fail-open / skip-on-OSS / skip-when-org-unknown.
-- `test_service_commit_emission.py` (existing): one commit-event-per-call across all five services, with environment-specific `state` / `diff` preservation and DAO-returns-None suppression.
+- `test_service_commit_emission.py` (existing): one commit-event-per-call across all five services, environment-specific `state` / `diff` preservation, DAO-returns-None suppression, and delta-commit exactly-once coverage for environments and testsets.
 - `test_events_worker_l2.py` (new): per-org delta aggregation across projects, allow / deny / skip-on-OSS / check-failure-drop semantics.
+- `test_events_router_audit.py` (new): direct `POST /events/query` router coverage for the `Flag.AUDIT` allow and deny branches.
 
 One edit in `api/oss/tests/pytest/unit/test_environments_service.py` repoints a `patch("oss.src.core.environments.service.publish_event")` to `patch("oss.src.core.events.utils.publish_event")` to match the normalized emission seam. Full OSS unit suite green: 575 passing.
 
@@ -61,4 +62,4 @@ One edit in `api/oss/tests/pytest/unit/test_environments_service.py` repoints a 
 
 ## Tests and docs
 
-`docs/designs/extend-events-beyond-deployments/` carries the design story: `research.md` and `gap.md` as historical baselines, `proposal.md` for the as-shipped read/commit split and per-event payload contracts, `events.md` as the per-event reference (29 events with example payloads + capping rules), `tasks.md` as the execution checklist, `findings.md` with the two-pass scan-codebase + post-review results (F-001..F-007 closed in the first pass, F-008..F-013 surfaced in the second pass — F-013 the P1 missing-quota finding that drove this PR), and this `summary.md`. User-facing docs: `docs/docs/prompt-engineering/integrating-prompts/04-webhooks.mdx` lists every subscribable event type with `references` / `count` / `message` semantics; the generated Fern TS client (`web/packages/agenta-api-client/src/generated/api/types/WebhookEventType.ts`) and `docs/docs/reference/openapi.json` include all 29 new types. Internal API guidance (`AGENTS.md`) is unchanged — the helper layer follows the existing domain-folder + DTO-mapping conventions.
+`docs/designs/extend-events-beyond-deployments/` carries the design story: `research.md` and `gap.md` as historical baselines, `proposal.md` for the as-shipped read/commit split and AuthScope-first scope resolution, `events.md` as the per-event reference (29 events with example payloads, capping rules, and delta-commit semantics), `tasks.md` as the execution checklist, and this `summary.md`. User-facing docs: `docs/docs/prompt-engineering/integrating-prompts/04-webhooks.mdx` lists every subscribable event type and now distinguishes read/log payloads (`count`) from commit payloads (no `count`, optional `message`); the generated Fern TS client (`web/packages/agenta-api-client/src/generated/api/types/WebhookEventType.ts`) and `docs/docs/reference/openapi.json` include all 29 new types. Internal API guidance (`AGENTS.md`) is unchanged — the helper layer follows the existing domain-folder + DTO-mapping conventions.

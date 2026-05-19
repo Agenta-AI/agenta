@@ -236,9 +236,9 @@ Important detail:
 
 ## Current Router Context Available for Emission
 
-If the event is emitted at the router boundary, the request already exposes the main auth/scope values needed for the event envelope and attributes.
+If the event is emitted at the router boundary, the ambient `AuthScope` and the request state already expose the main auth/scope values needed for the event envelope and attributes.
 
-In current tracing routers, request handlers already read from `request.state`:
+In current tracing routers, request handlers already read from `request.state` as a fallback when an ambient `AuthScope` is not available:
 
 - `organization_id`
 - `project_id`
