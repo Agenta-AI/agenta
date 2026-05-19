@@ -7,6 +7,54 @@ from oss.src.core.shared.dtos import (
     Meta,
     Windowing,
 )
+from oss.src.utils.context import support_ctx
+
+
+class SupportHeadersMiddleware:
+    """Pure-ASGI middleware that emits x-ag-support-* headers when
+    a downstream decorator stashes support metadata in `support_ctx`.
+
+    Implemented as raw ASGI (not `BaseHTTPMiddleware`) so the handler
+    runs in the same task as this wrapper, which is required for
+    `ContextVar` changes inside the handler to be visible here.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        token = support_ctx.set(None)
+
+        async def send_with_support(message):
+            if message["type"] == "http.response.start":
+                support = support_ctx.get()
+                if support is not None:
+                    headers = list(message.get("headers", []))
+                    if support.support_id:
+                        headers.append(
+                            (
+                                b"x-ag-support-id",
+                                support.support_id.encode("latin-1"),
+                            )
+                        )
+                    if support.support_ts:
+                        headers.append(
+                            (
+                                b"x-ag-support-ts",
+                                support.support_ts.isoformat().encode("latin-1"),
+                            )
+                        )
+                    message["headers"] = headers
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_with_support)
+        finally:
+            support_ctx.reset(token)
 
 
 def parse_metadata(
