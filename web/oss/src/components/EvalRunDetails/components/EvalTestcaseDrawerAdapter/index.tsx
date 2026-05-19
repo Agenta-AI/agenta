@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, type ReactNode} from "react"
 import {
     TestcaseDataEditor,
     TestcaseDrawer,
+    useTestcaseDrawerNavigation,
     type TestcaseDrawerContentRenderProps,
 } from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -44,6 +45,8 @@ import {
 
 const PAGE_SIZE = 50
 type PreviewPaginationRow = PreviewTableRow & Record<string, unknown>
+
+const getScenarioRowId = (row: PreviewPaginationRow) => row.scenarioId ?? null
 
 const InvocationMetaHeader = ({
     group,
@@ -161,13 +164,6 @@ const EvalTestcaseDrawerAdapter = () => {
         [rows],
     )
 
-    const currentIndex = useMemo(() => {
-        if (!scenarioId) return -1
-        return loadedScenarios.findIndex((row) => row.scenarioId === scenarioId)
-    }, [loadedScenarios, scenarioId])
-
-    const currentScenario = currentIndex >= 0 ? loadedScenarios[currentIndex] : null
-
     const inputColumns = useMemo(() => {
         const columnMap = new Map<string, EvaluationTableColumn>()
         columnResult?.columns.forEach((column) => columnMap.set(column.id, column))
@@ -254,19 +250,23 @@ const EvalTestcaseDrawerAdapter = () => {
         [runId],
     )
 
-    const handlePrevious = useCallback(() => {
-        if (currentIndex <= 0) return
-        const target = loadedScenarios[currentIndex - 1]
-        if (!target?.scenarioId) return
-        changeScenario(target.scenarioId, target.scenarioIndex, target.testcaseId)
-    }, [changeScenario, currentIndex, loadedScenarios])
+    const navigateToScenario = useCallback(
+        (row: PreviewPaginationRow) => {
+            if (!row.scenarioId) return
+            changeScenario(row.scenarioId, row.scenarioIndex, row.testcaseId)
+        },
+        [changeScenario],
+    )
 
-    const handleNext = useCallback(() => {
-        if (currentIndex === -1) return
-        const target = loadedScenarios[currentIndex + 1]
-        if (!target?.scenarioId) return
-        changeScenario(target.scenarioId, target.scenarioIndex, target.testcaseId)
-    }, [changeScenario, currentIndex, loadedScenarios])
+    const {currentIndex, hasPrevious, hasNext, handlePrevious, handleNext} =
+        useTestcaseDrawerNavigation<PreviewPaginationRow>({
+            rows: loadedScenarios,
+            getRowId: getScenarioRowId,
+            currentRowId: scenarioId,
+            onNavigate: navigateToScenario,
+        })
+
+    const currentScenario = currentIndex >= 0 ? loadedScenarios[currentIndex] : null
 
     const renderContent = useCallback(
         ({initialPath, onPathChange}: TestcaseDrawerContentRenderProps): ReactNode => (
@@ -348,8 +348,8 @@ const EvalTestcaseDrawerAdapter = () => {
             viewOnly
             onPrevious={handlePrevious}
             onNext={handleNext}
-            hasPrevious={currentIndex > 0}
-            hasNext={currentIndex >= 0 && currentIndex < loadedScenarios.length - 1}
+            hasPrevious={hasPrevious}
+            hasNext={hasNext}
             testcaseNumber={currentScenario?.scenarioIndex ?? focus?.scenarioIndex ?? undefined}
             testcaseData={inputValue}
             isLoading={isLoading}
@@ -362,7 +362,6 @@ const EvalTestcaseDrawerAdapter = () => {
             renderContent={renderContent}
             renderOutputs={renderOutputs}
             renderEvaluatorMetrics={renderEvaluatorMetrics}
-            renderAddToQueue={() => null}
         />
     )
 }

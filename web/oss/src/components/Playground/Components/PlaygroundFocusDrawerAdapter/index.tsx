@@ -1,7 +1,11 @@
-import {useCallback, useMemo, type ReactNode} from "react"
+import {useCallback, type ReactNode} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import {TestcaseDrawer, type TestcaseDrawerContentRenderProps} from "@agenta/entity-ui/testcase"
+import {
+    TestcaseDrawer,
+    useTestcaseDrawerNavigation,
+    type TestcaseDrawerContentRenderProps,
+} from "@agenta/entity-ui/testcase"
 import {executionItemController} from "@agenta/playground"
 import {PlaygroundOutputs} from "@agenta/playground-ui/components"
 import {
@@ -15,7 +19,8 @@ import PlaygroundTestcaseEditor from "../PlaygroundTestcaseEditor"
 const INITIAL_WIDTH = 800
 
 const noopRestore = () => {}
-const renderNoAddToQueue = () => null
+
+const getRowId = (id: string) => id
 
 const PlaygroundFocusDrawerAdapter = () => {
     const [{isOpen, rowId, entityId}, setDrawerState] = useAtom(playgroundFocusDrawerAtom)
@@ -23,19 +28,20 @@ const PlaygroundFocusDrawerAdapter = () => {
 
     const rowIds = useAtomValue(executionItemController.selectors.generationRowIds) as string[]
 
-    const currentRowIndex = useMemo(() => (rowId ? rowIds.indexOf(rowId) : -1), [rowIds, rowId])
-
     const entityData = useAtomValue(testcaseMolecule.data(rowId ?? ""))
 
-    const handlePrevious = useCallback(() => {
-        if (currentRowIndex <= 0) return
-        setDrawerState((prev) => ({...prev, rowId: rowIds[currentRowIndex - 1]}))
-    }, [currentRowIndex, rowIds, setDrawerState])
+    const navigateToRow = useCallback(
+        (nextRowId: string) => setDrawerState((prev) => ({...prev, rowId: nextRowId})),
+        [setDrawerState],
+    )
 
-    const handleNext = useCallback(() => {
-        if (currentRowIndex < 0 || currentRowIndex >= rowIds.length - 1) return
-        setDrawerState((prev) => ({...prev, rowId: rowIds[currentRowIndex + 1]}))
-    }, [currentRowIndex, rowIds, setDrawerState])
+    const {currentIndex, hasPrevious, hasNext, handlePrevious, handleNext} =
+        useTestcaseDrawerNavigation<string>({
+            rows: rowIds,
+            getRowId,
+            currentRowId: rowId,
+            onNavigate: navigateToRow,
+        })
 
     const renderContent = useCallback(
         (_props: TestcaseDrawerContentRenderProps): ReactNode => {
@@ -63,9 +69,9 @@ const PlaygroundFocusDrawerAdapter = () => {
             initialWidth={INITIAL_WIDTH}
             onPrevious={handlePrevious}
             onNext={handleNext}
-            hasPrevious={currentRowIndex > 0}
-            hasNext={currentRowIndex >= 0 && currentRowIndex < rowIds.length - 1}
-            testcaseNumber={currentRowIndex >= 0 ? currentRowIndex + 1 : undefined}
+            hasPrevious={hasPrevious}
+            hasNext={hasNext}
+            testcaseNumber={currentIndex >= 0 ? currentIndex + 1 : undefined}
             testcaseData={entityData ?? {}}
             isLoading={false}
             isError={false}
@@ -73,7 +79,6 @@ const PlaygroundFocusDrawerAdapter = () => {
             onRestoreSessionStart={noopRestore}
             renderContent={renderContent}
             renderOutputs={renderOutputs}
-            renderAddToQueue={renderNoAddToQueue}
         />
     )
 }
