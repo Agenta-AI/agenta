@@ -6,7 +6,7 @@ import {BannerConfig} from "@/oss/components/SidebarBanners/types"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {DefaultPlan} from "@/oss/lib/Types"
+import {freePlanSlugAtom} from "@/oss/state/access/atoms"
 import {urlAtom, URLState} from "@/oss/state/url"
 
 import {subscriptionQueryAtom} from "../../../state/billing/atoms"
@@ -51,6 +51,7 @@ export const eeBannersAtom = atom((get): BannerConfig[] => {
 
     const subscriptionQuery = get(subscriptionQueryAtom)
     const subscription = subscriptionQuery.data
+    const freePlanSlug = get(freePlanSlugAtom)
 
     // Don't show banners while loading or if no subscription data
     if (!subscription) {
@@ -80,8 +81,8 @@ export const eeBannersAtom = atom((get): BannerConfig[] => {
             },
         })
     }
-    // Upgrade banner (dismissible) - only if NOT on trial AND on Hobby plan
-    else if (subscription.plan === DefaultPlan.Hobby) {
+    // Upgrade banner (dismissible) - only if NOT on trial AND on the free plan
+    else if (freePlanSlug && subscription.plan === freePlanSlug) {
         banners.push({
             id: "upgrade-banner-v1",
             type: "upgrade",

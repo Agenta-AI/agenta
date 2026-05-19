@@ -25,6 +25,10 @@ from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 
 log = get_module_logger(__name__)
 
+# Per-process warn-once flags; races may dupe a warning, never breaks routing.
+_warned_no_throttles = False
+_warned_fallback_pairs: set[tuple[str | None, str | None]] = set()
+
 meters_service = MetersService(
     meters_dao=MetersDAO(),
 )
@@ -195,21 +199,27 @@ async def throttling_middleware(request: Request, call_next):
         fallback_throttles = (fallback_entitlements or {}).get(Tracker.THROTTLES) or []
 
         if not fallback_throttles:
+            global _warned_no_throttles
+            if not _warned_no_throttles:
+                log.warning(
+                    "[throttling] No throttles available for plan and free-plan "
+                    "fallback also has none",
+                    org=organization_id,
+                    plan=plan,
+                    fallback=fallback_plan,
+                )
+                _warned_no_throttles = True
+            return await call_next(request)
+
+        pair = (plan, fallback_plan)
+        if pair not in _warned_fallback_pairs:
             log.warning(
-                "[throttling] No throttles available for plan and free-plan "
-                "fallback also has none",
+                "[throttling] Falling back to free-plan throttles",
                 org=organization_id,
                 plan=plan,
                 fallback=fallback_plan,
             )
-            return await call_next(request)
-
-        log.warning(
-            "[throttling] Falling back to free-plan throttles",
-            org=organization_id,
-            plan=plan,
-            fallback=fallback_plan,
-        )
+            _warned_fallback_pairs.add(pair)
         plan = fallback_plan
         entitlements = fallback_entitlements or {}
 

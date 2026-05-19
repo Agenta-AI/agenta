@@ -99,7 +99,9 @@ class TestPlansOverride:
                 }
             ]
         ),
-        "AGENTA_BILLING_PRICING": json.dumps({"only_plan": {"free": True}}),
+        "AGENTA_BILLING_PRICING": json.dumps(
+            {"only_plan": {"free": True, "trial": 14}}
+        ),
     }
 
     def test_consistent_override_works_end_to_end(self):
@@ -278,7 +280,9 @@ class TestPricingConsistency:
                         }
                     ]
                 ),
-                "AGENTA_BILLING_PRICING": json.dumps({"only": {"free": True}}),
+                "AGENTA_BILLING_PRICING": json.dumps(
+                    {"only": {"free": True, "trial": 14}}
+                ),
             },
         )
         assert out.strip() == "only"
@@ -362,11 +366,47 @@ class TestTrialPricingEntry:
         )
         assert out.splitlines() == ["cloud_v0_business", "30", "True"]
 
-    def test_no_trial_entry_disables_trial(self):
+    def test_no_trial_entry_falls_back_to_pro_trial_when_stripe_enabled(self):
         out = _ok(
             "from ee.src.core.subscriptions.settings import "
             "get_trial_plan, get_trial_days, trial_enabled; "
             "print(get_trial_plan()); print(get_trial_days()); print(trial_enabled())",
+            env_extra={"STRIPE_API_KEY": "sk_test_dummy"},
+        )
+        assert out.splitlines() == ["cloud_v0_pro", "14", "True"]
+
+    def test_no_trial_entry_stays_disabled_when_stripe_disabled(self):
+        out = _ok(
+            "from ee.src.core.subscriptions.settings import "
+            "get_trial_plan, get_trial_days, trial_enabled; "
+            "print(get_trial_plan()); print(get_trial_days()); print(trial_enabled())",
+            env_extra={
+                "STRIPE_API_KEY": "",
+                "AGENTA_ACCESS_PLANS": json.dumps(
+                    {
+                        "only_plan": {
+                            "flags": {
+                                "rbac": False,
+                                "access": False,
+                                "domains": False,
+                                "sso": False,
+                            }
+                        }
+                    }
+                ),
+                "AGENTA_BILLING_CATALOG": json.dumps(
+                    [
+                        {
+                            "plan": "only_plan",
+                            "title": "Only",
+                            "description": "Only plan",
+                            "type": "standard",
+                            "features": [],
+                        }
+                    ]
+                ),
+                "AGENTA_BILLING_PRICING": json.dumps({"only_plan": {"free": True}}),
+            },
         )
         assert out.splitlines() == ["None", "None", "False"]
 

@@ -20,6 +20,7 @@ from ee.src.core.workspaces.types import (
     CreateWorkspace,
     UpdateWorkspace,
 )
+from ee.src.core.entitlements.controls import get_role
 from ee.src.models.shared_models import Permission, WorkspaceRole
 from oss.src.services.organization_service import (
     create_invitation,
@@ -216,6 +217,15 @@ async def invite_user_to_workspace(
                         else WorkspaceRole.VIEWER.value
                     )
                 )
+                # Validate against the effective workspace catalog
+                # (env-overridable via AGENTA_ACCESS_ROLES). Catches typos
+                # since the API model now accepts any string for forward-
+                # compatibility with custom roles.
+                if get_role("workspace", role) is None:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": f"Workspace role '{role}' is invalid."},
+                    )
                 invitation = await create_invitation(
                     role, project_id, payload_invite.email
                 )

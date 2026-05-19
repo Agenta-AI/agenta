@@ -1,6 +1,7 @@
 // Plan slugs are dynamic at runtime (env-overridable via AGENTA_ACCESS_PLANS).
-// API responses carry plain strings; the `DefaultPlan` enum in `@/oss/lib/Types`
-// holds the known default slug constants for use in conditional checks.
+// API responses carry plain strings; gate UI on entitlement flags from
+// `/access/plans` or the catalog `type` from `/billing/catalog` rather than
+// branching on slug equality.
 export type Plan = string
 
 export interface SubscriptionType {
@@ -50,4 +51,7 @@ export interface BillingPlan {
     price?: PriceInfo
     features: string[]
     plan: Plan
+    // `standard` = normal selectable plan; `custom` = enterprise / contact-sales
+    // plan (no self-serve switching). Matches AGENTA_BILLING_CATALOG entries.
+    type?: "standard" | "custom"
 }

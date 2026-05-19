@@ -10,6 +10,7 @@ Catalog entries provide user-facing display metadata for `/billing/plans`.
 Pricing entries provide Stripe line items and the free-plan marker.
 """
 
+from os import getenv
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -94,6 +95,8 @@ def _default_pricing() -> Dict[str, Dict[str, Any]]:
 
 
 _RESERVED_PRICING_KEYS: set[str] = {"free", "trial"}
+_DEFAULT_TRIAL_PLAN = DefaultPlan.CLOUD_V0_PRO.value
+_DEFAULT_TRIAL_DAYS = 14
 
 
 def _normalize_pricing_entry(slug: str, entry: Any) -> Dict[str, Any]:
@@ -237,8 +240,7 @@ def _resolve_trial(
     At most one entry across the map may carry `"trial"`; multiples fail
     startup.
 
-    When no entry carries `"trial"`, the reverse-trial flow is disabled and
-    signups onboard directly on the free plan.
+    When no entry carries `"trial"`, callers apply the legacy default trial.
     """
     trial_plan: Optional[str] = None
     trial_days: Optional[int] = None
@@ -319,11 +321,18 @@ def _build_settings() -> tuple[
         )
 
     trial_plan, trial_days = _resolve_trial(pricing)
+    if trial_plan is None and env.stripe.enabled:
+        trial_plan = _DEFAULT_TRIAL_PLAN
+        trial_days = _DEFAULT_TRIAL_DAYS
+
     if trial_plan is not None and trial_plan not in plans:
         raise ValueError(
-            f"AGENTA_BILLING_PRICING['{trial_plan}'].trial is set, but the "
-            "plan slug is not in the effective plan set "
-            f"(AGENTA_ACCESS_PLANS = {sorted(plans)})."
+            f"No trial plan can be derived: AGENTA_BILLING_PRICING has no "
+            "entry marked '\"trial\": N' and the default fallback slug "
+            f"'{_DEFAULT_TRIAL_PLAN}' is not in the effective plan set "
+            f"(AGENTA_ACCESS_PLANS = {sorted(plans)}). Add exactly one "
+            "'\"trial\": N' entry to AGENTA_BILLING_PRICING for a plan slug "
+            "present in AGENTA_ACCESS_PLANS."
         )
 
     # If operators set AGENTA_ACCESS_DEFAULT_PLAN (or legacy
@@ -402,6 +411,33 @@ def get_stripe_line_items(slug: Optional[str]) -> List[Dict[str, Any]]:
     return line_items
 
 
+def require_pricing(
+    slug: Optional[str],
+    *,
+    purpose: str,
+) -> List[Dict[str, Any]]:
+    """Return Stripe line items or fail with an operator-facing config error."""
+    line_items = get_stripe_line_items(slug)
+    if line_items:
+        return line_items
+
+    plan = slug or "<missing>"
+    legacy_hint = ""
+    if env.billing.pricing is None and getenv("STRIPE_PRICING"):
+        legacy_hint = (
+            " Legacy STRIPE_PRICING is ignored on this branch; migrate it to "
+            "AGENTA_BILLING_PRICING."
+        )
+
+    raise ValueError(
+        f"{purpose} requires Stripe line items for plan '{plan}', but none "
+        "are configured. Set AGENTA_BILLING_PRICING with an entry for this "
+        "plan containing at least one Stripe slot, for example "
+        f'{{"{plan}": {{"base": {{"price": "price_...", "quantity": 1}}}}}}.'
+        f"{legacy_hint}"
+    )
+
+
 def get_stripe_meter_price(
     plan: Optional[str],
     meter: Optional[str],
@@ -438,19 +474,19 @@ def get_free_plan() -> Optional[str]:
 
 
 def get_trial_plan() -> Optional[str]:
-    """Return the configured trial plan slug, or `None` if trial is disabled.
+    """Return the configured trial plan slug.
 
-    Disabled when no `AGENTA_BILLING_PRICING` entry carries `"trial": N`.
-    When disabled, signups should onboard directly on the free plan.
+    Falls back to ``cloud_v0_pro`` when no `AGENTA_BILLING_PRICING` entry
+    carries `"trial": N`, matching legacy behavior.
     """
     return _TRIAL_PLAN
 
 
 def get_trial_days() -> Optional[int]:
-    """Return the configured trial duration in days, or None if disabled."""
+    """Return the configured trial duration in days."""
     return _TRIAL_DAYS
 
 
 def trial_enabled() -> bool:
-    """True when both trial env vars are configured."""
+    """True when trial plan and duration are resolvable."""
     return _TRIAL_PLAN is not None and _TRIAL_DAYS is not None

@@ -325,6 +325,20 @@ def _parse_roles_override(decoded: Any) -> Dict[str, List[Dict[str, Any]]]:
         # Minima first, then validated extras.
         result[scope] = _minima_for(scope) + extras
 
+    # TEMP: workspace and project use the same role set at runtime (the only
+    # caller of `workspace`-scope roles today is the Invite Members modal,
+    # which is really inviting to the underlying project). Operators almost
+    # always override only `project` via AGENTA_ACCESS_ROLES; without this
+    # mirror, custom roles silently disappear from the workspace catalog.
+    # Remove once the workspace/project scope split is reconciled.
+    if "project" in decoded and "workspace" not in decoded:
+        project_extras = [
+            entry
+            for entry in result["project"]
+            if entry["role"] not in {DefaultRole.OWNER.value, DefaultRole.VIEWER.value}
+        ]
+        result["workspace"] = _minima_for("workspace") + project_extras
+
     return result
 
 
@@ -337,10 +351,22 @@ def _parse_roles_override(decoded: Any) -> Dict[str, List[Dict[str, Any]]]:
 # add new roles — without restating the whole scope catalog the way
 # `AGENTA_ACCESS_ROLES` requires.
 #
-# Today only the `project` key is accepted. The patch is applied to both
-# the `workspace` and `project` scopes because the two scopes share the
-# same role set in the code defaults. If `workspace` or `organization`
-# appears as a key, startup fails — silent ignore would mislead operators.
+# The overlay accepts two shapes:
+#
+#   - Project-focused shortcut (preferred for the common case):
+#       {<role_slug>: <patch>, ...}
+#     The whole dict is interpreted as project-level role patches. The scope
+#     names (`organization`, `workspace`, `project`) are reserved and cannot
+#     be used as role slugs in this form.
+#
+#   - Full form, scoped:
+#       {"project": {<role_slug>: <patch>, ...}}
+#     Triggered when any of `organization`/`workspace`/`project` appears at
+#     the root. Today only `project` is supported; `organization` and
+#     `workspace` are rejected — silent ignore would mislead operators.
+#
+# In both shapes the patch is applied to both the `workspace` and `project`
+# scopes because the two scopes share the same role set in the code defaults.
 #
 # Merge semantics per role slug:
 #   - role exists in the scope: per-field replace (`permissions` and/or
@@ -366,28 +392,52 @@ class _RoleOverlayEntry(BaseModel):
 def _parse_roles_overlay(decoded: Any) -> Dict[str, _RoleOverlayEntry]:
     """Parse `AGENTA_ACCESS_ROLES_OVERLAY` and return per-slug entries.
 
-    Today only the ``project`` scope key is accepted. The single accepted
-    payload shape is ``{"project": {<role_slug>: <patch>}}``. The result
-    is the inner ``{<role_slug>: <patch>}`` dict; the caller decides which
-    scopes the patch applies to.
+    Two accepted payload shapes:
+
+    1. Project-focused shortcut — ``{<role_slug>: <patch>}``. Used when none
+       of the scope keys (``organization``, ``workspace``, ``project``) appear
+       at the root; the payload is interpreted as project-level role patches.
+       The scope names are therefore reserved and cannot be used as role slugs.
+
+    2. Full (scoped) form — ``{"project": {<role_slug>: <patch>}}``. Triggered
+       when any of ``organization``, ``workspace``, ``project`` appears at the
+       root. Only ``project`` is supported today; ``organization`` and
+       ``workspace`` are rejected.
+
+    The result is the inner ``{<role_slug>: <patch>}`` dict; the caller decides
+    which scopes the patch applies to.
     """
     if not isinstance(decoded, dict) or not decoded:
         raise ValueError("AGENTA_ACCESS_ROLES_OVERLAY must be a non-empty JSON object")
 
-    unknown = set(decoded.keys()) - {"project"}
-    if unknown:
-        raise ValueError(
-            f"AGENTA_ACCESS_ROLES_OVERLAY only supports the 'project' scope "
-            f"today (got: {sorted(unknown)}). The patch is applied to both "
-            "workspace and project."
-        )
+    scope_keys = {"organization", "workspace", "project"}
 
-    project_payload = decoded.get("project")
-    if not isinstance(project_payload, dict) or not project_payload:
-        raise ValueError(
-            "AGENTA_ACCESS_ROLES_OVERLAY['project'] must be a non-empty "
-            "JSON object keyed by role slug"
-        )
+    if scope_keys & set(decoded.keys()):
+        # Full parse: at least one scope key at root.
+        unsupported = (set(decoded.keys()) & scope_keys) - {"project"}
+        if unsupported:
+            raise ValueError(
+                f"AGENTA_ACCESS_ROLES_OVERLAY only supports the 'project' scope "
+                f"today (got: {sorted(unsupported)}). The patch is applied to "
+                "both workspace and project."
+            )
+        unknown = set(decoded.keys()) - scope_keys
+        if unknown:
+            raise ValueError(
+                f"AGENTA_ACCESS_ROLES_OVERLAY mixes scope keys with non-scope "
+                f"keys at the root ({sorted(unknown)}). Either use the "
+                "project-focused shortcut (no scope keys, role slugs at the "
+                "root) or the full form ({'project': {...}})."
+            )
+        project_payload = decoded.get("project")
+        if not isinstance(project_payload, dict) or not project_payload:
+            raise ValueError(
+                "AGENTA_ACCESS_ROLES_OVERLAY['project'] must be a non-empty "
+                "JSON object keyed by role slug"
+            )
+    else:
+        # Project-focused shortcut: top-level dict is keyed by role slug.
+        project_payload = decoded
 
     reserved = {DefaultRole.OWNER.value, DefaultRole.VIEWER.value}
     entries: Dict[str, _RoleOverlayEntry] = {}

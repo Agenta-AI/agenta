@@ -499,15 +499,3 @@ export interface User {
     username: string
     email: string
 }
-
-// billings
-// Code-default plan slugs. Runtime plan slugs are dynamic (env-overridable
-// via AGENTA_ACCESS_PLANS); this enum is used as a labeled set of known
-// default constants for conditional checks (e.g. `plan === DefaultPlan.Hobby`).
-export enum DefaultPlan {
-    Hobby = "cloud_v0_hobby",
-    Pro = "cloud_v0_pro",
-    Business = "cloud_v0_business",
-    Enterprise = "cloud_v0_enterprise",
-    SelfHostedEnterprise = "self_hosted_enterprise",
-}

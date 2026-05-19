@@ -234,6 +234,30 @@ class TestDefaults:
     def test_get_stripe_line_items_empty_when_no_pricing(self):
         assert settings.get_stripe_line_items(DefaultPlan.CLOUD_V0_PRO.value) == []
 
+    def test_require_pricing_fails_with_clear_message(self):
+        with pytest.raises(ValueError) as exc:
+            settings.require_pricing(
+                DefaultPlan.CLOUD_V0_PRO.value,
+                purpose="Reverse trial signup",
+            )
+
+        message = str(exc.value)
+        assert "Reverse trial signup requires Stripe line items" in message
+        assert DefaultPlan.CLOUD_V0_PRO.value in message
+        assert "AGENTA_BILLING_PRICING" in message
+        assert "base" in message
+
+    def test_require_pricing_mentions_legacy_pricing(self, monkeypatch):
+        monkeypatch.setenv("STRIPE_PRICING", '{"cloud_v0_pro": {"base": {}}}')
+
+        with pytest.raises(ValueError) as exc:
+            settings.require_pricing(
+                DefaultPlan.CLOUD_V0_PRO.value,
+                purpose="Reverse trial signup",
+            )
+
+        assert "Legacy STRIPE_PRICING is ignored" in str(exc.value)
+
     def test_get_stripe_line_items_none_slug_returns_empty(self):
         assert settings.get_stripe_line_items(None) == []
 
@@ -250,12 +274,11 @@ class TestDefaults:
     def test_get_free_plan_falls_back_to_hobby(self):
         assert settings.get_free_plan() == DefaultPlan.CLOUD_V0_HOBBY.value
 
-    def test_get_trial_plan_disabled_by_default(self):
-        # No `AGENTA_BILLING_PRICING.<slug>.trial` set → trial is disabled.
+    def test_get_trial_plan_disabled_when_stripe_disabled_by_default(self):
         assert settings.get_trial_plan() is None
 
-    def test_get_trial_days_disabled_by_default(self):
+    def test_get_trial_days_disabled_when_stripe_disabled_by_default(self):
         assert settings.get_trial_days() is None
 
-    def test_trial_enabled_false_by_default(self):
+    def test_trial_enabled_false_when_stripe_disabled_by_default(self):
         assert settings.trial_enabled() is False

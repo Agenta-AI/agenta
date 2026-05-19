@@ -1,32 +1,6 @@
 import enum
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Final, Literal, Optional, TypeAlias
-
-
-CANONICAL_WORKSPACE_ROLES: Final[tuple[str, ...]] = (
-    "owner",
-    "admin",
-    "developer",
-    "editor",
-    "annotator",
-    "viewer",
-)
-CANONICAL_ROLE_DESCRIPTIONS: Final[dict[str, str]] = {
-    "owner": "Can fully manage the workspace, including adding and removing members.",
-    "admin": "Can manage workspace settings and members but cannot delete the workspace.",
-    "developer": "Can deploy, export, and manage API keys and environments.",
-    "editor": "Can edit prompts, testsets, evaluators, and workflows.",
-    "annotator": "Can run evaluations and annotate traces.",
-    "viewer": "Can view the workspace content but cannot make changes.",
-}
-CanonicalWorkspaceRole: TypeAlias = Literal[
-    "owner",
-    "admin",
-    "developer",
-    "editor",
-    "annotator",
-    "viewer",
-]
+from typing import Any, Dict, Optional
 
 
 class OrganizationFlags(BaseModel):
