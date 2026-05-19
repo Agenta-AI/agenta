@@ -91,17 +91,17 @@ export default function ConnectDrawer({
 
             const redirectUrl = (result.connection?.data as Record<string, unknown> | undefined)
                 ?.redirect_url
-            if (redirectUrl) {
+            if (typeof redirectUrl === "string" && redirectUrl) {
                 // Composio handles all auth (OAuth and API key) via their redirect UI
                 const popup = window.open(
-                    redirectUrl as string,
+                    redirectUrl,
                     "tools_oauth",
                     "width=600,height=700,popup=yes",
                 )
                 if (!popup) {
                     setLoading(false)
                     message.warning("Popup blocked. Redirecting in this tab.")
-                    window.location.assign(redirectUrl as string)
+                    window.location.assign(redirectUrl)
                     return
                 }
 

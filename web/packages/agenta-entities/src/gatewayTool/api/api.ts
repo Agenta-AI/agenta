@@ -65,6 +65,15 @@ export const fetchActions = async (
         important?: boolean
     },
 ): Promise<ToolCatalogActionsResponse> => {
+    // `important` isn't modelled on Fern's ListToolActionsRequest (the
+    // OpenAPI spec hasn't been regenerated to include it) but the backend
+    // still honours it as a query param — pass it through alongside the
+    // `project_id` scope.
+    const scope = projectScopedRequest()
+    const queryParams = {
+        ...(scope?.queryParams ?? {}),
+        ...(params?.important !== undefined ? {important: params.important} : {}),
+    }
     return getToolsClient().listToolActions(
         {
             provider_key: providerKey,
@@ -74,7 +83,7 @@ export const fetchActions = async (
             limit: params?.limit,
             cursor: params?.cursor,
         },
-        projectScopedRequest(),
+        {queryParams},
     )
 }
 

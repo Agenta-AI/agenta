@@ -155,10 +155,10 @@ export default function ConnectionManagerDrawer() {
     }, [state?.connectionId, handleDelete, handleClose])
 
     const onTest = useCallback(() => {
-        if (!connection) return
+        if (!connection?.id || !connection.slug) return
         setExecution({
-            connectionId: connection.id ?? "",
-            connectionSlug: connection.slug ?? "",
+            connectionId: connection.id,
+            connectionSlug: connection.slug,
             integrationKey: connection.integration_key,
         })
     }, [connection, setExecution])

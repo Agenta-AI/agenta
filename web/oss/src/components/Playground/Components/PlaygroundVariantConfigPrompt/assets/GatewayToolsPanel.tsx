@@ -81,9 +81,9 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
                         extra: <Tag className="text-xs">{grouped[integrationKey].length}</Tag>,
                         children: (
                             <div className="flex flex-col gap-1">
-                                {grouped[integrationKey].map((conn) => (
+                                {grouped[integrationKey].map((conn, index) => (
                                     <ConnectionRow
-                                        key={conn.id ?? conn.slug ?? ""}
+                                        key={conn.id ?? conn.slug ?? `${integrationKey}-${index}`}
                                         connection={conn}
                                         onTest={() => {
                                             if (!conn.id || !conn.slug) return

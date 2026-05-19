@@ -208,9 +208,14 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
         }
 
         const findSecret = standardSecrets.find((s) => s.name === provider.name)
+        // Prefer the id from the matched server-side record so we still hit
+        // the update path when the caller passes a `LlmProvider` that's
+        // missing `id` (e.g. form state seeded from the canonical catalog
+        // before the vault query resolved).
+        const secretId = findSecret?.id ?? provider.id
 
-        if (findSecret && provider.id) {
-            await updateMutation.mutateAsync({secret_id: provider.id, payload})
+        if (secretId) {
+            await updateMutation.mutateAsync({secret_id: secretId, payload})
         } else {
             await createMutation.mutateAsync(payload)
         }
@@ -234,9 +239,10 @@ export const createCustomSecretAtom = atom(null, async (get, set, provider: LlmP
         const payload = removeEmptyFromObjects(rawPayload)
 
         const findSecret = customSecrets.find((s) => s.id === provider.id)
+        const secretId = findSecret?.id ?? provider.id
 
-        if (findSecret && provider.id) {
-            await updateMutation.mutateAsync({secret_id: provider.id, payload})
+        if (secretId) {
+            await updateMutation.mutateAsync({secret_id: secretId, payload})
         } else {
             await createMutation.mutateAsync(payload)
         }
