@@ -69,7 +69,7 @@ For each **plan** with a finite retention window:
 - `max_traces_per_batch: int` — max number of **traces** deleted per project chunk.
 
 **Plan retention source**
-- Retention minutes are defined per plan in entitlements as `Quota.retention` on `Counter.TRACES`.
+- Retention minutes are defined per plan in entitlements as `Quota.retention` on `Counter.TRACES_INGESTED`.
 - Plans without a retention value are skipped.
 
 ---
@@ -315,9 +315,15 @@ Key points:
 
 ## Entrypoints
 
-- Admin endpoint: `POST /admin/billing/usage/flush` in `ee/src/apis/fastapi/billing/router.py`.
-- Cron: `ee/src/crons/spans.sh` calls the endpoint (30 minute timeout).
-- Locking: `acquire_lock`/`release_lock` guard the flush to avoid overlaps.
+Spans and events are independent retention domains; each has its own admin
+endpoint, cron, and Redis lock namespace.
+
+- Spans admin endpoint: `POST /admin/spans/flush` in `ee/src/apis/fastapi/spans/router.py`.
+- Spans cron: `ee/src/crons/spans.sh` (30 minute timeout).
+- Spans lock namespace: `spans:flush`.
+- Events admin endpoint: `POST /admin/events/flush` in `ee/src/apis/fastapi/events/router.py`.
+- Events cron: `ee/src/crons/events.sh` (30 minute timeout).
+- Events lock namespace: `events:flush`.
 
 ---
 
