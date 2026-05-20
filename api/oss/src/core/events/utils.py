@@ -579,13 +579,17 @@ def _extract_revision_reference(
     `"environment"`. The returned dict uses keys like:
 
         {
-            "<domain>": {"id": "..."},
-            "<domain>_variant": {"id": "..."},
+            "<domain>": {"id": "...", "slug": "..."},
+            "<domain>_variant": {"id": "...", "slug": "..."},
             "<domain>_revision": {"id": "...", "slug": "...", "version": ...},
         }
 
     Missing fields are omitted; missing artifact or variant subsections are
-    omitted entirely.
+    omitted entirely. The artifact/variant `slug`s come from the revision's
+    parent entities (resolved by the DAO); at the domain layer the artifact
+    slug surfaces as `<domain>_slug` and the variant slug as
+    `<domain>_variant_slug`, falling back to the generic `artifact_slug` /
+    `variant_slug` for raw git-layer revisions.
     """
     artifact_id = _str_or_none(getattr(revision, f"{domain}_id", None)) or _str_or_none(
         getattr(revision, "artifact_id", None)
@@ -593,6 +597,12 @@ def _extract_revision_reference(
     variant_id = _str_or_none(
         getattr(revision, f"{domain}_variant_id", None)
     ) or _str_or_none(getattr(revision, "variant_id", None))
+    artifact_slug = getattr(revision, f"{domain}_slug", None) or getattr(
+        revision, "artifact_slug", None
+    )
+    variant_slug = getattr(revision, f"{domain}_variant_slug", None) or getattr(
+        revision, "variant_slug", None
+    )
     revision_id = _str_or_none(getattr(revision, "id", None))
     revision_slug = getattr(revision, "slug", None)
     revision_version = getattr(revision, "version", None)
@@ -601,9 +611,13 @@ def _extract_revision_reference(
 
     if artifact_id is not None:
         references[domain] = {"id": artifact_id}
+        if artifact_slug is not None:
+            references[domain]["slug"] = artifact_slug
 
     if variant_id is not None:
         references[f"{domain}_variant"] = {"id": variant_id}
+        if variant_slug is not None:
+            references[f"{domain}_variant"]["slug"] = variant_slug
 
     revision_block: Dict[str, Any] = {}
     if revision_id is not None:
