@@ -40,6 +40,12 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
     steps:
       - uses: actions/checkout@v6
 
@@ -47,16 +53,64 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
         run: exit 0
 
-      - name: Check for web unit tests
+      - name: Set up Node.js
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
-        run: |
-          if ! find web/oss/tests/playwright/unit -type f ! -name '.gitkeep' | grep -q .; then
-            echo "No web unit tests found; skipping."
-            exit 0
-          fi
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
 
-          echo "Web unit tests exist but no dedicated no-deploy runner is wired yet."
-          exit 1
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web
+        run: pnpm install
+
+      - name: Cache Playwright binaries
+        id: restore-playwright-cache
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-browsers
+
+      - name: Install Playwright if not cached
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)) && steps.restore-playwright-cache.outputs.cache-hit != 'true'
+        working-directory: web/tests
+        run: pnpm exec playwright install --with-deps
+
+      - name: Run web unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web/tests
+        run: pnpm tsx playwright/scripts/run-tests.ts --layer unit
+
+      - name: Publish web unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          # Playwright layer report + per-package vitest unit reports
+          # (run-tests.ts runs both vitest and playwright for the layer).
+          files: |
+            web/tests/results/oss/junit.xml
+            web/packages/*/test-results/junit.xml
+          check_name: Application Web Unit Test Results
+          comment_mode: off
 
   run-sdk-unit-tests:
     if: |

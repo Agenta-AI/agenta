@@ -1,5 +1,22 @@
+const TEST_LAYERS = ["unit", "integration", "acceptance"] as const
+
+type TestLayer = (typeof TEST_LAYERS)[number]
+
 function getLicense(): string {
     return process.env.AGENTA_LICENSE || "oss"
+}
+
+export function getTestLayer(): TestLayer {
+    const layer = process.env.AGENTA_TEST_LAYER
+    if (layer && (TEST_LAYERS as readonly string[]).includes(layer)) {
+        return layer as TestLayer
+    }
+    // Default to acceptance to preserve historical behavior.
+    return "acceptance"
+}
+
+export function getTestDir(): string {
+    return `../${getLicense()}/tests/playwright/${getTestLayer()}`
 }
 
 function getBaseURL(): string {
@@ -32,6 +49,10 @@ export function getOutputDir(): string {
 
 export function getReportDir(): string {
     return getReportsDir()
+}
+
+export function getJunitPath(): string {
+    return `${getResultsDir()}/junit.xml`
 }
 
 export function getChromiumLaunchOptions(): {args?: string[]} {

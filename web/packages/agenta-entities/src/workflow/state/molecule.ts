@@ -711,10 +711,10 @@ function inferEnvelopeSchema(sample: unknown): Record<string, unknown> {
 /**
  * Set of envelope-slot names. Field ports keyed by these collide with the
  * envelope ports themselves (or with cross-envelope slots) and can't be
- * meaningfully filled as a `data.inputs.<key>` value — the SDK's
- * `_reject_reserved_input_keys` also rejects `data.inputs.inputs`. Used to
- * filter out invalid template-variable extractions like `{{$.inputs.inputs}}`
- * or `{{$.inputs.outputs}}` before building field ports.
+ * meaningfully filled as a `data.inputs.<key>` value. Used to filter out
+ * self-referential template-variable extractions like `{{$.inputs.inputs}}`
+ * or cross-envelope refs like `{{$.inputs.outputs}}` before building
+ * field ports.
  */
 const RESERVED_FIELD_KEYS = new Set([
     "inputs",

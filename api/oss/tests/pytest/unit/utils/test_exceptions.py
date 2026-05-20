@@ -159,3 +159,46 @@ def test_support_headers_survive_base_http_middleware():
     assert response.status_code == 200
     assert "x-ag-support-id" in response.headers
     assert "x-ag-support-ts" in response.headers
+
+
+def _build_test_app_with_cors() -> FastAPI:
+    # Mirrors the production wiring: CORSMiddleware (added last, so outermost)
+    # wraps SupportHeadersMiddleware (added first, innermost). The support
+    # middleware must declare its headers in Access-Control-Expose-Headers
+    # itself, because the CORS layer intentionally does NOT list them
+    # (doing so broke the `--web-local` cross-origin setup).
+    from starlette.middleware.cors import CORSMiddleware
+
+    app = FastAPI()
+    app.add_middleware(SupportHeadersMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["Content-Type"],
+    )
+
+    @app.get("/fail")
+    @suppress_exceptions(default={"count": 0}, verbose=False)
+    async def fail(request: Request):
+        raise RuntimeError("boom")
+
+    return app
+
+
+def test_support_headers_exposed_to_allowed_cross_origin():
+    client = TestClient(_build_test_app_with_cors())
+
+    response = client.get("/fail", headers={"Origin": "http://localhost:3000"})
+
+    assert response.status_code == 200
+    # CORS still mirrors the allowed origin — the regression that the commented
+    # `expose_headers` CORS config caused for `--web-local`.
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    # Support headers are both emitted and readable by browser JS.
+    assert "x-ag-support-id" in response.headers
+    assert "x-ag-support-ts" in response.headers
+    expose = response.headers["access-control-expose-headers"].lower()
+    assert "x-ag-support-id" in expose
+    assert "x-ag-support-ts" in expose
