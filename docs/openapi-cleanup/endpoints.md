@@ -418,7 +418,8 @@ Each row is a static FastAPI route discovered under `application/api/`. Routes a
 | `ee/src/apis/fastapi/billing/router.py` | `POST` | `/billing/subscription/cancel` | `` | `-` |
 | `ee/src/apis/fastapi/billing/router.py` | `POST` | `/billing/usage/report` | `` | `-` |
 | `ee/src/apis/fastapi/billing/router.py` | `POST` | `/billing/usage/report/unlock` | `` | `-` |
-| `ee/src/apis/fastapi/billing/router.py` | `POST` | `/billing/usage/flush` | `` | `-` |
+| `ee/src/apis/fastapi/spans/router.py` | `POST` | `/admin/spans/flush` | `` | `-` |
+| `ee/src/apis/fastapi/events/router.py` | `POST` | `/admin/events/flush` | `` | `-` |
 | `oss/src/apis/fastapi/ai_services/router.py` | `GET` | `/status` | `ai_services_status` | `-` |
 | `oss/src/apis/fastapi/ai_services/router.py` | `POST` | `/tools/call` | `ai_services_tools_call` | `-` |
 | `oss/src/apis/fastapi/events/router.py` | `POST` | `/query` | `query_events_rpc` | `-` |

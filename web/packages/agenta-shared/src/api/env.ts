@@ -11,7 +11,18 @@ type RuntimeGlobal = typeof globalThis & {
     location?: {
         protocol?: string
         hostname?: string
+        port?: string
     }
+}
+
+/** Build an origin string from runtime `window.location` parts, including
+ * `port` when present (the browser's `port` field is `""` on default ports
+ * 80/443). Returns `undefined` when protocol or hostname is missing. */
+const buildRuntimeOrigin = (): string | undefined => {
+    const runtimeLocation = (globalThis as RuntimeGlobal).location
+    const {protocol, hostname, port} = runtimeLocation ?? {}
+    if (!protocol || !hostname) return undefined
+    return port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`
 }
 
 // Build-time environment variables
@@ -48,13 +59,16 @@ export const getEnv = (envKey: string): string => {
  */
 export const getAgentaApiUrl = (): string => {
     const apiUrl = getEnv("NEXT_PUBLIC_AGENTA_API_URL")
+    if (apiUrl) return apiUrl
+    return buildRuntimeOrigin() ?? ""
+}
 
-    if (!apiUrl) {
-        const runtimeLocation = (globalThis as RuntimeGlobal).location
-        if (runtimeLocation?.protocol && runtimeLocation?.hostname) {
-            return `${runtimeLocation.protocol}//${runtimeLocation.hostname}`
-        }
-    }
-
-    return apiUrl
+/**
+ * Get the Agenta Web URL.
+ * Falls back to current origin if not configured.
+ */
+export const getAgentaWebUrl = (): string => {
+    const webUrl = getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")
+    if (webUrl) return webUrl
+    return buildRuntimeOrigin() ?? ""
 }

@@ -9,7 +9,6 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.throttling import Algorithm, check_throttles
 
 from ee.src.core.entitlements.types import (
-    ENTITLEMENTS,
     ENDPOINTS,
     Category,
     Method,
@@ -17,13 +16,18 @@ from ee.src.core.entitlements.types import (
     Throttle,
     Tracker,
 )
+from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
+from ee.src.core.subscriptions.settings import get_free_plan
 from ee.src.core.meters.service import MetersService
 from ee.src.core.subscriptions.service import SubscriptionsService
-from ee.src.core.subscriptions.types import Plan
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 
 log = get_module_logger(__name__)
+
+# Per-process warn-once flags; races may dupe a warning, never breaks routing.
+_warned_no_throttles = False
+_warned_fallback_pairs: set[tuple[str | None, str | None]] = set()
 
 meters_service = MetersService(
     meters_dao=MetersDAO(),
@@ -128,7 +132,7 @@ def _throttle_suffix(
     return "all"
 
 
-async def _get_plan(organization_id: str) -> Optional[Plan]:
+async def _get_plan(organization_id: str) -> Optional[str]:
     cache_key = {
         "organization_id": organization_id,
     }
@@ -147,7 +151,7 @@ async def _get_plan(organization_id: str) -> Optional[Plan]:
             return None
 
         subscription_data = {
-            "plan": subscription.plan.value,
+            "plan": subscription.plan,
         }
 
         await set_cache(
@@ -156,17 +160,15 @@ async def _get_plan(organization_id: str) -> Optional[Plan]:
             value=subscription_data,
         )
 
-    plan_value = subscription_data.get("plan") if subscription_data else None
-    if not plan_value:
+    plan = subscription_data.get("plan") if subscription_data else None
+    if not plan:
         return None
 
-    try:
-        return Plan(plan_value)
-
-    except ValueError:
-        log.warning("[throttle] Unknown plan", plan=plan_value)
-
+    if plan not in get_plans():
+        log.warning("[throttle] Unknown plan", plan=plan)
         return None
+
+    return plan
 
 
 async def throttling_middleware(request: Request, call_next):
@@ -184,15 +186,44 @@ async def throttling_middleware(request: Request, call_next):
 
     plan = await _get_plan(str(organization_id))
 
-    if not plan or plan not in ENTITLEMENTS:
-        log.warning(
-            "[throttling] Missing entitlements for plan",
-            org=organization_id,
-            plan=plan,
-        )
-        return await call_next(request)
+    entitlements = get_plan_entitlements(plan) if plan else None
 
-    throttles: list[Throttle] = ENTITLEMENTS[plan].get(Tracker.THROTTLES) or []
+    # Unknown plan or plan without enforced throttles: fall back to the free
+    # plan's throttle bucket so misconfigured / orphaned subscriptions still
+    # get rate-limited instead of bypassing throttling entirely.
+    if not plan or entitlements is None or not (entitlements.get(Tracker.THROTTLES)):
+        fallback_plan = get_free_plan()
+        fallback_entitlements = (
+            get_plan_entitlements(fallback_plan) if fallback_plan else None
+        )
+        fallback_throttles = (fallback_entitlements or {}).get(Tracker.THROTTLES) or []
+
+        if not fallback_throttles:
+            global _warned_no_throttles
+            if not _warned_no_throttles:
+                log.warning(
+                    "[throttling] No throttles available for plan and free-plan "
+                    "fallback also has none",
+                    org=organization_id,
+                    plan=plan,
+                    fallback=fallback_plan,
+                )
+                _warned_no_throttles = True
+            return await call_next(request)
+
+        pair = (plan, fallback_plan)
+        if pair not in _warned_fallback_pairs:
+            log.warning(
+                "[throttling] Falling back to free-plan throttles",
+                org=organization_id,
+                plan=plan,
+                fallback=fallback_plan,
+            )
+            _warned_fallback_pairs.add(pair)
+        plan = fallback_plan
+        entitlements = fallback_entitlements or {}
+
+    throttles: list[Throttle] = entitlements.get(Tracker.THROTTLES) or []
 
     if not throttles:
         return await call_next(request)
@@ -222,7 +253,7 @@ async def throttling_middleware(request: Request, call_next):
 
         key = {
             "organization": str(organization_id),
-            "plan": plan.value,
+            "plan": plan,
             "policy": _throttle_suffix(throttle, matched_categories=matched_categories),
         }
 

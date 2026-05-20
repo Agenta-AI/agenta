@@ -3,7 +3,7 @@
 import type * as AgentaApi from "../index.js";
 
 export interface WorkspacePermission {
-    role_name: AgentaApi.WorkspaceRole;
+    role_name: string;
     role_description?: (string | null) | undefined;
     permissions?: (AgentaApi.Permission[] | null) | undefined;
 }

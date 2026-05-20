@@ -1,6 +1,5 @@
+import type {LlmProvider} from "@agenta/shared/types"
 import {DrawerProps, FormInstance, InputProps} from "antd"
-
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 
 export interface ConfigureProviderDrawerProps extends DrawerProps {
     selectedProvider?: LlmProvider | null

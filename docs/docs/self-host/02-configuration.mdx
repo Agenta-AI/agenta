@@ -189,15 +189,28 @@ Set the provider pairs you use.
 | `TWITTER_OAUTH_CLIENT_ID` | Twitter client ID |
 | `TWITTER_OAUTH_CLIENT_SECRET` | Twitter client secret |
 
-### Billing - Stripe [ee-only]
-Only for EE deployments.
+### Access controls [ee-only]
+
+Operators can override the built-in plans and role catalogs via JSON
+environment variables. Values are parsed once at API
+startup; restart all API and worker processes after changing them.
+
+When any of these are present, validation is strict — invalid JSON, unknown
+plan slugs, missing required roles, or inconsistent references across vars
+fail startup with a clear error. All default to the in-code values when
+unset.
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `STRIPE_API_KEY` | Stripe API key | _(empty)_ |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret | _(empty)_ |
-| `STRIPE_WEBHOOK_TARGET` | Stripe webhook target | _(empty)_ |
-| `STRIPE_PRICING` | Stripe pricing JSON | _(empty)_ |
+| `AGENTA_ACCESS_PLANS` | JSON object: plan slug → entitlements (flags, counters, gauges, throttles). | _(code defaults)_ |
+| `AGENTA_ACCESS_ROLES` | JSON object: scope → list of custom roles (additive over the `owner`/`viewer` minima). | _(code defaults)_ |
+| `AGENTA_ACCESS_ROLES_OVERLAY` | JSON object: per-role patch applied to both workspace + project scopes. Accepts either role slugs at the root or `{ "project": { ... } }`. Avoids restating the full scope catalog via `AGENTA_ACCESS_ROLES`. | _(no overlay)_ |
+| `AGENTA_ACCESS_DEFAULT_PLAN` | Plan slug assigned to new orgs on signup. (Legacy: `AGENTA_DEFAULT_PLAN`.) | `self_hosted_enterprise` |
+| `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | JSON object: partial entitlement patch applied to the default plan only (trace retention, throttle rates, single flags). Avoids restating the full plan in `AGENTA_ACCESS_PLANS`. | _(no overlay)_ |
+
+For full JSON schemas and examples, see
+[Dynamic access controls](./04-dynamic-access-controls.mdx) — plans,
+entitlements, roles.
 
 ### Proxy - LLM Providers
 API keys for the LLM proxy.

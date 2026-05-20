@@ -4,8 +4,6 @@ from uuid import UUID
 from pydantic import BaseModel, model_validator
 from fastapi import HTTPException
 
-from oss.src.utils.exceptions import Support
-
 from oss.src.core.shared.dtos import (
     Windowing,
 )
@@ -108,23 +106,23 @@ class EvaluationRunIdsRequest(BaseModel):
     run_ids: List[UUID]
 
 
-class EvaluationRunResponse(Support):
+class EvaluationRunResponse(BaseModel):
     count: int = 0
     run: Optional[EvaluationRun] = None
 
 
-class EvaluationRunsResponse(Support):
+class EvaluationRunsResponse(BaseModel):
     count: int = 0
     runs: List[EvaluationRun] = []
     windowing: Optional[Windowing] = None
 
 
-class EvaluationRunIdResponse(Support):
+class EvaluationRunIdResponse(BaseModel):
     count: int = 0
     run_id: Optional[UUID] = None
 
 
-class EvaluationRunIdsResponse(Support):
+class EvaluationRunIdsResponse(BaseModel):
     count: int = 0
     run_ids: List[UUID] = []
 
@@ -154,24 +152,24 @@ class EvaluationScenarioIdsRequest(BaseModel):
     scenario_ids: List[UUID]
 
 
-class EvaluationScenarioResponse(Support):
+class EvaluationScenarioResponse(BaseModel):
     count: int = 0
     scenario: Optional[EvaluationScenario] = None
 
 
-class EvaluationScenariosResponse(Support):
+class EvaluationScenariosResponse(BaseModel):
     count: int = 0
     scenarios: List[EvaluationScenario] = []
     #
     windowing: Optional[Windowing] = None
 
 
-class EvaluationScenarioIdResponse(Support):
+class EvaluationScenarioIdResponse(BaseModel):
     count: int = 0
     scenario_id: Optional[UUID] = None
 
 
-class EvaluationScenarioIdsResponse(Support):
+class EvaluationScenarioIdsResponse(BaseModel):
     count: int = 0
     scenario_ids: List[UUID] = []
 
@@ -201,22 +199,22 @@ class EvaluationResultIdsRequest(BaseModel):
     result_ids: List[UUID]
 
 
-class EvaluationResultResponse(Support):
+class EvaluationResultResponse(BaseModel):
     count: int = 0
     result: Optional[EvaluationResult] = None
 
 
-class EvaluationResultsResponse(Support):
+class EvaluationResultsResponse(BaseModel):
     count: int = 0
     results: List[EvaluationResult] = []
 
 
-class EvaluationResultIdResponse(Support):
+class EvaluationResultIdResponse(BaseModel):
     count: int = 0
     result_id: Optional[UUID] = None
 
 
-class EvaluationResultIdsResponse(Support):
+class EvaluationResultIdsResponse(BaseModel):
     count: int = 0
     result_ids: List[UUID] = []
 
@@ -246,12 +244,12 @@ class EvaluationMetricsIdsRequest(BaseModel):
     metrics_ids: List[UUID]
 
 
-class EvaluationMetricsResponse(Support):
+class EvaluationMetricsResponse(BaseModel):
     count: int = 0
     metrics: List[EvaluationMetrics] = []
 
 
-class EvaluationMetricsIdsResponse(Support):
+class EvaluationMetricsIdsResponse(BaseModel):
     count: int = 0
     metrics_ids: List[UUID] = []
 
@@ -281,27 +279,27 @@ class EvaluationQueueIdsRequest(BaseModel):
     queue_ids: List[UUID]
 
 
-class EvaluationQueueResponse(Support):
+class EvaluationQueueResponse(BaseModel):
     count: int = 0
     queue: Optional[EvaluationQueue] = None
 
 
-class EvaluationQueuesResponse(Support):
+class EvaluationQueuesResponse(BaseModel):
     count: int = 0
     queues: List[EvaluationQueue] = []
 
 
-class EvaluationQueueIdResponse(Support):
+class EvaluationQueueIdResponse(BaseModel):
     count: int = 0
     queue_id: Optional[UUID] = None
 
 
-class EvaluationQueueIdsResponse(Support):
+class EvaluationQueueIdsResponse(BaseModel):
     count: int = 0
     queue_ids: List[UUID] = []
 
 
-class EvaluationQueueScenarioIdsResponse(Support):
+class EvaluationQueueScenarioIdsResponse(BaseModel):
     count: int = 0
     scenario_ids: List[List[UUID]] = []
 
@@ -331,17 +329,17 @@ class SimpleEvaluationQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleEvaluationResponse(Support):
+class SimpleEvaluationResponse(BaseModel):
     count: int = 0
     evaluation: Optional[SimpleEvaluation] = None
 
 
-class SimpleEvaluationsResponse(Support):
+class SimpleEvaluationsResponse(BaseModel):
     count: int = 0
     evaluations: List[SimpleEvaluation] = []
 
 
-class SimpleEvaluationIdResponse(Support):
+class SimpleEvaluationIdResponse(BaseModel):
     count: int = 0
     evaluation_id: Optional[UUID] = None
 
@@ -392,24 +390,24 @@ class SimpleQueueTestcasesCreateRequest(BaseModel):
     testcase_ids: List[UUID]
 
 
-class SimpleQueueResponse(Support):
+class SimpleQueueResponse(BaseModel):
     count: int = 0
     queue: Optional[SimpleQueue] = None
 
 
-class SimpleQueuesResponse(Support):
+class SimpleQueuesResponse(BaseModel):
     count: int = 0
     queues: List[SimpleQueue] = []
     #
     windowing: Optional[Windowing] = None
 
 
-class SimpleQueueIdResponse(Support):
+class SimpleQueueIdResponse(BaseModel):
     count: int = 0
     queue_id: Optional[UUID] = None
 
 
-class SimpleQueueScenariosResponse(Support):
+class SimpleQueueScenariosResponse(BaseModel):
     count: int = 0
     scenarios: List[EvaluationScenario] = []
     #

@@ -8,6 +8,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
 
+from oss.src.core.events.utils import publish_revision_event
+
 from oss.src.core.git.types import VariantForkError
 from oss.src.core.shared.dtos import (
     Reference,
@@ -104,6 +106,12 @@ def _build_rename_apps_disabled_detail(*, existing_name: Optional[str]) -> str:
 
 
 class ApplicationsRouter:
+    # `applications.revisions.{retrieved,fetched,queried,logged}` READ events
+    # are emitted from this router after each handler materializes its
+    # response. `applications.revisions.committed` is a WRITE event and is
+    # emitted from `ApplicationsService.commit_application_revision`, not
+    # from this router. See core/events/utils.py module docstring for the
+    # read-vs-write split rationale.
     def __init__(
         self,
         *,
@@ -1406,6 +1414,14 @@ class ApplicationsRouter:
             resolution_info=resolution_info,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="application",
+            action="retrieve",
+            revision=application_revision_response.application_revision,
+            count=application_revision_response.count,
+        )
+
         return application_revision_response
 
     @intercept_exceptions()
@@ -1470,10 +1486,20 @@ class ApplicationsRouter:
             )
         )
 
-        return ApplicationRevisionResponse(
+        response = ApplicationRevisionResponse(
             count=1 if application_revision else 0,
             application_revision=application_revision,
         )
+
+        await publish_revision_event(
+            request=request,
+            domain="application",
+            action="fetch",
+            revision=response.application_revision,
+            count=response.count,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def edit_application_revision(
@@ -1640,10 +1666,20 @@ class ApplicationsRouter:
                             f"Failed to resolve embeds for revision {revision.id}: {e}"
                         )
 
-        return ApplicationRevisionsResponse(
+        response = ApplicationRevisionsResponse(
             count=len(application_revisions),
             application_revisions=application_revisions,
         )
+
+        await publish_revision_event(
+            request=request,
+            domain="application",
+            action="query",
+            revisions=response.application_revisions or [],
+            count=response.count,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def commit_application_revision(
@@ -1674,10 +1710,14 @@ class ApplicationsRouter:
             application_revision_commit=application_revision_commit_request.application_revision_commit,
         )
 
-        return ApplicationRevisionResponse(
+        response = ApplicationRevisionResponse(
             count=1 if application_revision else 0,
             application_revision=application_revision,
         )
+
+        # commit emission lives in ApplicationsService.commit_application_revision
+
+        return response
 
     @intercept_exceptions()
     async def log_application_revisions(
@@ -1712,6 +1752,14 @@ class ApplicationsRouter:
         revisions_response = ApplicationRevisionsResponse(
             count=len(application_revisions),
             application_revisions=application_revisions,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="application",
+            action="log",
+            revisions=revisions_response.application_revisions or [],
+            count=revisions_response.count,
         )
 
         return revisions_response
