@@ -198,6 +198,7 @@ def test_support_headers_exposed_to_allowed_cross_origin():
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
     # Support headers are both emitted and readable by browser JS.
     assert "x-ag-support-id" in response.headers
+    assert "x-ag-support-ts" in response.headers
     expose = response.headers["access-control-expose-headers"].lower()
     assert "x-ag-support-id" in expose
     assert "x-ag-support-ts" in expose
