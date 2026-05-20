@@ -1,10 +1,12 @@
 """EE acceptance tests for the events query endpoint.
 
 Mirrors the OSS suite (oss/tests/pytest/acceptance/events/test_events_basics.py)
-but exercises /events/query as a business-plan, developer-role account. The
-endpoint itself is OSS and ungated; this suite verifies it behaves identically
-under the EE multi-tenant account shape (subscription + explicit memberships),
-which OSS rejects as single-tenant.
+but exercises /events/query as a business-plan, developer-role account. Under EE
+the endpoint is gated on the AUDIT entitlement and the VIEW_EVENTS permission, so
+a basic Hobby-plan account is rejected with 403 (which is why the OSS suite is
+skipped on EE). This suite uses a business-plan developer account — which has the
+AUDIT entitlement and VIEW_EVENTS — to verify the endpoint behaves correctly once
+the gate is satisfied.
 
 Requires a running API. These tests verify the API contract (shape, status
 codes, filtering) without making strong assumptions about how many events
