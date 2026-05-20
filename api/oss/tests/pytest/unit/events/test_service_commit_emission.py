@@ -39,19 +39,27 @@ def _make_revision(
     revision_id: UUID,
     slug: str = "v1",
     version: str = "v1",
+    artifact_slug: str = "artifact-slug",
+    variant_slug: str = "variant-slug",
 ) -> Any:
+    # Mirrors what the git DAO now returns: the revision's own slug plus the
+    # parent artifact/variant slugs it resolves via eager-loaded relationships.
     return SimpleNamespace(
         id=revision_id,
         slug=slug,
         version=version,
         artifact_id=artifact_id,
         variant_id=variant_id,
+        artifact_slug=artifact_slug,
+        variant_slug=variant_slug,
         model_dump=lambda **_: {
             "id": str(revision_id),
             "slug": slug,
             "version": version,
             "artifact_id": str(artifact_id),
             "variant_id": str(variant_id),
+            "artifact_slug": artifact_slug,
+            "variant_slug": variant_slug,
         },
     )
 
@@ -113,8 +121,11 @@ async def test_applications_service_commit_emits_event_once():
     assert event.attributes["user_id"] == str(user_id)
     assert event.attributes["message"] == "Commit changes"
     refs = event.attributes["references"]
-    assert refs["application"]["id"] == str(artifact_id)
-    assert refs["application_variant"]["id"] == str(variant_id)
+    assert refs["application"] == {"id": str(artifact_id), "slug": "artifact-slug"}
+    assert refs["application_variant"] == {
+        "id": str(variant_id),
+        "slug": "variant-slug",
+    }
     assert refs["application_revision"]["id"] == str(revision_id)
 
 
@@ -172,8 +183,8 @@ async def test_queries_service_commit_emits_event_once():
     assert event.event_type == EventType.QUERIES_REVISIONS_COMMITTED
     assert event.attributes["message"] == "Commit query"
     refs = event.attributes["references"]
-    assert refs["query"]["id"] == str(artifact_id)
-    assert refs["query_variant"]["id"] == str(variant_id)
+    assert refs["query"] == {"id": str(artifact_id), "slug": "artifact-slug"}
+    assert refs["query_variant"] == {"id": str(variant_id), "slug": "variant-slug"}
     assert refs["query_revision"]["id"] == str(revision_id)
 
 
@@ -234,8 +245,8 @@ async def test_testsets_service_commit_emits_event_once():
     assert event.event_type == EventType.TESTSETS_REVISIONS_COMMITTED
     assert event.attributes["message"] == "Commit testset"
     refs = event.attributes["references"]
-    assert refs["testset"]["id"] == str(artifact_id)
-    assert refs["testset_variant"]["id"] == str(variant_id)
+    assert refs["testset"] == {"id": str(artifact_id), "slug": "artifact-slug"}
+    assert refs["testset_variant"] == {"id": str(variant_id), "slug": "variant-slug"}
     assert refs["testset_revision"]["id"] == str(revision_id)
 
 
@@ -293,8 +304,11 @@ async def test_evaluators_service_commit_emits_event_once():
     assert event.event_type == EventType.EVALUATORS_REVISIONS_COMMITTED
     assert event.attributes["message"] == "Commit eval"
     refs = event.attributes["references"]
-    assert refs["evaluator"]["id"] == str(artifact_id)
-    assert refs["evaluator_variant"]["id"] == str(variant_id)
+    assert refs["evaluator"] == {"id": str(artifact_id), "slug": "artifact-slug"}
+    assert refs["evaluator_variant"] == {
+        "id": str(variant_id),
+        "slug": "variant-slug",
+    }
     assert refs["evaluator_revision"]["id"] == str(revision_id)
 
 
@@ -361,8 +375,11 @@ async def test_environments_service_commit_emits_event_with_state_and_diff():
     assert event.attributes["user_id"] == str(user_id)
     assert event.attributes["message"] == "Promote prompt changes"
     refs = event.attributes["references"]
-    assert refs["environment"]["id"] == str(artifact_id)
-    assert refs["environment_variant"]["id"] == str(variant_id)
+    assert refs["environment"] == {"id": str(artifact_id), "slug": "artifact-slug"}
+    assert refs["environment_variant"] == {
+        "id": str(variant_id),
+        "slug": "variant-slug",
+    }
     assert refs["environment_revision"]["id"] == str(revision_id)
     # Legacy attributes preserved.
     assert "state" in event.attributes
