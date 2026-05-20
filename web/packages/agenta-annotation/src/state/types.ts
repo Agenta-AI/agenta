@@ -72,7 +72,9 @@ export interface AnnotationColumnDef {
     path: string | null
     /** Evaluator workflow ID from the annotation step's references */
     evaluatorId: string | null
-    /** Evaluator slug from the annotation step's references */
+    /** Evaluator revision ID from the annotation step's references */
+    evaluatorRevisionId: string | null
+    /** Evaluator slug from step refs, step key, or mapping column fallback */
     evaluatorSlug: string | null
 }
 
