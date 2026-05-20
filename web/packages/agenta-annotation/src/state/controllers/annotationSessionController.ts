@@ -506,6 +506,12 @@ const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     return get(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
 })
 
+function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): string | null {
+    if (!stepKey) return null
+    const parts = stepKey.split(".").filter(Boolean)
+    return parts.at(-1) ?? null
+}
+
 /**
  * Ordered evaluator references from annotation steps.
  * Each entry preserves the queue's pinned evaluator revision while keeping the
@@ -524,6 +530,8 @@ const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
             revisionId: step.references?.evaluator_revision?.id ?? null,
             slug:
                 step.references?.evaluator?.slug ??
+                step.references?.evaluator_variant?.slug ??
+                deriveEvaluatorSlugFromStepKey(step.key) ??
                 step.references?.evaluator_revision?.slug ??
                 null,
             stepKey: step.key ?? null,
@@ -545,6 +553,8 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
         const name = evaluatorEntity?.name?.trim() || null
         const slug =
             step.references?.evaluator?.slug ??
+            step.references?.evaluator_variant?.slug ??
+            deriveEvaluatorSlugFromStepKey(step.key) ??
             evaluatorEntity?.slug ??
             step.references?.evaluator_revision?.slug ??
             workflowId
@@ -753,11 +763,14 @@ const META_KEYS = new Set(["tags", "meta"])
 type TestcaseColumnGroup = "input" | "output" | "expected"
 
 function getAnnotationDisplayTitle(get: Getter, def: AnnotationColumnDef): string {
-    const evaluator = def.evaluatorId ? get(workflowMolecule.selectors.data(def.evaluatorId)) : null
+    const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId
+    const evaluator = evaluatorLookupId
+        ? get(workflowMolecule.selectors.data(evaluatorLookupId))
+        : null
     return (
         evaluator?.name?.trim() ||
-        evaluator?.slug?.trim() ||
         def.evaluatorSlug?.trim() ||
+        evaluator?.slug?.trim() ||
         def.columnName?.trim() ||
         def.stepKey?.trim() ||
         ""
@@ -2444,18 +2457,27 @@ async function waitForStoreAtomValue<T>(
 
 function resolveScenarioIdsForAddToTestset(get: Getter): string[] {
     const scope = get(addToTestsetScopeAtom)
+    const queueKind = get(queueKindAtom)
 
-    if (scope === "all") {
-        return get(scenarioIdsAtom)
-    }
-
-    if (scope === "complete") {
+    if (queueKind === "testcases" && (scope === "all" || scope === "complete")) {
         const completed = get(completedScenarioIdsAtom)
         const records = get(scenarioRecordsAtom)
         return get(scenarioIdsAtom).filter((id) => isScenarioCompleted(id, completed, records))
     }
 
+    if (scope === "all" || scope === "complete") {
+        return get(scenarioIdsAtom)
+    }
     return get(addToTestsetScenarioIdsAtom)
+}
+
+function resolveCompletedScenarioIdsForAnnotationExport(
+    get: Getter,
+    scenarioIds: string[],
+): Set<string> {
+    const completed = get(completedScenarioIdsAtom)
+    const records = get(scenarioRecordsAtom)
+    return new Set(scenarioIds.filter((id) => isScenarioCompleted(id, completed, records)))
 }
 
 function extractExistingColumns(
@@ -2988,7 +3010,8 @@ const addScenariosToTestsetAtom = atom(
                               }),
                               queueId,
                               evaluators,
-                              requireAnnotationOutputScenarioIds: new Set(),
+                              requireAnnotationOutputScenarioIds:
+                                  resolveCompletedScenarioIdsForAnnotationExport(get, scenarioIds),
                               setProcessed,
                           })
                         : await prepareTestcaseExportRows({
@@ -3096,8 +3119,14 @@ const canSyncToTestsetAtom = atom<boolean>((get) => {
 })
 
 const canAddToTestsetAtom = atom<boolean>((get) => {
+    const queueKind = get(queueKindAtom)
     const ids = get(scenarioIdsAtom)
-    return ids.length > 0
+    if (ids.length === 0) return false
+    if (queueKind === "traces") return true
+
+    const completed = get(completedScenarioIdsAtom)
+    const records = get(scenarioRecordsAtom)
+    return ids.some((id) => isScenarioCompleted(id, completed, records))
 })
 
 async function buildTestsetSyncPreviewForSession(get: Getter) {
