@@ -65,6 +65,24 @@ class EnvironmentRevisionIdAlias(AliasConfig):
     )
 
 
+class EnvironmentSlugAlias(AliasConfig):
+    environment_slug: Optional[str] = None
+    artifact_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="environment_slug",
+    )
+
+
+class EnvironmentVariantSlugAlias(AliasConfig):
+    environment_variant_slug: Optional[str] = None
+    variant_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="environment_variant_slug",
+    )
+
+
 class EnvironmentRevisionsLog(
     RevisionsLog,
     EnvironmentIdAlias,
@@ -152,9 +170,11 @@ class EnvironmentQuery(ArtifactQuery):
 class EnvironmentVariant(
     Variant,
     EnvironmentIdAlias,
+    EnvironmentSlugAlias,
 ):
     def model_post_init(self, __context) -> None:
         sync_alias("environment_id", "artifact_id", self)
+        sync_alias("environment_slug", "artifact_slug", self)
 
 
 class EnvironmentVariantCreate(
@@ -180,12 +200,16 @@ class EnvironmentRevision(
     Revision,
     EnvironmentIdAlias,
     EnvironmentVariantIdAlias,
+    EnvironmentSlugAlias,
+    EnvironmentVariantSlugAlias,
 ):
     data: Optional[EnvironmentRevisionData] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("environment_id", "artifact_id", self)
         sync_alias("environment_variant_id", "variant_id", self)
+        sync_alias("environment_slug", "artifact_slug", self)
+        sync_alias("environment_variant_slug", "variant_slug", self)
 
 
 class EnvironmentRevisionCreate(

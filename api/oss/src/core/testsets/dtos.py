@@ -64,6 +64,24 @@ class TestsetRevisionIdAlias(AliasConfig):
     )
 
 
+class TestsetSlugAlias(AliasConfig):
+    testset_slug: Optional[str] = None
+    artifact_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="testset_slug",
+    )
+
+
+class TestsetVariantSlugAlias(AliasConfig):
+    testset_variant_slug: Optional[str] = None
+    variant_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="testset_variant_slug",
+    )
+
+
 class TestsetRevisionsLog(
     RevisionsLog,
     TestsetIdAlias,
@@ -108,11 +126,13 @@ class TestsetQuery(ArtifactQuery):
 class TestsetVariant(
     Variant,
     TestsetIdAlias,
+    TestsetSlugAlias,
 ):
     flags: Optional[TestsetFlags] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("testset_id", "artifact_id", self)
+        sync_alias("testset_slug", "artifact_slug", self)
 
 
 class TestsetVariantCreate(
@@ -142,6 +162,8 @@ class TestsetRevision(
     Revision,
     TestsetIdAlias,
     TestsetVariantIdAlias,
+    TestsetSlugAlias,
+    TestsetVariantSlugAlias,
 ):
     flags: Optional[TestsetFlags] = None
 
@@ -150,6 +172,8 @@ class TestsetRevision(
     def model_post_init(self, __context) -> None:
         sync_alias("testset_id", "artifact_id", self)
         sync_alias("testset_variant_id", "variant_id", self)
+        sync_alias("testset_slug", "artifact_slug", self)
+        sync_alias("testset_variant_slug", "variant_slug", self)
 
 
 class TestsetRevisionCreate(
