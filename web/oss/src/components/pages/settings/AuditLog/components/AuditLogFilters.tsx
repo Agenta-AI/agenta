@@ -47,8 +47,10 @@ const AuditLogFilters = () => {
             <Select<EventType>
                 allowClear
                 showSearch
-                size="small"
-                className="w-[280px]"
+                className="w-[240px]"
+                // Event-type values are long dotted strings — let the dropdown
+                // panel grow wider than the (uniform-width) select box.
+                popupMatchSelectWidth={false}
                 placeholder="Event type"
                 value={eventType}
                 onChange={(value) => setEventType(value ?? null)}
@@ -56,8 +58,7 @@ const AuditLogFilters = () => {
             />
             <Select<RequestType>
                 allowClear
-                size="small"
-                className="w-[150px]"
+                className="w-[240px]"
                 placeholder="Request type"
                 value={requestType}
                 onChange={(value) => setRequestType(value ?? null)}
@@ -65,8 +66,7 @@ const AuditLogFilters = () => {
             />
             <Input
                 allowClear
-                size="small"
-                className="w-[280px]"
+                className="w-[240px]"
                 placeholder="Request ID"
                 value={requestIdDraft}
                 onChange={(event) => setRequestIdDraft(event.target.value)}

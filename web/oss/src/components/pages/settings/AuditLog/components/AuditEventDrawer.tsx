@@ -12,6 +12,7 @@ import {Descriptions, Empty, Tag, Typography} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import {UserReference} from "@/oss/components/References/UserReference"
 
 import {auditDrawerOpenAtom, selectedEventIdAtom} from "../state"
 
@@ -19,6 +20,11 @@ const AuditEventDrawer = () => {
     const [open, setOpen] = useAtom(auditDrawerOpenAtom)
     const selectedId = useAtomValue(selectedEventIdAtom)
     const event = useAtomValue(eventByIdAtomFamily(selectedId ?? ""))
+
+    // Actor/count live in `attributes` — the top-level `request_type` /
+    // `status_code` / `created_by_id` fields are left unset by the backend.
+    const actor = typeof event?.attributes?.user_id === "string" ? event.attributes.user_id : null
+    const count = typeof event?.attributes?.count === "number" ? event.attributes.count : null
 
     const close = () => setOpen(false)
 
@@ -47,25 +53,23 @@ const AuditEventDrawer = () => {
                                 ),
                             },
                             {
-                                key: "request_type",
-                                label: "Request type",
-                                children: (
-                                    <span className="text-xs capitalize">{event.request_type}</span>
+                                key: "actor",
+                                label: "Actor",
+                                children: actor ? (
+                                    <div className="flex items-center gap-2">
+                                        <UserReference userId={actor} />
+                                        {/* Keep the raw user-id copy affordance. */}
+                                        <Typography.Text copyable={{text: actor}} />
+                                    </div>
+                                ) : (
+                                    <span className="text-xs text-gray-400">—</span>
                                 ),
                             },
                             {
-                                key: "status",
-                                label: "Status",
+                                key: "count",
+                                label: "Count",
                                 children: (
-                                    <span className="text-xs">
-                                        {event.status_code
-                                            ? `${event.status_code}${
-                                                  event.status_message
-                                                      ? ` — ${event.status_message}`
-                                                      : ""
-                                              }`
-                                            : "—"}
-                                    </span>
+                                    <span className="text-xs tabular-nums">{count ?? "—"}</span>
                                 ),
                             },
                             {
@@ -98,19 +102,6 @@ const AuditEventDrawer = () => {
                                     </Typography.Text>
                                 ),
                             },
-                            ...(event.created_by_id
-                                ? [
-                                      {
-                                          key: "created_by_id",
-                                          label: "Actor",
-                                          children: (
-                                              <Typography.Text className="text-xs font-mono">
-                                                  {event.created_by_id}
-                                              </Typography.Text>
-                                          ),
-                                      },
-                                  ]
-                                : []),
                         ]}
                     />
 

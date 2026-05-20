@@ -9,12 +9,14 @@
 import {useCallback, useMemo} from "react"
 
 import {eventsPaginatedStore, type EventTableRow} from "@agenta/entities/event"
+import {Eye} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {
+    createActionsColumn,
     InfiniteVirtualTableFeatureShell,
     type TableScopeConfig,
 } from "@/oss/components/InfiniteVirtualTable"
@@ -23,11 +25,11 @@ import {AUDIT_LOG_PAGE_SIZE, AUDIT_LOG_ROW_HEIGHT, AUDIT_LOG_SCOPE_ID} from "../
 import {auditDrawerOpenAtom, selectedEventIdAtom} from "../state"
 
 import {
-    EventStatusCell,
+    ActorCell,
+    CountCell,
     EventTimestampCell,
     EventTypeCell,
     RequestIdCell,
-    RequestTypeCell,
 } from "./AuditEventCells"
 import AuditLogFilters from "./AuditLogFilters"
 
@@ -64,33 +66,26 @@ const AuditLogTable = () => {
                 key: "event_type",
                 dataIndex: "event_type",
                 title: "Event",
-                width: 320,
+                width: 300,
                 render: (_value, record) =>
                     record.__isSkeleton ? <SkeletonCell /> : <EventTypeCell eventId={record.id} />,
             },
             {
-                key: "request_type",
-                dataIndex: "request_type",
-                title: "Source",
-                width: 120,
+                key: "actor",
+                dataIndex: "actor",
+                title: "Actor",
+                width: 220,
                 render: (_value, record) =>
-                    record.__isSkeleton ? (
-                        <SkeletonCell />
-                    ) : (
-                        <RequestTypeCell eventId={record.id} />
-                    ),
+                    record.__isSkeleton ? <SkeletonCell /> : <ActorCell eventId={record.id} />,
             },
             {
-                key: "status",
-                dataIndex: "status_code",
-                title: "Status",
-                width: 120,
+                key: "count",
+                dataIndex: "count",
+                title: "Count",
+                width: 90,
+                align: "right",
                 render: (_value, record) =>
-                    record.__isSkeleton ? (
-                        <SkeletonCell />
-                    ) : (
-                        <EventStatusCell eventId={record.id} />
-                    ),
+                    record.__isSkeleton ? <SkeletonCell /> : <CountCell eventId={record.id} />,
             },
             {
                 key: "request_id",
@@ -99,8 +94,23 @@ const AuditLogTable = () => {
                 render: (_value, record) =>
                     record.__isSkeleton ? <SkeletonCell /> : <RequestIdCell eventId={record.id} />,
             },
+            // Actions column — hosts the column-visibility menu in its header
+            // (via createActionsColumn) plus a per-row menu.
+            createActionsColumn<EventTableRow>({
+                type: "actions",
+                items: [
+                    {
+                        key: "view",
+                        label: "View details",
+                        icon: <Eye size={16} />,
+                        onClick: (record) => openEvent(record.id),
+                    },
+                ],
+                showCopyId: true,
+                getRecordId: (record) => record.id,
+            }),
         ],
-        [],
+        [openEvent],
     )
 
     const tableScope = useMemo<TableScopeConfig>(
@@ -108,6 +118,9 @@ const AuditLogTable = () => {
             scopeId: AUDIT_LOG_SCOPE_ID,
             pageSize: AUDIT_LOG_PAGE_SIZE,
             enableInfiniteScroll: true,
+            // Enables the column-visibility menu (persisted) surfaced from the
+            // actions column header.
+            columnVisibilityStorageKey: "audit-log:columns",
         }),
         [],
     )
