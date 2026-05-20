@@ -2,21 +2,24 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {getCollapseStyle} from "@agenta/ui/components/presentational"
+import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
 import {
     DrillInProvider,
-    TOGGLE_MARKDOWN_VIEW,
     EditorProvider,
     $getRoot,
     $isCodeBlockNode,
     $createCodeBlockNode,
     createHighlightedNodes,
     $wrapLinesInSegments,
+    markdownViewAtom,
     useLexicalComposerContext,
 } from "@agenta/ui/editor"
 import type {EditorProps} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Code, Info, TextAa} from "@phosphor-icons/react"
-import {Button, InputNumber, Switch, Tooltip, Typography} from "antd"
+import {TypeChip} from "@agenta/ui/type-chip"
+import type {ChipVariant} from "@agenta/ui/type-chip"
+import {Info} from "@phosphor-icons/react"
+import {InputNumber, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -34,36 +37,11 @@ export interface VariableControlAdapterProps {
     // forwarded to SimpleInput when `as` includes "SimpleInput"
     editorProps?: EditorProps
     headerActions?: React.ReactNode
-    onMarkdownToggleReady?: (toggle: (() => void) | null) => void
     collapsed?: boolean
     /** Ref attached to the outer container — used for overflow detection by CollapseToggleButton */
     containerRef?: React.RefObject<HTMLDivElement | null>
     /** When true, hides the variable name label (useful when an outer wrapper already shows it) */
     hideLabel?: boolean
-}
-
-const MarkdownToggleRegistrar: React.FC<{
-    onMarkdownToggleReady?: (toggle: (() => void) | null) => void
-}> = ({onMarkdownToggleReady}) => {
-    const [editor] = useLexicalComposerContext()
-    const callbackRef = useRef<typeof onMarkdownToggleReady>(onMarkdownToggleReady)
-    const toggleRef = useRef<(() => void) | null>(null)
-
-    useEffect(() => {
-        callbackRef.current = onMarkdownToggleReady
-    }, [onMarkdownToggleReady])
-
-    useEffect(() => {
-        toggleRef.current = () => editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-        callbackRef.current?.(toggleRef.current)
-
-        return () => {
-            callbackRef.current?.(null)
-            toggleRef.current = null
-        }
-    }, [editor])
-
-    return null
 }
 
 /**
@@ -82,12 +60,14 @@ const VariableHeader: React.FC<{
     name: string | undefined
     headerActions?: React.ReactNode
     helpText?: string
-}> = ({name, headerActions, helpText}) => (
+    typeChip?: React.ReactNode
+}> = ({name, headerActions, helpText, typeChip}) => (
     <div className="w-full flex items-start justify-between gap-2">
         <div className="flex items-center gap-1 min-w-0">
             <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono truncate">
                 {name}
             </Typography>
+            {typeChip}
             {helpText ? (
                 <Tooltip title={helpText} placement="topLeft" overlayStyle={{maxWidth: 360}}>
                     <Info
@@ -226,10 +206,24 @@ const EmptyCodeBlockSeed: React.FC<{shouldSeed: boolean}> = ({shouldSeed}) => {
     return null
 }
 
+const MarkdownViewSynchronizer: React.FC<{editorId: string; enabled: boolean}> = ({
+    editorId,
+    enabled,
+}) => {
+    const setMarkdownView = useSetAtom(markdownViewAtom(editorId))
+
+    useEffect(() => {
+        setMarkdownView(enabled)
+    }, [enabled, setMarkdownView])
+
+    return null
+}
+
 const JsonVariableEditor: React.FC<{
     editorKey: string
     initialValue: string
     onValidChange: (value: string) => void
+    language: "json" | "yaml"
     readOnly?: boolean
     header?: React.ReactNode
     footer?: React.ReactNode
@@ -240,6 +234,7 @@ const JsonVariableEditor: React.FC<{
     editorKey,
     initialValue,
     onValidChange,
+    language,
     readOnly,
     header,
     footer,
@@ -263,6 +258,7 @@ const JsonVariableEditor: React.FC<{
     // the seed runs — which parses to the same `{}` at submit time.
     const [localValue, setLocalValue] = useState(initialValue)
     const shouldSeedEmptyLine = useMemo(() => {
+        if (language !== "json") return false
         if (!initialValue) return true
         try {
             const parsed = JSON.parse(initialValue)
@@ -279,7 +275,7 @@ const JsonVariableEditor: React.FC<{
             // parse and we'd rather not clobber whatever they typed.
         }
         return false
-    }, [initialValue])
+    }, [initialValue, language])
 
     useEffect(() => {
         setLocalValue(initialValue)
@@ -288,6 +284,10 @@ const JsonVariableEditor: React.FC<{
     const handleChange = useCallback(
         (value: string) => {
             setLocalValue(value)
+            if (language === "yaml") {
+                onValidChange(value)
+                return
+            }
             try {
                 JSON.parse(value)
                 onValidChange(value)
@@ -295,7 +295,7 @@ const JsonVariableEditor: React.FC<{
                 // Invalid JSON — keep local state but don't sync to parent.
             }
         },
-        [onValidChange],
+        [language, onValidChange],
     )
 
     return (
@@ -305,7 +305,7 @@ const JsonVariableEditor: React.FC<{
             style={collapsed ? getCollapseStyle(collapsed) : undefined}
         >
             <DrillInProvider value={{enabled: false, decodeEscapedJsonStrings: false}}>
-                <EditorProvider key={editorKey} codeOnly language="json" showToolbar={false}>
+                <EditorProvider key={editorKey} codeOnly language={language} showToolbar={false}>
                     <EmptyCodeBlockSeed shouldSeed={shouldSeedEmptyLine} />
                     <SharedEditor
                         key={`${editorKey}-shared`}
@@ -333,7 +333,7 @@ const JsonVariableEditor: React.FC<{
                         state={readOnly ? "readOnly" : undefined}
                         editorProps={{
                             codeOnly: true,
-                            language: "json",
+                            language,
                             showLineNumbers: true,
                             disableLongText: true,
                         }}
@@ -366,7 +366,6 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     appType,
     editorProps,
     headerActions,
-    onMarkdownToggleReady,
     collapsed = false,
     containerRef,
     hideLabel,
@@ -398,30 +397,13 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     const portSchema = schemaMap[variableKey]?.schema
     const helpText = schemaMap[variableKey]?.helpText
 
-    // Explicit text/JSON toggle. The button lives in the variable header
-    // (see `composedHeaderActions` below) and lets the user flip between
-    // editor surfaces — JSON code editor (line numbers + syntax) vs. plain
-    // text — for any port whose declared type is `string`, `object`, or
-    // `array`. Both surfaces edit the same stored string value; the
-    // runtime's `parseIfJsonObject` round-trips JSON-shaped strings either
-    // way. We deliberately don't auto-detect from content: swapping
-    // editors mid-keystroke yanks the user's caret.
-    //
-    // `forceMode` is the per-session user override. When unset, the
-    // editor surface follows the declared port type: `object`/`array`
-    // start in JSON; `string` starts as text. Numeric/boolean ports route
-    // through dedicated controls (InputNumber/Switch) below and never
-    // hit this toggle path.
-    const [forceMode, setForceMode] = useState<"json" | "text" | null>(null)
-    const declaredIsJson = declaredPortType === "object" || declaredPortType === "array"
-    const declaredIsToggleable = declaredIsJson || declaredPortType === "string"
-    const effectiveSurface: "json" | "text" = forceMode ?? (declaredIsJson ? "json" : "text")
-    // `portType` retains the full type union for the number/boolean/array
-    // branches below; we only override it when the user has explicitly
-    // flipped the surface via the JSON/text toggle.
-    const portType: string =
-        forceMode === "json" ? "object" : forceMode === "text" ? "string" : declaredPortType
-    const canToggleJson = declaredIsToggleable
+    const [viewMode, setViewMode] = useState<ViewMode>("text")
+    const isStructuredPort = declaredPortType === "object" || declaredPortType === "array"
+    const supportsViewMode =
+        declaredPortType === "string" ||
+        declaredPortType === "object" ||
+        declaredPortType === "array"
+    const isCodeEditor = viewMode === "json" || viewMode === "yaml"
 
     const name = useMemo(
         () =>
@@ -449,9 +431,8 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     // outside the editor as help text so the user can see which fields the
     // template references without us pre-filling the editor with content
     // that won't actually be submitted.
-    const isJsonType = portType === "object" || portType === "array"
     const shapeHint = useMemo(() => {
-        if (portType === "array") return null
+        if (declaredPortType === "array") return null
         const props =
             portSchema && typeof portSchema === "object"
                 ? (portSchema as {properties?: Record<string, unknown>}).properties
@@ -462,16 +443,8 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         const obj: Record<string, string> = {}
         for (const k of keys) obj[k] = ""
         return JSON.stringify(obj)
-    }, [portType, portSchema])
+    }, [declaredPortType, portSchema])
 
-    // Editor mode is controlled exclusively by `portType` (= the declared
-    // port type, optionally overridden via the explicit JSON/text toggle
-    // button in the header — see `forceMode` / `composedHeaderActions`).
-    // The previous content-sniffing "sticky" behaviour (`detectedAsJson`
-    // flip based on whether the value started with `{`/`[`) was removed
-    // in favour of explicit user action so the editor never swaps out
-    // from under the user mid-keystroke.
-    const isJsonEditor = isJsonType
     const isCellEmpty = !value || value === ""
     // The editor reflects the actual cell content. Earlier the empty cell was
     // back-filled with a schema-derived default for display only, but that
@@ -509,14 +482,6 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         [setCellValue, rowId, variableKey],
     )
 
-    // Intercept Cmd/Ctrl+A followed by Delete/Backspace — the most common
-    // Content-driven mode-flip helpers (`handleKeyDownCapture`,
-    // `handlePasteCapture`, `shouldFocusAfterMountRef`) were removed
-    // alongside the `detectedAsJson` magic. Editor mode is now toggled only
-    // by the explicit JSON/Text button in the header, so paste and select-
-    // all-delete never need to bypass Lexical to coordinate a swap —
-    // Lexical's own paste / keyboard handling is correct in single-mode.
-
     const {isComparisonView} = useAtomValue(
         useMemo(() => playgroundController.selectors.playgroundLayout(), []),
     )
@@ -530,45 +495,39 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
 
     const isEffectivelyDisabled = disabled || disableForCustom
 
-    // Compose the variable header's actions: prepend our JSON/text toggle
-    // ahead of whatever actions the parent passed in. Mirrors the markdown
-    // toggle pattern from `ChatMessage` — explicit user control over the
-    // editor surface, no content-sniffing magic. Visible for every port
-    // type; clicking flips between JSON code editor (line numbers +
-    // syntax) and plain text editor surfaces. Both edit the same stored
-    // string value.
-    const isCurrentlyJson = effectiveSurface === "json"
+    const viewOptions = useMemo(
+        () => (supportsViewMode ? getViewOptions(value ?? "") : []),
+        [supportsViewMode, value],
+    )
+    const typeChipVariant = useMemo<ChipVariant | undefined>(() => {
+        if (declaredPortType === "object") return "json-object"
+        if (declaredPortType === "array") return "json-array"
+        return undefined
+    }, [declaredPortType])
+    const typeChip = supportsViewMode ? (
+        <TypeChip variant={typeChipVariant} value={typeChipVariant ? undefined : value} />
+    ) : null
     const composedHeaderActions = useMemo(() => {
-        if (!canToggleJson) return headerActions
-        const toggle = (
-            <Tooltip
-                key="json-toggle"
-                title={isCurrentlyJson ? "Switch to text editor" : "Switch to JSON editor"}
-            >
-                <Button
-                    type="text"
-                    size="small"
-                    icon={isCurrentlyJson ? <TextAa size={14} /> : <Code size={14} />}
-                    onClick={() => setForceMode(isCurrentlyJson ? "text" : "json")}
-                    aria-label={
-                        isCurrentlyJson
-                            ? "Switch variable to text editor"
-                            : "Switch variable to JSON editor"
-                    }
-                />
-            </Tooltip>
-        )
-        if (!headerActions) return toggle
+        const dropdown = supportsViewMode ? (
+            <ViewModeDropdown
+                key="view-mode"
+                value={viewMode}
+                options={viewOptions}
+                onChange={setViewMode}
+            />
+        ) : null
+        if (!dropdown) return headerActions
+        if (!headerActions) return dropdown
         return (
             <>
-                {toggle}
+                {dropdown}
                 {headerActions}
             </>
         )
-    }, [canToggleJson, isCurrentlyJson, headerActions])
+    }, [headerActions, supportsViewMode, viewMode, viewOptions])
 
     // Number/integer type → InputNumber
-    if (portType === "number" || portType === "integer") {
+    if (declaredPortType === "number" || declaredPortType === "integer") {
         const numValue = value !== "" && value != null ? Number(value) : undefined
         return (
             <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
@@ -607,7 +566,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     }
 
     // Boolean type → Switch
-    if (portType === "boolean") {
+    if (declaredPortType === "boolean") {
         return (
             <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
                 <div
@@ -643,34 +602,29 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         )
     }
 
-    // Object/array types (and detected JSON strings) → JSON code editor
-    const mergedEditorProps: EditorProps = isJsonEditor
-        ? {codeOnly: true, language: "json", enableResize: false, boundWidth: true, ...editorProps}
-        : {enableResize: false, boundWidth: true, ...editorProps}
+    const mergedEditorProps: EditorProps = {
+        enableResize: false,
+        boundWidth: true,
+        ...editorProps,
+    }
 
     // Show the schema-derived shape as help text on empty object cells, so
     // the user knows which fields the template references without us
     // pre-filling the editor with a value that wouldn't get submitted.
-    const showShapeHint = isJsonType && isCellEmpty && !!shapeHint
+    const showShapeHint = isStructuredPort && isCodeEditor && isCellEmpty && !!shapeHint
 
-    // Schema-typed JSON (object/array): render the same editor stack the
-    // DrillIn / Testcase JSON editors use — code-only Lexical with line
-    // numbers and syntax highlighting. Inlined (not delegated to
-    // `JsonEditorWithLocalState`) so we can preserve the variable header
-    // and route the change handler through the testcase cell store directly.
-    // The string-typed branch below stays as-is for detected-JSON sticky
-    // mode flips, which only the rich-text editor surface supports.
-    //
     // We deliberately keep the parent's `className` away from this branch —
     // generation rows pass `*:!border-none overflow-hidden` for the rich-text
     // cell strip, and applying it here strips the SharedEditor's own border
     // and the line-number gutter.
-    if (isJsonType) {
+    if (isCodeEditor) {
+        const codeLanguage = viewMode as "json" | "yaml"
         return (
             <JsonVariableEditor
-                editorKey={editorId}
+                editorKey={`${editorId}-${codeLanguage}-${schemaKey}`}
                 initialValue={effectiveValue ?? ""}
                 onValidChange={handleChange}
+                language={codeLanguage}
                 readOnly={isEffectivelyDisabled}
                 placeholder={effectivePlaceholder}
                 header={
@@ -679,6 +633,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             name={name}
                             headerActions={composedHeaderActions}
                             helpText={helpText}
+                            typeChip={typeChip}
                         />
                     ) : null
                 }
@@ -705,17 +660,16 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 // remount — preserves cursor position). Flips only when the
                 // port's schema changes, which happens when the prompt
                 // introduces new sub-paths or a different envelope root.
-                key={`${editorId}-${isJsonEditor}-${schemaKey}`}
+                key={`${editorId}-${viewMode}-${schemaKey}`}
                 id={editorId}
                 initialValue={effectiveValue}
                 placeholder={effectivePlaceholder}
                 showToolbar={false}
-                codeOnly={isJsonEditor || !!editorProps?.codeOnly}
-                language={isJsonEditor ? "json" : undefined}
-                enableTokens={!isJsonEditor && !editorProps?.codeOnly}
+                codeOnly={!!editorProps?.codeOnly}
+                enableTokens={!editorProps?.codeOnly}
                 disabled={isEffectivelyDisabled}
             >
-                <MarkdownToggleRegistrar onMarkdownToggleReady={onMarkdownToggleReady} />
+                <MarkdownViewSynchronizer editorId={editorId} enabled={viewMode === "markdown"} />
                 <SharedEditor
                     id={editorId}
                     noProvider
@@ -725,6 +679,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                                 name={name}
                                 headerActions={composedHeaderActions}
                                 helpText={helpText}
+                                typeChip={typeChip}
                             />
                         ) : undefined
                     }
@@ -751,7 +706,6 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             : viewType === "single" && view !== "focus"
                               ? ""
                               : "bg-transparent",
-                        isJsonEditor && "!pt-[11px] !pb-0 [&_.agenta-editor-wrapper]:!mb-0",
                         className,
                     )}
                     editorProps={mergedEditorProps}
