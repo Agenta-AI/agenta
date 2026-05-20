@@ -34,6 +34,10 @@ from oss.src.apis.fastapi.tracing.models import (
     UsersQueryRequest,
     UserIdsResponse,
 )
+from oss.src.core.events.utils import (
+    publish_trace_fetched,
+    publish_trace_queried,
+)
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.utils.parsing import parse_trace_id_to_uuid
 from oss.src.core.tracing.utils.trees import traces_to_trace_map
@@ -1341,6 +1345,10 @@ class SpansRouter:
 
 
 class TracesRouter:
+    # Trace READ events (`traces.fetched` / `traces.queried`) are emitted from
+    # the router boundary, after the response is materialized. This is the
+    # canonical place for read emission — see core/events/utils.py module
+    # docstring for why reads emit at the router and writes emit at the service.
     def __init__(
         self,
         *,
@@ -1553,7 +1561,19 @@ class TracesRouter:
                     detail="You have reached your trace retrieval quota for this period.",
                 )
 
-        return TracesResponse(count=len(traces), traces=traces)
+        traces_response = TracesResponse(count=len(traces), traces=traces)
+
+        trace_ids = [
+            getattr(trace, "trace_id", None) for trace in (traces_response.traces or [])
+        ]
+        trace_ids = [t for t in trace_ids if t is not None]
+        await publish_trace_queried(
+            request=request,
+            count=traces_response.count,
+            trace_ids=trace_ids,
+        )
+
+        return traces_response
 
     @intercept_exceptions()
     async def create_trace(
@@ -1817,10 +1837,22 @@ class TracesRouter:
                     detail="You have reached your trace retrieval quota for this period.",
                 )
 
-        return TracesResponse(
+        traces_response = TracesResponse(
             count=len(traces_list),
             traces=traces_list,
         )
+
+        trace_ids_out = [
+            getattr(trace, "trace_id", None) for trace in (traces_response.traces or [])
+        ]
+        trace_ids_out = [t for t in trace_ids_out if t is not None]
+        await publish_trace_fetched(
+            request=request,
+            count=traces_response.count,
+            trace_ids=trace_ids_out,
+        )
+
+        return traces_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=TraceResponse(), exclude=[HTTPException])
@@ -1871,10 +1903,23 @@ class TracesRouter:
                     detail="You have reached your trace retrieval quota for this period.",
                 )
 
-        return TraceResponse(
+        trace_response = TraceResponse(
             count=1 if trace else 0,
             trace=trace,
         )
+
+        resolved_trace_id = (
+            getattr(trace_response.trace, "trace_id", None)
+            if trace_response.trace
+            else None
+        )
+        await publish_trace_fetched(
+            request=request,
+            count=trace_response.count,
+            trace_id=resolved_trace_id,
+        )
+
+        return trace_response
 
     @intercept_exceptions()
     async def delete_trace(  # DELETE

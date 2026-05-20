@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface QueryRevisionResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     query_revision?: (AgentaApi.QueryRevision | null) | undefined;
 }

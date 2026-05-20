@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional, List
 from uuid import UUID, uuid4
 
+from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.workflows.dtos import (
     WorkflowCreate,
     WorkflowEdit,
@@ -804,6 +805,20 @@ class EvaluatorsService:
             **workflow_revision.model_dump(
                 mode="json",
             )
+        )
+
+        # Write-action emission lives in the SERVICE layer (read actions live
+        # in the router). Every caller of commit_evaluator_revision — direct
+        # commit route, simple-service create/edit, etc. — therefore emits
+        # exactly one `evaluators.revisions.committed` event. See
+        # core/events/utils.py for the read-vs-write split rationale.
+        await publish_revision_event(
+            domain="evaluator",
+            action="commit",
+            project_id=project_id,
+            user_id=user_id,
+            revision=evaluator_revision,
+            message=evaluator_revision_commit.message,
         )
 
         return evaluator_revision

@@ -14,6 +14,7 @@
         ".": "./src/index.ts",
         "./adapters": "./src/adapters/index.ts",
         "./drill-in": "./src/DrillInView/index.ts",
+        "./gatewayTool": "./src/gatewayTool/index.ts",
         "./modals": "./src/modals/index.ts",
         "./selection": "./src/selection/index.ts",
         "./testcase": "./src/testcase/index.ts",

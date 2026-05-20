@@ -26,6 +26,133 @@ export class AccessClient {
     }
 
     /**
+     * Return the effective plan catalog: slug -> entitlement controls.
+     *
+     * The shape mirrors what `AGENTA_ACCESS_PLANS` accepts, but fully parsed
+     * and validated. The frontend reads `flags`, `counters`, `gauges`, and
+     * `throttles` from here rather than slug-matching against constants.
+     *
+     * @param {AccessClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.access.fetchAccessPlans()
+     */
+    public fetchAccessPlans(
+        requestOptions?: AccessClient.RequestOptions,
+    ): core.HttpResponsePromise<Record<string, Record<string, unknown>>> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchAccessPlans(requestOptions));
+    }
+
+    private async __fetchAccessPlans(
+        requestOptions?: AccessClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Record<string, Record<string, unknown>>>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "access/plans",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as Record<string, Record<string, unknown>>,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/access/plans");
+    }
+
+    /**
+     * Return the effective role catalog per scope.
+     *
+     * Scopes are `organization`, `workspace`, `project`. Each entry has
+     * `role`, `description`, and `permissions`. Permissions are returned
+     * verbatim from access-controls, including the `"*"` wildcard for
+     * `owner` — callers that need to render the full permission list
+     * should expand the wildcard themselves (see
+     * `ee.src.services.converters._expand_permissions`).
+     *
+     * @param {AccessClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.access.fetchAccessRoles()
+     */
+    public fetchAccessRoles(
+        requestOptions?: AccessClient.RequestOptions,
+    ): core.HttpResponsePromise<Record<string, Record<string, unknown>[]>> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchAccessRoles(requestOptions));
+    }
+
+    private async __fetchAccessRoles(
+        requestOptions?: AccessClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Record<string, Record<string, unknown>[]>>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "access/roles",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as Record<string, Record<string, unknown>[]>,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/access/roles");
+    }
+
+    /**
      * Discover authentication methods available for a given email.
      *
      * This endpoint does NOT reveal:

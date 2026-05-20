@@ -1,0 +1,66 @@
+---
+id: fetch-billing-catalog
+title: "Fetch Catalog"
+description: "Return the effective billing catalog with pricing merged in."
+sidebar_label: "Fetch Catalog"
+hide_title: true
+hide_table_of_contents: true
+api: eJztU81u2zAMfhWBpw1Q425Hn5YWXRe0KIK2OzVBw8iMrVaWPIlOlxl5jj3QXmyg7WbNbrvPF1n8Efl9/NgBY5kgf4Az65z1JSw1FJRMtA3b4CGHW+I2esUVKdpsyLDdkloP0cogowulerFcqSZaI8aaYkmFsn6y8At/gaZS5DnulMEYLSW1YsuOVlqt3pSSa+OwP3nX9O4NIbeR0kovPPpCvXupyCsT/MaWbaTivUK1krK0UmsXzLNKoY2GCrWJoe57rpFNZX258Kvp5cXN/fTxbHZ9Pbu5fJzfzs5nN5erobmJmkc6eQrWCwTcBlskhco4S55Pki1o4V/R/vp5jFWtdyq5tpyAhtBQRMEzKyCHDbGpHke2Hsd80BApNcEnSpB38PH0VI5j2u9aYyilTevU7RgMGkzwTJ4lHJvGWdOXyp6S5HSQTEU1yp9lqvvHsSisxKCbR+mNrRTl2JIGoRlyCOsnMgz7gwFjxB1o6MfUS2BoQH0WOGqUijof4ezl01ATV0FAl8SgoUGuIIdsBJ/9AZ8obimK6jpoo5MgbCzs9eu1Ym7yLHPBoKtC4sG9lEzTRsu7PnU6n13R7gthQRHyh+XbgDshYmD3OKw7YGzsFQlIj7Xcpy1XIdofPaGgwcoQqiFL0Fm/CX36yMm0JM+opvMZ/L0xRy6ZGJp+Yq+VejfoN2BTnmXYmydoM9BANVpxMmH96eCREQlzQ5nTyYfJqZiakLhG/6bEMKfzA+NH/XV/VPR/uf9tuUftMH3nrHFovdDfj7Eb9f4AI3sy+pH/pQZRsTi7bo2Jvka334v5W0tRxLzUsMVocS3Selju9avyROfPtBPVGEON7NUWXTsI+K/9F/0fdvDy4h72+98s7Qx6
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Catalog"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/billing/catalog"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return the effective billing catalog with pricing merged in.
+
+Each entry carries `title`, `description`, `plan`, `type`, `features`,
+and (when configured) a `price` block sourced from the matching
+`AGENTA_BILLING_PRICING` entry. Pre-joining avoids a client-side
+catalog × pricing merge by slug.
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-billing-catalog.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-billing-catalog.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

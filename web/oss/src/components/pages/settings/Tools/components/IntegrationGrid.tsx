@@ -1,10 +1,9 @@
 import {useState, useMemo} from "react"
 
+import type {ToolCatalogIntegration} from "@agenta/entities/gatewayTool"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {Card, Empty, Input, Spin, Typography} from "antd"
 import Image from "next/image"
-
-import type {IntegrationItem} from "@/oss/services/tools/api/types"
 
 import {useToolsIntegrations} from "../hooks/useToolsIntegrations"
 
@@ -23,7 +22,7 @@ export default function IntegrationGrid({onSelect}: Props) {
             (i) =>
                 i.name.toLowerCase().includes(q) ||
                 i.description?.toLowerCase().includes(q) ||
-                i.categories.some((c) => c.toLowerCase().includes(q)),
+                (i.categories ?? []).some((c) => c.toLowerCase().includes(q)),
         )
     }, [integrations, search])
 
@@ -67,7 +66,7 @@ function IntegrationCard({
     integration,
     onClick,
 }: {
-    integration: IntegrationItem
+    integration: ToolCatalogIntegration
     onClick: () => void
 }) {
     return (

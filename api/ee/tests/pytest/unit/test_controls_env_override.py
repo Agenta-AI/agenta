@@ -67,6 +67,48 @@ class TestNoOverride:
         )
         assert out.splitlines() == [str(expected_plans), str(expected_catalog)]
 
+    def test_billing_pricing_accepts_legacy_agenta_pricing_alias(self):
+        out = _ok(
+            "from oss.src.utils.env import env; "
+            "print(env.billing.pricing['cloud_v0_pro']['base']['price'])",
+            {
+                "AGENTA_PRICING": json.dumps(
+                    {"cloud_v0_pro": {"base": {"price": "price_agenta"}}}
+                ),
+            },
+        )
+        assert out.strip() == "price_agenta"
+
+    def test_billing_pricing_accepts_legacy_stripe_pricing_alias(self):
+        out = _ok(
+            "from oss.src.utils.env import env; "
+            "print(env.billing.pricing['cloud_v0_pro']['base']['price'])",
+            {
+                "STRIPE_PRICING": json.dumps(
+                    {"cloud_v0_pro": {"base": {"price": "price_stripe"}}}
+                ),
+            },
+        )
+        assert out.strip() == "price_stripe"
+
+    def test_billing_pricing_prefers_canonical_env_over_legacy_aliases(self):
+        out = _ok(
+            "from oss.src.utils.env import env; "
+            "print(env.billing.pricing['cloud_v0_pro']['base']['price'])",
+            {
+                "AGENTA_BILLING_PRICING": json.dumps(
+                    {"cloud_v0_pro": {"base": {"price": "price_billing"}}}
+                ),
+                "AGENTA_PRICING": json.dumps(
+                    {"cloud_v0_pro": {"base": {"price": "price_agenta"}}}
+                ),
+                "STRIPE_PRICING": json.dumps(
+                    {"cloud_v0_pro": {"base": {"price": "price_stripe"}}}
+                ),
+            },
+        )
+        assert out.strip() == "price_billing"
+
 
 # ---------------------------------------------------------------------------
 # Plans override

@@ -208,6 +208,11 @@ class TestResolveTrial:
 
 
 class TestDefaults:
+    @pytest.fixture(autouse=True)
+    def _no_pricing_env(self, monkeypatch):
+        monkeypatch.setattr(settings, "_PRICING", {})
+        monkeypatch.setattr(settings, "_FREE_PLAN", None)
+
     def test_get_catalog_returns_default_catalog(self):
         catalog = settings.get_catalog()
         assert len(catalog) > 0
@@ -247,7 +252,9 @@ class TestDefaults:
         assert "AGENTA_BILLING_PRICING" in message
         assert "base" in message
 
-    def test_require_pricing_mentions_legacy_pricing(self, monkeypatch):
+    def test_require_pricing_does_not_warn_about_supported_legacy_alias(
+        self, monkeypatch
+    ):
         monkeypatch.setenv("STRIPE_PRICING", '{"cloud_v0_pro": {"base": {}}}')
 
         with pytest.raises(ValueError) as exc:
@@ -256,7 +263,7 @@ class TestDefaults:
                 purpose="Reverse trial signup",
             )
 
-        assert "Legacy STRIPE_PRICING is ignored" in str(exc.value)
+        assert "Legacy STRIPE_PRICING is ignored" not in str(exc.value)
 
     def test_get_stripe_line_items_none_slug_returns_empty(self):
         assert settings.get_stripe_line_items(None) == []
@@ -275,10 +282,16 @@ class TestDefaults:
         assert settings.get_free_plan() == DefaultPlan.CLOUD_V0_HOBBY.value
 
     def test_get_trial_plan_disabled_when_stripe_disabled_by_default(self):
-        assert settings.get_trial_plan() is None
+        if settings.env.stripe.enabled:
+            assert settings.get_trial_plan() == DefaultPlan.CLOUD_V0_PRO.value
+        else:
+            assert settings.get_trial_plan() is None
 
     def test_get_trial_days_disabled_when_stripe_disabled_by_default(self):
-        assert settings.get_trial_days() is None
+        if settings.env.stripe.enabled:
+            assert settings.get_trial_days() == 14
+        else:
+            assert settings.get_trial_days() is None
 
     def test_trial_enabled_false_when_stripe_disabled_by_default(self):
-        assert settings.trial_enabled() is False
+        assert settings.trial_enabled() is settings.env.stripe.enabled

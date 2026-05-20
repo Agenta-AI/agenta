@@ -4,12 +4,11 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .invite_request_roles_item import InviteRequestRolesItem
 
 
 class InviteRequest(UniversalBaseModel):
     email: str
-    roles: typing.Optional[typing.List[InviteRequestRolesItem]] = None
+    roles: typing.Optional[typing.List[str]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

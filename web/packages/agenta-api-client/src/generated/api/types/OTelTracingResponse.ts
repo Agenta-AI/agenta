@@ -11,8 +11,6 @@ import type * as AgentaApi from "../index.js";
  * so you can round-trip data between environments.
  */
 export interface OTelTracingResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     /** Total number of matching traces or spans in the window. */
     count?: number | undefined;
     /** Flat list of spans, populated when the query was run with `focus="span"`. */

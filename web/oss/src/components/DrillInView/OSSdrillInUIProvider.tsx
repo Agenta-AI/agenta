@@ -23,21 +23,21 @@
 
 import {useMemo, type ReactNode} from "react"
 
+import {
+    buildToolSlug,
+    catalogDrawerOpenAtom,
+    fetchActionDetail as fetchToolActionDetail,
+    useCatalogActions,
+    useConnectionsQuery,
+    useIntegrationDetail,
+} from "@agenta/entities/gatewayTool"
 import {DrillInUIProvider, type GatewayToolsBridge} from "@agenta/entity-ui/drill-in"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {useSetAtom} from "jotai"
 
-import {
-    buildToolSlug,
-    catalogDrawerOpenAtom,
-    useCatalogActions,
-    useConnectionsQuery,
-    useIntegrationDetail,
-} from "@/oss/features/gateway-tools"
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
 import {isToolsEnabled} from "@/oss/lib/helpers/isEE"
-import {fetchActionDetail as fetchToolActionDetail} from "@/oss/services/tools/api"
 
 interface OSSdrillInUIProviderProps {
     children: ReactNode
@@ -121,27 +121,38 @@ function GatewayToolsEnabledProvider({
     const gatewayTools = useMemo<GatewayToolsBridge>(
         () => ({
             enabled: true,
-            connections: connections.map((connection) => ({
-                id: connection.id,
-                slug: connection.slug,
-                name: connection.name,
-                integration_key: connection.integration_key,
-                provider_key: connection.provider_key,
-                flags: connection.flags,
-            })),
+            connections: connections
+                .filter((c) => typeof c.id === "string" && typeof c.slug === "string")
+                .map((connection) => ({
+                    id: connection.id as string,
+                    slug: connection.slug as string,
+                    name: connection.name ?? undefined,
+                    integration_key: connection.integration_key,
+                    provider_key: connection.provider_key,
+                    flags: (connection.flags ?? undefined) as Record<string, unknown> | undefined,
+                })),
             connectionsLoading: isLoading,
             onOpenCatalog: () => setCatalogDrawerOpen(true),
-            useIntegrationInfo: useGatewayToolsIntegrationInfo,
+            useIntegrationInfo: (integrationKey: string) => {
+                const info = useGatewayToolsIntegrationInfo(integrationKey)
+                return {
+                    name: info.name,
+                    logo: info.logo ?? undefined,
+                    isLoading: info.isLoading,
+                }
+            },
             useActions: useGatewayToolsCatalogActions,
             buildToolSlug,
             fetchActionDetail: async (provider: string, integration: string, action: string) => {
                 const detail = await fetchToolActionDetail(provider, integration, action)
+                const detailedAction =
+                    detail.action && "schemas" in detail.action ? detail.action : null
                 return {
                     action: {
-                        description: detail.action?.description,
-                        schemas: {
-                            inputs: detail.action?.schemas?.inputs,
-                        },
+                        description: detailedAction?.description ?? undefined,
+                        schemas: detailedAction?.schemas
+                            ? {inputs: detailedAction.schemas.inputs}
+                            : undefined,
                     },
                 }
             },

@@ -77,12 +77,12 @@ class AgentaApi:
         _defaulted_timeout = timeout if timeout is not None else 60 if httpx_client is None else httpx_client.timeout.read
         self._client_wrapper = SyncClientWrapper(base_url=_get_base_url(base_url=base_url, environment=environment), api_key=api_key, headers=headers, httpx_client=httpx_client if httpx_client is not None else httpx.Client(timeout=_defaulted_timeout, follow_redirects=follow_redirects) if follow_redirects is not None else httpx.Client(timeout=_defaulted_timeout)
         , timeout=_defaulted_timeout)
+        self._access: typing.Optional[AccessClient] = None
         self._billing: typing.Optional[BillingClient] = None
         self._organizations: typing.Optional[OrganizationsClient] = None
         self._workspaces: typing.Optional[WorkspacesClient] = None
         self._secrets: typing.Optional[SecretsClient] = None
         self._webhooks: typing.Optional[WebhooksClient] = None
-        self._access: typing.Optional[AccessClient] = None
         self._legacy: typing.Optional[LegacyClient] = None
         self._traces: typing.Optional[TracesClient] = None
         self._invocations: typing.Optional[InvocationsClient] = None
@@ -101,6 +101,13 @@ class AgentaApi:
         self._projects: typing.Optional[ProjectsClient] = None
         self._users: typing.Optional[UsersClient] = None
         self._keys: typing.Optional[KeysClient] = None
+    
+    @property
+    def access(self):
+        if self._access is None:
+            from .access.client import AccessClient  # noqa: E402
+            self._access = AccessClient(client_wrapper=self._client_wrapper)
+        return self._access
     
     @property
     def billing(self):
@@ -136,13 +143,6 @@ class AgentaApi:
             from .webhooks.client import WebhooksClient  # noqa: E402
             self._webhooks = WebhooksClient(client_wrapper=self._client_wrapper)
         return self._webhooks
-    
-    @property
-    def access(self):
-        if self._access is None:
-            from .access.client import AccessClient  # noqa: E402
-            self._access = AccessClient(client_wrapper=self._client_wrapper)
-        return self._access
     
     @property
     def legacy(self):
@@ -313,12 +313,12 @@ class AsyncAgentaApi:
         _defaulted_timeout = timeout if timeout is not None else 60 if httpx_client is None else httpx_client.timeout.read
         self._client_wrapper = AsyncClientWrapper(base_url=_get_base_url(base_url=base_url, environment=environment), api_key=api_key, headers=headers, httpx_client=httpx_client if httpx_client is not None else httpx.AsyncClient(timeout=_defaulted_timeout, follow_redirects=follow_redirects) if follow_redirects is not None else httpx.AsyncClient(timeout=_defaulted_timeout)
         , timeout=_defaulted_timeout)
+        self._access: typing.Optional[AsyncAccessClient] = None
         self._billing: typing.Optional[AsyncBillingClient] = None
         self._organizations: typing.Optional[AsyncOrganizationsClient] = None
         self._workspaces: typing.Optional[AsyncWorkspacesClient] = None
         self._secrets: typing.Optional[AsyncSecretsClient] = None
         self._webhooks: typing.Optional[AsyncWebhooksClient] = None
-        self._access: typing.Optional[AsyncAccessClient] = None
         self._legacy: typing.Optional[AsyncLegacyClient] = None
         self._traces: typing.Optional[AsyncTracesClient] = None
         self._invocations: typing.Optional[AsyncInvocationsClient] = None
@@ -337,6 +337,13 @@ class AsyncAgentaApi:
         self._projects: typing.Optional[AsyncProjectsClient] = None
         self._users: typing.Optional[AsyncUsersClient] = None
         self._keys: typing.Optional[AsyncKeysClient] = None
+    
+    @property
+    def access(self):
+        if self._access is None:
+            from .access.client import AsyncAccessClient  # noqa: E402
+            self._access = AsyncAccessClient(client_wrapper=self._client_wrapper)
+        return self._access
     
     @property
     def billing(self):
@@ -372,13 +379,6 @@ class AsyncAgentaApi:
             from .webhooks.client import AsyncWebhooksClient  # noqa: E402
             self._webhooks = AsyncWebhooksClient(client_wrapper=self._client_wrapper)
         return self._webhooks
-    
-    @property
-    def access(self):
-        if self._access is None:
-            from .access.client import AsyncAccessClient  # noqa: E402
-            self._access = AsyncAccessClient(client_wrapper=self._client_wrapper)
-        return self._access
     
     @property
     def legacy(self):
