@@ -71,14 +71,6 @@ const AuditLogTable = () => {
                     record.__isSkeleton ? <SkeletonCell /> : <EventTypeCell eventId={record.id} />,
             },
             {
-                key: "actor",
-                dataIndex: "actor",
-                title: "Actor",
-                width: 220,
-                render: (_value, record) =>
-                    record.__isSkeleton ? <SkeletonCell /> : <ActorCell eventId={record.id} />,
-            },
-            {
                 key: "count",
                 dataIndex: "count",
                 title: "Count",
@@ -86,6 +78,14 @@ const AuditLogTable = () => {
                 align: "right",
                 render: (_value, record) =>
                     record.__isSkeleton ? <SkeletonCell /> : <CountCell eventId={record.id} />,
+            },
+            {
+                key: "actor",
+                dataIndex: "actor",
+                title: "Actor",
+                width: 220,
+                render: (_value, record) =>
+                    record.__isSkeleton ? <SkeletonCell /> : <ActorCell eventId={record.id} />,
             },
             {
                 key: "request_id",
