@@ -352,7 +352,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["Content-Type"] + get_all_supertokens_cors_headers(),
-    expose_headers=["x-ag-support-id", "x-ag-support-ts"],
+    expose_headers=["front-token", "x-ag-support-id", "x-ag-support-ts"],
 )
 
 if ee and is_ee():
