@@ -10,6 +10,31 @@ from oss.src.core.shared.dtos import (
 from oss.src.utils.context import support_ctx
 
 
+def _expose_support_headers(
+    headers: List[Tuple[bytes, bytes]],
+    exposed: List[bytes],
+) -> None:
+    """Add `exposed` to Access-Control-Expose-Headers so browser JS can read
+    the support headers. Done here, not in the CORS config, because listing
+    them there broke the `--web-local` cross-origin setup. CORS leaves this
+    header alone (its own `expose_headers` is unset), so we won't be clobbered.
+    """
+    name = b"access-control-expose-headers"
+
+    for index, (key, value) in enumerate(headers):
+        if key.lower() == name:
+            existing = {
+                part.strip().lower() for part in value.split(b",") if part.strip()
+            }
+            additions = [h for h in exposed if h.lower() not in existing]
+            if additions:
+                merged = value + b", " + b", ".join(additions)
+                headers[index] = (key, merged)
+            return
+
+    headers.append((name, b", ".join(exposed)))
+
+
 class SupportHeadersMiddleware:
     """Pure-ASGI middleware that emits x-ag-support-* headers when
     a downstream decorator stashes support metadata in `support_ctx`.
@@ -34,6 +59,7 @@ class SupportHeadersMiddleware:
                 support = support_ctx.get()
                 if support is not None:
                     headers = list(message.get("headers", []))
+                    exposed: List[bytes] = []
                     if support.support_id:
                         headers.append(
                             (
@@ -41,6 +67,7 @@ class SupportHeadersMiddleware:
                                 support.support_id.encode("latin-1"),
                             )
                         )
+                        exposed.append(b"x-ag-support-id")
                     if support.support_ts:
                         headers.append(
                             (
@@ -48,6 +75,10 @@ class SupportHeadersMiddleware:
                                 support.support_ts.isoformat().encode("latin-1"),
                             )
                         )
+                        exposed.append(b"x-ag-support-ts")
+                    # Make the headers we just emitted readable by browser JS.
+                    if exposed:
+                        _expose_support_headers(headers, exposed)
                     message["headers"] = headers
             await send(message)
 
