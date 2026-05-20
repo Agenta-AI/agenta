@@ -107,6 +107,21 @@ function inferVariant(value: unknown): TypePrimitive {
     if (typeof value === "object") return "json-object"
     if (typeof value === "boolean") return "boolean"
     if (typeof value === "number") return "number"
+    // Stringified JSON (object/array) — common in legacy testcase cells and
+    // playground writes that historically forced `string`. Reflect the logical
+    // type so the chip matches what the testset table shows for the same data.
+    if (typeof value === "string" && value.length >= 2) {
+        const first = value[0]
+        if (first === "{" || first === "[") {
+            try {
+                const parsed = JSON.parse(value)
+                if (Array.isArray(parsed)) return "json-array"
+                if (parsed !== null && typeof parsed === "object") return "json-object"
+            } catch {
+                // Not JSON — fall through to string.
+            }
+        }
+    }
     return "string"
 }
 
