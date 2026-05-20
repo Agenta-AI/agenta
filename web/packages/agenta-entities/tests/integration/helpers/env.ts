@@ -5,7 +5,8 @@
  * they are provisioned dynamically by the global setup (see setup/global.ts)
  * from an ephemeral account created via the admin endpoint.
  *
- * The only vars you need in .env.test are AGENTA_API_URL and AGENTA_AUTH_KEY.
+ * The only vars the runner must provide are AGENTA_API_URL and AGENTA_AUTH_KEY
+ * (e.g. via run-tests.ts --env-file, mirroring the Python run-tests.py runners).
  */
 
 export const TEST_CONFIG = {

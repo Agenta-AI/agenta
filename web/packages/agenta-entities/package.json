@@ -13,10 +13,12 @@
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
         "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
-        "test": "vitest run",
+        "test": "pnpm run test:all",
+        "test:all": "pnpm run test:unit && pnpm run test:integration",
+        "test:unit": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
-        "test:integration": "pnpm exec dotenv -e .env.test -- vitest run --config vitest.integration.config.ts",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
         "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
@@ -86,7 +88,6 @@
         "@types/react-dom": "^19.0.0",
         "@vitest/coverage-v8": "^4.1.4",
         "ajv": "^8.18.0",
-        "dotenv-cli": "^11.0.0",
         "jotai": "^2.16.1",
         "jotai-family": "^1.0.1",
         "js-yaml": "^4.1.1",
