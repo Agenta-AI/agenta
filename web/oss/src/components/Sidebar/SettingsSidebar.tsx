@@ -99,18 +99,8 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 key: "automations",
                 title: "Automations",
                 icon: <Link size={16} className="mt-0.5" />,
-                divider: !canShowAuditLog,
+                divider: true,
             },
-            ...(canShowAuditLog
-                ? [
-                      {
-                          key: "audit-log",
-                          title: "Audit Log",
-                          icon: <ClockCounterClockwise size={16} className="mt-0.5" />,
-                          divider: true,
-                      },
-                  ]
-                : []),
             {
                 key: "workspace",
                 title: "Members",
@@ -131,6 +121,13 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 key: "billing",
                 title: billingEnabled ? "Usage & Billing" : "Usage",
                 icon: <Receipt size={16} className="mt-0.5" />,
+            })
+        }
+        if (canShowAuditLog) {
+            list.push({
+                key: "audit-log",
+                title: "Audit Log",
+                icon: <ClockCounterClockwise size={16} className="mt-0.5" />,
             })
         }
         return list
