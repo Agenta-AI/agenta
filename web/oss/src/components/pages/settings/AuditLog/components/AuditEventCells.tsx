@@ -5,28 +5,44 @@
  * Rows in the paginated store are identity-only (`{id, key}`); the full event
  * payload lives in the entity session cache, so cells resolve their own data
  * and re-render independently once a page settles.
+ *
+ * Actor and count are read from `attributes` — the backend leaves the
+ * top-level `request_type` / `status_code` / `created_by_id` fields unset, so
+ * the per-event signal lives in the attributes bag (`user_id`, `count`).
  */
 
+import type {Event} from "@agenta/entities/event"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {dayjs} from "@agenta/shared/utils"
 import {Tag, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-const REQUEST_TYPE_COLORS: Record<string, string> = {
-    router: "blue",
-    worker: "purple",
-    unknown: "default",
+import {UserReference} from "@/oss/components/References/UserReference"
+
+const Dash = () => <span className="text-xs text-gray-400">—</span>
+
+/** Actor user id from `attributes.user_id`, if present. */
+const readActor = (event: Event): string | null => {
+    const value = event.attributes?.user_id
+    return typeof value === "string" && value ? value : null
+}
+
+/** Item count from `attributes.count` (read events only). */
+const readCount = (event: Event): number | null => {
+    const value = event.attributes?.count
+    return typeof value === "number" ? value : null
 }
 
 /** Timestamp of the event, formatted to second precision. */
 export const EventTimestampCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
-    if (!event) return <span className="text-xs text-gray-400">—</span>
+    if (!event) return <Dash />
 
-    const formatted = dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss")
     return (
         <Tooltip title={dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss.SSS")}>
-            <Typography.Text className="text-xs whitespace-nowrap">{formatted}</Typography.Text>
+            <Typography.Text className="text-xs whitespace-nowrap">
+                {dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss")}
+            </Typography.Text>
         </Tooltip>
     )
 }
@@ -34,7 +50,7 @@ export const EventTimestampCell = ({eventId}: {eventId: string}) => {
 /** Dotted event-type identifier (e.g. `applications.revisions.committed`). */
 export const EventTypeCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
-    if (!event) return <span className="text-xs text-gray-400">—</span>
+    if (!event) return <Dash />
 
     return (
         <Tag className="m-0 font-mono text-xs" bordered>
@@ -43,35 +59,29 @@ export const EventTypeCell = ({eventId}: {eventId: string}) => {
     )
 }
 
-/** Origin of the request that emitted the event (`router` / `worker`). */
-export const RequestTypeCell = ({eventId}: {eventId: string}) => {
+/** Actor — the user who triggered the event, resolved to a name/avatar. */
+export const ActorCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
-    if (!event) return <span className="text-xs text-gray-400">—</span>
+    if (!event) return <Dash />
 
-    return (
-        <Tag className="m-0 text-xs capitalize" color={REQUEST_TYPE_COLORS[event.request_type]}>
-            {event.request_type}
-        </Tag>
-    )
+    return <UserReference userId={readActor(event)} />
 }
 
-/** Status code/message of the event, when present. */
-export const EventStatusCell = ({eventId}: {eventId: string}) => {
+/** Count — number of items the event touched (`attributes.count`). */
+export const CountCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
-    if (!event) return <span className="text-xs text-gray-400">—</span>
-    if (!event.status_code) return <span className="text-xs text-gray-400">—</span>
+    if (!event) return <Dash />
 
-    return (
-        <Tooltip title={event.status_message || undefined}>
-            <Typography.Text className="text-xs">{event.status_code}</Typography.Text>
-        </Tooltip>
-    )
+    const count = readCount(event)
+    if (count === null) return <Dash />
+
+    return <Typography.Text className="text-xs tabular-nums">{count}</Typography.Text>
 }
 
 /** Request id (UUID) that correlates all events from a single request. */
 export const RequestIdCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
-    if (!event) return <span className="text-xs text-gray-400">—</span>
+    if (!event) return <Dash />
 
     return (
         <Tooltip title={event.request_id}>

@@ -19,7 +19,7 @@ import AuditEventDrawer from "./components/AuditEventDrawer"
 import AuditLogTable from "./components/AuditLogTable"
 
 const AuditLogContent = () => (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex flex-1 min-h-0 flex-col">
         <AuditLogTable />
         <AuditEventDrawer />
     </div>
@@ -39,7 +39,7 @@ const AuditLogGated = () => {
 
     if (isLoading) {
         return (
-            <div className="flex h-full items-center justify-center">
+            <div className="flex flex-1 min-h-0 items-center justify-center">
                 <Spin />
             </div>
         )

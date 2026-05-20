@@ -195,7 +195,14 @@ const Settings: React.FC = () => {
     ])
 
     return (
-        <PageLayout key={settingsKey} title={title}>
+        <PageLayout
+            key={settingsKey}
+            title={title}
+            // The Audit Log tab hosts a full-height InfiniteVirtualTable, which
+            // needs a bounded parent so it scrolls internally instead of growing
+            // the page. Other tabs keep PageLayout's default `min-h-full` flow.
+            className={resolvedTab === "audit-log" ? "h-full min-h-0" : undefined}
+        >
             {content}
         </PageLayout>
     )
