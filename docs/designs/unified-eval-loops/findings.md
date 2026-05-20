@@ -5,22 +5,231 @@ Review scope: full `feat/unified-eval-loops` branch diff against `main`, with em
 Sources:
 
 - Fresh deep scan of code, docs, tests, and migrations on the active checkout.
+- User-provided full pytest failure output from the API suite: 41 failed, 1344 passed, 8 skipped.
+- Full reread of every document in `docs/designs/unified-eval-loops/` during the current applicability audit.
+- Targeted local checks:
+  - `pytest -q ee/tests/pytest/unit/test_controls_env_override.py::TestNoOverride::test_billing_pricing_accepts_legacy_agenta_pricing_alias ee/tests/pytest/unit/test_controls_env_override.py::TestNoOverride::test_billing_pricing_accepts_legacy_stripe_pricing_alias` passed locally.
+  - Targeted auth/meters/db-manager tests reproduced the stale monkeypatch failures from UEL-024.
+  - Targeted evaluation-runtime tests could not collect in the local shell because `agenta.sdk.evaluations.runtime` was not importable from that invocation; the user-provided full-suite output remains the validation source for those failures.
 - Design references: `docs/designs/unified-eval-loops/{proposal,plan,gap,research,step-removal-semantics}.md`.
 - Extension references: `docs/designs/unify-evals-and-queues/{proposal,plan,gap,unify-evals-extension-synthesis,unify-evals-extension-verbatim,research}.md`.
 - Existing closed findings (UEL-001..UEL-006) retained below for history; reviewed only after the independent pass.
 
 ## Notes
 
-- No local test execution was performed for these findings; coverage gaps are recorded but not validated.
-- Findings below come from code/doc inspection only. Where runtime confirmation is needed, the finding flags it and may need handoff to `test-codebase`.
+- No local full-suite test execution was performed while auditing these findings; findings marked `reproduced` either come from the user-provided full-suite output or from the targeted local checks listed above.
+- Findings below were re-checked against current code. Where runtime confirmation is still missing, the finding flags it and may need handoff to `test-codebase`.
 - The branch carries two intertwined design tracks: unified evaluation loops (planner / source resolvers / tensor slice / runnable executor) and the evals×queues unification (default queue lifecycle + flag redefinitions). Findings cover both.
+- Do not fix test-hook drift by adding broad production proxy objects. Prefer direct test injection/patching where the code already supports it, or add narrow compatibility helpers with a clear production purpose.
 
 ## Open Questions
 
 - Should the legacy migration that mass-creates default queues for all existing runs gate on `has_human`/policy in a single pass, or is the runtime "first-edit reconciles" lag acceptable? See UEL-010.
 - Is destructive `remove_step` + `prune` still the chosen lifecycle per `step-removal-semantics.md`? If so, when is the missing implementation expected? See UEL-014.
+- For source-backed queues, should the public `SimpleQueueData.kind` report the source family (`queries` / `testsets`) or the executable scenario family (`traces` / `testcases`)? The failing tests expect executable scenario family, while the design docs emphasize separating source-family flags from queue eligibility. See UEL-021.
+- Should legacy unit tests keep monkeypatching module-level `posthog` / `engine` symbols, or should they be updated to patch dependency factories / constructor injection? See UEL-024.
 
 ## Open Findings
+
+### [OPEN] UEL-021: Source-backed simple queues are classified as `queries` / `testsets`, but runtime and tests expect `traces` / `testcases`
+
+- ID: `UEL-021`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `reproduced`
+- Area: `Evaluations / Simple Queues`
+- Summary: Query-backed and testset-backed simple queues currently keep `SimpleQueueKind.QUERIES` / `SimpleQueueKind.TESTSETS` as their queue kind, while the runtime dispatch works on resolved trace/testcase scenario items. The provided test run shows both unit and acceptance failures where query-backed queues are expected to expose `kind="traces"` and dispatch trace slices, and testset-backed queues are expected to expose `kind="testcases"` and dispatch testcase slices.
+- Evidence:
+  - `oss/tests/pytest/unit/evaluations/test_query_eval_loops.py::test_simple_queue_create_dispatches_each_query_source_with_step_key` observed `created_queue.data.kind == "queries"` but expected `"traces"`.
+  - `oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py::test_create_source_backed_queue_preserves_repeats_and_assignments` observed `"testsets"` but expected `"testcases"`.
+  - Acceptance tests for creating source-backed queues returned zero queued items where one was expected.
+  - `api/oss/src/core/evaluations/service.py` maps queue data with `_get_source_kind()` returning `SimpleQueueKind.QUERIES` for `queue.data.queries` and `SimpleQueueKind.TESTSETS` for `queue.data.testsets`.
+  - `SimpleQueuesService._parse_queue()` reports `kind=self._get_kind(run)`, so the source family leaks into the public simple-queue response.
+- Files:
+  - `api/oss/src/core/evaluations/service.py`
+  - `api/oss/src/core/evaluations/types.py`
+  - `api/oss/tests/pytest/unit/evaluations/test_query_eval_loops.py`
+  - `api/oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py`
+- Cause: The model conflates two different concepts: source declaration family (`queries` / `testsets`) and resolved executable item family (`traces` / `testcases`). Source-backed queue creation preserves source revision IDs correctly, but public queue kind and downstream dispatch checks are using the source family where tests expect the resolved family.
+- Explanation: A query-backed queue is created from query revisions, but the work assigned to reviewers/evaluators is trace scenarios. Similarly, a testset-backed queue resolves testset revisions into testcase scenarios. The API needs to preserve both facts without using one field for both.
+- Suggested Fix:
+  - Keep `queries` / `testsets` fields as source references.
+  - Return `kind="traces"` for query-backed queues and `kind="testcases"` for testset-backed queues, or introduce an explicit `source_kind` field if the source family must be exposed.
+  - Ensure source-backed queue runs are marked/queryable consistently so `query(kind="traces")` and `query(kind="testcases")` include them.
+  - Add regression tests for query-backed and testset-backed queue creation, fetch, query, and add-source rejection behavior.
+- Alternatives:
+  - If product wants `kind` to mean source family, update the tests and API docs. That would be a deliberate contract change and should not be inferred from the current implementation.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of `SimpleQueuesService`.
+
+### [OPEN] UEL-022: Source-backed queue dispatch enters the source-slice processor with `has_queries` / `has_testsets`, but the processor accepts only direct-source flags
+
+- ID: `UEL-022`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `reproduced`
+- Area: `Evaluations / Simple Queues`
+- Summary: Source-backed queue creation resolves query revisions into trace batches and testset revisions into testcase batches, then dispatches those batches through the same source-slice processor used by direct trace/testcase queues. The dispatch wrapper accepts source-backed flags (`has_queries` / `has_testsets`), but `process_evaluation_source_slice()` still treats `require_queue=True` as requiring direct-source flags only (`has_traces` / `has_testcases`). Query-backed and testset-backed queues can therefore pass the first dispatch gate and fail inside the slice processor.
+- Evidence:
+  - `oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py::test_create_simple_queue_from_queries` failed with `assert 0 == 1`.
+  - `oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py::test_create_simple_queue_from_testsets` failed with `assert 0 == 1`.
+  - `oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py::test_simple_evaluation_queue_batches_dispatch_through_slice_processor` failed because a queue-shaped run fixture with source-backed input was rejected by dispatch.
+  - `SimpleEvaluationsService.dispatch_trace_slice()` permits `run.flags.has_traces or run.flags.has_queries`.
+  - `SimpleEvaluationsService.dispatch_testcase_slice()` permits `run.flags.has_testcases or run.flags.has_testsets`.
+  - `api/oss/src/core/evaluations/tasks/source_slice.py` rejects `require_queue=True` unless `run.flags.has_traces or run.flags.has_testcases`; it does not accept `has_queries` / `has_testsets`.
+  - `SimpleQueuesService._dispatch_source_batches()` resolves query/testset-backed source batches and calls `dispatch_trace_slice()` / `dispatch_testcase_slice()` with `input_step_key=batch.step_key`, so those batches eventually reach the stricter source-slice guard.
+- Files:
+  - `api/oss/src/core/evaluations/service.py`
+  - `api/oss/src/core/evaluations/tasks/source_slice.py`
+  - `api/oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py`
+  - `api/oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py`
+- Cause: The queue dispatch layer was partially updated for source-backed queues, but the source-slice processor still equates "queue batch" with direct trace/testcase source flags.
+- Explanation: A query-backed source batch is executable as trace items, but the run still carries `has_queries` because the input step references a query revision. A testset-backed source batch is executable as testcase items, but the run still carries `has_testsets`. The source-slice processor needs to validate the actual batch request plus input step, not only the direct-source family flags.
+- Suggested Fix:
+  - Update `process_evaluation_source_slice()` queue validation so source-backed queue batches are allowed when `input_step_key` points to a `query_revision` or `testset_revision` input step and the concrete `trace_ids` / `testcase_ids` are present.
+  - Alternatively, pass `require_queue=False` for source-backed queue dispatches after validating the source batch in `SimpleQueuesService._dispatch_source_batches()`.
+  - Keep direct ad-hoc trace/testcase queues guarded by `has_traces` / `has_testcases`.
+  - Add tests for query-backed and testset-backed source batch dispatch through the actual source-slice processor.
+- Alternatives:
+  - Persist additional resolved-source flags (`has_traces` for query-backed queues and `has_testcases` for testset-backed queues) alongside source-family flags. This would make the current guard pass, but it blurs the design's separation between source family and resolved executable item family.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of `SimpleEvaluationsService.dispatch_*`, `SimpleQueuesService._dispatch_source_batches()`, and `tasks/source_slice.py`.
+
+### [OPEN] UEL-023: Backend runtime adapters have two compatibility regressions: `WorkflowServiceRequestData` shape and cached-runner `semaphore`
+
+- ID: `UEL-023`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `reproduced`
+- Area: `Evaluations / Runtime Adapters`
+- Summary: Two adapter tests fail for separate compatibility reasons. `BackendWorkflowRunner` now puts `interface` and `configuration` on the outer `WorkflowServiceRequest`, while the unit test expects them on `workflow_request.data`. `BackendCachedRunner` always forwards `semaphore=...` to the wrapped runner, but simple runner implementations may expose `execute_batch(requests)` only.
+- Evidence:
+  - `test_backend_workflow_runner_invokes_application_through_workflow_service` fails with `AttributeError: 'WorkflowRequestData' object has no attribute 'interface'`.
+  - `test_backend_cached_runner_preserves_partial_hit_order` fails with `TypeError: BatchRunner.execute_batch() got an unexpected keyword argument 'semaphore'`.
+  - Local inspection confirms `WorkflowServiceRequestData` is constructed with only `revision`, `parameters`, `testcase`, `inputs`, `trace`, and `outputs`.
+  - Local inspection confirms `BackendCachedRunner.execute_batch()` calls `self.runner.execute_batch(missing, semaphore=semaphore)` unconditionally.
+- Files:
+  - `api/oss/src/core/evaluations/runtime/adapters.py`
+  - `api/oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py`
+- Cause: The adapter boundary is not using a single explicit protocol. Some callers/tests still expect the older request data shape and a simpler batch runner signature.
+- Explanation: These are not the same bug. The request-shape issue needs a contract decision with the workflow service DTOs. The `semaphore` issue can be fixed either by standardizing the runner protocol or by making `BackendCachedRunner` only wrap runners that implement the full protocol.
+- Suggested Fix:
+  - Define the expected `WorkflowServiceRequest` shape once and update either the test or the adapter to match it. Avoid mutating Pydantic DTOs ad hoc to add fields that the model does not declare.
+  - Define a runner protocol for `execute_batch(requests, semaphore=None)` and update test runners to implement it, or make `BackendCachedRunner` tolerant of wrapped runners that do not accept `semaphore`.
+  - Add a small protocol-focused unit test for cached partial-hit order and semaphore forwarding.
+- Alternatives:
+  - If the outer `interface` / `configuration` fields are canonical, close the data-shape assertion as stale and update the test to assert `workflow_request.interface` and `workflow_request.configuration`.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of `BackendWorkflowRunner` and `BackendCachedRunner`.
+
+### [OPEN] UEL-024: Unit tests patch legacy module globals that no longer exist after dependency lookup refactors
+
+- ID: `UEL-024`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `reproduced`
+- Area: `Compatibility / Tests`
+- Summary: Several unit tests fail before exercising behavior because they patch module-level globals (`auth_helper.posthog`, `meters.dao.engine`, `db_manager_ee.engine`) that no longer exist. The production code now lazy-loads or constructor-loads dependencies through `_load_posthog()` / `get_transactions_engine()`.
+- Evidence:
+  - Auth helper tests fail with `AttributeError: module 'oss.src.core.auth.helper' has no attribute 'posthog'`.
+  - Meter DAO tests fail with `AttributeError: module 'ee.src.dbs.postgres.meters.dao' has no attribute 'engine'`.
+  - Workspace invitation removal test fails with `AttributeError: module 'ee.src.services.db_manager_ee' has no attribute 'engine'`.
+  - Local inspection shows `auth.helper` imports `_load_posthog()` and assigns no module-level `posthog`.
+  - Local inspection shows `MetersDAO.__init__()` accepts `engine: TransactionsEngine = None` and defaults to `get_transactions_engine()`, so tests can inject a mock engine directly.
+  - Local inspection shows `remove_user_from_workspace()` calls `get_transactions_engine()` locally, and the same test file already has helper coverage that patches that function in earlier tests.
+- Files:
+  - `api/oss/src/core/auth/helper.py`
+  - `api/ee/src/dbs/postgres/meters/dao.py`
+  - `api/ee/src/services/db_manager_ee.py`
+  - `api/oss/tests/pytest/unit/auth/test_helper.py`
+  - `api/ee/tests/pytest/unit/test_meters_dao_strict_soft.py`
+  - `api/ee/tests/pytest/unit/services/test_db_manager_ee.py`
+- Cause: Test monkeypatch targets drifted after implementation changed dependency lookup style. The tests still patch old module-level handles instead of the current seam.
+- Explanation: This is a test compatibility problem unless the module-level globals are part of an intentional public contract. Adding broad production proxy globals just to satisfy monkeypatches makes the code worse and hides the real dependency seam.
+- Suggested Fix:
+  - Update auth tests to patch `_load_posthog()` or a small `_get_posthog_client()` helper if one is introduced.
+  - Update meter DAO tests to pass `MetersDAO(engine=mock_engine)` where `mock_engine.session()` returns the fake context.
+  - Update `db_manager_ee` pending-invite test to patch `get_transactions_engine()` consistently with the existing `_patch_core_session()` helper in the same file.
+  - Do not add broad module-level engine proxy objects to production DAO/service code.
+- Alternatives:
+  - Add narrow compatibility aliases only if external code, not just tests, imports those module globals. No evidence of that exists in the provided failures.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of the affected modules and tests.
+
+### [OPEN] UEL-025: Legacy billing pricing alias tests are environment-sensitive because the subprocess helper inherits canonical pricing env
+
+- ID: `UEL-025`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P3`
+- Confidence: `medium`
+- Status: `candidate`
+- Area: `Environment / Billing Settings`
+- Summary: Tests that set legacy `AGENTA_PRICING` or `STRIPE_PRICING` expected those values to populate `env.billing.pricing`, but the user-provided suite output observed a canonical/default Stripe price instead. Local inspection shows `BillingSettings.pricing` already honors legacy aliases after `AGENTA_BILLING_PRICING`, and targeted local execution of both legacy alias tests passed when no canonical pricing env was present. The remaining issue is test isolation: the subprocess helper starts from `dict(os.environ)`, so inherited `AGENTA_BILLING_PRICING` can legitimately mask legacy aliases.
+- Evidence:
+  - `test_billing_pricing_accepts_legacy_agenta_pricing_alias` observed `price_1QmIwGB54aDbaYx3xE5J7WHA` instead of `price_agenta`.
+  - `test_billing_pricing_accepts_legacy_stripe_pricing_alias` observed the same default/canonical price instead of `price_stripe`.
+  - `api/oss/src/utils/env.py` uses `_load_json_env_dict_first("AGENTA_BILLING_PRICING", "AGENTA_PRICING", "STRIPE_PRICING")`.
+  - `api/ee/tests/pytest/unit/test_controls_env_override.py::_run()` copies the full parent environment before applying `env_extra`.
+  - Targeted local run of the two alias tests passed with `2 passed`, confirming the production alias order works when canonical env is absent.
+- Files:
+  - `api/oss/src/utils/env.py`
+  - `api/ee/tests/pytest/unit/test_controls_env_override.py`
+- Cause: The code path gives canonical env precedence by design, and the test helper does not scrub canonical env when validating legacy fallback.
+- Explanation: The production precedence appears correct: canonical `AGENTA_BILLING_PRICING` should beat legacy aliases. The test helper should isolate env vars if it wants to validate legacy alias fallback.
+- Suggested Fix:
+  - In `_run()` / `_ok()` test helpers, explicitly remove `AGENTA_BILLING_PRICING` when a legacy-alias test is running, or construct the subprocess env from a controlled minimal baseline.
+  - Add one explicit test that canonical env wins when both canonical and legacy aliases are present.
+- Alternatives:
+  - If product wants legacy aliases to override canonical pricing, change `_load_json_env_dict_first()` order. This would contradict the existing canonical precedence test.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of `BillingSettings`.
+  - Targeted local pytest run.
+
+### [OPEN] UEL-026: Events acceptance tests hit the EE audit permission/entitlement gate and need fixture alignment
+
+- ID: `UEL-026`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P2`
+- Confidence: `medium`
+- Status: `candidate`
+- Area: `Events / Acceptance`
+- Summary: Four events acceptance tests expected HTTP 200 but received 403. Current code shows `POST /events/query` is gated in EE by both `Permission.VIEW_EVENTS` and the `Flag.AUDIT` entitlement. The acceptance fixture uses `cls_account["credentials"]` without asserting that account has event-view permission and audit entitlement, so the failures are likely fixture/plan setup unless response bodies or logs show a different 403 source.
+- Evidence:
+  - `oss/tests/pytest/acceptance/events/test_events_basics.py::TestEventsBasics::test_query_events_returns_valid_response` failed with `assert 403 == 200`.
+  - The same 403 pattern appears for event type, unknown event type, and windowing-limit query tests.
+  - `api/oss/src/apis/fastapi/events/router.py` calls `check_action_access(... permission=Permission.VIEW_EVENTS)` and raises `FORBIDDEN_EXCEPTION` when false.
+  - The same route calls `check_entitlements(key=Flag.AUDIT)` and returns `NOT_ENTITLED_RESPONSE(Tracker.FLAGS)` when false.
+  - `api/oss/tests/pytest/unit/events/test_events_router_audit.py` already encodes allow/deny behavior for this gate.
+- Files:
+  - `api/oss/tests/pytest/acceptance/events/test_events_basics.py`
+  - `api/oss/src/apis/fastapi/events/router.py`
+  - `api/oss/tests/pytest/unit/events/test_events_router_audit.py`
+- Cause: Acceptance account setup likely does not guarantee the event-view permission and audit entitlement required by the route.
+- Explanation: This is not evidence of an events DAO/service bug. It is a mismatch between acceptance expectations and the route's current EE access policy.
+- Suggested Fix:
+  - Update the acceptance fixture to use an account/plan with `VIEW_EVENTS` and `AUDIT`, or assert 403 when the fixture lacks audit access.
+  - Log or assert the response body in the acceptance tests so permission denial and entitlement denial are distinguishable.
+  - Keep the existing unit coverage for audit allow/deny behavior.
+- Alternatives:
+  - If OSS acceptance runs should bypass EE audit gating, ensure the test environment is actually OSS or conditionally skip/adjust the events acceptance tests under EE without audit entitlement.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of events router and unit tests.
 
 ### [OPEN] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
 
@@ -287,12 +496,12 @@ Sources:
 - Category: `Correctness`
 - Summary: `process_evaluation_source_slice` zips `batch_cells` with `executions` and only handles the case where there are fewer executions than cells (closed UEL-004). When the runner returns **more** executions than planned cells (a contract violation in the other direction), the trailing executions are silently discarded.
 - Evidence:
-  - `sdk/agenta/sdk/evaluations/runtime/source_slice.py:182-204` iterates `zip(batch_cells, executions)`, naturally truncating to the shorter sequence.
+  - `sdks/python/agenta/sdk/evaluations/runtime/source_slice.py:182-204` iterates `zip(batch_cells, executions)`, naturally truncating to the shorter sequence.
   - Lines 216-230 handle only `len(executions) < len(batch_cells)` (`batch_cells[len(executions):]`).
   - The mismatch flag at line 216 still sets `scenario_has_errors=True`, but no per-extra-cell logging happens.
 - Impact: Low — the contract violation is "extra outputs from the runner," which should be rare. But the silent drop means there is no audit trail for the extra outputs. Closed UEL-004 fixed only the under-return direction.
 - Files:
-  - `sdk/agenta/sdk/evaluations/runtime/source_slice.py`
+  - `sdks/python/agenta/sdk/evaluations/runtime/source_slice.py`
 - Cause: The fix for UEL-004 covered the under-count case explicitly; the over-count case was not added.
 - Suggested Fix:
   - When `len(executions) > len(batch_cells)`, log a structured warning that includes the extra outputs' summaries.
@@ -386,7 +595,7 @@ Sources:
 - Category: `Correctness`
 - Summary: The shared source-slice loop zipped planned cells with runner results and did not verify that the runner returned one execution per requested cell.
 - Files:
-  - `sdk/agenta/sdk/evaluations/runtime/source_slice.py`
+  - `sdks/python/agenta/sdk/evaluations/runtime/source_slice.py`
   - `sdk/tests/pytest/unit/test_evaluations_runtime.py`
 - Resolution:
   - Fixed by making `process_evaluation_source_slice` treat runner result-count mismatches as explicit scenario errors.
@@ -425,7 +634,7 @@ Sources:
 - Category: `Consistency`
 - Summary: The SDK runtime emits upstream links under the key `invocation`.
 - Files:
-  - `sdk/agenta/sdk/evaluations/runtime/source_slice.py`
+  - `sdks/python/agenta/sdk/evaluations/runtime/source_slice.py`
   - `api/oss/src/core/evaluations/runtime/adapters.py`
 - Resolution:
   - Wontfix per user decision: the invocation link key is the workflow contract, and the key for the invocation step should be `invocation`.
