@@ -1,4 +1,3 @@
-import type {MouseEvent} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {getDefaultStore} from "jotai"
@@ -22,14 +21,6 @@ const store = getDefaultStore()
 const getUrlState = (): URLState => store.get(urlAtom) as URLState
 
 const getActiveAppId = (): string | null => store.get(routerAppIdAtom)
-
-export const shouldIgnoreRowClick = (event: MouseEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement | null
-    if (!target) return false
-    const interactiveSelector =
-        "button, a, input, textarea, select, [role='button'], [role='menuitem'], [role='checkbox'], .ant-checkbox, .ant-checkbox-input, .ant-checkbox-inner, .ant-checkbox-wrapper, .ant-btn, .ant-select, .ant-dropdown-trigger"
-    return Boolean(target.closest(interactiveSelector))
-}
 
 interface NavigateToRunParams {
     record: EvaluationRunTableRow
