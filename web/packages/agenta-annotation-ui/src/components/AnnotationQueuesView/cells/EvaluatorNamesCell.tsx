@@ -16,7 +16,7 @@ interface EvaluatorEntry {
 }
 
 function getEvaluatorEntryKey(entry: EvaluatorEntry) {
-    return entry.evaluatorId ?? entry.evaluatorRevisionId ?? entry.evaluatorSlug ?? "unknown"
+    return entry.evaluatorRevisionId ?? entry.evaluatorId ?? entry.evaluatorSlug ?? "unknown"
 }
 
 /**
@@ -38,11 +38,11 @@ const EvaluatorIdsBridge = memo(function EvaluatorIdsBridge({runId}: {runId: str
     const rawQuery = useAtomValue(evaluationRunMolecule.atoms.query(runId))
     const columnDefs = useAtomValue(evaluationRunMolecule.selectors.annotationColumnDefs(runId))
 
-    // Deduplicate by evaluatorId, preserving order
+    // Deduplicate by revision first, preserving order
     const evaluatorEntries: EvaluatorEntry[] = []
     const seen = new Set<string>()
     for (const col of columnDefs) {
-        const key = col.evaluatorId ?? col.evaluatorRevisionId ?? col.evaluatorSlug
+        const key = col.evaluatorRevisionId ?? col.evaluatorId ?? col.evaluatorSlug
         if (key && !seen.has(key)) {
             seen.add(key)
             evaluatorEntries.push({

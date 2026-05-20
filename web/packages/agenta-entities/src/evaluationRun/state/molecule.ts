@@ -281,6 +281,8 @@ function stripOutputSuffix(value: string | null): string | null {
     if (!value) return null
     const parts = value.split(".").filter(Boolean)
     if (parts.length < 2) return value
+    const last = parts.at(-1)?.toLowerCase()
+    if (last !== "output" && last !== "outputs") return value
     return parts.slice(0, -1).join(".") || value
 }
 

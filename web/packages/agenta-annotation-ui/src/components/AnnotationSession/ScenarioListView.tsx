@@ -440,7 +440,7 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
     )
 
     return (
-        <Tooltip title={slug ? `${displayName} (${slug})` : displayName}>
+        <Tooltip title={displaySlug ? `${displayName} (${displaySlug})` : displayName}>
             <span
                 className="inline-flex items-center gap-1 cursor-pointer select-none truncate"
                 onClick={handleClick}
