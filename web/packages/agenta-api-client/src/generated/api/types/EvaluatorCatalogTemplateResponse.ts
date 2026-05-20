@@ -6,8 +6,6 @@ import type * as AgentaApi from "../index.js";
  * Envelope for a single catalog template.
  */
 export interface EvaluatorCatalogTemplateResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     /** 1 when a template is returned, 0 otherwise. */
     count?: number | undefined;
     /** The catalog template, or null when none matched. */

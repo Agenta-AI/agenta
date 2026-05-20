@@ -1,10 +1,8 @@
 export * from "./atoms/fetcher"
 export * from "./atoms/templates"
-export * from "./atoms/vault"
 export * from "./selectors/app"
 export * from "./hooks"
 export * from "./hooks/useTemplates"
-export * from "./hooks/useVaultSecret"
 
 import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
 import {getDefaultStore} from "jotai"

@@ -2,10 +2,10 @@ import {useCallback, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {Spin, Typography} from "antd"
+import {useAtomValue} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
-import {Plan} from "@/oss/lib/Types"
 import {
     checkoutNewSubscription,
     switchSubscription,
@@ -14,6 +14,7 @@ import {
     useUsageData,
 } from "@/oss/services/billing"
 import {BillingPlan} from "@/oss/services/billing/types"
+import {freePlanSlugAtom, isOnFreePlanAtom} from "@/oss/state/access/atoms"
 
 import PricingCard from "../PricingCard"
 import {PricingModalContentProps} from "../types"
@@ -23,6 +24,8 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
     const {subscription, mutateSubscription} = useSubscriptionData()
     const {mutateUsage} = useUsageData()
     const {projectURL} = useURL()
+    const freePlanSlug = useAtomValue(freePlanSlugAtom)
+    const isOnFreePlan = useAtomValue(isOnFreePlanAtom)
 
     const [isLoading, setIsLoading] = useState<string | null>(null)
 
@@ -30,14 +33,15 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
         async (plan: BillingPlan) => {
             try {
                 setIsLoading(plan.plan)
-                // 1. if the selected plan is cloud_v0_hobby and the subscription-plan is not then we trigger the cancel endpoint
-                // 2. subscription-pan is cloud_v0_hobby then we trigger the checkout endpoint
-                // 3. if the user can custom plan like cloud_v0_business then we trigger the switch endpoint
+                // 1. If switching to the free plan from a paid plan, route through the cancel flow.
+                // 2. If currently on the free plan (or no subscription), start a fresh checkout.
+                // 3. Otherwise (paid → paid), switch subscription server-side.
+                const isSwitchingToFree = !!freePlanSlug && plan.plan === freePlanSlug
 
-                if (plan.plan === Plan.Hobby && subscription?.plan !== Plan.Hobby) {
+                if (isSwitchingToFree && !isOnFreePlan) {
                     onCancelSubscription()
                     return
-                } else if (!subscription || subscription?.plan === Plan.Hobby) {
+                } else if (!subscription || isOnFreePlan) {
                     const data = await checkoutNewSubscription({
                         plan: plan.plan,
                         success_url: `${getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")}${projectURL || ""}/settings?tab=billing`,

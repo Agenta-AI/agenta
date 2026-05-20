@@ -5,11 +5,10 @@ import typing
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .permission import Permission
-from .workspace_role import WorkspaceRole
 
 
 class WorkspacePermission(UniversalBaseModel):
-    role_name: WorkspaceRole
+    role_name: str
     role_description: typing.Optional[str] = None
     permissions: typing.Optional[typing.List[Permission]] = None
     

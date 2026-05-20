@@ -47,6 +47,23 @@ const waitForInviteResponse = async (page: any) => {
     }
 }
 
+const waitForRemoveResponse = async (page: any) => {
+    const response = await page.waitForResponse(
+        (res: any) =>
+            res.request().method() === "DELETE" &&
+            res.url().includes("/workspaces/") &&
+            res.url().includes("/users") &&
+            ![301, 302, 303, 307, 308].includes(res.status()),
+        {timeout: 15000},
+    )
+
+    if (!response.ok()) {
+        throw new Error(
+            `Remove member request failed (${response.status()}): ${await response.text()}`,
+        )
+    }
+}
+
 /**
  * Invite a member via the EE flow (email sent) and wait for their row to appear
  * in the members table with "Invitation Pending" status.
@@ -210,7 +227,10 @@ const membersTests = () => {
                 // AlertPopup renders as a modal.confirm dialog — title "Remove member"
                 const confirmDialog = page.getByRole("dialog", {name: "Remove member"})
                 await expect(confirmDialog).toBeVisible({timeout: 10000})
-                await confirmDialog.getByRole("button", {name: "Remove"}).click()
+                await Promise.all([
+                    waitForRemoveResponse(page),
+                    confirmDialog.getByRole("button", {name: "Remove"}).click(),
+                ])
             })
 
             await scenarios.then("the member no longer appears in the members list", async () => {

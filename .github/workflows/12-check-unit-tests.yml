@@ -73,21 +73,21 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Skip when package selection excludes SDK
-        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
         run: exit 0
 
       - name: Set up Python
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
       - name: Install uv
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
         run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Cache Python dependencies
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
@@ -96,18 +96,18 @@ jobs:
             ${{ runner.os }}-application-sdk-unit-uv-
 
       - name: Install SDK dependencies
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
         working-directory: sdks/python
         run: |
           uv sync --locked --python 3.13
 
       - name: Run SDK unit tests
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
         working-directory: sdks/python
-        run: uv run python run-tests.py -- oss/tests/pytest/unit
+        run: uv run python run-tests.py --layer unit
 
       - name: Publish SDK unit test results
-        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages))
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
           files: sdks/python/oss/tests/results/junit.xml
@@ -161,7 +161,7 @@ jobs:
       - name: Run API unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         working-directory: api
-        run: uv run --no-sync python run-tests.py -- oss/tests/pytest/unit
+        run: uv run --no-sync python run-tests.py --layer unit
 
       - name: Publish API unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
@@ -230,7 +230,7 @@ jobs:
       - name: Run services unit tests
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
         working-directory: services
-        run: uv run --no-sync python run-tests.py -- oss/tests/pytest/unit
+        run: uv run --no-sync python run-tests.py --layer unit
 
       - name: Publish services unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'

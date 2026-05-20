@@ -137,6 +137,11 @@ export const useOrgData = () => {
             }
 
             queryClient.removeQueries({queryKey: ["selectedOrg", selectedOrgId]})
+            // Org switch → entitlements must re-resolve from the new org's
+            // subscription. Remove the cached subscription so consumers see a
+            // pending state instead of the previous org's plan flags while
+            // the new fetch is in flight.
+            queryClient.removeQueries({queryKey: ["billing", "subscription"]})
 
             try {
                 const {workspaceId, preferredProject} = await resolveWorkspaceForOrg(organizationId)
@@ -199,7 +204,12 @@ export const useOrgData = () => {
     const refetch = useCallback(async () => {
         await refetchOrgs()
         await refetchSelectedOrg()
-    }, [refetchOrgs, refetchSelectedOrg])
+        // Entitlements derive from /billing/subscription (org-keyed) and
+        // /access/plans (deployment-wide). Invalidate both so consumers
+        // (useEntitlements) re-resolve once the org refresh settles.
+        await queryClient.invalidateQueries({queryKey: ["billing", "subscription"]})
+        await queryClient.invalidateQueries({queryKey: ["access", "plans"]})
+    }, [refetchOrgs, refetchSelectedOrg, queryClient])
 
     return {
         orgs: orgs ?? EmptyOrgs,

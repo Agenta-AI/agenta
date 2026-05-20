@@ -12,3 +12,9 @@ export type {
     ToolCall,
     SimpleChatMessage,
 } from "./chatMessage"
+
+// User identity
+export type {User} from "./user"
+
+// LLM provider configuration
+export type {LlmProvider} from "./llmProvider"

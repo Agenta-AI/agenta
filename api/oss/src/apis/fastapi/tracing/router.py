@@ -34,6 +34,10 @@ from oss.src.apis.fastapi.tracing.models import (
     UsersQueryRequest,
     UserIdsResponse,
 )
+from oss.src.core.events.utils import (
+    publish_trace_fetched,
+    publish_trace_queried,
+)
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.utils.parsing import parse_trace_id_to_uuid
 from oss.src.core.tracing.utils.trees import traces_to_trace_map
@@ -264,30 +268,25 @@ class TracingRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-            try:
-                delta = (
-                    len(spans_request.traces)
-                    if spans_request.traces
-                    else sum(
-                        1 for s in (spans_request.spans or []) if s.parent_id is None
-                    )
+            delta = (
+                len(spans_request.traces)
+                if spans_request.traces
+                else sum(1 for s in (spans_request.spans or []) if s.parent_id is None)
+            )
+            # Skip the soft check for zero-count requests so an already-over
+            # meter doesn't 429 a request that wouldn't add any usage.
+            # Mirrors the OTLP path and the authoritative tracing worker.
+            if delta > 0:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    key=Counter.TRACES_INGESTED,  # type: ignore
+                    delta=delta,
+                    cache=True,
                 )
-                if delta > 0:
-                    allowed, _, _ = await check_entitlements(  # type: ignore
-                        organization_id=UUID(request.state.organization_id),
-                        key=Counter.TRACES,  # type: ignore
-                        delta=delta,
-                        use_cache=True,
+                if not allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly quota limit.",
                     )
-                    if not allowed:
-                        raise HTTPException(
-                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                            detail="You have reached your monthly quota limit.",
-                        )
-            except HTTPException:
-                raise
-            except Exception:
-                log.warning("[tracing] Soft quota check failed", exc_info=True)
 
         dropped: OTelLinks = []
 
@@ -385,6 +384,25 @@ class TracingRouter:
             count = 0
             spans = None
             traces = None
+
+        if is_ee() and (spans or traces):
+            # Delta is distinct trace count, regardless of response shape.
+            if spans:
+                trace_count = len(
+                    {s.trace_id for s in spans if getattr(s, "trace_id", None)}
+                )
+            else:
+                trace_count = len(traces) if traces else 0
+            if trace_count > 0:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    key=Counter.TRACES_RETRIEVED,  # type: ignore
+                    delta=trace_count,
+                )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=429,
+                        detail="You have reached your trace retrieval quota for this period.",
+                    )
 
         spans_response = OTelTracingResponse(
             count=count,
@@ -564,22 +582,16 @@ class TracingRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-            try:
-                allowed, _, _ = await check_entitlements(  # type: ignore
-                    organization_id=UUID(request.state.organization_id),
-                    key=Counter.TRACES,  # type: ignore
-                    delta=1,
-                    use_cache=True,
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_INGESTED,  # type: ignore
+                delta=1,
+                cache=True,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="You have reached your monthly quota limit.",
                 )
-                if not allowed:
-                    raise HTTPException(
-                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail="You have reached your monthly quota limit.",
-                    )
-            except HTTPException:
-                raise
-            except Exception:
-                log.warning("[tracing] Soft quota check failed", exc_info=True)
 
         try:
             links = await self.service.create_trace(
@@ -629,10 +641,22 @@ class TracingRouter:
         try:
             trace = await self.service.fetch_trace(
                 project_id=UUID(request.state.project_id),
+                #
                 trace_id=trace_id,
             )
         except TypeError as e:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
+
+        if is_ee() and trace:
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_RETRIEVED,  # type: ignore
+                delta=1,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         if not trace:
             return OTelTracingResponse()
@@ -671,22 +695,16 @@ class TracingRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-            try:
-                allowed, _, _ = await check_entitlements(  # type: ignore
-                    organization_id=UUID(request.state.organization_id),
-                    key=Counter.TRACES,  # type: ignore
-                    delta=1,
-                    use_cache=True,
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_INGESTED,  # type: ignore
+                delta=1,
+                cache=True,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="You have reached your monthly quota limit.",
                 )
-                if not allowed:
-                    raise HTTPException(
-                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail="You have reached your monthly quota limit.",
-                    )
-            except HTTPException:
-                raise
-            except Exception:
-                log.warning("[tracing] Soft quota check failed", exc_info=True)
 
         try:
             extracted_spans = TracingService._extract_single_trace_spans(
@@ -1083,10 +1101,22 @@ class SpansRouter:
         try:
             spans = await self.service.query_spans(
                 project_id=project_id,
+                #
                 query=query,
             )
         except FilteringException as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+        if is_ee() and spans:
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_RETRIEVED,  # type: ignore
+                delta=len({s.trace_id for s in spans if getattr(s, "trace_id", None)}),
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         return SpansResponse(
             count=len(spans),
@@ -1136,11 +1166,23 @@ class SpansRouter:
         try:
             spans = await self.service.fetch_spans(
                 project_id=UUID(request.state.project_id),
+                #
                 trace_ids=trace_id_values,
                 span_ids=span_id_values,
             )
         except FilteringException as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+        if is_ee() and spans:
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_RETRIEVED,  # type: ignore
+                delta=len({s.trace_id for s in spans if getattr(s, "trace_id", None)}),
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         return SpansResponse(
             count=len(spans),
@@ -1173,11 +1215,23 @@ class SpansRouter:
         try:
             span = await self.service.fetch_span(
                 project_id=UUID(request.state.project_id),
+                #
                 trace_id=trace_id,
                 span_id=span_id,
             )
         except FilteringException as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+        if is_ee() and span:
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_RETRIEVED,  # type: ignore
+                delta=1,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
 
         return SpanResponse(
             count=1 if span else 0,
@@ -1291,6 +1345,10 @@ class SpansRouter:
 
 
 class TracesRouter:
+    # Trace READ events (`traces.fetched` / `traces.queried`) are emitted from
+    # the router boundary, after the response is materialized. This is the
+    # canonical place for read emission — see core/events/utils.py module
+    # docstring for why reads emit at the router and writes emit at the service.
     def __init__(
         self,
         *,
@@ -1486,12 +1544,36 @@ class TracesRouter:
         try:
             traces = await self.service.query_traces(
                 project_id=project_id,
+                #
                 query=query,
             )
         except FilteringException as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-        return TracesResponse(count=len(traces), traces=traces)
+        if is_ee() and traces:
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_RETRIEVED,  # type: ignore
+                delta=len(traces),
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
+
+        traces_response = TracesResponse(count=len(traces), traces=traces)
+
+        trace_ids = [
+            getattr(trace, "trace_id", None) for trace in (traces_response.traces or [])
+        ]
+        trace_ids = [t for t in trace_ids if t is not None]
+        await publish_trace_queried(
+            request=request,
+            count=traces_response.count,
+            trace_ids=trace_ids,
+        )
+
+        return traces_response
 
     @intercept_exceptions()
     async def create_trace(
@@ -1522,22 +1604,16 @@ class TracesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-            try:
-                allowed, _, _ = await check_entitlements(  # type: ignore
-                    organization_id=UUID(request.state.organization_id),
-                    key=Counter.TRACES,  # type: ignore
-                    delta=1,
-                    use_cache=True,
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_INGESTED,  # type: ignore
+                delta=1,
+                cache=True,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="You have reached your monthly quota limit.",
                 )
-                if not allowed:
-                    raise HTTPException(
-                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail="You have reached your monthly quota limit.",
-                    )
-            except HTTPException:
-                raise
-            except Exception:
-                log.warning("[tracing] Soft quota check failed", exc_info=True)
 
         traces = self._extract_single_trace_map(trace_request)
         if not traces:
@@ -1589,24 +1665,21 @@ class TracesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-            try:
-                delta = len(traces_request.traces) if traces_request.traces else 0
-                if delta > 0:
-                    allowed, _, _ = await check_entitlements(  # type: ignore
-                        organization_id=UUID(request.state.organization_id),
-                        key=Counter.TRACES,  # type: ignore
-                        delta=delta,
-                        use_cache=True,
+            delta = len(traces_request.traces) if traces_request.traces else 0
+            # Skip the soft check for zero-count requests so an already-over
+            # meter doesn't 429 a request that wouldn't add any usage.
+            # Mirrors the OTLP path and the authoritative tracing worker.
+            if delta > 0:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    key=Counter.TRACES_INGESTED,  # type: ignore
+                    delta=delta,
+                    cache=True,
+                )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly quota limit.",
                     )
-                    if not allowed:
-                        raise HTTPException(
-                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                            detail="You have reached your monthly quota limit.",
-                        )
-            except HTTPException:
-                raise
-            except Exception:
-                log.warning("[tracing] Soft quota check failed", exc_info=True)
 
         traces = self._extract_trace_map(traces_request)
         if not traces:
@@ -1655,22 +1728,16 @@ class TracesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-            try:
-                allowed, _, _ = await check_entitlements(  # type: ignore
-                    organization_id=UUID(request.state.organization_id),
-                    key=Counter.TRACES,  # type: ignore
-                    delta=1,
-                    use_cache=True,
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_INGESTED,  # type: ignore
+                delta=1,
+                cache=True,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="You have reached your monthly quota limit.",
                 )
-                if not allowed:
-                    raise HTTPException(
-                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail="You have reached your monthly quota limit.",
-                    )
-            except HTTPException:
-                raise
-            except Exception:
-                log.warning("[tracing] Soft quota check failed", exc_info=True)
 
         traces = self._extract_single_trace_map(trace_request)
         if not traces:
@@ -1753,15 +1820,39 @@ class TracesRouter:
         try:
             traces_list = await self.service.fetch_traces(
                 project_id=UUID(request.state.project_id),
+                #
                 trace_ids=ids,
             )
         except TypeError as e:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
-        return TracesResponse(
+        if is_ee() and traces_list:
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_RETRIEVED,  # type: ignore
+                delta=len(traces_list),
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
+
+        traces_response = TracesResponse(
             count=len(traces_list),
             traces=traces_list,
         )
+
+        trace_ids_out = [
+            getattr(trace, "trace_id", None) for trace in (traces_response.traces or [])
+        ]
+        trace_ids_out = [t for t in trace_ids_out if t is not None]
+        await publish_trace_fetched(
+            request=request,
+            count=traces_response.count,
+            trace_ids=trace_ids_out,
+        )
+
+        return traces_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=TraceResponse(), exclude=[HTTPException])
@@ -1795,15 +1886,40 @@ class TracesRouter:
         try:
             trace = await self.service.fetch_trace(
                 project_id=UUID(request.state.project_id),
+                #
                 trace_id=trace_id,
             )
         except TypeError as e:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
-        return TraceResponse(
+        if is_ee() and trace:
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.TRACES_RETRIEVED,  # type: ignore
+                delta=1,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You have reached your trace retrieval quota for this period.",
+                )
+
+        trace_response = TraceResponse(
             count=1 if trace else 0,
             trace=trace,
         )
+
+        resolved_trace_id = (
+            getattr(trace_response.trace, "trace_id", None)
+            if trace_response.trace
+            else None
+        )
+        await publish_trace_fetched(
+            request=request,
+            count=trace_response.count,
+            trace_id=resolved_trace_id,
+        )
+
+        return trace_response
 
     @intercept_exceptions()
     async def delete_trace(  # DELETE

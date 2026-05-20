@@ -1,15 +1,18 @@
+import {
+    fetchActions,
+    integrationDetailQueryFamily,
+    queryConnections,
+    type ToolCatalogActionsResponse,
+    type ToolConnectionsResponse,
+} from "@agenta/entities/gatewayTool"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {integrationDetailQueryFamily} from "@/oss/features/gateway-tools/hooks/useIntegrationDetail"
-import {fetchActions, queryConnections} from "@/oss/services/tools/api"
-import type {ActionsListResponse, ConnectionsQueryResponse} from "@/oss/services/tools/api/types"
-
 const DEFAULT_PROVIDER = "composio"
 
 export const integrationActionsQueryFamily = atomFamily((integrationKey: string) =>
-    atomWithQuery<ActionsListResponse>(() => ({
+    atomWithQuery<ToolCatalogActionsResponse>(() => ({
         queryKey: ["tools", "actions", DEFAULT_PROVIDER, integrationKey],
         queryFn: () => fetchActions(DEFAULT_PROVIDER, integrationKey, {important: true}),
         staleTime: 5 * 60_000,
@@ -19,7 +22,7 @@ export const integrationActionsQueryFamily = atomFamily((integrationKey: string)
 )
 
 export const integrationConnectionsQueryFamily = atomFamily((integrationKey: string) =>
-    atomWithQuery<ConnectionsQueryResponse>(() => ({
+    atomWithQuery<ToolConnectionsResponse>(() => ({
         queryKey: ["tools", "integrationConnections", DEFAULT_PROVIDER, integrationKey],
         queryFn: () =>
             queryConnections({

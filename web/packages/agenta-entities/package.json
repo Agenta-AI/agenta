@@ -13,13 +13,18 @@
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
         "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
-        "test": "pnpm run types:check && pnpm run lint",
+        "test:tsc": "pnpm run types:check && pnpm run lint",
         "test:etl": "tsx --test src/etl/__tests__/runLoop.guarantees.test.ts",
         "test:etl:memory": "node --expose-gc --import tsx --test src/etl/__tests__/runLoop.memory.test.ts src/etl/__tests__/runLoop.overhead.test.ts src/etl/__tests__/runLoop.benchmark.test.ts",
         "test:etl:longrun": "pnpm run test:etl:longrun:engine && pnpm run test:etl:longrun:molecules && pnpm run test:etl:longrun:combined",
         "test:etl:longrun:engine": "node --expose-gc --import tsx --test --test-force-exit src/etl/__tests__/runLoop.leak.test.ts",
         "test:etl:longrun:molecules": "node --expose-gc --import tsx --test --test-force-exit src/evaluationRun/state/__tests__/molecules.leak.test.ts",
         "test:etl:longrun:combined": "node --expose-gc --import tsx --test --test-force-exit src/etl/__tests__/runLoop.combinedLeak.test.ts"
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "test:integration": "pnpm exec dotenv -e .env.test -- vitest run --config vitest.integration.config.ts",
+        "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -38,6 +43,8 @@
         "./trace": "./src/trace/index.ts",
         "./testset": "./src/testset/index.ts",
         "./testcase": "./src/testcase/index.ts",
+        "./secret": "./src/secret/index.ts",
+        "./gatewayTool": "./src/gatewayTool/index.ts",
         "./environment": "./src/environment/index.ts",
         "./simpleQueue": "./src/simpleQueue/index.ts",
         "./evaluationQueue": "./src/evaluationQueue/index.ts",
@@ -51,6 +58,7 @@
         "./shared/invalidation": "./src/shared/invalidation/index.ts"
     },
     "dependencies": {
+        "@agentaai/api-client": "workspace:../agenta-api-client",
         "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
@@ -83,13 +91,18 @@
         "@types/prismjs": "^1.26.0",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.0",
+        "@vitest/coverage-v8": "^4.1.4",
         "ajv": "^8.18.0",
+        "dotenv-cli": "^11.0.0",
+        "jotai": "^2.16.1",
+        "jotai-family": "^1.0.1",
         "js-yaml": "^4.1.1",
         "jsonrepair": "^3.13.2",
         "lexical": "^0.40.0",
         "prismjs": ">=1.30.0",
         "typescript": "5.8.3",
-        "usehooks-ts": "^3.0.0"
+        "usehooks-ts": "^3.0.0",
+        "vitest": "^4.1.4"
     },
     "peerDependencies": {
         "@ant-design/icons": ">=5.0.0",

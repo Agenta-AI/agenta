@@ -1,0 +1,68 @@
+---
+id: fetch-access-roles
+title: "Fetch Roles"
+description: "Return the effective role catalog per scope."
+sidebar_label: "Fetch Roles"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVM1y4zYMfhUOTm1HldIedVof9iezl0zSniJPhFCwxV2KZEHIWdfjmX2IPmGfpAPKcZyd6X0P64sMAiDwfcDHAwhuM7T3sLKWcoZ1BQNlyy6JiwFauCWZORgZydBmQ1bcjgxHT8aioI9bk4hNtjFR3YUu3Om/bJDJ9JG3GNzfqFf1lemfIn/OCS2pkTh+Iit9bd6iHQ0F4b0ZMXeh1+s15KKTvjIYBtMn4snl7GLIfW1uXqxSkUuzNHRhR/yI4iaz4TgZLOB+tTEIR58r44L18+DCtgDrO/ilg948OT9Y5MFsInehj0+BuDf/fv3HWPSeOBsZUUwgGoxEwxQG4nLDZvbevPRmvMvShTzG2Q+GviTtXePOFWSkKZPfUTY/ZaIu9ER1Zltn4p2zlGsbFYQQ5/phueHhEvzPNVQQE3Fh93qAFjYkdnxYsD4ohxkqYMophkwZ2gP8fnWln9cTvptLxmb25vYUDBUoVxREwzEl72yp03zKmnOAbEeasHiHwakL/Q1rP+KWWk5oyv8fIDxTBbJPBC3ER10FOJ4PkBn3F/YpoAJx4qms5dKpeaegzbK95raAPuqvgolkjMrLljQzoYzQQrPw0zzzo3wTqwQOMLMvEcnBsXo2R5HUNo2PFv0YsyzutWbamZ3sS+rq5voj7T8QDsTQ3q8vA+6Uq4WU12GHM9zkPtIeKgg4qb2aZYx8Ug5U4HRO45Kl0FzYxJJ+YmO1pSBoVjfX8K1+X7l0qGjLUJ8rFTdUF2Bz2zRYjmt0DVRAEzp1CuH05uzR6ShzS5mr+rf6So9SzDJhuCixTOj2xPer7g4va/bjofmeH5rTngp9kSZ5dEFHXVbmcBLWPSzY9ckpo15XoHJRz+HwiJn+ZH886vFfM7GqZl3BDtnho+7w/fpYPa+4Cuoz7XU9raWk6t2hnxelfPMWqdDOSn//9g84Hv8DWatwsg==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Roles"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/access/roles"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return the effective role catalog per scope.
+
+Scopes are `organization`, `workspace`, `project`. Each entry has
+`role`, `description`, and `permissions`. Permissions are returned
+verbatim from access-controls, including the `"*"` wildcard for
+`owner` — callers that need to render the full permission list
+should expand the wildcard themselves (see
+`ee.src.services.converters._expand_permissions`).
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-access-roles.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-access-roles.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

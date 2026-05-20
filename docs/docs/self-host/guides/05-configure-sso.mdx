@@ -24,7 +24,7 @@ Agenta supports Single Sign-On (SSO) through OpenID Connect (OIDC) providers. Wh
 | [Azure AD](#azure-ad) | OIDC | `AZURE_AD_OAUTH_CLIENT_ID`, `AZURE_AD_OAUTH_CLIENT_SECRET`, `AZURE_AD_DIRECTORY_ID` |
 | [BoxySAML](#boxyhq-saml) | SAML (via BoxyHQ) | `BOXY_SAML_OAUTH_CLIENT_ID`, `BOXY_SAML_OAUTH_CLIENT_SECRET`, `BOXY_SAML_URL` |
 
-## Okta
+## Okta {#okta}
 
 ### 1. Create an application in Okta
 
@@ -60,7 +60,7 @@ Restart your Agenta deployment. The **"Continue with Okta"** button will appear 
 The sign-in redirect URI configured in Okta must exactly match <code>https://&lt;your-agenta-domain&gt;/auth/callback/okta</code>. If you're running locally without SSL, use <code>http://</code> instead. No trailing slash.
 </Admonition>
 
-## Azure AD
+## Azure AD {#azure-ad}
 
 ### 1. Register an application in Azure
 
@@ -87,7 +87,7 @@ AZURE_AD_DIRECTORY_ID=your-directory-tenant-id
 
 Restart your deployment. The **"Continue with Azure AD"** button will appear on the login page.
 
-## BoxyHQ SAML
+## BoxyHQ SAML {#boxyhq-saml}
 
 BoxyHQ provides a SAML-to-OIDC bridge, allowing Agenta to support any SAML 2.0 identity provider.
 

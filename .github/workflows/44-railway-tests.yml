@@ -360,27 +360,7 @@ jobs:
         run: |
           cd api
 
-          case "${{ matrix.layer }}" in
-            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
-            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
-            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
-            *)
-              echo "Unsupported API test layer: ${{ matrix.layer }}"
-              exit 1
-              ;;
-          esac
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing API layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty API layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(uv run --no-sync python run-tests.py)
+          CMD=(uv run --no-sync python run-tests.py --layer "${{ matrix.layer }}")
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -392,7 +372,6 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
 
       - name: Publish API test results
@@ -418,7 +397,7 @@ jobs:
     needs: [prepare, wait-for-readiness]
     if: >-
       ${{
-        contains(fromJSON('["all","all-but-web","sdk-only"]'), inputs.packages) &&
+        contains(fromJSON('["all","all-but-web","api-only","sdk-only","services-only"]'), inputs.packages) &&
         (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
       }}
     runs-on: ubuntu-latest
@@ -460,27 +439,7 @@ jobs:
         run: |
           cd sdks/python
 
-          case "${{ matrix.layer }}" in
-            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
-            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
-            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
-            *)
-              echo "Unsupported SDK test layer: ${{ matrix.layer }}"
-              exit 1
-              ;;
-          esac
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing SDK layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty SDK layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(uv run --no-sync python run-tests.py)
+          CMD=(uv run --no-sync python run-tests.py --layer "${{ matrix.layer }}")
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -492,7 +451,6 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
 
       - name: Publish SDK test results
@@ -562,27 +520,7 @@ jobs:
         run: |
           cd services
 
-          case "${{ matrix.layer }}" in
-            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
-            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
-            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
-            *)
-              echo "Unsupported services test layer: ${{ matrix.layer }}"
-              exit 1
-              ;;
-          esac
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing services layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty services layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(uv run --no-sync python run-tests.py)
+          CMD=(uv run --no-sync python run-tests.py --layer "${{ matrix.layer }}")
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -594,7 +532,6 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
 
       - name: Publish services test results

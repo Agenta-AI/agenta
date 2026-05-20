@@ -4,6 +4,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 
+if [ -z "${RAILWAY_TOKEN:-}" ] && [ -n "${RAILWAY_API_TOKEN:-}" ]; then
+    export RAILWAY_TOKEN="$RAILWAY_API_TOKEN"
+fi
+
 PREVIEW_PROJECT_PREFIX="${RAILWAY_PREVIEW_PROJECT_PREFIX:-agenta-oss-pr}"
 PREVIEW_KEY="${RAILWAY_PREVIEW_KEY:-${PR_NUMBER:-${GITHUB_PR_NUMBER:-}}}"
 

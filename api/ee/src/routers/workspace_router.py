@@ -10,9 +10,9 @@ from ee.src.services import workspace_manager, db_manager_ee
 
 from ee.src.models.api.workspace_models import (
     UserRole,
-    WorkspaceRole,
 )
 from ee.src.models.shared_models import Permission
+from ee.src.core.entitlements.controls import get_role
 
 router = APIRouter()
 
@@ -88,7 +88,9 @@ async def assign_role_to_user(
                 },
             )
 
-        if not WorkspaceRole.is_valid_role(payload.role):  # type: ignore
+        # Validate against the effective workspace catalog
+        # (env-overridable via AGENTA_ACCESS_ROLES).
+        if not payload.role or get_role("workspace", payload.role) is None:
             return JSONResponse(
                 status_code=400, content={"detail": "Workspace role is invalid."}
             )
