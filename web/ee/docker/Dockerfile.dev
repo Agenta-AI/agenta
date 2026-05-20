@@ -55,7 +55,11 @@ RUN groupadd --gid 10001 agenta && \
 
 USER 10001
 
-RUN pnpm i
+RUN npm_config_fetch_timeout=600000 \
+    npm_config_fetch_retry_mintimeout=20000 \
+    npm_config_fetch_retry_maxtimeout=120000 \
+    npm_config_fetch_retries=5 \
+    pnpm i
 
 # Copy workspace package sources (after install to preserve layer caching)
 COPY --chown=agenta:agenta packages/agenta-sdk/src ./packages/agenta-sdk/src

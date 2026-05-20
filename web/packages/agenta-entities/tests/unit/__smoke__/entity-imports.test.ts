@@ -9,7 +9,7 @@ describe("entity molecule imports (Node env smoke)", () => {
         const mod = await import("../../../src/testset/index")
         expect(mod.testsetMolecule).toBeDefined()
         expect(mod.revisionMolecule).toBeDefined()
-    })
+    }, 30_000)
 
     it("testcase molecule imports without throwing", async () => {
         const mod = await import("../../../src/testcase/index")

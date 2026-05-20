@@ -470,4 +470,125 @@ export class BillingClient {
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/billing/usage");
     }
+
+    /**
+     * Return the effective billing catalog with pricing merged in.
+     *
+     * Each entry carries `title`, `description`, `plan`, `type`, `features`,
+     * and (when configured) a `price` block sourced from the matching
+     * `AGENTA_BILLING_PRICING` entry. Pre-joining avoids a client-side
+     * catalog × pricing merge by slug.
+     *
+     * @param {BillingClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.billing.fetchBillingCatalog()
+     */
+    public fetchBillingCatalog(
+        requestOptions?: BillingClient.RequestOptions,
+    ): core.HttpResponsePromise<Record<string, unknown>[]> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchBillingCatalog(requestOptions));
+    }
+
+    private async __fetchBillingCatalog(
+        requestOptions?: BillingClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Record<string, unknown>[]>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "billing/catalog",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as Record<string, unknown>[], rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/billing/catalog");
+    }
+
+    /**
+     * Return the effective pricing map: plan slug -> normalized pricing.
+     *
+     * Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
+     * (see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+     *
+     * @param {BillingClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.billing.fetchBillingPricing()
+     */
+    public fetchBillingPricing(
+        requestOptions?: BillingClient.RequestOptions,
+    ): core.HttpResponsePromise<Record<string, Record<string, unknown>>> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchBillingPricing(requestOptions));
+    }
+
+    private async __fetchBillingPricing(
+        requestOptions?: BillingClient.RequestOptions,
+    ): Promise<core.WithRawResponse<Record<string, Record<string, unknown>>>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "billing/pricing",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as Record<string, Record<string, unknown>>,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/billing/pricing");
+    }
 }
