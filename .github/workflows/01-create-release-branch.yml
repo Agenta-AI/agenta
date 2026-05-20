@@ -33,6 +33,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
+          persist-credentials: false
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
