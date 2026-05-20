@@ -116,9 +116,10 @@ export function extractLastPathSegment(key: string): string {
  * transformations applied are path stripping and word splitting.
  */
 export function formatKeyAsName(key: string): string {
-    return extractLastPathSegment(key)
+    const label = extractLastPathSegment(key)
         .replace(/_/g, " ")
         .replace(/([a-z])([A-Z])/g, "$1 $2")
+    return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 // ============================================================================

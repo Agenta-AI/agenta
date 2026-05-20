@@ -49,7 +49,7 @@ class TestSimpleMemberships:
                 "membership": {
                     "organization_ref": {"id": org_id},
                     "user_ref": {"id": user_b_id},
-                    "role": "member",
+                    "role": "viewer",
                 }
             },
         )

@@ -8,6 +8,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache
 
+from oss.src.core.events.utils import publish_revision_event
+
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -72,6 +74,12 @@ def _to_plain_dict(value):
 
 
 class QueriesRouter:
+    # `queries.revisions.{retrieved,fetched,queried,logged}` READ events are
+    # emitted from this router after each handler materializes its response.
+    # `queries.revisions.committed` is a WRITE event and is emitted from
+    # `QueriesService.commit_query_revision`, not from this router. See
+    # core/events/utils.py module docstring for the read-vs-write split
+    # rationale.
     def __init__(self, *, queries_service: QueriesService):
         self.queries_service = queries_service
         self.router = APIRouter()
@@ -733,6 +741,14 @@ class QueriesRouter:
             query_revision=query_revision,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="query",
+            action="fetch",
+            revision=query_revision_response.query_revision,
+            count=query_revision_response.count,
+        )
+
         return query_revision_response
 
     @intercept_exceptions()
@@ -862,6 +878,14 @@ class QueriesRouter:
             query_revisions=query_revisions,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="query",
+            action="query",
+            revisions=query_revisions_response.query_revisions or [],
+            count=query_revisions_response.count,
+        )
+
         return query_revisions_response
 
     @intercept_exceptions()
@@ -891,6 +915,8 @@ class QueriesRouter:
             query_revision=query_revision,
         )
 
+        # commit emission lives in QueriesService.commit_query_revision
+
         return query_revision_response
 
     @intercept_exceptions()
@@ -918,6 +944,14 @@ class QueriesRouter:
         revisions_response = QueryRevisionsResponse(
             count=len(query_revisions),
             query_revisions=query_revisions,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="query",
+            action="log",
+            revisions=revisions_response.query_revisions or [],
+            count=revisions_response.count,
         )
 
         return revisions_response
@@ -1010,6 +1044,14 @@ class QueriesRouter:
         query_revision_response = QueryRevisionResponse(
             count=1 if query_revision else 0,
             query_revision=query_revision,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="query",
+            action="retrieve",
+            revision=query_revision_response.query_revision,
+            count=query_revision_response.count,
         )
 
         return query_revision_response

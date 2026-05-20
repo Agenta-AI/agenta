@@ -1,9 +1,9 @@
+import type {User} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {User} from "@/oss/lib/Types"
 import {selectedOrgIdAtom} from "@/oss/state/org"
 import {profileQueryAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"

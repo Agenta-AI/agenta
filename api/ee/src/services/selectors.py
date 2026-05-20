@@ -106,4 +106,12 @@ async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
             )
         )
         workspace = result.scalars().first()
-        return workspace
+        if workspace is not None:
+            return workspace
+
+        result = await session.execute(
+            select(WorkspaceDB).filter_by(
+                organization_id=organization.id,
+            )
+        )
+        return result.scalars().first()

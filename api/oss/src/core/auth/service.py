@@ -495,7 +495,7 @@ class AuthService:
                                 OrganizationMemberDB(
                                     user_id=user.id,
                                     organization_id=organization.id,
-                                    role="member",
+                                    role="viewer",
                                 )
                             )
 

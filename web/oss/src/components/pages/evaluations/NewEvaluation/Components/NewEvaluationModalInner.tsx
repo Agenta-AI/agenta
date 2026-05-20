@@ -1,5 +1,6 @@
 import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
+import {useVaultSecret} from "@agenta/entities/secret"
 import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/entities/shared"
 import {
     workflowMolecule,
@@ -29,7 +30,6 @@ import {
 import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
 import {registryWorkflowIdOverrideAtom} from "@/oss/components/VariantsComponents/store/registryStore"
 import useURL from "@/oss/hooks/useURL"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
 import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"

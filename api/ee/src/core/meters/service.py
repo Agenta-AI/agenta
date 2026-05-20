@@ -6,11 +6,20 @@ from oss.src.utils.env import env
 from oss.src.utils.lazy import _load_stripe
 
 from ee.src.core.entitlements.types import Quota
-from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
-from ee.src.core.meters.types import MeterDTO
+from ee.src.core.entitlements.types import Counter, Gauge, REPORTS, STRIPE_METER_NAMES
+from ee.src.core.subscriptions.settings import get_stripe_meter_price
+from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 from ee.src.core.meters.interfaces import MetersDAOInterface
 
 log = get_module_logger(__name__)
+
+# Value-based identity sets for routing `meter.key` (a `Meters` enum) to its
+# entitlement-side family. Using `meter.key.value in {...}` instead of
+# `meter.key.name in Gauge.__members__` keeps these checks correct if the
+# entitlement enums are ever renamed without touching the meter-side `Meters`
+# enum or vice-versa — names can drift, slug values cannot.
+_GAUGE_SLUGS: frozenset[str] = frozenset(g.value for g in Gauge)
+_COUNTER_SLUGS: frozenset[str] = frozenset(c.value for c in Counter)
 
 
 class MetersService:
@@ -36,16 +45,14 @@ class MetersService:
     async def fetch(
         self,
         *,
-        organization_id: str,
-        key: Optional[str] = None,
-        year: Optional[int] = None,
-        month: Optional[int] = None,
+        scope: MeterScope,
+        key: Optional[Meters] = None,
+        period: Optional[MeterPeriod] = None,
     ) -> List[MeterDTO]:
         return await self.meters_dao.fetch(
-            organization_id=organization_id,
+            scope=scope,
             key=key,
-            year=year,
-            month=month,
+            period=period,
         )
 
     async def check(
@@ -165,12 +172,20 @@ class MetersService:
                         meters_to_bump.append(meter)
                         continue
 
-                    if meter.key.name in Gauge.__members__.keys():
+                    if meter.key.value in _GAUGE_SLUGS:
                         try:
-                            price_id = (
-                                env.stripe.pricing.get(meter.subscription.plan, {})
-                                .get("users", {})
-                                .get("price")
+                            stripe_meter_name = STRIPE_METER_NAMES.get(meter.key.value)
+                            if not stripe_meter_name:
+                                log.warn(
+                                    f"[report] Skipping meter {meter.organization_id}/{meter.key} - no Stripe meter mapping"
+                                )
+                                skipped_count += 1
+                                meters_to_bump.append(meter)
+                                continue
+
+                            price_id = get_stripe_meter_price(
+                                meter.subscription.plan,
+                                stripe_meter_name,
                             )
 
                             if not price_id:
@@ -236,9 +251,16 @@ class MetersService:
                             error_count += 1
                             continue
 
-                    if meter.key.name in Counter.__members__.keys():
+                    if meter.key.value in _COUNTER_SLUGS:
                         try:
-                            event_name = meter.key.value
+                            event_name = STRIPE_METER_NAMES.get(meter.key.value)
+                            if not event_name:
+                                log.warn(
+                                    f"[report] Skipping meter {meter.organization_id}/{meter.key} - no Stripe meter mapping"
+                                )
+                                skipped_count += 1
+                                meters_to_bump.append(meter)
+                                continue
                             delta = max(meter.value - meter.synced, 0)
 
                             if delta == 0:

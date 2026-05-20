@@ -10,11 +10,15 @@ from oss.src.utils.lazy import _load_stripe
 from ee.src.core.subscriptions.types import (
     SubscriptionDTO,
     Event,
-    Plan,
-    FREE_PLAN,
-    REVERSE_TRIAL_PLAN,
-    REVERSE_TRIAL_DAYS,
     get_default_plan,
+)
+from ee.src.core.subscriptions.settings import (
+    get_free_plan,
+    get_trial_plan,
+    get_trial_days,
+    get_stripe_line_items,
+    require_pricing,
+    trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
 from ee.src.core.entitlements.service import EntitlementsService
@@ -78,8 +82,31 @@ class SubscriptionsService:
         if stripe is None:
             raise EventException("Failed to load Stripe module")
 
+        if not trial_enabled():
+            raise EventException(
+                "Reverse trial requires an AGENTA_BILLING_PRICING entry "
+                'carrying a `"trial": N` marker on the trial plan slug.'
+            )
+
+        trial_days = get_trial_days()
+        trial_plan = get_trial_plan()
+        if trial_days is None or trial_plan is None:
+            raise EventException(
+                "Reverse trial invoked without configured trial state "
+                "(trial_days and trial_plan must both be set)."
+            )
+        try:
+            line_items = require_pricing(
+                trial_plan,
+                purpose="Reverse trial signup",
+            )
+        except ValueError as e:
+            raise EventException(str(e)) from e
+
+        free_plan = get_free_plan()
+
         now = datetime.now(tz=timezone.utc)
-        anchor = now + timedelta(days=REVERSE_TRIAL_DAYS)
+        anchor = now + timedelta(days=trial_days)
 
         subscription = await self.read(organization_id=organization_id)
 
@@ -89,7 +116,7 @@ class SubscriptionsService:
         subscription = await self.create(
             subscription=SubscriptionDTO(
                 organization_id=organization_id,
-                plan=FREE_PLAN,
+                plan=free_plan,
                 active=True,
                 anchor=anchor.day,
             )
@@ -119,16 +146,16 @@ class SubscriptionsService:
 
         stripe_subscription = stripe.Subscription.create(
             customer=customer_id,
-            items=list(env.stripe.pricing[REVERSE_TRIAL_PLAN].values()),
+            items=line_items,
             #
             # automatic_tax={"enabled": True},
             metadata={
                 "organization_id": organization_id,
-                "plan": REVERSE_TRIAL_PLAN.value,
+                "plan": trial_plan,
                 "target": env.stripe.webhook_target,
             },
             #
-            trial_period_days=REVERSE_TRIAL_DAYS,
+            trial_period_days=trial_days,
             trial_settings={"end_behavior": {"missing_payment_method": "cancel"}},
         )
 
@@ -137,7 +164,7 @@ class SubscriptionsService:
                 organization_id=organization_id,
                 customer_id=customer_id,
                 subscription_id=stripe_subscription.id,
-                plan=REVERSE_TRIAL_PLAN,
+                plan=trial_plan,
                 active=True,
                 anchor=anchor.day,
             )
@@ -149,13 +176,13 @@ class SubscriptionsService:
         self,
         *,
         organization_id: str,
-        plan: Plan,
+        plan: str,
     ) -> Optional[SubscriptionDTO]:
         """Start a specific plan for an organization.
 
         Args:
             organization_id: The organization ID
-            plan: The plan to assign
+            plan: The plan slug to assign
 
         Returns:
             SubscriptionDTO: The created subscription or None if already exists
@@ -176,7 +203,7 @@ class SubscriptionsService:
             )
         )
 
-        log.info("✓ Plan [%s] started for organization %s", plan.value, organization_id)
+        log.info("✓ Plan [%s] started for organization %s", plan, organization_id)
 
         return subscription
 
@@ -189,14 +216,26 @@ class SubscriptionsService:
     ) -> Optional[SubscriptionDTO]:
         """Provision the initial subscription for a newly signed-up organization.
 
-        Cloud signups use the reverse-trial flow. Self-hosted deployments start
-        directly on the configured default plan.
+        - Stripe enabled                     → reverse-trial flow on trial plan.
+        - Stripe disabled                    → onboard on `get_default_plan()`.
         """
         if env.stripe.enabled:
-            return await self.start_reverse_trial(
+            if trial_enabled():
+                return await self.start_reverse_trial(
+                    organization_id=organization_id,
+                    organization_name=organization_name,
+                    organization_email=organization_email,
+                )
+
+            free_plan = get_free_plan()
+            log.info(
+                "Trial not configured; onboarding org %s on free plan [%s]",
+                organization_id,
+                free_plan,
+            )
+            return await self.start_plan(
                 organization_id=organization_id,
-                organization_name=organization_name,
-                organization_email=organization_email,
+                plan=free_plan,
             )
 
         return await self.start_plan(
@@ -210,8 +249,8 @@ class SubscriptionsService:
         organization_id: str,
         event: Event,
         subscription_id: Optional[str] = None,
-        plan: Optional[Plan] = None,
-        anchor: Optional[Plan] = None,
+        plan: Optional[str] = None,
+        anchor: Optional[int] = None,
         # force: Optional[bool] = True,
         **kwargs,
     ) -> SubscriptionDTO:
@@ -234,6 +273,8 @@ class SubscriptionsService:
                 "Subscription not found for organization ID: {organization_id}"
             )
 
+        free_plan = get_free_plan()
+
         if event == Event.SUBSCRIPTION_CREATED:
             subscription.active = True
             subscription.plan = plan
@@ -242,17 +283,17 @@ class SubscriptionsService:
 
             subscription = await self.update(subscription=subscription)
 
-        elif subscription.plan != FREE_PLAN and event == Event.SUBSCRIPTION_PAUSED:
+        elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_PAUSED:
             subscription.active = False
 
             subscription = await self.update(subscription=subscription)
 
-        elif subscription.plan != FREE_PLAN and event == Event.SUBSCRIPTION_RESUMED:
+        elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_RESUMED:
             subscription.active = True
 
             subscription = await self.update(subscription=subscription)
 
-        elif subscription.plan != FREE_PLAN and event == Event.SUBSCRIPTION_SWITCHED:
+        elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_SWITCHED:
             if not env.stripe.enabled:
                 log.warn("✗ Stripe disabled")
                 return None
@@ -304,20 +345,20 @@ class SubscriptionsService:
                         subscription=subscription.subscription_id,
                     ).data
                 ]
-                + list(env.stripe.pricing[plan].values()),
+                + get_stripe_line_items(plan),
             )
 
             subscription = await self.update(subscription=subscription)
 
-        elif subscription.plan != FREE_PLAN and event == Event.SUBSCRIPTION_CANCELLED:
+        elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_CANCELLED:
             subscription.active = True
-            subscription.plan = FREE_PLAN
+            subscription.plan = free_plan
             subscription.subscription_id = None
             subscription.anchor = anchor
 
             # await self.entitlements_service.enforce(
             #     organization_id=organization_id,
-            #     plan=FREE_PLAN,
+            #     plan=free_plan,
             #     force=True,
             # )
 

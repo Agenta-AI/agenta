@@ -18,15 +18,21 @@ from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.tracing.dao import TracingDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
+from ee.src.dbs.postgres.events.dao import EventsDAO
 
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingService
 from ee.src.core.subscriptions.service import SubscriptionsService
+from ee.src.core.events.service import EventsService
 
+from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
+from ee.src.apis.fastapi.spans.router import SpansRouter
+from ee.src.apis.fastapi.events.router import EventsRouter
 from ee.src.apis.fastapi.organizations.router import (
     router as organization_router,
 )
+from ee.src.utils.entitlements import bootstrap_entitlements_services
 
 # DBS --------------------------------------------------------------------------
 
@@ -45,6 +51,8 @@ subscriptions_dao = SubscriptionsDAO(engine=_transactions_engine)
 
 organization_domains_dao = OrganizationDomainsDAO(engine=_transactions_engine)
 
+events_dao = EventsDAO()
+
 # CORE -------------------------------------------------------------------------
 
 meters_service = MetersService(
@@ -55,17 +63,37 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
+events_service = EventsService(
+    events_dao=events_dao,
+)
+
 subscription_service = SubscriptionsService(
     subscriptions_dao=subscriptions_dao,
     meters_service=meters_service,
 )
 
+# Wire entitlements module against the freshly-built services so the
+# `BillingRouter` and the entitlements helper share one instance each.
+bootstrap_entitlements_services(
+    meters_service=meters_service,
+    subscriptions_service=subscription_service,
+)
+
 # APIS -------------------------------------------------------------------------
+
+access_router = AccessRouter()
 
 billing_router = BillingRouter(
     subscription_service=subscription_service,
     meters_service=meters_service,
+)
+
+spans_router = SpansRouter(
     tracing_service=tracing_service,
+)
+
+events_router = EventsRouter(
+    events_service=events_service,
 )
 
 
@@ -76,6 +104,12 @@ def extend_main(app: FastAPI):
     # ROUTES -------------------------------------------------------------------
 
     app.include_router(
+        router=access_router.router,
+        prefix="/access",
+        tags=["Access"],
+    )
+
+    app.include_router(
         router=billing_router.router,
         prefix="/billing",
         tags=["Billing"],
@@ -84,6 +118,20 @@ def extend_main(app: FastAPI):
     app.include_router(
         router=billing_router.admin_router,
         prefix="/admin/billing",
+        tags=["Admin"],
+        include_in_schema=False,
+    )
+
+    app.include_router(
+        router=spans_router.admin_router,
+        prefix="/admin/spans",
+        tags=["Admin"],
+        include_in_schema=False,
+    )
+
+    app.include_router(
+        router=events_router.admin_router,
+        prefix="/admin/events",
         tags=["Admin"],
         include_in_schema=False,
     )

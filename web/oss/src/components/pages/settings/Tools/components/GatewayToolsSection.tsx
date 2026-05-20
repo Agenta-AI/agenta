@@ -1,5 +1,18 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {
+    useConnectionsQuery,
+    useConnectionActions,
+    catalogDrawerOpenAtom,
+    executionDrawerAtom,
+    fetchConnection,
+    type ToolConnection,
+} from "@agenta/entities/gatewayTool"
+import {
+    CatalogDrawer,
+    ConnectionStatusBadge,
+    ToolExecutionDrawer,
+} from "@agenta/entity-ui/gatewayTool"
 import {MoreOutlined} from "@ant-design/icons"
 import {ArrowClockwise, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Table, Tag, Tooltip, Typography} from "antd"
@@ -7,20 +20,8 @@ import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {
-    useConnectionsQuery,
-    useConnectionActions,
-    catalogDrawerOpenAtom,
-    executionDrawerAtom,
-} from "@/oss/features/gateway-tools"
-import CatalogDrawer from "@/oss/features/gateway-tools/drawers/CatalogDrawer"
-import ToolExecutionDrawer from "@/oss/features/gateway-tools/drawers/ToolExecutionDrawer"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {fetchConnection} from "@/oss/services/tools/api"
-import type {ConnectionItem} from "@/oss/services/tools/api/types"
-
-import ConnectionStatusBadge from "./ConnectionStatusBadge"
 
 export default function GatewayToolsSection() {
     const {connections, isLoading, refetch} = useConnectionsQuery()
@@ -34,7 +35,12 @@ export default function GatewayToolsSection() {
         setReloading(true)
         try {
             // Poll each connection individually to trigger Composio status sync
-            await Promise.allSettled(connections.map((c) => fetchConnection(c.id)))
+            await Promise.allSettled(
+                connections
+                    .map((c) => c.id)
+                    .filter((id): id is string => typeof id === "string")
+                    .map((id) => fetchConnection(id)),
+            )
             invalidateConnections()
         } finally {
             setReloading(false)
@@ -42,7 +48,8 @@ export default function GatewayToolsSection() {
     }, [connections, invalidateConnections])
 
     const openExecution = useCallback(
-        (record: ConnectionItem) => {
+        (record: ToolConnection) => {
+            if (!record.id || !record.slug) return
             setExecutionDrawer({
                 connectionId: record.id,
                 connectionSlug: record.slug,
@@ -53,9 +60,11 @@ export default function GatewayToolsSection() {
     )
 
     const onRefresh = useCallback(
-        async (connection: ConnectionItem) => {
+        async (connection: ToolConnection) => {
+            if (!connection.id) return
+            const connectionId = connection.id
             try {
-                const result = await handleRefresh(connection.id)
+                const result = await handleRefresh(connectionId)
 
                 const redirectUrl = (result.connection?.data as Record<string, unknown> | undefined)
                     ?.redirect_url
@@ -73,7 +82,7 @@ export default function GatewayToolsSection() {
                         // Poll the individual connection endpoint which checks
                         // Composio for status and updates is_valid in the DB.
                         try {
-                            await fetchConnection(connection.id)
+                            await fetchConnection(connectionId)
                         } catch {
                             /* best-effort */
                         }
@@ -121,12 +130,13 @@ export default function GatewayToolsSection() {
     )
 
     const confirmDelete = useCallback(
-        (connection: ConnectionItem) => {
+        (connection: ToolConnection) => {
             AlertPopup({
                 title: "Delete Connection",
                 message:
                     "Are you sure you want to delete this connection? This action is irreversible.",
                 onOk: async () => {
+                    if (!connection.id) return
                     try {
                         await handleDelete(connection.id)
                         message.success("Connection deleted")
@@ -140,12 +150,13 @@ export default function GatewayToolsSection() {
     )
 
     const confirmRevoke = useCallback(
-        (connection: ConnectionItem) => {
+        (connection: ToolConnection) => {
             AlertPopup({
                 title: "Revoke Connection",
                 message:
                     "This will mark the connection as invalid. You can refresh it later to reactivate.",
                 onOk: async () => {
+                    if (!connection.id) return
                     try {
                         await handleRevoke(connection.id)
                         message.success("Connection revoked")
@@ -158,7 +169,7 @@ export default function GatewayToolsSection() {
         [handleRevoke],
     )
 
-    const columns: ColumnsType<ConnectionItem> = useMemo(
+    const columns: ColumnsType<ToolConnection> = useMemo(
         () => [
             {
                 title: "Integration",
@@ -305,7 +316,7 @@ export default function GatewayToolsSection() {
                     </Tooltip>
                 </div>
 
-                <Table<ConnectionItem>
+                <Table<ToolConnection>
                     className="ph-no-capture"
                     columns={columns}
                     dataSource={connections}
