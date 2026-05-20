@@ -116,7 +116,7 @@ async def test_simple_queue_create_dispatches_each_query_source_with_step_key():
 
     assert created_queue is not None
     assert created_queue.data is not None
-    assert created_queue.data.kind == "traces"
+    assert created_queue.data.kind == "queries"
     assert created_queue.data.queries == [query_revision_id_1, query_revision_id_2]
     assert simple_evaluations_service.dispatch_trace_slice.await_args_list == [
         call(

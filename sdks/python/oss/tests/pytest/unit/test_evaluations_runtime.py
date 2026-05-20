@@ -208,7 +208,7 @@ async def test_sdk_source_slice_batches_runnable_cells():
         def __init__(self):
             self.requests = []
 
-        async def execute_batch(self, requests):
+        async def execute_batch(self, requests, semaphore=None):
             self.requests.append(requests)
             return [
                 WorkflowExecutionResult(
@@ -273,7 +273,7 @@ async def test_sdk_source_slice_marks_short_runner_batch_as_error():
     logged = []
 
     class ShortRunner:
-        async def execute_batch(self, requests):
+        async def execute_batch(self, requests, semaphore=None):
             return [
                 WorkflowExecutionResult(
                     status=EvaluationStatus.SUCCESS,
@@ -426,7 +426,7 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
     evaluator_requests = []
 
     class ApplicationRunner:
-        async def execute_batch(self, requests):
+        async def execute_batch(self, requests, semaphore=None):
             return [
                 WorkflowExecutionResult(
                     status=EvaluationStatus.SUCCESS,
@@ -453,7 +453,7 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
             ]
 
     class EvaluatorRunner:
-        async def execute_batch(self, requests):
+        async def execute_batch(self, requests, semaphore=None):
             evaluator_requests.extend(requests)
             return [
                 WorkflowExecutionResult(

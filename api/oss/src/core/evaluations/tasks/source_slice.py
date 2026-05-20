@@ -213,12 +213,6 @@ async def process_evaluation_source_slice(
         )
         if not run:
             raise ValueError(f"Evaluation run with id {run_id} not found!")
-        if require_queue and (
-            not run.flags or not (run.flags.has_traces or run.flags.has_testcases)
-        ):
-            raise ValueError(
-                f"Evaluation run with id {run_id} is not configured for ad-hoc batching!"
-            )
         if not run.data or not run.data.steps:
             raise ValueError(f"Evaluation run with id {run_id} has no data steps!")
 
@@ -286,6 +280,51 @@ async def process_evaluation_source_slice(
         testcase_ids = testcase_ids or []
         trace_ids = trace_ids or []
         source_items = source_items or []
+        if require_queue:
+            queue_step_key = input_step_key or (
+                source_items[0].step_key
+                if source_items and source_items[0].step_key
+                else None
+            )
+            source_step = (
+                next(
+                    (step for step in input_steps if step.key == queue_step_key),
+                    None,
+                )
+                if queue_step_key is not None
+                else None
+            )
+            source_step_refs = source_step.references if source_step else {}
+            source_item_kinds = {item.kind for item in source_items}
+            has_trace_payload = bool(trace_ids) or "trace" in source_item_kinds
+            has_testcase_payload = bool(testcase_ids) or "testcase" in source_item_kinds
+            accepts_trace_batch = bool(
+                run.flags
+                and has_trace_payload
+                and (
+                    run.flags.has_traces
+                    or (
+                        run.flags.has_queries
+                        and bool((source_step_refs or {}).get("query_revision"))
+                    )
+                )
+            )
+            accepts_testcase_batch = bool(
+                run.flags
+                and has_testcase_payload
+                and (
+                    run.flags.has_testcases
+                    or (
+                        run.flags.has_testsets
+                        and bool((source_step_refs or {}).get("testset_revision"))
+                    )
+                )
+            )
+            if not (accepts_trace_batch or accepts_testcase_batch):
+                raise ValueError(
+                    f"Evaluation run with id {run_id} is not configured for queue batching!"
+                )
+
         if not source_items and not testcase_ids and not trace_ids:
             raise ValueError(
                 f"Evaluation run with id {run_id} has no source items, testcase_ids, or trace_ids!"

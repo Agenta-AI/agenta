@@ -170,7 +170,7 @@ class TestSimpleQueuesBasics:
         data = response.json()
         assert data["count"] == 1
         queue = data["queue"]
-        assert queue["data"]["kind"] == "traces"
+        assert queue["data"]["kind"] == "queries"
         assert queue["data"]["queries"] == [query_revision_id]
 
     def test_create_simple_queue_from_testsets(self, authed_api):
@@ -195,7 +195,7 @@ class TestSimpleQueuesBasics:
         data = response.json()
         assert data["count"] == 1
         queue = data["queue"]
-        assert queue["data"]["kind"] == "testcases"
+        assert queue["data"]["kind"] == "testsets"
         assert queue["data"]["testsets"] == [testset_revision_id]
 
     def test_create_source_backed_queue_preserves_repeats_and_assignments(
@@ -226,7 +226,7 @@ class TestSimpleQueuesBasics:
         data = response.json()
         assert data["count"] == 1
         queue = data["queue"]
-        assert queue["data"]["kind"] == "testcases"
+        assert queue["data"]["kind"] == "testsets"
         assert queue["data"]["testsets"] == [testset_revision_id]
         assert queue["data"]["repeats"] == 2
         assert queue["data"]["assignments"] == [[user_id_1], [user_id_2]]
@@ -317,7 +317,7 @@ class TestSimpleQueuesBasics:
             == "Cannot add testcases directly to a source-backed queue. Create a direct testcases queue instead."
         )
 
-    def test_create_simple_queue_rejects_kind_with_queries(self, authed_api):
+    def test_create_simple_queue_rejects_resolved_kind_with_queries(self, authed_api):
         evaluator_revision_id = _create_evaluator(authed_api)
         query_revision_id = _create_query(authed_api)
 
@@ -336,10 +336,7 @@ class TestSimpleQueuesBasics:
         )
 
         assert response.status_code == 422
-        assert (
-            "simple queue source must not include kind alongside queries or testsets"
-            in response.text
-        )
+        assert "query-backed queues must use kind='queries'" in response.text
 
     def test_create_simple_queue_rejects_mixed_query_and_testset_sources(
         self, authed_api

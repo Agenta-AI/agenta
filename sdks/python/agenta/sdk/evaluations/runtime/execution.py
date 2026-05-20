@@ -1,6 +1,5 @@
 from asyncio import Semaphore, gather
 from datetime import datetime
-from inspect import signature
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol
 from uuid import UUID
 
@@ -32,6 +31,7 @@ class WorkflowBatchRunner(WorkflowRunner, Protocol):
     async def execute_batch(
         self,
         requests: List[WorkflowExecutionRequest],
+        semaphore: Optional[Semaphore] = None,
     ) -> List[WorkflowExecutionResult]: ...
 
 
@@ -50,16 +50,7 @@ async def execute_workflow_batch(
         return await runner.execute(request)
 
     if execute_batch is not None:
-        try:
-            params = signature(execute_batch).parameters
-            accepts_semaphore = "semaphore" in params or any(
-                p.kind == p.VAR_KEYWORD for p in params.values()
-            )
-        except (ValueError, TypeError):
-            accepts_semaphore = False
-        if accepts_semaphore:
-            return await execute_batch(requests, semaphore=semaphore)
-        return await execute_batch(requests)
+        return await execute_batch(requests, semaphore=semaphore)
 
     return list(await gather(*(_guarded(request) for request in requests)))
 

@@ -1097,15 +1097,14 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
     assert "annotate" not in kwargs
     workflow_request = kwargs["request"]
     assert workflow_request.flags == {"is_chat": True}
-    assert workflow_request.data.interface["uri"] == "http://application"
-    assert workflow_request.data.interface["schemas"] == {
+    assert workflow_request.data.revision == revision
+    assert workflow_request.data.revision["data"]["uri"] == "http://application"
+    assert workflow_request.data.revision["data"]["schemas"] == {
         "inputs": {
             "type": "object",
             "properties": {"input": {"type": "string"}},
         }
     }
-    assert workflow_request.data.configuration["parameters"] == {"temperature": 0.1}
-    assert workflow_request.data.revision == revision
     assert workflow_request.data.parameters == {"temperature": 0.1}
     assert workflow_request.data.inputs == {"input": "hello"}
     assert (
@@ -1271,7 +1270,7 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
         def __init__(self):
             self.requests = []
 
-        async def execute_batch(self, requests):
+        async def execute_batch(self, requests, semaphore=None):
             self.requests.append(requests)
             return [
                 WorkflowExecutionResult(
@@ -1449,12 +1448,21 @@ async def test_simple_evaluation_queue_batches_dispatch_through_slice_processor(
     run_id = uuid4()
     testcase_id = uuid4()
     run = _run(
-        flags=EvaluationRunFlags(is_queue=True),
+        flags=EvaluationRunFlags(
+            is_queue=True,
+            has_queries=True,
+            has_testsets=True,
+        ),
         steps=[
             _step(
                 "query-main",
                 "input",
                 references={"query_revision": Reference(id=uuid4())},
+            ),
+            _step(
+                "testset-main",
+                "input",
+                references={"testset_revision": Reference(id=uuid4())},
             ),
             _step("evaluator-human", "annotation", origin="human"),
         ],
@@ -1723,7 +1731,7 @@ async def test_source_slice_processor_maps_scenario_and_run_statuses(monkeypatch
     scenario_pending = SimpleNamespace(id=uuid4(), tags=None, meta=None)
     scenario_errors = SimpleNamespace(id=uuid4(), tags=None, meta=None)
     run = _run(
-        flags=EvaluationRunFlags(is_queue=True),
+        flags=EvaluationRunFlags(is_queue=True, has_queries=True),
         steps=[
             _step(
                 "query-main",
@@ -1795,13 +1803,9 @@ async def test_source_slice_processor_hydrates_direct_trace_batches(monkeypatch)
     span_id = "span-1"
     scenario = SimpleNamespace(id=uuid4(), tags=None, meta=None)
     run = _run(
-        flags=EvaluationRunFlags(is_queue=True),
+        flags=EvaluationRunFlags(is_queue=True, has_traces=True),
         steps=[
-            _step(
-                "query-main",
-                "input",
-                references={"query_revision": Reference(id=uuid4())},
-            ),
+            _step("traces", "input"),
             _step("evaluator-human", "annotation", origin="human"),
         ],
     )
@@ -1871,7 +1875,7 @@ async def test_source_slice_processor_preserves_higher_queue_status(monkeypatch)
     run_id = uuid4()
     scenario = SimpleNamespace(id=uuid4(), tags=None, meta=None)
     run = _run(
-        flags=EvaluationRunFlags(is_queue=True),
+        flags=EvaluationRunFlags(is_queue=True, has_queries=True),
         steps=[
             _step(
                 "query-main",

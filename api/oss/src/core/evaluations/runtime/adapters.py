@@ -277,24 +277,7 @@ class BackendWorkflowRunner:
         else:
             revision_dump = revision
 
-        interface = (
-            {
-                "uri": _read_field(data, "uri"),
-                "url": _read_field(data, "url"),
-                "headers": _read_field(data, "headers"),
-                "schemas": _read_field(data, "schemas"),
-            }
-            if data
-            else {}
-        )
-        configuration = (
-            {
-                "script": _read_field(data, "script"),
-                "parameters": _read_field(data, "parameters"),
-            }
-            if data
-            else {}
-        )
+        parameters = _read_field(data, "parameters") if data else None
         flags = _read_field(revision, "flags")
         flags = (
             _dump_model(
@@ -312,11 +295,9 @@ class BackendWorkflowRunner:
             request=WorkflowServiceRequest(
                 version="2025.07.14",
                 flags=flags,
-                interface=interface,
-                configuration=configuration,
                 data=WorkflowServiceRequestData(
                     revision=revision_dump,
-                    parameters=configuration.get("parameters"),
+                    parameters=parameters,
                     testcase=(
                         request.source.testcase.model_dump(
                             mode="json",

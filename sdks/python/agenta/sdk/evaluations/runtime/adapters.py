@@ -1,3 +1,4 @@
+from asyncio import Semaphore
 from typing import Any, Dict, Optional
 
 from agenta.sdk.decorators.running import invoke_application, invoke_evaluator
@@ -42,6 +43,7 @@ class SdkLocalApplicationRunner:
     async def execute_batch(
         self,
         requests: list[WorkflowExecutionRequest],
+        semaphore: Optional[Semaphore] = None,
     ) -> list[WorkflowExecutionResult]:
         return [await self.execute(request) for request in requests]
 
@@ -73,6 +75,7 @@ class SdkLocalEvaluatorRunner:
     async def execute_batch(
         self,
         requests: list[WorkflowExecutionRequest],
+        semaphore: Optional[Semaphore] = None,
     ) -> list[WorkflowExecutionResult]:
         return [await self.execute(request) for request in requests]
 
