@@ -1,9 +1,17 @@
-"""Acceptance tests for the events query endpoint.
+"""EE acceptance tests for the events query endpoint.
 
-Requires a running API.  These tests verify the API contract (shape, status
+Mirrors the OSS suite (oss/tests/pytest/acceptance/events/test_events_basics.py)
+but exercises /events/query as a business-plan, developer-role account. The
+endpoint itself is OSS and ungated; this suite verifies it behaves identically
+under the EE multi-tenant account shape (subscription + explicit memberships),
+which OSS rejects as single-tenant.
+
+Requires a running API. These tests verify the API contract (shape, status
 codes, filtering) without making strong assumptions about how many events
-exist in the system at query time — the events worker is a separate process.
+exist at query time — the events worker is a separate process.
 """
+
+from uuid import uuid4
 
 import pytest
 import requests
@@ -11,13 +19,71 @@ import requests
 from utils.constants import BASE_TIMEOUT
 
 
+def _create_developer_business_account(admin_api):
+    uid = uuid4().hex[:12]
+    email = f"events-dev-{uid}@test.agenta.ai"
+    resp = admin_api(
+        "POST",
+        "/admin/simple/accounts/",
+        json={
+            "accounts": {
+                "u": {
+                    "user": {"email": email},
+                    "options": {
+                        "create_api_keys": True,
+                        "return_api_keys": True,
+                        "seed_defaults": False,
+                    },
+                    "subscription": {"plan": "cloud_v0_business"},
+                    "organization_memberships": [
+                        {
+                            "organization_ref": {"ref": "org"},
+                            "user_ref": {"ref": "user"},
+                            "role": "developer",
+                        }
+                    ],
+                    "workspace_memberships": [
+                        {
+                            "workspace_ref": {"ref": "wrk"},
+                            "user_ref": {"ref": "user"},
+                            "role": "developer",
+                        }
+                    ],
+                    "project_memberships": [
+                        {
+                            "project_ref": {"ref": "prj"},
+                            "user_ref": {"ref": "user"},
+                            "role": "developer",
+                        }
+                    ],
+                }
+            }
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    account = resp.json()["accounts"]["u"]
+    return {
+        "email": email,
+        "credentials": f"ApiKey {account['api_keys']['key']}",
+    }
+
+
+def _delete_account_by_email(admin_api, *, email):
+    resp = admin_api(
+        "DELETE",
+        "/admin/simple/accounts/",
+        json={"accounts": {"u": {"user": {"email": email}}}, "confirm": "delete"},
+    )
+    assert resp.status_code == 204, resp.text
+
+
 @pytest.fixture(scope="class")
-def events_api(cls_account, ag_env):
-    credentials = cls_account["credentials"]
+def events_api(admin_api, ag_env):
+    account = _create_developer_business_account(admin_api)
 
     def _request(method: str, endpoint: str, **kwargs):
         headers = kwargs.pop("headers", {})
-        headers.setdefault("Authorization", credentials)
+        headers.setdefault("Authorization", account["credentials"])
         return requests.request(
             method=method,
             url=f"{ag_env['api_url']}{endpoint}",
@@ -27,6 +93,8 @@ def events_api(cls_account, ag_env):
         )
 
     yield _request
+
+    _delete_account_by_email(admin_api, email=account["email"])
 
 
 class TestEventsBasics:
