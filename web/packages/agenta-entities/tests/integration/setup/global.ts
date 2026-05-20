@@ -32,7 +32,8 @@ export async function setup() {
         console.warn(
             "\n[integration] AGENTA_API_URL or AGENTA_AUTH_KEY not set." +
                 "\n[integration] All integration tests will be skipped." +
-                "\n[integration] Copy .env.test.example → .env.test and fill in the values.\n",
+                "\n[integration] Pass an env file to the runner: " +
+                "run-tests.ts --layer integration --env-file <path>.\n",
         )
         return
     }

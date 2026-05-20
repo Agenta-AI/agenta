@@ -596,7 +596,9 @@ jobs:
 
       - name: Install dependencies
         working-directory: web
-        run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
+        # Full install (not scoped): the layer runs package vitest suites whose
+        # devDeps (e.g. vitest) aren't pulled by a dependency-only filter.
+        run: pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         working-directory: web/tests
@@ -605,19 +607,10 @@ jobs:
       - name: Run web tests
         working-directory: web/tests
         run: |
-          TARGET_PATH="../oss/tests/playwright/${{ matrix.layer }}"
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing web layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty web layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --reporter=html,github)
+          # run-tests.ts runs every source for the layer (package vitest, then
+          # playwright) and resolves the playwright dir from --layer itself,
+          # skipping internally when that dir is empty. No pre-guard needed.
+          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --layer "${{ matrix.layer }}" --reporter=html,github)
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -629,8 +622,19 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
+
+      - name: Publish web test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          # playwright layer junit + per-package vitest junit (unit: junit.xml,
+          # integration: integration-junit.xml) — the layer runs both sources.
+          files: |
+            web/tests/results/oss/junit.xml
+            web/packages/*/test-results/*junit.xml
+          check_name: Railway Web Test Results (${{ matrix.layer }})
+          comment_mode: off
 
       - name: Upload test report
         id: upload_report
@@ -638,7 +642,10 @@ jobs:
         if: always()
         with:
           name: playwright-report-${{ matrix.layer }}
-          path: web/tests/reports/oss/
+          # playwright html report + per-package vitest junit (the layer runs both)
+          path: |
+            web/tests/reports/oss/
+            web/packages/*/test-results/
           retention-days: 14
 
       - name: Upload test results
@@ -647,7 +654,9 @@ jobs:
         if: failure()
         with:
           name: playwright-results-${{ matrix.layer }}
-          path: web/tests/results/oss/
+          path: |
+            web/tests/results/oss/
+            web/packages/*/test-results/
           retention-days: 7
 
       - name: Write job summary
