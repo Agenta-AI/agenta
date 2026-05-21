@@ -70,6 +70,26 @@ const {Text} = Typography
 
 const PAGE_SIZE = 50
 
+// Stable empty-array reference for the table's dataSource during a
+// "scanning, nothing matched yet" state — avoids handing the table a
+// fresh `[]` every render.
+const EMPTY_ROWS: ScenarioThinRow[] = []
+
+/**
+ * Fixed-width numeric slot for the header counters.
+ *
+ * The header counts grow digit-count as the pipeline loads (0 → 1000),
+ * which would reflow every tag after them and make the runId jump on the
+ * far right. Rendering each number right-aligned in a fixed `ch`-width
+ * inline-block keeps the surrounding text — and the whole header — stable
+ * while the values tick up.
+ */
+const Num = ({value, ch}: {value: number | string; ch: number}) => (
+    <span className="inline-block text-right tabular-nums" style={{minWidth: `${ch}ch`}}>
+        {value}
+    </span>
+)
+
 export interface EtlPocScenariosTableProps {
     runId: string
     projectId: string | null
@@ -212,6 +232,40 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
         return out
     }, [pagination.rows, predicate, schema, projectId, runId, hydrationVersion])
 
+    // Count of CONFIRMED matches — rows that are hydrated AND actually
+    // satisfy the predicate.
+    //
+    // This deliberately excludes "keep-visible-until-known" rows: a
+    // freshly-loaded page is 50 unhydrated scenarios, and
+    // `matchesPredicate` optimistically returns true for unhydrated rows
+    // (so a real match isn't hidden while it loads). The raw non-skeleton
+    // count therefore oscillates 50 → 0 every page during a no-match scan
+    // (page lands → 50 "pending" → hydrate → 0 match). The confirmed
+    // count stays a steady 0, which is the signal we actually want.
+    const confirmedCount = useMemo(() => {
+        if (!predicate || !schema || !projectId || !runId) return 0
+        let n = 0
+        for (const r of filteredRows) {
+            if (r.__isSkeleton || !r.scenarioId) continue
+            // null until hydrated — those rows are pending, not confirmed.
+            if (!resolveOneScenarioFromCache(projectId, runId, r.scenarioId, schema)) continue
+            if (matchesPredicate(predicate, schema, projectId, runId, r.scenarioId)) n += 1
+        }
+        return n
+    }, [filteredRows, predicate, schema, projectId, runId, hydrationVersion])
+
+    // "Scanning, nothing matched yet" — a predicate is active, zero rows
+    // have CONFIRMED-matched so far, and the pipeline is still working
+    // (more pages to scan, or the current page is still hydrating). A
+    // no-match predicate makes the fill loop scan the whole dataset;
+    // collapsing that into one stable loading state — and showing the
+    // real empty state only once everything settles — removes the
+    // per-page flicker.
+    const scanningEmpty =
+        !!predicate &&
+        confirmedCount === 0 &&
+        (Boolean(pagination.paginationInfo.hasMore) || hydration.isHydrating)
+
     // Lookahead prefetch for the constructed viewport.
     //
     // Critical: we pass `filteredRows`, NOT `pagination.rows`. With a
@@ -256,12 +310,14 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
         if (!predicate) return
         if (!pagination.paginationInfo.hasMore) return
         if (pagination.paginationInfo.isFetching) return
-        const matched = filteredRows.filter((r) => !r.__isSkeleton).length
-        if (matched >= VIEWPORT_FILL_TARGET) return
+        // Gate on CONFIRMED matches, not the pending-inclusive row count —
+        // otherwise a full page of not-yet-hydrated rows (50) trips the
+        // target and stalls the scan until they hydrate away.
+        if (confirmedCount >= VIEWPORT_FILL_TARGET) return
         pagination.loadNextPage()
     }, [
         predicate,
-        filteredRows,
+        confirmedCount,
         pagination.paginationInfo.hasMore,
         pagination.paginationInfo.isFetching,
         pagination,
@@ -288,37 +344,52 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
                 </Text>
             ),
         }
-        return [indexCol, ...columns]
+        // Guard every column's `render` against an undefined record.
+        //
+        // antd's virtual table can briefly call a cell `render` (and
+        // `rowKey`) with an out-of-range record while `dataSource`
+        // (`filteredRows`) is shrinking right after a predicate change —
+        // its internal virtual window lags the new, shorter array by a
+        // render. Without this guard that out-of-range `undefined`
+        // crashes the page. The guard renders nothing for those phantom
+        // rows; antd re-syncs its window on the next frame and they
+        // vanish. (See the matching `rowKey` guard on the table below.)
+        type RenderCol = {
+            render?: (v: unknown, r: ScenarioThinRow, i: number) => React.ReactNode
+        }
+        const guardCol = <T,>(col: T): T => {
+            const c = col as T & RenderCol
+            if (typeof c.render !== "function") return col
+            const inner = c.render
+            return {
+                ...c,
+                render: (v: unknown, r: ScenarioThinRow, i: number) =>
+                    r == null ? null : inner(v, r, i),
+            }
+        }
+        return [guardCol(indexCol), ...columns.map(guardCol)]
     }, [columns, pagination.rows])
 
     return (
         <CellMaterializerContext.Provider value={materializer}>
             <section className="w-full h-full overflow-hidden flex flex-col">
-                <header className="px-3 py-2 flex items-center gap-3 text-xs border-b border-zinc-200 bg-white">
+                {/*
+                 * Lean header — only the essentials. The schema (steps/cols)
+                 * and per-entity fetch-ms breakdown were removed: pure debug
+                 * trivia that widened the bar enough to wrap the runId once a
+                 * predicate chip appeared. `whitespace-nowrap` keeps it on one
+                 * line; `Num` slots keep counters width-stable as they tick.
+                 */}
+                <header className="px-3 py-2 flex items-center gap-3 text-xs border-b border-zinc-200 bg-white whitespace-nowrap">
                     <strong>ETL PoC scenarios</strong>
-                    <Tag color={schema ? "blue" : "default"}>
-                        {schema
-                            ? `${schema.steps.length} steps · ${schema.mappings.length} cols`
-                            : "schema loading…"}
-                    </Tag>
                     <Tag color={hydration.isHydrating ? "processing" : "default"}>
-                        hydrated {hydration.hydratedScenarios} scenarios / {hydration.pagesHydrated}{" "}
-                        pages
-                    </Tag>
-                    <Tag>
-                        fetch ms — r:{hydration.fetchMsByEntity.results.toFixed(0)} · m:
-                        {hydration.fetchMsByEntity.metrics.toFixed(0)} · t:
-                        {hydration.fetchMsByEntity.testcases.toFixed(0)} · tr:
-                        {hydration.fetchMsByEntity.traces.toFixed(0)}
+                        <Num value={hydration.hydratedScenarios} ch={4} /> hydrated
                     </Tag>
                     <Tag color={hydration.activeSlices.length < 4 ? "geekblue" : "default"}>
                         slices:{" "}
                         {hydration.activeSlices.length === 0
-                            ? "none (cell-side on-demand)"
+                            ? "none"
                             : hydration.activeSlices.join(", ")}
-                        {hydration.activeSlices.length > 0 && hydration.activeSlices.length < 4
-                            ? " (predicate-driven)"
-                            : ""}
                     </Tag>
                     {/*
                      * Slice-fetch strategy toggle. Changing the mode resets
@@ -365,14 +436,49 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
 
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                     <InfiniteVirtualTable<ScenarioThinRow>
+                        /*
+                         * Remount the table whenever the predicate changes.
+                         *
+                         * Applying a predicate shrinks `filteredRows` sharply
+                         * (e.g. 200 → 8), but the IVT's virtual render window
+                         * is still sized to the old, larger array — its row
+                         * renderer then indexes past the new end and hands
+                         * `rowKey` an `undefined` record → crash. The
+                         * scroll-to-top effect above can't prevent it: it runs
+                         * in rAF, one tick after the crashing render.
+                         *
+                         * Keying on the predicate forces a fresh mount, which
+                         * resets the virtual window to the current dataSource
+                         * length. (The scroll-to-top effect is then a no-op on
+                         * the freshly mounted table — harmless.)
+                         */
+                        key={`ivt-${runId}-${predicate ? JSON.stringify(predicate) : "all"}`}
                         columns={
                             ivtColumns as unknown as React.ComponentProps<
                                 typeof InfiniteVirtualTable<ScenarioThinRow>
                             >["columns"]
                         }
-                        dataSource={filteredRows}
+                        /*
+                         * While the viewport-fill loop is still scanning
+                         * with zero matches, hand the table a stable empty
+                         * array (not the per-page-flickering filteredRows)
+                         * and show one steady loading overlay below. Once
+                         * a match is found or the scan completes, switch
+                         * back to the real filteredRows.
+                         */
+                        dataSource={scanningEmpty ? EMPTY_ROWS : filteredRows}
                         loadMore={pagination.loadNextPage}
-                        rowKey={(r) => r.key}
+                        /*
+                         * Defensive rowKey: antd's virtual table can hand
+                         * this an out-of-range `undefined` record for a
+                         * frame while `filteredRows` is shrinking after a
+                         * predicate change. `r.key` on `undefined` crashes
+                         * the page — fall back to an index-based key so the
+                         * phantom row renders harmlessly until antd
+                         * re-syncs. Paired with the `guardCol` wrapper on
+                         * `ivtColumns` above.
+                         */
+                        rowKey={(r, i) => r?.key ?? `__phantom_${i ?? 0}`}
                         scopeId={`etl-poc-${runId}`}
                         /*
                          * containerClassName matters: the bare InfiniteVirtualTable
@@ -383,11 +489,37 @@ const EtlPocScenariosTable = ({runId, projectId}: EtlPocScenariosTableProps) => 
                          * class internally; we mirror it here.
                          */
                         containerClassName="w-full grow min-h-0 overflow-hidden"
+                        /*
+                         * Fixed row-height config. Without it, rows size to
+                         * content — empty/skeleton rows collapse short, then
+                         * jump tall when JSON data arrives. The config gives
+                         * every row a fixed height (small/medium/large) and
+                         * publishes `heightPx`/`maxLines` via RowHeightContext;
+                         * EtlResolvedCell reads that and clamps its content to
+                         * fit, so empty and populated rows are identical
+                         * height. `useSettingsDropdown` surfaces the
+                         * small/medium/large switcher in the table's gear menu.
+                         */
+                        rowHeightConfig={{
+                            storageKey: "agenta:etl-poc:row-height",
+                            defaultSize: "small",
+                        }}
+                        useSettingsDropdown
                         tableProps={{
                             size: "small",
                             sticky: true,
                             bordered: true,
                             tableLayout: "fixed",
+                            /*
+                             * One stable loading overlay for the whole
+                             * predicate scan — replaces the skeleton ↔
+                             * "No Data" per-page flicker. `false` once the
+                             * scan settles, so antd's real empty state
+                             * ("No Data") shows cleanly.
+                             */
+                            loading: scanningEmpty
+                                ? {spinning: true, tip: "Scanning all rows for matches…"}
+                                : false,
                         }}
                         /*
                          * tableRef gives us a handle on antd's virtual
@@ -461,11 +593,17 @@ const PredicateCountChip = ({
         return {confirmed, pending, totalLoaded}
     }, [filteredRows, paginationRows, predicate, schema, projectId, runId])
 
+    // Compact: "<matched>/<loaded> matched". Pending was dropped — it's
+    // transient noise; matched-vs-loaded is the number that matters. Both
+    // counts use fixed `Num` slots so the chip — and the runId after it —
+    // stay width-stable as the values tick up.
     return (
         <Tag color="purple">
-            {counts.confirmed} matched
-            {counts.pending > 0 && <span className="opacity-60"> · {counts.pending} pending</span>}
-            <span className="opacity-60"> / {counts.totalLoaded} loaded</span>
+            <Num value={counts.confirmed} ch={4} />
+            <span className="opacity-60">
+                /<Num value={counts.totalLoaded} ch={4} />
+            </span>{" "}
+            matched
         </Tag>
     )
 }

@@ -27,6 +27,7 @@ import {
     type HydratedScenarioRow,
     type HydratableScenario,
 } from "@agenta/entities/evaluationRun/etl"
+import {useRowHeightContext} from "@agenta/ui/table"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -65,6 +66,13 @@ const EtlResolvedCell = ({
     // (results / metrics) had already settled in stage 1 pick up the
     // late-arriving testcase / trace cache writes.
     const hydrationVersion = useAtomValue(hydrationVersionAtom)
+
+    // Row-height config (small/medium/large) published by the IVT via
+    // RowHeightContext. The cell renders inside a fixed-height,
+    // overflow-clipped box keyed off `heightPx` so empty/skeleton rows and
+    // populated rows are identical height — no layout jump when data lands.
+    // `maxLines` ellipsis-clamps long JSON values.
+    const {heightPx, maxLines} = useRowHeightContext()
 
     // Subscribe to each cache slice the resolver needs. `enabled: false` +
     // a no-op queryFn keeps these as pure subscriptions — they will not
@@ -228,16 +236,47 @@ const EtlResolvedCell = ({
         queryClient,
     ])
 
-    if (!resolved) {
-        return <Text type="secondary">—</Text>
-    }
-    if (resolved.source === "missing") {
-        return <Text type="secondary">—</Text>
-    }
+    // `formatValue` already stats-blob-unwraps; `—` for unresolved/missing.
+    const inner: React.ReactNode =
+        !resolved || resolved.source === "missing" ? (
+            <Text type="secondary">—</Text>
+        ) : (
+            formatValue(unwrapStatsForCompare(resolved.value))
+        )
 
-    // Apply same stats-blob unwrap the predicate filter uses for display.
-    const display = formatValue(unwrapStatsForCompare(resolved.value))
-    return <span>{display}</span>
+    // Fixed-height, overflow-clipped box: identical height for every row
+    // regardless of content, with a `maxLines` ellipsis clamp for long
+    // values. This is what keeps empty and populated rows the same size.
+    return (
+        <div
+            className="text-xs leading-snug"
+            style={{
+                height: heightPx,
+                overflow: "hidden",
+                display: "-webkit-box",
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: maxLines,
+                wordBreak: "break-word",
+            }}
+        >
+            {inner}
+        </div>
+    )
+}
+
+/**
+ * Fixed-height placeholder for skeleton (not-yet-loaded) rows. Occupies
+ * the exact same row height as a populated `EtlResolvedCell` (via the
+ * shared RowHeightContext) so the table doesn't jump when a skeleton row
+ * resolves to real data.
+ */
+export const EtlSkeletonCell = () => {
+    const {heightPx} = useRowHeightContext()
+    return (
+        <div style={{height: heightPx}} className="flex items-start pt-1">
+            <div className="h-3 w-2/3 rounded bg-zinc-100" />
+        </div>
+    )
 }
 
 function formatValue(v: unknown): React.ReactNode {
@@ -248,12 +287,14 @@ function formatValue(v: unknown): React.ReactNode {
     if (typeof v === "number") {
         return Number.isInteger(v) ? String(v) : v.toFixed(3)
     }
+    // Cap at 800 chars as a DOM-size guard; the cell's CSS `-webkit-line-clamp`
+    // does the visible truncation (with an ellipsis) to fit the row height.
     if (typeof v === "string") {
-        return v.length > 120 ? `${v.slice(0, 117)}…` : v
+        return v.length > 800 ? v.slice(0, 800) : v
     }
     try {
         const json = JSON.stringify(v)
-        return json.length > 120 ? `${json.slice(0, 117)}…` : json
+        return json.length > 800 ? json.slice(0, 800) : json
     } catch {
         return String(v)
     }

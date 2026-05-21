@@ -26,7 +26,7 @@ import {
     type ColumnGroup,
 } from "@agenta/entities/evaluationRun/etl"
 
-import EtlResolvedCell from "./cells/EtlResolvedCell"
+import EtlResolvedCell, {EtlSkeletonCell} from "./cells/EtlResolvedCell"
 import EtlColumnHeader from "./EtlColumnHeader"
 import type {ScenarioThinRow} from "./scenarioPaginatedStore"
 
@@ -128,7 +128,10 @@ export const useEtlColumns = ({projectId, runId, schema}: UseEtlColumnsArgs): Et
                         // actual scenario UUID written by `mergeRow`. Cells
                         // need the latter to query molecule caches.
                         const scenarioId = record.scenarioId
-                        if (!scenarioId || record.__isSkeleton) return null
+                        // Skeleton / not-yet-keyed rows render a
+                        // fixed-height placeholder (not null) so the row
+                        // height matches a populated row — no jump on load.
+                        if (!scenarioId || record.__isSkeleton) return <EtlSkeletonCell />
                         return (
                             <EtlResolvedCell
                                 projectId={projectId}
