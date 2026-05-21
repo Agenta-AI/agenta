@@ -1,7 +1,7 @@
 # Batch-add Traces to Annotation Queues
 
 **Created:** 2026-05-21
-**Status:** RFC — Reviewed (eng + design review complete), ready to implement
+**Status:** RFC — Reviewed (eng + design review complete); D7 engine decision revised — ready to implement
 **Related:** [etl-engine](./etl-engine.md), [eval-etl-engine](./eval-etl-engine.md)
 **Authors:** Arda
 
@@ -16,14 +16,16 @@ Batch-add of *checkbox-selected* traces already works. The gap — the friction
 the team flagged ("lowers a bit of friction of scrolling") — is "add everything
 matching the filter."
 
-**Engine (post-review):** this **generalizes the existing
-`fetchAllTracesForExport` scan loop** — the proven loop behind "export all
-matching traces to CSV" — into a reusable `scanAllMatchingTraces`. CSV export
-and queue-add become two consumers of one loop. No new ETL pipeline; no API
-change; frontend-only.
+**Engine:** this is the **first production consumer of the ETL engine**
+(`@agenta/entities/etl` — the `Source` / `Transform` / `Sink` contracts driven
+by `runLoop`). Batch-add is a scan-and-write pipeline, which is the engine's
+exact shape. A `traceSource` pages the observability filter, an
+`extractTraceIds` transform dedups, a `queueAddSink` flushes to the queue. No
+new API; frontend-only. Eval filtering will be the engine's second consumer.
 
-> Naming note: the file and branch keep the `etl-` prefix for history. The
-> reviewed design does **not** use the ETL `runLoop` engine — see
+> The CSV-export scan loop (`fetchAllTracesForExport`) stays as-is — this
+> feature does not touch it. Converging export onto `traceSource` + a
+> `csvSink` is a documented follow-up, not a prerequisite — see
 > [Resolved decisions](#resolved-decisions).
 
 ---
@@ -47,13 +49,23 @@ virtual table and ticks rows across N pages. There is no "select all matching."
 - Selection-scoped add already exists: select → `AddActionsDropdown` →
   `AddToQueuePopover` → `simpleQueueMolecule.actions.addTraces(queueId, ids[])`.
 
-### The scan loop already exists
+### The ETL engine exists
 
-`fetchAllTracesForExport` (`web/oss/src/state/newObservability/atoms/queryHelpers.ts`)
-already loops `executeTraceQuery` with the cursor and pages through **every
-trace matching the current observability filter** — with `AbortSignal`, an
-`onProgress` callback, a 20k-row safety cap, empty-page detection, and request
-throttling. It is the engine behind the CSV-export feature.
+`@agenta/entities/etl` — `runLoop` plus the `Source` / `Transform` / `Sink`
+contracts — is the chunked scan-and-write engine built this session. It
+guarantees bounded memory, observable progress, cancellation, and natural
+backpressure. Batch-add-to-queue is its first production consumer.
+
+### The trace query loop exists
+
+`executeTraceQuery`
+(`web/oss/src/state/newObservability/atoms/queryHelpers.ts`) already does the
+hard per-page work of paging traces — the two-step annotation-filter
+pagination, the `+1ms` cursor bump so the backend's strict-less-than filter
+keeps boundary rows, `AbortSignal` plumbing. `traceSource` wraps it; the
+cursor-advance loop, empty-page guard, and throttle live in the Source.
+`fetchAllTracesForExport` keeps its own copy of that loop for CSV export —
+untouched by this feature.
 
 ### Annotation queues
 
@@ -67,43 +79,61 @@ throttling. It is the engine behind the CSV-export feature.
 
 ## Architecture
 
-Batch-add-to-queue needs the *same scan* the CSV export does — page every
-trace matching the filter — with a different write target. So: extract the
-loop, share it.
+Batch-add-to-queue is a **scan-and-write pipeline**: page every trace matching
+the observability filter, extract `trace_id`s, write them to a queue. That is
+the ETL engine's exact shape — `Source` → `Transform` → `Sink` driven by
+`runLoop`. This feature is the engine's **first production consumer**; eval
+filtering is the second.
 
 ```
-scanAllMatchingTraces({ params, appId, signal, onPage, cap })
-   │   the existing fetchAllTracesForExport loop, extracted:
-   │   cursor pagination, AbortSignal, onProgress, cap, empty-page, throttle
-   ├── CSV export  — onPage: collect spans → Papa.unparse → csvParts
-   └── queue-add   — onPage: buffer trace_ids → flush addTraces
+runLoop(traceSource, [extractTraceIds], queueAddSink, scanParams, signal)
+   │
+   ├── traceSource     Source<TraceSpanNode>   — pages executeTraceQuery by cursor
+   ├── extractTraceIds Transform<Node, string> — cross-chunk dedup → trace_ids
+   └── queueAddSink    Sink<string>            — buffers ids, flushes addTraces
 ```
 
-### `scanAllMatchingTraces` (the generalized loop)
+### `traceSource` — `Source<TraceSpanNode>`
 
-`fetchAllTracesForExport` keeps its public signature (the export feature is
-unchanged from the caller's view) but its loop body is extracted into
-`scanAllMatchingTraces`, parameterised by an `onPage(traces)` callback. CSV
-export becomes the first caller; its CSV-specific code (`collectSpans`,
-`formatRow`, `Papa.unparse`) moves into *its* `onPage`.
+An `AsyncIterable<Chunk<TraceSpanNode>>` that wraps `executeTraceQuery`. The
+cursor-advance loop, the empty-page no-progress guard, and request throttling
+live in the Source; the per-page query mechanics it depends on — the two-step
+annotation-filter pagination, the `+1ms` cursor bump, `AbortSignal` plumbing —
+stay in `executeTraceQuery`, unchanged. Yields one `Chunk` per server
+response; `cursor: null` on the final chunk signals end-of-stream to `runLoop`.
 
-### The queue-add consumer
+### `extractTraceIds` — `Transform<TraceSpanNode, string>`
 
-A new caller of `scanAllMatchingTraces` whose `onPage`:
+Factory-built transform. Captures a `Set` for cross-chunk `trace_id` dedup and
+an optional exclude `Set` (already-queued `trace_id`s — see Dedup). Maps each
+chunk's trace nodes to new unique `trace_id`s. The engine's `Progress` then
+reports `scanned` (trace nodes), `matched` (new unique `trace_id`s), and
+`loaded` (ids flushed).
 
-- collects `trace_id`s from each page,
-- buffers them and flushes `addTraces(queueId, ids)` every **~250** (tunable,
-  decoupled from the scan page size — bounded payload, ~8 background jobs for
-  2000 traces, not ~40),
-- a final flush after the scan ends,
-- a failed `addTraces` flush **surfaces** (never silent) — partial state is a
-  known multiple of the flush size.
+### `queueAddSink` — `Sink<string>`
+
+Buffers `trace_id`s. `load` flushes `addTraces(queueId, batch)` for every full
+batch of **~250** (tunable, decoupled from the scan page size — bounded
+payload, ~8 background jobs for 2000 traces, not ~40). `finalize` flushes the
+remainder on clean completion; on cancel or after a failed flush it drops the
+buffer, so a partial add stays a known multiple of the flush size. A failed
+flush throws `QueueAddError` carrying the queued-so-far count — **surfaces,
+never silent**.
+
+### Why the ETL engine here
+
+The engine (`runLoop` + the `Source` / `Transform` / `Sink` contracts) was
+built this session for eval's filter pipeline. Batch-add-to-queue is the same
+scan-and-write shape, so it is the natural first production consumer: it
+validates the engine on a shipping feature and produces a reusable
+`traceSource` any future trace-scanning pipeline inherits. This is independent
+of the observability-table data layer — the scan never renders into the table.
 
 ### Dedup
 
-Before building, **verify** whether `evaluate_batch_traces` / scenario creation
-dedups by `trace_id`. If it does, v1 is free. If not, the queue-add consumer
-fetches the queue's existing scenario `trace_id`s and excludes them — the
+**Verify** whether `evaluate_batch_traces` / scenario creation dedups by
+`trace_id`. If it does, v1 is free. If not, the run fetches the queue's
+existing scenario `trace_id`s into the `extractTraceIds` exclude `Set` — the
 exclude-fetch must itself be bounded/paginated for large queues.
 
 ---
@@ -112,20 +142,25 @@ exclude-fetch must itself be bounded/paginated for large queues.
 
 | Topic | Decision |
 |-------|----------|
-| **Engine** | Generalize `fetchAllTracesForExport` into `scanAllMatchingTraces`; CSV export + queue-add share it. **No ETL `runLoop` / `traceSource` / `queueAddSink`.** |
+| **Engine** | Build on the ETL engine (`@agenta/entities/etl`): `traceSource` → `extractTraceIds` → `queueAddSink`, driven by `runLoop`. First production consumer of the engine. |
 | **Phase** | Single-phase, frontend-only. No observability data-layer migration. |
-| **Queue-add batching** | `onPage` buffers `trace_id`s, flushes `addTraces` at a tunable ~250, decoupled from scan page size. |
+| **Queue-add batching** | `queueAddSink` buffers `trace_id`s, flushes `addTraces` at a tunable ~250, decoupled from scan page size. |
 | **Dedup** | Verify backend idempotency; client-side exclude of already-queued `trace_id`s only if absent. |
+| **CSV export** | Untouched. Keeps its own scan loop (`fetchAllTracesForExport`). Converging it onto `traceSource` + a `csvSink` is a documented follow-up, not a prerequisite. |
 
 **Considered and rejected:**
 
-- **ETL `traceSource` + `runLoop` + `queueAddSink`** — a new ETL pipeline.
-  Rejected: `fetchAllTracesForExport` already implements the scan loop;
-  `runLoop` would be a second loop paging the same endpoint, duplicating proven
-  cancel/cap/empty-page handling. `runLoop` earns its keep when streaming into a
-  rendered viewport — this feature only scans and writes.
+- **Generalize `fetchAllTracesForExport` into a shared `scanAllMatchingTraces`
+  loop** — extract the CSV-export scan loop and have queue-add consume it via
+  an `onPage` callback. Rejected by product direction: the ETL engine built
+  this session is the scan-and-write engine and will also serve eval filtering;
+  routing the first real feature around it would leave it unproven and would
+  not produce the reusable `traceSource`. The export loop stays as-is;
+  converging it onto `traceSource` later is a clean follow-up.
 - **Observability paginated-store migration** — considered in eng review,
-  rejected as a false prerequisite (the scan never needed it).
+  rejected as a false prerequisite. The ETL `Source` is just an
+  `AsyncIterable<Chunk>`; `traceSource` wraps `executeTraceQuery` directly and
+  never needs a paginated store. Independent of the engine choice.
 - **Backend `POST /simple/queues/{id}/traces/query` filter-add endpoint** —
   the cleaner long-term layer (server already does filter→scenarios at queue
   creation); the review kept this frontend-only. Recorded as the alternative if
@@ -181,11 +216,13 @@ notification counter.
 
 - **Queue kind:** only `kind = traces` direct queues accept ad-hoc adds.
 - **Cancellation:** abortable mid-run; leaves a partial add (a known multiple of
-  the flush size) — the UI must message this.
+  the flush size — `finalize` drops the buffer on cancel) — the UI must message
+  this.
 - **Partial failure:** an `addTraces` flush failing mid-run leaves the queue
-  partially filled; surface it, never silently.
-- **Scan cap:** `fetchAllTracesForExport` caps at 20k rows — the queue-add
-  consumer inherits a cap; decide whether 20k is the right ceiling here.
+  partially filled; `queueAddSink` throws `QueueAddError` — surfaced, never
+  silent.
+- **Scan cap:** the pipeline wrapper caps at 20k traces scanned (`maxTraces`,
+  tunable) — decide whether 20k is the right ceiling here.
 - **Dedup race:** a trace queued by someone else between the exclude-fetch and
   the run can still duplicate — acceptable for v1, note it.
 
@@ -194,30 +231,31 @@ notification counter.
 ## Test requirements
 
 ```
-scanAllMatchingTraces (extracted loop)
-  ├── [GAP][CRITICAL] CSV export still works after the extraction (regression)
-  ├── [GAP] onPage called once per page; cursor advances; stops at end
-  └── [GAP] AbortSignal cancellation mid-scan; cap + empty-page guards hold
-queue-add consumer
-  ├── [GAP] buffers trace_ids, flushes addTraces at the threshold
-  ├── [GAP] final flush after scan ends
-  └── [GAP] addTraces flush failure surfaces (no silent drop)
-dedup exclude (if backend not idempotent)
-  └── [GAP] already-queued trace_ids excluded before the run
+traceSource (Source)
+  ├── [GAP] one chunk per page; cursor advances; final chunk has cursor: null
+  └── [GAP] AbortSignal cancellation mid-scan; empty-page no-progress guard holds
+queueAddSink (Sink) + extractTraceIds (Transform)
+  ├── [GAP] extractTraceIds dedups trace_ids across chunks; exclude Set honoured
+  ├── [GAP] load flushes every full ~250 batch; finalize flushes the remainder
+  ├── [GAP] cancel / prior error → finalize drops the buffer (clean multiple)
+  └── [GAP] failed addTraces flush throws QueueAddError (no silent drop)
+pipeline (addAllMatchingTracesToQueue)
+  ├── [GAP] runLoop wiring: scanned / queued progress; cap stops the run
+  └── [GAP] dedup exclude — already-queued trace_ids excluded before the run
 UI affordance
   ├── [GAP] run → notification counter ticks; cancel → scan aborts
   └── [GAP] [→E2E] apply filter → add all matching → traces land in queue
 ```
 
-The CSV-export regression test is **critical** — the extraction must not change
-export behaviour.
+CSV export is **untouched** by this design — no export regression surface.
 
 ---
 
 ## NOT in scope
 
-- **ETL `runLoop` pipeline for this feature** — generalized the export loop
-  instead (see Resolved decisions).
+- **Migrating CSV export onto the ETL engine** — `fetchAllTracesForExport`
+  stays as-is. Converging it onto `traceSource` + a `csvSink` is the documented
+  follow-up.
 - **Observability paginated-store migration** — rejected false prerequisite.
 - **Backend filter-query add endpoint** — kept frontend-only; the documented
   alternative.
@@ -227,14 +265,14 @@ export behaviour.
 
 ## Implementation tasks
 
-- [ ] **T1 — `scanAllMatchingTraces`** — extract the loop from `fetchAllTracesForExport` into a reusable function with an `onPage` callback; refactor CSV export to consume it. Verify: **CSV export regression test** + loop/cursor/cancel tests.
-- [ ] **T2 — queue-add consumer** — `onPage` that buffers `trace_id`s and flushes `addTraces` at a tunable ~250, final flush, failure surfacing. Verify: unit tests.
-- [ ] **T3 — dedup** — verify `evaluate_batch_traces` idempotency; bounded client-side exclude only if needed.
+- [ ] **T1 — `traceSource`** — `Source<TraceSpanNode>` wrapping `executeTraceQuery`: cursor loop, empty-page no-progress guard, throttle, `AbortSignal`. Verify: source unit tests (one chunk per page, cursor advance, stops at end, abort mid-scan).
+- [ ] **T2 — `queueAddSink` + `extractTraceIds` + pipeline wrapper** — the Sink (buffer, ~250 flush, final flush, `QueueAddError` surfacing), the dedup Transform, and `addAllMatchingTracesToQueue` wiring `runLoop`. Verify: unit tests.
+- [ ] **T3 — dedup** — verify `evaluate_batch_traces` idempotency; bounded client-side exclude `Set` only if needed.
 - [ ] **T4 — UI affordance** — two scope-labelled entry-point actions; no-filter confirm; reuse `AddToQueuePopover`; non-blocking notification with live counter + cancel; all interaction states + copy per the UI spec. Verify: component test + E2E.
 - [ ] **T5 — E2E** — apply filter → add all matching → traces appear in the queue.
 
-Priority: LOW. Effort: small — one loop extraction + one consumer + one UI
-affordance, all on proven code.
+Priority: LOW. Effort: small — one Source + one Sink + one transform + one UI
+affordance, on the ETL engine built this session.
 
 ## GSTACK REVIEW REPORT
 
@@ -246,7 +284,7 @@ affordance, all on proven code.
 | Design Review | `/plan-design-review` | UI/UX gaps | 1 | clean | 3/10 → 9/10, 3 decisions |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
 
-- **OUTSIDE VOICE:** Claude subagent — challenged the plan's shape; drove the single-phase re-decision (no observability migration) and flagged the ETL framing as forced.
-- **D7 (implementation-time finding):** starting T1 surfaced that `fetchAllTracesForExport` already implements the trace scan loop. Engine changed from a new ETL `runLoop` pipeline to **generalizing that existing loop** — confirms the outside voice's "ETL is forced here" point. All eng + design UX decisions carry over unchanged.
+- **OUTSIDE VOICE:** Claude subagent — challenged the plan's shape; drove the single-phase re-decision (no observability migration) and flagged the ETL framing.
+- **D7 (revised):** an implementation-time finding briefly flipped the engine to "generalize the export loop." Reverted by product direction — the ETL engine built this session will serve eval filtering too, and batch-add-to-queue is the same scan-and-write shape, so it is the engine's first production consumer. Final engine: `traceSource` → `extractTraceIds` → `queueAddSink` on `runLoop`. The CSV-export loop is left untouched. The observability-migration rejection (D6) is independent and still holds — the scan never renders into the table. All eng + design UX decisions carry over unchanged.
 - **UNRESOLVED:** 0
 - **VERDICT:** ENG + DESIGN REVIEW CLEARED — ready to implement.
