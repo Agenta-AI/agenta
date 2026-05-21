@@ -43,12 +43,11 @@ function ViewModeDropdownInner<TValue extends string = string>({
                 className="inline-flex h-6 items-center gap-1 px-2 text-xs text-[#051729]"
             >
                 <span className="text-[rgba(5,23,41,0.55)]">
-                    View as{" "}
-                    <span className="font-semibold text-[#051729]">
+                    <span className="font-medium text-[#051729]">
                         {selectedOption?.label ?? value}
                     </span>
                 </span>
-                <CaretDown size={12} className="mt-px opacity-65" />
+                <CaretDown size={14} className="mt-px opacity-65" />
             </AntdButton>
         </Dropdown>
     )
