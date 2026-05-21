@@ -270,7 +270,7 @@ Builds on WP-B1.
 Builds on WP-B1.
 
 - Add `mustache` as a new template-format option in the runtime. Semantics: `{{variable}}` substitution; `{{a.b}}` is nested access only (no literal-key-first); JSONPath and JSON Pointer supported.
-- `mustache` becomes the runtime default for new apps. Existing apps continue to use the format they declared.
+- `mustache` becomes the default rendering format for newly created apps / prompt configs. Existing apps continue to use the format they declared.
 - **Brace escaping.** `mustache` ships with an explicit escape mechanism so users can include literal `{{` / `}}` in prompts (e.g., few-shot examples that show LLM output formatting). `curly` and `fstring` keep their current escape semantics:
   - `fstring` already escapes via `{{` → `{` and `}}` → `}` (Python `str.format` rule).
   - `jinja2` already supports `{% raw %}…{% endraw %}` blocks.
@@ -293,7 +293,7 @@ Depends on WP-B3 (`mustache` available) and WP-F1 (type switching available).
 
 - Send testcase data as native JSON when the stored type is JSON. No `JSON.stringify` in request construction.
 - In `mustache` mode, `{{a.b}}` is treated as a single variable `a` (object) with `.b` as a property accessor. The playground's variable discovery creates one variable `a` of type object that the user fills with JSON.
-- `curly` mode is hidden from new-app creation flows. Existing apps still on `curly` continue to work — the literal-key-first behavior is preserved for them.
+- The frontend honors the WP-B3 `mustache` default and hides `curly` from the format list unless the current old app already has `curly` selected. Existing apps still on `curly` continue to work — the literal-key-first behavior is preserved for them.
 
 #### WP-F3 — Variable discovery (autocomplete)
 
@@ -344,7 +344,7 @@ The work packages have a natural order:
 2. **WP-B2** stands up message and JSON-return rendering on the helper, and aligns Jinja error behavior.
 3. **WP-B3** adds `mustache` as a new format.
 4. **WP-F1** lands the same JSON/string switching pattern in playground / testset / observability / evaluation.
-5. **WP-F2** flips playground execution to send native JSON and switches new apps to `mustache`. Curly stays for legacy apps only.
+5. **WP-F2** flips playground execution to send native JSON and hides `curly` from new-app format selection. Curly stays visible for legacy apps that already use it.
 6. **WP-F3** adds autocomplete on top.
 7. **WP-D1** publishes the templating docs, variable matrix, and SDK examples.
 
@@ -428,6 +428,7 @@ Each work package gets its own subfolder with research, plan, implementation not
 
 - [`wp-b1-runtime-foundation/`](wp-b1-runtime-foundation/README.md) — judge backend patch (provider/secret resolution + temperature removal) and the low-level rendering helper extraction.
 - [`wp-b2-rendering-unification/`](wp-b2-rendering-unification/README.md) - shared message rendering, JSON-return rendering, judge `json_schema` rendering, and Jinja error alignment.
+- [`wp-b3-mustache-rendering/`](wp-b3-mustache-rendering/README.md) - `mustache` runtime format, nested-only dotted lookup, delimiter escaping, and LangChain Core tokenizer evaluation.
 
 Subfolders for the remaining work packages will be added as each is picked up.
 
