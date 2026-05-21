@@ -47,9 +47,7 @@ The current system makes those answers difficult because runtime behavior and fr
 All three services should share the same building blocks but currently don't:
 
 - **Provider/model resolution.** Chat and completion use workflow provider settings; the judge manually extracts a fixed provider-key set and therefore cannot reliably use custom or self-hosted models configured in the UI.
-- **Rendering.** Each service has different rendering behavior:
-  - `PromptTemplate.format` raises on Jinja errors; `_format_with_template` returns the original content with a warning.
-  - Chat and completion recursively render `llm_config.response_format`. The judge builds `response_format` from `response_type` / `json_schema` and does not render variables inside `json_schema`.
+- **Rendering.** The services now share more renderer infrastructure than before, but they still differ in configuration shape and runtime entrypoint. Chat and completion render from `parameters.prompt`, while the judge still uses its flat evaluator config and separate handler path.
 - **Config.** The judge does not allow configuring `temperature`. It currently sends a hard-coded `temperature=0.01`, which some models reject as an unsupported optional parameter.
 - **Output.** Completion, chat, and judge return different output shapes. Shared runtime code should stop before handler-specific output normalization.
 
@@ -97,7 +95,7 @@ Example.
 {"profile": {"name": "Ada"}}
 ```
 
-`profile` is a JSON object. The runtime can access `{{profile.name}}`, `{{profile.tags.0}}`, or `{{profile}}` (renders as compact JSON text).
+`profile` is a JSON object. The runtime can access `{{profile.name}}`, `{{$.profile.tags[0]}}`, or `{{profile}}` (renders as compact JSON text).
 
 ```json
 {"profile": "{\"name\":\"Ada\"}"}
@@ -123,7 +121,7 @@ Example.
 
 Three substitution formats plus one full templating engine:
 
-- **`mustache`** — `{{variable}}` substitution. **The default for new apps.** `{{a.b}}` always means nested access (`a` then property `b`). Supports JSONPath (`{{$.profile.name}}`) and JSON Pointer (`{{/profile/name}}`). JSON objects and arrays render as compact JSON text when inserted as whole values into a string template. We use the name "mustache" for recognizability; we do not implement the full mustache spec (no sections or partials) — just variable substitution with our path enhancements.
+- **`mustache`** — Mustache rendering for new apps. **The default for new apps.** Tags that start with `{{$` are pre-rendered as JSONPath expressions against the render context, then the resulting template is rendered with a Mustache engine. Ordinary Mustache behavior handles plain tags such as `{{name}}`, dotted names such as `{{profile.name}}`, and standard Mustache sections. Partials are not supported in Agenta runtime and must fail clearly if present. JSON objects and arrays render as compact JSON text when inserted as whole values into a string template.
 
 - **`curly`** — `{{variable}}` substitution. **Deprecated.** Same syntax as `mustache`, but the resolver applies literal-key-first lookup: if a top-level key is literally named `foo.bar`, `{{foo.bar}}` returns that key's value before nested traversal is attempted. This is what keeps old apps that have variables with literal dots in their names working. Not surfaced in the playground for new apps; existing apps keep their declared format.
 
@@ -269,13 +267,9 @@ Builds on WP-B1.
 
 Builds on WP-B1.
 
-- Add `mustache` as a new template-format option in the runtime. Semantics: `{{variable}}` substitution; `{{a.b}}` is nested access only (no literal-key-first); JSONPath and JSON Pointer supported.
+- Add `mustache` as a new template-format option in the runtime. Semantics: tags that start with `{{$` are pre-rendered as JSONPath expressions; all other tags render through a Mustache engine. Partials are unsupported and fail clearly.
 - `mustache` becomes the default rendering format for newly created apps / prompt configs. Existing apps continue to use the format they declared.
-- **Brace escaping.** `mustache` ships with an explicit escape mechanism so users can include literal `{{` / `}}` in prompts (e.g., few-shot examples that show LLM output formatting). `curly` and `fstring` keep their current escape semantics:
-  - `fstring` already escapes via `{{` → `{` and `}}` → `}` (Python `str.format` rule).
-  - `jinja2` already supports `{% raw %}…{% endraw %}` blocks.
-  - `curly` has no escape today. Adding one to `curly` is non-trivial because the existing `\{\{\s*(.*?)\s*\}\}` regex captures the inner braces of `{{{{x}}}}` as part of the variable name. We document the gap in the rendering appendix and recommend `jinja2` for prompts that need literal braces; the cleanest place to land a real fix is `mustache`, which is greenfield. Whether to also retrofit an escape into `curly` is an open question for WP-B3 (decision factor: how many existing apps need literal `{{` in their prompts).
-- See [appendix-rendering-edge-cases.md](appendix-rendering-edge-cases.md) for the current escape behavior of every mode and the expected behavior for `mustache`.
+- See [appendix-rendering-edge-cases.md](appendix-rendering-edge-cases.md) for the current escape behavior of every mode.
 
 ### Frontend
 
@@ -292,7 +286,7 @@ The same UX pattern lives in playground inputs, the testset editor, observabilit
 Depends on WP-B3 (`mustache` available) and WP-F1 (type switching available).
 
 - Send testcase data as native JSON when the stored type is JSON. No `JSON.stringify` in request construction.
-- In `mustache` mode, `{{a.b}}` is treated as a single variable `a` (object) with `.b` as a property accessor. The playground's variable discovery creates one variable `a` of type object that the user fills with JSON.
+- In `mustache` mode, `{{$.a.b}}` is the explicit JSONPath escape hatch. Plain Mustache tags such as `{{a}}` or `{{profile.name}}` follow ordinary Mustache rendering behavior. The playground's variable discovery for nested JSON is still a frontend concern.
 - The frontend honors the WP-B3 `mustache` default and hides `curly` from the format list unless the current old app already has `curly` selected. Existing apps still on `curly` continue to work — the literal-key-first behavior is preserved for them.
 
 #### WP-F3 — Variable discovery (autocomplete)
@@ -306,10 +300,10 @@ A nicety on top of WP-F2.
 
 #### WP-D1 — Documentation and SDK examples
 
-- Publish prompt templating docs covering `mustache` (default for new apps), `curly` (legacy compat), `fstring`, and `jinja2`. Spell out the dot-semantics distinction between `mustache` and `curly`.
+- Publish prompt templating docs covering `mustache` (default for new apps), `curly` (legacy compat), `fstring`, and `jinja2`. Spell out the JSONPath pre-render rule for `mustache` and the literal-key-first distinction of `curly`.
 - Publish the variable matrix by service and interface.
 - Add SDK / local examples for completion, chat, and LLM-as-a-judge.
-- Document escaping rules, JSON vs. stringified JSON, JSONPath, and JSON Pointer.
+- Document escaping rules, JSON vs. stringified JSON, and JSONPath. Document JSON Pointer only for legacy `curly` semantics if it remains supported there.
 
 Reference template examples:
 
@@ -317,8 +311,7 @@ Reference template examples:
 Hello {{name}}
 Profile JSON: {{profile}}
 Profile name: {{profile.name}}
-First tag: {{profile.tags.0}}
-JSON Pointer: {{/profile/name}}
+First tag: {{$.profile.tags[0]}}
 JSONPath: {{$.profile.name}}
 ```
 
@@ -352,8 +345,9 @@ The work packages have a natural order:
 
 ### Backend runtime
 
-- The low-level rendering helper resolves top-level, nested, JSONPath, and JSON Pointer references in `mustache` and `curly` modes.
-- `curly` preserves literal-key-first behavior on dotted keys; `mustache` does not (treats them as nested).
+- The low-level rendering helper keeps current `curly` behavior and adds `mustache` support.
+- In `mustache` mode, only tags that start with `{{$` are pre-rendered through JSONPath; other tags render through the Mustache engine.
+- `curly` preserves literal-key-first behavior on dotted keys.
 - Whole-object insertion renders as compact JSON text in both modes.
 - `fstring` and `jinja2` behavior is preserved.
 - Stringified JSON inputs are treated as strings (no auto-parse).
@@ -383,7 +377,7 @@ The work packages have a natural order:
 
 ### Documentation
 
-- Examples cover string, JSON object, array, nested access, JSONPath, JSON Pointer, messages, and brace escaping in each format.
+- Examples cover string, JSON object, array, JSONPath, Mustache dotted names, messages, and brace escaping in each format.
 - Variable matrix covers completion, chat, judge, and the four interfaces (Direct API/SDK, evaluator playground, evaluation service offline, evaluation service online).
 
 ## Future Directions
@@ -428,7 +422,7 @@ Each work package gets its own subfolder with research, plan, implementation not
 
 - [`wp-b1-runtime-foundation/`](wp-b1-runtime-foundation/README.md) — judge backend patch (provider/secret resolution + temperature removal) and the low-level rendering helper extraction.
 - [`wp-b2-rendering-unification/`](wp-b2-rendering-unification/README.md) - shared message rendering, JSON-return rendering, judge `json_schema` rendering, and Jinja error alignment.
-- [`wp-b3-mustache-rendering/`](wp-b3-mustache-rendering/README.md) - `mustache` runtime format, nested-only dotted lookup, delimiter escaping, and LangChain Core tokenizer evaluation.
+- [`wp-b3-mustache-rendering/`](wp-b3-mustache-rendering/README.md) - `mustache` runtime format, `{{$...}}` JSONPath pre-rendering, `mystace` rendering, and clear partial failures.
 
 Subfolders for the remaining work packages will be added as each is picked up.
 

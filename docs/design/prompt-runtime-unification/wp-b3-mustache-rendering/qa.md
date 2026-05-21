@@ -6,11 +6,11 @@ WP-B3 adds a new format that shares `{{...}}` delimiters with legacy `curly`. QA
 
 The test plan must prove:
 
-1. `mustache` renders the intended selector subset.
+1. `mustache` pre-renders only `{{$.…}}` tags through JSONPath.
 2. `curly` behavior is unchanged.
 3. All WP-B2 structured rendering call sites accept `mustache`.
 4. New apps / prompt configs default to `mustache` without migrating old configs.
-5. Literal-brace escaping works without corrupting backslashes or values.
+5. Partials fail clearly.
 
 ## Test Levels
 
@@ -26,28 +26,28 @@ Target:
 
 These tests should be pure and should not import runtime handlers.
 
-### Library Spike Tests
+### Library Adoption Tests
 
-Before committing to `langchain-core`, add a small exploratory test or scratch script that records:
+Before locking the implementation, record `mystace` behavior for:
 
-- `tokenize(...)` output for normal variables
-- `tokenize(...)` output for sections, inverted sections, partials, comments, and no-escape tags
-- `render(...)` behavior for missing keys
-- `render(...)` behavior for dotted keys when both literal and nested data exist
-- `render(...)` behavior for dict/list values
-- whether importing `langchain_core.utils.mustache` pulls expensive optional integrations
+- dotted names
+- sections and inverted sections
+- comments and unescaped variables
+- missing keys
+- dict/list values
+- partial tags when no partial registry is supplied
 
-These checks decide whether WP-B3 uses LangChain Core's tokenizer, LangChain Core's full renderer, or a local fallback.
+### JSONPath Pre-Rendering Tests
 
-### Resolver Tests
+These tests can live in `test_render_template_helper.py` or a new focused helper test file.
 
-Resolver tests can live in `test_render_template_helper.py` or a new focused resolver test file.
+Target behavior:
 
-Target helpers:
-
-- `resolve_dot_notation(...)` for legacy `curly`
-- new nested-only resolver for `mustache`
-- new `resolve_mustache(...)` dispatcher, if added
+- `{{$.profile.name}}` pre-renders correctly
+- `{{$.profile.tags[0]}}` pre-renders correctly
+- only tags starting with `{{$` are intercepted
+- `{{name}}` is left for Mustache
+- `{{profile.name}}` is left for Mustache
 
 ### Structured Renderer Tests
 
@@ -81,38 +81,23 @@ Target:
 - repeated variable references
 - multiple different variables
 - multiline template with placeholders on different lines
-- unicode variable names, if existing `curly` support allows them
 - unicode values
 - number, boolean, and null values
 
-### Nested JSON
+### Mustache Dotted Names
 
 - nested object lookup: `{{profile.name}}`
 - deep nested lookup: `{{profile.address.city}}`
-- list index lookup: `{{profile.tags.0}}`
-- nested list lookup: `{{matrix.0.1}}`
 - whole object insertion renders compact JSON
 - whole list insertion renders compact JSON
 - stringified JSON remains a string and is not parsed
 
-### Selector Prefixes
+### JSONPath Tags
 
 - JSONPath root: `{{$}}`
 - JSONPath field: `{{$.profile.name}}`
 - JSONPath list index: `{{$.profile.tags[0]}}`
-- JSON Pointer field: `{{/profile/name}}`
-- JSON Pointer escaped slash: `{{/a~1b}}`
-- selector prefixes are handled before normal mustache name traversal
-
-### Escaping
-
-- `\{{name\}}` renders literal `{{name}}`
-- escaped opening delimiter before normal placeholder
-- escaped closing delimiter after normal placeholder
-- literal JSON examples with escaped braces
-- backslashes in values are preserved
-- regex backreference syntax in values is preserved
-- Windows-style paths in values are preserved
+- only `{{$.…}}` tags are handled by the pre-render pass
 
 ### Structured Rendering
 
@@ -153,7 +138,6 @@ Target:
 These are the most important regression tests.
 
 - `curly` still resolves literal key `a.b` before nested `a -> b`
-- `mustache` resolves nested `a -> b` even when a literal key `a.b` exists
 - `curly` triple-brace and quadruple-brace edge-case tests keep their current expected behavior
 - `curly` still has no delimiter escape
 - `fstring` escaping with doubled braces is unchanged
@@ -168,35 +152,16 @@ These are the most important regression tests.
 
 ### Missing And Invalid Variables
 
-- missing top-level variable raises unresolved-variable error
-- missing nested key raises unresolved-variable error
-- list index out of range raises unresolved-variable error
-- traversal through scalar raises unresolved-variable error
-- empty placeholder raises unresolved-variable error
-- whitespace-only placeholder raises unresolved-variable error
-- malformed dot-notation with brackets raises a clear error
+- missing top-level variable raises a clear Mustache formatting error
+- missing JSONPath expression raises a clear formatting error
+- empty placeholder raises an error
+- whitespace-only placeholder raises an error
 
-### Unsupported Mustache Constructs
+### Unsupported Partials
 
-Define expected behavior before implementation, then test it.
-
-Candidate expected behavior:
-
-- section tags such as `{{#items}}` raise an unsupported-construct error
-- inverted sections such as `{{^items}}` raise an unsupported-construct error
-- closing tags such as `{{/items}}` are ambiguous with JSON Pointer and should be treated carefully
-- partials such as `{{>item}}` raise unsupported-construct error
-- comments such as `{{! note }}` either pass through or raise, but must be documented
-
-Because Agenta uses `/...` for JSON Pointer, closing-section syntax conflicts with an existing selector prefix. Do not add section support in WP-B3.
-
-### Escaping Failures
-
-- dangling escape before opening delimiter
-- escaped opening delimiter with unescaped closing delimiter
-- escaped closing delimiter with unescaped opening delimiter
-- placeholder-shaped variable value is not rendered recursively
-- escaped braces do not hide real unresolved placeholders elsewhere in the template
+- partials such as `{{>item}}` raise a clear unsupported-partial formatting error
+- the LLM call is not reached if a partial tag is present
+- the error should be deterministic and product-authored, not a vague library exception
 
 ## Mocking And Isolation
 
