@@ -88,27 +88,37 @@ EvalRunDetails table (OSS UI)
 
 ---
 
-## Phase 1 — data-layer swap
+## Phase 1 — column + cell swap
 
 The table's internals, table-only. The focus drawer and `SingleScenarioViewer`
 stay on `useScenarioCellValue` (kept alive) until Phase 3.
 
-- **T1 — thin scenarios store.** Promote a thin `createInfiniteTableStore`
-  (identity + `testcaseId` + `status`) to the production store. Reuse
-  `fetchEvaluationScenarioWindow`. **Per-eval-type window order** (online
-  `descending`, auto/human `ascending`) — production already does this;
-  carry it over (the PoC's hardcoded `ascending` is a PoC gap, not a target).
+> **Implementation-time finding — T1 dropped.** Reading
+> `evaluationPreviewTableStore.ts` confirmed it is *already* a thin store:
+> `PreviewTableRow` carries only identity + `testcaseId` + `status` +
+> `scenarioIndex` + comparison fields — zero column data — and it already does
+> per-eval-type window order (line 114). The PoC's separate
+> `scenarioThinPaginatedStore` exists only to drop a couple of cheap unused
+> fields. **The store stays as-is — there is no T1.** The eng-review outside
+> voice flagged this; a direct read confirmed it.
+
+Phase 1 is the **column + cell swap** in `Table.tsx`. T2 and T3 are **coupled**
+— a column definition carries its own cell `render` function, so the column
+source and the cell renderer swap together in one change.
+
 - **T2 — schema columns.** Wire `useEtlColumns` / `resolveMappings` into
   `Table.tsx`; retire `usePreviewColumns` + `tableColumnsAtomFamily`. **Remove
-  the "other"-column drop** so the visible column set matches today.
+  the "other"-column drop** (`useEtlColumns.tsx:56`) so the visible column set
+  matches today.
 - **T3 — self-hydrating cells + non-terminal rendering.** `EtlResolvedCell` +
-  `useHydrateScenarios` + `useCellMaterialization` for the table's cells. This
-  is **not** purely mechanical: add real rendering for pending / running /
-  failed / partial scenarios, and a "skeleton while pending" policy that
-  distinguishes *slice-not-hydrated* from *scenario-not-run*. The PoC's
-  `status: "success"` fabrication is removed.
+  `useHydrateScenarios` + `useCellMaterialization`, against the existing
+  `evaluationPreviewTableStore` rows (keyed by `scenarioId`). **Not** purely
+  mechanical: add real rendering for pending / running / failed / partial
+  scenarios, and a "skeleton while pending" policy that distinguishes
+  *slice-not-hydrated* from *scenario-not-run*. The PoC's `status: "success"`
+  fabrication is removed.
 
-**Perf gate (D5)** — after T1-T3 land: benchmark the new table against the
+**Perf gate (D5)** — after T2+T3 land: benchmark the new table against the
 current one on a 1000+ scenario run, comparison on. Regression → stop, rethink.
 
 ---
@@ -241,6 +251,8 @@ co-consumers.
 
 - The ETL engine + generic primitives (`@agenta/entities/etl`) — built and
   tested this session.
+- `evaluationPreviewTableStore` — already a thin store (identity + `status`,
+  no column data, per-eval-type order); kept as-is, no swap needed (T1 dropped).
 - `fetchEvaluationScenarioWindow` — the scenario fetch; reused unchanged.
 - `mergedRows` testcase_id-join alignment — ported, not reinvented.
 - `withRateLimitRetry` — reused for the filter scan.
@@ -251,10 +263,9 @@ co-consumers.
 
 ## Implementation tasks
 
-**Phase 1 — data-layer swap**
-- [ ] **T1 (P1, human: ~1d / CC: ~2h)** — thin scenarios store; per-eval-type window order.
-- [ ] **T2 (P1, human: ~1d / CC: ~2h)** — schema columns; keep "other" columns; **column-parity regression test** before deleting `usePreviewColumns`.
-- [ ] **T3 (P1, human: ~3d / CC: ~half-day)** — self-hydrating cells **plus non-terminal scenario rendering + skeleton-while-pending** (the unbuilt part).
+**Phase 1 — column + cell swap** (T1 dropped — `evaluationPreviewTableStore` is already thin; see Phase 1)
+- [ ] **T2 (P1, human: ~1d / CC: ~2h)** — schema columns; keep "other" columns; **column-parity regression test** before deleting `usePreviewColumns`. Lands together with T3 (coupled).
+- [ ] **T3 (P1, human: ~3d / CC: ~half-day)** — self-hydrating cells **plus non-terminal scenario rendering + skeleton-while-pending** (the unbuilt part). Lands together with T2.
 - [ ] **Perf gate (P1)** — benchmark vs the old table, 1000+ scenarios, comparison on.
 
 **Phase 2 — filtering**
@@ -281,5 +292,6 @@ co-consumers.
 - **OUTSIDE VOICE (eng):** Claude subagent — caught 5 real gaps the section review under-weighted: T1-T3 mislabeled as "low-risk mechanical port" (non-terminal rendering is unbuilt), `useEtlColumns` drops "other" columns (guaranteed regression), the perf premise was asserted not measured (→ D5 perf gate), T5 comparison is a build not a port (+ unlisted compare-schema fetch), the CSV export path was missed. All folded into the plan.
 - **ENG DECISIONS:** D1 phase the migration · D2 interleaved rows + common-evaluator intersection columns · D3 match production's live bar · D4 outside voice ran · D5 perf-validation gate after Phase 1.
 - **DESIGN DECISIONS:** focused review (migration preserves the visual design) · live hit-ratio counter for filter scanning · interaction-state specs added (skeleton, non-terminal cells, filter no-match empty state, rate-limited indicator).
+- **D6 (implementation-time finding):** starting Phase 1 confirmed `evaluationPreviewTableStore` is already a thin store (identity + status, no column data, per-eval-type order). **T1 is dropped** — Phase 1 is the coupled T2+T3 column+cell swap against the existing store. Confirms the eng-review outside voice's "T1 re-implements an existing store" point.
 - **UNRESOLVED:** 1 — filter composition (single vs multi-predicate) + its UI, intentionally deferred to Phase 2 start. Phase 1 has no open decisions.
-- **VERDICT:** ENG + DESIGN REVIEW CLEARED — ready to implement Phase 1.
+- **VERDICT:** ENG + DESIGN REVIEW CLEARED — ready to implement Phase 1 (T2+T3).
