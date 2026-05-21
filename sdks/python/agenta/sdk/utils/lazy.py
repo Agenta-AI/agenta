@@ -54,6 +54,9 @@ _jinja_cached: Optional[Tuple[type["SandboxedEnvironment"], type["TemplateError"
 )
 _jinja_checked = False
 
+_mystace_render: Optional[Callable[..., str]] = None
+_mystace_checked = False
+
 _fastapi_module: Optional[_FastAPIModule] = None
 _fastapi_checked = False
 
@@ -192,6 +195,33 @@ def _load_jinja2() -> Tuple[type["SandboxedEnvironment"], type["TemplateError"]]
 
     _jinja_cached = (SandboxedEnvironment, TemplateError)
     return _jinja_cached
+
+
+def _load_mystace() -> Callable[..., str]:
+    """Return ``mystace.render_from_template``, the Mustache render entry point.
+
+    Loaded lazily so importing the renderer module does not pull ``mystace`` in
+    on the ``curly`` / ``fstring`` / ``jinja2`` paths.
+    """
+
+    global _mystace_render, _mystace_checked  # pylint: disable=global-statement
+
+    if _mystace_checked:
+        if _mystace_render is None:
+            raise ImportError("mystace is required for mustache template rendering.")
+        return _mystace_render
+
+    _mystace_checked = True
+    try:
+        from mystace import render_from_template
+    except Exception as exc:
+        _mystace_render = None
+        raise ImportError(
+            "mystace is required for mustache template rendering."
+        ) from exc
+
+    _mystace_render = render_from_template
+    return _mystace_render
 
 
 def _load_fastapi() -> _FastAPIModule:

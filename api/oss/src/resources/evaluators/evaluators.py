@@ -69,7 +69,8 @@ evaluators = [
                         },
                         "strict": True,
                     },
-                    "version": "4",
+                    "version": "5",
+                    "template_format": "mustache",
                 },
             },
             {
@@ -114,7 +115,8 @@ evaluators = [
                         },
                         "strict": True,
                     },
-                    "version": "4",
+                    "version": "5",
+                    "template_format": "mustache",
                 },
             },
             {
@@ -158,7 +160,8 @@ evaluators = [
                         },
                         "strict": True,
                     },
-                    "version": "4",
+                    "version": "5",
+                    "template_format": "mustache",
                 },
             },
             {
@@ -203,7 +206,8 @@ evaluators = [
                         },
                         "strict": True,
                     },
-                    "version": "4",
+                    "version": "5",
+                    "template_format": "mustache",
                 },
             },
         ],
@@ -284,10 +288,17 @@ evaluators = [
                 "x-ag-ui-advanced": False,
                 "description": "Select a response format to structure how your evaluation results are returned.",
             },
+            "template_format": {
+                "label": "Template Format",
+                "type": "hidden",
+                "default": "mustache",
+                "description": "The template format used to render the prompt",  # ignored by the FE
+                "x-ag-ui-advanced": False,
+            },
             "version": {
                 "label": "Version",
                 "type": "hidden",
-                "default": "4",
+                "default": "5",
                 "description": "The version of the evaluator",  # ignore by the FE
                 "x-ag-ui-advanced": False,
             },

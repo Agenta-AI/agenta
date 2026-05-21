@@ -354,8 +354,8 @@ llm_v0_interface = WorkflowRevisionData(
                             },
                             "template_format": scalar(
                                 jtype="string",
-                                enum=["curly", "fstring", "jinja2"],
-                                default="curly",
+                                enum=["mustache", "curly", "fstring", "jinja2"],
+                                default="mustache",
                             ),
                         },
                         additional_properties=False,
@@ -500,7 +500,7 @@ chat_v0_interface = WorkflowRevisionData(
                         ),
                     }
                 ],
-                "template_format": "curly",
+                "template_format": "mustache",
                 "input_keys": None,
                 "llm_config": {"model": "gpt-4o-mini"},
             },
@@ -534,7 +534,7 @@ completion_v0_interface = WorkflowRevisionData(
                         "content": "What is the capital of {{country}}?",
                     },
                 ],
-                "template_format": "curly",
+                "template_format": "mustache",
                 "input_keys": None,
                 "llm_config": {"model": "gpt-4o-mini"},
             },

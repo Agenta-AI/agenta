@@ -206,8 +206,8 @@ def auto_ai_critique(
         prompt_template=prompt_template,
         correct_answer_key=correct_answer_key,
         model=model,
-        version=3,
-        template_format="curly",
+        version=5,
+        template_format="mustache",
     )
 
     return evaluator(

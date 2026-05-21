@@ -2,7 +2,7 @@ import type {SimpleChatMessage, MessageContent, MessageContentPart} from "../typ
 
 import {unwrapValue} from "./_internal/unwrap"
 
-type TemplateFormat = "curly" | "fstring" | "jinja2"
+type TemplateFormat = "mustache" | "curly" | "fstring" | "jinja2"
 
 interface EnhancedPromptLike {
     messages?: {value?: unknown} | unknown
@@ -43,6 +43,8 @@ export function normalizeEnhancedMessages(configMessages: unknown[]): SimpleChat
 /** Extract variable names from template strings (e.g., "Hello {{name}}" → ["name"]) */
 function extractVariablesFromText(text: string, format: TemplateFormat): string[] {
     const patterns: Record<TemplateFormat, RegExp> = {
+        // mustache shares curly's {{name}} delimiters for plain variables.
+        mustache: /\{\{(\w+)\}\}/g,
         curly: /\{\{(\w+)\}\}/g,
         fstring: /\{(\w+)\}/g,
         jinja2: /\{\{(\w+)\}\}/g,
@@ -89,7 +91,10 @@ export function extractPromptTemplateContext(prompts: unknown[]): {
         const p = (prompt || {}) as EnhancedPromptLike
         const fmt =
             unwrapValue<unknown>(p.templateFormat) || unwrapValue<unknown>(p.template_format)
-        if (typeof fmt === "string" && (fmt === "curly" || fmt === "fstring" || fmt === "jinja2")) {
+        if (
+            typeof fmt === "string" &&
+            (fmt === "mustache" || fmt === "curly" || fmt === "fstring" || fmt === "jinja2")
+        ) {
             templateFormat = fmt
             break
         }

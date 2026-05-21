@@ -110,6 +110,65 @@ Source:
 - `https://pypi.org/project/chevron/`
 - `https://pypistats.org/packages/chevron`
 
+## Benchmark: `mystace` vs `chevron` (2026-05-21)
+
+We ran a head-to-head suite (`mystace` 1.0.1 vs `chevron` 0.14.0) across
+completeness, consistency, soundness, and performance to validate the engine
+choice with data rather than packaging signals alone.
+
+### Completeness
+
+Both engines handle the full Mustache feature set identically: variables,
+inner-whitespace trimming, dotted and deep-dotted names, sections, truthy/falsy
+sections, inverted sections, comments, delimiter swaps (`{{=<% %>=}}`),
+triple-brace, ampersand-unescape, and nested sections.
+
+### Consistency
+
+**22/22 test cases produced byte-identical output.** This includes the two
+behaviors WP-B3 must override at the integration boundary:
+
+- HTML escaping: both escape `{{var}}` (e.g. `<b>` -> `&lt;b&gt;`).
+- dict coercion: both default to Python `repr` (`{'x': 1}`), not compact JSON.
+
+They also agree on the permissive paths: missing keys render empty, partials
+with no registry render empty, and `None` renders empty.
+
+### Soundness
+
+Neither engine raised on the tested edge cases (missing keys, partials, falsy
+sections, `None`); error surfaces are equivalent. Both are spec-aligned —
+`mystace` claims Mustache v1.4.3 compliance, `chevron` is the older de-facto
+reference implementation.
+
+### Performance (20k iterations per case)
+
+| case | `mystace` | `chevron` | ratio (chevron/mystace) |
+| --- | --- | --- | --- |
+| simple variable | 0.183s | 0.086s | 0.47x (chevron ~2x faster) |
+| section x10 | 0.520s | 0.593s | 1.14x (mystace faster) |
+| deep dotted name | 0.100s | 0.069s | 0.69x (chevron faster) |
+
+`chevron` is faster on simple/scalar templates; `mystace` edges ahead on
+iteration-heavy sections. At microseconds per render, the difference is
+negligible for prompt rendering.
+
+### Decision
+
+Raw behavior is equivalent on completeness, consistency, and soundness, and
+performance is a wash for our workload. The deciding factor is **integration
+cleanliness for the WP-B3 contract**:
+
+- WP-B3 requires no HTML escaping (prompt text is not HTML) and compact-JSON
+  coercion for whole-object/array insertion (to match `curly`).
+- `mystace` exposes `stringify=` and `html_escape_fn=` parameters, so both
+  overrides are one-liners passed straight to `render_from_template(...)`.
+- `chevron` exposes neither, so the same contract would require pre-walking and
+  pre-stringifying the context and working around escaping by hand.
+
+`mystace` is therefore retained as the engine: equal behavior, equivalent
+performance, and the exact extension points the contract needs.
+
 ## Rendering Shape
 
 WP-B3 now has two stages:
