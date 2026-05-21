@@ -593,17 +593,21 @@ const PredicateCountChip = ({
         return {confirmed, pending, totalLoaded}
     }, [filteredRows, paginationRows, predicate, schema, projectId, runId])
 
-    // Compact: "<matched>/<loaded> matched". Pending was dropped — it's
-    // transient noise; matched-vs-loaded is the number that matters. Both
-    // counts use fixed `Num` slots so the chip — and the runId after it —
-    // stay width-stable as the values tick up.
+    // "<matched> matched · <scanned> scanned".
+    //
+    // The second number is rows *scanned so far* — it grows as the
+    // viewport-fill loop walks pages. The word "scanned" is what makes
+    // that clear: it is progress, not a dataset total. No denominator —
+    // the paginated store doesn't expose a reliable dataset size, and a
+    // wrong total is worse than none. When the scan finishes, this number
+    // settles at the true total (every row has been scanned).
     return (
         <Tag color="purple">
-            <Num value={counts.confirmed} ch={4} />
+            <Num value={counts.confirmed} ch={4} /> matched
             <span className="opacity-60">
-                /<Num value={counts.totalLoaded} ch={4} />
-            </span>{" "}
-            matched
+                {" · "}
+                <Num value={counts.totalLoaded} ch={4} /> scanned
+            </span>
         </Tag>
     )
 }
