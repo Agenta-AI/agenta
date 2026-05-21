@@ -38,8 +38,14 @@ def upgrade() -> None:
             )
     """)
 
-    # Create the canonical open/default view for every existing run. Existing
-    # default queues, active or archived, are preserved and block duplicates.
+    # Mass-create default queues, mirroring the runtime create policy in
+    # EvaluationsService._reconcile_default_queue: a default queue should exist
+    # only for runs that should have one. The runtime predicate is
+    # `EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or has_human`, with the env toggle
+    # currently hardcoded False, so the backfill condition is `has_human = true`.
+    # Existing default queues, active or archived, are preserved and block
+    # duplicates. The created queue carries the run's own status instead of a
+    # hardcoded 'running', so closed/successful runs are not misrepresented.
     op.execute("""
         INSERT INTO evaluation_queues (
             project_id,
@@ -58,16 +64,34 @@ def upgrade() -> None:
             r.created_by_id,
             jsonb_build_object('is_default', true, 'is_sequential', false),
             '{}'::jsonb,
-            'running',
+            COALESCE(r.status, 'running'),
             r.id
         FROM evaluation_runs r
-        WHERE NOT EXISTS (
+        WHERE COALESCE((r.flags ->> 'has_human')::boolean, false) = true
+          AND NOT EXISTS (
             SELECT 1
             FROM evaluation_queues q
             WHERE q.project_id = r.project_id
               AND q.run_id = r.id
               AND (q.flags ->> 'is_default')::boolean = true
         )
+    """)
+
+    # Reconcile the other direction: runs that should NOT have a default queue
+    # (has_human = false under the current policy) but carry a stale active
+    # default queue get that queue archived, matching the runtime archive branch
+    # in _reconcile_default_queue. This keeps the fleet consistent immediately
+    # instead of waiting for the first per-run edit to reconcile.
+    op.execute("""
+        UPDATE evaluation_queues q
+        SET deleted_at = CURRENT_TIMESTAMP,
+            deleted_by_id = r.created_by_id
+        FROM evaluation_runs r
+        WHERE q.project_id = r.project_id
+          AND q.run_id = r.id
+          AND (q.flags ->> 'is_default')::boolean = true
+          AND q.deleted_at IS NULL
+          AND COALESCE((r.flags ->> 'has_human')::boolean, false) = false
     """)
 
     # Recompute simple-queue eligibility under the new meaning. An already

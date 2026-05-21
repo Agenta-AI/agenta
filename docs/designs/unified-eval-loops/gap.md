@@ -330,6 +330,9 @@ The immediate goal should not be to support every theoretical graph. It should b
 
 ## API Gaps
 
+> The full operation surface and the implementation status of each op
+> (done / partial / deferred) is catalogued in [`operations.md`](./operations.md).
+
 Missing or incomplete API surface:
 
 - graph-oriented create request

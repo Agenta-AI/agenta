@@ -34,6 +34,32 @@ def _read_field(source: Any, field: str) -> Any:
     return getattr(source, field, None)
 
 
+def _project_inputs(inputs: Any, data: Any) -> Any:
+    """Project source inputs onto the revision's declared input schema.
+
+    A source row (e.g. a testcase) carries every column — input columns plus
+    ground-truth/bookkeeping keys like ``correct_answer`` or ``testcase_id``.
+    The invoked workflow should only receive the inputs its revision declares,
+    so filter ``inputs`` down to the keys present in
+    ``data.schemas.inputs.properties``.
+
+    If the revision declares no input schema (no ``properties``), inputs pass
+    through unchanged so untyped/legacy revisions are not broken.
+    """
+    if not isinstance(inputs, dict):
+        return inputs
+
+    schemas = _read_field(data, "schemas") if data is not None else None
+    inputs_schema = _read_field(schemas, "inputs") if schemas is not None else None
+    properties = (
+        _read_field(inputs_schema, "properties") if inputs_schema is not None else None
+    )
+    if not isinstance(properties, dict) or not properties:
+        return inputs
+
+    return {key: value for key, value in inputs.items() if key in properties}
+
+
 def _dump_model(source: Any, **kwargs: Any) -> Any:
     if hasattr(source, "model_dump"):
         return source.model_dump(**kwargs)
@@ -306,7 +332,7 @@ class BackendWorkflowRunner:
                         if hasattr(request.source.testcase, "model_dump")
                         else request.source.testcase
                     ),
-                    inputs=request.source.inputs,
+                    inputs=_project_inputs(request.source.inputs, data),
                     trace=(
                         request.upstream_trace.model_dump(
                             mode="json",

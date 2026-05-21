@@ -25,8 +25,8 @@ Sources:
 
 ## Open Questions
 
-- Should the legacy migration that mass-creates default queues for all existing runs gate on `has_human`/policy in a single pass, or is the runtime "first-edit reconciles" lag acceptable? See UEL-010.
-- Is destructive `remove_step` + `prune` still the chosen lifecycle per `step-removal-semantics.md`? If so, when is the missing implementation expected? See UEL-014.
+- ~~Should the legacy migration that mass-creates default queues for all existing runs gate on `has_human`/policy in a single pass, or is the runtime "first-edit reconciles" lag acceptable?~~ **Resolved (2026-05-21):** the migration now mirrors the runtime create policy in a single pass — it creates default queues only for `has_human=true` runs, archives stale active default queues for runs that no longer qualify, and carries the run's own status instead of a hardcoded `running`. No reconcile lag. See UEL-010 (closed).
+- ~~Is destructive `remove_step` + `prune` still the chosen lifecycle per `step-removal-semantics.md`? If so, when is the missing implementation expected?~~ **Resolved (2026-05-21):** destructive remove + prune is confirmed and implemented. Rather than a separate `remove_step` endpoint, the prune cascade is folded into the shared create/edit reconcile path (`EvaluationsService._reconcile_run`): `create_run` is "edit from an empty graph" (`prior_step_keys=set()`, prune is a no-op), and `edit_run` diffs the prior graph and prunes cells + input-only orphan scenarios + flushes metrics for any dropped step. See UEL-014 (closed).
 - ~~For source-backed queues, should the public `SimpleQueueData.kind` report the source family (`queries` / `testsets`) or the executable scenario family (`traces` / `testcases`)?~~ **Resolved by 2026-05-20 re-audit:** the failing tests assert the *source* family (`kind="queries"` / `kind="testsets"`), so the current mapping is correct and the real bug is the `is_queue=False` / evaluator-origin default. See UEL-021 re-audit.
 - ~~Should legacy unit tests keep monkeypatching module-level `posthog` / `engine` symbols, or should they be updated to patch dependency factories / constructor injection?~~ **Resolved by 2026-05-20 re-audit:** update the tests to patch the current seam (`_load_posthog`, `get_transactions_engine`, or constructor-injected engine) — production proxy globals are explicitly disallowed by the Notes guidance. See UEL-024 re-audit.
 
@@ -108,145 +108,6 @@ Sources:
   - Local inspection of `SimpleEvaluationsService.dispatch_*`, `SimpleQueuesService._dispatch_source_batches()`, and `tasks/source_slice.py`.
 - Re-audit (2026-05-20): **Partially confirmed; shares root cause with UEL-021.** The source-slice processor's `has_traces`/`has_testcases`-only gate is real and reproduced (see UEL-017 re-audit for the exact line — `tasks/source_slice.py:569` gates on `run.flags.has_traces or run.flags.has_testcases`, excluding `has_queries`/`has_testsets`). However, the *primary* reason the acceptance tests see `assert 0 == 1` is the same `is_queue=False` / evaluator-origin-default issue documented in UEL-021's re-audit — the queue never reaches a parseable state, so no scenarios are reported. The processor-gate gap (this finding) is the *secondary* defect that surfaces once UEL-021's origin default is fixed. Fix UEL-021 first, then re-run the source-backed dispatch tests to isolate whether the `source_slice.py:569` gate still blocks query/testset-backed batches. Keep this finding OPEN as the second-order fix.
 
-### [OPEN] UEL-023: Backend runtime adapters have two compatibility regressions: `WorkflowServiceRequestData` shape and cached-runner `semaphore`
-
-- ID: `UEL-023`
-- Origin: `test`
-- Lens: `validation`
-- Severity: `P2`
-- Confidence: `high`
-- Status: `reproduced`
-- Area: `Evaluations / Runtime Adapters`
-- Summary: Two adapter tests fail for separate compatibility reasons. `BackendWorkflowRunner` now puts `interface` and `configuration` on the outer `WorkflowServiceRequest`, while the unit test expects them on `workflow_request.data`. `BackendCachedRunner` always forwards `semaphore=...` to the wrapped runner, but simple runner implementations may expose `execute_batch(requests)` only.
-- Evidence:
-  - `test_backend_workflow_runner_invokes_application_through_workflow_service` fails with `AttributeError: 'WorkflowRequestData' object has no attribute 'interface'`.
-  - `test_backend_cached_runner_preserves_partial_hit_order` fails with `TypeError: BatchRunner.execute_batch() got an unexpected keyword argument 'semaphore'`.
-  - Local inspection confirms `WorkflowServiceRequestData` is constructed with only `revision`, `parameters`, `testcase`, `inputs`, `trace`, and `outputs`.
-  - Local inspection confirms `BackendCachedRunner.execute_batch()` calls `self.runner.execute_batch(missing, semaphore=semaphore)` unconditionally.
-- Files:
-  - `api/oss/src/core/evaluations/runtime/adapters.py`
-  - `api/oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py`
-- Cause: The adapter boundary is not using a single explicit protocol. Some callers/tests still expect the older request data shape and a simpler batch runner signature.
-- Explanation: These are not the same bug. The request-shape issue needs a contract decision with the workflow service DTOs. The `semaphore` issue can be fixed either by standardizing the runner protocol or by making `BackendCachedRunner` only wrap runners that implement the full protocol.
-- Suggested Fix:
-  - Define the expected `WorkflowServiceRequest` shape once and update either the test or the adapter to match it. Avoid mutating Pydantic DTOs ad hoc to add fields that the model does not declare.
-  - Define a runner protocol for `execute_batch(requests, semaphore=None)` and update test runners to implement it, or make `BackendCachedRunner` tolerant of wrapped runners that do not accept `semaphore`.
-  - Add a small protocol-focused unit test for cached partial-hit order and semaphore forwarding.
-- Alternatives:
-  - If the outer `interface` / `configuration` fields are canonical, close the data-shape assertion as stale and update the test to assert `workflow_request.interface` and `workflow_request.configuration`.
-- Sources:
-  - Provided pytest output.
-  - Local inspection of `BackendWorkflowRunner` and `BackendCachedRunner`.
-- Re-audit (2026-05-20): **Evidence stale; real failing assertion is different.** The pytest dump's actual failure for `test_backend_workflow_runner_invokes_application_through_workflow_service` is `assert workflow_request.data.inputs == {"input": "hello"}` — got all four source keys (`correct_answer`, `testcase_id`, `testcase_dedup_id`, `input`). It is NOT the `AttributeError: 'WorkflowRequestData' object has no attribute 'interface'` this finding's Evidence cites; that `interface`/`configuration` assertion was already removed when UEL-003 was closed (the test now asserts via `workflow_request.data.revision[...]`/`parameters`). So this finding's part (a) is stale.
-  - Confirmed real defect: `BackendWorkflowRunner.execute` sets `inputs=request.source.inputs` verbatim (`adapters.py:309`) with no projection onto the revision's declared input schema (`revision["data"]["schemas"]["inputs"]["properties"]`). The test supplies a schema declaring only `input`, so the adapter should project `request.source.inputs` down to declared properties and drop `correct_answer`/`testcase_id`/`testcase_dedup_id`.
-  - The `semaphore` sub-issue (`BackendCachedRunner.execute_batch` forwarding `semaphore=` unconditionally) was not re-verified in this pass; left as-is pending a targeted check.
-  - Corrected suggested fix: in `BackendWorkflowRunner.execute`, filter `request.source.inputs` to the keys present in `revision["data"]["schemas"]["inputs"]["properties"]` before assigning to `WorkflowServiceRequestData.inputs`. Update the finding title to drop the `WorkflowServiceRequestData.interface` shape sub-issue (closed via UEL-003) and add the input-projection sub-issue.
-
-### [OPEN] UEL-024: Unit tests patch legacy module globals that no longer exist after dependency lookup refactors
-
-- ID: `UEL-024`
-- Origin: `test`
-- Lens: `validation`
-- Severity: `P2`
-- Confidence: `high`
-- Status: `reproduced`
-- Area: `Compatibility / Tests`
-- Summary: Several unit tests fail before exercising behavior because they patch module-level globals (`auth_helper.posthog`, `meters.dao.engine`, `db_manager_ee.engine`) that no longer exist. The production code now lazy-loads or constructor-loads dependencies through `_load_posthog()` / `get_transactions_engine()`.
-- Evidence:
-  - Auth helper tests fail with `AttributeError: module 'oss.src.core.auth.helper' has no attribute 'posthog'`.
-  - Meter DAO tests fail with `AttributeError: module 'ee.src.dbs.postgres.meters.dao' has no attribute 'engine'`.
-  - Workspace invitation removal test fails with `AttributeError: module 'ee.src.services.db_manager_ee' has no attribute 'engine'`.
-  - Local inspection shows `auth.helper` imports `_load_posthog()` and assigns no module-level `posthog`.
-  - Local inspection shows `MetersDAO.__init__()` accepts `engine: TransactionsEngine = None` and defaults to `get_transactions_engine()`, so tests can inject a mock engine directly.
-  - Local inspection shows `remove_user_from_workspace()` calls `get_transactions_engine()` locally, and the same test file already has helper coverage that patches that function in earlier tests.
-- Files:
-  - `api/oss/src/core/auth/helper.py`
-  - `api/ee/src/dbs/postgres/meters/dao.py`
-  - `api/ee/src/services/db_manager_ee.py`
-  - `api/oss/tests/pytest/unit/auth/test_helper.py`
-  - `api/ee/tests/pytest/unit/test_meters_dao_strict_soft.py`
-  - `api/ee/tests/pytest/unit/services/test_db_manager_ee.py`
-- Cause: Test monkeypatch targets drifted after implementation changed dependency lookup style. The tests still patch old module-level handles instead of the current seam.
-- Explanation: This is a test compatibility problem unless the module-level globals are part of an intentional public contract. Adding broad production proxy globals just to satisfy monkeypatches makes the code worse and hides the real dependency seam.
-- Suggested Fix:
-  - Update auth tests to patch `_load_posthog()` or a small `_get_posthog_client()` helper if one is introduced.
-  - Update meter DAO tests to pass `MetersDAO(engine=mock_engine)` where `mock_engine.session()` returns the fake context.
-  - Update `db_manager_ee` pending-invite test to patch `get_transactions_engine()` consistently with the existing `_patch_core_session()` helper in the same file.
-  - Do not add broad module-level engine proxy objects to production DAO/service code.
-- Alternatives:
-  - Add narrow compatibility aliases only if external code, not just tests, imports those module globals. No evidence of that exists in the provided failures.
-- Sources:
-  - Provided pytest output.
-  - Local inspection of the affected modules and tests.
-- Re-audit (2026-05-20): **Fully confirmed, all three module seams reproduce.** Verified directly:
-  - `oss/src/core/auth/helper.py` has no module-level `posthog`; it calls `_load_posthog()` inside `_get_posthog_string_entries` (line 63, imported at line 8). Tests patching `auth_helper.posthog` raise `AttributeError`.
-  - `ee/src/dbs/postgres/meters/dao.py` injects via `MetersDAO.__init__(self, engine: TransactionsEngine = None)` defaulting to `get_transactions_engine()` (lines 96-99); no module-level `engine`. Tests patching `dao_module.engine` raise `AttributeError`. Fix: construct `MetersDAO(engine=mock_engine)`.
-  - `ee/src/services/db_manager_ee.py` calls `get_transactions_engine()` per-function (lines 82, 103, 125, 147, …); no module-level `engine`. Tests patching `db_manager_ee.engine` raise `AttributeError`. Fix: patch `db_manager_ee.get_transactions_engine`.
-  - This is the cleanest fix candidate of the failing-test findings — test-only changes, no production code touched, consistent with the "do not add proxy globals" note. Open Question on monkeypatch strategy can be resolved as "update tests to patch the current seam."
-
-### [OPEN] UEL-025: Legacy billing pricing alias tests are environment-sensitive because the subprocess helper inherits canonical pricing env
-
-- ID: `UEL-025`
-- Origin: `test`
-- Lens: `validation`
-- Severity: `P3`
-- Confidence: `medium`
-- Status: `candidate`
-- Area: `Environment / Billing Settings`
-- Summary: Tests that set legacy `AGENTA_PRICING` or `STRIPE_PRICING` expected those values to populate `env.billing.pricing`, but the user-provided suite output observed a canonical/default Stripe price instead. Local inspection shows `BillingSettings.pricing` already honors legacy aliases after `AGENTA_BILLING_PRICING`, and targeted local execution of both legacy alias tests passed when no canonical pricing env was present. The remaining issue is test isolation: the subprocess helper starts from `dict(os.environ)`, so inherited `AGENTA_BILLING_PRICING` can legitimately mask legacy aliases.
-- Evidence:
-  - `test_billing_pricing_accepts_legacy_agenta_pricing_alias` observed `price_1QmIwGB54aDbaYx3xE5J7WHA` instead of `price_agenta`.
-  - `test_billing_pricing_accepts_legacy_stripe_pricing_alias` observed the same default/canonical price instead of `price_stripe`.
-  - `api/oss/src/utils/env.py` uses `_load_json_env_dict_first("AGENTA_BILLING_PRICING", "AGENTA_PRICING", "STRIPE_PRICING")`.
-  - `api/ee/tests/pytest/unit/test_controls_env_override.py::_run()` copies the full parent environment before applying `env_extra`.
-  - Targeted local run of the two alias tests passed with `2 passed`, confirming the production alias order works when canonical env is absent.
-- Files:
-  - `api/oss/src/utils/env.py`
-  - `api/ee/tests/pytest/unit/test_controls_env_override.py`
-- Cause: The code path gives canonical env precedence by design, and the test helper does not scrub canonical env when validating legacy fallback.
-- Explanation: The production precedence appears correct: canonical `AGENTA_BILLING_PRICING` should beat legacy aliases. The test helper should isolate env vars if it wants to validate legacy alias fallback.
-- Suggested Fix:
-  - In `_run()` / `_ok()` test helpers, explicitly remove `AGENTA_BILLING_PRICING` when a legacy-alias test is running, or construct the subprocess env from a controlled minimal baseline.
-  - Add one explicit test that canonical env wins when both canonical and legacy aliases are present.
-- Alternatives:
-  - If product wants legacy aliases to override canonical pricing, change `_load_json_env_dict_first()` order. This would contradict the existing canonical precedence test.
-- Sources:
-  - Provided pytest output.
-  - Local inspection of `BillingSettings`.
-  - Targeted local pytest run.
-
-### [OPEN] UEL-026: Events acceptance tests hit the EE audit permission/entitlement gate and need fixture alignment
-
-- ID: `UEL-026`
-- Origin: `test`
-- Lens: `validation`
-- Severity: `P2`
-- Confidence: `medium`
-- Status: `candidate`
-- Area: `Events / Acceptance`
-- Summary: Four events acceptance tests expected HTTP 200 but received 403. Current code shows `POST /events/query` is gated in EE by both `Permission.VIEW_EVENTS` and the `Flag.AUDIT` entitlement. The acceptance fixture uses `cls_account["credentials"]` without asserting that account has event-view permission and audit entitlement, so the failures are likely fixture/plan setup unless response bodies or logs show a different 403 source.
-- Evidence:
-  - `oss/tests/pytest/acceptance/events/test_events_basics.py::TestEventsBasics::test_query_events_returns_valid_response` failed with `assert 403 == 200`.
-  - The same 403 pattern appears for event type, unknown event type, and windowing-limit query tests.
-  - `api/oss/src/apis/fastapi/events/router.py` calls `check_action_access(... permission=Permission.VIEW_EVENTS)` and raises `FORBIDDEN_EXCEPTION` when false.
-  - The same route calls `check_entitlements(key=Flag.AUDIT)` and returns `NOT_ENTITLED_RESPONSE(Tracker.FLAGS)` when false.
-  - `api/oss/tests/pytest/unit/events/test_events_router_audit.py` already encodes allow/deny behavior for this gate.
-- Files:
-  - `api/oss/tests/pytest/acceptance/events/test_events_basics.py`
-  - `api/oss/src/apis/fastapi/events/router.py`
-  - `api/oss/tests/pytest/unit/events/test_events_router_audit.py`
-- Cause: Acceptance account setup likely does not guarantee the event-view permission and audit entitlement required by the route.
-- Explanation: This is not evidence of an events DAO/service bug. It is a mismatch between acceptance expectations and the route's current EE access policy.
-- Suggested Fix:
-  - Update the acceptance fixture to use an account/plan with `VIEW_EVENTS` and `AUDIT`, or assert 403 when the fixture lacks audit access.
-  - Log or assert the response body in the acceptance tests so permission denial and entitlement denial are distinguishable.
-  - Keep the existing unit coverage for audit allow/deny behavior.
-- Alternatives:
-  - If OSS acceptance runs should bypass EE audit gating, ensure the test environment is actually OSS or conditionally skip/adjust the events acceptance tests under EE without audit entitlement.
-- Sources:
-  - Provided pytest output.
-  - Local inspection of events router and unit tests.
-
 ### [OPEN] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
 
 - ID: `UEL-009`
@@ -281,34 +142,6 @@ Sources:
 - Alternatives:
   - Accept the heuristic as the persistent rule and document it as a contract; gate any future step-key changes through a versioning check.
 - Re-audit (2026-05-20): **Still reproduces.** Confirmed in `oss/src/dbs/postgres/evaluations/utils.py`: hardcoded direct-source step keys `{"traces", "query-direct"}` / `{"testcases", "testset-direct"}` at lines 113-116, and substring matching `"query" in step_key` / `"testset" in step_key` at lines 121-124 (refs in finding cited 104-136 / 118-124; logic unchanged, lines shifted to ~94-124). Diagnosis and severity unchanged.
-
-### [OPEN] UEL-010: Backfill creates default queues for every existing run, bypassing the conditional policy
-
-- ID: `UEL-010`
-- Origin: `scan`
-- Lens: `verification`
-- Severity: `P2`
-- Confidence: `high`
-- Status: `open`
-- Category: `Migration`
-- Summary: The backfill migration inserts a `flags.is_default=true` queue for every existing run that does not already have one, regardless of `has_human` or `EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS`. The runtime policy in `_reconcile_default_queue` archives default queues for runs that should not have them, but it only fires on the next `create_run`/`edit_run`. Until then the database contains stale active default queues.
-- Evidence:
-  - `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py:43-71` inserts unconditionally, only checking the absence of an existing default queue.
-  - `api/oss/src/core/evaluations/service.py:408` policy is `should_exist = EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or has_human`. With the env constant hardcoded `False` (UEL-007), the steady-state policy requires `has_human=True` for auto-only runs to retain a default queue.
-  - `api/oss/src/core/evaluations/service.py:433-438` archives default queues that should not exist, but only on run edits.
-- Impact:
-  - For environments where `has_human=False` is the majority, the migration creates many auto-only default queues that will only get archived on the next edit. Until then, `fetch_default_queue` returns active queues that the runtime would not have created.
-  - Queue analytics, "queues with no work" views, and simple-queue eligibility checks will see inconsistent state across the fleet during the lag window.
-  - The backfilled rows also default to `status='running'` regardless of run status, which is misleading for `success`/`failure` runs.
-- Files:
-  - `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py`
-- Cause: The migration favors symmetry (every run gets a queue) over conformance with the runtime policy.
-- Suggested Fix:
-  - Mirror the runtime policy in the migration: only insert default queues for runs that satisfy `has_human OR <env policy>`. Archive existing default queues for runs that no longer qualify.
-  - Alternatively, run a one-shot data fix immediately after the migration that calls `_reconcile_default_queue` for each run.
-  - Set `status` to a more neutral value (e.g., `pending`) or carry over the run's status when creating queues during backfill.
-- Alternatives:
-  - Keep the unconditional behavior and document the lag explicitly. This is acceptable if `EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS` is going to be flipped `True` in deployment, but the constant is currently `False`.
 
 ### [OPEN] UEL-011: No tests cover default-queue reconciliation, archive/unarchive, or `_validate_default_queue_data`
 
@@ -400,31 +233,6 @@ Sources:
   - Alternatively, move `is_queue` out of the persisted flag and compute it on read in the service layer, so it cannot be wrong.
 - Alternatives:
   - Keep `is_queue` persisted but enforce reconciliation as part of every `edit_run` call (e.g. wrap the DAO call inside a service decorator that always runs reconcile afterward).
-
-### [OPEN] UEL-014: Step lifecycle operations (`add_step`, `remove_step`, `prune`) are absent
-
-- ID: `UEL-014`
-- Origin: `scan`
-- Lens: `verification`
-- Severity: `P2`
-- Confidence: `high`
-- Status: `open`
-- Category: `Completeness`
-- Summary: `docs/designs/unified-eval-loops/step-removal-semantics.md` chose **destructive** `remove_step` + `prune` as the lifecycle policy and listed `add_step`, `remove_step`, `add_scenario`, `remove_scenario`, `probe(slice)`, `populate(slice, results)`, `prune(slice)`, `process(slice)`, `refresh_metrics`, `set_flag` as the canonical operation surface (`proposal.md:367-381`). None of these exist in the API or service.
-- Evidence:
-  - `api/oss/src/apis/fastapi/evaluations/router.py` (verified through subagent map) has no `add_step`, `remove_step`, `probe`, `prune`, `populate`, `process`, `set_flag` route. The closest in-process method is `TensorSliceOperations` (see UEL-015).
-  - `api/oss/src/core/evaluations/service.py` exposes `create_results`, `query_results`, `delete_results`, `refresh_metrics`, run/queue CRUD, but no graph-mutation API.
-  - `docs/designs/unified-eval-loops/step-removal-semantics.md:1-20` declares destructive remove+prune as the chosen model.
-- Impact: Without the operation surface, graph evolution still requires recreating runs or in-place edits without prune cascades, which is the very fragmentation the design was meant to resolve. UI/API affordances for managing steps after creation cannot be built.
-- Files:
-  - `api/oss/src/apis/fastapi/evaluations/router.py`
-  - `api/oss/src/core/evaluations/service.py`
-- Cause: Implementation prioritized planner/runtime/queue plumbing; the operation API surface remains future work per the plan, but is not labeled as deferred in this branch.
-- Suggested Fix:
-  - Track the operation API as an explicit follow-up. Either ship it in this branch or extend `gap.md` to mark it as a known-pending item.
-  - When implementing, follow the AGENTS.md domain conventions (`apis/fastapi/<domain>/router.py` + `core/<domain>/service.py` + `dbs/postgres/<domain>/dao.py`).
-- Alternatives:
-  - Resolve as `needs-user-decision` if the team prefers to land the unification without the operation surface and ship it as a follow-up PR.
 
 ### [OPEN] UEL-015: `TensorSliceOperations.process` only refreshes metrics; the documented `process(slice)` contract is unimplemented
 
@@ -555,7 +363,223 @@ Sources:
 - Alternatives:
   - Document the assumption "exactly one source reference per input step" and add a planner-level validator that rejects steps violating it.
 
-### [FIXED] UEL-027: SendGrid client is an eager import-time module-global, inconsistent with the lazy-loader pattern used for other optional third-party subsystems
+## Closed Findings
+
+### [CLOSED] UEL-023: Backend runtime adapter does not project source inputs onto the revision's declared input schema
+
+- ID: `UEL-023`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Area: `Evaluations / Runtime Adapters`
+- Summary: Two adapter tests fail for separate compatibility reasons. `BackendWorkflowRunner` now puts `interface` and `configuration` on the outer `WorkflowServiceRequest`, while the unit test expects them on `workflow_request.data`. `BackendCachedRunner` always forwards `semaphore=...` to the wrapped runner, but simple runner implementations may expose `execute_batch(requests)` only.
+- Evidence:
+  - `test_backend_workflow_runner_invokes_application_through_workflow_service` fails with `AttributeError: 'WorkflowRequestData' object has no attribute 'interface'`.
+  - `test_backend_cached_runner_preserves_partial_hit_order` fails with `TypeError: BatchRunner.execute_batch() got an unexpected keyword argument 'semaphore'`.
+  - Local inspection confirms `WorkflowServiceRequestData` is constructed with only `revision`, `parameters`, `testcase`, `inputs`, `trace`, and `outputs`.
+  - Local inspection confirms `BackendCachedRunner.execute_batch()` calls `self.runner.execute_batch(missing, semaphore=semaphore)` unconditionally.
+- Files:
+  - `api/oss/src/core/evaluations/runtime/adapters.py`
+  - `api/oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py`
+- Cause: The adapter boundary is not using a single explicit protocol. Some callers/tests still expect the older request data shape and a simpler batch runner signature.
+- Explanation: These are not the same bug. The request-shape issue needs a contract decision with the workflow service DTOs. The `semaphore` issue can be fixed either by standardizing the runner protocol or by making `BackendCachedRunner` only wrap runners that implement the full protocol.
+- Suggested Fix:
+  - Define the expected `WorkflowServiceRequest` shape once and update either the test or the adapter to match it. Avoid mutating Pydantic DTOs ad hoc to add fields that the model does not declare.
+  - Define a runner protocol for `execute_batch(requests, semaphore=None)` and update test runners to implement it, or make `BackendCachedRunner` tolerant of wrapped runners that do not accept `semaphore`.
+  - Add a small protocol-focused unit test for cached partial-hit order and semaphore forwarding.
+- Alternatives:
+  - If the outer `interface` / `configuration` fields are canonical, close the data-shape assertion as stale and update the test to assert `workflow_request.interface` and `workflow_request.configuration`.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of `BackendWorkflowRunner` and `BackendCachedRunner`.
+- Re-audit (2026-05-20): **Evidence stale; real failing assertion is different.** The pytest dump's actual failure for `test_backend_workflow_runner_invokes_application_through_workflow_service` is `assert workflow_request.data.inputs == {"input": "hello"}` — got all four source keys (`correct_answer`, `testcase_id`, `testcase_dedup_id`, `input`). It is NOT the `AttributeError: 'WorkflowRequestData' object has no attribute 'interface'` this finding's Evidence cites; that `interface`/`configuration` assertion was already removed when UEL-003 was closed (the test now asserts via `workflow_request.data.revision[...]`/`parameters`). So this finding's part (a) is stale.
+  - Confirmed real defect: `BackendWorkflowRunner.execute` sets `inputs=request.source.inputs` verbatim (`adapters.py:309`) with no projection onto the revision's declared input schema (`revision["data"]["schemas"]["inputs"]["properties"]`). The test supplies a schema declaring only `input`, so the adapter should project `request.source.inputs` down to declared properties and drop `correct_answer`/`testcase_id`/`testcase_dedup_id`.
+  - The `semaphore` sub-issue (`BackendCachedRunner.execute_batch` forwarding `semaphore=` unconditionally) was not re-verified in this pass; left as-is pending a targeted check.
+  - Corrected suggested fix: in `BackendWorkflowRunner.execute`, filter `request.source.inputs` to the keys present in `revision["data"]["schemas"]["inputs"]["properties"]` before assigning to `WorkflowServiceRequestData.inputs`. Update the finding title to drop the `WorkflowServiceRequestData.interface` shape sub-issue (closed via UEL-003) and add the input-projection sub-issue.
+- Resolution (2026-05-21): **Fixed; both sub-issues confirmed closed.** Reproduced the suite: `test_backend_workflow_runner_invokes_application_through_workflow_service` failed exactly per the re-audit (`workflow_request.data.inputs` carried `correct_answer`/`testcase_id`/`testcase_dedup_id`); `test_backend_cached_runner_preserves_partial_hit_order` already **passed** (the `semaphore` sub-issue is stale, no change needed).
+  - Added `_project_inputs(inputs, data)` in `api/oss/src/core/evaluations/runtime/adapters.py` and applied it at the `inputs=` assignment in `BackendWorkflowRunner.execute`. It filters `request.source.inputs` to the keys declared in `data.schemas.inputs.properties`; revisions with no declared input schema pass through unchanged so untyped/legacy revisions are not broken.
+  - Verified: the failing test passes; the full `test_runtime_topology_planner.py` file is now 39 passed / 1 failed, where the remaining failure is the separate `test_source_slice_processor_preserves_higher_queue_status` (UEL-017/UEL-022 severity-floor gate), not this finding.
+
+### [CLOSED] UEL-024: Unit tests patch legacy module globals that no longer exist after dependency lookup refactors
+
+- ID: `UEL-024`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Area: `Compatibility / Tests`
+- Summary: Several unit tests fail before exercising behavior because they patch module-level globals (`auth_helper.posthog`, `meters.dao.engine`, `db_manager_ee.engine`) that no longer exist. The production code now lazy-loads or constructor-loads dependencies through `_load_posthog()` / `get_transactions_engine()`.
+- Evidence:
+  - Auth helper tests fail with `AttributeError: module 'oss.src.core.auth.helper' has no attribute 'posthog'`.
+  - Meter DAO tests fail with `AttributeError: module 'ee.src.dbs.postgres.meters.dao' has no attribute 'engine'`.
+  - Workspace invitation removal test fails with `AttributeError: module 'ee.src.services.db_manager_ee' has no attribute 'engine'`.
+  - Local inspection shows `auth.helper` imports `_load_posthog()` and assigns no module-level `posthog`.
+  - Local inspection shows `MetersDAO.__init__()` accepts `engine: TransactionsEngine = None` and defaults to `get_transactions_engine()`, so tests can inject a mock engine directly.
+  - Local inspection shows `remove_user_from_workspace()` calls `get_transactions_engine()` locally, and the same test file already has helper coverage that patches that function in earlier tests.
+- Files:
+  - `api/oss/src/core/auth/helper.py`
+  - `api/ee/src/dbs/postgres/meters/dao.py`
+  - `api/ee/src/services/db_manager_ee.py`
+  - `api/oss/tests/pytest/unit/auth/test_helper.py`
+  - `api/ee/tests/pytest/unit/test_meters_dao_strict_soft.py`
+  - `api/ee/tests/pytest/unit/services/test_db_manager_ee.py`
+- Cause: Test monkeypatch targets drifted after implementation changed dependency lookup style. The tests still patch old module-level handles instead of the current seam.
+- Explanation: This is a test compatibility problem unless the module-level globals are part of an intentional public contract. Adding broad production proxy globals just to satisfy monkeypatches makes the code worse and hides the real dependency seam.
+- Suggested Fix:
+  - Update auth tests to patch `_load_posthog()` or a small `_get_posthog_client()` helper if one is introduced.
+  - Update meter DAO tests to pass `MetersDAO(engine=mock_engine)` where `mock_engine.session()` returns the fake context.
+  - Update `db_manager_ee` pending-invite test to patch `get_transactions_engine()` consistently with the existing `_patch_core_session()` helper in the same file.
+  - Do not add broad module-level engine proxy objects to production DAO/service code.
+- Alternatives:
+  - Add narrow compatibility aliases only if external code, not just tests, imports those module globals. No evidence of that exists in the provided failures.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of the affected modules and tests.
+- Re-audit (2026-05-20): **Fully confirmed, all three module seams reproduce.** Verified directly:
+  - `oss/src/core/auth/helper.py` has no module-level `posthog`; it calls `_load_posthog()` inside `_get_posthog_string_entries` (line 63, imported at line 8). Tests patching `auth_helper.posthog` raise `AttributeError`.
+  - `ee/src/dbs/postgres/meters/dao.py` injects via `MetersDAO.__init__(self, engine: TransactionsEngine = None)` defaulting to `get_transactions_engine()` (lines 96-99); no module-level `engine`. Tests patching `dao_module.engine` raise `AttributeError`. Fix: construct `MetersDAO(engine=mock_engine)`.
+  - `ee/src/services/db_manager_ee.py` calls `get_transactions_engine()` per-function (lines 82, 103, 125, 147, …); no module-level `engine`. Tests patching `db_manager_ee.engine` raise `AttributeError`. Fix: patch `db_manager_ee.get_transactions_engine`.
+  - This is the cleanest fix candidate of the failing-test findings — test-only changes, no production code touched, consistent with the "do not add proxy globals" note. Open Question on monkeypatch strategy can be resolved as "update tests to patch the current seam."
+- Resolution (2026-05-21): **Already fixed on this branch; verified by running the suite (30 passed, 0 failed).** All three test files now patch the current seam exactly as prescribed:
+  - `oss/tests/pytest/unit/auth/test_helper.py` patches `_load_posthog` (3 sites), not `auth_helper.posthog`.
+  - `ee/tests/pytest/unit/test_meters_dao_strict_soft.py` constructs `MetersDAO(engine=_mock_engine(session))`, not module-global `engine`.
+  - `ee/tests/pytest/unit/services/test_db_manager_ee.py` patches `get_transactions_engine` where it is called, not `db_manager_ee.engine`.
+  - No production code touched; consistent with the "do not add proxy globals" note.
+
+### [CLOSED] UEL-025: Legacy billing pricing alias tests are environment-sensitive because the subprocess helper inherits canonical pricing env
+
+- ID: `UEL-025`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P3`
+- Confidence: `medium`
+- Status: `fixed`
+- Area: `Environment / Billing Settings`
+- Summary: Tests that set legacy `AGENTA_PRICING` or `STRIPE_PRICING` expected those values to populate `env.billing.pricing`, but the user-provided suite output observed a canonical/default Stripe price instead. Local inspection shows `BillingSettings.pricing` already honors legacy aliases after `AGENTA_BILLING_PRICING`, and targeted local execution of both legacy alias tests passed when no canonical pricing env was present. The remaining issue is test isolation: the subprocess helper starts from `dict(os.environ)`, so inherited `AGENTA_BILLING_PRICING` can legitimately mask legacy aliases.
+- Evidence:
+  - `test_billing_pricing_accepts_legacy_agenta_pricing_alias` observed `price_1QmIwGB54aDbaYx3xE5J7WHA` instead of `price_agenta`.
+  - `test_billing_pricing_accepts_legacy_stripe_pricing_alias` observed the same default/canonical price instead of `price_stripe`.
+  - `api/oss/src/utils/env.py` uses `_load_json_env_dict_first("AGENTA_BILLING_PRICING", "AGENTA_PRICING", "STRIPE_PRICING")`.
+  - `api/ee/tests/pytest/unit/test_controls_env_override.py::_run()` copies the full parent environment before applying `env_extra`.
+  - Targeted local run of the two alias tests passed with `2 passed`, confirming the production alias order works when canonical env is absent.
+- Files:
+  - `api/oss/src/utils/env.py`
+  - `api/ee/tests/pytest/unit/test_controls_env_override.py`
+- Cause: The code path gives canonical env precedence by design, and the test helper does not scrub canonical env when validating legacy fallback.
+- Explanation: The production precedence appears correct: canonical `AGENTA_BILLING_PRICING` should beat legacy aliases. The test helper should isolate env vars if it wants to validate legacy alias fallback.
+- Suggested Fix:
+  - In `_run()` / `_ok()` test helpers, explicitly remove `AGENTA_BILLING_PRICING` when a legacy-alias test is running, or construct the subprocess env from a controlled minimal baseline.
+  - Add one explicit test that canonical env wins when both canonical and legacy aliases are present.
+- Alternatives:
+  - If product wants legacy aliases to override canonical pricing, change `_load_json_env_dict_first()` order. This would contradict the existing canonical precedence test.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of `BillingSettings`.
+  - Targeted local pytest run.
+- Resolution (2026-05-21): **Already fixed on this branch; verified (13 pricing tests pass).** `ee/tests/pytest/unit/test_controls_env_override.py` now isolates env for the legacy-alias tests exactly as prescribed: `test_billing_pricing_accepts_legacy_agenta_pricing_alias` and `..._stripe_pricing_alias` pass `"AGENTA_BILLING_PRICING": ""` in `env_extra` to clear the inherited canonical var so the legacy alias is consulted. A new `test_billing_pricing_prefers_canonical_env_over_legacy_aliases` locks in canonical-wins precedence. Production precedence (`_load_json_env_dict_first("AGENTA_BILLING_PRICING", "AGENTA_PRICING", "STRIPE_PRICING")`) is unchanged and correct.
+
+### [CLOSED] UEL-026: Events acceptance tests hit the EE audit permission/entitlement gate and need fixture alignment
+
+- ID: `UEL-026`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P2`
+- Confidence: `medium`
+- Status: `fixed`
+- Area: `Events / Acceptance`
+- Summary: Four events acceptance tests expected HTTP 200 but received 403. Current code shows `POST /events/query` is gated in EE by both `Permission.VIEW_EVENTS` and the `Flag.AUDIT` entitlement. The acceptance fixture uses `cls_account["credentials"]` without asserting that account has event-view permission and audit entitlement, so the failures are likely fixture/plan setup unless response bodies or logs show a different 403 source.
+- Evidence:
+  - `oss/tests/pytest/acceptance/events/test_events_basics.py::TestEventsBasics::test_query_events_returns_valid_response` failed with `assert 403 == 200`.
+  - The same 403 pattern appears for event type, unknown event type, and windowing-limit query tests.
+  - `api/oss/src/apis/fastapi/events/router.py` calls `check_action_access(... permission=Permission.VIEW_EVENTS)` and raises `FORBIDDEN_EXCEPTION` when false.
+  - The same route calls `check_entitlements(key=Flag.AUDIT)` and returns `NOT_ENTITLED_RESPONSE(Tracker.FLAGS)` when false.
+  - `api/oss/tests/pytest/unit/events/test_events_router_audit.py` already encodes allow/deny behavior for this gate.
+- Files:
+  - `api/oss/tests/pytest/acceptance/events/test_events_basics.py`
+  - `api/oss/src/apis/fastapi/events/router.py`
+  - `api/oss/tests/pytest/unit/events/test_events_router_audit.py`
+- Cause: Acceptance account setup likely does not guarantee the event-view permission and audit entitlement required by the route.
+- Explanation: This is not evidence of an events DAO/service bug. It is a mismatch between acceptance expectations and the route's current EE access policy.
+- Suggested Fix:
+  - Update the acceptance fixture to use an account/plan with `VIEW_EVENTS` and `AUDIT`, or assert 403 when the fixture lacks audit access.
+  - Log or assert the response body in the acceptance tests so permission denial and entitlement denial are distinguishable.
+  - Keep the existing unit coverage for audit allow/deny behavior.
+- Alternatives:
+  - If OSS acceptance runs should bypass EE audit gating, ensure the test environment is actually OSS or conditionally skip/adjust the events acceptance tests under EE without audit entitlement.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of events router and unit tests.
+- Resolution (2026-05-21): **Already fixed on this branch; verified.** The four OSS acceptance tests in `oss/tests/pytest/acceptance/events/test_events_basics.py` are now skipped with reason "Endpoint is plan/role-gated under EE; covered by the EE events suite" (5 skipped), matching the Alternatives fix. The plan/role-gated path is covered by `ee/tests/pytest/acceptance/events/test_events_basics.py` (5 passed). No 403-vs-200 mismatch remains.
+
+### [CLOSED] UEL-010: Backfill creates default queues for every existing run, bypassing the conditional policy
+
+- ID: `UEL-010`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Migration`
+- Summary: The backfill migration inserts a `flags.is_default=true` queue for every existing run that does not already have one, regardless of `has_human` or `EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS`. The runtime policy in `_reconcile_default_queue` archives default queues for runs that should not have them, but it only fires on the next `create_run`/`edit_run`. Until then the database contains stale active default queues.
+- Evidence:
+  - `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py:43-71` inserts unconditionally, only checking the absence of an existing default queue.
+  - `api/oss/src/core/evaluations/service.py:408` policy is `should_exist = EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or has_human`. With the env constant hardcoded `False` (UEL-007), the steady-state policy requires `has_human=True` for auto-only runs to retain a default queue.
+  - `api/oss/src/core/evaluations/service.py:433-438` archives default queues that should not exist, but only on run edits.
+- Impact:
+  - For environments where `has_human=False` is the majority, the migration creates many auto-only default queues that will only get archived on the next edit. Until then, `fetch_default_queue` returns active queues that the runtime would not have created.
+  - Queue analytics, "queues with no work" views, and simple-queue eligibility checks will see inconsistent state across the fleet during the lag window.
+  - The backfilled rows also default to `status='running'` regardless of run status, which is misleading for `success`/`failure` runs.
+- Files:
+  - `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py`
+- Cause: The migration favors symmetry (every run gets a queue) over conformance with the runtime policy.
+- Suggested Fix:
+  - Mirror the runtime policy in the migration: only insert default queues for runs that satisfy `has_human OR <env policy>`. Archive existing default queues for runs that no longer qualify.
+  - Alternatively, run a one-shot data fix immediately after the migration that calls `_reconcile_default_queue` for each run.
+  - Set `status` to a more neutral value (e.g., `pending`) or carry over the run's status when creating queues during backfill.
+- Alternatives:
+  - Keep the unconditional behavior and document the lag explicitly. This is acceptable if `EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS` is going to be flipped `True` in deployment, but the constant is currently `False`.
+- Resolution (2026-05-21): **Fixed.** `a2b3c4d5e6f8_backfill_default_evaluation_queues.py` now mirrors the runtime create policy (`_reconcile_default_queue`) in a single pass:
+  - The INSERT is gated on `COALESCE((r.flags ->> 'has_human')::boolean, false) = true`, matching `should_exist = EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or has_human` with the env toggle hardcoded `False`.
+  - A new reconcile-the-other-direction UPDATE archives (`deleted_at = now`, `deleted_by_id = r.created_by_id`) any stale active default queue on a run that no longer qualifies (`has_human = false`), so there is no "first-edit reconciles" lag.
+  - Created queues carry `COALESCE(r.status, 'running')` instead of a hardcoded `'running'`, so closed/success/failure runs are not misrepresented.
+  - The final `is_queue` recompute is unchanged (already `has_human AND active default queue exists`).
+
+### [CLOSED] UEL-014: Step lifecycle operations (`add_step`, `remove_step`, `prune`) are absent
+
+- ID: `UEL-014`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Completeness`
+- Summary: `docs/designs/unified-eval-loops/step-removal-semantics.md` chose **destructive** `remove_step` + `prune` as the lifecycle policy and listed `add_step`, `remove_step`, `add_scenario`, `remove_scenario`, `probe(slice)`, `populate(slice, results)`, `prune(slice)`, `process(slice)`, `refresh_metrics`, `set_flag` as the canonical operation surface (`proposal.md:367-381`). None of these exist in the API or service.
+- Evidence:
+  - `api/oss/src/apis/fastapi/evaluations/router.py` (verified through subagent map) has no `add_step`, `remove_step`, `probe`, `prune`, `populate`, `process`, `set_flag` route. The closest in-process method is `TensorSliceOperations` (see UEL-015).
+  - `api/oss/src/core/evaluations/service.py` exposes `create_results`, `query_results`, `delete_results`, `refresh_metrics`, run/queue CRUD, but no graph-mutation API.
+  - `docs/designs/unified-eval-loops/step-removal-semantics.md:1-20` declares destructive remove+prune as the chosen model.
+- Impact: Without the operation surface, graph evolution still requires recreating runs or in-place edits without prune cascades, which is the very fragmentation the design was meant to resolve. UI/API affordances for managing steps after creation cannot be built.
+- Files:
+  - `api/oss/src/apis/fastapi/evaluations/router.py`
+  - `api/oss/src/core/evaluations/service.py`
+- Cause: Implementation prioritized planner/runtime/queue plumbing; the operation API surface remains future work per the plan, but is not labeled as deferred in this branch.
+- Suggested Fix:
+  - Track the operation API as an explicit follow-up. Either ship it in this branch or extend `gap.md` to mark it as a known-pending item.
+  - When implementing, follow the AGENTS.md domain conventions (`apis/fastapi/<domain>/router.py` + `core/<domain>/service.py` + `dbs/postgres/<domain>/dao.py`).
+- Alternatives:
+  - Resolve as `needs-user-decision` if the team prefers to land the unification without the operation surface and ship it as a follow-up PR.
+- Resolution (2026-05-21): **Fixed for the `remove_step` + `prune` lifecycle (the part `step-removal-semantics.md` actually mandates).** Per user decision, graph mutation is not exposed as separate `add_step`/`remove_step` endpoints. Instead, since `create_run` is conceptually "edit from an empty graph", create and edit now funnel through one shared post-write reconciler, `EvaluationsService._reconcile_run`:
+  - `_reconcile_run(run, prior_step_keys)` runs `_prune_removed_steps(run, prior_step_keys - current_step_keys)` then `_reconcile_default_queue(run)`.
+  - `create_run` / `create_runs` pass `prior_step_keys=set()`, so prune is a guaranteed no-op (no prior cells) — preserving the "create = edit from scratch" property.
+  - `edit_run` / `edit_runs` fetch the prior run, capture its step keys, and after the DAO write prune the cells of any dropped step. Adding/keeping a step needs no special path: omitting a step from `data.steps` *is* a destructive removal.
+  - `_prune_removed_steps` implements the documented cascade: delete result cells for removed steps across scenarios/repeats; remove scenarios left with zero remaining cells (i.e. sourced only from a removed input step); flush metrics for surviving affected scenarios. Closed runs are rejected by the existing DAO `edit_run` guard.
+  - Files: `api/oss/src/core/evaluations/service.py` (`_reconcile_run`, `_prune_removed_steps`, `_step_keys`, rewired create/edit). Tests: `api/oss/tests/pytest/acceptance/evaluations/test_evaluation_step_removal.py` (non-input drop prunes only its cells; input drop prunes orphan scenarios; create does not prune; queue eligibility re-derived). 12/12 targeted acceptance tests pass; 52/54 evaluations unit tests pass (the 2 failures are pre-existing UEL-017/UEL-022/UEL-023, unrelated).
+  - Still open as separate findings: the slice-level `process(slice)` execution contract (UEL-015) and the other documented ops (`add_step`/`add_scenario`/`set_flag`/etc.) are not part of the remove+prune lifecycle and remain out of scope here. The full operation surface and per-op status (done / partial / deferred) is now catalogued in [`operations.md`](./operations.md); the deferred ops will be implemented later.
+
+### [CLOSED] UEL-027: SendGrid client is an eager import-time module-global, inconsistent with the lazy-loader pattern used for other optional third-party subsystems
 
 - ID: `UEL-027`
 - Origin: `scan`
@@ -590,8 +614,6 @@ Sources:
 - Sources:
   - 2026-05-21 read-only subsystem-access audit (Explore agent) covering Postgres, Redis, Stripe, PostHog, SuperTokens, SendGrid.
   - Local inspection of the (now-removed) `email_service.py`, `db_manager_ee.py`, `lazy.py`, and the four email call sites.
-
-## Closed Findings
 
 ### [CLOSED] UEL-008: `has_traces`/`has_testcases` flags are never set on run creation
 

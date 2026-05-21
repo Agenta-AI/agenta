@@ -508,6 +508,120 @@ class EvaluationsService:
 
         return await _has_mutation_lock(run_id=str(run_id))
 
+    @staticmethod
+    def _step_keys(run: Optional[EvaluationRun]) -> set:
+        if run is None or run.data is None or not run.data.steps:
+            return set()
+        return {step.key for step in run.data.steps}
+
+    async def _reconcile_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        prior_step_keys: set,
+    ) -> EvaluationRun:
+        """Bring all run-derived state in line with the run's current graph.
+
+        This is the single post-write reconciliation path shared by create and
+        edit. `create_run` is just `edit_run` starting from an empty graph: it
+        passes `prior_step_keys=set()`, so the prune step is a no-op (there are
+        no prior cells), while the default-queue reconciliation runs identically
+        in both cases.
+
+        Steps:
+          1. prune tensor cells (and input-only scenarios + their metrics) for
+             any step that existed before but is gone from the current graph,
+             per `docs/designs/unified-eval-loops/step-removal-semantics.md`.
+          2. reconcile the default queue + `is_queue` from the current graph.
+        """
+        await self._prune_removed_steps(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            removed_step_keys=prior_step_keys - self._step_keys(run),
+        )
+
+        return await self._reconcile_default_queue(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+        )
+
+    async def _prune_removed_steps(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        removed_step_keys: set,
+    ) -> None:
+        """Destructively prune cells, orphan scenarios, and metrics for steps
+        that left the graph. Removal is destructive (Model A): stored graph and
+        stored tensor keep the same shape. A no-op when nothing was removed.
+        """
+        if not removed_step_keys or not run.id:
+            return
+
+        removed_results = await self.query_results(
+            project_id=project_id,
+            result=EvaluationResultQuery(
+                run_id=run.id,
+                step_keys=sorted(removed_step_keys),
+            ),
+        )
+        affected_scenario_ids = sorted(
+            {r.scenario_id for r in removed_results if r.scenario_id},
+            key=str,
+        )
+
+        removed_result_ids = [r.id for r in removed_results if r.id]
+        if removed_result_ids:
+            await self.delete_results(
+                project_id=project_id,
+                result_ids=removed_result_ids,
+            )
+
+        # Scenarios sourced only from a removed step have no remaining cells.
+        orphan_scenario_ids: List[UUID] = []
+        for scenario_id in affected_scenario_ids:
+            remaining = await self.query_results(
+                project_id=project_id,
+                result=EvaluationResultQuery(
+                    run_id=run.id,
+                    scenario_ids=[scenario_id],
+                ),
+            )
+            if not remaining:
+                orphan_scenario_ids.append(scenario_id)
+
+        if orphan_scenario_ids:
+            await self.delete_scenarios(
+                project_id=project_id,
+                scenario_ids=orphan_scenario_ids,
+            )
+
+        # Flush metrics for surviving affected scenarios so current metrics stay
+        # aligned with the post-removal graph. Orphans are gone.
+        orphans = set(orphan_scenario_ids)
+        surviving_scenario_ids = [
+            scenario_id
+            for scenario_id in affected_scenario_ids
+            if scenario_id not in orphans
+        ]
+        if surviving_scenario_ids:
+            await self.refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                metrics=EvaluationMetricsRefresh(
+                    run_id=run.id,
+                    scenario_ids=surviving_scenario_ids,
+                ),
+            )
+
     async def create_run(
         self,
         *,
@@ -525,10 +639,12 @@ class EvaluationsService:
             run=run,
         )
         if created_run:
-            created_run = await self._reconcile_default_queue(
+            # Create is edit from an empty graph: no prior steps to prune.
+            created_run = await self._reconcile_run(
                 project_id=project_id,
                 user_id=user_id,
                 run=created_run,
+                prior_step_keys=set(),
             )
         return created_run
 
@@ -550,10 +666,11 @@ class EvaluationsService:
             runs=runs,
         )
         return [
-            await self._reconcile_default_queue(
+            await self._reconcile_run(
                 project_id=project_id,
                 user_id=user_id,
                 run=created_run,
+                prior_step_keys=set(),
             )
             for created_run in created_runs
         ]
@@ -594,6 +711,11 @@ class EvaluationsService:
     ) -> Optional[EvaluationRun]:
         run.version = CURRENT_VERSION
 
+        # Capture the prior graph so reconciliation can prune any step the edit
+        # drops. An edit that omits a step is a destructive removal.
+        prior_run = await self.fetch_run(project_id=project_id, run_id=run.id)
+        prior_step_keys = self._step_keys(prior_run)
+
         edited_run = await self.evaluations_dao.edit_run(
             project_id=project_id,
             user_id=user_id,
@@ -601,10 +723,11 @@ class EvaluationsService:
             run=run,
         )
         if edited_run:
-            edited_run = await self._reconcile_default_queue(
+            edited_run = await self._reconcile_run(
                 project_id=project_id,
                 user_id=user_id,
                 run=edited_run,
+                prior_step_keys=prior_step_keys,
             )
         return edited_run
 
@@ -619,6 +742,14 @@ class EvaluationsService:
         for run in runs:
             run.version = CURRENT_VERSION
 
+        prior_runs = await self.fetch_runs(
+            project_id=project_id,
+            run_ids=[run.id for run in runs],
+        )
+        prior_step_keys_by_id = {
+            prior_run.id: self._step_keys(prior_run) for prior_run in prior_runs
+        }
+
         edited_runs = await self.evaluations_dao.edit_runs(
             project_id=project_id,
             user_id=user_id,
@@ -626,10 +757,11 @@ class EvaluationsService:
             runs=runs,
         )
         return [
-            await self._reconcile_default_queue(
+            await self._reconcile_run(
                 project_id=project_id,
                 user_id=user_id,
                 run=edited_run,
+                prior_step_keys=prior_step_keys_by_id.get(edited_run.id, set()),
             )
             for edited_run in edited_runs
         ]
