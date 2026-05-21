@@ -30,7 +30,11 @@ from oss.src.core.auth.service import AuthService
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import get_default_plan
-from ee.src.utils.entitlements import check_entitlements, scope_from, Gauge
+from ee.src.core.access.entitlements.service import (
+    check_entitlements,
+    scope_from,
+    Gauge,
+)
 from ee.src.core.organizations.exceptions import OrganizationCreationNotAllowedError
 
 log = get_module_logger(__name__)

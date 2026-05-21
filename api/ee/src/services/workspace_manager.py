@@ -20,8 +20,8 @@ from ee.src.core.workspaces.types import (
     CreateWorkspace,
     UpdateWorkspace,
 )
-from ee.src.core.entitlements.controls import get_role
-from ee.src.core.permissions.types import Permission, RequiredRole
+from ee.src.core.access.controls import get_role
+from ee.src.core.access.permissions.types import Permission, RequiredRole
 from oss.src.services.organization_service import (
     create_invitation,
     check_existing_invitation,

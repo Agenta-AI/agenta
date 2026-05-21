@@ -10,12 +10,16 @@ from oss.src.models.db_models import (
     WorkspaceDB,
     ProjectDB,
 )
-from ee.src.core.permissions.types import Permission, RequiredRole
-from ee.src.core.entitlements.controls import get_role, get_role_permissions
+from ee.src.core.access.permissions.types import Permission, RequiredRole
+from ee.src.core.access.controls import get_role, get_role_permissions
 
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee
-from ee.src.utils.entitlements import check_entitlements, scope_from, Flag
+from ee.src.core.access.entitlements.service import (
+    check_entitlements,
+    scope_from,
+    Flag,
+)
 from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
 
 

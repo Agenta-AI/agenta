@@ -17,8 +17,8 @@ from oss.src.core.secrets.dtos import (
 )
 
 if is_ee():
-    from ee.src.core.permissions.types import Permission
-    from ee.src.utils.permissions import check_action_access
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import check_action_access
 
 
 log = get_module_logger(__name__)

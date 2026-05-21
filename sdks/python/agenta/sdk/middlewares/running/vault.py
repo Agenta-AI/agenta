@@ -127,7 +127,7 @@ async def _allow_local_secrets(
 ):
     """
     Verify if the user has permission to use local secrets.
-    Makes an API call to /api/permissions/verify to check access.
+    Makes an API call to /api/access/permissions/check to check access.
     """
     try:
         if not _AUTH_ENABLED:
@@ -170,7 +170,7 @@ async def _allow_local_secrets(
             async with httpx.AsyncClient() as client:
                 try:
                     response = await client.get(
-                        f"{host}/api/permissions/verify",
+                        f"{host}/api/access/permissions/check",
                         headers=headers,
                         params=params,
                         timeout=30.0,

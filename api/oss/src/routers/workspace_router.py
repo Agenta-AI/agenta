@@ -9,13 +9,13 @@ from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.workspace_models import Workspace
 
 if is_ee():
-    from ee.src.utils.permissions import check_rbac_permission
-    from ee.src.core.permissions.types import RequiredRole
+    from ee.src.core.access.permissions.service import check_rbac_permission
+    from ee.src.core.access.permissions.types import RequiredRole
     from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
     from ee.src.services import db_manager_ee, workspace_manager
-    from ee.src.core.entitlements.controls import get_roles
+    from ee.src.core.access.controls import get_roles
 
-    from ee.src.utils.entitlements import (
+    from ee.src.core.access.entitlements.service import (
         check_entitlements,
         scope_from,
         Gauge,

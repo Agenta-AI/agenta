@@ -4,7 +4,7 @@
  * @example
  *     {}
  */
-export interface VerifyPermissionsRequest {
+export interface CheckPermissionsRequest {
     action?: string | null;
     scope_type?: string | null;
     scope_id?: string | null;

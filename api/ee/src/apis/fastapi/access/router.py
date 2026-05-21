@@ -4,8 +4,8 @@ from fastapi import APIRouter
 
 from oss.src.utils.exceptions import intercept_exceptions
 
-from ee.src.core.entitlements.types import SCOPES, Tracker
-from ee.src.core.entitlements.controls import (
+from ee.src.core.access.entitlements.types import SCOPES, Tracker
+from ee.src.core.access.controls import (
     get_plans,
     get_plan_description,
     get_roles,

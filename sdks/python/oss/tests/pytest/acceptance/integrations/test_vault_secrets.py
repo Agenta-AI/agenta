@@ -2,7 +2,7 @@
 Integration tests for Vault/Secrets functionality.
 
 These tests verify:
-1. Permissions verification via access_control.verify_permissions()
+1. Permissions verification via access.check_permissions()
 2. Secrets CRUD via secrets.list_secrets(), create_secret(), read_secret(), delete_secret()
 
 The vault middleware uses these endpoints during workflow execution to:
@@ -53,23 +53,14 @@ def _wait_for_secret_ids(
 class TestAccessControlPermissions:
     """Test access control permission verification."""
 
-    @pytest.mark.xfail(
-        reason=(
-            "/permissions router is mounted with include_in_schema=False, "
-            "so Fern does not generate ag.api.access_control. Either flip the "
-            "schema flag and regenerate the client, or rewrite this test "
-            "against the raw HTTP endpoint."
-        ),
-        strict=True,
-    )
-    def test_verify_permissions_for_local_secrets(self, agenta_init):
+    def test_check_permissions_for_local_secrets(self, agenta_init):
         """
-        Test that verify_permissions works for local_secrets resource.
+        Test that check_permissions works for local_secrets resource.
 
         This is the same call the vault middleware makes to check if
         a user can use local (env var) secrets during workflow execution.
         """
-        result = ag.api.access_control.verify_permissions(
+        result = ag.api.access.check_permissions(
             action="view_secret",
             resource_type="local_secrets",
         )
@@ -81,20 +72,11 @@ class TestAccessControlPermissions:
         # Effect should be "allow" or "deny"
         assert result["effect"] in ("allow", "deny")
 
-    @pytest.mark.xfail(
-        reason=(
-            "/permissions router is mounted with include_in_schema=False, "
-            "so Fern does not generate ag.api.access_control. Either flip the "
-            "schema flag and regenerate the client, or rewrite this test "
-            "against the raw HTTP endpoint."
-        ),
-        strict=True,
-    )
-    def test_verify_permissions_returns_allow_for_valid_user(self, agenta_init):
+    def test_check_permissions_returns_allow_for_valid_user(self, agenta_init):
         """
         Test that a valid API key gets 'allow' effect for view_secret.
         """
-        result = ag.api.access_control.verify_permissions(
+        result = ag.api.access.check_permissions(
             action="view_secret",
             resource_type="local_secrets",
         )

@@ -102,9 +102,12 @@ from oss.src.core.evaluations.types import (
 )
 
 if is_ee():
-    from ee.src.core.permissions.types import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
-    from ee.src.utils.entitlements import check_entitlements, Counter
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
+    from ee.src.core.access.entitlements.service import check_entitlements, Counter
 
 
 log = get_module_logger(__name__)

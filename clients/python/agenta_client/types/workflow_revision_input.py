@@ -12,6 +12,10 @@ from .workflow_revision_flags import WorkflowRevisionFlags
 
 
 class WorkflowRevisionInput(UniversalBaseModel):
+    workflow_variant_slug: typing.Optional[str] = None
+    variant_slug: typing.Optional[str] = None
+    workflow_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     workflow_variant_id: typing.Optional[str] = None
     variant_id: typing.Optional[str] = None
     workflow_id: typing.Optional[str] = None

@@ -21,7 +21,11 @@ from oss.src.core.tracing.streaming import deserialize_span
 log = get_module_logger(__name__)
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, scope_from, Counter
+    from ee.src.core.access.entitlements.service import (
+        check_entitlements,
+        scope_from,
+        Counter,
+    )
 
 
 class TracingWorker:

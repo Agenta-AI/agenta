@@ -778,9 +778,15 @@ async def test_l1_quota_soft_check_drops_when_over_quota():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=_make_request(),
@@ -805,9 +811,15 @@ async def test_l1_quota_soft_check_allows_under_quota():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=_make_request(),
@@ -832,9 +844,15 @@ async def test_l1_quota_soft_check_fails_open_on_exception():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=_make_request(),
@@ -862,9 +880,15 @@ async def test_l1_quota_soft_check_skipped_when_org_unknown():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=request,
@@ -892,9 +916,15 @@ async def test_l1_quota_soft_check_skipped_on_oss():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=False),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=_make_request(),

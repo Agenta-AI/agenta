@@ -8,9 +8,12 @@ from oss.src.core.events.service import EventsService
 from oss.src.utils.exceptions import intercept_exceptions
 
 if is_ee():
-    from ee.src.core.permissions.types import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
-    from ee.src.utils.entitlements import (
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
+    from ee.src.core.access.entitlements.service import (
         check_entitlements,
         NOT_ENTITLED_RESPONSE,
         Flag,

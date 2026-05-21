@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.exc import NoResultFound
 
-from ee.src.core.permissions.types import DefaultRole
+from ee.src.core.access.permissions.types import DefaultRole
 from ee.src.services import db_manager_ee
 
 

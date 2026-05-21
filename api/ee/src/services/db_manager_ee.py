@@ -28,8 +28,8 @@ from ee.src.core.organizations.types import (
     CreateOrganization,
     OrganizationUpdate,
 )
-from ee.src.core.permissions.types import Permission, RequiredRole
-from ee.src.core.entitlements.controls import (
+from ee.src.core.access.permissions.types import Permission, RequiredRole
+from ee.src.core.access.controls import (
     get_roles,
     get_role_description,
     get_role_permissions,

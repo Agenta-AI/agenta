@@ -145,13 +145,12 @@ from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 from oss.src.routers import (
     user_profile,
-    health_router,
-    permissions_router,
     projects_router,
     api_key_router,
     organization_router,
     workspace_router,
 )
+from oss.src.apis.fastapi.access.router import AccessRouter
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
@@ -841,7 +840,6 @@ app.include_router(
     router=events.router,
     prefix="/events",
     tags=["Events"],
-    include_in_schema=False,
 )
 
 app.include_router(
@@ -1135,15 +1133,16 @@ app.include_router(
     tags=["Admin"],
 )
 
-app.include_router(
-    health_router.router,
-    prefix="/health",
-    tags=["Status"],
-)
 
+@app.get("/health", operation_id="health_check", tags=["Status"])
+async def health_check():
+    return {"status": "ok"}
+
+
+access_router = AccessRouter()
 app.include_router(
-    permissions_router.router,
-    prefix="/permissions",
+    access_router.router,
+    prefix="/access",
     tags=["Access"],
 )
 

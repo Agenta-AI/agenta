@@ -5,8 +5,13 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.lazy import _load_stripe
 
-from ee.src.core.entitlements.types import Quota
-from ee.src.core.entitlements.types import Counter, Gauge, REPORTS, STRIPE_METER_NAMES
+from ee.src.core.access.entitlements.types import Quota
+from ee.src.core.access.entitlements.types import (
+    Counter,
+    Gauge,
+    REPORTS,
+    STRIPE_METER_NAMES,
+)
 from ee.src.core.subscriptions.settings import get_stripe_meter_price
 from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 from ee.src.core.meters.interfaces import MetersDAOInterface

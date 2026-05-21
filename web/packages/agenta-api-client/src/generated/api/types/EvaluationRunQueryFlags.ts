@@ -9,6 +9,8 @@ export interface EvaluationRunQueryFlags {
     is_split?: (boolean | null) | undefined;
     has_queries?: (boolean | null) | undefined;
     has_testsets?: (boolean | null) | undefined;
+    has_traces?: (boolean | null) | undefined;
+    has_testcases?: (boolean | null) | undefined;
     has_evaluators?: (boolean | null) | undefined;
     has_custom?: (boolean | null) | undefined;
     has_human?: (boolean | null) | undefined;

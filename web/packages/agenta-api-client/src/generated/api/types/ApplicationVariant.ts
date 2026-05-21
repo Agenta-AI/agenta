@@ -3,8 +3,11 @@
 import type * as AgentaApi from "../index.js";
 
 export interface ApplicationVariant {
+    application_slug?: (string | null) | undefined;
+    workflow_slug?: (string | null) | undefined;
     application_id?: (string | null) | undefined;
     workflow_id?: (string | null) | undefined;
+    artifact_slug?: (string | null) | undefined;
     artifact_id?: (string | null) | undefined;
     flags?: (AgentaApi.ApplicationVariantFlags | null) | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;

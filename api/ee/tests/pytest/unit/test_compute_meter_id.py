@@ -24,7 +24,7 @@ from ee.src.core.meters.types import (
     MeterPeriod,
     compute_meter_id,
 )
-from ee.src.core.entitlements.types import Counter
+from ee.src.core.access.entitlements.types import Counter
 from oss.src.utils.env import env
 
 

@@ -95,7 +95,7 @@ export class AccessClient {
      * verbatim from access-controls, including the `"*"` wildcard for
      * `owner` — callers that need to render the full permission list
      * should expand the wildcard themselves (see
-     * `ee.src.services.converters._expand_permissions`).
+     * `ee.src.services.db_manager_ee._expand_permissions`).
      *
      * @param {AccessClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -469,23 +469,23 @@ export class AccessClient {
     }
 
     /**
-     * @param {AgentaApi.VerifyPermissionsRequest} request
+     * @param {AgentaApi.CheckPermissionsRequest} request
      * @param {AccessClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.access.verifyPermissions()
+     *     await client.access.checkPermissions()
      */
-    public verifyPermissions(
-        request: AgentaApi.VerifyPermissionsRequest = {},
+    public checkPermissions(
+        request: AgentaApi.CheckPermissionsRequest = {},
         requestOptions?: AccessClient.RequestOptions,
     ): core.HttpResponsePromise<unknown> {
-        return core.HttpResponsePromise.fromPromise(this.__verifyPermissions(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__checkPermissions(request, requestOptions));
     }
 
-    private async __verifyPermissions(
-        request: AgentaApi.VerifyPermissionsRequest = {},
+    private async __checkPermissions(
+        request: AgentaApi.CheckPermissionsRequest = {},
         requestOptions?: AccessClient.RequestOptions,
     ): Promise<core.WithRawResponse<unknown>> {
         const {
@@ -513,7 +513,7 @@ export class AccessClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "permissions/verify",
+                "access/permissions/check",
             ),
             method: "GET",
             headers: _headers,
@@ -545,6 +545,6 @@ export class AccessClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/permissions/verify");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/access/permissions/check");
     }
 }

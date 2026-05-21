@@ -88,7 +88,7 @@ class ProjectRequest(BaseModel):
 
 # Role slugs are dynamic at runtime (env-overridable via AGENTA_ACCESS_ROLES);
 # validation against the effective per-scope catalog happens at the handler
-# boundary via `ee.src.core.entitlements.controls.get_role`.
+# boundary via `ee.src.core.access.controls.get_role`.
 class OrganizationMembershipRequest(BaseModel):
     role: str
     is_demo: bool

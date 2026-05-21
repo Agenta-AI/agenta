@@ -5,7 +5,7 @@ import pytest
 
 from oss.src.core.auth import helper as auth_helper
 from oss.src.core.auth.supertokens import overrides
-from oss.src.services.exceptions import UnauthorizedException
+from oss.src.utils.exceptions import UnauthorizedException
 from supertokens_python.recipe.thirdparty.interfaces import SignInUpNotAllowed
 
 

@@ -32,7 +32,7 @@ from ee.src.apis.fastapi.events.router import EventsRouter
 from ee.src.apis.fastapi.organizations.router import (
     router as organization_router,
 )
-from ee.src.utils.entitlements import bootstrap_entitlements_services
+from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
 # DBS --------------------------------------------------------------------------
 

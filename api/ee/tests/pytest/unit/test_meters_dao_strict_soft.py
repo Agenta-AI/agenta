@@ -26,7 +26,7 @@ from uuid import UUID
 
 import pytest
 
-from ee.src.core.entitlements.types import Quota
+from ee.src.core.access.entitlements.types import Quota
 from ee.src.core.meters.types import MeterDTO, Meters
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 

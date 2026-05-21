@@ -23,9 +23,9 @@ from uuid import UUID
 
 import pytest
 
-from ee.src.core.entitlements.types import Scope
+from ee.src.core.access.entitlements.types import Scope
 from ee.src.core.meters.types import MeterScope
-from ee.src.utils.entitlements import scope_from
+from ee.src.core.access.entitlements.service import scope_from
 from oss.src.utils.context import (
     AuthScope,
     AuthContext,

@@ -1660,6 +1660,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/fetch-default-queue",
+          label: "Fetch Default Queue",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "reference/api/create-scenarios",
           label: "Create Scenarios",
           className: "api-method post",
@@ -1813,6 +1819,18 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/delete-queue",
           label: "Delete Queue",
           className: "api-method delete",
+        },
+        {
+          type: "doc",
+          id: "reference/api/archive-queue",
+          label: "Archive Queue",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/unarchive-queue",
+          label: "Unarchive Queue",
+          className: "api-method post",
         },
         {
           type: "doc",
@@ -2408,8 +2426,8 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/verify-permissions",
-          label: "Verify Permissions",
+          id: "reference/api/check-permissions",
+          label: "Check Permissions",
           className: "api-method get",
         },
       ],
@@ -2727,6 +2745,18 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/configs-fetch-variants-configs-fetch-post",
           label: "Configs Fetch",
           className: "menu__list-item--deprecated api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Events",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/query-events-rpc",
+          label: "Query Events",
+          className: "api-method post",
         },
       ],
     },

@@ -19,7 +19,7 @@ from oss.src.utils.logging import get_module_logger
 
 # Guard EE imports — see worker_tracing.py for the rationale.
 if is_ee():
-    from ee.src.utils.entitlements import bootstrap_entitlements_services
+    from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
 log = get_module_logger(__name__)
 

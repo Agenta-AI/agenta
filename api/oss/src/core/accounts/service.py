@@ -87,7 +87,7 @@ try:
     from ee.src.core.subscriptions.types import (  # type: ignore[import]
         get_default_plan as _ee_get_default_plan,
     )
-    from ee.src.core.entitlements.controls import (  # type: ignore[import]
+    from ee.src.core.access.controls import (  # type: ignore[import]
         get_plans as _ee_get_plans,
     )
 

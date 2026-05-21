@@ -17,7 +17,7 @@ class InviteRequest(BaseModel):
     email: str
     # Role slugs are dynamic at runtime (env-overridable via AGENTA_ACCESS_ROLES);
     # validation against the effective workspace catalog happens at the API
-    # boundary via `ee.src.core.entitlements.controls.get_role`.
+    # boundary via `ee.src.core.access.controls.get_role`.
     roles: Optional[List[str]] = None
 
 

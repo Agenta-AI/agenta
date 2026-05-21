@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Optional, Set
 
-from oss.src.services.exceptions import UnauthorizedException
+from oss.src.utils.exceptions import UnauthorizedException
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
@@ -163,6 +163,6 @@ async def ensure_auth_info_not_blocked(
     auth_info: Optional[AuthInfo],
 ) -> Optional[AuthInfo]:
     if auth_info and await is_auth_info_blocked(auth_info):
-        raise UnauthorizedException(detail="Access Denied.")
+        raise UnauthorizedException(message="Access Denied.")
 
     return auth_info

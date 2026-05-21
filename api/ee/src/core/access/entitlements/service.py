@@ -8,7 +8,7 @@ from oss.src.utils.context import get_auth_scope
 
 from fastapi.responses import JSONResponse
 from ee.src.core.subscriptions.service import SubscriptionsService
-from ee.src.core.entitlements.types import (
+from ee.src.core.access.entitlements.types import (
     Tracker,
     Flag,
     Counter,
@@ -16,7 +16,7 @@ from ee.src.core.entitlements.types import (
     Period,
     Scope,
 )
-from ee.src.core.entitlements.controls import get_plan_entitlements
+from ee.src.core.access.controls import get_plan_entitlements
 from ee.src.core.meters.service import MetersService
 from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 

@@ -7,7 +7,7 @@ from enum import Enum
 from oss.src.utils.env import env
 from pydantic import BaseModel
 
-from ee.src.core.entitlements.types import DefaultPlan
+from ee.src.core.access.entitlements.types import DefaultPlan
 
 
 class Event(str, Enum):

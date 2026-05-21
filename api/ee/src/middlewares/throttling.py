@@ -8,7 +8,7 @@ from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.throttling import Algorithm, check_throttles
 
-from ee.src.core.entitlements.types import (
+from ee.src.core.access.entitlements.types import (
     ENDPOINTS,
     Category,
     Method,
@@ -16,7 +16,7 @@ from ee.src.core.entitlements.types import (
     Throttle,
     Tracker,
 )
-from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
+from ee.src.core.access.controls import get_plan_entitlements, get_plans
 from ee.src.core.subscriptions.settings import get_free_plan
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO

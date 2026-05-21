@@ -9,6 +9,7 @@ export interface SimpleEvaluationData {
     application_steps?: (SimpleEvaluationData.ApplicationSteps | null) | undefined;
     evaluator_steps?: (SimpleEvaluationData.EvaluatorSteps | null) | undefined;
     repeats?: (number | null) | undefined;
+    concurrency?: (AgentaApi.EvaluationRunDataConcurrency | null) | undefined;
 }
 
 export namespace SimpleEvaluationData {

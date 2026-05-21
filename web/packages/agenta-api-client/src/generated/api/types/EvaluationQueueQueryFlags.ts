@@ -2,4 +2,5 @@
 
 export interface EvaluationQueueQueryFlags {
     is_sequential?: (boolean | null) | undefined;
+    is_default?: (boolean | null) | undefined;
 }

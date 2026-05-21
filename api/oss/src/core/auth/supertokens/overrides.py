@@ -64,7 +64,7 @@ from oss.src.core.auth.turnstile import (
 )
 from oss.src.services import db_manager
 
-from oss.src.services.exceptions import UnauthorizedException
+from oss.src.utils.exceptions import UnauthorizedException
 from oss.src.services.db_manager import (
     get_user_with_email,
     check_if_user_invitation_exists,
@@ -233,7 +233,7 @@ async def _create_account(email: str, uid: str) -> bool:
             organization_db = await get_oss_organization()
             if not organization_db:
                 raise UnauthorizedException(
-                    detail="No organization found. Please contact the administrator."
+                    message="No organization found. Please contact the administrator."
                 )
 
             # Verify user can join (invitation check)
@@ -243,7 +243,7 @@ async def _create_account(email: str, uid: str) -> bool:
             )
             if not user_invitation_exists:
                 raise UnauthorizedException(
-                    detail="You need to be invited by the organization owner to gain access."
+                    message="You need to be invited by the organization owner to gain access."
                 )
 
             payload["organization_id"] = str(organization_db.id)
