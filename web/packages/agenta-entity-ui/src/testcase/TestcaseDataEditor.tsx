@@ -65,7 +65,7 @@ export function TestcaseDataEditor({
     }, [])
 
     const handleCopy = useCallback(() => {
-        if (!value) return
+        if (value === undefined) return
         void copyToClipboard(JSON.stringify(value, null, 2))
     }, [value])
 

@@ -75,43 +75,6 @@ export interface DrillInFieldHeaderProps {
     showDrillInButton?: boolean
 }
 
-if (
-    typeof document !== "undefined" &&
-    !document.getElementById("drill-in-view-mode-dropdown-css")
-) {
-    const style = document.createElement("style")
-    style.id = "drill-in-view-mode-dropdown-css"
-    style.textContent = `
-.drill-in-view-mode-dropdown .ant-dropdown-menu {
-    min-width: 220px;
-    padding: 10px;
-    border-radius: 12px;
-    box-shadow: 0 12px 32px rgba(5, 23, 41, 0.16);
-}
-.drill-in-view-mode-dropdown .ant-dropdown-menu-item {
-    padding: 0 !important;
-    border-radius: 8px !important;
-}
-.drill-in-view-mode-dropdown .ant-dropdown-menu-item-selected,
-.drill-in-view-mode-dropdown .ant-dropdown-menu-item-active {
-    background: transparent !important;
-}
-.drill-in-view-mode-dropdown-option {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-height: 34px;
-    padding: 6px 14px;
-    border-radius: 8px;
-}
-.drill-in-view-mode-dropdown-option-selected {
-    background: rgba(5, 23, 41, 0.04);
-}
-`
-    document.head.appendChild(style)
-}
-
 /**
  * Popover component for mapping a field to a column
  */
@@ -254,10 +217,11 @@ function ViewModeDropdown({
     const selectedOption = options.find((option) => option.value === value)
     const items: MenuProps["items"] = options.map((option) => ({
         key: option.value,
+        className: "!p-0 !rounded-lg !bg-transparent",
         label: (
             <div
-                className={`drill-in-view-mode-dropdown-option ${
-                    option.value === value ? "drill-in-view-mode-dropdown-option-selected" : ""
+                className={`flex min-h-[34px] items-center justify-between gap-4 rounded-lg px-3.5 py-1.5 ${
+                    option.value === value ? "bg-[rgba(5,23,41,0.04)]" : ""
                 }`}
             >
                 <span className="text-[13px] font-medium text-[#051729]">{option.label}</span>
@@ -274,7 +238,7 @@ function ViewModeDropdown({
             menu={{items, selectedKeys: [value]}}
             trigger={["click"]}
             placement="bottomRight"
-            overlayClassName="drill-in-view-mode-dropdown"
+            overlayClassName="[&_.ant-dropdown-menu]:min-w-[220px] [&_.ant-dropdown-menu]:rounded-xl [&_.ant-dropdown-menu]:p-2.5 [&_.ant-dropdown-menu]:shadow-[0_12px_32px_rgba(5,23,41,0.16)]"
         >
             <Button type="text" size="small" className="inline-flex items-center gap-1 px-2 h-6">
                 <span className="text-[12px] text-[rgba(5,23,41,0.55)]">

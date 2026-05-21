@@ -52,9 +52,20 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
     const labelFor = useCallback((key: string): string => schemaMap[key]?.name || key, [schemaMap])
 
     const existingColumns = useMemo<Column[]>(() => {
-        const dataColumns = rawColumns?.filter((col) => col.key !== "testcase_dedup_id") ?? []
-        return dataColumns.map((col) => ({...col, label: col.label || labelFor(col.key)}))
-    }, [rawColumns, labelFor])
+        const keys = Object.keys(entityData?.data ?? {}).filter(
+            (key) => key !== "testcase_dedup_id",
+        )
+        const byKey = new Map((rawColumns ?? []).map((col) => [col.key, col]))
+
+        return keys.map((key) => {
+            const column = byKey.get(key)
+            return {
+                key,
+                name: column?.name,
+                label: column?.label || labelFor(key),
+            }
+        })
+    }, [entityData?.data, rawColumns, labelFor])
 
     const editorColumns = useMemo<TestcaseDataEditorColumn[]>(
         () =>

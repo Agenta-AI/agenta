@@ -189,7 +189,7 @@ const TurnMessageHeaderOptions = ({
         <div className={clsx("flex items-center gap-1 relative", className)}>
             <TypeChip value={getTextContent(text || "")} />
 
-            <div className="flex items-center gap-1 invisible group-hover/item:visible">
+            <div className="flex items-center gap-1 invisible group-hover/item:visible group-focus-within/item:visible focus-within:visible">
                 {repetitionProps && renderRepetitionNav && renderRepetitionNav(repetitionProps)}
 
                 {onViewAllRepeats && (

@@ -1290,7 +1290,7 @@ function renderFieldContentByMode({
             <EditorMarkdownToggleExposer
                 onToggleReady={(toggleFn) => registerMarkdownToggle(fieldKey, toggleFn)}
             />
-            <MarkdownViewSync isMarkdownView={selectedViewMode === "text"} />
+            <MarkdownViewSync isMarkdownView={selectedViewMode === "markdown"} />
             <SharedEditor
                 id={editorId}
                 initialValue={textValue}

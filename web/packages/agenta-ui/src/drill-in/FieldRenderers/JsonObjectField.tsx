@@ -84,14 +84,8 @@ export function JsonObjectField({
     // Default: JSON editor for objects
     return (
         <div
-            style={
-                enableFormView
-                    ? {
-                          paddingLeft: 16,
-                          borderLeft: "2px solid rgba(5,23,41,0.10)",
-                          marginLeft: 4,
-                      }
-                    : undefined
+            className={
+                enableFormView ? "ml-1 border-l-2 border-[rgba(5,23,41,0.10)] pl-4" : undefined
             }
         >
             <JsonEditorWithLocalState
