@@ -50,6 +50,7 @@ export interface EvalDrawerOutputSection {
 export interface EvalDrawerMetricSection {
     id: string
     label: string
+    kind: "annotation" | "metric"
     columns: EvaluationTableColumn[]
 }
 
@@ -254,6 +255,7 @@ export function mapEvalMetricSections({
             return {
                 id: group.id,
                 label: group.label,
+                kind: group.kind,
                 columns: [...dynamicColumns, ...staticColumns],
             }
         })

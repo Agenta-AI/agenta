@@ -13,18 +13,16 @@ import {
     type InfiniteTableStore,
 } from "@/oss/components/InfiniteVirtualTable"
 
-import {variantReferenceQueryAtomFamily} from "../../atoms/references"
 import {scenarioStepsQueryFamily} from "../../atoms/scenarioSteps"
 import {
     scenarioTestcaseEntityAtomFamily,
     scenarioTestcaseIdAtomFamily,
     scenarioTestcaseMetaAtomFamily,
 } from "../../atoms/scenarioTestcase"
-import type {EvaluationTableColumn, EvaluationTableColumnGroup} from "../../atoms/table"
+import type {EvaluationTableColumn} from "../../atoms/table"
 import type {PreviewTableRow} from "../../atoms/tableRows"
 import {evaluationPreviewTableStore} from "../../evaluationPreviewTableStore"
 import usePreviewTableData from "../../hooks/usePreviewTableData"
-import useRunIdentifiers from "../../hooks/useRunIdentifiers"
 import {
     closeFocusDrawerAtom,
     focusScenarioAtom,
@@ -47,66 +45,6 @@ const PAGE_SIZE = 50
 type PreviewPaginationRow = PreviewTableRow & Record<string, unknown>
 
 const getScenarioRowId = (row: PreviewPaginationRow) => row.scenarioId ?? null
-
-const InvocationMetaHeader = ({
-    group,
-    runId,
-}: {
-    group: EvaluationTableColumnGroup | null
-    runId: string | null
-}) => {
-    const runIdentifiers = useRunIdentifiers(runId)
-    const applicationVariantId =
-        (group?.meta?.refs?.variant?.id as string | undefined) ??
-        (group?.meta?.refs?.application_variant?.id as string | undefined) ??
-        runIdentifiers.variantId ??
-        runIdentifiers.applicationVariantId ??
-        null
-    const revisionId =
-        (group?.meta?.refs?.application_revision?.id as string | undefined) ??
-        (group?.meta?.refs?.applicationRevision?.id as string | undefined) ??
-        (runIdentifiers.rawRefs?.applicationRevision?.id as string | undefined) ??
-        (runIdentifiers.rawRefs?.application_revision?.id as string | undefined) ??
-        null
-    const variantRevision =
-        (group?.meta?.refs?.variant?.revision as string | number | undefined) ??
-        (group?.meta?.refs?.variant?.version as string | number | undefined) ??
-        (group?.meta?.refs?.application_variant?.revision as string | number | undefined) ??
-        (group?.meta?.refs?.application_variant?.version as string | number | undefined) ??
-        (runIdentifiers.rawRefs?.variant?.revision as string | number | undefined) ??
-        (runIdentifiers.rawRefs?.variant?.version as string | number | undefined) ??
-        null
-
-    const variantQuery = useAtomValue(
-        useMemo(
-            () => variantReferenceQueryAtomFamily(revisionId ?? applicationVariantId),
-            [revisionId, applicationVariantId],
-        ),
-    )
-
-    const resolvedVariantRevision =
-        variantQuery.data?.revision !== undefined && variantQuery.data?.revision !== null
-            ? String(variantQuery.data.revision)
-            : variantRevision !== undefined && variantRevision !== null
-              ? String(variantRevision)
-              : null
-    const revisionBadge =
-        resolvedVariantRevision && resolvedVariantRevision.length
-            ? resolvedVariantRevision.startsWith("v")
-                ? resolvedVariantRevision
-                : `v${resolvedVariantRevision}`
-            : null
-
-    if (!revisionBadge) return null
-
-    return (
-        <div className="flex min-w-0 items-center gap-2 text-[11px] font-normal text-[rgba(5,23,41,0.45)]">
-            <span className="rounded-full bg-[#F2F4F7] px-1.5 py-0.5 text-[10px] font-semibold text-[#344054]">
-                {revisionBadge}
-            </span>
-        </div>
-    )
-}
 
 const EvalTestcaseDrawerAdapter = () => {
     const open = useAtomValue(isFocusDrawerOpenAtom)
@@ -193,10 +131,6 @@ const EvalTestcaseDrawerAdapter = () => {
                 columns: columnResult?.columns ?? [],
             }),
         [columnResult?.columns, columnResult?.groups],
-    )
-    const outputGroupMap = useMemo(
-        () => new Map((columnResult?.groups ?? []).map((group) => [group.id, group])),
-        [columnResult?.groups],
     )
 
     const identity = useMemo(() => {
@@ -297,15 +231,9 @@ const EvalTestcaseDrawerAdapter = () => {
                 runId={runId ?? ""}
                 scenarioId={scenarioId ?? ""}
                 sections={outputSections}
-                renderHeaderSlot={(section) => (
-                    <InvocationMetaHeader
-                        group={outputGroupMap.get(section.id) ?? null}
-                        runId={runId}
-                    />
-                )}
             />
         )
-    }, [outputGroupMap, outputSections, runId, scenarioId])
+    }, [outputSections, runId, scenarioId])
 
     const renderEvaluatorMetrics = useCallback(
         (): ReactNode => (
