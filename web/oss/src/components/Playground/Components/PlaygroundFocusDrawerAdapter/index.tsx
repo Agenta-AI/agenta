@@ -1,6 +1,5 @@
 import {useCallback, type ReactNode} from "react"
 
-import {testcaseMolecule} from "@agenta/entities/testcase"
 import {
     TestcaseDrawer,
     useTestcaseDrawerNavigation,
@@ -18,7 +17,7 @@ import PlaygroundTestcaseEditor from "../PlaygroundTestcaseEditor"
 
 const INITIAL_WIDTH = 800
 
-const noopRestore = () => {}
+const EMPTY_DATA = {}
 
 const getRowId = (id: string) => id
 
@@ -27,8 +26,6 @@ const PlaygroundFocusDrawerAdapter = () => {
     const closeDrawer = useSetAtom(closePlaygroundFocusDrawerAtom)
 
     const rowIds = useAtomValue(executionItemController.selectors.generationRowIds) as string[]
-
-    const entityData = useAtomValue(testcaseMolecule.data(rowId ?? ""))
 
     const navigateToRow = useCallback(
         (nextRowId: string) => setDrawerState((prev) => ({...prev, rowId: nextRowId})),
@@ -72,11 +69,10 @@ const PlaygroundFocusDrawerAdapter = () => {
             hasPrevious={hasPrevious}
             hasNext={hasNext}
             testcaseNumber={currentIndex >= 0 ? currentIndex + 1 : undefined}
-            testcaseData={entityData ?? {}}
+            testcaseData={EMPTY_DATA}
             isLoading={false}
             isError={false}
             isDirty={false}
-            onRestoreSessionStart={noopRestore}
             renderContent={renderContent}
             renderOutputs={renderOutputs}
         />

@@ -1,19 +1,24 @@
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
-import {JsonEditorWithLocalState, type CoreFieldRendererProps} from "@agenta/ui/drill-in"
+import {
+    JsonEditorWithLocalState,
+    MessagesField,
+    type CoreFieldRendererProps,
+    type ViewMode,
+} from "@agenta/ui/drill-in"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Switch} from "antd"
 import {dump as dumpYaml, load as loadYaml} from "js-yaml"
 
-function toDisplayString(value: unknown, viewMode?: string): string {
+function toDisplayString(value: unknown, viewMode?: ViewMode): string {
     if (viewMode === "yaml") return dumpYaml(value)
     if (viewMode === "json") return JSON.stringify(value, null, 2) ?? ""
     if (typeof value === "string") return value
     return JSON.stringify(value, null, 2) ?? ""
 }
 
-function parseCodeEditorValue(value: string, fallback: unknown, viewMode?: string): unknown {
+function parseCodeEditorValue(value: string, fallback: unknown, viewMode?: ViewMode): unknown {
     try {
         return viewMode === "yaml" ? loadYaml(value) : JSON.parse(value)
     } catch {
@@ -31,7 +36,7 @@ function CodeEditor({
     editorId: string
     value: unknown
     displayValue: string
-    viewMode?: string
+    viewMode?: ViewMode
     onChange: (value: unknown) => void
 }) {
     if (viewMode !== "yaml") {
@@ -150,6 +155,11 @@ export function TestcaseDrillInFieldRenderer({
     const displayValue = useMemo(() => toDisplayString(value, viewMode), [value, viewMode])
     const editorId = `testcase-field-${fullPathKey}`
 
+    const handleMessagesSetValue = useCallback(
+        (_path: string[], next: unknown) => onChange(next),
+        [onChange],
+    )
+
     if (!editable || isRawMode) {
         return (
             <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 p-3 bg-gray-50 rounded-md max-h-[200px] overflow-auto">
@@ -196,7 +206,20 @@ export function TestcaseDrillInFieldRenderer({
     }
 
     // Fallback when viewMode is unset: schema-aware editor by dataType.
-    if (dataType === "json-object" || dataType === "json-array" || dataType === "messages") {
+    if (dataType === "messages") {
+        const originalWasString = typeof value === "string"
+        return (
+            <MessagesField
+                item={{key: fullPathKey, name: fullPathKey, value}}
+                stringValue={displayValue}
+                fullPath={fullPathKey.split(".")}
+                setValue={handleMessagesSetValue}
+                valueMode={originalWasString ? "string" : "native"}
+            />
+        )
+    }
+
+    if (dataType === "json-object" || dataType === "json-array") {
         return (
             <CodeEditor
                 editorId={editorId}

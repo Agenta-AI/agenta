@@ -1,3 +1,5 @@
+import {tryParseJson} from "@agenta/shared/utils"
+
 import type {TypePrimitive, RenderHint} from "../../type-chip/TypeChip"
 
 export type ColumnTypePrimitive = TypePrimitive
@@ -38,12 +40,7 @@ function isToolCallsArray(arr: unknown[]): boolean {
 
 function isStringifiedJson(s: string): boolean {
     if (s.length < 2 || (s[0] !== "{" && s[0] !== "[")) return false
-    try {
-        JSON.parse(s)
-        return true
-    } catch {
-        return false
-    }
+    return tryParseJson(s) !== null
 }
 
 function isMarkdownString(s: string): boolean {

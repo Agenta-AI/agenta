@@ -358,7 +358,6 @@ const EvalTestcaseDrawerAdapter = () => {
                 error instanceof Error ? error.message : error ? String(error) : undefined
             }
             isDirty={false}
-            onRestoreSessionStart={() => {}}
             renderContent={renderContent}
             renderOutputs={renderOutputs}
             renderEvaluatorMetrics={renderEvaluatorMetrics}

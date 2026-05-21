@@ -162,17 +162,3 @@ export function setTestcasePathValue(
 
     return setTestcaseColumnValue(value, column, nextColumnValue)
 }
-
-export function formatCompactPreview(value: unknown, maxLength = 80): string {
-    const raw =
-        value === null || value === undefined
-            ? String(value ?? "")
-            : typeof value === "string"
-              ? value
-              : typeof value === "number" || typeof value === "boolean"
-                ? String(value)
-                : JSON.stringify(value)
-
-    if (!raw) return ""
-    return raw.length > maxLength ? `${raw.slice(0, maxLength)}...` : raw
-}

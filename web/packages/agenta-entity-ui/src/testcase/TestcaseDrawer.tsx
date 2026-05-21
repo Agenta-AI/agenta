@@ -127,7 +127,7 @@ function TestcaseDrawer<TData = unknown>({
 
     useEffect(() => {
         if (!open) {
-            setEverDirtyIds(new Set())
+            setEverDirtyIds((prev) => (prev.size === 0 ? prev : new Set()))
         }
     }, [open])
 
