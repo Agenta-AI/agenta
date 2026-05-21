@@ -32,6 +32,36 @@ Sources:
 
 ## Open Findings
 
+### [OPEN] UEL-030: "one default queue per run" is not enforced — unique index absent and no code-level guard
+
+- ID: `UEL-030`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `reproduced`
+- Category: `Soundness`
+- Summary: The design relies on the partial unique index `ux_evaluation_queues_default_per_run` to guarantee at most one default queue per run, and `_reconcile_default_queue` assumes `fetch_default_queue` returns a single row. But the index is **absent from the running dev DB** and `create_queue` has **no code-level guard**, so creating two `is_default=True` queues for the same run succeeds — both become active default queues.
+- Evidence:
+  - `POST /evaluations/queues/` with `flags.is_default=True` twice for the same `run_id` both return `count=1` (test `test_default_queue_policy.py::test_second_default_queue_for_same_run_is_rejected`, currently xfail).
+  - `pg_indexes` for `evaluation_queues` lists only `pkey`, `run_id`, `project_id`, `flags`, `tags`, `user_ids` — **no** `ux_evaluation_queues_default_per_run`, even though `alembic_version` is at `b2c3d4e5f7a8` (past `a1b2c3d4e5f6`, which creates it) and no later migration drops it.
+  - Model declares the index in `api/oss/src/dbs/postgres/evaluations/dbes.py:290-296` with `postgresql_where=text("(flags ->> 'is_default')::boolean = true")` — note this counts **archived** rows (no `deleted_at IS NULL`), which conflicts with the reconcile flow that archives then later unarchives/recreates a default queue.
+  - Migration `a1b2c3d4e5f6` creates the index with the same `WHERE (flags ->> 'is_default')::boolean = true` (no `deleted_at` predicate).
+- Impact:
+  - Duplicate active default queues per run are possible, breaking the `fetch_default_queue` "single row" assumption used throughout `_reconcile_default_queue` / `_sync_run_queue_flag_for_default_queue`.
+  - If the index *were* applied as written (`is_default=true` without `deleted_at IS NULL`), the archive→recreate path in reconcile would hit a unique violation against the archived row. So the index predicate is also likely wrong.
+- Files:
+  - `api/oss/src/dbs/postgres/evaluations/dbes.py`
+  - `api/oss/databases/postgres/migrations/core/versions/a1b2c3d4e5f6_add_default_evaluation_queues.py`
+  - `api/oss/src/core/evaluations/service.py` (create_queue path)
+- Cause: The uniqueness guarantee was specified as a DB index but (a) the index is not present in the environment, and (b) its predicate omits `deleted_at IS NULL`, so it cannot both enforce one *active* default and allow archive→recreate.
+- Suggested Fix:
+  - Correct the index predicate to `(flags ->> 'is_default')::boolean = true AND deleted_at IS NULL` (one *active* default per run, archived rows excluded) in both the model and a new migration; confirm it actually applies in the dev/prod DBs.
+  - Add a code-level guard in `create_queue` (reject/▸no-op a second active default for a run) so the invariant holds even if the index is missing, and surface it as `EntityCreationConflict`.
+  - Flip `test_second_default_queue_for_same_run_is_rejected` from xfail to a passing assertion.
+- Notes:
+  - Surfaced while writing default-queue policy coverage (UEL-011).
+
 ### [OPEN] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
 
 - ID: `UEL-009`
@@ -232,6 +262,33 @@ Sources:
   - Document the assumption "exactly one source reference per input step" and add a planner-level validator that rejects steps violating it.
 
 ## Closed Findings
+
+### [CLOSED] UEL-031: Closed-run lock was silently ineffective — `EvaluationClosedConflict` swallowed by `@suppress_exceptions` on 21 DAO mutations
+
+- ID: `UEL-031`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`
+- Summary: Closing a run (`POST /runs/{id}/close`) is meant to lock it: subsequent content mutations should fail with 409. 21 DAO methods raise `EvaluationClosedConflict` when `flags.is_closed`, and 20 user-facing routes carry `@handle_evaluation_closed_exception()` (which converts it to 409) — but every DAO method's `@suppress_exceptions(...)` swallowed the conflict **before** it reached the router, so closed-run mutations silently returned 200/empty instead of 409. The lock was effectively a no-op at the HTTP layer.
+- Evidence:
+  - All 21 raising methods used `@suppress_exceptions()` (or `exclude=[EntityCreationConflict]`) — **none** excluded `EvaluationClosedConflict` (`api/oss/src/dbs/postgres/evaluations/dao.py`).
+  - `test_closed_run_guard.py`: editing a closed run / creating a scenario / creating a result returned 200 (count 0), not 409.
+  - The 3 run routes (`create_runs`, `edit_runs`, `edit_run`) additionally lacked `@handle_evaluation_closed_exception()`, so even once the DAO raised, `edit_run` returned a generic 500.
+- Worker hazard (why a blanket fix was unsafe): `process_evaluation_source_slice` calls `edit_run`/`edit_scenario` at finalization **without** checking `is_closed`. If a user closes a run mid-flight, making those raise would turn benign finalization into a crash/FAILURE.
+- Resolution (2026-05-21) — harden user-facing, keep worker soft:
+  - Added `EvaluationClosedConflict` to the `exclude` of the 20 user-facing mutation DAO methods that raise it (edit_run/edit_runs, create/edit/delete scenario(s)/result(s), edit/delete metrics, create/edit queue(s)); `create_metrics` already had no suppression so it propagates. Now the decorated routes return 409.
+  - Added `@handle_evaluation_closed_exception()` to the `create_runs`/`edit_runs`/`edit_run` routes (`api/oss/src/apis/fastapi/evaluations/router.py`).
+  - Made the worker tolerant: `process_evaluation_source_slice` wraps its finalization `edit_run` and per-item `edit_scenario` in `try/except EvaluationClosedConflict` (log + skip) — closing is a lock, not a failure.
+- Files:
+  - `api/oss/src/dbs/postgres/evaluations/dao.py`
+  - `api/oss/src/apis/fastapi/evaluations/router.py`
+  - `api/oss/src/core/evaluations/tasks/source_slice.py`
+- Regression coverage: `test_closed_run_guard.py` (5 tests) — close→is_closed, edit/scenario/result blocked with 409, open→edits allowed again. Existing flow tests confirm non-closed runs still finalize.
+- Notes:
+  - Distinct from UEL-012 (which deliberately makes queue archive/unarchive NOT raise on a closed run — those paths were left unguarded on purpose). Surfaced while writing closed-run coverage.
 
 ### [CLOSED] UEL-028: Batch (non-queue) source runs never finalize run status — stuck `running` after all scenarios succeed
 
