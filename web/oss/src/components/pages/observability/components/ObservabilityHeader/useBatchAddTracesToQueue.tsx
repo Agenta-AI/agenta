@@ -4,9 +4,13 @@
  *
  * Picking a queue starts a background ETL scan (`addAllMatchingTracesToQueue`);
  * the notification shows a live counter + Cancel and resolves to a terminal
- * state (done / nothing-queued / cancelled / partial-error). Copy says
- * "queued", never "added" — `evaluate_batch_traces` is fire-and-forget, so the
- * counter reflects IDs submitted, not scenarios materialized.
+ * state (done / nothing-queued / cancelled / partial-error). A 429 from EE
+ * throttling pauses the scan (`withRateLimitRetry`) rather than killing it —
+ * the notification shows a "rate limited" state during the wait.
+ *
+ * Copy says "queued", never "added" — `evaluate_batch_traces` is
+ * fire-and-forget, so the counter reflects IDs submitted, not scenarios
+ * materialized.
  */
 
 import {useCallback, useEffect, useRef} from "react"
@@ -18,7 +22,12 @@ import {
     type TracePageFetcher,
 } from "@agenta/entities/simpleQueue/etl"
 import {notification} from "@agenta/ui/app-message"
-import {Button, Space} from "antd"
+import {Button} from "antd"
+
+import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimitRetry"
+
+/** Page throttle — paced below EE's request limit to reduce 429s. */
+const SCAN_PAGE_DELAY_MS = 300
 
 export interface BatchAddRunInput {
     queue: SimpleQueue
@@ -31,7 +40,7 @@ export interface BatchAddRunInput {
 export const useBatchAddTracesToQueue = () => {
     // Latest in-flight run — a new run or unmount aborts it.
     const abortRef = useRef<AbortController | null>(null)
-    // Self-reference so the partial-error notification's Retry can re-run.
+    // Self-reference so the error notifications' Retry can re-run.
     const runRef = useRef<(input: BatchAddRunInput) => void>(() => {})
 
     // Navigating away from observability aborts the run (partial add).
@@ -47,30 +56,63 @@ export const useBatchAddTracesToQueue = () => {
         const controller = new AbortController()
         abortRef.current = controller
 
+        const cancelBtn = (
+            <Button size="small" onClick={() => controller.abort()}>
+                Cancel
+            </Button>
+        )
+
+        // Last reported queued count — kept so the rate-limited state can
+        // still show progress while the scan is paused.
+        let lastQueued = 0
+
         const showRunning = (queued: number) => {
+            lastQueued = queued
             notification.open({
                 key,
                 message: `Queuing traces to "${queueName}"`,
                 description: `Queued ${queued.toLocaleString()} traces so far…`,
                 duration: 0,
-                btn: (
-                    <Button size="small" onClick={() => controller.abort()}>
-                        Cancel
-                    </Button>
-                ),
+                btn: cancelBtn,
+            })
+        }
+
+        const showRateLimited = (delayMs: number) => {
+            notification.open({
+                key,
+                message: "Rate limited — pausing",
+                description:
+                    `Queued ${lastQueued.toLocaleString()} traces so far. The server is ` +
+                    `throttling requests; retrying in ${Math.ceil(delayMs / 1000)}s…`,
+                duration: 0,
+                btn: cancelBtn,
             })
         }
 
         showRunning(0)
 
+        // Wrap both transports so a 429 pauses-and-resumes instead of killing
+        // the run. Non-429 errors pass straight through.
+        const fetchPageWithRetry: TracePageFetcher = (cursor, signal) =>
+            withRateLimitRetry(() => fetchPage(cursor, signal), {
+                signal: controller.signal,
+                onRetry: (delayMs) => showRateLimited(delayMs),
+            })
+
+        const addTracesWithRetry = (queueId: string, traceIds: string[]) =>
+            withRateLimitRetry(() => simpleQueueMolecule.set.addTraces(queueId, traceIds), {
+                signal: controller.signal,
+                onRetry: (delayMs) => showRateLimited(delayMs),
+            })
+
         void (async () => {
             try {
                 const result = await addAllMatchingTracesToQueue({
-                    fetchPage,
-                    addTraces: (queueId, traceIds) =>
-                        simpleQueueMolecule.set.addTraces(queueId, traceIds),
+                    fetchPage: fetchPageWithRetry,
+                    addTraces: addTracesWithRetry,
                     queueId: queue.id,
                     signal: controller.signal,
+                    pageDelayMs: SCAN_PAGE_DELAY_MS,
                     onProgress: ({queued}) => {
                         if (!controller.signal.aborted) showRunning(queued)
                     },
@@ -109,25 +151,25 @@ export const useBatchAddTracesToQueue = () => {
                     ) : undefined,
                 })
             } catch (err) {
+                const retryBtn = (
+                    <Button
+                        size="small"
+                        onClick={() => {
+                            notification.destroy(key)
+                            runRef.current(input)
+                        }}
+                    >
+                        Retry
+                    </Button>
+                )
+
                 if (err instanceof BatchFlushError) {
                     notification.error({
                         key,
                         message: "Queue add incomplete",
                         description: `Queued ${err.flushedCount.toLocaleString()} traces; ${err.failedCount.toLocaleString()} failed to queue.`,
                         duration: 0,
-                        btn: (
-                            <Space>
-                                <Button
-                                    size="small"
-                                    onClick={() => {
-                                        notification.destroy(key)
-                                        runRef.current(input)
-                                    }}
-                                >
-                                    Retry
-                                </Button>
-                            </Space>
-                        ),
+                        btn: retryBtn,
                     })
                     return
                 }
@@ -136,6 +178,7 @@ export const useBatchAddTracesToQueue = () => {
                     message: "Queue add failed",
                     description: err instanceof Error ? err.message : "Something went wrong.",
                     duration: 0,
+                    btn: retryBtn,
                 })
             } finally {
                 if (abortRef.current === controller) abortRef.current = null
