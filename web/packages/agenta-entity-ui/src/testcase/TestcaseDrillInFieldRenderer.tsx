@@ -168,8 +168,7 @@ export function TestcaseDrillInFieldRenderer({
         )
     }
 
-    // View mode takes precedence over data-type inference. This is how the
-    // V2 design lets a user view an object as Text, an array as YAML, etc.
+    // Code modes are explicit format choices and should override type inference.
     if (viewMode === "json" || viewMode === "yaml") {
         return (
             <CodeEditor
@@ -180,6 +179,37 @@ export function TestcaseDrillInFieldRenderer({
                 onChange={onChange}
             />
         )
+    }
+
+    // Schema-aware renderers should win over the default text view. The root
+    // toolbar defaults fields to "text", so putting these after the text branch
+    // would make them unreachable until a user manually changes view mode.
+    if (dataType === "messages") {
+        const originalWasString = typeof value === "string"
+        return (
+            <MessagesField
+                item={{key: fullPathKey, name: fullPathKey, value}}
+                stringValue={displayValue}
+                fullPath={fullPathKey.split(".")}
+                setValue={handleMessagesSetValue}
+                valueMode={originalWasString ? "string" : "native"}
+            />
+        )
+    }
+
+    if (dataType === "number") {
+        return (
+            <InputNumber
+                className="w-full"
+                size="middle"
+                value={typeof value === "number" ? value : Number(value)}
+                onChange={(nextValue) => onChange(nextValue ?? 0)}
+            />
+        )
+    }
+
+    if (dataType === "boolean") {
+        return <Switch checked={Boolean(value)} onChange={onChange} size="small" />
     }
 
     if (viewMode === "markdown") {
@@ -206,19 +236,6 @@ export function TestcaseDrillInFieldRenderer({
     }
 
     // Fallback when viewMode is unset: schema-aware editor by dataType.
-    if (dataType === "messages") {
-        const originalWasString = typeof value === "string"
-        return (
-            <MessagesField
-                item={{key: fullPathKey, name: fullPathKey, value}}
-                stringValue={displayValue}
-                fullPath={fullPathKey.split(".")}
-                setValue={handleMessagesSetValue}
-                valueMode={originalWasString ? "string" : "native"}
-            />
-        )
-    }
-
     if (dataType === "json-object" || dataType === "json-array") {
         return (
             <CodeEditor
@@ -229,21 +246,6 @@ export function TestcaseDrillInFieldRenderer({
                 onChange={onChange}
             />
         )
-    }
-
-    if (dataType === "number") {
-        return (
-            <InputNumber
-                className="w-full"
-                size="middle"
-                value={typeof value === "number" ? value : Number(value)}
-                onChange={(nextValue) => onChange(nextValue ?? 0)}
-            />
-        )
-    }
-
-    if (dataType === "boolean") {
-        return <Switch checked={Boolean(value)} onChange={onChange} size="small" />
     }
 
     return (
