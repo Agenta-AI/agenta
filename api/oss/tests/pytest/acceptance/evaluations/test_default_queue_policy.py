@@ -171,15 +171,10 @@ class TestDefaultQueueDeletionForbidden:
 
 
 class TestDefaultQueueUniqueness:
-    # The partial unique index ux_evaluation_queues_default_per_run is meant to
-    # enforce one default queue per run.
+    # At most one ACTIVE default queue per run, enforced by the partial unique
+    # index ux_evaluation_queues_default_per_run; create_queue surfaces the
+    # unique violation as an EntityCreationConflict (409). See UEL-030.
 
-    @pytest.mark.xfail(
-        reason="UEL-030: the ux_evaluation_queues_default_per_run unique index is "
-        "not enforced (absent from the DB; create_queue has no code-level guard), "
-        "so a second default queue can be created for the same run.",
-        strict=False,
-    )
     def test_second_default_queue_for_same_run_is_rejected(self, authed_api):
         run_id = _create_run(authed_api)
         first = _create_queue(authed_api, run_id, flags={"is_default": True})
@@ -187,8 +182,21 @@ class TestDefaultQueueUniqueness:
         assert first.json()["count"] == 1
 
         second = _create_queue(authed_api, run_id, flags={"is_default": True})
-        # Expected: the second default queue is rejected (no count==1).
+        # The second default queue is rejected as a creation conflict.
         assert second.json().get("count", 0) == 0, second.text
+
+    def test_default_queue_recreatable_after_archive(self, authed_api):
+        # Archiving frees the slot — a new active default queue can be created
+        # (the guard counts only active defaults).
+        run_id = _create_run(authed_api)
+        first = _create_queue(authed_api, run_id, flags={"is_default": True})
+        first_id = first.json()["queues"][0]["id"]
+
+        archived = authed_api("POST", f"/evaluations/queues/{first_id}/archive")
+        assert archived.status_code == 200, archived.text
+
+        second = _create_queue(authed_api, run_id, flags={"is_default": True})
+        assert second.json().get("count", 0) == 1, second.text
 
     def test_default_queues_allowed_across_different_runs(self, authed_api):
         run_id_1 = _create_run(authed_api)

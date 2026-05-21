@@ -2361,6 +2361,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 run_id=queue.run_id,
             )
 
+        # At most one ACTIVE default queue per run. This is enforced by the
+        # partial unique index ux_evaluation_queues_default_per_run; the insert
+        # below surfaces a duplicate as EntityCreationConflict via
+        # check_entity_creation_conflict, so no separate pre-check is needed.
         _queue = EvaluationQueue(
             **queue.model_dump(
                 mode="json",
@@ -2396,7 +2400,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 return _queue
 
         except Exception as e:
-            check_entity_creation_conflict(e)
+            check_entity_creation_conflict(e, entity="Evaluation queue")
 
             raise
 

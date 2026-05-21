@@ -292,8 +292,11 @@ class EvaluationQueueDBE(
             "project_id",
             "run_id",
             unique=True,
-            postgresql_where=text("(flags ->> 'is_default')::boolean = true"),
-        ),  # one canonical default queue per run, including archived rows
+            postgresql_where=text(
+                "(flags ->> 'is_default')::boolean = true AND deleted_at IS NULL"
+            ),
+        ),  # one ACTIVE default queue per run (archived rows excluded so a
+        # default can be archived then recreated/unarchived by reconcile)
         Index(
             "ix_evaluation_queues_user_ids",
             "user_ids",

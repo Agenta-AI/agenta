@@ -32,14 +32,14 @@ Sources:
 
 ## Open Findings
 
-### [OPEN] UEL-030: "one default queue per run" is not enforced — unique index absent and no code-level guard
+### [CLOSED] UEL-030: "one default queue per run" is not enforced — unique index absent and no code-level guard
 
 - ID: `UEL-030`
 - Origin: `test`
 - Lens: `validation`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `reproduced`
+- Status: `fixed`
 - Category: `Soundness`
 - Summary: The design relies on the partial unique index `ux_evaluation_queues_default_per_run` to guarantee at most one default queue per run, and `_reconcile_default_queue` assumes `fetch_default_queue` returns a single row. But the index is **absent from the running dev DB** and `create_queue` has **no code-level guard**, so creating two `is_default=True` queues for the same run succeeds — both become active default queues.
 - Evidence:
@@ -61,6 +61,14 @@ Sources:
   - Flip `test_second_default_queue_for_same_run_is_rejected` from xfail to a passing assertion.
 - Notes:
   - Surfaced while writing default-queue policy coverage (UEL-011).
+- Resolution (2026-05-21):
+  - **Root cause was a duplicate alembic revision id.** `add_default_evaluation_queues` shared the revision id `a1b2c3d4e5f6` with `drop_corrupted_metrics_for_some_runs`, so alembic resolved to one file and silently skipped the index migration — which is why the index was absent from the DB despite `alembic_version` being past `a1b2c3d4e5f6`.
+  - Renamed the index migration to revision `a1d2e3f4a5b6` and chained both new branch migrations (`a1d2e3f4a5b6` add-index, `a2b3c4d5e6f8` backfill) linearly after each environment's head — OSS after `e6f7a8b9c0d1`, EE after `b2c3d4e5f7a8` (EE carries three extra meter/role migrations past the shared OSS head). Both graphs now resolve to a single head `a2b3c4d5e6f8` (verified with `find_head.py core`). Migrations are mirrored in both `api/oss/.../core/versions/` and `api/ee/.../core/versions/`.
+  - Corrected the index predicate to `(flags ->> 'is_default')::boolean = true AND deleted_at IS NULL` in both the model (`dbes.py`) and the migration, so it enforces one *active* default per run while allowing archive→recreate.
+  - Fixed two SQL type bugs in the backfill (`evaluation_runs.data` / `evaluation_queues.data` are `json`, not `jsonb`): cast `data::jsonb` before `jsonb_array_elements`, and insert `'{}'::json` into the `data` column.
+  - Verified end to end on a `--nuke` rebuild: fresh DB lands at head `a2b3c4d5e6f8` and `ux_evaluation_queues_default_per_run` exists with the corrected predicate.
+  - **No separate code-level guard was added.** A pre-emptive SELECT guard was prototyped while the index was missing, but it never worked (it didn't block the second insert) and was not race-safe (separate SELECT/INSERT sessions). It was removed: the partial unique index is the real enforcement, and the existing `check_entity_creation_conflict` in `create_queue`/`create_queues` already translates the index's unique-violation `IntegrityError` into `EntityCreationConflict` (HTTP 409).
+  - `test_second_default_queue_for_same_run_is_rejected` is now a passing assertion (xfail removed). Full `test_default_queue_policy.py` suite: 16 passed, including the three `TestDefaultQueueUniqueness` cases (reject second active default, recreate after archive, allow across different runs).
 
 ### [OPEN] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
 
