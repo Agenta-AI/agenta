@@ -19,11 +19,17 @@ import {useAtomValue, useSetAtom} from "jotai"
 import useURL from "@/oss/hooks/useURL"
 import {recentAppIdAtom, routerAppNavigationAtom} from "@/oss/state/app/atoms/fetcher"
 import {requestNavigationAtom} from "@/oss/state/appState"
-import {currentWorkflowContextAtom, recentEvaluatorIdAtom} from "@/oss/state/workflow"
+import {
+    currentWorkflowContextAtom,
+    EVALUATOR_FULL_PAGE_NAV_ENABLED,
+    recentEvaluatorIdAtom,
+} from "@/oss/state/workflow"
 
 interface WorkflowEntityCardProps {
     collapsed: boolean
 }
+
+const EMPTY_WORKFLOWS: readonly Workflow[] = []
 
 /**
  * Single row inside the switcher dropdown — name + per-kind type tag.
@@ -115,9 +121,17 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     // route through the route guard and bounce back to /evaluators, which is
     // confusing.
     const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
-    const fullPagePlaygroundEvaluators = useAtomValue(
+    // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off, the
+    // switcher dropdown hides the "Evaluators" group entirely. Clicking an
+    // entry would route to `/apps/<evaluatorId>/playground`, which the
+    // (also-gated) `PlaygroundRouter` guard would immediately bounce back to
+    // `/evaluators` — exposing the entry would just produce a flicker.
+    const fullPagePlaygroundEvaluatorsRaw = useAtomValue(
         fullPagePlaygroundEvaluatorsAtom,
     ) as readonly Workflow[]
+    const fullPagePlaygroundEvaluators: readonly Workflow[] = EVALUATOR_FULL_PAGE_NAV_ENABLED
+        ? fullPagePlaygroundEvaluatorsRaw
+        : EMPTY_WORKFLOWS
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)

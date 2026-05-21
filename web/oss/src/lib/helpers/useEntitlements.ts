@@ -10,6 +10,7 @@ export enum Feature {
     SSO = "sso",
     RBAC = "rbac",
     HOOKS = "hooks",
+    AUDIT = "audit",
 }
 
 /**
@@ -34,6 +35,7 @@ export const useEntitlements = () => {
     const hasSSO = !!flags?.sso
     const hasRBAC = !!flags?.rbac
     const hasHooks = !!flags?.hooks
+    const hasAudit = !!flags?.audit
 
     // Both queries must resolve before flags are meaningful. While either is
     // pending, every `has*` read returns `false`, which is indistinguishable
@@ -48,6 +50,7 @@ export const useEntitlements = () => {
         hasSSO,
         hasRBAC,
         hasHooks,
+        hasAudit,
         plan,
         isLoading,
     }
