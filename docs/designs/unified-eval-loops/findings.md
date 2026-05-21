@@ -32,29 +32,6 @@ Sources:
 
 ## Open Findings
 
-### [OPEN] UEL-029: Batch query→evaluator runs never finalize run status (dispatched with `update_run_status=False`)
-
-- ID: `UEL-029`
-- Origin: `test`
-- Lens: `validation`
-- Severity: `P2`
-- Confidence: `medium`
-- Status: `candidate`
-- Category: `Correctness`
-- Summary: The `batch_query` topology (query → evaluator, no application, not live) dispatches through `process_query_source_run`, which calls `process_evaluation_source_slice(update_run_status=False)` (`api/oss/src/core/evaluations/tasks/query.py:224`). Because the finalize block is gated on `update_run_status=True`, a batch query→evaluator run never rolls its status up to a terminal value — analogous to UEL-028 but on the query path rather than the testset path.
-- Evidence:
-  - `tasks/query.py:224` passes `update_run_status=False`.
-  - `tasks/run.py` routes both `live_query` and `batch_query` to `process_query_source_run`; only `batch_testset`/`batch_invocation` (via `process_testset_source_run`) finalize.
-  - Flow test `test_batch_query_to_evaluator_runs_to_success` in `test_evaluation_flows_run.py` is marked `xfail` against this finding.
-- Impact: Batch query-backed evaluations (no app) don't reach a terminal status; consumers gating on terminal status hang. Distinct from live query runs, which are *meant* to stay running.
-- Files:
-  - `api/oss/src/core/evaluations/tasks/query.py`
-  - `api/oss/src/core/evaluations/tasks/run.py`
-- Cause: The query path was written for the live case (which intentionally never finalizes) and reused for the batch case without distinguishing the two — batch query runs should finalize, live ones should not.
-- Suggested Fix: Pass `update_run_status=True` for the `batch_query` dispatch (use_windowing=True path) while keeping `live_query` at `False`. Then apply the same finalization semantics as UEL-028 (terminal status + clear `is_active`). Add a flow test (flip the existing xfail to a passing assertion).
-- Notes:
-  - Surfaced while building the run-to-completion flow suite with the `mock_v0` harness. Needs end-to-end confirmation that batch query→evaluator resolves trace sources in the test environment (it depends on ingested traces matching the query filter).
-
 ### [OPEN] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
 
 - ID: `UEL-009`
@@ -285,6 +262,26 @@ Sources:
 - Notes:
   - Surfaced by the new `agenta:custom:mock:v0` test workflow (deterministic, no LLM, no code sandbox), which lets evaluation runs execute end-to-end in acceptance tests.
   - Full analysis + rejected alternatives: `docs/designs/unified-eval-loops/run-status-finalization.md`.
+
+### [CLOSED] UEL-029: Batch query→evaluator runs never finalize run status (dispatched with `update_run_status=False`)
+
+- ID: `UEL-029`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`
+- Summary: The `batch_query` topology (query → evaluator, no application, not live) dispatched through `process_query_source_run` with `update_run_status=False`, so — like UEL-028 on the testset path — it never rolled its status up to a terminal value. The `live_query` topology shares the same function and *must* stay running, so the two cases needed to be distinguished.
+- Resolution (2026-05-21):
+  - `process_query_source_run` already receives `use_windowing` (True for `batch_query`, False for `live_query`). Set `update_run_status = use_windowing`, so batch query runs finalize while live runs keep polling.
+  - Zero-traces batch case: `process_evaluation_source_slice` rejects empty input (raises "no source items"), so an empty batch query is finalized **directly** via `evaluations_service.edit_run(status=SUCCESS, is_active=False)` rather than through the slice. (A batch query with no matching traces is complete, not failed.)
+  - With UEL-028's finalization in place, non-empty batch query slices finalize via the same severity-floor path.
+- Files:
+  - `api/oss/src/core/evaluations/tasks/query.py`
+- Regression coverage: `test_evaluation_flows_run.py::test_batch_query_to_evaluator_runs_to_success` now asserts `status=success` + `is_active=false` (previously xfail). E1 suite: 4 passed.
+- Notes:
+  - Surfaced while building the run-to-completion flow suite with the `mock_v0` harness.
 
 ### [CLOSED] UEL-012: archive/unarchive a queue must be allowed on a closed run (was: `@suppress_exceptions()` swallows `EvaluationClosedConflict`)
 

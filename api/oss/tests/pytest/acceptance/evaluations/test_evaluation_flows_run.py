@@ -16,8 +16,6 @@ Coverage spans the worker dispatch topologies (see
 
 import time
 
-import pytest
-
 from ._flow_helpers import (
     create_mock_application,
     create_mock_evaluator,
@@ -119,12 +117,11 @@ class TestEvaluationRunFlows:
         assert (run.get("flags") or {}).get("is_active") is True, run
         # ----------------------------------------------------------------------
 
-    @pytest.mark.xfail(
-        reason="UEL-029: batch_query (query->evaluator) dispatches with "
-        "update_run_status=False, so the run never finalizes to a terminal status.",
-        strict=False,
-    )
     def test_batch_query_to_evaluator_runs_to_success(self, authed_api):
+        # batch_query: query -> evaluator (no app, not live). Resolves traces via
+        # the query filter; with no matching traces in the test env it resolves
+        # zero items and still finalizes to success (UEL-029 fix: batch query
+        # runs finalize, unlike live query runs).
         # ARRANGE --------------------------------------------------------------
         query = create_query(authed_api, trace_type="invocation")
         evaluator = create_mock_evaluator(authed_api, key="pass")
@@ -143,7 +140,8 @@ class TestEvaluationRunFlows:
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
-        final = wait_for_run_terminal(authed_api, run_id, max_retries=12)
+        final = wait_for_run_terminal(authed_api, run_id)
         run = final.json()["run"]
         assert run["status"] == "success", run
+        assert (run.get("flags") or {}).get("is_active") is False, run
         # ----------------------------------------------------------------------

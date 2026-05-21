@@ -39,6 +39,12 @@ from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.annotations.service import AnnotationsService
 
+from oss.src.core.evaluations.types import (
+    EvaluationStatus,
+    EvaluationRunEdit,
+    EvaluationRunFlags,
+)
+
 
 from oss.src.core.evaluations.runtime.sources import resolve_query_source_items
 from oss.src.core.evaluations.tasks.source_slice import process_evaluation_source_slice
@@ -205,7 +211,34 @@ async def process_query_source_run(
         total_traces = sum(
             len(source_items) for source_items in source_items_by_step.values()
         )
+
+        # Batch query runs (use_windowing=True) must finalize their run status,
+        # like batch testset/invocation runs. Live query runs (use_windowing
+        # =False) intentionally never finalize — the scheduler keeps polling.
+        update_run_status = use_windowing
+
         if total_traces == 0:
+            # A live run with nothing to do just waits for the next tick. A batch
+            # run with no matching traces is complete: finalize it directly to
+            # SUCCESS (the slice processor rejects empty input) so it does not
+            # hang in `running`.
+            if update_run_status:
+                flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
+                flags.is_active = False
+                await evaluations_service.edit_run(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run=EvaluationRunEdit(
+                        id=run_id,
+                        name=run.name,
+                        description=run.description,
+                        tags=run.tags,
+                        meta=run.meta,
+                        status=EvaluationStatus.SUCCESS,
+                        flags=flags,
+                        data=run.data,
+                    ),
+                )
             return
 
         for query_step_key, source_items in source_items_by_step.items():
@@ -221,7 +254,7 @@ async def process_query_source_run(
                 timestamp=timestamp,
                 interval=interval,
                 require_queue=False,
-                update_run_status=False,
+                update_run_status=update_run_status,
                 refresh_metrics_without_auto_results=False,
                 tracing_service=tracing_service,
                 workflows_service=workflows_service,
