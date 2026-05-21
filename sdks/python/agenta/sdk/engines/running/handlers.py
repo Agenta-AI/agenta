@@ -2804,7 +2804,11 @@ async def code_v0(
         ``{"success": bool}``                  when code returns a bool.
         The raw dict / str                     when code returns one of those.
     """
-    parameters = parameters or {}
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(
+            expected="dict",
+            got=parameters,
+        )
 
     if "code" not in parameters:
         raise MissingConfigurationParameterV0Error(path="code")
