@@ -1,7 +1,6 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -13,7 +12,6 @@ import useURL from "@/oss/hooks/useURL"
 import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import type {testset as DeleteModalTestset} from "@/oss/lib/Types"
-import {testcase} from "@/oss/state/entities/testcase"
 import {
     currentRevisionIdAtom,
     revisionsListQueryAtom,
@@ -27,11 +25,7 @@ import {
     testset,
 } from "@/oss/state/entities/testset"
 
-import {
-    setDebouncedSearchTermAtom,
-    testcasesSearchTermAtom,
-    type TestcaseTableRow,
-} from "./atoms/tableStore"
+import {setDebouncedSearchTermAtom, testcasesSearchTermAtom} from "./atoms/tableStore"
 import {ImportTestsetRevisionModal} from "./components/ImportTestsetRevisionModal"
 import {TestcaseActions} from "./components/TestcaseActions"
 import {TestcaseHeader} from "./components/TestcaseHeader"
@@ -151,20 +145,6 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const table = useTestcasesTable({
         revisionId: revisionIdParam as string,
     })
-
-    const getRowValue = useCallback((record: TestcaseTableRow, columnKey: string): unknown => {
-        const rowId = record.id ?? String(record.key)
-        return getDefaultStore().get(testcase.selectors.cell({id: rowId, column: columnKey}))
-    }, [])
-
-    const typeChips = useMemo(
-        () => ({
-            defaultEnabled: true,
-            storageKey: "agenta:testcase-table:type-chips-enabled",
-            getRowValue,
-        }),
-        [getRowValue],
-    )
 
     // Action handlers hook
     const actions = useTestcaseActions({
@@ -308,7 +288,6 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         allTestcaseIds={table.testcaseIds}
                     />
                 }
-                typeChips={typeChips}
             />
 
             <TestcaseEditDrawer

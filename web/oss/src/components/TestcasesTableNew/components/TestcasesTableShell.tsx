@@ -16,6 +16,7 @@ import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {testcase} from "@/oss/state/entities/testcase"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 
 import {testcasesDatasetStore, type TestcaseTableRow} from "../atoms/tableStore"
@@ -176,19 +177,41 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         return parents
     }, [table.columns])
 
-    const tableTypeChipsConfig = useMemo<TypeChipConfig<TestcaseTableRow> | undefined>(() => {
-        if (!typeChips) return undefined
+    // Default `getRowValue` reads cell values from the testcase entity layer.
+    // Lives in the shell so every consumer (testsets page, modal preview,
+    // add-to-testset drawer preview) gets type chips out of the box, instead
+    // of each call site having to duplicate the wiring.
+    const defaultGetRowValue = useCallback(
+        (record: TestcaseTableRow, columnKey: string): unknown => {
+            const rowId = record.id ?? String(record.key)
+            return getDefaultStore().get(testcase.selectors.cell({id: rowId, column: columnKey}))
+        },
+        [],
+    )
 
-        return {
-            ...typeChips,
+    const defaultTypeChips = useMemo<TypeChipConfig<TestcaseTableRow>>(
+        () => ({
+            defaultEnabled: true,
+            storageKey: "agenta:testcase-table:type-chips-enabled",
+            getRowValue: defaultGetRowValue,
+        }),
+        [defaultGetRowValue],
+    )
+
+    const effectiveTypeChips = typeChips ?? defaultTypeChips
+
+    const tableTypeChipsConfig = useMemo<TypeChipConfig<TestcaseTableRow>>(
+        () => ({
+            ...effectiveTypeChips,
             resolveHeaderVariant: (columnKey, typeInfo) => {
                 if (parentColumnKeys.has(columnKey)) return undefined
-                return typeChips.resolveHeaderVariant
-                    ? typeChips.resolveHeaderVariant(columnKey, typeInfo)
+                return effectiveTypeChips.resolveHeaderVariant
+                    ? effectiveTypeChips.resolveHeaderVariant(columnKey, typeInfo)
                     : defaultHeaderVariant(columnKey, typeInfo)
             },
-        }
-    }, [parentColumnKeys, typeChips])
+        }),
+        [parentColumnKeys, effectiveTypeChips],
+    )
 
     const typeChipFeature = useTypeChipFeature(tableTypeChipsConfig)
     const showTypeChips = typeChipFeature.enabled
