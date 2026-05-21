@@ -660,6 +660,7 @@ class EvaluationsRouter:
 
     # PATCH /evaluations/runs/
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def edit_runs(
         self,
         request: Request,
@@ -871,6 +872,7 @@ class EvaluationsRouter:
 
     # PATCH /evaluations/runs/{run_id}
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def edit_run(
         self,
         request: Request,

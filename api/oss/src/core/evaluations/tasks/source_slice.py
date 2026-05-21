@@ -26,6 +26,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRun,
     EvaluationRunEdit,
     EvaluationScenarioEdit,
+    EvaluationClosedConflict,
 )
 
 from oss.src.core.evaluations.utils import (
@@ -535,16 +536,26 @@ async def process_evaluation_source_slice(
                 if item.has_pending
                 else EvaluationStatus.SUCCESS
             )
-            await evaluations_service.edit_scenario(
-                project_id=project_id,
-                user_id=user_id,
-                scenario=EvaluationScenarioEdit(
-                    id=item.scenario.id,
-                    tags=getattr(item.scenario, "tags", None),
-                    meta=getattr(item.scenario, "meta", None),
-                    status=scenario_status,
-                ),
-            )
+            try:
+                await evaluations_service.edit_scenario(
+                    project_id=project_id,
+                    user_id=user_id,
+                    scenario=EvaluationScenarioEdit(
+                        id=item.scenario.id,
+                        tags=getattr(item.scenario, "tags", None),
+                        meta=getattr(item.scenario, "meta", None),
+                        status=scenario_status,
+                    ),
+                )
+            except EvaluationClosedConflict:
+                # The run was closed (locked) mid-flight by a user. Closing is a
+                # lock, not a failure signal — skip the write and let the slice
+                # finish; the finalize below will also tolerate the lock.
+                log.info(
+                    "[WORKER] scenario write skipped: run closed mid-flight",
+                    run_id=str(run_id),
+                    scenario_id=str(item.scenario.id),
+                )
 
         if any(item.has_errors for item in processed):
             run_status = EvaluationStatus.ERRORS
@@ -607,20 +618,30 @@ async def process_evaluation_source_slice(
         ):
             final_flags = final_flags.model_copy(update={"is_active": False})
 
-        await evaluations_service.edit_run(
-            project_id=project_id,
-            user_id=user_id,
-            run=EvaluationRunEdit(
-                id=run_id,
-                name=run.name,
-                description=run.description,
-                tags=run.tags,
-                meta=run.meta,
-                status=run_status,
-                flags=final_flags,
-                data=run.data,
-            ),
-        )
+        try:
+            await evaluations_service.edit_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=EvaluationRunEdit(
+                    id=run_id,
+                    name=run.name,
+                    description=run.description,
+                    tags=run.tags,
+                    meta=run.meta,
+                    status=run_status,
+                    flags=final_flags,
+                    data=run.data,
+                ),
+            )
+        except EvaluationClosedConflict:
+            # The run was closed (locked) mid-flight. Closing is a lock, not a
+            # failure — the user deliberately froze the run, so leave its status
+            # as-is rather than turning finalization into an error.
+            log.info(
+                "[WORKER] finalize skipped: run closed mid-flight",
+                run_id=str(run_id),
+                run_status=str(run_status),
+            )
 
     log.info("[DONE]      ", run_id=run_id, project_id=project_id, user_id=user_id)
     return

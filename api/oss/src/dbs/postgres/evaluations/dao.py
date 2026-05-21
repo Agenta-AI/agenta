@@ -263,7 +263,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _runs
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_run(
         self,
         *,
@@ -334,7 +334,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _run
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_runs(
         self,
         *,
@@ -819,7 +819,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION SCENARIO ----------------------------------------------------
 
-    @suppress_exceptions(exclude=[EntityCreationConflict])
+    @suppress_exceptions(exclude=[EntityCreationConflict, EvaluationClosedConflict])
     async def create_scenario(
         self,
         *,
@@ -871,7 +871,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             raise
 
-    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
+    @suppress_exceptions(
+        default=[], exclude=[EntityCreationConflict, EvaluationClosedConflict]
+    )
     async def create_scenarios(
         self,
         *,
@@ -999,7 +1001,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _scenarios
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_scenario(
         self,
         *,
@@ -1054,7 +1056,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _scenario
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_scenarios(
         self,
         *,
@@ -1121,7 +1123,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _scenarios
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def delete_scenario(
         self,
         *,
@@ -1165,7 +1167,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return scenario_id
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def delete_scenarios(
         self,
         *,
@@ -1359,7 +1361,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION RESULT ------------------------------------------------------
 
-    @suppress_exceptions(exclude=[EntityCreationConflict])
+    @suppress_exceptions(exclude=[EntityCreationConflict, EvaluationClosedConflict])
     async def create_result(
         self,
         *,
@@ -1411,7 +1413,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             raise
 
-    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
+    @suppress_exceptions(
+        default=[], exclude=[EntityCreationConflict, EvaluationClosedConflict]
+    )
     async def create_results(
         self,
         *,
@@ -1533,7 +1537,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _results
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_result(
         self,
         *,
@@ -1589,7 +1593,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _result
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_results(
         self,
         *,
@@ -1657,7 +1661,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _results
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def delete_result(
         self,
         *,
@@ -1702,7 +1706,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return result_id
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def delete_results(
         self,
         *,
@@ -2097,7 +2101,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _metrics
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_metrics(
         self,
         *,
@@ -2165,7 +2169,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _metrics
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def delete_metrics(
         self,
         *,
@@ -2338,7 +2342,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION QUEUE -------------------------------------------------------
 
-    @suppress_exceptions(exclude=[EntityCreationConflict])
+    @suppress_exceptions(exclude=[EntityCreationConflict, EvaluationClosedConflict])
     async def create_queue(
         self,
         *,
@@ -2396,7 +2400,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             raise
 
-    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
+    @suppress_exceptions(
+        default=[], exclude=[EntityCreationConflict, EvaluationClosedConflict]
+    )
     async def create_queues(
         self,
         *,
@@ -2521,7 +2527,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _queues
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_queue(
         self,
         *,
@@ -2582,7 +2588,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _queue
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_queues(
         self,
         *,
