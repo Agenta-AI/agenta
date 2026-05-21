@@ -785,7 +785,6 @@ app.include_router(
     router=events.router,
     prefix="/events",
     tags=["Events"],
-    include_in_schema=False,
 )
 
 app.include_router(

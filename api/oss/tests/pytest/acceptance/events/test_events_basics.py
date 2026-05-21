@@ -3,7 +3,16 @@
 Requires a running API.  These tests verify the API contract (shape, status
 codes, filtering) without making strong assumptions about how many events
 exist in the system at query time — the events worker is a separate process.
+
+These exercise the *ungated* OSS contract, where a basic account may query
+events freely. Under EE the same endpoint is gated on the AUDIT entitlement
+(Hobby plan lacks it) and the VIEW_EVENTS permission, so a basic account is
+correctly rejected with 403. That gated behaviour is covered by the EE suite
+(ee/tests/pytest/acceptance/events/test_events_basics.py) using a business-plan
+developer account, so this OSS suite is skipped on EE deployments.
 """
+
+import os
 
 import pytest
 import requests
@@ -13,6 +22,11 @@ from utils.constants import BASE_TIMEOUT
 
 @pytest.fixture(scope="class")
 def events_api(cls_account, ag_env):
+    if os.getenv("AGENTA_LICENSE") == "ee":
+        pytest.skip(
+            "Endpoint is plan/role-gated under EE; covered by the EE events suite."
+        )
+
     credentials = cls_account["credentials"]
 
     def _request(method: str, endpoint: str, **kwargs):
