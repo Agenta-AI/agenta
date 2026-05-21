@@ -176,6 +176,11 @@ code_v0_interface = WorkflowRevisionData(
     schemas=None,
 )
 
+mock_v0_interface = WorkflowRevisionData(
+    uri="agenta:custom:mock:v0",
+    schemas=None,
+)
+
 config_v0_interface = WorkflowRevisionData(
     uri="agenta:custom:config:v0",
     schemas=None,

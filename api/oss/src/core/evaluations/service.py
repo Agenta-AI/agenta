@@ -3539,6 +3539,11 @@ class SimpleEvaluationsService:
 
         run.flags.is_active = True
 
+        # A (re)dispatched run is running until its slice finalizes. Reset to
+        # RUNNING on every activation — not just creation — so an extended
+        # finished run goes back to `running` while the new work executes and is
+        # re-finalized by the slice. The slice's terminal status then replaces
+        # this via the (corrected) severity floor in source_slice.py.
         run = await self.evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
@@ -3553,7 +3558,7 @@ class SimpleEvaluationsService:
                 tags=run.tags,
                 meta=run.meta,
                 #
-                status=EvaluationStatus.RUNNING if just_created else run.status,
+                status=EvaluationStatus.RUNNING,
                 #
                 data=run.data,
             ),

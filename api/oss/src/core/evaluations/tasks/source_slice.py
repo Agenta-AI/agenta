@@ -574,11 +574,16 @@ async def process_evaluation_source_slice(
         )
         and run_status != EvaluationStatus.FAILURE
     ):
+        # Only terminal "bad" statuses floor across slices: if an earlier slice
+        # already marked the run FAILURE/ERRORS, a later SUCCESS-only slice must
+        # not downgrade it. The transient RUNNING/PENDING states rank BELOW
+        # SUCCESS so a freshly computed terminal status (incl. SUCCESS) always
+        # replaces a stale RUNNING — otherwise a run pins at RUNNING forever.
         severity = {
             EvaluationStatus.FAILURE: 4,
             EvaluationStatus.ERRORS: 3,
-            EvaluationStatus.RUNNING: 2,
-            EvaluationStatus.SUCCESS: 1,
+            EvaluationStatus.SUCCESS: 2,
+            EvaluationStatus.RUNNING: 1,
             EvaluationStatus.PENDING: 0,
         }
         current_run = await evaluations_service.fetch_run(
@@ -591,6 +596,17 @@ async def process_evaluation_source_slice(
                 run_status = current_run.status
 
     if update_run_status:
+        # When the run reaches a terminal status, it is no longer active. A
+        # non-terminal status (RUNNING/PENDING) leaves the run active so further
+        # slices can continue.
+        final_flags = run.flags
+        if final_flags is not None and run_status in (
+            EvaluationStatus.SUCCESS,
+            EvaluationStatus.ERRORS,
+            EvaluationStatus.FAILURE,
+        ):
+            final_flags = final_flags.model_copy(update={"is_active": False})
+
         await evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
@@ -601,7 +617,7 @@ async def process_evaluation_source_slice(
                 tags=run.tags,
                 meta=run.meta,
                 status=run_status,
-                flags=run.flags,
+                flags=final_flags,
                 data=run.data,
             ),
         )

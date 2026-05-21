@@ -314,6 +314,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 references=run_references,
             )
 
+            # `status` is a VARCHAR column but `edit_dbe_from_dto` dumps the DTO
+            # without `mode="json"`, leaving an EvaluationStatus enum that does
+            # not persist reliably. Write the serialized value explicitly (same
+            # as `close_run`) so terminal statuses from the slice are saved.
+            if run.status is not None:
+                run_dbe.status = run.status.value  # type: ignore
+                flag_modified(run_dbe, "status")
+
             if run.data:
                 run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
 
