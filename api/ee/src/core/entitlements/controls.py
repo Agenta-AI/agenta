@@ -6,7 +6,7 @@ This module is the single runtime source of truth for:
 - per-plan entitlement controls (flags, counters, gauges, throttles);
 - per-scope role catalogs (organization, workspace, project).
 
-Code defaults live in `types.py` and `ee.src.models.shared_models`. Environment
+Code defaults live in `types.py` and `ee.src.core.permissions.types`. Environment
 overrides come from `AGENTA_ACCESS_PLANS` and `AGENTA_ACCESS_ROLES` (raw JSON
 strings exposed via `env.access_controls`). Parsing happens once at import time.
 """
@@ -25,7 +25,6 @@ from ee.src.core.entitlements.types import (
     Counter,
     DEFAULT_ENTITLEMENTS,
     DefaultPlan,
-    DefaultRole,
     Flag,
     Gauge,
     OWNER_PERMISSIONS,
@@ -34,7 +33,7 @@ from ee.src.core.entitlements.types import (
     Throttle,
     Tracker,
 )
-from ee.src.models.shared_models import Permission, WorkspaceRole
+from ee.src.core.permissions.types import Permission, DefaultRole, RequiredRole
 
 
 log = get_module_logger(__name__)
@@ -164,48 +163,70 @@ def _parse_plans_override(
 
 
 def _read_only_permissions() -> List[str]:
-    """Read-only permission set sourced from the code-default `WorkspaceRole.VIEWER`.
+    """Read-only permission set sourced from the code-default `DefaultRole.VIEWER`.
 
     Used as the `viewer` minima permissions for the `workspace` and `project`
     scopes where permissions are actually enforced. Organization-scope `viewer`
     has no permissions (it's just a membership marker today).
     """
-    return [p.value for p in Permission.default_permissions(WorkspaceRole.VIEWER)]
+    return [p.value for p in Permission.default_permissions(DefaultRole.VIEWER)]
 
 
 def _viewer_permissions_for_scope(scope: str) -> List[str]:
     """Per-scope code-default permissions for the `viewer` minima role.
 
     - `organization`: empty — orgs have no permission concept today.
-    - `workspace` and `project`: the code-default `WorkspaceRole.VIEWER` read-only set.
+    - `workspace` and `project`: the code-default `DefaultRole.VIEWER` read-only set.
     """
     if scope == "organization":
         return []
     return _read_only_permissions()
 
 
+def _admin_permissions_for_scope(scope: str) -> List[str]:
+    """Per-scope code-default permissions for the `admin` minima role.
+
+    - `organization`: empty — orgs have no permission concept today.
+    - `workspace` and `project`: the code-default `DefaultRole.ADMIN` set.
+    """
+    if scope == "organization":
+        return []
+    return [p.value for p in Permission.default_permissions(DefaultRole.ADMIN)]
+
+
 def _minima_for(scope: str) -> List[Dict[str, Any]]:
-    """Return the required role entries for a scope (owner + viewer).
+    """Return the required role entries for a scope (owner + admin + viewer).
 
     Application code relies on these slugs being present in every scope; the
     builder synthesizes them up front and re-applies them after any env
     overrides so they can never be dropped or relabeled.
 
-    The permission set for `viewer` varies per scope (see
-    `_viewer_permissions_for_scope`); `owner` is always wildcard.
+    `owner` is always wildcard. The permission sets for `admin` and `viewer`
+    vary per scope (see `_admin_permissions_for_scope` /
+    `_viewer_permissions_for_scope`): both are empty at organization scope
+    (orgs have no permission concept today) and code-default elsewhere.
     """
     return [
         {
-            "role": DefaultRole.OWNER.value,
+            "role": RequiredRole.OWNER.value,
             "description": "Full access (wildcard permissions).",
             "permissions": list(OWNER_PERMISSIONS),
         },
         {
-            "role": DefaultRole.VIEWER.value,
+            "role": RequiredRole.ADMIN.value,
             "description": (
                 "Membership marker (no permissions)."
                 if scope == "organization"
-                else "Read-only access."
+                else DefaultRole.get_description(DefaultRole.ADMIN)
+            ),
+            "permissions": _admin_permissions_for_scope(scope),
+        },
+        {
+            "role": RequiredRole.VIEWER.value,
+            "description": (
+                "Membership marker (no permissions)."
+                if scope == "organization"
+                else DefaultRole.get_description(DefaultRole.VIEWER)
             ),
             "permissions": _viewer_permissions_for_scope(scope),
         },
@@ -215,7 +236,7 @@ def _minima_for(scope: str) -> List[Dict[str, Any]]:
 def _default_roles() -> Dict[str, List[Dict[str, Any]]]:
     """Return the code-default role catalog for each scope.
 
-    Workspace and project scopes expose the code-default `WorkspaceRole`
+    Workspace and project scopes expose the code-default `DefaultRole`
     entries on top of the minima — project membership stores the same role
     slugs (`admin`/`developer`/`editor`/`annotator`), and the runtime
     permission check resolves them through this map. Organization scope
@@ -223,14 +244,18 @@ def _default_roles() -> Dict[str, List[Dict[str, Any]]]:
     `AGENTA_ACCESS_ROLES`.
     """
     default_extras: List[Dict[str, Any]] = []
-    minima_slugs = {DefaultRole.OWNER.value, DefaultRole.VIEWER.value}
-    for role in WorkspaceRole:
+    minima_slugs = {
+        RequiredRole.OWNER.value,
+        RequiredRole.ADMIN.value,
+        RequiredRole.VIEWER.value,
+    }
+    for role in DefaultRole:
         if role.value in minima_slugs:
             continue
         default_extras.append(
             {
                 "role": role.value,
-                "description": WorkspaceRole.get_description(role),
+                "description": DefaultRole.get_description(role),
                 "permissions": [p.value for p in Permission.default_permissions(role)],
             }
         )
@@ -276,7 +301,11 @@ def _parse_roles_override(decoded: Any) -> Dict[str, List[Dict[str, Any]]]:
     # when only `project` is overridden).
     result: Dict[str, List[Dict[str, Any]]] = _default_roles()
 
-    reserved = {DefaultRole.OWNER.value, DefaultRole.VIEWER.value}
+    reserved = {
+        RequiredRole.OWNER.value,
+        RequiredRole.ADMIN.value,
+        RequiredRole.VIEWER.value,
+    }
 
     for scope, roles in decoded.items():
         if scope not in SCOPES:
@@ -335,7 +364,12 @@ def _parse_roles_override(decoded: Any) -> Dict[str, List[Dict[str, Any]]]:
         project_extras = [
             entry
             for entry in result["project"]
-            if entry["role"] not in {DefaultRole.OWNER.value, DefaultRole.VIEWER.value}
+            if entry["role"]
+            not in {
+                RequiredRole.OWNER.value,
+                RequiredRole.ADMIN.value,
+                RequiredRole.VIEWER.value,
+            }
         ]
         result["workspace"] = _minima_for("workspace") + project_extras
 
@@ -439,7 +473,11 @@ def _parse_roles_overlay(decoded: Any) -> Dict[str, _RoleOverlayEntry]:
         # Project-focused shortcut: top-level dict is keyed by role slug.
         project_payload = decoded
 
-    reserved = {DefaultRole.OWNER.value, DefaultRole.VIEWER.value}
+    reserved = {
+        RequiredRole.OWNER.value,
+        RequiredRole.ADMIN.value,
+        RequiredRole.VIEWER.value,
+    }
     entries: Dict[str, _RoleOverlayEntry] = {}
     for slug, patch in project_payload.items():
         if not slug or not isinstance(slug, str):

@@ -37,9 +37,9 @@ def _role_description(role: str) -> str:
 
 if is_ee():
     from ee.src.utils.permissions import check_action_access
-    from ee.src.models.shared_models import Permission
+    from ee.src.core.permissions.types import Permission
     from ee.src.services import db_manager_ee, workspace_manager
-    from ee.src.services.selectors import (
+    from ee.src.services.db_manager_ee import (
         get_user_org_and_workspace_id,
     )
     from ee.src.services.organization_service import notify_org_admin_invitation

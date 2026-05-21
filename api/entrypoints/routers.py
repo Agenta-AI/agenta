@@ -32,8 +32,8 @@ from oss.databases.postgres.migrations.tracing.utils import (
     check_for_new_migrations as check_for_new_tracing_migrations,
 )
 
-from oss.src.services.auth_service import authentication_middleware
-from oss.src.services.analytics_service import analytics_middleware
+from oss.src.middlewares.auth import auth_middleware
+from oss.src.middlewares.analytics import analytics_middleware
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -359,11 +359,11 @@ app = FastAPI(
 app.add_middleware(SupportHeadersMiddleware)
 
 if is_ee():
-    from ee.src.services.throttling_service import throttling_middleware
+    from ee.src.middlewares.throttling import throttling_middleware
 
     app.middleware("http")(throttling_middleware)
 
-app.middleware("http")(authentication_middleware)
+app.middleware("http")(auth_middleware)
 app.middleware("http")(analytics_middleware)
 
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)

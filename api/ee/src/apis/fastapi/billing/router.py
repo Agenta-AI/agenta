@@ -25,7 +25,7 @@ from oss.src.services.db_manager import (
 
 from ee.src.services import db_manager_ee
 from ee.src.utils.permissions import check_action_access
-from ee.src.models.shared_models import Permission
+from ee.src.core.permissions.types import Permission
 from ee.src.core.entitlements.types import Tracker, Quota, Period, Scope
 from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
 from ee.src.core.subscriptions.settings import (

@@ -70,6 +70,6 @@ class AccessRouter:
         verbatim from access-controls, including the `"*"` wildcard for
         `owner` — callers that need to render the full permission list
         should expand the wildcard themselves (see
-        `ee.src.services.converters._expand_permissions`).
+        `ee.src.services.db_manager_ee._expand_permissions`).
         """
         return {scope: list(get_roles(scope)) for scope in SCOPES}

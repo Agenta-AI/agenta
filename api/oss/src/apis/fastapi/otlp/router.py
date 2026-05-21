@@ -20,7 +20,7 @@ from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
-    from ee.src.models.shared_models import Permission
+    from ee.src.core.permissions.types import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
 if TYPE_CHECKING:

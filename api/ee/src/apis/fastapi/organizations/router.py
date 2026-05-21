@@ -13,7 +13,7 @@ from ee.src.utils.entitlements import (
 )
 
 from ee.src.services import db_manager_ee
-from ee.src.services.selectors import get_user_org_and_workspace_id
+from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
 from ee.src.services.organization_service import (
     OrganizationDomainsService,
     OrganizationProvidersService,

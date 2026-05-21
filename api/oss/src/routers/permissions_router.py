@@ -11,7 +11,7 @@ from oss.src.utils.context import get_auth_context, get_auth_scope
 from oss.src.utils.common import is_ee, is_oss, APIRouter
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
+    from ee.src.core.permissions.types import Permission
     from ee.src.utils.permissions import check_action_access
     from ee.src.utils.entitlements import check_entitlements, Counter
 

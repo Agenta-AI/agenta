@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.exc import NoResultFound
 
-from ee.src.models.shared_models import WorkspaceRole
+from ee.src.core.permissions.types import DefaultRole
 from ee.src.services import db_manager_ee
 
 
@@ -93,12 +93,12 @@ async def test_get_default_workspace_id_prefers_owner_membership(monkeypatch):
         [
             SimpleNamespace(
                 workspace_id=editor_workspace_id,
-                role=WorkspaceRole.EDITOR,
+                role=DefaultRole.EDITOR,
                 created_at=datetime(2026, 4, 9, tzinfo=timezone.utc),
             ),
             SimpleNamespace(
                 workspace_id=owner_workspace_id,
-                role=WorkspaceRole.OWNER,
+                role=DefaultRole.OWNER,
                 created_at=datetime(2026, 4, 10, tzinfo=timezone.utc),
             ),
         ],
@@ -119,12 +119,12 @@ async def test_get_default_workspace_id_falls_back_to_oldest_membership(monkeypa
         [
             SimpleNamespace(
                 workspace_id=newer_workspace_id,
-                role=WorkspaceRole.EDITOR,
+                role=DefaultRole.EDITOR,
                 created_at=datetime(2026, 4, 10, tzinfo=timezone.utc),
             ),
             SimpleNamespace(
                 workspace_id=oldest_workspace_id,
-                role=WorkspaceRole.VIEWER,
+                role=DefaultRole.VIEWER,
                 created_at=datetime(2026, 4, 9, tzinfo=timezone.utc),
             ),
         ],

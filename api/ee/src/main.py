@@ -69,7 +69,6 @@ events_service = EventsService(
 
 subscription_service = SubscriptionsService(
     subscriptions_dao=subscriptions_dao,
-    meters_service=meters_service,
 )
 
 # Wire entitlements module against the freshly-built services so the

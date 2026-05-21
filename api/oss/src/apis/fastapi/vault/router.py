@@ -17,7 +17,7 @@ from oss.src.core.secrets.dtos import (
 )
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
+    from ee.src.core.permissions.types import Permission
     from ee.src.utils.permissions import check_action_access
 
 

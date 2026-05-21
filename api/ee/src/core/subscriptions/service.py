@@ -21,8 +21,6 @@ from ee.src.core.subscriptions.settings import (
     trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
-from ee.src.core.entitlements.service import EntitlementsService
-from ee.src.core.meters.service import MetersService
 
 log = get_module_logger(__name__)
 
@@ -41,11 +39,8 @@ class SubscriptionsService:
     def __init__(
         self,
         subscriptions_dao: SubscriptionsDAOInterface,
-        meters_service: MetersService,
     ):
         self.subscriptions_dao = subscriptions_dao
-        self.meters_service = meters_service
-        self.entitlements_service = EntitlementsService(meters_service=meters_service)
 
     async def create(
         self,
@@ -331,12 +326,6 @@ class SubscriptionsService:
             subscription.active = True
             subscription.plan = plan
 
-            # await self.entitlements_service.enforce(
-            #     organization_id=organization_id,
-            #     plan=plan,
-            #     force=force,
-            # )
-
             stripe.Subscription.modify(
                 subscription.subscription_id,
                 items=[
@@ -355,12 +344,6 @@ class SubscriptionsService:
             subscription.plan = free_plan
             subscription.subscription_id = None
             subscription.anchor = anchor
-
-            # await self.entitlements_service.enforce(
-            #     organization_id=organization_id,
-            #     plan=free_plan,
-            #     force=True,
-            # )
 
             subscription = await self.update(subscription=subscription)
 

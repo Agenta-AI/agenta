@@ -12,8 +12,8 @@ in the no-env-override case, which exercises the code-default builders.
 import pytest
 
 from ee.src.core.entitlements import controls
-from ee.src.core.entitlements.types import DefaultPlan, DefaultRole, Tracker
-from ee.src.models.shared_models import Permission, WorkspaceRole
+from ee.src.core.entitlements.types import DefaultPlan, Tracker
+from ee.src.core.permissions.types import Permission, DefaultRole, RequiredRole
 
 
 # ---------------------------------------------------------------------------
@@ -36,26 +36,28 @@ class TestDefaults:
     def test_get_roles_returns_workspace_role_set(self):
         ws = controls.get_roles("workspace")
         slugs = {r["role"] for r in ws}
-        # Workspace exposes the code-default WorkspaceRole enum set on top of the
+        # Workspace exposes the code-default DefaultRole enum set on top of the
         # owner/viewer minima.
-        assert slugs == {r.value for r in WorkspaceRole}
+        assert slugs == {r.value for r in DefaultRole}
 
     def test_get_roles_returns_empty_for_unknown_scope(self):
         assert controls.get_roles("garbage") == []
 
     def test_minima_present_in_every_scope(self):
-        # Every scope must always expose `owner` and `viewer`.
+        # Every scope must always expose `owner`, `admin`, and `viewer`.
         for scope in ("organization", "workspace", "project"):
             slugs = {r["role"] for r in controls.get_roles(scope)}
-            assert DefaultRole.OWNER.value in slugs
-            assert DefaultRole.VIEWER.value in slugs
+            assert RequiredRole.OWNER.value in slugs
+            assert RequiredRole.ADMIN.value in slugs
+            assert RequiredRole.VIEWER.value in slugs
 
     def test_organization_defaults_to_minima_only(self):
         # Organization scope has no permission concept today; it stays at the
-        # minima while workspace and project expose the code-default WorkspaceRole set.
+        # minima while workspace and project expose the code-default DefaultRole set.
         assert {r["role"] for r in controls.get_roles("organization")} == {
-            DefaultRole.OWNER.value,
-            DefaultRole.VIEWER.value,
+            RequiredRole.OWNER.value,
+            RequiredRole.ADMIN.value,
+            RequiredRole.VIEWER.value,
         }
 
     def test_project_default_mirrors_workspace_role_set(self):
@@ -63,7 +65,7 @@ class TestDefaults:
         # (admin/developer/editor/annotator), so the project scope must
         # surface the same permission map for non-overridden deployments.
         assert {r["role"] for r in controls.get_roles("project")} == {
-            r.value for r in WorkspaceRole
+            r.value for r in DefaultRole
         }
 
     def test_owner_role_is_wildcard(self):
@@ -73,7 +75,7 @@ class TestDefaults:
 
     def test_viewer_in_workspace_and_project_is_read_only(self):
         # Viewer permissions in workspace/project come from the code-default
-        # `WorkspaceRole.VIEWER` set — every entry is a real Permission.
+        # `DefaultRole.VIEWER` set — every entry is a real Permission.
         valid = {p.value for p in Permission}
         for scope in ("workspace", "project"):
             perms = controls.get_role_permissions(scope, "viewer")
@@ -192,16 +194,16 @@ class TestParseRolesOverride:
         result = controls._parse_roles_override(
             {"project": [_custom_role("reviewer", ["read_system"])]}
         )
-        proj_slugs = [r["role"] for r in result["project"]]
-        ws_slugs = [r["role"] for r in result["workspace"]]
+        prj_sclugs = [r["role"] for r in result["project"]]
+        wrk_sclugs = [r["role"] for r in result["workspace"]]
         org_slugs = [r["role"] for r in result["organization"]]
 
         # Project: minima + override (env overrides REPLACE default extras in
         # the overridden scope).
-        assert proj_slugs == ["owner", "viewer", "reviewer"]
-        assert ws_slugs == ["owner", "viewer", "reviewer"]
+        assert prj_sclugs == ["owner", "admin", "viewer", "reviewer"]
+        assert wrk_sclugs == ["owner", "admin", "viewer", "reviewer"]
         # Organization: untouched (minima-only by default).
-        assert org_slugs == ["owner", "viewer"]
+        assert org_slugs == ["owner", "admin", "viewer"]
 
     def test_empty_dict_rejected(self):
         with pytest.raises(ValueError, match="non-empty"):
@@ -264,9 +266,8 @@ class TestParseRolesOverride:
             {"organization": [_custom_role("auditor", ["read_system"])]}
         )
         slugs = [r["role"] for r in result["organization"]]
-        # Minima are always re-applied at the front of each scope.
-        assert slugs[0] == "owner"
-        assert slugs[1] == "viewer"
+        # Minima are always re-applied at the front of each scope, in order.
+        assert slugs[:3] == ["owner", "admin", "viewer"]
         assert "auditor" in slugs
 
 

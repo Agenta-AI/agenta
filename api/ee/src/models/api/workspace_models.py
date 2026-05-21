@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 from pydantic import BaseModel
 
 from ee.src.models.api.api_models import TimestampModel
-from ee.src.models.shared_models import Permission
+from ee.src.core.permissions.types import Permission
 
 
 class WorkspacePermission(BaseModel):

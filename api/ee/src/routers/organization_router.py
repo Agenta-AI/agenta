@@ -24,8 +24,8 @@ from ee.src.services import (
     db_manager_ee,
     workspace_manager,
 )
-from ee.src.services.selectors import get_user_org_and_workspace_id
-from ee.src.models.shared_models import Permission
+from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
+from ee.src.core.permissions.types import Permission
 
 from ee.src.models.api.workspace_models import (
     CreateWorkspace,

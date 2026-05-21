@@ -11,7 +11,7 @@ from ee.src.services import workspace_manager, db_manager_ee
 from ee.src.models.api.workspace_models import (
     UserRole,
 )
-from ee.src.models.shared_models import Permission
+from ee.src.core.permissions.types import Permission
 from ee.src.core.entitlements.controls import get_role
 
 router = APIRouter()

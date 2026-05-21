@@ -17,7 +17,8 @@ from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.services import user_service, analytics_service
+from oss.src.services import user_service
+from oss.src.middlewares import analytics
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import (
@@ -465,7 +466,7 @@ async def setup_oss_organization_for_first_user(
         user_id=user_id,
     )
 
-    analytics_service.capture_oss_deployment_created(
+    analytics.capture_oss_deployment_created(
         user_email=user_email,
         organization_id=str(organization_db.id),
     )

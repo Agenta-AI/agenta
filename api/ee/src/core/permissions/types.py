@@ -1,10 +1,16 @@
 from enum import Enum
-from typing import List
-
-from pydantic import BaseModel, Field
 
 
-class WorkspaceRole(str, Enum):
+class DefaultRole(str, Enum):
+    """Code-default role catalog (the roles Agenta ships with).
+
+    Used at all three scopes (organization / workspace / project) to seed the
+    default role catalog and their permission mappings. Env overrides
+    (`AGENTA_ACCESS_ROLES`) may add or customize roles on top of these.
+
+    The minimal subset that must always exist in every scope is `RequiredRole`.
+    """
+
     OWNER = "owner"
     ADMIN = "admin"
     DEVELOPER = "developer"
@@ -14,7 +20,7 @@ class WorkspaceRole(str, Enum):
 
     @classmethod
     def is_valid_role(cls, role: str) -> bool:
-        return role.upper() in list(WorkspaceRole.__members__.keys())
+        return role.upper() in list(DefaultRole.__members__.keys())
 
     @classmethod
     def get_description(cls, role):
@@ -27,6 +33,29 @@ class WorkspaceRole(str, Enum):
             cls.VIEWER: "Can view the workspace content but cannot make changes.",
         }
         return descriptions.get(role, "Description not available, Role not found")
+
+
+class RequiredRole(str, Enum):
+    """Required role slugs per scope (the minimal guaranteed subset).
+
+    `owner`, `admin`, and `viewer` must exist in every scope (organization,
+    workspace, project) — they are merged in by the access-controls builder
+    regardless of `AGENTA_ACCESS_ROLES` content, so application code can depend
+    on these three slugs being valid in any scope.
+
+    The rationale for the minimal set: `owner` is the single full-access owner,
+    `admin` is full access that can be granted to many people, and `viewer` is
+    minimal (read-only) access for many people. Without `admin` in the minimal
+    set, an env override could leave a scope with only owner + viewer — where no
+    non-owner can actually do anything.
+
+    Env overrides may customize the permissions of these roles or add
+    additional roles, but cannot remove them.
+    """
+
+    OWNER = "owner"
+    ADMIN = "admin"
+    VIEWER = "viewer"
 
 
 class Permission(str, Enum):
@@ -242,17 +271,12 @@ class Permission(str, Enum):
             cls.VIEW_WORKSPACE,
         ]
         defaults = {
-            WorkspaceRole.OWNER: [p for p in cls],
-            WorkspaceRole.ADMIN: ADMIN_PERMISSIONS,
-            WorkspaceRole.DEVELOPER: DEVELOPER_PERMISSIONS,
-            WorkspaceRole.EDITOR: EDITOR_PERMISSIONS,
-            WorkspaceRole.ANNOTATOR: ANNOTATOR_PERMISSIONS,
-            WorkspaceRole.VIEWER: VIEWER_PERMISSIONS,
+            DefaultRole.OWNER: [p for p in cls],
+            DefaultRole.ADMIN: ADMIN_PERMISSIONS,
+            DefaultRole.DEVELOPER: DEVELOPER_PERMISSIONS,
+            DefaultRole.EDITOR: EDITOR_PERMISSIONS,
+            DefaultRole.ANNOTATOR: ANNOTATOR_PERMISSIONS,
+            DefaultRole.VIEWER: VIEWER_PERMISSIONS,
         }
 
         return defaults.get(role, [])
-
-
-class WorkspaceMember(BaseModel):
-    role_name: WorkspaceRole
-    permissions: List[Permission] = Field(default_factory=list)

@@ -127,7 +127,7 @@ def _log_bearer_auth_denied(
     )
 
 
-async def authentication_middleware(request: Request, call_next):
+async def auth_middleware(request: Request, call_next):
     """
     Middleware function for authentication.
 

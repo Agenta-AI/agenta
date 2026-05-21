@@ -21,24 +21,9 @@ class DefaultPlan(str, Enum):
     SELF_HOSTED_ENTERPRISE = "self_hosted_enterprise"
 
 
-class DefaultRole(str, Enum):
-    """Required role slugs per scope.
-
-    `owner` and `viewer` must exist in every scope (organization, workspace,
-    project) — they are merged in by the access-controls builder regardless of
-    `AGENTA_ACCESS_ROLES` content, so application code can depend on these
-    two slugs being valid in any scope.
-
-    Env overrides may customize the permissions of these roles or add
-    additional roles, but cannot remove them.
-    """
-
-    OWNER = "owner"
-    VIEWER = "viewer"
-
-
 # Permission slugs that the OWNER role always implies. `"*"` is the wildcard
-# permission recognized by `permissions.py`.
+# permission recognized by `permissions.py`. The `RequiredRole` enum itself now
+# lives in `ee.src.core.permissions.types`.
 OWNER_PERMISSIONS: list[str] = ["*"]
 
 

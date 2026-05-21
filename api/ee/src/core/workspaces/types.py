@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from ee.src.models.shared_models import Permission
+from ee.src.core.permissions.types import Permission
 
 
 class WorkspacePermission(BaseModel):

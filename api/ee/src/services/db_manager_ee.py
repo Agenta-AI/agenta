@@ -1,4 +1,4 @@
-from typing import List, Set, Union, NoReturn, Optional, Tuple
+from typing import Any, Dict, List, Set, Union, NoReturn, Optional, Tuple
 import uuid
 from datetime import datetime, timezone
 
@@ -28,8 +28,12 @@ from ee.src.core.organizations.types import (
     CreateOrganization,
     OrganizationUpdate,
 )
-from ee.src.models.shared_models import WorkspaceRole
-from ee.src.core.entitlements.controls import get_roles
+from ee.src.core.permissions.types import Permission, RequiredRole
+from ee.src.core.entitlements.controls import (
+    get_roles,
+    get_role_description,
+    get_role_permissions,
+)
 
 from oss.src.models.db_models import (
     OrganizationDB,
@@ -45,6 +49,7 @@ from ee.src.models.db_models import (
 from oss.src.models.db_models import (
     UserDB,
     InvitationDB,
+    DeploymentDB,
 )
 
 from ee.src.core.organizations.exceptions import (
@@ -55,8 +60,6 @@ from ee.src.dbs.postgres.organizations.dao import (
     OrganizationProvidersDAO,
     OrganizationDomainsDAO,
 )
-from ee.src.services.converters import get_workspace_in_format
-from ee.src.services.selectors import get_org_default_workspace
 
 from oss.src.utils.env import env
 
@@ -163,7 +166,7 @@ async def get_default_workspace_id(user_id: str) -> str:
             (
                 membership
                 for membership in memberships
-                if membership.role == WorkspaceRole.OWNER
+                if membership.role == RequiredRole.OWNER
             ),
             None,
         )
@@ -231,7 +234,7 @@ async def get_workspace_administrators(workspace: WorkspaceDB) -> List[UserDB]:
     admin_user_ids = [
         str(member.user_id)
         for member in members
-        if member.role in (WorkspaceRole.ADMIN, WorkspaceRole.OWNER)
+        if member.role in (RequiredRole.ADMIN, RequiredRole.OWNER)
     ]
 
     administrators: List[UserDB] = []
@@ -2265,3 +2268,258 @@ async def admin_delete_user_memberships(user_id: uuid.UUID) -> None:
             delete(ProjectMemberDB).where(ProjectMemberDB.user_id == user_id)
         )
         await session.commit()
+
+
+# Merged from ee/src/services/selectors.py
+async def get_user_org_and_workspace_id(user_uid) -> Dict[str, Union[str, List[str]]]:
+    """
+    Retrieves the user ID and organization IDs associated with a given user UID.
+
+    Args:
+        user_uid (str): The UID of the user.
+
+    Returns:
+        dict: A dictionary containing the user UID, ID, list of workspace IDS and list of organization IDS associated with a user.
+              If the user is not found, returns None
+
+    Example Usage:
+        result = await get_user_org_and_workspace_id("user123")
+
+    Output:
+        { "id": "123", "uid": "user123", "organization_ids": [], "workspace_ids": []}
+    """
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        user = await db_manager.get_user_with_id(user_id=user_uid)
+        if not user:
+            raise NoResultFound(f"User with uid {user_uid} not found")
+
+        user_org_result = await session.execute(
+            select(OrganizationMemberDB)
+            .filter_by(user_id=user.id)
+            .options(load_only(OrganizationMemberDB.organization_id))  # type: ignore
+        )
+        orgs = user_org_result.scalars().all()
+        organization_ids = [str(user_org.organization_id) for user_org in orgs]
+
+        member_in_workspaces_result = await session.execute(
+            select(WorkspaceMemberDB)
+            .filter_by(user_id=user.id)
+            .options(load_only(WorkspaceMemberDB.workspace_id))  # type: ignore
+        )
+        workspaces_ids = [
+            str(user_workspace.workspace_id)
+            for user_workspace in member_in_workspaces_result.scalars().all()
+        ]
+
+        return {
+            "id": str(user.id),
+            "uid": str(user.uid),
+            "workspace_ids": workspaces_ids,
+            "organization_ids": organization_ids,
+        }
+
+
+async def user_exists(user_email: str) -> bool:
+    """Check if user exists in the database.
+
+    Arguments:
+        user_email (str): The email address of the logged-in user
+
+    Returns:
+        bool: confirming if the user exists or not.
+    """
+
+    user = await db_manager.get_user_with_email(email=user_email)
+    return False if not user else True
+
+
+async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
+    """Get's the default workspace for an organization from the database.
+
+    Arguments:
+        organization (Organization): The organization
+
+    Returns:
+        WorkspaceDB: Instance of WorkspaceDB
+    """
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(WorkspaceDB).filter_by(
+                organization_id=organization.id,
+                type="default",
+            )
+        )
+        workspace = result.scalars().first()
+        if workspace is not None:
+            return workspace
+
+        result = await session.execute(
+            select(WorkspaceDB).filter_by(
+                organization_id=organization.id,
+            )
+        )
+        return result.scalars().first()
+
+
+# Merged from ee/src/services/db_manager.py
+async def create_deployment(
+    app_id: str,
+    project_id: str,
+    uri: str,
+) -> DeploymentDB:
+    """Create a new deployment.
+    Args:
+        app_id (str): The app variant to create the deployment for.
+        project_id (str): The project variant to create the deployment for.
+        uri (str): The URI of the service.
+    Returns:
+        DeploymentDB: The created deployment.
+    """
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        try:
+            deployment = DeploymentDB(
+                app_id=uuid.UUID(app_id),
+                project_id=uuid.UUID(project_id),
+                uri=uri,
+            )
+
+            session.add(deployment)
+            await session.commit()
+            await session.refresh(deployment)
+
+            return deployment
+        except Exception as e:
+            raise Exception(f"Error while creating deployment: {e}")
+
+
+# Merged from ee/src/services/converters.py
+def _role_slug(role: Any) -> str:
+    """Normalize an enum or string role to its slug form."""
+    return role.value if hasattr(role, "value") else str(role)
+
+
+def _expand_permissions(slugs: List[str]) -> List[str]:
+    """Expand the `"*"` wildcard to the full list of Permission enum values.
+
+    Why: `WorkspacePermission.permissions` is typed as `List[Permission]` and
+    the owner role stores `["*"]` as a wildcard. Pydantic rejects `"*"` since
+    it's not an enum member, so we materialize it at the API boundary.
+    """
+    if "*" not in slugs:
+        return slugs
+    return [p.value for p in Permission]
+
+
+async def get_workspace_in_format(
+    workspace: WorkspaceDB,
+    include_members: bool = True,
+) -> WorkspaceResponse:
+    """Converts the workspace object to the WorkspaceResponse model.
+
+    Arguments:
+        workspace (WorkspaceDB): The workspace object
+        include_members (bool): Whether to include workspace members. Defaults to True.
+
+    Returns:
+        WorkspaceResponse: The workspace object in the WorkspaceResponse model
+    """
+
+    members = []
+
+    if include_members:
+        project = await get_project_by_workspace(workspace_id=str(workspace.id))
+        project_members = await get_project_members(project_id=str(project.id))
+        invitations = await get_project_invitations(
+            project_id=str(project.id), invitation_used=False
+        )
+
+        if len(invitations) > 0:
+            for invitation in invitations:
+                if not invitation.used and str(invitation.project_id) == str(
+                    project.id
+                ):
+                    user = await db_manager.get_user_with_email(invitation.email)
+                    member_dict = {
+                        "user": {
+                            "id": str(user.id) if user else invitation.email,
+                            "email": user.email if user else invitation.email,
+                            "username": (
+                                user.username
+                                if user
+                                else invitation.email.split("@")[0]
+                            ),
+                            "status": (
+                                "pending"
+                                if invitation.expiration_date
+                                > datetime.now(timezone.utc)
+                                else "expired"
+                            ),
+                            "created_at": (
+                                str(user.created_at)
+                                if user
+                                else (
+                                    str(invitation.created_at)
+                                    if str(invitation.created_at)
+                                    else None
+                                )
+                            ),
+                        },
+                        "roles": [
+                            {
+                                "role_name": invitation.role,
+                                "role_description": get_role_description(
+                                    "workspace", _role_slug(invitation.role)
+                                ),
+                            }
+                        ],
+                    }
+                    members.append(member_dict)
+
+        for project_member in project_members:
+            member_role = project_member.role
+            member_dict = {
+                "user": {
+                    "id": str(project_member.user.id),
+                    "email": project_member.user.email,
+                    "username": project_member.user.username,
+                    "status": "member",
+                    "created_at": str(project_member.user.created_at),
+                },
+                "roles": (
+                    [
+                        {
+                            "role_name": member_role,
+                            "role_description": get_role_description(
+                                "project", _role_slug(member_role)
+                            ),
+                            "permissions": _expand_permissions(
+                                get_role_permissions("project", _role_slug(member_role))
+                            ),
+                        }
+                    ]
+                    if member_role
+                    else []
+                ),
+            }
+            members.append(member_dict)
+
+    workspace_response = WorkspaceResponse(
+        id=str(workspace.id),
+        name=workspace.name,
+        description=workspace.description,
+        type=workspace.type,
+        members=members,
+        organization=str(workspace.organization_id),
+        created_at=str(workspace.created_at),
+        updated_at=str(workspace.updated_at),
+    )
+    return workspace_response

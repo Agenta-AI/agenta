@@ -86,7 +86,6 @@ def bootstrap_entitlements_services(
     if subscriptions_service is None:
         subscriptions_service = SubscriptionsService(
             subscriptions_dao=SubscriptionsDAO(),
-            meters_service=meters_service,
         )
 
     register_entitlements_services(

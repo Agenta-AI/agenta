@@ -18,9 +18,7 @@ from ee.src.core.entitlements.types import (
 )
 from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
 from ee.src.core.subscriptions.settings import get_free_plan
-from ee.src.core.meters.service import MetersService
 from ee.src.core.subscriptions.service import SubscriptionsService
-from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 
 log = get_module_logger(__name__)
@@ -29,13 +27,8 @@ log = get_module_logger(__name__)
 _warned_no_throttles = False
 _warned_fallback_pairs: set[tuple[str | None, str | None]] = set()
 
-meters_service = MetersService(
-    meters_dao=MetersDAO(),
-)
-
 subscriptions_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
-    meters_service=meters_service,
 )
 
 
