@@ -38,7 +38,7 @@ from ee.src.core.organizations.types import (
 )
 
 from ee.src.services import db_manager_ee
-from oss.src.services import email_service
+from oss.src.utils import emailing
 from oss.src.models.db_models import UserDB
 from oss.src.models.db_models import (
     WorkspaceDB,
@@ -87,8 +87,6 @@ async def send_invitation_email(
         bool: True if the email was sent successfully, False otherwise.
     """
 
-    html_template = email_service.read_email_template("./templates/send_email.html")
-
     token_param = quote(token, safe="")
     email_param = quote(email, safe="")
     org_param = quote(str(organization.id), safe="")
@@ -108,21 +106,17 @@ async def send_invitation_email(
     if not env.sendgrid.enabled:
         return invite_link
 
-    html_content = html_template.format(
-        username_placeholder=user.username,
-        action_placeholder="invited you to join",
-        workspace_placeholder=organization.name,
+    await emailing.send_email(
+        from_email="account@hello.agenta.ai",
+        to_email=email,
+        subject=f"{user.username} invited you to join {organization.name}",
+        username=user.username,
+        action="invited you to join",
+        workspace=organization.name,
         call_to_action=(
             "Click the link below to accept the invitation:</p><br>"
             f'<a href="{invite_link}">Accept Invitation</a>'
         ),
-    )
-
-    await email_service.send_email(
-        from_email="account@hello.agenta.ai",
-        to_email=email,
-        subject=f"{user.username} invited you to join {organization.name}",
-        html_content=html_content,
     )
     return True
 
@@ -141,24 +135,21 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
 
     organization = await db_manager_ee.get_organization(str(workspace.organization_id))
     project = await db_manager_ee.get_project_by_workspace(str(workspace.id))
-    html_template = email_service.read_email_template("./templates/send_email.html")
-    html_content = html_template.format(
-        username_placeholder=user.username,
-        action_placeholder="joined your Workspace",
-        workspace_placeholder=f'"{organization.name}"',
-        call_to_action=(
-            "Click the link below to view your Organization:</p><br>"
-            f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
-        ),
-    )
 
     workspace_admins = await db_manager_ee.get_workspace_administrators(workspace)
+
     for workspace_admin in workspace_admins:
-        await email_service.send_email(
+        await emailing.send_email(
             from_email="account@hello.agenta.ai",
             to_email=workspace_admin.email,
             subject=f"New Member Joined {organization.name}",
-            html_content=html_content,
+            username=user.username,
+            action="joined your Workspace",
+            workspace=f'"{organization.name}"',
+            call_to_action=(
+                "Click the link below to view your Organization:</p><br>"
+                f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
+            ),
         )
 
     return True

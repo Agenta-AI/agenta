@@ -17,6 +17,7 @@ Sources:
 
 ## Notes
 
+- 2026-05-20 re-audit: re-scanned current code against every OPEN finding without applying fixes. Status/diagnosis corrections recorded inline under each finding's `Re-audit (2026-05-20)` block. Net result: UEL-021 and UEL-022 share a single confirmed root cause (source-backed evaluator origin default) that is more precise than the original "kind conflation" diagnosis; UEL-021's claimed expected `kind` values are wrong; UEL-017's failing assertion is a flag-gate bug, not the multi-batch race the finding describes; UEL-023's `interface`/`configuration` sub-issue is stale (closed via UEL-003) and the actual failing assertion is unfiltered `inputs`.
 - No local full-suite test execution was performed while auditing these findings; findings marked `reproduced` either come from the user-provided full-suite output or from the targeted local checks listed above.
 - Findings below were re-checked against current code. Where runtime confirmation is still missing, the finding flags it and may need handoff to `test-codebase`.
 - The branch carries two intertwined design tracks: unified evaluation loops (planner / source resolvers / tensor slice / runnable executor) and the evals×queues unification (default queue lifecycle + flag redefinitions). Findings cover both.
@@ -26,8 +27,8 @@ Sources:
 
 - Should the legacy migration that mass-creates default queues for all existing runs gate on `has_human`/policy in a single pass, or is the runtime "first-edit reconciles" lag acceptable? See UEL-010.
 - Is destructive `remove_step` + `prune` still the chosen lifecycle per `step-removal-semantics.md`? If so, when is the missing implementation expected? See UEL-014.
-- For source-backed queues, should the public `SimpleQueueData.kind` report the source family (`queries` / `testsets`) or the executable scenario family (`traces` / `testcases`)? The failing tests expect executable scenario family, while the design docs emphasize separating source-family flags from queue eligibility. See UEL-021.
-- Should legacy unit tests keep monkeypatching module-level `posthog` / `engine` symbols, or should they be updated to patch dependency factories / constructor injection? See UEL-024.
+- ~~For source-backed queues, should the public `SimpleQueueData.kind` report the source family (`queries` / `testsets`) or the executable scenario family (`traces` / `testcases`)?~~ **Resolved by 2026-05-20 re-audit:** the failing tests assert the *source* family (`kind="queries"` / `kind="testsets"`), so the current mapping is correct and the real bug is the `is_queue=False` / evaluator-origin default. See UEL-021 re-audit.
+- ~~Should legacy unit tests keep monkeypatching module-level `posthog` / `engine` symbols, or should they be updated to patch dependency factories / constructor injection?~~ **Resolved by 2026-05-20 re-audit:** update the tests to patch the current seam (`_load_posthog`, `get_transactions_engine`, or constructor-injected engine) — production proxy globals are explicitly disallowed by the Notes guidance. See UEL-024 re-audit.
 
 ## Open Findings
 
@@ -64,6 +65,11 @@ Sources:
 - Sources:
   - Provided pytest output.
   - Local inspection of `SimpleQueuesService`.
+- Re-audit (2026-05-20): **Diagnosis corrected; severity unchanged (P1); confidence raised to high.** The "kind conflation" framing is inaccurate, and two evidence claims are wrong:
+  - The acceptance tests do NOT expect `kind="traces"`/`kind="testcases"`. `test_create_simple_queue_from_queries` asserts `queue["data"]["kind"] == "queries"` (`test_simple_queues_basics.py:173`) and `test_create_simple_queue_from_testsets` asserts `"testsets"` (line 199). They expect the source family preserved, plus `queries`/`testsets` arrays echoed back. The current `_get_source_kind` mapping to `QUERIES`/`TESTSETS` is therefore *correct*, not the bug.
+  - The real failure is upstream: the `KeyError: 'queue'` / `count == 0` happen because `_parse_queue` returns `None`. Trace: `SimpleQueuesService.create` source-backed branch calls `simple_evaluations_service._make_evaluation_run_data(...)` (`service.py:3636`). That builder defaults list-shaped evaluators to `DEFAULT_ORIGIN_EVALUATORS = "custom"` (`service.py:124`, applied at `3045-3049`), so `has_human=False` → `_reconcile_default_queue` leaves `is_queue=False` → `_get_kind` short-circuits to `None` at `service.py:4224` (`not run.flags.is_queue`) → `_parse_queue` returns `None` at `4271-4272` → router emits empty envelope.
+  - Contrast: the non-source `_make_run_data` (`service.py:4087`) defaults list evaluators to `origin="human"` (`4093-4099`), so direct trace/testcase queues get `has_human=True` → `is_queue=True` and parse correctly. This asymmetry between the two builders is the single root cause shared with UEL-022.
+  - Corrected suggested fix: align the source-backed evaluator-origin default with the non-source builder (default list-shaped evaluators to `"human"` in `_make_evaluation_run_data`), OR decouple `_get_kind`/`_parse_queue` from `is_queue` so a created queue is always parseable. Do NOT change `_get_source_kind`'s family mapping. Keep `kind` reporting the source family per the tests.
 
 ### [OPEN] UEL-022: Source-backed queue dispatch enters the source-slice processor with `has_queries` / `has_testsets`, but the processor accepts only direct-source flags
 
@@ -100,6 +106,7 @@ Sources:
 - Sources:
   - Provided pytest output.
   - Local inspection of `SimpleEvaluationsService.dispatch_*`, `SimpleQueuesService._dispatch_source_batches()`, and `tasks/source_slice.py`.
+- Re-audit (2026-05-20): **Partially confirmed; shares root cause with UEL-021.** The source-slice processor's `has_traces`/`has_testcases`-only gate is real and reproduced (see UEL-017 re-audit for the exact line — `tasks/source_slice.py:569` gates on `run.flags.has_traces or run.flags.has_testcases`, excluding `has_queries`/`has_testsets`). However, the *primary* reason the acceptance tests see `assert 0 == 1` is the same `is_queue=False` / evaluator-origin-default issue documented in UEL-021's re-audit — the queue never reaches a parseable state, so no scenarios are reported. The processor-gate gap (this finding) is the *secondary* defect that surfaces once UEL-021's origin default is fixed. Fix UEL-021 first, then re-run the source-backed dispatch tests to isolate whether the `source_slice.py:569` gate still blocks query/testset-backed batches. Keep this finding OPEN as the second-order fix.
 
 ### [OPEN] UEL-023: Backend runtime adapters have two compatibility regressions: `WorkflowServiceRequestData` shape and cached-runner `semaphore`
 
@@ -130,6 +137,10 @@ Sources:
 - Sources:
   - Provided pytest output.
   - Local inspection of `BackendWorkflowRunner` and `BackendCachedRunner`.
+- Re-audit (2026-05-20): **Evidence stale; real failing assertion is different.** The pytest dump's actual failure for `test_backend_workflow_runner_invokes_application_through_workflow_service` is `assert workflow_request.data.inputs == {"input": "hello"}` — got all four source keys (`correct_answer`, `testcase_id`, `testcase_dedup_id`, `input`). It is NOT the `AttributeError: 'WorkflowRequestData' object has no attribute 'interface'` this finding's Evidence cites; that `interface`/`configuration` assertion was already removed when UEL-003 was closed (the test now asserts via `workflow_request.data.revision[...]`/`parameters`). So this finding's part (a) is stale.
+  - Confirmed real defect: `BackendWorkflowRunner.execute` sets `inputs=request.source.inputs` verbatim (`adapters.py:309`) with no projection onto the revision's declared input schema (`revision["data"]["schemas"]["inputs"]["properties"]`). The test supplies a schema declaring only `input`, so the adapter should project `request.source.inputs` down to declared properties and drop `correct_answer`/`testcase_id`/`testcase_dedup_id`.
+  - The `semaphore` sub-issue (`BackendCachedRunner.execute_batch` forwarding `semaphore=` unconditionally) was not re-verified in this pass; left as-is pending a targeted check.
+  - Corrected suggested fix: in `BackendWorkflowRunner.execute`, filter `request.source.inputs` to the keys present in `revision["data"]["schemas"]["inputs"]["properties"]` before assigning to `WorkflowServiceRequestData.inputs`. Update the finding title to drop the `WorkflowServiceRequestData.interface` shape sub-issue (closed via UEL-003) and add the input-projection sub-issue.
 
 ### [OPEN] UEL-024: Unit tests patch legacy module globals that no longer exist after dependency lookup refactors
 
@@ -167,6 +178,11 @@ Sources:
 - Sources:
   - Provided pytest output.
   - Local inspection of the affected modules and tests.
+- Re-audit (2026-05-20): **Fully confirmed, all three module seams reproduce.** Verified directly:
+  - `oss/src/core/auth/helper.py` has no module-level `posthog`; it calls `_load_posthog()` inside `_get_posthog_string_entries` (line 63, imported at line 8). Tests patching `auth_helper.posthog` raise `AttributeError`.
+  - `ee/src/dbs/postgres/meters/dao.py` injects via `MetersDAO.__init__(self, engine: TransactionsEngine = None)` defaulting to `get_transactions_engine()` (lines 96-99); no module-level `engine`. Tests patching `dao_module.engine` raise `AttributeError`. Fix: construct `MetersDAO(engine=mock_engine)`.
+  - `ee/src/services/db_manager_ee.py` calls `get_transactions_engine()` per-function (lines 82, 103, 125, 147, …); no module-level `engine`. Tests patching `db_manager_ee.engine` raise `AttributeError`. Fix: patch `db_manager_ee.get_transactions_engine`.
+  - This is the cleanest fix candidate of the failing-test findings — test-only changes, no production code touched, consistent with the "do not add proxy globals" note. Open Question on monkeypatch strategy can be resolved as "update tests to patch the current seam."
 
 ### [OPEN] UEL-025: Legacy billing pricing alias tests are environment-sensitive because the subprocess helper inherits canonical pricing env
 
@@ -264,6 +280,7 @@ Sources:
   - Add a unit test that asserts `has_queries` does NOT trigger for a fake reference key like `"some_query_anchor"`.
 - Alternatives:
   - Accept the heuristic as the persistent rule and document it as a contract; gate any future step-key changes through a versioning check.
+- Re-audit (2026-05-20): **Still reproduces.** Confirmed in `oss/src/dbs/postgres/evaluations/utils.py`: hardcoded direct-source step keys `{"traces", "query-direct"}` / `{"testcases", "testset-direct"}` at lines 113-116, and substring matching `"query" in step_key` / `"testset" in step_key` at lines 121-124 (refs in finding cited 104-136 / 118-124; logic unchanged, lines shifted to ~94-124). Diagnosis and severity unchanged.
 
 ### [OPEN] UEL-010: Backfill creates default queues for every existing run, bypassing the conditional policy
 
@@ -352,6 +369,7 @@ Sources:
   - Add a regression test that archives a queue against a closed run and asserts a 409 response.
 - Alternatives:
   - Move the closed-run check into the service layer (so it never goes through `@suppress_exceptions`). This is the cleaner long-term direction per `AGENTS.md` ("typed domain exceptions at the service boundary"), but is a larger refactor.
+- Re-audit (2026-05-20): **Still reproduces.** `dao.py:2649` `archive_queue` and `dao.py:2686` `unarchive_queue` both carry bare `@suppress_exceptions()` and raise `EvaluationClosedConflict` (e.g. line 2676 in `archive_queue`); none of the queue-mutating methods in this file use `exclude=[EvaluationClosedConflict]` (only `EntityCreationConflict` appears in `exclude` lists). The conflict is swallowed → router never sees it → no 409. Diagnosis and severity unchanged.
 
 ### [OPEN] UEL-020: `is_queue` is recomputed only at the service layer; the DAO neither resets nor derives it
 
@@ -434,6 +452,7 @@ Sources:
   - Add a unit test that asserts the documented behavior (execute auto cells in the slice, populate result cells, return a non-empty `ProcessSummary`).
 - Alternatives:
   - Mark this method explicitly as `metrics-refresh-only` and provide a separate `execute(slice)` method when planner integration lands. Keep the contract honest.
+- Re-audit (2026-05-20): **Still reproduces.** `runtime/tensor.py` `process` (def at line 151) early-returns `ProcessSummary()` (line 159), calls `refresh_metrics(...)` (line 161), and returns an empty `ProcessSummary()` (line 169). No planner/runner invocation. Diagnosis and severity unchanged.
 
 ### [OPEN] UEL-016: Service raises bare `ValueError` for default-queue policy violations instead of typed domain exceptions
 
@@ -484,6 +503,9 @@ Sources:
   - Alternatively, move run-status reconciliation out of the slice loop into a separate run-finalize task that aggregates across slices.
 - Alternatives:
   - Document the thrash and accept it. Cheaper but degrades the UX promise of the unified loop.
+- Re-audit (2026-05-20): **A concrete, test-failing sub-bug exists that this finding does not capture; promote to `reproduced`.** The failing test `test_source_slice_processor_preserves_higher_queue_status` (pytest dump) is not about the multi-batch race this finding describes — it fails because the severity-floor block in `process_evaluation_source_slice` is gated on `run.flags.has_traces or run.flags.has_testcases` (`tasks/source_slice.py:566-571`). The test's run is `EvaluationRunFlags(is_queue=True, has_queries=True)` (query-backed), so `has_traces`/`has_testcases` are both False, the floor is skipped, and `run_status` stays `SUCCESS` instead of being floored up to the persisted `ERRORS` — hence `assert ... == ERRORS` got `SUCCESS`.
+  - So there are now two distinct issues under the "status preservation" umbrella: (1) **this finding's** multi-slice thrash race (still `medium`/un-reproduced as a *race*), and (2) the severity-floor flag gate excluding `has_queries`/`has_testsets` runs (reproduced, test-failing). They share `source_slice.py:566-586`.
+  - Corrected suggested fix for (2): include `has_queries`/`has_testsets` (or simply gate on `run.flags.is_queue`) in the severity-floor condition at line 569 so source-backed queue runs preserve their higher persisted status. This is the same `source_slice.py:569` gate referenced in UEL-022's re-audit.
 
 ### [OPEN] UEL-018: SDK runtime drops extra runner outputs silently when batch is longer than planned cells
 
@@ -532,6 +554,41 @@ Sources:
   - Return `ResolvedSourceBatch(kind=..., step_key=..., trace_ids=[])` for empty query results so the loop sees the resolver applied.
 - Alternatives:
   - Document the assumption "exactly one source reference per input step" and add a planner-level validator that rejects steps violating it.
+
+### [FIXED] UEL-027: SendGrid client is an eager import-time module-global, inconsistent with the lazy-loader pattern used for other optional third-party subsystems
+
+- ID: `UEL-027`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P3`
+- Confidence: `high`
+- Status: `fixed`
+- Area: `Utils / Third-party subsystem access`
+- Summary: A 2026-05-21 audit of how `api/` accesses third-party subsystems found that optional dependencies are otherwise reached through once-checked lazy loaders in `oss/src/utils/lazy.py` (`_load_stripe`, `_load_posthog`), but SendGrid was the odd one out: two separate module-level eager initializations at import time. This is the same drift trap as UEL-024 (module-globals are hard to swap in tests) and means SendGrid client construction runs at import regardless of whether email is ever sent.
+- Evidence (pre-fix, files since changed/removed):
+  - `oss/src/services/email_service.py:13-22` (now deleted) constructed `sg = sendgrid.SendGridAPIClient(...)` at module import time, guarded only by `if env.sendgrid.enabled`, and referenced it directly in `send_email` (`sg.send(message)`).
+  - `ee/src/services/db_manager_ee.py:5,65-66` imported `sendgrid` and constructed `sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)` at import time **unconditionally** (no `enabled` guard). Grep confirmed `sg` was assigned and never read anywhere in that module — dead code.
+  - By contrast, Stripe and PostHog use `oss/src/utils/lazy.py` once-checked loaders that return `None` when disabled/unavailable, and callers null-check the result.
+  - No external module imports `email_service.sg` or `db_manager_ee.sg` directly; all email goes through `email_service.send_email()` / `read_email_template()` (consumers: `oss/src/services/user_service.py`, `oss/src/services/organization_service.py`, `ee/src/services/organization_service.py`).
+- Cause: The audit's "two axes" model (required-vs-optional × per-request-client-vs-boot-time-framework) explains every other subsystem: required per-request deps (Postgres/Redis) get a lazy singleton factory plus constructor-injection on modern DAOs; optional per-call deps (Stripe/PostHog) get `lazy.py` loaders; the boot-time framework (SuperTokens) is initialized once at startup. SendGrid is an optional per-call client and should have been a `lazy.py` loader, but was instead two eager module-globals.
+- Resolution (2026-05-21):
+  - Added `_load_sendgrid()` to `oss/src/utils/lazy.py`, mirroring `_load_stripe`/`_load_posthog` but returning a configured `SendGridAPIClient` instance (not a module — accepted per the "module-vs-client" decision below), or `None` when disabled/unavailable. Owns its own enabled-check and preserves the prior log lines (enabled / missing-sender / disabled).
+  - `ee/src/services/db_manager_ee.py`: removed the dead `sg = SendGridAPIClient(...)` global and its `import sendgrid` (the symbol was never used).
+  - **Boundary decision (per user):** email is a *caching-style* subsystem (callers share real orchestration: load template -> format placeholders -> validate sender -> send), unlike Stripe/PostHog which are one-liner direct calls (`stripe.Customer.create`, `posthog.capture`) with no shared glue. So email belongs behind a util like Redis behind `caching.py`, NOT inlined. Created `oss/src/utils/emailing.py` with a single public function `send_email(*, to_email, subject, username, action, workspace, call_to_action, from_email=None)` plus two private helpers (`_read_email_template`, `_render_email_template`). The loader's enabled-check + sender validation + `Mail` construction + `sg.send` all live inside the util; only `send_email` is part of the public surface.
+  - Deleted `oss/src/services/email_service.py` and moved its template `git mv oss/src/services/templates/send_email.html -> oss/src/utils/templates/send_email.html` (so path resolution relative to the module still works).
+  - Migrated all four call sites (`oss/src/services/organization_service.py`, `oss/src/services/user_service.py`, `ee/src/services/organization_service.py` x2) from the repeated `read_email_template().format(...)` + `email_service.send_email(...)` dance to a single `emailing.send_email(...)` call. Removed the now-duplicated `if not env.sendgrid.from_address: raise ValueError(...)` guard from call sites (the util owns it). Callers that short-circuit on a disabled mailer with a non-bool return (invite link / reset link) keep their own `if not env.sendgrid.enabled` early-return.
+  - No production behavior change: disabled SendGrid is still a logged no-op; enabled builds the client on first send instead of at import.
+  - ruff format + check clean; import smoke test passes; template loads from new location.
+- Decisions captured during the audit (apply to future subsystem work):
+  - **Enabled-check placement:** each `lazy.py` loader owns its enabled-check and returns `None` when off; callers null-check. (Stripe/PostHog still gate at call sites today; not migrated in this pass but the intended direction.)
+  - **Module vs client:** loaders return whatever the library is designed for — `stripe`/`posthog` return the module (global `api_key`), `sendgrid` returns a client instance. Do not force uniformity against the library shape.
+  - **Boundary:** required per-request deps (Postgres/Redis) -> lazy singleton factory + constructor injection on modern DAOs; optional deps with shared orchestration (email) -> util wrapper (caching-style); optional one-liner deps (Stripe/PostHog) -> direct lazy use; boot-time framework (SuperTokens) -> eager conditional init at startup.
+- Alternatives:
+  - Leave SendGrid eager and accept the inconsistency. Rejected: it was the only optional subsystem not using the `lazy.py` seam, and the EE copy was eager-unconditional dead code.
+  - Fully unpack `email_service` and inline `_load_sendgrid()` + `sg.send(Mail(...))` at every call site (to match Stripe/PostHog). Rejected: the four callers share template/format/validate orchestration, so inlining would duplicate ~10 lines x4; email is a caching-style boundary, not a one-liner.
+- Sources:
+  - 2026-05-21 read-only subsystem-access audit (Explore agent) covering Postgres, Redis, Stripe, PostHog, SuperTokens, SendGrid.
+  - Local inspection of the (now-removed) `email_service.py`, `db_manager_ee.py`, `lazy.py`, and the four email call sites.
 
 ## Closed Findings
 

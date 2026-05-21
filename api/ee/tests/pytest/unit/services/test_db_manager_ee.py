@@ -184,10 +184,15 @@ async def test_remove_user_from_workspace_deletes_pending_invitation_without_use
         "delete_invitation",
         fail_if_nested_invitation_delete_is_used,
     )
+    mock_engine = type(
+        "MockEngine",
+        (),
+        {"session": lambda self: _PendingInviteSessionContext(session)},
+    )()
     monkeypatch.setattr(
-        db_manager_ee.engine,
-        "core_session",
-        lambda: _PendingInviteSessionContext(session),
+        db_manager_ee,
+        "get_transactions_engine",
+        lambda: mock_engine,
     )
 
     result = await db_manager_ee.remove_user_from_workspace(

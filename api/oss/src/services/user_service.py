@@ -7,7 +7,8 @@ from oss.src.models.db_models import UserDB
 from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.models.api.user_models import UserUpdate
-from oss.src.services import db_manager, email_service
+from oss.src.services import db_manager
+from oss.src.utils import emailing
 
 log = get_module_logger(__name__)
 
@@ -157,20 +158,11 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
     if not env.sendgrid.api_key:
         return password_reset_link
 
-    html_template = email_service.read_email_template("./templates/send_email.html")
-    html_content = html_template.format(
-        username_placeholder=admin_user.username,
-        action_placeholder="requested a password reset for you in their workspace",
-        workspace_placeholder="",
-        call_to_action=f"""<p>Click the link below to reset your password:</p><br><a href="{password_reset_link}">Reset Password</a>""",
-    )
-
-    if not env.sendgrid.from_address:
-        raise ValueError("Sendgrid requires a sender email address to work.")
-
-    await email_service.send_email(
-        from_email=env.sendgrid.from_address,
+    await emailing.send_email(
         to_email=user.email,
         subject=f"{admin_user.username} requested a password reset for you in their workspace",
-        html_content=html_content,
+        username=admin_user.username,
+        action="requested a password reset for you in their workspace",
+        workspace="",
+        call_to_action=f"""<p>Click the link below to reset your password:</p><br><a href="{password_reset_link}">Reset Password</a>""",
     )
