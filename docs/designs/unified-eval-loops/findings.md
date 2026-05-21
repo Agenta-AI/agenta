@@ -32,6 +32,29 @@ Sources:
 
 ## Open Findings
 
+### [OPEN] UEL-029: Batch query→evaluator runs never finalize run status (dispatched with `update_run_status=False`)
+
+- ID: `UEL-029`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P2`
+- Confidence: `medium`
+- Status: `candidate`
+- Category: `Correctness`
+- Summary: The `batch_query` topology (query → evaluator, no application, not live) dispatches through `process_query_source_run`, which calls `process_evaluation_source_slice(update_run_status=False)` (`api/oss/src/core/evaluations/tasks/query.py:224`). Because the finalize block is gated on `update_run_status=True`, a batch query→evaluator run never rolls its status up to a terminal value — analogous to UEL-028 but on the query path rather than the testset path.
+- Evidence:
+  - `tasks/query.py:224` passes `update_run_status=False`.
+  - `tasks/run.py` routes both `live_query` and `batch_query` to `process_query_source_run`; only `batch_testset`/`batch_invocation` (via `process_testset_source_run`) finalize.
+  - Flow test `test_batch_query_to_evaluator_runs_to_success` in `test_evaluation_flows_run.py` is marked `xfail` against this finding.
+- Impact: Batch query-backed evaluations (no app) don't reach a terminal status; consumers gating on terminal status hang. Distinct from live query runs, which are *meant* to stay running.
+- Files:
+  - `api/oss/src/core/evaluations/tasks/query.py`
+  - `api/oss/src/core/evaluations/tasks/run.py`
+- Cause: The query path was written for the live case (which intentionally never finalizes) and reused for the batch case without distinguishing the two — batch query runs should finalize, live ones should not.
+- Suggested Fix: Pass `update_run_status=True` for the `batch_query` dispatch (use_windowing=True path) while keeping `live_query` at `False`. Then apply the same finalization semantics as UEL-028 (terminal status + clear `is_active`). Add a flow test (flip the existing xfail to a passing assertion).
+- Notes:
+  - Surfaced while building the run-to-completion flow suite with the `mock_v0` harness. Needs end-to-end confirmation that batch query→evaluator resolves trace sources in the test environment (it depends on ingested traces matching the query filter).
+
 ### [OPEN] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
 
 - ID: `UEL-009`
@@ -97,37 +120,6 @@ Sources:
 - Alternatives:
   - Cover the same surface through acceptance tests over the HTTP routes (`/queues/{id}/archive`, `/runs/{id}/default-queue`). Reduces unit-level reach but covers HTTP wiring at the same time.
 
-### [OPEN] UEL-012: `@suppress_exceptions()` on `archive_queue`/`unarchive_queue` swallows `EvaluationClosedConflict`
-
-- ID: `UEL-012`
-- Origin: `scan`
-- Lens: `verification`
-- Severity: `P2`
-- Confidence: `high`
-- Status: `open`
-- Category: `Correctness`
-- Summary: The new DAO methods `archive_queue` and `unarchive_queue` raise `EvaluationClosedConflict` when the parent run is closed, but their `@suppress_exceptions()` decorator catches the exception and returns `None`. The router decorator `@handle_evaluation_closed_exception()` never receives the exception, so closed-run mutations silently return an empty response instead of a 409.
-- Evidence:
-  - `api/oss/src/dbs/postgres/evaluations/dao.py:2649-2684` — `archive_queue` is wrapped with `@suppress_exceptions()` and raises `EvaluationClosedConflict` at 2676.
-  - `api/oss/src/dbs/postgres/evaluations/dao.py:2686-2723` — same shape for `unarchive_queue`.
-  - `api/oss/src/utils/exceptions.py:97-128` — `suppress_exceptions` catches `Exception` unless explicitly in `exclude`. No DAO method in this file uses `exclude=[EvaluationClosedConflict]`.
-  - `api/oss/src/apis/fastapi/evaluations/router.py:1758-1803` — both routes use `@handle_evaluation_closed_exception()`, expecting the exception to propagate.
-- Impact:
-  - Archiving or unarchiving a queue whose parent run is closed returns `count=0` to the client instead of the 409 error the rest of the router uses for the same situation. Users cannot distinguish "queue not found" from "run closed".
-  - The conflict is logged through `[SUPPRESSED]` rather than surfaced; UI cannot react.
-  - The pattern matches a pre-existing convention on `main` (e.g., `edit_queue`), so it is not strictly a regression, but the new archive/unarchive paths inherit and propagate it.
-- Files:
-  - `api/oss/src/dbs/postgres/evaluations/dao.py`
-  - `api/oss/src/apis/fastapi/evaluations/router.py`
-  - `api/oss/src/utils/exceptions.py`
-- Cause: `@suppress_exceptions()` was copied from neighboring queue methods without adjusting `exclude`.
-- Suggested Fix:
-  - Change `@suppress_exceptions()` to `@suppress_exceptions(exclude=[EvaluationClosedConflict])` on `archive_queue`, `unarchive_queue`, `edit_queue`, `edit_queues`, and any other DAO method that raises `EvaluationClosedConflict`.
-  - Add a regression test that archives a queue against a closed run and asserts a 409 response.
-- Alternatives:
-  - Move the closed-run check into the service layer (so it never goes through `@suppress_exceptions`). This is the cleaner long-term direction per `AGENTS.md` ("typed domain exceptions at the service boundary"), but is a larger refactor.
-- Re-audit (2026-05-20): **Still reproduces.** `dao.py:2649` `archive_queue` and `dao.py:2686` `unarchive_queue` both carry bare `@suppress_exceptions()` and raise `EvaluationClosedConflict` (e.g. line 2676 in `archive_queue`); none of the queue-mutating methods in this file use `exclude=[EvaluationClosedConflict]` (only `EntityCreationConflict` appears in `exclude` lists). The conflict is swallowed → router never sees it → no 409. Diagnosis and severity unchanged.
-
 ### [OPEN] UEL-020: `is_queue` is recomputed only at the service layer; the DAO neither resets nor derives it
 
 - ID: `UEL-020`
@@ -185,32 +177,6 @@ Sources:
 - Alternatives:
   - Mark this method explicitly as `metrics-refresh-only` and provide a separate `execute(slice)` method when planner integration lands. Keep the contract honest.
 - Re-audit (2026-05-20): **Still reproduces.** `runtime/tensor.py` `process` (def at line 151) early-returns `ProcessSummary()` (line 159), calls `refresh_metrics(...)` (line 161), and returns an empty `ProcessSummary()` (line 169). No planner/runner invocation. Diagnosis and severity unchanged.
-
-### [OPEN] UEL-016: Service raises bare `ValueError` for default-queue policy violations instead of typed domain exceptions
-
-- ID: `UEL-016`
-- Origin: `scan`
-- Lens: `verification`
-- Severity: `P3`
-- Confidence: `high`
-- Status: `open`
-- Category: `Consistency`
-- Summary: `_validate_default_queue_data` and `delete_queue`/`delete_queues` raise bare `ValueError` for policy violations (`"default queues cannot filter scenarios, steps, assignments, or batches"`, `"default queues must be archived, not hard deleted"`, `"default queues cannot be demoted"`). `AGENTS.md` explicitly forbids this pattern: domain exceptions must be defined in `core/<domain>/types.py` (or `dtos.py`) so the API boundary can convert them to structured HTTP responses.
-- Evidence:
-  - `api/oss/src/core/evaluations/service.py:1661-1663`, `1754`, `1795`, `1900`, `1919` raise `ValueError(...)` directly.
-  - `AGENTS.md` §"Domain-level exceptions" requires `Folder`/`Tracing`-style domain exception classes per domain, with base classes and structured context.
-  - `api/oss/src/core/evaluations/types.py:44-75` only defines `EvaluationClosedConflict`; no `DefaultQueueModificationError`/`InvalidDefaultQueueData`/`DefaultQueueDeletionForbidden` types exist.
-- Impact: Clients see generic 500 or HTTP-422 responses instead of typed 409/422 with structured context. Future logic that needs to react to a specific failure mode (`except DefaultQueueModificationError:`) cannot do so cleanly.
-- Files:
-  - `api/oss/src/core/evaluations/service.py`
-  - `api/oss/src/core/evaluations/types.py`
-- Cause: Policy validators were added inline as the simplest possible guards.
-- Suggested Fix:
-  - Introduce `class DefaultQueueError(Exception)` base and concrete subclasses (`DefaultQueueDataInvalid`, `DefaultQueueDemotionForbidden`, `DefaultQueueDeletionForbidden`) in `types.py`.
-  - Replace `raise ValueError(...)` with these types and convert them in the router (or via a decorator) to typed HTTP errors.
-  - Add a regression test asserting the HTTP status code and detail message.
-- Alternatives:
-  - Leave as `ValueError` until other domain exceptions land. This is consistent with some other parts of the evaluations service but inconsistent with the recommended pattern.
 
 ### [OPEN] UEL-017: Source-aware queue runs may transiently flip run status during multi-batch dispatch
 
@@ -289,6 +255,71 @@ Sources:
   - Document the assumption "exactly one source reference per input step" and add a planner-level validator that rejects steps violating it.
 
 ## Closed Findings
+
+### [CLOSED] UEL-028: Batch (non-queue) source runs never finalize run status — stuck `running` after all scenarios succeed
+
+- ID: `UEL-028`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`
+- Summary: A batch (non-queue) source-backed run (testset → application → auto evaluator) processed every scenario to `success` and refreshed metrics, but the run-level `status` never rolled up — it stayed `running` with `flags.is_active=true` indefinitely. Reproduced end-to-end against the dev stack with the new `mock_v0` (LLM-free, sandbox-free) workflow.
+- Evidence:
+  - Worker logs: `[SLICE] Complete processed=2 has_errors=False`, `scenarios_with_pending=0`, `scenarios_with_auto_results=2`. Both scenarios reached `success` in the DB.
+  - Targeted diagnostic logging proved the chain: the per-item computation correctly produced `run_status=SUCCESS` (`has_errors=[False,False]`, `has_pending=[False,False]`), but the value entering the terminal `edit_run` was `RUNNING`.
+  - Root cause: the severity-floor block in `process_evaluation_source_slice` (`api/oss/src/core/evaluations/tasks/source_slice.py`) ranked `RUNNING` (2) **above** `SUCCESS` (1). Across slices it floors the persisted status up to the more-severe value — so a run whose stored status was `RUNNING` could never transition to `SUCCESS`; it pinned at `running` forever. The transient `RUNNING`/`PENDING` states were incorrectly treated as outranking the terminal `SUCCESS`.
+  - Prevalence on the dev DB before the fix (batch/`is_live=false` runs): `success=35` vs `running=114`, `pending=211`.
+  - Not a caching issue: there is no cache layer on the evaluation-run service/DAO, and the stale value was confirmed directly in Postgres.
+- Resolution (2026-05-21) — Option B from `docs/designs/unified-eval-loops/run-status-finalization.md` (no run-wide scenario aggregation):
+  - **Corrected the severity floor** so terminal statuses outrank the transient ones: `FAILURE(4) > ERRORS(3) > SUCCESS(2) > RUNNING(1) > PENDING(0)`. A freshly computed terminal status (incl. `SUCCESS`) now replaces a stale `RUNNING`, while a prior `FAILURE`/`ERRORS` still floors over a later SUCCESS-only slice (UEL-017's intent). `test_source_slice_processor_preserves_higher_queue_status` still passes.
+  - **Reset `status=RUNNING` on every (re)dispatch** in the activation flow (`service.py` `_activate_evaluation_run`), not just on creation. This makes the **extended-finished** case correct: extending a `success` run flips it back to `running` while the new work executes, then the slice re-finalizes it. (Previously it kept `run.status` on re-activation, so an extended finished run stayed `success`.)
+  - Hardening: the terminal `edit_run` clears `flags.is_active` for terminal statuses; `dao.edit_run` writes `status` via `status.value` + `flag_modified` (mirroring `close_run`), since `edit_dbe_from_dto` dumped the DTO without `mode="json"` and left an enum that did not persist reliably.
+  - **Scope note:** only the `batch_testset` / `batch_invocation` dispatch (`update_run_status=True`) finalizes; `live_query` / `batch_query` pass `update_run_status=False` and are untouched. Batch testset/invocation runs are **single-slice** today (`process_testset_source_run` issues exactly one `process_evaluation_source_slice` call), so the multi-slice early-finalize race (Option C / UEL-017 item 1) does not apply here yet.
+  - Regression coverage: `api/oss/tests/pytest/acceptance/evaluations/test_evaluation_flows_run.py` runs a full testset → `mock_v0` app → `mock_v0` auto-evaluator evaluation end-to-end through the real worker and asserts `status=success`. Passes (~4s). DB row after the fix: `status=success`, `is_active=false`.
+- Files:
+  - `api/oss/src/core/evaluations/tasks/source_slice.py`
+  - `api/oss/src/core/evaluations/service.py`
+  - `api/oss/src/dbs/postgres/evaluations/dao.py`
+- Notes:
+  - Surfaced by the new `agenta:custom:mock:v0` test workflow (deterministic, no LLM, no code sandbox), which lets evaluation runs execute end-to-end in acceptance tests.
+  - Full analysis + rejected alternatives: `docs/designs/unified-eval-loops/run-status-finalization.md`.
+
+### [CLOSED] UEL-012: archive/unarchive a queue must be allowed on a closed run (was: `@suppress_exceptions()` swallows `EvaluationClosedConflict`)
+
+- ID: `UEL-012`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`
+- Summary: `archive_queue`/`unarchive_queue` raised `EvaluationClosedConflict` when the parent run was closed; the bare `@suppress_exceptions()` swallowed it, returning `count=0` instead of a 409. The original finding proposed surfacing the 409.
+- Resolution (2026-05-21) — **policy decision: allow both.** Archiving/unarchiving a queue is a worklist/lifecycle action, not a content edit of the run, so it must succeed even on a closed (locked) run. The `is_closed` guard was **removed** from both `archive_queue` and `unarchive_queue` in `api/oss/src/dbs/postgres/evaluations/dao.py` (no `EvaluationClosedConflict` is raised on these paths anymore, so there is nothing left to swallow). This supersedes the "surface a 409" suggestion.
+- Files:
+  - `api/oss/src/dbs/postgres/evaluations/dao.py`
+- Regression coverage: `api/oss/tests/pytest/acceptance/evaluations/test_evaluation_flows_modify.py::test_unarchive_and_archive_default_queue_on_closed_run` — closes a human-queue run, then asserts archive + unarchive do **not** return 409.
+
+### [CLOSED] UEL-016: Service raises bare `ValueError` for default-queue policy violations instead of typed domain exceptions
+
+- ID: `UEL-016`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P3`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Consistency`
+- Summary: `_validate_default_queue_data`, the demotion guards, and `delete_queue`/`delete_queues` raised bare `ValueError` for default-queue policy violations, against the `AGENTS.md` rule that domain exceptions be typed in the core layer and converted at the API boundary.
+- Resolution (2026-05-21):
+  - Added a `DefaultQueueError` base + `DefaultQueueDataInvalid`, `DefaultQueueDemotionForbidden`, `DefaultQueueDeletionForbidden` (with structured `queue_id` context) in `api/oss/src/core/evaluations/types.py`.
+  - Replaced the bare `ValueError` raises in `service.py` (`_validate_default_queue_data`, the two demotion guards, both delete paths) with these typed exceptions.
+  - Added HTTP exception classes (`DefaultQueueDataInvalidException` → 422, `DefaultQueueEditingForbiddenException` → 409) in `apis/fastapi/evaluations/models.py`, and extended the `handle_evaluation_closed_exception` decorator (`apis/fastapi/evaluations/utils.py`) to convert the domain exceptions on the queue routes.
+- Files:
+  - `api/oss/src/core/evaluations/types.py`
+  - `api/oss/src/core/evaluations/service.py`
+  - `api/oss/src/apis/fastapi/evaluations/models.py`
+  - `api/oss/src/apis/fastapi/evaluations/utils.py`
 
 ### [CLOSED] UEL-021: Source-backed simple queues are classified as `queries` / `testsets`, but runtime and tests expect `traces` / `testcases`
 
