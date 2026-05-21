@@ -64,6 +64,24 @@ class QueryRevisionIdAlias(AliasConfig):
     )
 
 
+class QuerySlugAlias(AliasConfig):
+    query_slug: Optional[str] = None
+    artifact_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="query_slug",
+    )
+
+
+class QueryVariantSlugAlias(AliasConfig):
+    query_variant_slug: Optional[str] = None
+    variant_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="query_variant_slug",
+    )
+
+
 # flags ------------------------------------------------------------------------
 
 
@@ -97,9 +115,11 @@ class QueryQuery(ArtifactQuery):
 class QueryVariant(
     Variant,
     QueryIdAlias,
+    QuerySlugAlias,
 ):
     def model_post_init(self, __context) -> None:
         sync_alias("query_id", "artifact_id", self)
+        sync_alias("query_slug", "artifact_slug", self)
 
 
 class QueryVariantCreate(
@@ -131,12 +151,16 @@ class QueryRevision(
     Revision,
     QueryIdAlias,
     QueryVariantIdAlias,
+    QuerySlugAlias,
+    QueryVariantSlugAlias,
 ):
     data: Optional[QueryRevisionData] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("query_id", "artifact_id", self)
         sync_alias("query_variant_id", "variant_id", self)
+        sync_alias("query_slug", "artifact_slug", self)
+        sync_alias("query_variant_slug", "variant_slug", self)
 
 
 class QueryRevisionCreate(
