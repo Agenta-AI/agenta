@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import NoResultFound
 from supertokens_python.recipe.session.asyncio import get_session
 from jwt import encode, decode, DecodeError, ExpiredSignatureError
 from supertokens_python.recipe.session.exceptions import TryRefreshTokenError
@@ -628,16 +629,37 @@ async def verify_bearer_token(
                 workspace_id = await db_manager_ee.get_default_workspace_id(
                     user_id=user_id,
                 )
+                project_id = await db_manager.get_default_project_id_from_workspace(
+                    workspace_id=workspace_id
+                )
+                workspace = await db_manager.get_workspace(
+                    workspace_id=workspace_id,
+                )
             else:
                 workspace_id = await db_manager.get_default_workspace_id_oss()
 
-            project_id = await db_manager.get_default_project_id_from_workspace(
-                workspace_id=workspace_id
-            )
-
-            workspace = await db_manager.get_workspace(
-                workspace_id=workspace_id,
-            )
+                try:
+                    project_id = await db_manager.get_default_project_id_from_workspace(
+                        workspace_id=workspace_id
+                    )
+                except NoResultFound:
+                    workspace = await db_manager.get_workspace(
+                        workspace_id=workspace_id,
+                    )
+                    await db_manager.create_or_update_default_project(
+                        values_to_update={
+                            "organization_id": workspace.organization_id,
+                            "workspace_id": workspace.id,
+                            "project_name": "Default",
+                        }
+                    )
+                    project_id = await db_manager.get_default_project_id_from_workspace(
+                        workspace_id=workspace_id
+                    )
+                else:
+                    workspace = await db_manager.get_workspace(
+                        workspace_id=workspace_id,
+                    )
 
             organization_id = workspace.organization_id
 

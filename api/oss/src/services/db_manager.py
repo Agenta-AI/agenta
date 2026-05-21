@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from supertokens_python.types import AccountInfo
 from sqlalchemy.orm import joinedload, load_only
-from sqlalchemy.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.exc import IntegrityError, NoResultFound, MultipleResultsFound
 from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
 
@@ -598,14 +598,44 @@ async def get_default_workspace_id_oss() -> str:
     orgs) cannot shadow the real singleton workspace and steer auth
     scope resolution to the wrong tenant.
     """
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(WorkspaceDB)
-            .join(OrganizationDB, WorkspaceDB.organization_id == OrganizationDB.id)
-            .where(OrganizationDB.slug == OSS_SINGLETON_ORG_SLUG)
-            .order_by(WorkspaceDB.created_at.asc())
-        )
-        workspaces = result.scalars().all()
+
+    async def _get_singleton_workspaces() -> list[WorkspaceDB]:
+        async with engine.core_session() as session:
+            result = await session.execute(
+                select(WorkspaceDB)
+                .join(OrganizationDB, WorkspaceDB.organization_id == OrganizationDB.id)
+                .where(OrganizationDB.slug == OSS_SINGLETON_ORG_SLUG)
+                .order_by(WorkspaceDB.created_at.asc())
+            )
+            return result.scalars().all()
+
+    workspaces = await _get_singleton_workspaces()
+
+    if not workspaces:
+        # Legacy OSS deployments created the singleton organization before the
+        # deterministic slug existed. Promote the oldest legacy organization so
+        # existing local/dev installs keep working after the singleton fix.
+        async with engine.core_session() as session:
+            result = await session.execute(
+                select(OrganizationDB)
+                .where(OrganizationDB.slug.is_(None))
+                .order_by(OrganizationDB.created_at.asc())
+            )
+            legacy_organization = result.scalars().first()
+
+            if legacy_organization is not None:
+                legacy_organization.slug = OSS_SINGLETON_ORG_SLUG
+                try:
+                    await session.commit()
+                    log.warning(
+                        "[scopes] promoted legacy OSS organization to singleton slug",
+                        organization_id=str(legacy_organization.id),
+                        slug=OSS_SINGLETON_ORG_SLUG,
+                    )
+                except IntegrityError:
+                    await session.rollback()
+
+        workspaces = await _get_singleton_workspaces()
 
     if not workspaces:
         raise NoResultFound(
