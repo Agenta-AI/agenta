@@ -32,82 +32,6 @@ Sources:
 
 ## Open Findings
 
-### [OPEN] UEL-021: Source-backed simple queues are classified as `queries` / `testsets`, but runtime and tests expect `traces` / `testcases`
-
-- ID: `UEL-021`
-- Origin: `test`
-- Lens: `validation`
-- Severity: `P1`
-- Confidence: `high`
-- Status: `reproduced`
-- Area: `Evaluations / Simple Queues`
-- Summary: Query-backed and testset-backed simple queues currently keep `SimpleQueueKind.QUERIES` / `SimpleQueueKind.TESTSETS` as their queue kind, while the runtime dispatch works on resolved trace/testcase scenario items. The provided test run shows both unit and acceptance failures where query-backed queues are expected to expose `kind="traces"` and dispatch trace slices, and testset-backed queues are expected to expose `kind="testcases"` and dispatch testcase slices.
-- Evidence:
-  - `oss/tests/pytest/unit/evaluations/test_query_eval_loops.py::test_simple_queue_create_dispatches_each_query_source_with_step_key` observed `created_queue.data.kind == "queries"` but expected `"traces"`.
-  - `oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py::test_create_source_backed_queue_preserves_repeats_and_assignments` observed `"testsets"` but expected `"testcases"`.
-  - Acceptance tests for creating source-backed queues returned zero queued items where one was expected.
-  - `api/oss/src/core/evaluations/service.py` maps queue data with `_get_source_kind()` returning `SimpleQueueKind.QUERIES` for `queue.data.queries` and `SimpleQueueKind.TESTSETS` for `queue.data.testsets`.
-  - `SimpleQueuesService._parse_queue()` reports `kind=self._get_kind(run)`, so the source family leaks into the public simple-queue response.
-- Files:
-  - `api/oss/src/core/evaluations/service.py`
-  - `api/oss/src/core/evaluations/types.py`
-  - `api/oss/tests/pytest/unit/evaluations/test_query_eval_loops.py`
-  - `api/oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py`
-- Cause: The model conflates two different concepts: source declaration family (`queries` / `testsets`) and resolved executable item family (`traces` / `testcases`). Source-backed queue creation preserves source revision IDs correctly, but public queue kind and downstream dispatch checks are using the source family where tests expect the resolved family.
-- Explanation: A query-backed queue is created from query revisions, but the work assigned to reviewers/evaluators is trace scenarios. Similarly, a testset-backed queue resolves testset revisions into testcase scenarios. The API needs to preserve both facts without using one field for both.
-- Suggested Fix:
-  - Keep `queries` / `testsets` fields as source references.
-  - Return `kind="traces"` for query-backed queues and `kind="testcases"` for testset-backed queues, or introduce an explicit `source_kind` field if the source family must be exposed.
-  - Ensure source-backed queue runs are marked/queryable consistently so `query(kind="traces")` and `query(kind="testcases")` include them.
-  - Add regression tests for query-backed and testset-backed queue creation, fetch, query, and add-source rejection behavior.
-- Alternatives:
-  - If product wants `kind` to mean source family, update the tests and API docs. That would be a deliberate contract change and should not be inferred from the current implementation.
-- Sources:
-  - Provided pytest output.
-  - Local inspection of `SimpleQueuesService`.
-- Re-audit (2026-05-20): **Diagnosis corrected; severity unchanged (P1); confidence raised to high.** The "kind conflation" framing is inaccurate, and two evidence claims are wrong:
-  - The acceptance tests do NOT expect `kind="traces"`/`kind="testcases"`. `test_create_simple_queue_from_queries` asserts `queue["data"]["kind"] == "queries"` (`test_simple_queues_basics.py:173`) and `test_create_simple_queue_from_testsets` asserts `"testsets"` (line 199). They expect the source family preserved, plus `queries`/`testsets` arrays echoed back. The current `_get_source_kind` mapping to `QUERIES`/`TESTSETS` is therefore *correct*, not the bug.
-  - The real failure is upstream: the `KeyError: 'queue'` / `count == 0` happen because `_parse_queue` returns `None`. Trace: `SimpleQueuesService.create` source-backed branch calls `simple_evaluations_service._make_evaluation_run_data(...)` (`service.py:3636`). That builder defaults list-shaped evaluators to `DEFAULT_ORIGIN_EVALUATORS = "custom"` (`service.py:124`, applied at `3045-3049`), so `has_human=False` → `_reconcile_default_queue` leaves `is_queue=False` → `_get_kind` short-circuits to `None` at `service.py:4224` (`not run.flags.is_queue`) → `_parse_queue` returns `None` at `4271-4272` → router emits empty envelope.
-  - Contrast: the non-source `_make_run_data` (`service.py:4087`) defaults list evaluators to `origin="human"` (`4093-4099`), so direct trace/testcase queues get `has_human=True` → `is_queue=True` and parse correctly. This asymmetry between the two builders is the single root cause shared with UEL-022.
-  - Corrected suggested fix: align the source-backed evaluator-origin default with the non-source builder (default list-shaped evaluators to `"human"` in `_make_evaluation_run_data`), OR decouple `_get_kind`/`_parse_queue` from `is_queue` so a created queue is always parseable. Do NOT change `_get_source_kind`'s family mapping. Keep `kind` reporting the source family per the tests.
-
-### [OPEN] UEL-022: Source-backed queue dispatch enters the source-slice processor with `has_queries` / `has_testsets`, but the processor accepts only direct-source flags
-
-- ID: `UEL-022`
-- Origin: `test`
-- Lens: `validation`
-- Severity: `P1`
-- Confidence: `high`
-- Status: `reproduced`
-- Area: `Evaluations / Simple Queues`
-- Summary: Source-backed queue creation resolves query revisions into trace batches and testset revisions into testcase batches, then dispatches those batches through the same source-slice processor used by direct trace/testcase queues. The dispatch wrapper accepts source-backed flags (`has_queries` / `has_testsets`), but `process_evaluation_source_slice()` still treats `require_queue=True` as requiring direct-source flags only (`has_traces` / `has_testcases`). Query-backed and testset-backed queues can therefore pass the first dispatch gate and fail inside the slice processor.
-- Evidence:
-  - `oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py::test_create_simple_queue_from_queries` failed with `assert 0 == 1`.
-  - `oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py::test_create_simple_queue_from_testsets` failed with `assert 0 == 1`.
-  - `oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py::test_simple_evaluation_queue_batches_dispatch_through_slice_processor` failed because a queue-shaped run fixture with source-backed input was rejected by dispatch.
-  - `SimpleEvaluationsService.dispatch_trace_slice()` permits `run.flags.has_traces or run.flags.has_queries`.
-  - `SimpleEvaluationsService.dispatch_testcase_slice()` permits `run.flags.has_testcases or run.flags.has_testsets`.
-  - `api/oss/src/core/evaluations/tasks/source_slice.py` rejects `require_queue=True` unless `run.flags.has_traces or run.flags.has_testcases`; it does not accept `has_queries` / `has_testsets`.
-  - `SimpleQueuesService._dispatch_source_batches()` resolves query/testset-backed source batches and calls `dispatch_trace_slice()` / `dispatch_testcase_slice()` with `input_step_key=batch.step_key`, so those batches eventually reach the stricter source-slice guard.
-- Files:
-  - `api/oss/src/core/evaluations/service.py`
-  - `api/oss/src/core/evaluations/tasks/source_slice.py`
-  - `api/oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py`
-  - `api/oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py`
-- Cause: The queue dispatch layer was partially updated for source-backed queues, but the source-slice processor still equates "queue batch" with direct trace/testcase source flags.
-- Explanation: A query-backed source batch is executable as trace items, but the run still carries `has_queries` because the input step references a query revision. A testset-backed source batch is executable as testcase items, but the run still carries `has_testsets`. The source-slice processor needs to validate the actual batch request plus input step, not only the direct-source family flags.
-- Suggested Fix:
-  - Update `process_evaluation_source_slice()` queue validation so source-backed queue batches are allowed when `input_step_key` points to a `query_revision` or `testset_revision` input step and the concrete `trace_ids` / `testcase_ids` are present.
-  - Alternatively, pass `require_queue=False` for source-backed queue dispatches after validating the source batch in `SimpleQueuesService._dispatch_source_batches()`.
-  - Keep direct ad-hoc trace/testcase queues guarded by `has_traces` / `has_testcases`.
-  - Add tests for query-backed and testset-backed source batch dispatch through the actual source-slice processor.
-- Alternatives:
-  - Persist additional resolved-source flags (`has_traces` for query-backed queues and `has_testcases` for testset-backed queues) alongside source-family flags. This would make the current guard pass, but it blurs the design's separation between source family and resolved executable item family.
-- Sources:
-  - Provided pytest output.
-  - Local inspection of `SimpleEvaluationsService.dispatch_*`, `SimpleQueuesService._dispatch_source_batches()`, and `tasks/source_slice.py`.
-- Re-audit (2026-05-20): **Partially confirmed; shares root cause with UEL-021.** The source-slice processor's `has_traces`/`has_testcases`-only gate is real and reproduced (see UEL-017 re-audit for the exact line — `tasks/source_slice.py:569` gates on `run.flags.has_traces or run.flags.has_testcases`, excluding `has_queries`/`has_testsets`). However, the *primary* reason the acceptance tests see `assert 0 == 1` is the same `is_queue=False` / evaluator-origin-default issue documented in UEL-021's re-audit — the queue never reaches a parseable state, so no scenarios are reported. The processor-gate gap (this finding) is the *secondary* defect that surfaces once UEL-021's origin default is fixed. Fix UEL-021 first, then re-run the source-backed dispatch tests to isolate whether the `source_slice.py:569` gate still blocks query/testset-backed batches. Keep this finding OPEN as the second-order fix.
-
 ### [OPEN] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
 
 - ID: `UEL-009`
@@ -314,6 +238,7 @@ Sources:
 - Re-audit (2026-05-20): **A concrete, test-failing sub-bug exists that this finding does not capture; promote to `reproduced`.** The failing test `test_source_slice_processor_preserves_higher_queue_status` (pytest dump) is not about the multi-batch race this finding describes — it fails because the severity-floor block in `process_evaluation_source_slice` is gated on `run.flags.has_traces or run.flags.has_testcases` (`tasks/source_slice.py:566-571`). The test's run is `EvaluationRunFlags(is_queue=True, has_queries=True)` (query-backed), so `has_traces`/`has_testcases` are both False, the floor is skipped, and `run_status` stays `SUCCESS` instead of being floored up to the persisted `ERRORS` — hence `assert ... == ERRORS` got `SUCCESS`.
   - So there are now two distinct issues under the "status preservation" umbrella: (1) **this finding's** multi-slice thrash race (still `medium`/un-reproduced as a *race*), and (2) the severity-floor flag gate excluding `has_queries`/`has_testsets` runs (reproduced, test-failing). They share `source_slice.py:566-586`.
   - Corrected suggested fix for (2): include `has_queries`/`has_testsets` (or simply gate on `run.flags.is_queue`) in the severity-floor condition at line 569 so source-backed queue runs preserve their higher persisted status. This is the same `source_slice.py:569` gate referenced in UEL-022's re-audit.
+- Resolution (2026-05-21) — **partial; item (2) fixed, item (1) still OPEN.** The severity-floor flag gate (`source_slice.py:566`) was widened from `has_traces or has_testcases` to also include `has_queries or has_testsets`, so source-backed (query/testset) queue runs now preserve their higher persisted status. The test-failing sub-bug `test_source_slice_processor_preserves_higher_queue_status` passes (resolved together with UEL-022). **Item (1) — the multi-slice status thrash *race* (`SUCCESS -> RUNNING -> SUCCESS` across parallel batches) — is NOT addressed** and keeps this finding OPEN; it needs the "update status only on the final slice" / run-finalize approach from the Suggested Fix. Confidence on the remaining race stays `medium` (un-reproduced as a race).
 
 ### [OPEN] UEL-018: SDK runtime drops extra runner outputs silently when batch is longer than planned cells
 
@@ -364,6 +289,92 @@ Sources:
   - Document the assumption "exactly one source reference per input step" and add a planner-level validator that rejects steps violating it.
 
 ## Closed Findings
+
+### [CLOSED] UEL-021: Source-backed simple queues are classified as `queries` / `testsets`, but runtime and tests expect `traces` / `testcases`
+
+- ID: `UEL-021`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `fixed`
+- Area: `Evaluations / Simple Queues`
+- Summary: Query-backed and testset-backed simple queues currently keep `SimpleQueueKind.QUERIES` / `SimpleQueueKind.TESTSETS` as their queue kind, while the runtime dispatch works on resolved trace/testcase scenario items. The provided test run shows both unit and acceptance failures where query-backed queues are expected to expose `kind="traces"` and dispatch trace slices, and testset-backed queues are expected to expose `kind="testcases"` and dispatch testcase slices.
+- Evidence:
+  - `oss/tests/pytest/unit/evaluations/test_query_eval_loops.py::test_simple_queue_create_dispatches_each_query_source_with_step_key` observed `created_queue.data.kind == "queries"` but expected `"traces"`.
+  - `oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py::test_create_source_backed_queue_preserves_repeats_and_assignments` observed `"testsets"` but expected `"testcases"`.
+  - Acceptance tests for creating source-backed queues returned zero queued items where one was expected.
+  - `api/oss/src/core/evaluations/service.py` maps queue data with `_get_source_kind()` returning `SimpleQueueKind.QUERIES` for `queue.data.queries` and `SimpleQueueKind.TESTSETS` for `queue.data.testsets`.
+  - `SimpleQueuesService._parse_queue()` reports `kind=self._get_kind(run)`, so the source family leaks into the public simple-queue response.
+- Files:
+  - `api/oss/src/core/evaluations/service.py`
+  - `api/oss/src/core/evaluations/types.py`
+  - `api/oss/tests/pytest/unit/evaluations/test_query_eval_loops.py`
+  - `api/oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py`
+- Cause: The model conflates two different concepts: source declaration family (`queries` / `testsets`) and resolved executable item family (`traces` / `testcases`). Source-backed queue creation preserves source revision IDs correctly, but public queue kind and downstream dispatch checks are using the source family where tests expect the resolved family.
+- Explanation: A query-backed queue is created from query revisions, but the work assigned to reviewers/evaluators is trace scenarios. Similarly, a testset-backed queue resolves testset revisions into testcase scenarios. The API needs to preserve both facts without using one field for both.
+- Suggested Fix:
+  - Keep `queries` / `testsets` fields as source references.
+  - Return `kind="traces"` for query-backed queues and `kind="testcases"` for testset-backed queues, or introduce an explicit `source_kind` field if the source family must be exposed.
+  - Ensure source-backed queue runs are marked/queryable consistently so `query(kind="traces")` and `query(kind="testcases")` include them.
+  - Add regression tests for query-backed and testset-backed queue creation, fetch, query, and add-source rejection behavior.
+- Alternatives:
+  - If product wants `kind` to mean source family, update the tests and API docs. That would be a deliberate contract change and should not be inferred from the current implementation.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of `SimpleQueuesService`.
+- Re-audit (2026-05-20): **Diagnosis corrected; severity unchanged (P1); confidence raised to high.** The "kind conflation" framing is inaccurate, and two evidence claims are wrong:
+  - The acceptance tests do NOT expect `kind="traces"`/`kind="testcases"`. `test_create_simple_queue_from_queries` asserts `queue["data"]["kind"] == "queries"` (`test_simple_queues_basics.py:173`) and `test_create_simple_queue_from_testsets` asserts `"testsets"` (line 199). They expect the source family preserved, plus `queries`/`testsets` arrays echoed back. The current `_get_source_kind` mapping to `QUERIES`/`TESTSETS` is therefore *correct*, not the bug.
+  - The real failure is upstream: the `KeyError: 'queue'` / `count == 0` happen because `_parse_queue` returns `None`. Trace: `SimpleQueuesService.create` source-backed branch calls `simple_evaluations_service._make_evaluation_run_data(...)` (`service.py:3636`). That builder defaults list-shaped evaluators to `DEFAULT_ORIGIN_EVALUATORS = "custom"` (`service.py:124`, applied at `3045-3049`), so `has_human=False` → `_reconcile_default_queue` leaves `is_queue=False` → `_get_kind` short-circuits to `None` at `service.py:4224` (`not run.flags.is_queue`) → `_parse_queue` returns `None` at `4271-4272` → router emits empty envelope.
+  - Contrast: the non-source `_make_run_data` (`service.py:4087`) defaults list evaluators to `origin="human"` (`4093-4099`), so direct trace/testcase queues get `has_human=True` → `is_queue=True` and parse correctly. This asymmetry between the two builders is the single root cause shared with UEL-022.
+  - Corrected suggested fix: align the source-backed evaluator-origin default with the non-source builder (default list-shaped evaluators to `"human"` in `_make_evaluation_run_data`), OR decouple `_get_kind`/`_parse_queue` from `is_queue` so a created queue is always parseable. Do NOT change `_get_source_kind`'s family mapping. Keep `kind` reporting the source family per the tests.
+- Resolution (2026-05-21): **Fixed via the evaluator-origin default, scoped to the queue path only.** Confirmed the re-audit's root cause: the source builder defaulted bare-list evaluators to `custom` → `has_human=False` → `is_queue=False` → `_parse_queue` returned `None` → empty envelope.
+  - Added a keyword-only `default_evaluator_origin: Origin = DEFAULT_ORIGIN_EVALUATORS` param to `_make_evaluation_run_data` and used it in the list-coercion. Only `SimpleQueuesService.create` passes `"human"`; the two `SimpleEvaluationsService` callers (create/edit) keep the `custom` default, so simple-evaluation behavior is unchanged. The shared run builder stays general — this is a queue-path default, not a run-layer rule.
+  - **Explicit origins are always honored:** the `"human"` default applies only to a bare list (origin-less). A dict like `{id: "auto"}` is passed through verbatim — the default never overrides it.
+  - **New simple-queue constraint** (per user): a queue must resolve to **at least one human evaluator**. A human evaluator is one that is origin-less (defaults to human) or explicitly `"human"`. So a bare list is always valid; an explicit dict is valid only if at least one value is `"human"` — a dict whose values are all non-human (all `auto`, all `custom`, or any `auto`/`custom` mix) is rejected. Enforced as a `SimpleQueueData.validate_sources` model-validator rule ("simple queues must have at least one human evaluator", 422) at request parse — before any run/default-queue is created. The underlying evaluation run has no such restriction.
+  - `_get_source_kind` family mapping unchanged; `kind` still reports the source family per the tests.
+  - Tests: `test_simple_queues_basics.py` adds `test_source_backed_queue_with_bare_evaluator_list_is_human_queue` (bare list → `has_human`/`is_queue` true), `test_simple_queue_rejects_evaluator_dicts_with_no_human` (all-auto, all-custom, and auto+custom mix → all 422), `test_simple_queue_allows_human_mixed_with_non_human_evaluators` (human+auto and human+custom → valid queue, both origins honored). Full file 20 passed.
+
+### [CLOSED] UEL-022: Source-backed queue dispatch enters the source-slice processor with `has_queries` / `has_testsets`, but the processor accepts only direct-source flags
+
+- ID: `UEL-022`
+- Origin: `test`
+- Lens: `validation`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `fixed`
+- Area: `Evaluations / Simple Queues`
+- Summary: Source-backed queue creation resolves query revisions into trace batches and testset revisions into testcase batches, then dispatches those batches through the same source-slice processor used by direct trace/testcase queues. The dispatch wrapper accepts source-backed flags (`has_queries` / `has_testsets`), but `process_evaluation_source_slice()` still treats `require_queue=True` as requiring direct-source flags only (`has_traces` / `has_testcases`). Query-backed and testset-backed queues can therefore pass the first dispatch gate and fail inside the slice processor.
+- Evidence:
+  - `oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py::test_create_simple_queue_from_queries` failed with `assert 0 == 1`.
+  - `oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py::test_create_simple_queue_from_testsets` failed with `assert 0 == 1`.
+  - `oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py::test_simple_evaluation_queue_batches_dispatch_through_slice_processor` failed because a queue-shaped run fixture with source-backed input was rejected by dispatch.
+  - `SimpleEvaluationsService.dispatch_trace_slice()` permits `run.flags.has_traces or run.flags.has_queries`.
+  - `SimpleEvaluationsService.dispatch_testcase_slice()` permits `run.flags.has_testcases or run.flags.has_testsets`.
+  - `api/oss/src/core/evaluations/tasks/source_slice.py` rejects `require_queue=True` unless `run.flags.has_traces or run.flags.has_testcases`; it does not accept `has_queries` / `has_testsets`.
+  - `SimpleQueuesService._dispatch_source_batches()` resolves query/testset-backed source batches and calls `dispatch_trace_slice()` / `dispatch_testcase_slice()` with `input_step_key=batch.step_key`, so those batches eventually reach the stricter source-slice guard.
+- Files:
+  - `api/oss/src/core/evaluations/service.py`
+  - `api/oss/src/core/evaluations/tasks/source_slice.py`
+  - `api/oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py`
+  - `api/oss/tests/pytest/acceptance/evaluations/test_simple_queues_basics.py`
+- Cause: The queue dispatch layer was partially updated for source-backed queues, but the source-slice processor still equates "queue batch" with direct trace/testcase source flags.
+- Explanation: A query-backed source batch is executable as trace items, but the run still carries `has_queries` because the input step references a query revision. A testset-backed source batch is executable as testcase items, but the run still carries `has_testsets`. The source-slice processor needs to validate the actual batch request plus input step, not only the direct-source family flags.
+- Suggested Fix:
+  - Update `process_evaluation_source_slice()` queue validation so source-backed queue batches are allowed when `input_step_key` points to a `query_revision` or `testset_revision` input step and the concrete `trace_ids` / `testcase_ids` are present.
+  - Alternatively, pass `require_queue=False` for source-backed queue dispatches after validating the source batch in `SimpleQueuesService._dispatch_source_batches()`.
+  - Keep direct ad-hoc trace/testcase queues guarded by `has_traces` / `has_testcases`.
+  - Add tests for query-backed and testset-backed source batch dispatch through the actual source-slice processor.
+- Alternatives:
+  - Persist additional resolved-source flags (`has_traces` for query-backed queues and `has_testcases` for testset-backed queues) alongside source-family flags. This would make the current guard pass, but it blurs the design's separation between source family and resolved executable item family.
+- Sources:
+  - Provided pytest output.
+  - Local inspection of `SimpleEvaluationsService.dispatch_*`, `SimpleQueuesService._dispatch_source_batches()`, and `tasks/source_slice.py`.
+- Re-audit (2026-05-20): **Partially confirmed; shares root cause with UEL-021.** The source-slice processor's `has_traces`/`has_testcases`-only gate is real and reproduced (see UEL-017 re-audit for the exact line — `tasks/source_slice.py:569` gates on `run.flags.has_traces or run.flags.has_testcases`, excluding `has_queries`/`has_testsets`). However, the *primary* reason the acceptance tests see `assert 0 == 1` is the same `is_queue=False` / evaluator-origin-default issue documented in UEL-021's re-audit — the queue never reaches a parseable state, so no scenarios are reported. The processor-gate gap (this finding) is the *secondary* defect that surfaces once UEL-021's origin default is fixed. Fix UEL-021 first, then re-run the source-backed dispatch tests to isolate whether the `source_slice.py:569` gate still blocks query/testset-backed batches. Keep this finding OPEN as the second-order fix.
+- Resolution (2026-05-21): **Fixed.** Two parts, as the re-audit predicted:
+  - The `require_queue` dispatch gate in `process_evaluation_source_slice` (`tasks/source_slice.py:283-326`) had already been updated on the branch to accept `has_queries`+`query_revision` and `has_testsets`+`testset_revision` source batches — verified, no change needed there.
+  - The remaining offender was the run-status severity-floor block (`source_slice.py:566`), gated on `has_traces or has_testcases` only. Widened it to also accept `has_queries`/`has_testsets` so source-backed queue runs are covered. (This is the same gate as UEL-017 item #2.)
+  - With UEL-021's origin default fixed (queues now reach a parseable state), the source-backed dispatch tests pass: `test_simple_queues_basics.py` 20 passed, `test_query_eval_loops.py` + `test_runtime_topology_planner.py` all green (including `test_source_slice_processor_preserves_higher_queue_status`).
 
 ### [CLOSED] UEL-023: Backend runtime adapter does not project source inputs onto the revision's declared input schema
 

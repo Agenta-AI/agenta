@@ -613,8 +613,12 @@ class SimpleQueueData(BaseModel):
     evaluators: Optional[Target] = None
     """
     The evaluators to run on each scenario.
-    Either a list of evaluator revision UUIDs (all treated as 'human'),
-    or a dict mapping evaluator revision UUID -> origin ('human' | 'auto' | 'custom').
+    Either a list of evaluator revision UUIDs (origin-less; for a simple queue
+    these default to 'human'), or a dict mapping evaluator revision UUID ->
+    origin ('human' | 'auto' | 'custom'). A simple queue must resolve to at
+    least one 'human' evaluator; an explicit dict of only non-human evaluators
+    is rejected at the simple-queue endpoint (the underlying run itself has no
+    such restriction).
     """
 
     repeats: Optional[int] = None
@@ -661,6 +665,19 @@ class SimpleQueueData(BaseModel):
             raise ValueError("kind='queries' requires query sources")
         if self.kind == SimpleQueueKind.TESTSETS and not has_testsets:
             raise ValueError("kind='testsets' requires testset sources")
+
+        # Simple-queue constraint (endpoint-only, not a run-layer rule): a queue
+        # is human work, so it must resolve to at least one human evaluator.
+        # An evaluator is human when it is origin-less (defaults to human at
+        # build time) or explicitly origin="human". So:
+        #   - a bare list is all origin-less -> always valid.
+        #   - an explicit dict is valid only if at least one value is "human";
+        #     a dict with only non-human origins (any of auto/custom, or a mix
+        #     of them) has no human evaluator and is rejected.
+        # The underlying evaluation run has no such restriction.
+        if isinstance(self.evaluators, dict) and self.evaluators:
+            if not any(origin == "human" for origin in self.evaluators.values()):
+                raise ValueError("simple queues must have at least one human evaluator")
 
         return self
 

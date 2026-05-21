@@ -2872,6 +2872,8 @@ class SimpleEvaluationsService:
         concurrency: Optional[EvaluationRunDataConcurrency] = None,
         #
         is_live: Optional[bool] = None,
+        #
+        default_evaluator_origin: Origin = DEFAULT_ORIGIN_EVALUATORS,
     ) -> Optional[EvaluationRunData]:
         # IMPLICIT FLAG: is_multivariate=False
         # IMPLICIT FLAG: all_inputs=True
@@ -3176,7 +3178,7 @@ class SimpleEvaluationsService:
 
             if isinstance(evaluator_steps, list):
                 evaluator_steps = {
-                    evaluator_revision_id: DEFAULT_ORIGIN_EVALUATORS
+                    evaluator_revision_id: default_evaluator_origin
                     for evaluator_revision_id in evaluator_steps
                 }
 
@@ -3773,6 +3775,7 @@ class SimpleQueuesService:
                 evaluator_steps=queue.data.evaluators,
                 repeats=repeats,
                 is_live=False,
+                default_evaluator_origin="human",
             )
             if not run_data or not run_data.steps:
                 return None

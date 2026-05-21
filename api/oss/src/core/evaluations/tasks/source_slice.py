@@ -566,7 +566,12 @@ async def process_evaluation_source_slice(
     if (
         update_run_status
         and run.flags
-        and (run.flags.has_traces or run.flags.has_testcases)
+        and (
+            run.flags.has_traces
+            or run.flags.has_testcases
+            or run.flags.has_queries
+            or run.flags.has_testsets
+        )
         and run_status != EvaluationStatus.FAILURE
     ):
         severity = {
