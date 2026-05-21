@@ -1,8 +1,8 @@
 import type {CSSProperties} from "react"
 
-import {tryParseJson} from "@agenta/shared/utils"
+import {inferLogicalType, type LogicalType} from "@agenta/shared/utils"
 
-export type TypePrimitive = "string" | "number" | "boolean" | "null" | "json-object" | "json-array"
+export type TypePrimitive = LogicalType
 
 export type RenderHint = "markdown" | "stringified" | "messages" | "tool-calls"
 
@@ -103,25 +103,10 @@ const STYLES: Record<
 
 const AMBIGUOUS_HIDE = new Set<ChipVariant>(["string", "number", "boolean"])
 
-function inferVariant(value: unknown): TypePrimitive {
-    if (value === null) return "null"
-    if (Array.isArray(value)) return "json-array"
-    if (typeof value === "object") return "json-object"
-    if (typeof value === "boolean") return "boolean"
-    if (typeof value === "number") return "number"
-    // Stringified JSON (object/array) — common in legacy testcase cells and
-    // playground writes that historically forced `string`. Reflect the logical
-    // type so the chip matches what the testset table shows for the same data.
-    if (typeof value === "string" && value.length >= 2) {
-        const first = value[0]
-        if (first === "{" || first === "[") {
-            const parsed = tryParseJson(value)
-            if (Array.isArray(parsed)) return "json-array"
-            if (parsed !== null && typeof parsed === "object") return "json-object"
-        }
-    }
-    return "string"
-}
+// Delegates to the shared inferLogicalType so the chip matches the drill-in
+// renderer's dispatch: CSV/legacy stringified primitives like "42" / "true"
+// must report as number/boolean, not string.
+const inferVariant = inferLogicalType
 
 if (typeof document !== "undefined" && !document.getElementById("type-chip-badge-keyframes")) {
     const s = document.createElement("style")

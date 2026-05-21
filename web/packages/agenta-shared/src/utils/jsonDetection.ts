@@ -172,6 +172,53 @@ export function canExpandAsJson(value: unknown): boolean {
 }
 
 /**
+ * Logical type of a value, including the case where a string is a stringified
+ * JSON primitive/composite (e.g. CSV-imported `"42"` is logically a number).
+ */
+export type LogicalType = "string" | "number" | "boolean" | "null" | "json-object" | "json-array"
+
+/**
+ * Infer the logical type of any value, parsing stringified primitives so the
+ * type chip and table-header detector match what the field renderer dispatches
+ * on. CSV import and legacy write paths leave values as strings like `"42"` or
+ * `"true"`; treating those as plain strings makes the chip disagree with the
+ * actual editor below it.
+ *
+ * @example
+ * inferLogicalType(42)         // "number"
+ * inferLogicalType("42")       // "number"   (stringified primitive)
+ * inferLogicalType("true")     // "boolean"  (stringified primitive)
+ * inferLogicalType("null")     // "null"     (stringified primitive)
+ * inferLogicalType("hello")    // "string"
+ * inferLogicalType({a: 1})     // "json-object"
+ * inferLogicalType("{\"a\":1}") // "json-object"
+ * inferLogicalType([1, 2])     // "json-array"
+ */
+export function inferLogicalType(value: unknown): LogicalType {
+    if (value === null) return "null"
+    if (Array.isArray(value)) return "json-array"
+    if (typeof value === "object") return "json-object"
+    if (typeof value === "boolean") return "boolean"
+    if (typeof value === "number") return "number"
+    if (typeof value !== "string") return "string"
+
+    const trimmed = value.trim()
+    if (trimmed === "") return "string"
+
+    try {
+        const parsed = JSON.parse(trimmed)
+        if (parsed === null) return "null"
+        if (Array.isArray(parsed)) return "json-array"
+        if (typeof parsed === "object") return "json-object"
+        if (typeof parsed === "boolean") return "boolean"
+        if (typeof parsed === "number") return "number"
+        return "string"
+    } catch {
+        return "string"
+    }
+}
+
+/**
  * Result type for tryParseJsonValue
  */
 export interface JsonParseResult {

@@ -1,4 +1,4 @@
-import {tryParseJson} from "@agenta/shared/utils"
+import {inferLogicalType, tryParseJson} from "@agenta/shared/utils"
 
 import type {TypePrimitive, RenderHint} from "../../type-chip/TypeChip"
 
@@ -66,28 +66,20 @@ export function detectColumnTypes(
             if (v === undefined) continue
             sawAnyValue = true
 
-            let nextType: ColumnTypePrimitive
+            // Use the shared logical-type inference so stringified primitives
+            // ("42", "true", "null") and stringified objects/arrays surface as
+            // their underlying type, matching the chip and renderer dispatch.
+            const nextType = inferLogicalType(v) as ColumnTypePrimitive
             let nextHint: ColumnRenderHint | null = null
 
-            if (v === null) {
-                nextType = "null"
-            } else if (Array.isArray(v)) {
-                nextType = "json-array"
-                if (isMessagesArray(v)) nextHint = "messages"
-                else if (isToolCallsArray(v)) nextHint = "tool-calls"
-            } else if (typeof v === "object") {
-                nextType = "json-object"
-            } else if (typeof v === "string") {
+            if (nextType === "json-array") {
+                const arr = Array.isArray(v) ? v : (tryParseJson<unknown[]>(v as string) ?? [])
+                if (isMessagesArray(arr)) nextHint = "messages"
+                else if (isToolCallsArray(arr)) nextHint = "tool-calls"
+            } else if (nextType === "string" && typeof v === "string") {
                 sawAnyString = true
-                nextType = "string"
                 if (!isStringifiedJson(v)) allStringsStringified = false
                 if (!isMarkdownString(v)) allStringsMarkdown = false
-            } else if (typeof v === "number") {
-                nextType = "number"
-            } else if (typeof v === "boolean") {
-                nextType = "boolean"
-            } else {
-                continue
             }
 
             if (observedType === null) {
