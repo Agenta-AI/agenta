@@ -49,6 +49,7 @@
         "./gatewayTool": "./src/gatewayTool/index.ts",
         "./environment": "./src/environment/index.ts",
         "./simpleQueue": "./src/simpleQueue/index.ts",
+        "./simpleQueue/etl": "./src/simpleQueue/etl/index.ts",
         "./evaluationQueue": "./src/evaluationQueue/index.ts",
         "./queue": "./src/queue/index.ts",
         "./annotation": "./src/annotation/index.ts",

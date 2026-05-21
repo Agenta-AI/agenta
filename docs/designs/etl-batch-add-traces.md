@@ -62,10 +62,11 @@ backpressure. Batch-add-to-queue is its first production consumer.
 (`web/oss/src/state/newObservability/atoms/queryHelpers.ts`) already does the
 hard per-page work of paging traces — the two-step annotation-filter
 pagination, the `+1ms` cursor bump so the backend's strict-less-than filter
-keeps boundary rows, `AbortSignal` plumbing. `traceSource` wraps it; the
-cursor-advance loop, empty-page guard, and throttle live in the Source.
-`fetchAllTracesForExport` keeps its own copy of that loop for CSV export —
-untouched by this feature.
+keeps boundary rows, `AbortSignal` plumbing. The oss adapter
+`createObservabilityTraceFetchPage` wraps it into a `fetchPage`; the
+cursor-advance loop, empty-page guard, and throttle live in the package's
+`makeSourceFromCursorFetch`. `fetchAllTracesForExport` keeps its own copy of
+that loop for CSV export — untouched by this feature.
 
 ### Annotation queues
 
@@ -80,54 +81,64 @@ untouched by this feature.
 ## Architecture
 
 Batch-add-to-queue is a **scan-and-write pipeline**: page every trace matching
-the observability filter, extract `trace_id`s, write them to a queue. That is
-the ETL engine's exact shape — `Source` → `Transform` → `Sink` driven by
-`runLoop`. This feature is the engine's **first production consumer**; eval
-filtering is the second.
+the observability filter, dedup by `trace_id`, write the ids to a queue. That
+is the ETL engine's exact shape — `Source` → `Transform` → `Sink` driven by
+`runLoop`.
+
+It is built from **three generic ETL primitives** in `@agenta/entities/etl`
+(reusable by eval filtering and any future scan), a **thin feature
+composition** in `@agenta/entities/simpleQueue/etl`, and a **single
+oss-coupled adapter** that supplies the trace transport.
 
 ```
-runLoop(traceSource, [extractTraceIds], queueAddSink, scanParams, signal)
-   │
-   ├── traceSource     Source<TraceSpanNode>   — pages executeTraceQuery by cursor
-   ├── extractTraceIds Transform<Node, string> — cross-chunk dedup → trace_ids
-   └── queueAddSink    Sink<string>            — buffers ids, flushes addTraces
+@agenta/entities/etl  (generic, zero coupling)
+  ├── makeSourceFromCursorFetch  — Source from a cursor-paged fetchPage
+  ├── makeUniqueKeyTransform     — Transform: dedup rows → unique keys
+  └── makeBufferedBatchSink      — Sink: buffer items, flush in batches
+
+@agenta/entities/simpleQueue/etl  (feature composition)
+  └── addAllMatchingTracesToQueue — wires the three above through runLoop
+
+oss  (transport glue only)
+  └── createObservabilityTraceFetchPage — wraps executeTraceQuery as fetchPage
 ```
 
-### `traceSource` — `Source<TraceSpanNode>`
+### Generic primitives — `@agenta/entities/etl`
 
-An `AsyncIterable<Chunk<TraceSpanNode>>` that wraps `executeTraceQuery`. The
-cursor-advance loop, the empty-page no-progress guard, and request throttling
-live in the Source; the per-page query mechanics it depends on — the two-step
-annotation-filter pagination, the `+1ms` cursor bump, `AbortSignal` plumbing —
-stay in `executeTraceQuery`, unchanged. Yields one `Chunk` per server
-response; `cursor: null` on the final chunk signals end-of-stream to `runLoop`.
+- **`makeSourceFromCursorFetch`** — builds a `Source<T>` from an injected
+  `fetchPage(cursor, signal)`. Owns the scan loop: cursor advance, the
+  empty-page no-progress guard, throttling, `AbortSignal`, `cursor: null`
+  end-of-stream signaling.
+- **`makeUniqueKeyTransform`** — a `Transform<TIn, string>` that captures a
+  `Set` and emits each row's key once across the whole scan; honors an
+  optional exclude `Set`.
+- **`makeBufferedBatchSink`** — a `Sink<T>` that buffers items and flushes via
+  an injected `flush(batch)` every **~250** (tunable, decoupled from the scan
+  page size — bounded payload, ~8 background jobs for 2000 traces, not ~40).
+  `finalize` flushes the remainder on clean completion; on cancel or after a
+  failed flush it drops the buffer, so a partial write stays a clean multiple
+  of the batch size. A failed flush throws `BatchFlushError` carrying the
+  flushed-so-far count — **surfaces, never silent**.
 
-### `extractTraceIds` — `Transform<TraceSpanNode, string>`
+All three are dependency-injected and pure — no entity, oss, or network
+coupling — so they unit-test against fakes under the package's vitest setup.
 
-Factory-built transform. Captures a `Set` for cross-chunk `trace_id` dedup and
-an optional exclude `Set` (already-queued `trace_id`s — see Dedup). Maps each
-chunk's trace nodes to new unique `trace_id`s. The engine's `Progress` then
-reports `scanned` (trace nodes), `matched` (new unique `trace_id`s), and
-`loaded` (ids flushed).
+### Feature composition — `addAllMatchingTracesToQueue`
 
-### `queueAddSink` — `Sink<string>`
+In `@agenta/entities/simpleQueue/etl`. Wires `makeSourceFromCursorFetch`
+(`fetchPage` injected) → `makeUniqueKeyTransform` (`selectKey = trace_id`) →
+`makeBufferedBatchSink` (`flush` calls the injected `addTraces`), drives
+`runLoop`, and adds the scan cap and abort→`cancelled` handling. Both
+transports are injected, so the composition is itself pure and unit-testable.
 
-Buffers `trace_id`s. `load` flushes `addTraces(queueId, batch)` for every full
-batch of **~250** (tunable, decoupled from the scan page size — bounded
-payload, ~8 background jobs for 2000 traces, not ~40). `finalize` flushes the
-remainder on clean completion; on cancel or after a failed flush it drops the
-buffer, so a partial add stays a known multiple of the flush size. A failed
-flush throws `QueueAddError` carrying the queued-so-far count — **surfaces,
-never silent**.
+### oss transport — `createObservabilityTraceFetchPage`
 
-### Why the ETL engine here
-
-The engine (`runLoop` + the `Source` / `Transform` / `Sink` contracts) was
-built this session for eval's filter pipeline. Batch-add-to-queue is the same
-scan-and-write shape, so it is the natural first production consumer: it
-validates the engine on a shipping feature and produces a reusable
-`traceSource` any future trace-scanning pipeline inherits. This is independent
-of the observability-table data layer — the scan never renders into the table.
+The one oss-coupled piece. Wraps `executeTraceQuery` (which carries the
+two-step annotation-filter pagination, the `+1ms` cursor bump, `AbortSignal`)
+into the `fetchPage` shape, and owns the observability-query seeding (`size`,
+`newest`). `executeTraceQuery` stays in oss — it is genuinely
+observability-coupled — so this thin adapter is the entire oss surface of the
+pipeline.
 
 ### Dedup
 
@@ -141,9 +152,10 @@ v1 ships without a client-side dedup-exclude. It is consistent with the
 existing selection-scoped add (also un-deduped), and a frontend exclude would
 need a heavy two-level fetch — the `trace_id` lives on `evaluation_results`,
 not on the scenario row, so deriving a queue's existing `trace_id`s means
-paginating scenarios *and* their results. The `extractTraceIds` transform
-already accepts an `excludeTraceIds` `Set` (wiring is one line once a source of
-already-queued ids exists). The clean fix is server-side — skip `trace_id`s
+paginating scenarios *and* their results. `addAllMatchingTracesToQueue`
+already accepts an `excludeTraceIds` option (fed to `makeUniqueKeyTransform`'s
+exclude `Set`) — wiring is one line once a source of already-queued ids
+exists. The clean fix is server-side — skip `trace_id`s
 that already have a scenario in the run, fixing both add paths at once. See
 [Follow-ups](#follow-ups-not-v1).
 
@@ -153,10 +165,10 @@ that already have a scenario in the run, fixing both add paths at once. See
 
 | Topic | Decision |
 |-------|----------|
-| **Engine** | Build on the ETL engine (`@agenta/entities/etl`): `traceSource` → `extractTraceIds` → `queueAddSink`, driven by `runLoop`. First production consumer of the engine. |
+| **Engine** | Build on the ETL engine. Three generic primitives — `makeSourceFromCursorFetch` → `makeUniqueKeyTransform` → `makeBufferedBatchSink` — in `@agenta/entities/etl`, composed by `addAllMatchingTracesToQueue` in `@agenta/entities/simpleQueue/etl`, driven by `runLoop`. oss keeps only a `fetchPage` adapter. |
 | **Phase** | Single-phase, frontend-only. No observability data-layer migration. |
 | **Queue-add batching** | `queueAddSink` buffers `trace_id`s, flushes `addTraces` at a tunable ~250, decoupled from scan page size. |
-| **Dedup** | **Verified: the backend does not dedup by `trace_id`** — `_evaluate_batch_items` creates one scenario per id with no existence check. v1 ships without a dedup-exclude (consistent with the existing selection-scoped add, also un-deduped). `extractTraceIds` keeps the wired-but-unused `excludeTraceIds` hook; the proper fix is server-side — see [Follow-ups](#follow-ups-not-v1). |
+| **Dedup** | **Verified: the backend does not dedup by `trace_id`** — `_evaluate_batch_items` creates one scenario per id with no existence check. v1 ships without a dedup-exclude (consistent with the existing selection-scoped add, also un-deduped). `addAllMatchingTracesToQueue` keeps the wired-but-unused `excludeTraceIds` option; the proper fix is server-side — see [Follow-ups](#follow-ups-not-v1). |
 | **CSV export** | Untouched. Keeps its own scan loop (`fetchAllTracesForExport`). Converging it onto `traceSource` + a `csvSink` is a documented follow-up, not a prerequisite. |
 
 **Considered and rejected:**
@@ -243,15 +255,16 @@ notification counter.
 ## Test requirements
 
 ```
-traceSource (Source)
+makeSourceFromCursorFetch (Source)        — @agenta/entities vitest
   ├── [GAP] one chunk per page; cursor advances; final chunk has cursor: null
   └── [GAP] AbortSignal cancellation mid-scan; empty-page no-progress guard holds
-queueAddSink (Sink) + extractTraceIds (Transform)
-  ├── [GAP] extractTraceIds dedups trace_ids across chunks; exclude Set honoured
+makeBufferedBatchSink (Sink)              — @agenta/entities vitest
   ├── [GAP] load flushes every full ~250 batch; finalize flushes the remainder
   ├── [GAP] cancel / prior error → finalize drops the buffer (clean multiple)
-  └── [GAP] failed addTraces flush throws QueueAddError (no silent drop)
-pipeline (addAllMatchingTracesToQueue)
+  └── [GAP] failed flush throws BatchFlushError (no silent drop)
+makeUniqueKeyTransform (Transform)        — @agenta/entities vitest
+  └── [GAP] dedups keys across chunks; exclude Set honoured
+addAllMatchingTracesToQueue (composition) — @agenta/entities vitest
   ├── [GAP] runLoop wiring: scanned / queued progress; cap stops the run
   └── [GAP] dedup exclude — already-queued trace_ids excluded before the run
 UI affordance
@@ -289,8 +302,8 @@ CSV export is **untouched** by this design — no export regression surface.
 
 ## Implementation tasks
 
-- [ ] **T1 — `traceSource`** — `Source<TraceSpanNode>` wrapping `executeTraceQuery`: cursor loop, empty-page no-progress guard, throttle, `AbortSignal`. Verify: source unit tests (one chunk per page, cursor advance, stops at end, abort mid-scan).
-- [ ] **T2 — `queueAddSink` + `extractTraceIds` + pipeline wrapper** — the Sink (buffer, ~250 flush, final flush, `QueueAddError` surfacing), the dedup Transform, and `addAllMatchingTracesToQueue` wiring `runLoop`. Verify: unit tests.
+- [x] **T1 — generic ETL primitives** — `makeSourceFromCursorFetch`, `makeBufferedBatchSink`, `makeUniqueKeyTransform` in `@agenta/entities/etl`: dependency-injected, zero coupling. oss supplies the trace transport via `createObservabilityTraceFetchPage`.
+- [x] **T2 — `addAllMatchingTracesToQueue`** — the feature composition in `@agenta/entities/simpleQueue/etl` wiring the three primitives through `runLoop` (scan cap, abort→cancelled, `BatchFlushError` surfacing). Unit tests pending — see Test requirements.
 - [x] **T3 — dedup** — **verified: the backend is not idempotent** by `trace_id`. v1 ships without the exclude (consistent with the selection-scoped add); `extractTraceIds` keeps the wired-but-unused `excludeTraceIds` hook. Proper fix is server-side — recorded as a follow-up.
 - [ ] **T4 — UI affordance** — two scope-labelled entry-point actions; no-filter confirm; reuse `AddToQueuePopover`; non-blocking notification with live counter + cancel; all interaction states + copy per the UI spec. Verify: component test + E2E.
 - [ ] **T5 — E2E** — apply filter → add all matching → traces appear in the queue.

@@ -11,19 +11,19 @@
 
 import {useCallback, useEffect, useRef} from "react"
 
-import type {SimpleQueue} from "@agenta/entities/simpleQueue"
+import {simpleQueueMolecule, type SimpleQueue} from "@agenta/entities/simpleQueue"
+import {
+    addAllMatchingTracesToQueue,
+    BatchFlushError,
+    type TracePageFetcher,
+} from "@agenta/entities/simpleQueue/etl"
 import {notification} from "@agenta/ui/app-message"
 import {Button, Space} from "antd"
 
-import {
-    addAllMatchingTracesToQueue,
-    QueueAddError,
-} from "@/oss/state/newObservability/etl/addMatchingTracesToQueue"
-import type {TraceScanParams} from "@/oss/state/newObservability/etl/traceSource"
-
 export interface BatchAddRunInput {
     queue: SimpleQueue
-    scan: TraceScanParams
+    /** Fetches one page of traces matching the live observability filter. */
+    fetchPage: TracePageFetcher
     /** Link target for the "View queue" action in the success notification. */
     viewQueueUrl?: string
 }
@@ -38,7 +38,7 @@ export const useBatchAddTracesToQueue = () => {
     useEffect(() => () => abortRef.current?.abort(), [])
 
     const run = useCallback((input: BatchAddRunInput) => {
-        const {queue, scan, viewQueueUrl} = input
+        const {queue, fetchPage, viewQueueUrl} = input
         const queueName = queue.name || "queue"
         const key = `batch-add-queue-${queue.id}`
 
@@ -66,7 +66,9 @@ export const useBatchAddTracesToQueue = () => {
         void (async () => {
             try {
                 const result = await addAllMatchingTracesToQueue({
-                    scan,
+                    fetchPage,
+                    addTraces: (queueId, traceIds) =>
+                        simpleQueueMolecule.set.addTraces(queueId, traceIds),
                     queueId: queue.id,
                     signal: controller.signal,
                     onProgress: ({queued}) => {
@@ -107,11 +109,11 @@ export const useBatchAddTracesToQueue = () => {
                     ) : undefined,
                 })
             } catch (err) {
-                if (err instanceof QueueAddError) {
+                if (err instanceof BatchFlushError) {
                     notification.error({
                         key,
                         message: "Queue add incomplete",
-                        description: `Queued ${err.queuedCount.toLocaleString()} traces; ${err.failedCount.toLocaleString()} failed to queue.`,
+                        description: `Queued ${err.flushedCount.toLocaleString()} traces; ${err.failedCount.toLocaleString()} failed to queue.`,
                         duration: 0,
                         btn: (
                             <Space>

@@ -43,3 +43,12 @@ export {runLoop} from "./runtime/runLoop"
 
 export {makeSourceFromPaginatedStore} from "./adapters/makeSourceFromPaginatedStore"
 export type {MakeSourceParams, PaginatedStoreLike} from "./adapters/makeSourceFromPaginatedStore"
+
+export {makeSourceFromCursorFetch} from "./adapters/makeSourceFromCursorFetch"
+export type {CursorFetchSourceConfig, CursorPage} from "./adapters/makeSourceFromCursorFetch"
+
+export {BatchFlushError, makeBufferedBatchSink} from "./sinks/makeBufferedBatchSink"
+export type {BufferedBatchSinkConfig, BufferedBatchSinkHandle} from "./sinks/makeBufferedBatchSink"
+
+export {makeUniqueKeyTransform} from "./transforms/makeUniqueKeyTransform"
+export type {UniqueKeyTransformConfig} from "./transforms/makeUniqueKeyTransform"

@@ -24,7 +24,7 @@ import {
     buildTraceQueryParams,
     fetchAllTracesForExport,
 } from "@/oss/state/newObservability/atoms/queryHelpers"
-import type {TraceScanParams} from "@/oss/state/newObservability/etl/traceSource"
+import {createObservabilityTraceFetchPage} from "@/oss/state/newObservability/etl/observabilityTraceFetchPage"
 import {getAgData} from "@/oss/state/newObservability/selectors/tracing"
 
 import {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "../../assets/exportUtils"
@@ -437,17 +437,17 @@ const ObservabilityHeader = ({
                 hasAnnotationOperator,
                 isHasAnnotationSelected,
             } = buildTraceQueryParams(filters, sort, traceTabs, undefined)
-            const scan: TraceScanParams = {
+            const fetchPage = createObservabilityTraceFetchPage({
                 params,
                 appId,
                 isHasAnnotationSelected,
                 hasAnnotationConditions,
                 hasAnnotationOperator,
-            }
+            })
             const projectURL = window.location.pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
             runBatchAdd({
                 queue,
-                scan,
+                fetchPage,
                 viewQueueUrl: projectURL ? `${projectURL}/annotations/${queue.id}` : undefined,
             })
         },
