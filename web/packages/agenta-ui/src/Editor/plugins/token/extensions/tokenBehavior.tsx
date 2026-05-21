@@ -10,7 +10,7 @@ import {TokenPlugin} from "../TokenPlugin"
 import {TokenTooltipPlugin} from "../TokenTooltipPlugin"
 import {TokenMenuPlugin} from "../TokenTypeaheadPlugin"
 
-type TemplateFormat = "curly" | "fstring" | "jinja2"
+type TemplateFormat = "mustache" | "curly" | "fstring" | "jinja2"
 
 interface TokenBehaviorConfig {
     templateFormat: TemplateFormat

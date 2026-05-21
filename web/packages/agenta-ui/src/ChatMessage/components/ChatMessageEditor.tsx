@@ -49,7 +49,7 @@ export interface ChatMessageEditorProps {
     /** Whether to enable token highlighting */
     enableTokens?: boolean
     /** Template format for variable syntax highlighting */
-    templateFormat?: "curly" | "fstring" | "jinja2"
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
     /** Available template variables for token highlighting */
     tokens?: string[]
     /** Editor state: filled, readOnly, etc. */

@@ -599,7 +599,7 @@ class AgLLM(AgSchemaMixin):
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = Field(
         default=None,
     )
-    template_format: Literal["curly", "fstring", "jinja2"] = Field(
+    template_format: Literal["mustache", "curly", "fstring", "jinja2"] = Field(
         default="curly",
     )
 
@@ -703,9 +703,9 @@ class PromptTemplate(AgSchemaMixin):
             [Message(role="system", content=""), Message(role="user", content="")]
         )
     )
-    template_format: Literal["fstring", "jinja2", "curly"] = Field(
+    template_format: Literal["mustache", "fstring", "jinja2", "curly"] = Field(
         default="curly",
-        description="Format type for template variables: fstring {var}, jinja2 {{ var }}, or curly {{var}}",
+        description="Format type for template variables: mustache {{var}} (default for new apps), fstring {var}, jinja2 {{ var }}, or curly {{var}} (legacy)",
     )
     input_keys: Optional[List[str]] = Field(
         default=None,
@@ -799,7 +799,7 @@ class PromptTemplate(AgSchemaMixin):
         with stable, caller-facing messages.
         """
 
-        if self.template_format not in ("curly", "fstring", "jinja2"):
+        if self.template_format not in ("mustache", "curly", "fstring", "jinja2"):
             raise TemplateFormatError(
                 f"Unknown template format: {self.template_format}"
             )

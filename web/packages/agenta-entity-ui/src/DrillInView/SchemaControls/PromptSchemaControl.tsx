@@ -34,6 +34,7 @@ import {
     normalizeMessages,
     schemaSupportsTools,
 } from "./schemaUtils"
+import {buildTemplateFormatOptions, type TemplateFormat} from "./templateFormatOptions"
 import {ToolItemControl} from "./ToolItemControl"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
 import {type ToolObj} from "./toolUtils"
@@ -54,9 +55,9 @@ export interface PromptSchemaControlProps {
     /** Additional CSS classes */
     className?: string
     /** Template format for variable highlighting */
-    templateFormat?: "curly" | "fstring" | "jinja2"
+    templateFormat?: TemplateFormat
     /** Callback when template format changes (for syncing to entity) */
-    onTemplateFormatChange?: (format: "curly" | "fstring" | "jinja2") => void
+    onTemplateFormatChange?: (format: TemplateFormat) => void
     /** Available template variables for token highlighting */
     variables?: string[]
     /** Entity ID for response format modal state tracking */
@@ -124,12 +125,6 @@ export function isPromptValue(value: unknown): value is Record<string, unknown> 
     )
 }
 
-// Template format options
-const TEMPLATE_FORMAT_OPTIONS = [
-    {label: "Prompt Syntax: Curly", value: "curly"},
-    {label: "Prompt Syntax: F-string", value: "fstring"},
-    {label: "Prompt Syntax: Jinja2", value: "jinja2"},
-]
 const EMPTY_VARIABLES: string[] = []
 
 /**
@@ -211,9 +206,10 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     }, [value])
 
     // Read template format from value, falling back to prop
-    const resolvedTemplateFormat = useMemo((): "curly" | "fstring" | "jinja2" => {
+    const resolvedTemplateFormat = useMemo((): TemplateFormat => {
         if (!value) return templateFormat
         const raw = value.template_format ?? value.templateFormat
+        if (raw === "mustache") return "mustache"
         if (raw === "fstring") return "fstring"
         if (raw === "jinja2" || raw === "jinja") return "jinja2"
         if (raw === "curly") return "curly"
@@ -221,9 +217,8 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     }, [value, templateFormat])
 
     // Local template format state (initialized from value or prop)
-    const [localTemplateFormat, setLocalTemplateFormat] = useState<"curly" | "fstring" | "jinja2">(
-        resolvedTemplateFormat,
-    )
+    const [localTemplateFormat, setLocalTemplateFormat] =
+        useState<TemplateFormat>(resolvedTemplateFormat)
 
     // Sync local state when value changes externally (e.g., discard/revert)
     useEffect(() => {
@@ -573,7 +568,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                         size="small"
                         value={localTemplateFormat}
                         onChange={(val) => {
-                            const format = val as "curly" | "fstring" | "jinja2"
+                            const format = val as TemplateFormat
                             setLocalTemplateFormat(format)
                             onTemplateFormatChange?.(format)
                             // Propagate to entity draft via onChange
@@ -582,7 +577,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                                 [templateFormatKey]: format,
                             })
                         }}
-                        options={TEMPLATE_FORMAT_OPTIONS}
+                        options={buildTemplateFormatOptions(localTemplateFormat)}
                         className="min-w-[130px]"
                         popupMatchSelectWidth={false}
                         style={{height: 24}}

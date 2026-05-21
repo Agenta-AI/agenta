@@ -49,7 +49,11 @@ import {
     groupTemplateVariables,
 } from "../../runnable/portHelpers"
 import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
-import {extractTemplateVariables, extractVariablesFromConfig} from "../../runnable/utils"
+import {
+    extractTemplateVariables,
+    extractVariablesFromConfig,
+    resolveTemplateFormat,
+} from "../../runnable/utils"
 import type {RunnablePort, StoreOptions} from "../../shared"
 import {isLocalDraftId, isPlaceholderId} from "../../shared"
 import {archiveWorkflow, unarchiveWorkflow} from "../api"
@@ -765,7 +769,10 @@ function buildEvaluatorFieldPortsFromTemplate(entity: Workflow | null | undefine
     const rawFmt =
         (prompt?.template_format as string | undefined) ??
         (params.template_format as string | undefined)
-    const fmt = rawFmt === "fstring" || rawFmt === "jinja2" ? rawFmt : "curly"
+    // Reuse the shared resolver so ``mustache`` (and any future format) is
+    // preserved rather than silently coerced; fall back to ``curly`` only when
+    // the stored format is unrecognized.
+    const fmt = resolveTemplateFormat(rawFmt) ?? "curly"
 
     const placeholders: string[] = []
     for (const message of messages) {

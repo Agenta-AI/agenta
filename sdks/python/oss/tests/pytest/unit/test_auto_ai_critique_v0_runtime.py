@@ -429,3 +429,144 @@ async def test_non_json_text_output_raises_invalid_outputs(
             inputs={"question": "q", "expected": "e"},
             outputs="o",
         )
+
+
+# =============================================================================
+# Mustache template format
+# =============================================================================
+
+
+async def test_judge_renders_messages_with_mustache(mocked_secrets, mocked_llm_call):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    await _auto_ai_critique_v0(
+        parameters=_base_parameters(template_format="mustache"),
+        inputs={"question": "What is 2+2?", "expected": "4"},
+        outputs="4",
+        trace=None,
+    )
+
+    user_message = mocked_llm_call.captured["kwargs"]["messages"][1]["content"]
+    assert "question=What is 2+2?" in user_message
+    assert "prediction=4" in user_message
+    assert "ground_truth=4" in user_message
+    assert "params_threshold=0.5" in user_message
+
+
+async def test_judge_renders_json_schema_with_mustache(mocked_secrets, mocked_llm_call):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    schema = {
+        "name": "verdict",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "number",
+                    "description": "Score for {{question}}",
+                }
+            },
+        },
+    }
+
+    await _auto_ai_critique_v0(
+        parameters=_base_parameters(
+            template_format="mustache",
+            response_type="json_schema",
+            json_schema=schema,
+        ),
+        inputs={"question": "is it correct", "expected": "e"},
+        outputs="o",
+    )
+
+    response_format = mocked_llm_call.captured["kwargs"]["response_format"]
+    rendered_desc = response_format["json_schema"]["schema"]["properties"]["score"][
+        "description"
+    ]
+    assert rendered_desc == "Score for is it correct"
+
+
+async def test_judge_mustache_partial_raises_before_llm_call(
+    mocked_secrets, mocked_llm_call
+):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    params = _base_parameters(
+        template_format="mustache",
+        prompt_template=[
+            {"role": "user", "content": "hi {{> partial}}"},
+        ],
+    )
+
+    with pytest.raises(PromptFormattingV0Error):
+        await _auto_ai_critique_v0(
+            parameters=params,
+            inputs={"question": "q"},
+            outputs="o",
+        )
+
+    mocked_llm_call.acompletion.assert_not_called()
+
+
+async def test_version_5_defaults_to_mustache(mocked_secrets, mocked_llm_call):
+    """A v5 judge with no explicit template_format renders via mustache.
+
+    Mustache is permissive for missing variables (renders empty), so a template
+    referencing an undeclared variable still produces a completion call rather
+    than raising — the opposite of the curly default used by v3/v4.
+    """
+
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    params = _base_parameters(version="5")
+    params.pop("template_format", None)
+    params["prompt_template"] = [
+        {"role": "user", "content": "value={{undeclared_variable}}"},
+    ]
+
+    await _auto_ai_critique_v0(
+        parameters=params,
+        inputs={"question": "q", "expected": "e"},
+        outputs="o",
+    )
+
+    user_message = mocked_llm_call.captured["kwargs"]["messages"][0]["content"]
+    assert user_message == "value="
+
+
+async def test_version_3_and_4_default_to_curly(mocked_secrets, mocked_llm_call):
+    """v3 and v4 keep the legacy curly default, which raises on missing vars.
+
+    This pins that bumping the new judge to v5 does not change v3/v4 behavior.
+    """
+
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    for version in ("3", "4"):
+        params = _base_parameters(version=version)
+        params.pop("template_format", None)
+        params["prompt_template"] = [
+            {"role": "user", "content": "value={{undeclared_variable}}"},
+        ]
+
+        with pytest.raises(PromptFormattingV0Error):
+            await _auto_ai_critique_v0(
+                parameters=params,
+                inputs={"question": "q", "expected": "e"},
+                outputs="o",
+            )

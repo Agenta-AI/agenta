@@ -27,9 +27,15 @@ from agenta.sdk.engines.running.handlers import _format_with_template
 from agenta.sdk.types import PromptTemplate, TemplateFormatError
 from agenta.sdk.utils.lazy import _load_jinja2
 from agenta.sdk.utils.templating import (
+    MustacheInvalidJsonPathError,
+    MustacheTemplateError,
     UnresolvedVariablesError,
     render_template,
 )
+
+
+def _mustache(template, context):
+    return render_template(template=template, mode="mustache", context=context)
 
 
 # =============================================================================
@@ -886,3 +892,303 @@ def test_prompt_template_curly_empty_placeholder_raises():
     )
     with pytest.raises(TemplateFormatError):
         template.format(secret="do-not-leak", name="Ada")
+
+
+# =============================================================================
+# 10. Mustache basics: variables, whitespace, repeats, multi-line, unicode
+# =============================================================================
+
+
+def test_mustache_resolves_top_level_variable():
+    assert _mustache("hello {{name}}", {"name": "Ada"}) == "hello Ada"
+
+
+def test_mustache_ignores_inner_whitespace():
+    assert _mustache("hello {{ name }}", {"name": "Ada"}) == "hello Ada"
+
+
+def test_mustache_repeated_variable():
+    assert _mustache("{{n}}-{{n}}", {"n": "x"}) == "x-x"
+
+
+def test_mustache_multiple_variables():
+    out = _mustache("{{a}} and {{b}}", {"a": "1", "b": "2"})
+    assert out == "1 and 2"
+
+
+def test_mustache_multiline_template():
+    out = _mustache("a={{a}}\nb={{b}}", {"a": "1", "b": "2"})
+    assert out == "a=1\nb=2"
+
+
+def test_mustache_unicode_value():
+    assert _mustache("{{u}}", {"u": "café→"}) == "café→"
+
+
+def test_mustache_number_and_bool_values():
+    assert _mustache("{{i}}/{{b}}", {"i": 7, "b": True}) == "7/True"
+
+
+def test_mustache_does_not_html_escape_values():
+    # Prompt text is not HTML; angle brackets and ampersands must survive.
+    assert _mustache("{{h}}", {"h": "<b> & </b>"}) == "<b> & </b>"
+
+
+def test_mustache_triple_brace_is_unescaped():
+    assert _mustache("{{{h}}}", {"h": "<b>"}) == "<b>"
+
+
+def test_mustache_ampersand_is_unescaped():
+    # ``{{&x}}`` is Mustache's other unescaped form. Since WP-B3 disables HTML
+    # escaping entirely, it must behave the same as ``{{x}}`` / ``{{{x}}}``.
+    assert _mustache("{{&h}}", {"h": "<b> & </b>"}) == "<b> & </b>"
+
+
+# =============================================================================
+# 11. Mustache dotted names, sections, whole-object insertion
+# =============================================================================
+
+
+def test_mustache_dotted_name():
+    assert _mustache("{{profile.name}}", {"profile": {"name": "Ada"}}) == "Ada"
+
+
+def test_mustache_deep_dotted_name():
+    out = _mustache(
+        "{{user.address.city}}",
+        {"user": {"address": {"city": "Paris"}}},
+    )
+    assert out == "Paris"
+
+
+def test_mustache_section_iterates_list():
+    out = _mustache(
+        "{{#users}}{{name}},{{/users}}", {"users": [{"name": "a"}, {"name": "b"}]}
+    )
+    assert out == "a,b,"
+
+
+def test_mustache_inverted_section_when_empty():
+    assert _mustache("{{^users}}none{{/users}}", {"users": []}) == "none"
+
+
+def test_mustache_whole_object_renders_compact_json():
+    assert _mustache("{{a}}", {"a": {"x": 1, "y": 2}}) == '{"x": 1, "y": 2}'
+
+
+def test_mustache_whole_list_renders_compact_json():
+    assert _mustache("{{a}}", {"a": [1, 2, 3]}) == "[1, 2, 3]"
+
+
+def test_mustache_stringified_json_is_left_as_string():
+    out = _mustache("{{a}}", {"a": '{"x": 1}'})
+    assert out == '{"x": 1}'
+
+
+def test_mustache_value_with_placeholder_is_not_rendered_recursively():
+    out = _mustache("{{a}}", {"a": "{{b}}", "b": "NO"})
+    assert out == "{{b}}"
+
+
+def test_mustache_missing_variable_is_permissive_empty():
+    # Plain Mustache tags render empty when absent (engine behavior).
+    assert _mustache("hi {{x}}", {}) == "hi "
+
+
+# =============================================================================
+# 12. Mustache JSONPath pre-rendering ({{$...}})
+# =============================================================================
+
+
+def test_mustache_jsonpath_root():
+    assert _mustache("{{$}}", {"a": 1}) == '{"a": 1}'
+
+
+def test_mustache_jsonpath_field():
+    out = _mustache("{{$.profile.name}}", {"profile": {"name": "Zed"}})
+    assert out == "Zed"
+
+
+def test_mustache_jsonpath_list_index():
+    out = _mustache("{{$.profile.tags[0]}}", {"profile": {"tags": ["t0", "t1"]}})
+    assert out == "t0"
+
+
+def test_mustache_jsonpath_whole_object_renders_compact_json():
+    out = _mustache("{{$.profile}}", {"profile": {"x": 1}})
+    assert out == '{"x": 1}'
+
+
+def test_mustache_only_dollar_tags_are_prerendered():
+    # ``{{name}}`` and ``{{profile.name}}`` are left for the Mustache engine;
+    # only the ``{{$...}}`` tag is JSONPath pre-rendered.
+    out = _mustache(
+        "{{name}}|{{profile.name}}|{{$.profile.name}}",
+        {"name": "top", "profile": {"name": "nested"}},
+    )
+    assert out == "top|nested|nested"
+
+
+def test_mustache_unresolved_jsonpath_raises():
+    with pytest.raises(MustacheTemplateError):
+        _mustache("{{$.nope}}", {"a": 1})
+
+
+def test_mustache_dollar_prefixed_tag_is_always_jsonpath():
+    # WPB3-002 (strict contract): every ``{{$...}}`` tag is reserved for the
+    # JSONPath pre-render pass. A tag whose body is not valid JSONPath (here
+    # ``$id``) raises a dedicated ``MustacheInvalidJsonPathError`` rather than
+    # falling back to a plain Mustache variable lookup. A context key literally
+    # named ``$id`` is therefore NOT addressable as ``{{$id}}``.
+    with pytest.raises(MustacheInvalidJsonPathError):
+        _mustache("{{$id}}", {"$id": "Z"})
+
+    # The error is distinct from the valid-but-unmatched ("matched no values")
+    # case, which stays a plain ``MustacheTemplateError``.
+    assert issubclass(MustacheInvalidJsonPathError, MustacheTemplateError)
+    with pytest.raises(MustacheTemplateError) as missing:
+        _mustache("{{$.nope}}", {"a": 1})
+    assert not isinstance(missing.value, MustacheInvalidJsonPathError)
+
+
+def test_mustache_jsonpath_value_with_placeholder_is_rendered_recursively():
+    # WPB3-001 (KNOWN DIVERGENCE, pending decision): unlike plain ``{{var}}``
+    # tags (see test_mustache_value_with_placeholder_is_not_rendered_recursively),
+    # a ``{{$...}}``-resolved value IS fed back through the engine and any
+    # ``{{...}}`` inside it is rendered a second time. This pins the *current*
+    # behavior so a fix is detected; it is NOT an endorsement of recursion. When
+    # WPB3-001 is resolved, replace this with the literal-output expectation:
+    #   assert _mustache("{{$.u}}", {"u": "hi {{secret}}", "secret": "LEAK"}) \
+    #       == "hi {{secret}}"
+    out = _mustache("{{$.u}}", {"u": "hi {{secret}}", "secret": "LEAK"})
+    assert out == "hi LEAK"
+
+
+# =============================================================================
+# 13. Mustache grumpy paths: partials, empty placeholders
+# =============================================================================
+
+
+def test_mustache_partial_raises_clear_error():
+    with pytest.raises(MustacheTemplateError) as exc:
+        _mustache("before {{> item}} after", {})
+    assert "artial" in str(exc.value)
+
+
+def test_mustache_empty_placeholder_raises():
+    with pytest.raises(MustacheTemplateError):
+        _mustache("hi {{}}", {})
+
+
+def test_mustache_whitespace_only_placeholder_raises():
+    with pytest.raises(MustacheTemplateError):
+        _mustache("hi {{   }}", {})
+
+
+def test_mustache_error_is_value_error_subclass():
+    # Existing ``except ValueError`` call-site paths keep catching mustache errors.
+    assert issubclass(MustacheTemplateError, ValueError)
+
+
+# =============================================================================
+# 14. Mustache call-site preservation
+# =============================================================================
+
+
+def test_prompt_template_mustache_renders_messages():
+    template = PromptTemplate(
+        template_format="mustache",
+        messages=[{"role": "user", "content": "hi {{name}}"}],
+    )
+    formatted = template.format(name="Ada")
+    assert formatted.messages[0].content == "hi Ada"
+
+
+def test_prompt_template_mustache_partial_raises_template_format_error():
+    template = PromptTemplate(
+        template_format="mustache",
+        messages=[{"role": "user", "content": "hi {{> p}}"}],
+    )
+    with pytest.raises(TemplateFormatError):
+        template.format()
+
+
+def test_handlers_format_with_template_supports_mustache():
+    out = _format_with_template(
+        content="hi {{name}}",
+        format="mustache",
+        kwargs={"name": "Ada"},
+    )
+    assert out == "hi Ada"
+
+
+# =============================================================================
+# 15. Mustache engine-parity contract
+#
+# These pin the observable behavior WP-B3 guarantees through ``render_template``
+# regardless of which underlying Mustache engine is used. If the engine library
+# is ever swapped (e.g. mystace -> chevron), this suite must still pass — it is
+# the contract the rest of the runtime relies on. Each assertion is engine
+# independent: it asserts our normalized output, not a library quirk.
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "template,context,expected",
+    [
+        # --- variables & whitespace ---
+        ("Hi {{name}}", {"name": "Jo"}, "Hi Jo"),
+        ("Hi {{ name }}", {"name": "Jo"}, "Hi Jo"),
+        ("{{a}}-{{a}}", {"a": "x"}, "x-x"),
+        # --- dotted names ---
+        ("{{a.b}}", {"a": {"b": "X"}}, "X"),
+        ("{{a.b.c}}", {"a": {"b": {"c": "Z"}}}, "Z"),
+        # --- sections ---
+        ("{{#u}}{{n}},{{/u}}", {"u": [{"n": "a"}, {"n": "b"}]}, "a,b,"),
+        ("{{#ok}}yes{{/ok}}", {"ok": True}, "yes"),
+        ("{{#z}}no{{/z}}", {"z": []}, ""),
+        ("{{^u}}none{{/u}}", {"u": []}, "none"),
+        ("{{#a}}{{#b}}{{c}}{{/b}}{{/a}}", {"a": {"b": {"c": "deep"}}}, "deep"),
+        # --- comments & delimiter swap ---
+        ("a{{! hi }}b", {}, "ab"),
+        ("{{=<% %>=}}<% x %>", {"x": "Y"}, "Y"),
+        # --- coercion: WP-B3 normalizes dict/list to COMPACT JSON (not py repr) ---
+        ("{{a}}", {"a": {"x": 1}}, '{"x": 1}'),
+        ("{{a}}", {"a": [1, 2]}, "[1, 2]"),
+        ("{{i}}", {"i": 42}, "42"),
+        ("{{b}}", {"b": True}, "True"),
+        # --- escaping: WP-B3 does NOT HTML-escape (prompt text is not HTML) ---
+        ("{{h}}", {"h": "<b> & \" '"}, "<b> & \" '"),
+        ("{{{h}}}", {"h": "<b>"}, "<b>"),
+        ("{{&h}}", {"h": "<b> & </b>"}, "<b> & </b>"),
+        # --- permissive: missing keys render empty (engine-native behavior) ---
+        # NB: partials and empty placeholders are product-authored REJECTIONS
+        # (MustacheTemplateError), not engine behavior, so they are covered by
+        # the dedicated grumpy-path tests in section 13, not this parity table.
+        ("Hi {{x}}", {}, "Hi "),
+        # --- unicode preserved ---
+        ("{{u}}", {"u": "café→"}, "café→"),
+    ],
+)
+def test_mustache_engine_parity_contract(template, context, expected):
+    assert _mustache(template, context) == expected
+
+
+def test_mustache_parity_no_html_escaping_for_common_prompt_chars():
+    # Regression guard: a Mustache engine that HTML-escapes by default (both
+    # mystace and chevron do) must be neutralized so prompts are not corrupted.
+    rendered = _mustache(
+        "compare: {{expr}}",
+        {"expr": 'a < b && c > d "quoted"'},
+    )
+    assert rendered == 'compare: a < b && c > d "quoted"'
+
+
+def test_mustache_parity_whole_object_is_valid_json():
+    # Regression guard: dict/list insertion must be valid JSON (double quotes),
+    # not Python repr. This is the contract curly already provides.
+    import json as _json
+
+    rendered = _mustache("{{obj}}", {"obj": {"name": "Bob", "tags": ["x", "y"]}})
+    assert _json.loads(rendered) == {"name": "Bob", "tags": ["x", "y"]}
+    assert "'" not in rendered  # no python-repr single quotes
