@@ -1,7 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
-import {TypeChip} from "@agenta/ui/type-chip"
 import {
     ArrowClockwise,
     ArrowsOutLineHorizontal,
@@ -187,9 +186,13 @@ const TurnMessageHeaderOptions = ({
 
     return (
         <div className={clsx("flex items-center gap-1 relative", className)}>
-            <TypeChip value={getTextContent(text || "")} />
-
             <div className="flex items-center gap-1 invisible group-hover/item:visible group-focus-within/item:visible focus-within:visible">
+                <ViewModeDropdown
+                    value={viewMode}
+                    options={viewOptions}
+                    onChange={(nextViewMode) => onViewModeChange?.(nextViewMode)}
+                />
+
                 {repetitionProps && renderRepetitionNav && renderRepetitionNav(repetitionProps)}
 
                 {onViewAllRepeats && (
@@ -254,12 +257,6 @@ const TurnMessageHeaderOptions = ({
                         onClick={onCopyText}
                     />
                 </Tooltip>
-
-                <ViewModeDropdown
-                    value={viewMode}
-                    options={viewOptions}
-                    onChange={(nextViewMode) => onViewModeChange?.(nextViewMode)}
-                />
 
                 <Tooltip title="Remove">
                     <Button
