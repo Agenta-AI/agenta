@@ -36,8 +36,13 @@ The current checkout already has:
 - no JSON Pointer support is added to `mustache`.
 - Mustache dotted names and sections follow `mystace` behavior.
 - partials are unsupported and must fail clearly.
+- WP-B3 should reuse the existing prompt-formatting error surfaces rather than inventing a parallel error family.
+- `TemplateFormatError` remains the SDK-facing prompt template formatting error.
+- `PromptFormattingV0Error` remains the LLM-as-a-judge wrapper for prompt rendering failures.
+- `mustache` should not reuse `resolve_any(...)` directly because that would reintroduce JSON Pointer and legacy dotted fallback semantics.
 - do not silently migrate existing judge revisions to `mustache`.
 - keep legacy missing-format fallbacks separate from new-app defaults.
+- current `input_keys` validation semantics remain in force unless changed deliberately across all prompt formats.
 
 ## Blockers
 
@@ -45,7 +50,9 @@ None.
 
 ## Open Questions
 
-- Does `mystace` surface partial-tag failures cleanly enough on its own, or should WP-B3 pre-detect `{{>...}}` tags and raise a custom formatting error before render?
+- Does `mystace` surface partial-tag failures cleanly enough on its own, or should WP-B3 pre-detect `{{>...}}` tags and raise a stable custom formatting error before render? Current recommendation: pre-detect partial tags so product errors do not depend on library exception wording.
+- What is the exact missing-variable contract for normal Mustache tags in Agenta runtime paths? Current code is stricter at the prompt-template boundary than raw Mustache, and WP-B3 should either preserve that strictness or change it deliberately everywhere.
+- Should `{{{$...}}}` / unescaped-Mustache forms participate in the JSONPath pre-render pass, or should the pre-pass only handle normal `{{$.…}}` tags?
 - Should minimal frontend type widening ship in WP-B3, or should all frontend acceptance be deferred to WP-F2? Current recommendation: widen only preservation paths that would otherwise corrupt backend configs.
 
 ## Next Steps
@@ -54,7 +61,7 @@ None.
 2. Implement `_render_mustache(...)` on top of `mystace` and widen `TemplateMode`.
 3. Widen backend config schemas and handler validation.
 4. Locate new app / prompt creation defaults and set them to `mustache` where safe.
-5. Add focused unit tests, including partial failure cases.
+5. Add focused unit tests, including sections, partial failure cases, and prompt/judge error normalization.
 6. Run SDK formatting, lint, and focused tests.
 
 ## Expected Validation

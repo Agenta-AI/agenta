@@ -35,6 +35,14 @@ Have `_render_mustache(...)` run:
 2. partial detection / partial failure
 3. `mystace` render
 
+Keep the existing SDK error contract centered on the current prompt-formatting types:
+
+- low-level Mustache-specific failures should normalize into the existing prompt formatting error family
+- prompt-template callers should keep surfacing `TemplateFormatError`
+- LLM-as-a-judge should keep surfacing `PromptFormattingV0Error`
+
+Do not route `mustache` through `resolve_any(...)` wholesale. `resolve_any(...)` includes JSON Pointer and legacy dotted fallback semantics that belong to `curly`, not to `mustache`.
+
 Milestone: `test_render_template_helper.py` covers JSONPath tags, Mustache variables, sections, dotted names, whole-object insertion, unicode, no recursive rendering, and clear partial failures.
 
 ## Phase 4: Runtime Adoption
@@ -49,6 +57,12 @@ Touchpoints:
 - any related builtin prompt config declarations
 
 Milestone: `PromptTemplate.format(...)`, `render_messages(...)`, `render_json_like(...)`, and `auto_ai_critique_v0(...)` all accept `mode="mustache"` without extra branching.
+
+Compatibility rules to preserve while adopting `mustache`:
+
+- keep current top-level input validation behavior for declared `input_keys`
+- do not relax unexpected-input or missing-input checks just because Mustache itself is permissive
+- make missing-variable behavior explicit and consistent with existing renderer-facing errors
 
 ## Phase 5: New-App Defaults
 
@@ -73,5 +87,11 @@ Milestone: existing configs with `template_format="mustache"` can be loaded and 
 Update docstrings and comments that list supported formats.
 
 Update the parent RFC tracking index.
+
+If sections and inverted sections remain enabled through `mystace`, treat them as blessed product behavior:
+
+- keep tests for them
+- describe them in follow-up user-facing templating docs
+- do not leave them as accidental engine leakage
 
 Milestone: docs and code agree on the supported modes and on the `curly` vs `mustache` distinction.
