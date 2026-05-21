@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {message} from "@agenta/ui/app-message"
+import type {SimpleQueue} from "@agenta/entities/simpleQueue"
+import {message, modal} from "@agenta/ui/app-message"
 import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -23,6 +24,7 @@ import {
     buildTraceQueryParams,
     fetchAllTracesForExport,
 } from "@/oss/state/newObservability/atoms/queryHelpers"
+import type {TraceScanParams} from "@/oss/state/newObservability/etl/traceSource"
 import {getAgData} from "@/oss/state/newObservability/selectors/tracing"
 
 import {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "../../assets/exportUtils"
@@ -30,6 +32,8 @@ import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOpt
 import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
+
+import {useBatchAddTracesToQueue} from "./useBatchAddTracesToQueue"
 
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
@@ -131,6 +135,7 @@ const ObservabilityHeader = ({
         setAutoRefresh: hookSetAutoRefresh,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
+    const runBatchAdd = useBatchAddTracesToQueue()
 
     // Use props if provided (sessions), otherwise use hook (traces)
     const autoRefresh = propsAutoRefresh ?? hookAutoRefresh
@@ -403,6 +408,52 @@ const ObservabilityHeader = ({
         setSelectedRowKeys([])
     }, [setSelectedRowKeys])
 
+    // Filter-scoped queue add — gate the picker. With a filter active, go
+    // straight to it; with no filter, confirm (this queues the whole project).
+    const onAddAllMatchingBeforeOpen = useCallback(async () => {
+        if (filters.length > 0) return true
+        return await new Promise<boolean>((resolve) => {
+            modal.confirm({
+                title: "Add every trace to the queue?",
+                content:
+                    "No filter is active — this will queue every trace in the project. Continue?",
+                okText: "Continue",
+                cancelText: "Cancel",
+                onOk: () => resolve(true),
+                onCancel: () => resolve(false),
+            })
+        })
+    }, [filters])
+
+    // Filter-scoped queue add — the picked queue runs a background scan of
+    // every trace matching the current observability filter.
+    const onAddAllMatchingQueueSelected = useCallback(
+        (queue: SimpleQueue) => {
+            const {currentApp} = getAppValues()
+            const appId = currentApp?.id || ""
+            const {
+                params,
+                hasAnnotationConditions,
+                hasAnnotationOperator,
+                isHasAnnotationSelected,
+            } = buildTraceQueryParams(filters, sort, traceTabs, undefined)
+            const scan: TraceScanParams = {
+                params,
+                appId,
+                isHasAnnotationSelected,
+                hasAnnotationConditions,
+                hasAnnotationOperator,
+            }
+            const projectURL = window.location.pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
+            runBatchAdd({
+                queue,
+                scan,
+                viewQueueUrl: projectURL ? `${projectURL}/annotations/${queue.id}` : undefined,
+            })
+        },
+        [filters, sort, traceTabs, runBatchAdd],
+    )
+
     const handleExportClick = useCallback(() => {
         if (isExporting) {
             exportAbortRef.current?.abort()
@@ -513,8 +564,18 @@ const ObservabilityHeader = ({
                                 queueAction={{
                                     itemType: "traces",
                                     itemIds: selectedTraceIds,
+                                    label:
+                                        selectedTraceIds.length > 0
+                                            ? `Add ${selectedTraceIds.length} selected to queue`
+                                            : "Add selected to queue",
                                     disabled: traces.length === 0 || selectedTraceIds.length === 0,
                                     onItemsAdded: handleQueueItemsAdded,
+                                }}
+                                queueAllMatchingAction={{
+                                    label: "Add all matching filter to queue",
+                                    disabled: traces.length === 0,
+                                    onBeforeOpen: onAddAllMatchingBeforeOpen,
+                                    onQueueSelected: onAddAllMatchingQueueSelected,
                                 }}
                             />
                         </Space>
