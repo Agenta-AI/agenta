@@ -1,10 +1,16 @@
 # Evaluation System - Refactoring Analysis
 
+> **Status: Frozen legacy analysis (2026-02-16).** Moved here from the now-removed
+> `docs/designs/eval-loops/`. The canonical unified design lives in
+> [`proposal.md`](./proposal.md) and [`plan.md`](./plan.md). Retained for the
+> side-by-side loop comparison and the concrete "pure functions to extract"
+> signatures, which are not replicated in the current design docs.
+
 **Created:** 2026-02-16
 **Purpose:** Detailed analysis of current code and concrete refactoring steps
 **Related:**
-- [Current State - Iteration Patterns](./iteration-patterns.md)
-- [Desired Architecture](./desired-architecture.md)
+- [Current State - Iteration Patterns](./legacy-iteration-patterns.md)
+- Desired Architecture — _removed; superseded by_ [`proposal.md`](./proposal.md)
 
 ---
 
