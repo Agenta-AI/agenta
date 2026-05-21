@@ -10,6 +10,15 @@ import {
 
 import {ChatMessageEditor, ChatMessageList} from "@agenta/ui"
 import {
+    detectDataType,
+    getTextModeValue,
+    isChatMessageObject,
+    isMessagesArray,
+    parseMessages,
+    textModeToStorageValue,
+    type DataType,
+} from "@agenta/ui/drill-in"
+import {
     DrillInProvider,
     EditorProvider,
     markdownViewAtom,
@@ -20,16 +29,6 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
-
-import {
-    detectDataType,
-    getTextModeValue,
-    isChatMessageObject,
-    isMessagesArray,
-    parseMessages,
-    textModeToStorageValue,
-    type DataType,
-} from "@/oss/components/TestcasesTableNew/components/TestcaseEditDrawer/fieldUtils"
 
 import DrillInBreadcrumb from "./DrillInBreadcrumb"
 import {DrillInControls, type PropertyType} from "./DrillInControls"

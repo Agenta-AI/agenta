@@ -28,6 +28,7 @@ import type {
     PathItem,
     PropertyType,
     SchemaRendererComponent,
+    ViewMode,
 } from "../coreTypes"
 import {
     canToggleRawMode,
@@ -181,7 +182,7 @@ export function DrillInContent({
     )
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
     const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
-    const [viewModes, setViewModes] = useState<Record<string, string>>({})
+    const [viewModes, setViewModes] = useState<Record<string, ViewMode>>({})
     const lastCollapseSignalRef = useRef(collapseSignal)
     const lastViewModeResetSignalRef = useRef(viewModeResetSignal)
 
@@ -249,7 +250,7 @@ export function DrillInContent({
         setRawModeFields((prev) => ({...prev, [fieldKey]: !prev[fieldKey]}))
     }, [])
 
-    const setFieldViewMode = useCallback((fieldKey: string, mode: string) => {
+    const setFieldViewMode = useCallback((fieldKey: string, mode: ViewMode) => {
         setViewModes((prev) => ({...prev, [fieldKey]: mode}))
     }, [])
 

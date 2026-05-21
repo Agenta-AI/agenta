@@ -23,7 +23,7 @@ import {
     X,
 } from "@phosphor-icons/react"
 
-import type {FieldHeaderVariant} from "../coreTypes"
+import type {FieldHeaderVariant, FieldViewModeOption, ViewMode} from "../coreTypes"
 
 import {ViewModeDropdown} from "./ViewModeDropdown"
 
@@ -79,11 +79,11 @@ export interface DrillInFieldHeaderProps {
     /** Callback when markdown view is toggled */
     onToggleMarkdownView?: () => void
     /** Available content view modes for this field */
-    viewModeOptions?: {value: string; label: string}[]
+    viewModeOptions?: FieldViewModeOption[]
     /** Current content view mode */
-    viewMode?: string
+    viewMode?: ViewMode
     /** Callback when content view mode changes */
-    onViewModeChange?: (mode: string) => void
+    onViewModeChange?: (mode: ViewMode) => void
     /** Whether to show collapse toggle (default: true) */
     showCollapse?: boolean
     /** Show collapse toggle in the header (default: true) */

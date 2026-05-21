@@ -1,12 +1,8 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
 import {SimpleChatMessage} from "@agenta/playground"
+import {tryParseAsArray, tryParseAsObject} from "@agenta/shared/utils"
 import {ChatMessageList} from "@agenta/ui"
-import {EditorProvider} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
-
-import TestcaseFieldHeader from "../TestcaseFieldHeader"
-
 import {
     detectDataType,
     getArrayItemValue,
@@ -15,9 +11,12 @@ import {
     isChatMessageObject,
     isMessagesArray,
     textModeToStorageValue,
-    tryParseAsArray,
-    tryParseAsObject,
-} from "./fieldUtils"
+} from "@agenta/ui/drill-in"
+import {EditorProvider} from "@agenta/ui/editor"
+import {SharedEditor} from "@agenta/ui/shared-editor"
+
+import TestcaseFieldHeader from "../TestcaseFieldHeader"
+
 import NestedFieldEditor from "./NestedFieldEditor"
 
 // JSON Editor wrapper that manages local state to prevent breaking on invalid JSON

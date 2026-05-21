@@ -6,7 +6,6 @@ import {
     METRIC_PLACEHOLDER as METRIC_EMPTY_PLACEHOLDER,
 } from "@agenta/ui/cell-renderers"
 import {Skeleton, Typography} from "antd"
-import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
@@ -14,57 +13,16 @@ import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components
 
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
+import {
+    MetricValuePill,
+    isRunMetricColumn,
+    resolveRunMetricScalar,
+    stripGroupPrefix,
+} from "../../utils/runMetricHelpers"
 
 import type {EvalDrawerMetricSection} from "./model"
 
 const {Text} = Typography
-
-type RunMetricColumn = EvaluationTableColumn & {__source?: "runMetric"}
-
-const isRunMetricColumn = (column: EvaluationTableColumn): column is RunMetricColumn =>
-    (column as RunMetricColumn).__source === "runMetric"
-
-const resolveRunMetricScalar = (stats: unknown): unknown => {
-    if (!stats || typeof stats !== "object" || Array.isArray(stats)) {
-        return stats
-    }
-
-    const record = stats as Record<string, unknown>
-    const candidates = [
-        record.value,
-        record.total,
-        record.sum,
-        record.mean,
-        record.avg,
-        record.average,
-        record.median,
-        record.max,
-        record.min,
-    ]
-
-    return candidates.find((candidate) => candidate !== undefined && candidate !== null)
-}
-
-const stripGroupPrefix = (label: string, groupLabel?: string): string => {
-    if (!groupLabel || !label) return label
-
-    const normalizedGroup = groupLabel.toLowerCase().replace(/[-_\s]+/g, "")
-    const normalizedLabel = label.toLowerCase().replace(/[-_\s]+/g, "")
-    if (!normalizedLabel.startsWith(normalizedGroup)) return label
-
-    return label.slice(groupLabel.length).replace(/^[-_\s]+/, "") || label
-}
-
-const MetricValuePill = ({value, muted}: {value: ReactNode; muted?: boolean}) => (
-    <span
-        className={clsx(
-            "inline-flex w-fit rounded-md bg-[#F2F4F7] px-2 py-1 text-xs font-medium",
-            muted ? "text-[#98A2B3]" : "text-[#344054]",
-        )}
-    >
-        {value}
-    </span>
-)
 
 const MetricContent = ({
     runId,

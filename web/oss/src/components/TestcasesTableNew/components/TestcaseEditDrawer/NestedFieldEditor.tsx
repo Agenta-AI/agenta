@@ -1,7 +1,19 @@
 import {memo, useCallback, useState} from "react"
 
 import {SimpleChatMessage} from "@agenta/playground"
+import {tryParseAsArray, tryParseAsObject} from "@agenta/shared/utils"
 import {ChatMessageList} from "@agenta/ui"
+import {
+    MAX_NESTED_DEPTH,
+    canExpandAsArray,
+    detectDataType,
+    getArrayItemValue,
+    getNestedValue,
+    getTextModeValue,
+    isChatMessageObject,
+    isMessagesArray,
+    textModeToStorageValue,
+} from "@agenta/ui/drill-in"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight, Check, Copy, Plus, Trash} from "@phosphor-icons/react"
@@ -11,19 +23,6 @@ import clsx from "clsx"
 
 import TestcaseFieldHeader from "../TestcaseFieldHeader"
 
-import {
-    MAX_NESTED_DEPTH,
-    tryParseAsObject,
-    tryParseAsArray,
-    getNestedValue,
-    getArrayItemValue,
-    canExpandAsArray,
-    detectDataType,
-    getTextModeValue,
-    textModeToStorageValue,
-    isChatMessageObject,
-    isMessagesArray,
-} from "./fieldUtils"
 import {useTreeStyles} from "./useTreeStyles"
 
 /**

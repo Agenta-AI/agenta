@@ -8,6 +8,10 @@
 
 import type {ComponentType, ReactNode} from "react"
 
+import type {ViewMode} from "./utils/getViewOptions"
+
+export type {ViewMode} from "./utils/getViewOptions"
+
 // ============================================================================
 // DATA TYPES
 // ============================================================================
@@ -38,7 +42,7 @@ export type ValueMode = "string" | "native"
  * Field content view mode label/value pair for header dropdowns
  */
 export interface FieldViewModeOption {
-    value: string
+    value: ViewMode
     label: string
 }
 
@@ -113,7 +117,7 @@ export interface FieldRendererProps {
     /** Callback to lock field type */
     onLockType?: (type: DataType) => void
     /** Current selected field view mode, if enabled */
-    viewMode?: string
+    viewMode?: ViewMode
 }
 
 /**
@@ -214,9 +218,9 @@ export interface FieldHeaderProps {
     /** Available content view modes for this field */
     viewModeOptions?: FieldViewModeOption[]
     /** Current content view mode */
-    viewMode?: string
+    viewMode?: ViewMode
     /** Callback when content view mode changes */
-    onViewModeChange?: (mode: string) => void
+    onViewModeChange?: (mode: ViewMode) => void
     /** Show collapse toggle in the header (default: true) */
     showCollapseToggle?: boolean
     /** Show drill-in action button in the header (default: true) */
@@ -314,8 +318,8 @@ export interface DrillInContentProps {
         item: PathItem
         fieldKey: string
         fullPath: string[]
-        options: string[]
-    }) => string
+        options: ViewMode[]
+    }) => ViewMode
     /**
      * Optional callback to render a TypeChip for each field header.
      * Return undefined to skip the chip for a field.

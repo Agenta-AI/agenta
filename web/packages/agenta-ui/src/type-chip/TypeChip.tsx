@@ -1,5 +1,7 @@
 import type {CSSProperties} from "react"
 
+import {tryParseJson} from "@agenta/shared/utils"
+
 export type TypePrimitive = "string" | "number" | "boolean" | "null" | "json-object" | "json-array"
 
 export type RenderHint = "markdown" | "stringified" | "messages" | "tool-calls"
@@ -113,13 +115,9 @@ function inferVariant(value: unknown): TypePrimitive {
     if (typeof value === "string" && value.length >= 2) {
         const first = value[0]
         if (first === "{" || first === "[") {
-            try {
-                const parsed = JSON.parse(value)
-                if (Array.isArray(parsed)) return "json-array"
-                if (parsed !== null && typeof parsed === "object") return "json-object"
-            } catch {
-                // Not JSON — fall through to string.
-            }
+            const parsed = tryParseJson(value)
+            if (Array.isArray(parsed)) return "json-array"
+            if (parsed !== null && typeof parsed === "object") return "json-object"
         }
     }
     return "string"
