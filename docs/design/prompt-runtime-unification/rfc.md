@@ -37,13 +37,13 @@ The current system makes those answers difficult because runtime behavior and fr
 **Chat and completion** share the same prompt runtime.
 
 * Config lives under `parameters.prompt`: `messages`, `template_format`, `input_keys`, and `llm_config`.
-* Rendering goes through `PromptTemplate.format(**inputs)` in `api/sdk/agenta/sdk/types.py`, which supports `curly`, `fstring`, and `jinja2`.
+* Rendering goes through `PromptTemplate.format(**inputs)` in `sdks/python/agenta/sdk/utils/types.py`, which supports `curly`, `fstring`, `jinja2`, and the planned `mustache` addition.
 * Completion exposes top-level `inputs` keys as variables. Chat exposes the same keys except `messages`, which is appended as typed messages after rendering (not exposed as a template variable).
 
 **LLM-as-a-judge** is close in behavior but uses a separate runtime path.
 
 * Config is a flat evaluator shape: `prompt_template`, `model`, `response_type`, `json_schema`, `correct_answer_key`, `threshold`, `version`, optional `template_format`.
-* Renders messages through `_format_with_template` in `api/sdk/agenta/sdk/workflows/handlers.py`. It supports the same three formats as `PromptTemplate.format`; the default depends on evaluator `version` — `fstring` for v2, `curly` for v3+.
+* Renders through the evaluator runtime path in `sdks/python/agenta/sdk/engines/running/handlers.py`. Existing evaluator defaults still depend on `version` — `fstring` for v2, `curly` for v3+ — until new configs explicitly write `mustache`.
 * Render context combines the testcase row, app outputs, ground-truth aliases, trace, and evaluator parameters. See [Variable Matrix](<#variable-matrix>) for the full list with types and availability.
 
 +++
@@ -53,9 +53,7 @@ The current system makes those answers difficult because runtime behavior and fr
 All three services should share the same building blocks but currently don't:
 
 * **Provider/model resolution.** Chat and completion use workflow provider settings; the judge manually extracts a fixed provider-key set and therefore cannot reliably use custom or self-hosted models configured in the UI.
-* **Rendering.** Each service has different rendering behavior:
-  * `PromptTemplate.format` raises on Jinja errors; `_format_with_template` returns the original content with a warning.
-  * Chat and completion recursively render `llm_config.response_format`. The judge builds `response_format` from `response_type` / `json_schema` and does not render variables inside `json_schema`.
+* **Rendering.** The services now share more renderer infrastructure than before, but they still differ in configuration shape and runtime entrypoint. Chat and completion render from `parameters.prompt`, while the judge still uses its flat evaluator config and separate handler path.
 * **Config.** The judge does not allow configuring `temperature`. It currently sends a hard-coded `temperature=0.01`, which some models reject as an unsupported optional parameter.
 * **Output.** Completion, chat, and judge return different output shapes. Shared runtime code should stop before handler-specific output normalization.
 
@@ -90,7 +88,7 @@ The problematic part is execution payload construction:
 * The evaluator playground does the same.
 * Testcase editing already has utilities to detect object, array, string, boolean, number, null, and messages — but that type information is not consistently preserved through execution.
 
-The basic rule should be: **native JSON stays native until template rendering****.**
+The basic rule should be: **native JSON stays native until template rendering**.
 
 Transport should preserve type. Rendering should decide how a value becomes text. A JSON object should be sent as an object, not as a JSON-encoded string. If a user stores JSON text in a string field, it should remain a string.
 
@@ -107,7 +105,7 @@ Example.
 {"profile": {"name": "Ada"}}
 ```
 
-`profile` is a JSON object. The runtime can access `{{profile.name}}`, `{{profile.tags.0}}`, or `{{profile}}` (renders as compact JSON text).
+`profile` is a JSON object. The runtime can access `{{profile.name}}`, `{{$.profile.tags[0]}}`, or `{{profile}}` (renders as compact JSON text).
 
 ```json
 {"profile": "{\"name\":\"Ada\"}"}
@@ -141,7 +139,7 @@ Example.
 
 Three substitution formats plus one full templating engine:
 
-* `mustache` — `{{variable}}` substitution. The default for new apps. `{{a.b}}` always means nested access (`a` then property `b`). Mustache resolution handles explicit selector syntax first (`$...` as JSONPath, `/...` as JSON Pointer), then falls back to mustache variable/name handling. JSON objects and arrays render as compact JSON text when inserted as whole values into a string template. We use the name "mustache" for recognizability; we do not implement the full mustache spec (no sections or partials) — just variable substitution with our path enhancements.
+* `mustache` — Mustache rendering for new apps. The default for new apps. Tags that start with `{{$` are pre-rendered as JSONPath expressions against the render context, then the resulting template is rendered with a Mustache engine. Ordinary Mustache behavior handles plain tags such as `{{name}}`, dotted names such as `{{profile.name}}`, and standard Mustache sections. Partials are not supported in Agenta runtime and must fail clearly if present. JSON objects and arrays render as compact JSON text when inserted as whole values into a string template.
 * `curly` — `{{variable}}` substitution. Deprecated. Same delimiter syntax as `mustache`, but the resolver applies literal-key-first lookup: if a top-level key is literally named `foo.bar`, `{{foo.bar}}` returns that key's value before nested traversal is attempted. This is what keeps old apps that have variables with literal dots in their names working. Not surfaced in the playground for new apps; existing apps keep their declared format.
 * `fstring` — `{variable}` substitution. Supported for backward compatibility. Not recommended for nested JSON because of brace-escaping conflicts. Not extended. We should hide it from the playground.
 * `jinja2` — full sandboxed Jinja2. The format to pick when conditionals, loops, filters, or other logic are required.
@@ -158,9 +156,9 @@ Three substitution formats plus one full templating engine:
 
 +++ ### 5\. Align model and provider resolution
 
-* All services (chat, completion, chat) should resolve providers settings using the same path. As such:
-  * The should all support custom/self-hosted models configured in the UI
-* LLM-as-a-judge must not inject unsupported optional parameters such as `temperature` (the default should be None unless explicitly set (just like we currently do in chat/completion).
+* All services should resolve provider settings using the same path. As such:
+  * They should all support custom/self-hosted models configured in the UI.
+* LLM-as-a-judge must not inject unsupported optional parameters such as `temperature`. The default should be `None` unless explicitly set, matching current chat/completion behavior.
 * The existing judge flat config and output shape must remain compatible. We will achieve that by creating a new LLM-as-a-judge judge_v0 that supersedes the auto_ai_critique (and hide auto_ai_critique from the catalogues while keeping existing ones working)
 
 +++
@@ -173,7 +171,7 @@ Three substitution formats plus one full templating engine:
 * The variables panel (right side of the playground) shows:
   * variables discovered from the prompt
   * variables available from the current testcase or trace context, labeled with source and type
-* The prompt editor provides autocomplete for available variables. A degraded solution with only top-level autocomplete is definitely acceptable ; a full solution with full nested autocompletion is surely welcome..
+* The prompt editor provides autocomplete for available variables. A degraded solution with only top-level autocomplete is acceptable; a fuller nested autocomplete experience is a later enhancement.
 
 +++
 
@@ -196,24 +194,6 @@ The shipped documentation must include:
 
 What variables are exposed to prompt rendering, by service. Surface availability is described after the per-service lists.
 
-#### — JP's notes
-
-```bash
-Suggested:
-
-request
----
-revision
-testcase
-trace
----
-parameters <- revision.data.parameters
-inputs     <- testcase.data | trace.spans.{root}.ag.data.inputs
-outputs    <- trace.spans.{root}.ag.data.outputs
----
-{key}      <- inputs.get(outputs.get(key, None), None)
-```
-
 +++ ### Completion
 
 | Variable | Type | Source |
@@ -221,15 +201,6 @@ outputs    <- trace.spans.{root}.ag.data.outputs
 | top-level keys from `data.inputs` | any JSON | the request payload |
 
 No special variables. Whatever keys the caller puts into `inputs` become available to the prompt template, with their native types.
-
-#### — JP's notes
-
-```bash
-Currently:
-
-inputs <- testcase.data
-{key}  <- inputs.get(key, None)
-```
 
 +++
 
@@ -241,16 +212,6 @@ inputs <- testcase.data
 | `messages` | message list | the request payload, typed special field |
 
 `messages` is **not** a regular template variable. It is removed from the render context, then appended as chat history after the prompt template renders. The evaluation service preserves native message-list values; for legacy rows that store a JSON-encoded string, it parses the string into a list — that is the only place the system converts string-encoded messages to a list.
-
-#### — JP's notes
-
-```bash
-Currently:
-
-messages <- testcase.data.pop("messages", None)
-inputs   <- testcase.data
-{key}    <- inputs.get(key, None)
-```
 
 +++
 
@@ -272,22 +233,6 @@ Notes on the judge variables:
 * `ground_truth` / `correct_answer` / `reference` — `correct_answer_key` is still part of the evaluator parameters (default: `"correct_answer"`); the runtime reads it from `parameters` and resolves the value as `inputs[correct_answer_key]`. The aliases are populated only when that key resolves — in practice, offline evaluation where the testset includes the configured ground-truth column. Not typically populated in online evaluation, since traces don't carry ground-truth columns.
 * `trace` — A plain dict (the result of `trace.model_dump(mode="json")` on the trace passed in by the evaluation service). Prompt authors can dot-traverse it; the structure follows the trace schema (root span, spans, attributes including `ag.data.*` and `ag.meta.*`). Populated when the judge runs in a context that produced a trace — primarily online evaluation.
 * `parameters` — The evaluator's own configuration object. Useful when a prompt needs to reference its own settings (rare).
-
-#### — JP's notes
-
-```bash
-Currently:
-
-trace          <- trace
-parameters     <- parameters
-inputs         <- testcase.data | trace.spans.{root}.ag.data.inputs
-reference      <- inputs.get(parameters.get("correct_answer_key", None), None)
-ground_truth   <- inputs.get(parameters.get("correct_answer_key", None), None)
-correct_answer <- inputs.get(parameters.get("correct_answer_key", None), None)
-outputs        <- trace.spans.{root}.ag.data.outputs
-prediction     <- trace.spans.{root}.ag.data.outputs
-{key}          <- inputs.get(key, None)
-```
 
 +++
 
@@ -367,10 +312,9 @@ Builds on WP-B1.
 
 Builds on WP-B1.
 
-* Add `mustache` as a new template-format option in the runtime. Semantics: `{{variable}}` substitution; `{{a.b}}` is nested access only (no literal-key-first); JSONPath and JSON Pointer supported.
+* Add `mustache` as a new template-format option in the runtime. Semantics: tags that start with `{{$` are pre-rendered as JSONPath expressions; all other tags render through a Mustache engine. Partials are unsupported and fail clearly.
 * `mustache` becomes the default rendering format for newly created apps / prompt configs. Existing apps continue to use the format they declared.
 * `mustache` is added anywhere prompt rendering is configured: completion/chat prompts and LLM-as-a-judge evaluator prompts.
-* Mustache resolution handles explicit selector syntax first, then normal mustache variable/name handling.
 
 +++
 
@@ -393,7 +337,7 @@ The same UX pattern lives in playground inputs, the testset editor, observabilit
 Depends on WP-B3 (`mustache` available) and WP-F1 (type switching available).
 
 * Send testcase data as native JSON when the stored type is JSON. No `JSON.stringify` in request construction.
-* In `mustache` mode, `{{a.b}}` is treated as a single variable `a` (object) with `.b` as a property accessor. The playground's variable discovery creates one variable `a` of type object that the user fills with JSON.
+* In `mustache` mode, `{{$.a.b}}` is the explicit JSONPath escape hatch. Plain Mustache tags such as `{{a}}` or `{{profile.name}}` follow ordinary Mustache rendering behavior. The playground's variable discovery for nested JSON is still a frontend concern.
 * The frontend honors the WP-B3 `mustache` default and hides `curly` from the format list unless the current old app already has `curly` selected. Existing apps still on `curly` continue to work — the literal-key-first behavior is preserved for them.
 
 +++
@@ -413,10 +357,10 @@ A nicety on top of WP-F2.
 
 +++ #### WP-D1 — Documentation and SDK examples
 
-* Publish prompt templating docs covering `mustache` (default for new apps), `curly` (legacy compat), `fstring`, and `jinja2`. Spell out the dot-semantics distinction between `mustache` and `curly`.
+* Publish prompt templating docs covering `mustache` (default for new apps), `curly` (legacy compat), `fstring`, and `jinja2`. Spell out the JSONPath pre-render rule for `mustache` and the literal-key-first distinction of `curly`.
 * Publish the variable matrix by service and interface.
 * Add SDK / local examples for completion, chat, and LLM-as-a-judge.
-* Document escaping rules, JSON vs. stringified JSON, JSONPath, and JSON Pointer.
+* Document escaping rules, JSON vs. stringified JSON, and JSONPath. Document JSON Pointer only for legacy `curly` semantics if it remains supported there.
 
 Reference template examples:
 
@@ -424,8 +368,7 @@ Reference template examples:
 Hello {{name}}
 Profile JSON: {{profile}}
 Profile name: {{profile.name}}
-First tag: {{profile.tags.0}}
-JSON Pointer: {{/profile/name}}
+First tag: {{$.profile.tags[0]}}
 JSONPath: {{$.profile.name}}
 ```
 
@@ -467,8 +410,9 @@ The work packages have a natural order:
 
 ### Backend runtime
 
-* The low-level rendering helper resolves top-level, nested, JSONPath, and JSON Pointer references in `mustache` and `curly` modes.
-* `curly` preserves literal-key-first behavior on dotted keys; `mustache` does not (treats them as nested).
+* The low-level rendering helper keeps current `curly` behavior and adds `mustache` support.
+* In `mustache` mode, only tags that start with `{{$` are pre-rendered through JSONPath; other tags render through the Mustache engine.
+* `curly` preserves literal-key-first behavior on dotted keys.
 * Whole-object insertion renders as compact JSON text in both modes.
 * `fstring` and `jinja2` behavior is preserved.
 * Stringified JSON inputs are treated as strings (no auto-parse).
@@ -498,7 +442,7 @@ The work packages have a natural order:
 
 ### Documentation
 
-* Examples cover string, JSON object, array, nested access, JSONPath, JSON Pointer, messages, and brace escaping in each format.
+* Examples cover string, JSON object, array, JSONPath, Mustache dotted names, messages, and brace escaping in each format.
 * Variable matrix covers completion, chat, judge, and the four interfaces (Direct API/SDK, evaluator playground, evaluation service offline, evaluation service online).
 
 +++

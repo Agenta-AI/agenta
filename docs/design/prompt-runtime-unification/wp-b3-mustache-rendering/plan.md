@@ -2,40 +2,40 @@
 
 Use one feature branch and one PR for WP-B3. The runtime change is narrow enough to review atomically, but the PR should be strict about compatibility tests because `curly` and `mustache` share delimiter syntax.
 
-## Phase 1: Resolver Semantics
+## Phase 1: Library Adoption
 
-Add nested-only dot resolution beside the existing literal-key-first resolver.
-
-Milestone: direct tests prove:
-
-- `mustache` resolution checks JSONPath / JSON Pointer selector prefixes before normal mustache variable handling.
-- `curly` still resolves a literal key named `a.b` before nested traversal.
-- `mustache` resolves `{{a.b}}` through nested traversal only.
-- missing keys, empty placeholders, scalar traversal, and list indexes keep the same error style.
-
-## Phase 2: Library Spike
-
-Evaluate `langchain_core.utils.mustache` before writing the renderer.
+Adopt `mystace` as the Mustache engine.
 
 Check:
 
 - dependency and lockfile impact
 - import cost in SDK startup paths
-- tokenizer output for variables, sections, inverted sections, partials, comments, delimiter changes, and no-escape tags
-- full renderer behavior for missing keys, dotted keys, html escaping, partials, lambdas, and keep/warn options
+- behavior for dotted names, sections, inverted sections, comments, delimiter changes, and unescaped variables
+- behavior when a partial tag is present and no partial registry is supplied
 
-Milestone: decide between tokenizer-first LangChain Core adoption and a local tokenizer fallback.
+Milestone: lock `mystace` as the renderer and document partial failure behavior.
+
+## Phase 2: JSONPath Pre-Rendering
+
+Add a pre-render pass that only intercepts tags starting with `{{$`.
+
+Milestone: direct tests prove:
+
+- `{{$.…}}` tags are resolved as JSONPath
+- non-JSONPath tags are left for Mustache rendering
+- `curly` still resolves with the existing literal-key-first behavior
 
 ## Phase 3: Low-Level Mustache Renderer
 
 Extend `TemplateMode` and `render_template(...)` with `mustache`.
 
-Add delimiter escaping:
+Have `_render_mustache(...)` run:
 
-- `\{{` -> literal `{{`
-- `\}}` -> literal `}}`
+1. JSONPath pre-rendering
+2. partial detection / partial failure
+3. `mystace` render
 
-Milestone: `test_render_template_helper.py` covers `mustache` top-level values, nested values, arrays, JSONPath, JSON Pointer, whole-object insertion, unicode, no recursive rendering, unresolved variables, unsupported constructs, and escaped delimiters.
+Milestone: `test_render_template_helper.py` covers JSONPath tags, Mustache variables, sections, dotted names, whole-object insertion, unicode, no recursive rendering, and clear partial failures.
 
 ## Phase 4: Runtime Adoption
 

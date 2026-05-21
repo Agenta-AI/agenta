@@ -20,29 +20,24 @@ The current checkout already has:
 - 2026-05-21: Created the WP-B3 design workspace.
 - 2026-05-21: Reviewed the merged WP-B1 and WP-B2 PR summaries.
 - 2026-05-21: Mapped current renderer, resolver, handler, schema, and frontend touchpoints in this checkout.
-- 2026-05-21: Evaluated `noahmorrison/chevron` and decided not to use it directly because it is too old.
-- 2026-05-21: Added `langchain_core.utils.mustache` as the preferred library candidate, with tokenizer-first adoption recommended over blindly using the full renderer.
-- 2026-05-21: Added product context: `mustache` is the precursor to nesting handling, applies to prompts and LLM-as-a-judge, and should be the default for newly created apps.
+- 2026-05-21: Evaluated Mustache library options and selected `mystace` as the primary candidate.
+- 2026-05-21: Clarified the contract: JSONPath pre-rendering only for tags that start with `{{$`, then normal Mustache rendering via `mystace`.
+- 2026-05-21: Explicitly excluded partials and defined the expected behavior as a clear formatting error.
 - 2026-05-21: Drafted RFC, implementation plan, QA plan, and status tracking for `mustache`.
 
 ## Decisions
 
-- `mustache` is Agenta's variable-substitution mode, not full Mustache.
-- `mustache` is the backend prerequisite for cleaner nesting behavior.
+- `mustache` uses `mystace` for normal Mustache rendering.
 - `mustache` must be accepted for normal prompts and LLM-as-a-judge evaluator prompts.
-- Newly created apps / prompt configs should explicitly default to `mustache`.
-- Do not use `chevron` as the core runtime implementation.
-- Prefer evaluating `langchain_core.utils.mustache.tokenize(...)` for parsing tags.
-- Use LangChain Core's full `render(...)` only if it satisfies Agenta's resolver, error, and escaping contracts without brittle adaptation.
-- Keep `curly` literal-key-first behavior unchanged for existing apps.
-- Frontend should hide `curly` from new-app format selection and show it only when an old app already selected it.
-- Add a separate nested-only dot resolver for `mustache`.
-- Resolve JSONPath / JSON Pointer selector prefixes before normal mustache variable handling.
-- Keep JSONPath and JSON Pointer support in `mustache`.
-- Add explicit delimiter escaping in `mustache` with backslash escapes.
-- Do not retrofit delimiter escaping into `curly` as part of WP-B3.
-- Do not silently migrate existing judge revisions to `mustache`.
-- Keep legacy missing-format fallbacks separate from new-app defaults.
+- newly created apps / prompt configs should explicitly default to `mustache`.
+- keep `curly` literal-key-first behavior unchanged for existing apps.
+- frontend should hide `curly` from new-app format selection and show it only when an old app already selected it.
+- only tags that start with `{{$` are pre-rendered through JSONPath.
+- no JSON Pointer support is added to `mustache`.
+- Mustache dotted names and sections follow `mystace` behavior.
+- partials are unsupported and must fail clearly.
+- do not silently migrate existing judge revisions to `mustache`.
+- keep legacy missing-format fallbacks separate from new-app defaults.
 
 ## Blockers
 
@@ -50,18 +45,16 @@ None.
 
 ## Open Questions
 
-- Is adding `langchain-core` acceptable for the SDK after checking transitive dependencies, import cost, package size, and lockfile impact?
-- Should unsupported Mustache constructs such as sections and partials raise explicit errors, or pass through as literal text when they do not match Agenta's variable placeholder grammar?
-- Should `{{.}}` render the current context root in `mustache`, or should root access remain JSONPath-only via `{{$}}`? Current recommendation: use `{{$}}` and keep `{{.}}` invalid.
+- Does `mystace` surface partial-tag failures cleanly enough on its own, or should WP-B3 pre-detect `{{>...}}` tags and raise a custom formatting error before render?
 - Should minimal frontend type widening ship in WP-B3, or should all frontend acceptance be deferred to WP-F2? Current recommendation: widen only preservation paths that would otherwise corrupt backend configs.
 
 ## Next Steps
 
-1. Implement nested-only resolver helpers.
-2. Implement `_render_mustache(...)` and widen `TemplateMode`.
+1. Implement JSONPath pre-rendering for `{{$.…}}` tags.
+2. Implement `_render_mustache(...)` on top of `mystace` and widen `TemplateMode`.
 3. Widen backend config schemas and handler validation.
 4. Locate new app / prompt creation defaults and set them to `mustache` where safe.
-5. Add focused unit tests.
+5. Add focused unit tests, including partial failure cases.
 6. Run SDK formatting, lint, and focused tests.
 
 ## Expected Validation
@@ -69,8 +62,8 @@ None.
 Run from `sdks/python`:
 
 ```bash
-uv run ruff format agenta/sdk/utils/templating.py agenta/sdk/utils/resolvers.py agenta/sdk/utils/rendering.py agenta/sdk/utils/types.py agenta/sdk/engines/running/handlers.py agenta/sdk/engines/running/interfaces.py oss/tests/pytest/unit/test_render_template_helper.py oss/tests/pytest/unit/test_structured_rendering.py oss/tests/pytest/unit/test_prompt_template_extensions.py oss/tests/pytest/unit/test_auto_ai_critique_v0_runtime.py
-uv run ruff check --fix agenta/sdk/utils/templating.py agenta/sdk/utils/resolvers.py agenta/sdk/utils/rendering.py agenta/sdk/utils/types.py agenta/sdk/engines/running/handlers.py agenta/sdk/engines/running/interfaces.py oss/tests/pytest/unit/test_render_template_helper.py oss/tests/pytest/unit/test_structured_rendering.py oss/tests/pytest/unit/test_prompt_template_extensions.py oss/tests/pytest/unit/test_auto_ai_critique_v0_runtime.py
+uv run ruff format agenta/sdk/utils/templating.py agenta/sdk/utils/rendering.py agenta/sdk/utils/types.py agenta/sdk/engines/running/handlers.py agenta/sdk/engines/running/interfaces.py oss/tests/pytest/unit/test_render_template_helper.py oss/tests/pytest/unit/test_structured_rendering.py oss/tests/pytest/unit/test_prompt_template_extensions.py oss/tests/pytest/unit/test_auto_ai_critique_v0_runtime.py
+uv run ruff check --fix agenta/sdk/utils/templating.py agenta/sdk/utils/rendering.py agenta/sdk/utils/types.py agenta/sdk/engines/running/handlers.py agenta/sdk/engines/running/interfaces.py oss/tests/pytest/unit/test_render_template_helper.py oss/tests/pytest/unit/test_structured_rendering.py oss/tests/pytest/unit/test_prompt_template_extensions.py oss/tests/pytest/unit/test_auto_ai_critique_v0_runtime.py
 uv run pytest oss/tests/pytest/unit/test_render_template_helper.py oss/tests/pytest/unit/test_structured_rendering.py oss/tests/pytest/unit/test_prompt_template_extensions.py oss/tests/pytest/unit/test_auto_ai_critique_v0_runtime.py -q
 ```
 
