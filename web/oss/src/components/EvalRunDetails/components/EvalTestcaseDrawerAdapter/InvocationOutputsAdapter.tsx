@@ -11,6 +11,25 @@ import type {EvalDrawerOutputSection} from "./model"
 
 const {Text} = Typography
 
+interface OutputErrorBlockProps {
+    label: string
+    message: string
+    stacktrace?: string
+}
+
+interface OutputColumnValueProps {
+    runId: string
+    scenarioId: string
+    column: EvaluationTableColumn
+}
+
+interface InvocationOutputsAdapterProps {
+    runId: string
+    scenarioId: string
+    sections: EvalDrawerOutputSection[]
+    renderHeaderSlot?: (section: EvalDrawerOutputSection) => ReactNode
+}
+
 const toEditorColumn = (column: EvaluationTableColumn): TestcaseDataEditorColumn => {
     const key = column.valueKey || column.path || column.id
     const label = column.displayLabel ?? column.label ?? key
@@ -23,15 +42,7 @@ const toEditorColumn = (column: EvaluationTableColumn): TestcaseDataEditorColumn
     }
 }
 
-const OutputErrorBlock = ({
-    label,
-    message,
-    stacktrace,
-}: {
-    label: string
-    message: string
-    stacktrace?: string
-}) => (
+const OutputErrorBlock = ({label, message, stacktrace}: OutputErrorBlockProps) => (
     <div className="flex flex-col gap-1 rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
         <Text className="text-xs font-medium text-red-600">{label}</Text>
         <span className="whitespace-pre-wrap break-words">{message}</span>
@@ -43,58 +54,48 @@ const OutputErrorBlock = ({
     </div>
 )
 
-const OutputColumnValue = memo(
-    ({
+const OutputColumnValue = memo(({runId, scenarioId, column}: OutputColumnValueProps) => {
+    const {selection, showSkeleton} = useScenarioCellValue({
         runId,
         scenarioId,
         column,
-    }: {
-        runId: string
-        scenarioId: string
-        column: EvaluationTableColumn
-    }) => {
-        const {selection, showSkeleton} = useScenarioCellValue({
-            runId,
-            scenarioId,
-            column,
-            disableVisibilityTracking: true,
-        })
-        const editorColumn = useMemo(() => toEditorColumn(column), [column])
-        const label = editorColumn.label ?? editorColumn.name ?? editorColumn.key
+        disableVisibilityTracking: true,
+    })
+    const editorColumn = useMemo(() => toEditorColumn(column), [column])
+    const label = editorColumn.label ?? editorColumn.name ?? editorColumn.key
 
-        if (selection.stepError) {
-            return (
-                <OutputErrorBlock
-                    label={label}
-                    message={selection.stepError.message}
-                    stacktrace={selection.stepError.stacktrace}
-                />
-            )
-        }
-
-        if (showSkeleton) {
-            return (
-                <div className="px-4 py-3">
-                    <Skeleton active paragraph={{rows: 1}} title={false} />
-                </div>
-            )
-        }
-
+    if (selection.stepError) {
         return (
-            <TestcaseDataEditor
-                value={{[editorColumn.key]: selection.displayValue ?? selection.value ?? ""}}
-                columns={[editorColumn]}
-                mode="view"
-                surface="drawer"
-                features={{
-                    typeChips: true,
-                    rootViewMode: false,
-                    columnMapping: false,
-                }}
+            <OutputErrorBlock
+                label={label}
+                message={selection.stepError.message}
+                stacktrace={selection.stepError.stacktrace}
             />
         )
-    },
-)
+    }
+
+    if (showSkeleton) {
+        return (
+            <div className="px-4 py-3">
+                <Skeleton active paragraph={{rows: 1}} title={false} />
+            </div>
+        )
+    }
+
+    return (
+        <TestcaseDataEditor
+            value={{[editorColumn.key]: selection.displayValue ?? selection.value ?? ""}}
+            columns={[editorColumn]}
+            mode="view"
+            surface="drawer"
+            features={{
+                typeChips: true,
+                rootViewMode: false,
+                columnMapping: false,
+            }}
+        />
+    )
+})
 
 OutputColumnValue.displayName = "OutputColumnValue"
 
@@ -103,12 +104,7 @@ const InvocationOutputsAdapter = ({
     scenarioId,
     sections,
     renderHeaderSlot,
-}: {
-    runId: string
-    scenarioId: string
-    sections: EvalDrawerOutputSection[]
-    renderHeaderSlot?: (section: EvalDrawerOutputSection) => ReactNode
-}) => {
+}: InvocationOutputsAdapterProps) => {
     if (!sections.length) return null
 
     return (

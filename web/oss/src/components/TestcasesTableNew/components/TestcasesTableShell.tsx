@@ -46,35 +46,7 @@ function GroupToggleButton({
                 onToggle()
             }}
             aria-label={isCollapsed ? `Expand ${groupPath} group` : `Collapse ${groupPath} group`}
-            style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 20,
-                height: 20,
-                padding: 0,
-                borderRadius: 4,
-                border: "1px solid rgba(5, 23, 41, 0.18)",
-                background: "#f5f5f5",
-                color: "#051729",
-                fontSize: 14,
-                fontWeight: 700,
-                lineHeight: 1,
-                cursor: "pointer",
-                userSelect: "none",
-                flexShrink: 0,
-                transition: "background 0.12s ease, border-color 0.12s ease, color 0.12s ease",
-            }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#e6f4ff"
-                e.currentTarget.style.borderColor = "#1677ff"
-                e.currentTarget.style.color = "#1677ff"
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#f5f5f5"
-                e.currentTarget.style.borderColor = "rgba(5, 23, 41, 0.18)"
-                e.currentTarget.style.color = "#051729"
-            }}
+            className="inline-flex h-5 w-5 shrink-0 select-none items-center justify-center rounded border border-[rgba(5,23,41,0.18)] bg-[#f5f5f5] p-0 text-[14px] font-bold leading-none text-[#051729] transition-colors hover:border-[#1677ff] hover:bg-[#e6f4ff] hover:text-[#1677ff]"
         >
             {isCollapsed ? "+" : "−"}
         </button>
@@ -221,15 +193,10 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
     const typeChipFeature = useTypeChipFeature(tableTypeChipsConfig)
     const showTypeChips = typeChipFeature.enabled
 
-    const settingsMenuItems = useMemo<MenuProps["items"]>(() => {
-        const chipItems = typeChipFeature.menuItems ?? []
-        const rowHeightItems = rowHeight.menuItems ?? []
-
-        if (!chipItems.length) return rowHeightItems
-        if (!rowHeightItems.length) return chipItems
-
-        return [...chipItems, {type: "divider" as const}, ...rowHeightItems]
-    }, [rowHeight.menuItems, typeChipFeature.menuItems])
+    const settingsMenuItems = useMemo<MenuProps["items"]>(
+        () => rowHeight.menuItems,
+        [rowHeight.menuItems],
+    )
 
     // Row selection configuration with dirty indicator
     const rowSelection = useMemo(

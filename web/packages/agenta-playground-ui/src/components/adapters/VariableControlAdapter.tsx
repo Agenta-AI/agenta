@@ -397,8 +397,8 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     const portSchema = schemaMap[variableKey]?.schema
     const helpText = schemaMap[variableKey]?.helpText
 
-    const [viewMode, setViewMode] = useState<ViewMode>("text")
     const isStructuredPort = declaredPortType === "object" || declaredPortType === "array"
+    const [viewMode, setViewMode] = useState<ViewMode>("text")
     const supportsViewMode =
         declaredPortType === "string" ||
         declaredPortType === "object" ||

@@ -88,17 +88,18 @@ export const DrillInRootToolbar = memo(function DrillInRootToolbar({
     const [copied, setCopied] = useState(false)
     const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    const handleCopy = useCallback(() => {
-        void Promise.resolve(onCopy?.()).then(() => {
+    const handleCopy = useCallback(async () => {
+        try {
+            await onCopy?.()
             setCopied(true)
-            if (copiedTimerRef.current) {
-                clearTimeout(copiedTimerRef.current)
-            }
+            if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
             copiedTimerRef.current = setTimeout(() => {
                 setCopied(false)
                 copiedTimerRef.current = null
             }, 2000)
-        })
+        } catch {
+            setCopied(false)
+        }
     }, [onCopy])
 
     return (

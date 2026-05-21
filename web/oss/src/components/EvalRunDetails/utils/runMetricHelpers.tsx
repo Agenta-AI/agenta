@@ -1,10 +1,12 @@
 import type {ReactNode} from "react"
 
-import clsx from "clsx"
+import {bgColors, cn, textColors} from "@agenta/ui"
 
 import type {EvaluationTableColumn} from "../atoms/table"
 
-export type RunMetricColumn = EvaluationTableColumn & {__source?: "runMetric"}
+export interface RunMetricColumn extends EvaluationTableColumn {
+    __source?: "runMetric"
+}
 
 export const isRunMetricColumn = (
     column: EvaluationTableColumn,
@@ -90,9 +92,10 @@ export const stripGroupPrefix = (label: string, groupLabel?: string): string => 
 
 export const MetricValuePill = ({value, muted}: {value: ReactNode; muted?: boolean}) => (
     <span
-        className={clsx(
-            "inline-flex w-fit rounded-md bg-[#F2F4F7] px-2 py-1 text-xs font-medium",
-            muted ? "text-[#98A2B3]" : "text-[#344054]",
+        className={cn(
+            "inline-flex w-fit rounded-md px-2 py-1 text-xs font-medium",
+            bgColors.chip,
+            muted ? textColors.quaternary : textColors.secondary,
         )}
     >
         {value}

@@ -406,14 +406,14 @@ export function DrillInContent({
     }, [currentLevelItems, isAtInitialPathLevel, excludeKeys])
 
     useEffect(() => {
-        if (!collapseSignal) return
+        if (collapseSignal == null) return
         if (lastCollapseSignalRef.current === collapseSignal) return
         lastCollapseSignalRef.current = collapseSignal
         setCollapsedFields((prev) => {
             const allCollapsed = filteredLevelItems.every(
                 (item) => prev[`${currentPath.join(".")}.${item.key}`],
             )
-            const next: Record<string, boolean> = {}
+            const next = {...prev}
             for (const item of filteredLevelItems) {
                 next[`${currentPath.join(".")}.${item.key}`] = !allCollapsed
             }

@@ -369,20 +369,8 @@ const PlaygroundOutputs = ({rowId, primaryEntityId}: PlaygroundOutputsProps) => 
         <div className="flex flex-col gap-3">
             {/* Header styling mirrors DrillInRootToolbar so the Testcase Data and
                 Outputs sections read as a matched pair. */}
-            <div
-                className="select-none"
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "6px 16px",
-                    borderBottom: "1px solid rgba(5,23,41,0.06)",
-                    background: "#fafafa",
-                    gap: 8,
-                    minHeight: 36,
-                }}
-            >
-                <span style={{fontSize: 13, fontWeight: 600, color: "#051729"}}>Outputs</span>
+            <div className="flex min-h-9 select-none items-center justify-between gap-2 border-b border-[rgba(5,23,41,0.06)] bg-[#fafafa] px-4 py-1.5">
+                <span className="text-[13px] font-semibold text-[#051729]">Outputs</span>
             </div>
             <div className="px-4 pb-3">
                 {isComparisonView ? (

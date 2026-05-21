@@ -24,6 +24,37 @@ import type {EvalDrawerMetricSection} from "./model"
 
 const {Text} = Typography
 
+interface MetricContentProps {
+    runId: string
+    column: EvaluationTableColumn
+    label: string
+    value: unknown
+    displayValue?: unknown
+    highlightValue?: unknown
+    fallbackValue?: unknown
+    showSkeleton: boolean
+}
+
+interface RunMetricColumnValueProps {
+    runId: string
+    scenarioId: string
+    column: EvaluationTableColumn
+    label: string
+}
+
+interface MetricColumnValueProps {
+    runId: string
+    scenarioId: string
+    column: EvaluationTableColumn
+    groupLabel: string
+}
+
+interface EvaluatorMetricsAdapterProps {
+    runId: string
+    scenarioId: string
+    sections: EvalDrawerMetricSection[]
+}
+
 const MetricContent = ({
     runId,
     column,
@@ -33,16 +64,7 @@ const MetricContent = ({
     highlightValue,
     fallbackValue,
     showSkeleton,
-}: {
-    runId: string
-    column: EvaluationTableColumn
-    label: string
-    value: unknown
-    displayValue?: unknown
-    highlightValue?: unknown
-    fallbackValue?: unknown
-    showSkeleton: boolean
-}) => {
+}: MetricContentProps) => {
     const metricKey = column.metricKey ?? column.valueKey ?? column.path
     const rawFormattedValue =
         displayValue ??
@@ -77,17 +99,7 @@ const MetricContent = ({
 }
 
 const RunMetricColumnValue = memo(
-    ({
-        runId,
-        scenarioId,
-        column,
-        label,
-    }: {
-        runId: string
-        scenarioId: string
-        column: EvaluationTableColumn
-        label: string
-    }) => {
+    ({runId, scenarioId, column, label}: RunMetricColumnValueProps) => {
         const {selection, showSkeleton} = useScenarioCellValue({
             runId,
             scenarioId,
@@ -137,17 +149,7 @@ const RunMetricColumnValue = memo(
 RunMetricColumnValue.displayName = "RunMetricColumnValue"
 
 const MetricColumnValue = memo(
-    ({
-        runId,
-        scenarioId,
-        column,
-        groupLabel,
-    }: {
-        runId: string
-        scenarioId: string
-        column: EvaluationTableColumn
-        groupLabel: string
-    }) => {
+    ({runId, scenarioId, column, groupLabel}: MetricColumnValueProps) => {
         const {selection, showSkeleton} = useScenarioCellValue({
             runId,
             scenarioId,
@@ -203,15 +205,7 @@ const MetricColumnValue = memo(
 
 MetricColumnValue.displayName = "MetricColumnValue"
 
-const EvaluatorMetricsAdapter = ({
-    runId,
-    scenarioId,
-    sections,
-}: {
-    runId: string
-    scenarioId: string
-    sections: EvalDrawerMetricSection[]
-}) => {
+const EvaluatorMetricsAdapter = ({runId, scenarioId, sections}: EvaluatorMetricsAdapterProps) => {
     if (!sections.length) return null
 
     return (

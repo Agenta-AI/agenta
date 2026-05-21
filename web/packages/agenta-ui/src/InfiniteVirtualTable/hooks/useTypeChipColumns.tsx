@@ -31,17 +31,9 @@ function collectLeafKeys<R>(columns: ColumnsType<R>): string[] {
 
 function wrapTitleWithChip(original: ReactNode, chip: ReactNode): ReactNode {
     return (
-        <div
-            style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                width: "100%",
-                overflow: "hidden",
-            }}
-        >
-            <div style={{flex: 1, minWidth: 0, overflow: "hidden"}}>{original}</div>
-            <div style={{flexShrink: 0}}>{chip}</div>
+        <div className="flex w-full items-center gap-1 overflow-hidden">
+            <div className="min-w-0 flex-1 overflow-hidden">{original}</div>
+            <div className="shrink-0">{chip}</div>
         </div>
     )
 }
