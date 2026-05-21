@@ -50,6 +50,10 @@ from oss.src.core.evaluations.types import (
     EvaluationQueueData,
     EvaluationQueueEdit,
     EvaluationQueueQuery,
+    # DEFAULT QUEUE EXCEPTIONS
+    DefaultQueueDataInvalid,
+    DefaultQueueDemotionForbidden,
+    DefaultQueueDeletionForbidden,
 )
 from oss.src.core.evaluations.types import (
     Target,
@@ -1790,9 +1794,7 @@ class EvaluationsService:
                 data.batch_offset,
             )
         ):
-            raise ValueError(
-                "default queues cannot filter scenarios, steps, assignments, or batches"
-            )
+            raise DefaultQueueDataInvalid()
 
     async def create_queue(
         self,
@@ -1883,7 +1885,7 @@ class EvaluationsService:
         existing = await self.fetch_queue(project_id=project_id, queue_id=queue.id)
         if existing and existing.flags and existing.flags.is_default:
             if queue.flags and not queue.flags.is_default:
-                raise ValueError("default queues cannot be demoted")
+                raise DefaultQueueDemotionForbidden(queue_id=queue.id)
             effective_flags = existing.flags
         else:
             effective_flags = queue.flags or (existing.flags if existing else None)
@@ -1924,7 +1926,7 @@ class EvaluationsService:
             existing = existing_by_id.get(queue.id)
             if existing and existing.flags and existing.flags.is_default:
                 if queue.flags and not queue.flags.is_default:
-                    raise ValueError("default queues cannot be demoted")
+                    raise DefaultQueueDemotionForbidden(queue_id=queue.id)
                 effective_flags = existing.flags
             else:
                 effective_flags = queue.flags or (existing.flags if existing else None)
@@ -2029,7 +2031,7 @@ class EvaluationsService:
     ) -> Optional[UUID]:
         existing = await self.fetch_queue(project_id=project_id, queue_id=queue_id)
         if existing and existing.flags and existing.flags.is_default:
-            raise ValueError("default queues must be archived, not hard deleted")
+            raise DefaultQueueDeletionForbidden(queue_id=queue_id)
         return await self.evaluations_dao.delete_queue(
             project_id=project_id,
             #
@@ -2048,7 +2050,7 @@ class EvaluationsService:
             queue_ids=queue_ids,
         )
         if any(queue.flags and queue.flags.is_default for queue in existing_queues):
-            raise ValueError("default queues must be archived, not hard deleted")
+            raise DefaultQueueDeletionForbidden()
         return await self.evaluations_dao.delete_queues(
             project_id=project_id,
             #

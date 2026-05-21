@@ -75,6 +75,56 @@ class EvaluationClosedConflict(Exception):
         return _message
 
 
+class DefaultQueueError(Exception):
+    """Base exception for default-queue policy violations."""
+
+    def __init__(self, message: str, queue_id: Optional[UUID] = None):
+        super().__init__(message)
+        self.message = message
+        self.queue_id = queue_id
+
+    def __str__(self):
+        _message = self.message
+        if self.queue_id:
+            _message += f" queue_id={self.queue_id}"
+        return _message
+
+
+class DefaultQueueDataInvalid(DefaultQueueError):
+    """Raised when a default queue carries scenario/step/assignment/batch filters."""
+
+    def __init__(
+        self,
+        message: str = (
+            "default queues cannot filter scenarios, steps, assignments, or batches"
+        ),
+        queue_id: Optional[UUID] = None,
+    ):
+        super().__init__(message, queue_id=queue_id)
+
+
+class DefaultQueueDemotionForbidden(DefaultQueueError):
+    """Raised when an edit attempts to demote a default queue."""
+
+    def __init__(
+        self,
+        message: str = "default queues cannot be demoted",
+        queue_id: Optional[UUID] = None,
+    ):
+        super().__init__(message, queue_id=queue_id)
+
+
+class DefaultQueueDeletionForbidden(DefaultQueueError):
+    """Raised when a hard delete targets a default queue (must be archived instead)."""
+
+    def __init__(
+        self,
+        message: str = "default queues must be archived, not hard deleted",
+        queue_id: Optional[UUID] = None,
+    ):
+        super().__init__(message, queue_id=queue_id)
+
+
 # - EVALUATION RUN -------------------------------------------------------------
 
 

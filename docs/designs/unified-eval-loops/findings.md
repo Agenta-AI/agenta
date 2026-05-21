@@ -206,7 +206,7 @@ Sources:
   - `api/oss/src/core/evaluations/types.py`
 - Cause: Policy validators were added inline as the simplest possible guards.
 - Suggested Fix:
-  - Introduce `class DefaultQueueError(Exception)` base and concrete subclasses (`DefaultQueueDataInvalid`, `DefaultQueueDemotionForbidden`, `DefaultQueueHardDeleteForbidden`) in `types.py`.
+  - Introduce `class DefaultQueueError(Exception)` base and concrete subclasses (`DefaultQueueDataInvalid`, `DefaultQueueDemotionForbidden`, `DefaultQueueDeletionForbidden`) in `types.py`.
   - Replace `raise ValueError(...)` with these types and convert them in the router (or via a decorator) to typed HTTP errors.
   - Add a regression test asserting the HTTP status code and detail message.
 - Alternatives:

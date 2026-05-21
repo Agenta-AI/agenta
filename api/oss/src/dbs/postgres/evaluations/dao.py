@@ -2667,17 +2667,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if queue_dbe is None:
                 return None
 
-            run_flags = await _get_run_flags(
-                session=session,
-                project_id=project_id,
-                run_id=queue_dbe.run_id,  # type: ignore
-            )
-            if run_flags.get("is_closed", False):
-                raise EvaluationClosedConflict(
-                    run_id=queue_dbe.run_id,
-                    queue_id=queue_dbe.id,  # type: ignore
-                )
-
             queue_dbe.deleted_at = datetime.now(timezone.utc)
             queue_dbe.deleted_by_id = user_id
             await session.commit()
@@ -2703,17 +2692,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             queue_dbe = (await session.execute(stmt)).scalars().first()
             if queue_dbe is None:
                 return None
-
-            run_flags = await _get_run_flags(
-                session=session,
-                project_id=project_id,
-                run_id=queue_dbe.run_id,  # type: ignore
-            )
-            if run_flags.get("is_closed", False):
-                raise EvaluationClosedConflict(
-                    run_id=queue_dbe.run_id,
-                    queue_id=queue_dbe.id,  # type: ignore
-                )
 
             queue_dbe.deleted_at = None
             queue_dbe.deleted_by_id = None
