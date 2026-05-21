@@ -69,6 +69,8 @@ def _revision(
     revision_id: str,
     artifact_id: Optional[str] = "a-id",
     variant_id: Optional[str] = "v-id",
+    artifact_slug: Optional[str] = "a-slug",
+    variant_slug: Optional[str] = "v-slug",
     slug: Optional[str] = "v1",
     version: Optional[int] = 1,
 ) -> Any:
@@ -77,6 +79,12 @@ def _revision(
         setattr(obj, f"{domain}_id", artifact_id)
     if variant_id is not None:
         setattr(obj, f"{domain}_variant_id", variant_id)
+    # Parent slugs surface domain-prefixed, with "artifact" dropped:
+    # `<domain>_slug` for the artifact, `<domain>_variant_slug` for the variant.
+    if artifact_slug is not None:
+        setattr(obj, f"{domain}_slug", artifact_slug)
+    if variant_slug is not None:
+        setattr(obj, f"{domain}_variant_slug", variant_slug)
     return obj
 
 
@@ -244,8 +252,8 @@ def test_revision_attributes_single():
     assert attrs["user_id"] == str(user)
     assert attrs["count"] == 1
     refs = attrs["references"]
-    assert refs["application"] == {"id": "a-id"}
-    assert refs["application_variant"] == {"id": "v-id"}
+    assert refs["application"] == {"id": "a-id", "slug": "a-slug"}
+    assert refs["application_variant"] == {"id": "v-id", "slug": "v-slug"}
     assert refs["application_revision"] == {
         "id": "r-1",
         "slug": "v1",
@@ -261,6 +269,8 @@ def test_revision_attributes_partial_identity_omits_missing_fields():
         revision_id="r-2",
         artifact_id=None,
         variant_id=None,
+        artifact_slug=None,
+        variant_slug=None,
         slug=None,
         version=None,
     )
@@ -274,6 +284,49 @@ def test_revision_attributes_partial_identity_omits_missing_fields():
     assert "query" not in refs
     assert "query_variant" not in refs
     assert refs["query_revision"] == {"id": "r-2"}
+
+
+def test_revision_attributes_omits_parent_slug_when_absent():
+    """Artifact/variant id present but slug unresolved → emit id without slug."""
+    user = uuid4()
+    rev = _revision(
+        domain="evaluator",
+        revision_id="r-9",
+        artifact_slug=None,
+        variant_slug=None,
+    )
+    attrs = build_revision_event_attributes(
+        domain="evaluator",
+        action="retrieve",
+        user_id=user,
+        revision=rev,
+    )
+    refs = attrs["references"]
+    assert refs["evaluator"] == {"id": "a-id"}
+    assert refs["evaluator_variant"] == {"id": "v-id"}
+
+
+def test_revision_attributes_falls_back_to_generic_slug():
+    """Raw git-layer revision exposes generic artifact_slug/variant_slug."""
+    user = uuid4()
+    rev = SimpleNamespace(
+        id="r-10",
+        slug="v2",
+        version=2,
+        artifact_id="a-id",
+        variant_id="v-id",
+        artifact_slug="generic-a",
+        variant_slug="generic-v",
+    )
+    attrs = build_revision_event_attributes(
+        domain="application",
+        action="retrieve",
+        user_id=user,
+        revision=rev,
+    )
+    refs = attrs["references"]
+    assert refs["application"] == {"id": "a-id", "slug": "generic-a"}
+    assert refs["application_variant"] == {"id": "v-id", "slug": "generic-v"}
 
 
 def test_revision_attributes_list_caps_references():

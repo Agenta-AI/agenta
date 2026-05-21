@@ -14,6 +14,7 @@
  * See: ardaerzin-claude-dreamy-franklin-35fadd-design-20260428-162812-workflow-page-unification.md
  */
 export {recentEvaluatorIdAtom, workflowsByIdMapAtom, type WorkflowsByIdMap} from "./atoms/fetcher"
+export {EVALUATOR_FULL_PAGE_NAV_ENABLED} from "./flags"
 export {
     currentWorkflowAtom,
     currentWorkflowContextAtom,
