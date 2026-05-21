@@ -164,3 +164,28 @@ export interface Progress {
 export interface LoopResult extends Progress {
     done: boolean
 }
+
+// ============================================================================
+// CHUNK RELEASE HOOK — per-chunk cache eviction
+// ============================================================================
+
+/**
+ * Called once a chunk has been fully consumed by the sink. At this point
+ * nothing downstream in the loop needs the chunk's data — the safe point
+ * to release per-chunk side-effect caches (e.g. the entity caches a
+ * hydrate transform populated) so heap stays bounded by chunk size, not
+ * by dataset size.
+ *
+ * The loop's guarantee #1 ("memory bounded") covers the loop's own chunk
+ * variable — it does NOT cover caches a transform writes as a side
+ * effect. This hook is how a consumer extends that guarantee to those
+ * side-effect caches without the loop having to know about them.
+ *
+ * Receives the post-transform chunk, so the handler can walk every
+ * entity id the materialized rows reference. Note: if a transform that
+ * runs AFTER the cache-populating transform drops rows (e.g. a
+ * post-hydrate filter), the handler only sees the surviving rows — a
+ * cache-populating transform that is followed by a row-dropping
+ * transform should tag `chunk.meta` with its full id manifest instead.
+ */
+export type ChunkReleaseHook<T> = (chunk: Chunk<T>) => void | Promise<void>

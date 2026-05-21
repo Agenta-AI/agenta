@@ -159,6 +159,33 @@ export const evaluationMetricMolecule = {
                 return 0
             }
         },
+
+        /**
+         * Bulk-evict cached metrics for a specific set of scenarios — the
+         * per-chunk counterpart of `prefetchByScenarioIds`. See
+         * `evaluationResultMolecule.actions.evictByScenarioIds` for the
+         * rationale. Returns the count of entries removed.
+         */
+        evictByScenarioIds(args: {
+            projectId: string
+            runId: string
+            scenarioIds: string[]
+        }): number {
+            let removed = 0
+            try {
+                const qc = getQc()
+                for (const sid of args.scenarioIds) {
+                    const key = cacheKey(args.projectId, args.runId, sid)
+                    if (qc.getQueryData(key) !== undefined) {
+                        qc.removeQueries({queryKey: key, exact: true})
+                        removed++
+                    }
+                }
+            } catch {
+                // No queryClient — nothing to evict.
+            }
+            return removed
+        },
     },
 
     _internal: {cacheKey},

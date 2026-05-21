@@ -207,6 +207,37 @@ export const evaluationResultMolecule = {
                 return 0
             }
         },
+
+        /**
+         * Bulk-evict cached results for a specific set of scenarios — the
+         * per-chunk counterpart of `prefetchByScenarioIds`. An ETL
+         * chunk-release hook (see `ChunkReleaseHook`) calls this once the
+         * sink has consumed a chunk, so heap stays bounded by chunk size
+         * across an arbitrarily long scan instead of growing with the
+         * dataset.
+         *
+         * Returns the number of cache entries actually removed.
+         */
+        evictByScenarioIds(args: {
+            projectId: string
+            runId: string
+            scenarioIds: string[]
+        }): number {
+            let removed = 0
+            try {
+                const qc = getQc()
+                for (const sid of args.scenarioIds) {
+                    const key = cacheKey(args.projectId, args.runId, sid)
+                    if (qc.getQueryData(key) !== undefined) {
+                        qc.removeQueries({queryKey: key, exact: true})
+                        removed++
+                    }
+                }
+            } catch {
+                // No queryClient — nothing to evict.
+            }
+            return removed
+        },
     },
 
     /** Exposed for test code only — don't depend on this from app code. */

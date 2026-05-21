@@ -107,3 +107,32 @@ export function invalidateTestcase({
         getQc().removeQueries({queryKey: cacheKey(projectId, testcaseId)})
     } catch {}
 }
+
+/**
+ * Bulk-evict testcase cache entries — the per-chunk counterpart of
+ * `prefetchTestcasesByIds`. An ETL chunk-release hook calls this once a
+ * chunk is consumed so heap stays bounded by chunk size, not dataset
+ * size. Returns the number of entries actually removed.
+ */
+export function evictTestcasesByIds({
+    projectId,
+    testcaseIds,
+}: {
+    projectId: string
+    testcaseIds: string[]
+}): number {
+    let removed = 0
+    try {
+        const qc = getQc()
+        for (const id of testcaseIds) {
+            const key = cacheKey(projectId, id)
+            if (qc.getQueryData(key) !== undefined) {
+                qc.removeQueries({queryKey: key, exact: true})
+                removed++
+            }
+        }
+    } catch {
+        // No queryClient — nothing to evict.
+    }
+    return removed
+}

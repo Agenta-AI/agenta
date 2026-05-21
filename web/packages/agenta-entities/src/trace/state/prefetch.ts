@@ -164,3 +164,36 @@ export function invalidateTrace({projectId, traceId}: {projectId: string; traceI
         getQc().removeQueries({queryKey: cacheKey(projectId, traceId)})
     } catch {}
 }
+
+/**
+ * Bulk-evict trace cache entries — the per-chunk counterpart of
+ * `prefetchTracesByIds`. An ETL chunk-release hook calls this once a
+ * chunk is consumed so heap stays bounded by chunk size, not dataset
+ * size. Takes dashed trace_ids (as they appear in `result.trace_id`).
+ * Returns the number of entries removed — includes negative-cache
+ * (`null`) entries written for traces not yet ingested.
+ */
+export function evictTracesByIds({
+    projectId,
+    traceIds,
+}: {
+    projectId: string
+    traceIds: string[]
+}): number {
+    let removed = 0
+    try {
+        const qc = getQc()
+        for (const tid of traceIds) {
+            const key = cacheKey(projectId, tid)
+            // `!== undefined` (not truthiness) so negative-cache `null`
+            // entries are evicted too.
+            if (qc.getQueryData(key) !== undefined) {
+                qc.removeQueries({queryKey: key, exact: true})
+                removed++
+            }
+        }
+    } catch {
+        // No queryClient — nothing to evict.
+    }
+    return removed
+}

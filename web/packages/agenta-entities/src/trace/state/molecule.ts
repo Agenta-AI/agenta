@@ -60,7 +60,7 @@ import type {
 import type {TraceSpan} from "../core"
 import {extractAgData, extractInputs, extractOutputs} from "../utils"
 
-import {prefetchTracesByIds} from "./prefetch"
+import {evictTracesByIds, prefetchTracesByIds} from "./prefetch"
 import {spanQueryAtomFamily} from "./store"
 
 // ============================================================================
@@ -479,6 +479,13 @@ export const traceSpanMolecule = {
      */
     actions: {
         prefetchByIds: prefetchTracesByIds,
+        /**
+         * Cache-aware bulk eviction by trace ID list — the per-chunk
+         * counterpart of `prefetchByIds`. An ETL chunk-release hook calls
+         * this once the sink has consumed a chunk so heap stays bounded
+         * by chunk size. Wraps `evictTracesByIds`.
+         */
+        evictByIds: evictTracesByIds,
     },
 }
 

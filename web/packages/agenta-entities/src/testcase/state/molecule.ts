@@ -45,7 +45,7 @@ import type {Column, Testcase} from "../core"
 import {createLocalTestcase} from "../core"
 
 import {testcasesRevisionIdAtom, initializeEmptyRevisionAtom} from "./paginatedStore"
-import {prefetchTestcasesByIds} from "./prefetch"
+import {evictTestcasesByIds, prefetchTestcasesByIds} from "./prefetch"
 import {
     // Query and entity atoms
     testcaseQueryAtomFamily,
@@ -910,6 +910,13 @@ export const testcaseMolecule = {
          * (kept for backwards compatibility with non-molecule consumers).
          */
         prefetchByIds: prefetchTestcasesByIds,
+        /**
+         * Cache-aware bulk eviction by testcase ID list — the per-chunk
+         * counterpart of `prefetchByIds`. An ETL chunk-release hook calls
+         * this once the sink has consumed a chunk so heap stays bounded
+         * by chunk size. Wraps `evictTestcasesByIds`.
+         */
+        evictByIds: evictTestcasesByIds,
     },
 
     /**

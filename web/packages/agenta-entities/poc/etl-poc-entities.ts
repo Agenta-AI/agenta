@@ -113,6 +113,14 @@ const env = {
     //     covers regression detection without any walk
     // Use when investigating a memory regression: AGENTA_HEAP_WALK=1.
     heapWalk: process.env.AGENTA_HEAP_WALK === "1",
+    // Per-chunk cache eviction. When "1", the loop's `onChunkReleased`
+    // hook fires after every chunk and evicts that chunk's entity-cache
+    // slices (results/metrics/testcases/traces) via the molecule
+    // `evictBy*` actions. This keeps the molecule cache bounded by chunk
+    // size across an arbitrarily long scan — the alternative to
+    // post-pipeline `evictByRunId`, which only frees memory after the
+    // whole scan. Default off (caches accumulate, today's behavior).
+    perChunkEvict: process.env.AGENTA_PER_CHUNK_EVICT === "1",
 }
 
 // In JSON mode, suppress decorative output; everything goes through structured
@@ -210,6 +218,17 @@ async function main() {
     type RowPredicate = import("../src/evaluationRun/etl/rowPredicateFilter").RowPredicate
     const {createHitRatioMeter} = await import("../src/evaluationRun/etl/hitRatioMeter")
     type HitRatioRegime = import("../src/evaluationRun/etl/hitRatioMeter").HitRatioRegime
+    // Eviction entry points for the per-chunk release hook
+    // (AGENTA_PER_CHUNK_EVICT=1). Results/metrics go through the molecule
+    // (../src/evaluationRun/state is Node-safe); testcases/traces use the
+    // leaf prefetch modules directly — importing their *molecules* would
+    // pull the @agenta/ui entity layer, which has browser/CSS deps that
+    // fail under Node. (Same reason the re-prefetch section imports
+    // prefetchTestcasesByIds / prefetchTracesByIds from the leaf files.)
+    const {evaluationResultMolecule: resultMol, evaluationMetricMolecule: metricMol} =
+        await import("../src/evaluationRun/state")
+    const {evictTestcasesByIds} = await import("../src/testcase/state/prefetch")
+    const {evictTracesByIds} = await import("../src/trace/state/prefetch")
     const {inspectCache, clearCacheByPrefix, inspectMemory, DEFAULT_DIAGNOSTIC_PREFIXES} =
         await import("../src/evaluationRun/etl/cacheDiagnostics")
     const {inspectAtomFamilies} = await import("../src/shared/molecule/instrumentedAtomFamily")
@@ -966,6 +985,56 @@ async function main() {
     let lastChunkCursor: string | null | undefined = undefined
     const loopStart = performance.now()
 
+    // Per-chunk cache eviction hook (AGENTA_PER_CHUNK_EVICT=1). After the
+    // sink consumes each chunk, free that chunk's entity-cache slices so
+    // the molecule cache stays bounded by chunk size for the whole scan.
+    //
+    // Walks the post-transform chunk. With a post-hydrate predicate
+    // filter active it under-evicts filtered-out rows (their caches were
+    // populated by hydrate but the rows aren't in the final chunk) — a
+    // complete fix would tag chunk.meta with the hydrate id manifest.
+    // For the no-post-filter scan (status filter → hydrate) it evicts
+    // exactly what hydrate populated.
+    const evictionStats = {chunks: 0, results: 0, metrics: 0, testcases: 0, traces: 0}
+    const releaseChunk = (chunk: Chunk<unknown>): void => {
+        const rows = chunk.items as HydratedScenarioRow<ScenarioRow>[]
+        if (rows.length === 0) return
+        const scenarioIds: string[] = []
+        const testcaseIds = new Set<string>()
+        const traceIds = new Set<string>()
+        for (const row of rows) {
+            if (typeof row?.scenario?.id === "string") scenarioIds.push(row.scenario.id)
+            const scTc = row?.scenario?.testcase_id
+            if (typeof scTc === "string" && scTc) testcaseIds.add(scTc)
+            if (row?.testcase?.id) testcaseIds.add(row.testcase.id)
+            for (const r of row?.results ?? []) {
+                if (typeof r?.testcase_id === "string" && r.testcase_id) {
+                    testcaseIds.add(r.testcase_id)
+                }
+            }
+            for (const tid of Object.keys(row?.traces ?? {})) traceIds.add(tid)
+        }
+        evictionStats.chunks++
+        evictionStats.results += resultMol.actions.evictByScenarioIds({
+            projectId: env.projectId,
+            runId: env.runId,
+            scenarioIds,
+        })
+        evictionStats.metrics += metricMol.actions.evictByScenarioIds({
+            projectId: env.projectId,
+            runId: env.runId,
+            scenarioIds,
+        })
+        evictionStats.testcases += evictTestcasesByIds({
+            projectId: env.projectId,
+            testcaseIds: Array.from(testcaseIds),
+        })
+        evictionStats.traces += evictTracesByIds({
+            projectId: env.projectId,
+            traceIds: Array.from(traceIds),
+        })
+    }
+
     try {
         const transforms: Transform<unknown, unknown>[] = [
             statusFilter as Transform<unknown, unknown>,
@@ -981,6 +1050,7 @@ async function main() {
             wrappedSink as Sink<unknown>,
             undefined,
             abort.signal,
+            env.perChunkEvict ? releaseChunk : undefined,
         )) {
             chunkCount++
             const scannedThisChunk = progress.scanned - scannedTotal
@@ -1301,6 +1371,17 @@ async function main() {
     const finalHeap = process.memoryUsage().heapUsed - baselineMem
     row("Peak heap delta", fmtBytes(peakHeap))
     row("Final heap delta", fmtBytes(finalHeap))
+    if (env.perChunkEvict) {
+        row(
+            "Per-chunk eviction",
+            `ON — ${evictionStats.chunks} chunks · evicted ` +
+                `results=${evictionStats.results} metrics=${evictionStats.metrics} ` +
+                `testcases=${evictionStats.testcases} traces=${evictionStats.traces} ` +
+                `(cache freed inline — see post-run entry count below)`,
+        )
+    } else {
+        row("Per-chunk eviction", "OFF (caches accumulate — set AGENTA_PER_CHUNK_EVICT=1)")
+    }
 
     // ---- Entity-cache memory accounting -----------------------------
     // Walk the TanStack QueryClient at three lifecycle points and report

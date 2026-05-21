@@ -14,7 +14,16 @@
  * @packageDocumentation
  */
 
-import type {Chunk, Cursor, LoopResult, Progress, Sink, Source, Transform} from "../core/types"
+import type {
+    Chunk,
+    ChunkReleaseHook,
+    Cursor,
+    LoopResult,
+    Progress,
+    Sink,
+    Source,
+    Transform,
+} from "../core/types"
 
 /**
  * Iterate a pipeline chunk-by-chunk. AsyncGenerator yields a Progress
@@ -57,6 +66,13 @@ export async function* runLoop<TIn, TOut>(
     sink: Sink<TOut>,
     params: Parameters<Source<TIn>["extract"]>[0],
     signal?: AbortSignal,
+    /**
+     * Optional per-chunk release hook. Called after the sink has consumed
+     * each chunk (and before the Progress yield, so it runs even when a
+     * consumer viewport-cancels). Lets a consumer free per-chunk
+     * side-effect caches — see `ChunkReleaseHook` in core/types.ts.
+     */
+    onChunkReleased?: ChunkReleaseHook<TOut>,
 ): AsyncGenerator<Progress, LoopResult> {
     const abort = signal ?? new AbortController().signal
     let scanned = 0
@@ -85,6 +101,11 @@ export async function* runLoop<TIn, TOut>(
                 const result = await sink.load(current as Chunk<TOut>)
                 loaded += result.loadedCount ?? current.items.length
             }
+
+            // Chunk fully consumed — let the consumer release any per-chunk
+            // side-effect caches (e.g. hydrated entity caches). Runs before
+            // `yield` so a viewport-cancel still releases this chunk.
+            await onChunkReleased?.(current as Chunk<TOut>)
 
             yield {scanned, matched, loaded, cursor: lastCursor}
 
