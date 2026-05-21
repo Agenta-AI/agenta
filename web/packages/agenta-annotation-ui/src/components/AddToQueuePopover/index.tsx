@@ -52,8 +52,9 @@ interface AddToQueuePopoverProps {
     /**
      * Picker mode: when set, selecting a queue calls this instead of the
      * built-in `addTraces` / `addTestcases` path — the caller owns the add
-     * (e.g. a filter-scoped background scan). The "New queue" button is hidden
-     * (creating a queue on the fly is out of scope for the picker).
+     * (e.g. a filter-scoped background scan). The "New queue" button stays
+     * available so a user with no matching queues can create one, then reopen
+     * the picker.
      */
     onQueueSelected?: (queue: SimpleQueue) => void
 }
@@ -183,16 +184,14 @@ const QueueListContent = ({
                     <Typography.Text className="font-medium">
                         Select annotation queue
                     </Typography.Text>
-                    {!onQueueSelected ? (
-                        <Button
-                            type="primary"
-                            size="small"
-                            icon={<Plus size={14} />}
-                            onClick={handleNewQueue}
-                        >
-                            New
-                        </Button>
-                    ) : null}
+                    <Button
+                        type="primary"
+                        size="small"
+                        icon={<Plus size={14} />}
+                        onClick={handleNewQueue}
+                    >
+                        New
+                    </Button>
                 </div>
 
                 <Input
