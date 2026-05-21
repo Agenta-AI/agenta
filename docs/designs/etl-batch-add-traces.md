@@ -131,10 +131,21 @@ of the observability-table data layer — the scan never renders into the table.
 
 ### Dedup
 
-**Verify** whether `evaluate_batch_traces` / scenario creation dedups by
-`trace_id`. If it does, v1 is free. If not, the run fetches the queue's
-existing scenario `trace_id`s into the `extractTraceIds` exclude `Set` — the
-exclude-fetch must itself be bounded/paginated for large queues.
+**Verified:** `_evaluate_batch_items` (the `evaluate_batch_traces` worker)
+creates exactly one `evaluation_scenarios` row per submitted `trace_id` with no
+check for an existing scenario — scenario creation is **not** idempotent by
+`trace_id`. Re-running "add all matching" over an overlapping filter therefore
+duplicates scenarios.
+
+v1 ships without a client-side dedup-exclude. It is consistent with the
+existing selection-scoped add (also un-deduped), and a frontend exclude would
+need a heavy two-level fetch — the `trace_id` lives on `evaluation_results`,
+not on the scenario row, so deriving a queue's existing `trace_id`s means
+paginating scenarios *and* their results. The `extractTraceIds` transform
+already accepts an `excludeTraceIds` `Set` (wiring is one line once a source of
+already-queued ids exists). The clean fix is server-side — skip `trace_id`s
+that already have a scenario in the run, fixing both add paths at once. See
+[Follow-ups](#follow-ups-not-v1).
 
 ---
 
@@ -145,7 +156,7 @@ exclude-fetch must itself be bounded/paginated for large queues.
 | **Engine** | Build on the ETL engine (`@agenta/entities/etl`): `traceSource` → `extractTraceIds` → `queueAddSink`, driven by `runLoop`. First production consumer of the engine. |
 | **Phase** | Single-phase, frontend-only. No observability data-layer migration. |
 | **Queue-add batching** | `queueAddSink` buffers `trace_id`s, flushes `addTraces` at a tunable ~250, decoupled from scan page size. |
-| **Dedup** | Verify backend idempotency; client-side exclude of already-queued `trace_id`s only if absent. |
+| **Dedup** | **Verified: the backend does not dedup by `trace_id`** — `_evaluate_batch_items` creates one scenario per id with no existence check. v1 ships without a dedup-exclude (consistent with the existing selection-scoped add, also un-deduped). `extractTraceIds` keeps the wired-but-unused `excludeTraceIds` hook; the proper fix is server-side — see [Follow-ups](#follow-ups-not-v1). |
 | **CSV export** | Untouched. Keeps its own scan loop (`fetchAllTracesForExport`). Converging it onto `traceSource` + a `csvSink` is a documented follow-up, not a prerequisite. |
 
 **Considered and rejected:**
@@ -223,8 +234,9 @@ notification counter.
   silent.
 - **Scan cap:** the pipeline wrapper caps at 20k traces scanned (`maxTraces`,
   tunable) — decide whether 20k is the right ceiling here.
-- **Dedup race:** a trace queued by someone else between the exclude-fetch and
-  the run can still duplicate — acceptable for v1, note it.
+- **Dedup:** scenario creation is not idempotent (verified) — re-running over
+  an overlapping filter, or queueing a trace already in the queue, duplicates
+  scenarios. v1 accepts this; see [Dedup](#dedup) and Follow-ups.
 
 ---
 
@@ -263,11 +275,23 @@ CSV export is **untouched** by this design — no export regression surface.
 
 ---
 
+## Follow-ups (not v1)
+
+- **Server-side scenario dedup by `trace_id`** — `_evaluate_batch_items` should
+  skip `trace_id`s that already have a scenario in the run. Fixes duplicate
+  scenarios for *both* the selection-scoped and filter-scoped adds, race-free,
+  and is the natural home for dedup (the backend owns the `trace_id`↔scenario
+  mapping). Preferred over a client-side exclude.
+- **Converge CSV export onto `traceSource` + a `csvSink`** — retire the second
+  trace-scan loop that still lives in `fetchAllTracesForExport`.
+
+---
+
 ## Implementation tasks
 
 - [ ] **T1 — `traceSource`** — `Source<TraceSpanNode>` wrapping `executeTraceQuery`: cursor loop, empty-page no-progress guard, throttle, `AbortSignal`. Verify: source unit tests (one chunk per page, cursor advance, stops at end, abort mid-scan).
 - [ ] **T2 — `queueAddSink` + `extractTraceIds` + pipeline wrapper** — the Sink (buffer, ~250 flush, final flush, `QueueAddError` surfacing), the dedup Transform, and `addAllMatchingTracesToQueue` wiring `runLoop`. Verify: unit tests.
-- [ ] **T3 — dedup** — verify `evaluate_batch_traces` idempotency; bounded client-side exclude `Set` only if needed.
+- [x] **T3 — dedup** — **verified: the backend is not idempotent** by `trace_id`. v1 ships without the exclude (consistent with the selection-scoped add); `extractTraceIds` keeps the wired-but-unused `excludeTraceIds` hook. Proper fix is server-side — recorded as a follow-up.
 - [ ] **T4 — UI affordance** — two scope-labelled entry-point actions; no-filter confirm; reuse `AddToQueuePopover`; non-blocking notification with live counter + cancel; all interaction states + copy per the UI spec. Verify: component test + E2E.
 - [ ] **T5 — E2E** — apply filter → add all matching → traces appear in the queue.
 
