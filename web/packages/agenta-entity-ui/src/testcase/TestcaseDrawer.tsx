@@ -9,7 +9,6 @@ import {
     Copy,
     CornersIn,
     CornersOut,
-    ListChecks,
 } from "@phosphor-icons/react"
 import {Alert, Button, Dropdown, Skeleton, Space, Tooltip} from "antd"
 
@@ -252,13 +251,7 @@ function TestcaseDrawer<TData = unknown>({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    {renderAddToQueue ? (
-                        renderAddToQueue(queueItemIds)
-                    ) : (
-                        <Button size="small" icon={<ListChecks size={14} />} disabled={true}>
-                            Add to queue
-                        </Button>
-                    )}
+                    {renderAddToQueue ? renderAddToQueue(queueItemIds) : null}
                 </div>
             </div>
         ),

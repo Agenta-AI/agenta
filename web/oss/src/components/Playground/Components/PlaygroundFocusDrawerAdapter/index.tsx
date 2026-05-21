@@ -1,17 +1,21 @@
-import {useCallback, type ReactNode} from "react"
+import {useCallback, useMemo, type ReactNode} from "react"
 
+import {loadableController} from "@agenta/entities/loadable"
 import {
     TestcaseDrawer,
     useTestcaseDrawerNavigation,
     type TestcaseDrawerContentRenderProps,
 } from "@agenta/entity-ui/testcase"
-import {executionItemController} from "@agenta/playground"
+import {executionItemController, playgroundController} from "@agenta/playground"
 import {PlaygroundOutputs} from "@agenta/playground-ui/components"
 import {
     closePlaygroundFocusDrawerAtom,
     playgroundFocusDrawerAtom,
 } from "@agenta/playground-ui/state"
+import {ListChecks} from "@phosphor-icons/react"
+import {Button} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import PlaygroundTestcaseEditor from "../PlaygroundTestcaseEditor"
 
@@ -21,11 +25,23 @@ const EMPTY_DATA = {}
 
 const getRowId = (id: string) => id
 
+const AddToQueuePopover = dynamic(
+    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
+    {ssr: false},
+)
+
 const PlaygroundFocusDrawerAdapter = () => {
     const [{isOpen, rowId, entityId}, setDrawerState] = useAtom(playgroundFocusDrawerAtom)
     const closeDrawer = useSetAtom(closePlaygroundFocusDrawerAtom)
 
     const rowIds = useAtomValue(executionItemController.selectors.generationRowIds) as string[]
+    const loadableId = useAtomValue(playgroundController.selectors.loadableId()) as string
+    const loadableMode = useAtomValue(
+        useMemo(() => loadableController.selectors.mode(loadableId), [loadableId]),
+    ) as "local" | "connected" | null
+    const connectedSource = useAtomValue(
+        useMemo(() => loadableController.selectors.connectedSource(loadableId), [loadableId]),
+    )
 
     const navigateToRow = useCallback(
         (nextRowId: string) => setDrawerState((prev) => ({...prev, rowId: nextRowId})),
@@ -53,6 +69,28 @@ const PlaygroundFocusDrawerAdapter = () => {
         return <PlaygroundOutputs rowId={rowId} primaryEntityId={entityId} />
     }, [rowId, entityId])
 
+    const renderAddToQueue = useCallback(
+        (itemIds: string[]): ReactNode => (
+            <AddToQueuePopover
+                itemType="testcases"
+                itemIds={itemIds}
+                disabled={itemIds.length === 0}
+            >
+                <Button
+                    size="small"
+                    icon={<ListChecks size={14} />}
+                    disabled={itemIds.length === 0}
+                >
+                    Add to queue
+                </Button>
+            </AddToQueuePopover>
+        ),
+        [],
+    )
+
+    const shouldShowAddToQueue =
+        loadableMode === "connected" && connectedSource?.type === "testcase"
+
     if (!rowId) return null
 
     return (
@@ -75,6 +113,7 @@ const PlaygroundFocusDrawerAdapter = () => {
             isDirty={false}
             renderContent={renderContent}
             renderOutputs={renderOutputs}
+            renderAddToQueue={shouldShowAddToQueue ? renderAddToQueue : undefined}
         />
     )
 }
