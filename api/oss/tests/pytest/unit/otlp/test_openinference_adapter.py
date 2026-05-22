@@ -257,3 +257,133 @@ class TestRegistryIntegration:
         features = registry.extract_features(bag)
 
         assert features.data["inputs.tools.0"] == tool
+
+
+# ── LangChain tool-call recovery ─────────────────────────────────────
+
+_LANGCHAIN_CALL_ID = "call_veI1OGBUL2nEfczLRM6qzyk8"
+
+
+def _langchain_input_value() -> str:
+    """A LangChain-serialized ``input.value`` (n8n HTTP_Request tool).
+
+    The flattened ``llm.input_messages`` carry only role/content; the
+    ``tool_calls`` and ``tool_call_id`` survive only in this blob.
+    """
+    return dumps(
+        {
+            "messages": [
+                [
+                    {
+                        "lc": 1,
+                        "type": "constructor",
+                        "id": ["langchain_core", "messages", "SystemMessage"],
+                        "kwargs": {"content": "You are a helpful assistant"},
+                    },
+                    {
+                        "lc": 1,
+                        "type": "constructor",
+                        "id": ["langchain_core", "messages", "HumanMessage"],
+                        "kwargs": {"content": "use the http request tool"},
+                    },
+                    {
+                        "lc": 1,
+                        "type": "constructor",
+                        "id": ["langchain_core", "messages", "AIMessage"],
+                        "kwargs": {
+                            "content": "Calling HTTP_Request",
+                            "tool_calls": [
+                                {
+                                    "id": _LANGCHAIN_CALL_ID,
+                                    "name": "HTTP_Request",
+                                    "args": {"id": _LANGCHAIN_CALL_ID},
+                                    "type": "tool_call",
+                                }
+                            ],
+                            "invalid_tool_calls": [],
+                            "additional_kwargs": {},
+                        },
+                    },
+                    {
+                        "lc": 1,
+                        "type": "constructor",
+                        "id": ["langchain_core", "messages", "ToolMessage"],
+                        "kwargs": {
+                            "tool_call_id": _LANGCHAIN_CALL_ID,
+                            "content": '[{"message":"n8n Tool Webhook"}]',
+                            "additional_kwargs": {"name": "HTTP_Request"},
+                        },
+                    },
+                ]
+            ]
+        }
+    )
+
+
+def _langchain_chat_bag(input_value: str) -> CanonicalAttributes:
+    """A LangChain LLM chat span: flattened role/content plus ``input.value``."""
+    return _make_bag(
+        {
+            "openinference.span.kind": "LLM",
+            "input.value": input_value,
+            "input.mime_type": "application/json",
+            "llm.input_messages.0.message.role": "system",
+            "llm.input_messages.0.message.content": "You are a helpful assistant",
+            "llm.input_messages.1.message.role": "user",
+            "llm.input_messages.1.message.content": "use the http request tool",
+            "llm.input_messages.2.message.role": "assistant",
+            "llm.input_messages.2.message.content": "Calling HTTP_Request",
+            "llm.input_messages.3.message.role": "tool",
+            "llm.input_messages.3.message.content": '[{"message":"n8n Tool Webhook"}]',
+        }
+    )
+
+
+class TestLangchainToolCallRecovery:
+    """Recover tool_calls / tool_call_id / name dropped by flattened messages."""
+
+    def _prompt(self, adapter, input_value: str):
+        bag = _langchain_chat_bag(input_value)
+        features = SpanFeatures()
+        adapter.process(bag, features)
+        nested = unmarshall_attributes(
+            {f"ag.data.{k}": v for k, v in features.data.items()}
+        )
+        return nested["ag"]["data"]["inputs"]["prompt"]
+
+    def test_tool_calls_recovered_onto_assistant(self, adapter):
+        prompt = self._prompt(adapter, _langchain_input_value())
+
+        assert prompt[2]["tool_calls"] == [
+            {
+                "id": _LANGCHAIN_CALL_ID,
+                "type": "function",
+                "function": {
+                    "name": "HTTP_Request",
+                    "arguments": dumps({"id": _LANGCHAIN_CALL_ID}),
+                },
+            }
+        ]
+
+    def test_tool_message_link_recovered(self, adapter):
+        prompt = self._prompt(adapter, _langchain_input_value())
+
+        assert prompt[3]["tool_call_id"] == _LANGCHAIN_CALL_ID
+        assert prompt[3]["name"] == "HTTP_Request"
+
+    def test_role_and_content_preserved(self, adapter):
+        prompt = self._prompt(adapter, _langchain_input_value())
+
+        assert prompt[0]["role"] == "system"
+        assert prompt[2]["role"] == "assistant"
+        assert prompt[2]["content"] == "Calling HTTP_Request"
+        assert prompt[3]["role"] == "tool"
+
+    def test_non_langchain_input_value_untouched(self, adapter):
+        # A plain (non-LangChain) input.value must not gain tool fields.
+        bag = _langchain_chat_bag(dumps({"foo": "bar"}))
+        features = SpanFeatures()
+        adapter.process(bag, features)
+
+        assert not any("tool_calls" in key for key in features.data)
+        assert not any("tool_call_id" in key for key in features.data)

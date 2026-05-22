@@ -1,5 +1,5 @@
 from typing import Dict, Any, Tuple, List
-from json import loads, JSONDecodeError
+from json import loads, dumps, JSONDecodeError
 import re
 
 from oss.src.apis.fastapi.otlp.extractors.base_adapter import BaseAdapter
@@ -160,6 +160,127 @@ class OpenInferenceAdapter(BaseAdapter):
 
         return transformed
 
+    def _convert_langchain_tool_calls(
+        self,
+        raw_tool_calls: List[Any],
+    ) -> List[Dict[str, Any]]:
+        """Convert LangChain tool calls to the OpenAI shape.
+
+        LangChain: ``{"id", "name", "args": {...}, "type": "tool_call"}``
+        OpenAI:    ``{"id", "type": "function",
+                      "function": {"name", "arguments": "<json string>"}}``
+        """
+        converted: List[Dict[str, Any]] = []
+        for tool_call in raw_tool_calls:
+            if not isinstance(tool_call, dict):
+                continue
+
+            # Already OpenAI-shaped — keep as is.
+            if tool_call.get("type") == "function" and isinstance(
+                tool_call.get("function"), dict
+            ):
+                converted.append(tool_call)
+                continue
+
+            args = tool_call.get("args")
+            if isinstance(args, str):
+                arguments = args
+            else:
+                try:
+                    arguments = dumps(args if args is not None else {})
+                except (TypeError, ValueError):
+                    arguments = "{}"
+
+            converted.append(
+                {
+                    "id": tool_call.get("id"),
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.get("name"),
+                        "arguments": arguments,
+                    },
+                }
+            )
+
+        return converted
+
+    def _recover_langchain_tool_fields(self, input_value: Any) -> Dict[str, Any]:
+        """Recover tool fields that OpenInference's flattened messages drop.
+
+        The flattened ``llm.input_messages`` attributes carry only ``role`` and
+        ``content``. For LangChain spans the assistant ``tool_calls`` and the
+        tool ``tool_call_id`` / ``name`` survive only inside ``input.value``,
+        serialized in the LangChain constructor format
+        (``{"messages": [[{lc, type, id, kwargs}, ...]]}``).
+
+        Returns flat ``ag.data.inputs.prompt.{i}.*`` keys to merge onto the
+        prompt by index. Returns an empty dict for any non-LangChain shape so
+        other integrations are untouched.
+        """
+        if isinstance(input_value, str):
+            try:
+                parsed = loads(input_value)
+            except (JSONDecodeError, TypeError):
+                return {}
+        elif isinstance(input_value, dict):
+            parsed = input_value
+        else:
+            return {}
+
+        if not isinstance(parsed, dict):
+            return {}
+
+        messages = parsed.get("messages")
+        # LangChain serializes the message list doubly nested: ``[[...]]``.
+        if (
+            isinstance(messages, list)
+            and len(messages) == 1
+            and isinstance(messages[0], list)
+        ):
+            messages = messages[0]
+        if not isinstance(messages, list) or not messages:
+            return {}
+
+        def _is_langchain_message(message: Any) -> bool:
+            return (
+                isinstance(message, dict)
+                and message.get("type") == "constructor"
+                and isinstance(message.get("id"), list)
+                and "langchain_core" in message["id"]
+                and isinstance(message.get("kwargs"), dict)
+            )
+
+        # Only touch genuine LangChain serialized payloads.
+        if not any(_is_langchain_message(message) for message in messages):
+            return {}
+
+        recovered: Dict[str, Any] = {}
+        for index, message in enumerate(messages):
+            if not _is_langchain_message(message):
+                continue
+            kwargs = message["kwargs"]
+
+            raw_tool_calls = kwargs.get("tool_calls")
+            if isinstance(raw_tool_calls, list) and raw_tool_calls:
+                converted = self._convert_langchain_tool_calls(raw_tool_calls)
+                if converted:
+                    recovered[f"ag.data.inputs.prompt.{index}.tool_calls"] = converted
+
+            tool_call_id = kwargs.get("tool_call_id")
+            if isinstance(tool_call_id, str) and tool_call_id:
+                recovered[f"ag.data.inputs.prompt.{index}.tool_call_id"] = tool_call_id
+
+            additional_kwargs = kwargs.get("additional_kwargs")
+            name = None
+            if isinstance(additional_kwargs, dict):
+                name = additional_kwargs.get("name")
+            if not name:
+                name = kwargs.get("name")
+            if isinstance(name, str) and name:
+                recovered[f"ag.data.inputs.prompt.{index}.name"] = name
+
+        return recovered
+
     def process(self, bag: CanonicalAttributes, features: SpanFeatures) -> None:
         transformed_attributes: Dict[str, Any] = {}
         has_data = False
@@ -249,6 +370,16 @@ class OpenInferenceAdapter(BaseAdapter):
                 # log.warn(
                 #     f"OpenInferenceAdapter: For node type '{current_node_type}', removed generic 'ag.data.inputs' (from input.value) in favor of message-based inputs."
                 # )
+
+            # OpenInference's flattened LangChain messages drop tool fields
+            # (assistant tool_calls, tool tool_call_id/name). Recover them from
+            # input.value and merge onto the prompt by index. setdefault keeps
+            # any field the flattened messages already provided.
+            if has_input_messages:
+                for key, value in self._recover_langchain_tool_fields(
+                    bag.span_attributes.get("input.value")
+                ).items():
+                    transformed_attributes.setdefault(key, value)
 
             # Check if llm.output_messages were processed (resulting in ag.data.outputs.completion.* keys)
             has_output_messages = any(
