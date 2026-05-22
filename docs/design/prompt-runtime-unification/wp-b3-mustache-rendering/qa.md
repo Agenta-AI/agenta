@@ -152,8 +152,8 @@ These are the most important regression tests.
 
 ### Missing And Invalid Variables
 
-- missing top-level variable raises a clear Mustache formatting error
-- missing JSONPath expression raises a clear formatting error
+- missing top-level variable renders empty (mustache is permissive)
+- missing or malformed JSONPath `{{$...}}` expression raises a clear formatting error
 - empty placeholder raises an error
 - whitespace-only placeholder raises an error
 

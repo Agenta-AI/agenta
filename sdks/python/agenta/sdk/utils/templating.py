@@ -323,11 +323,12 @@ def render_template(
 
     Raises:
         MustacheTemplateError: ``mustache`` hit an unsupported partial, an empty
-            placeholder, an unresolved JSONPath pre-render tag, or a ``mystace``
-            parse error. Subclass of ``ValueError``.
-        UnresolvedVariablesError: ``curly`` could not resolve all placeholders.
-            Subclass of ``ValueError`` so existing ``except ValueError`` paths
-            keep working.
+            placeholder, a JSON Pointer tag, a NUL byte, or a ``mystace`` parse
+            error. Subclass of ``ValueError``.
+        UnresolvedVariablesError: ``curly`` could not resolve all placeholders, or
+            a ``{{$...}}`` JSONPath tag failed to resolve in ``mustache`` /
+            ``jinja2`` / ``curly`` (missing or malformed). Subclass of
+            ``ValueError`` so existing ``except ValueError`` paths keep working.
         KeyError / IndexError: ``fstring`` references a missing key or index.
         jinja2.TemplateError: ``jinja2`` rendering failed (sandbox violation,
             syntax error, etc.). Callers decide whether to re-raise or fall back.

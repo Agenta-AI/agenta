@@ -2,11 +2,21 @@
 
 ## Sync Metadata
 
-- Date: 2026-05-21
-- Branch: `feat/add-mustache-rendering` (implementation is UNCOMMITTED in the working tree)
+- Date: 2026-05-22 (sync against PR #4393; prior scan 2026-05-21)
+- Branch: `feat/add-mustache-rendering` (implementation committed; working tree clean at 057a29658)
 - Base: `main`
+- PR: <https://github.com/Agenta-AI/agenta/pull/4393>
 - Scan depth: deep (fresh inspection of current code + runtime probes via the SDK `.venv`)
-- Origin: scan / Lens: verification
+- Origin: scan + sync / Lens: verification
+
+### PR #4393 sync sources (2026-05-22)
+
+Inline review threads pulled (all unresolved at sync time). Two map to current committed code/contract and became findings WPB3-008/009; the rest are RFC/design-doc discussion threads (mostly on `rfc.md`, `README.md`, `research.md`) that belong to the design phase, not the committed SDK implementation, and are left untouched:
+
+- `3286635303` (Copilot, `templating.py:330`) → WPB3-008 (docstring Raises mismatch).
+- `3286635369` (Copilot, `qa.md:155`) → WPB3-009 (QA plan vs permissive-missing-var contract).
+- mmabrouk RFC questions (`3280747520`, `3280751193`, `3280753760`, `3280759652`, `3280761180`, `3280767036`, `3280770190`, `3280772919`, `3280776786`, `3280781711`, `3280782719`, `3280788530`, `3280794168`, `3280800719`) — design discussion / out-of-scope notes; not code findings.
+- coderabbit/Copilot doc nitpicks (`3280567210`, `3280579197`, `3280579210`, `3280579221`, `3280579226`, `3281567626`, `3281567723`) — markdown/RFC content; not code findings.
 
 ## Sources
 
@@ -48,7 +58,7 @@ The core renderer change is sound and well-layered: `render_template(mode="musta
 
 The original scan also surfaced four issues, all now resolved (see Closed Findings): the JSONPath pre-render stage (`{{$...}}`) re-exposed resolved values to the Mustache engine so they were recursively rendered, unlike plain `{{var}}` tags (WPB3-001); a tag-claiming case where a `{{$...}}` that is not valid JSONPath raised rather than rendering as a plain variable (WPB3-002, kept strict by decision); a frontend molecule that silently coerced `mustache -> curly` (WPB3-003); and test-coverage gaps on the riskiest behaviors (WPB3-004).
 
-Update (2026-05-22): all seven findings are fixed and moved to Closed; there are no open findings. (WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-05-22 re-scan against the prompt-unification design docs.)
+Update (2026-05-22): all nine findings are fixed and Closed; there are no open findings. The sync against PR #4393 surfaced two P3 doc/impl mismatches — WPB3-008 (the `render_template` docstring still said unresolved `{{$...}}` raises `MustacheTemplateError`; it raises `UnresolvedVariablesError`) and WPB3-009 (`qa.md` said a missing top-level var raises; mustache is permissive) — both now corrected (the runtime contract was already right and test-pinned; only the prose lagged). (WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-05-22 re-scan; WPB3-008..009 from the PR #4393 sync.)
 
 - WPB3-004 (test gaps) and WPB3-003 (frontend coercion) fixed (2026-05-21).
 - WPB3-001 + WPB3-002 (JSONPath `{{$...}}` handling) resolved together (2026-05-22) by unifying JSONPath across curly / mustache / jinja2: a shared `_render_with_jsonpath` resolves `{{$...}}` to a value, substitutes it into the rendered output last, and never re-parses it — exactly what `curly` already did, now extended to mustache and jinja2. Failure handling also matches `curly` (`UnresolvedVariablesError` for both missing and malformed `{{$...}}`). The interim `MUSTACHE_RENDER_ORDER` switch and `MustacheInvalidJsonPathError` were removed. Context-provenance analysis confirmed no OS-secret/env-var leak is possible (the render context is explicitly and narrowly constructed); the issue was the chain-of-replacement ordering surprise, now removed. Cross-format parity is pinned by `test_jsonpath_parity_across_formats` / `test_jsonpath_failure_parity_across_formats`.
@@ -75,6 +85,34 @@ Update (2026-05-22): all seven findings are fixed and moved to Closed; there are
 (none — all findings resolved as of 2026-05-22)
 
 ## Closed Findings
+
+### [CLOSED] WPB3-008 — `render_template` docstring Raises section was stale re unresolved `{{$...}}`
+
+- ID: WPB3-008
+- Origin: sync (PR #4393, Copilot thread `3286635303`)
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Correctness (doc/impl mismatch)
+- Summary: The `render_template` docstring said `MustacheTemplateError` is raised for "an unresolved JSONPath pre-render tag". After the WPB3-001/002 redesign, an unresolved `{{$...}}` (missing or malformed) is surfaced as `UnresolvedVariablesError`, uniform across curly / mustache / jinja2. The docstring still described the pre-redesign contract and the dropped "pre-render" framing.
+- Fix applied: rewrote the Raises section — `MustacheTemplateError` now covers unsupported partials, empty placeholders, JSON Pointer tags, NUL bytes, and mystace parse errors; `UnresolvedVariablesError` now covers unresolved curly placeholders AND `{{$...}}` JSONPath failures across mustache / jinja2 / curly. "Pre-render" wording removed.
+- Files: `sdks/python/agenta/sdk/utils/templating.py:324-330`
+- Verification: ruff format/check clean on `templating.py`.
+
+### [CLOSED] WPB3-009 — QA plan claimed missing top-level var raises; implementation is permissive
+
+- ID: WPB3-009
+- Origin: sync (PR #4393, Copilot thread `3286635369`)
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Consistency (doc/impl mismatch)
+- Summary: `qa.md` listed "missing top-level variable raises a clear Mustache formatting error" under Grumpy Paths. The implementation deliberately keeps mustache permissive — a missing `{{var}}` renders empty (mystace default). Only `{{$...}}` JSONPath failures, partials, empty/whitespace placeholders, JSON Pointer tags, and NUL bytes raise.
+- Fix applied: reworded the bullet to "missing top-level variable renders empty (mustache is permissive)" and scoped the adjacent JSONPath bullet to "missing or malformed JSONPath `{{$...}}` expression raises".
+- Files: `docs/design/prompt-runtime-unification/wp-b3-mustache-rendering/qa.md:155-156`
+- Verification: matches the pinned render-helper tests for permissive missing-var behavior.
 
 ### [CLOSED] WPB3-005 — Jinja2 `{% raw %}` / `{# #}` did not suppress `{{$...}}` JSONPath tags (raw-block contract)
 
