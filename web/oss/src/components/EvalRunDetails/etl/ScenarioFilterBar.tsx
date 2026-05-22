@@ -7,9 +7,11 @@
  * AND/OR operator. The bar writes a `PredicateGroup` to the per-run
  * filter atom — `useScenarioFilter` reads it and filters the rows.
  *
- * Value typing is best-effort: the run schema does not carry column
- * types, so a name heuristic refines `buildFilterSchema`'s default
- * (numeric for metrics, unknown otherwise) for the common cases.
+ * Column value types come from the evaluator output schema via the
+ * `resolveValueType` prop (see `columnValueTypes`). That drives the
+ * operator set and the value input — a boolean output gets only
+ * equality operators + a true/false input, a numeric one gets the
+ * comparators.
  */
 
 import {useCallback, useMemo} from "react"
@@ -60,29 +62,6 @@ const FILTERABLE_COLUMN_KINDS: Record<ColumnGroup["kind"], boolean> = {
     other: false,
 }
 
-const NUMERIC_HINTS = [
-    "score",
-    "cost",
-    "latency",
-    "duration",
-    "token",
-    "count",
-    "rate",
-    "ratio",
-    "total",
-    "avg",
-    "mean",
-]
-const BOOLEAN_HINTS = ["success", "passed", "failed", "correct", "valid", "match", "is_", "has_"]
-
-/** Name-based value-type heuristic — refines the schema-only default. */
-function heuristicValueType(field: {columnName: string}): FilterValueType | undefined {
-    const n = field.columnName.toLowerCase()
-    if (NUMERIC_HINTS.some((h) => n.includes(h))) return "number"
-    if (BOOLEAN_HINTS.some((h) => n.includes(h))) return "boolean"
-    return undefined
-}
-
 const encodeField = (f: {groupKind: string; groupSlug?: string | null; columnName: string}) =>
     `${f.groupKind}|${f.groupSlug ?? ""}|${f.columnName}`
 
@@ -97,17 +76,23 @@ const blankCondition = (): RowPredicate => ({
 export interface ScenarioFilterBarProps {
     runId: string
     schema: RunSchema | null
+    /** Column value-type resolver, sourced from the evaluator output schema. */
+    resolveValueType: (field: {
+        groupKind: string
+        groupSlug: string | null
+        columnName: string
+    }) => FilterValueType | undefined
 }
 
-const ScenarioFilterBar = ({runId, schema}: ScenarioFilterBarProps) => {
+const ScenarioFilterBar = ({runId, schema, resolveValueType}: ScenarioFilterBarProps) => {
     const [filter, setFilter] = useAtom(scenarioFilterAtomFamily(runId))
 
     const fields = useMemo(
         () =>
-            buildFilterSchema(schema, {resolveValueType: heuristicValueType}).fields.filter(
+            buildFilterSchema(schema, {resolveValueType}).fields.filter(
                 (f) => FILTERABLE_COLUMN_KINDS[f.groupKind],
             ),
-        [schema],
+        [schema, resolveValueType],
     )
     const fieldByKey = useMemo(() => new Map(fields.map((f) => [encodeField(f), f])), [fields])
     const fieldOptions = useMemo(
@@ -173,7 +158,6 @@ const ScenarioFilterBar = ({runId, schema}: ScenarioFilterBarProps) => {
                             <span className="mr-0.5 uppercase text-zinc-400">{filter.op}</span>
                         )}
                         <Select<string>
-                            size="small"
                             placeholder="Column"
                             style={{minWidth: 200}}
                             showSearch
@@ -196,7 +180,6 @@ const ScenarioFilterBar = ({runId, schema}: ScenarioFilterBarProps) => {
                             }}
                         />
                         <Select<FilterOperator>
-                            size="small"
                             style={{minWidth: 104}}
                             value={condition.op}
                             disabled={!field}

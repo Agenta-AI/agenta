@@ -27,6 +27,7 @@ import {DEFAULT_SCENARIO_PAGE_SIZE, evaluationRunQueryAtomFamily} from "./atoms/
 import type {PreviewTableRow} from "./atoms/tableRows"
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 import {CellMaterializerContext} from "./etl/cellMaterializerContext"
+import {buildColumnValueTypeResolver} from "./etl/columnValueTypes"
 import ScenarioFilterBar from "./etl/ScenarioFilterBar"
 import {useCellMaterialization} from "./etl/useCellMaterialization"
 import {useEtlColumns} from "./etl/useEtlColumns"
@@ -99,6 +100,14 @@ const EvalRunDetailsTable = ({
     const {columnResult} = usePreviewTableData({runId})
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
+
+    // Filter column value types — sourced from the evaluator output
+    // schemas (column `metricType`), so the filter bar offers the right
+    // operators + value input per column.
+    const filterValueTypeResolver = useMemo(
+        () => buildColumnValueTypeResolver(columnResult),
+        [columnResult],
+    )
 
     // ── ETL schema columns + self-hydrating cells (Phase 1 — T2 + T3) ──
     // The schema columns (testset / application / evaluator / metrics /
@@ -947,7 +956,11 @@ const EvalRunDetailsTable = ({
     return (
         <CellMaterializerContext.Provider value={cellMaterializer}>
             <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
-                <ScenarioFilterBar runId={runId} schema={runSchema} />
+                <ScenarioFilterBar
+                    runId={runId}
+                    schema={runSchema}
+                    resolveValueType={filterValueTypeResolver}
+                />
                 <div className="w-full grow min-h-0 overflow-auto">
                     <InfiniteVirtualTableFeatureShell<TableRowData>
                         /*
