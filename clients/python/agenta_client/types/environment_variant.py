@@ -10,6 +10,8 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update
 
 
 class EnvironmentVariant(UniversalBaseModel):
+    environment_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     environment_id: typing.Optional[str] = None
     artifact_id: typing.Optional[str] = None
     flags: typing.Optional[typing.Dict[str, typing.Any]] = None

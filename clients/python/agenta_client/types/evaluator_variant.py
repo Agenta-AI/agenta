@@ -11,8 +11,11 @@ from .evaluator_variant_flags import EvaluatorVariantFlags
 
 
 class EvaluatorVariant(UniversalBaseModel):
+    evaluator_slug: typing.Optional[str] = None
+    workflow_slug: typing.Optional[str] = None
     evaluator_id: typing.Optional[str] = None
     workflow_id: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     artifact_id: typing.Optional[str] = None
     flags: typing.Optional[EvaluatorVariantFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None

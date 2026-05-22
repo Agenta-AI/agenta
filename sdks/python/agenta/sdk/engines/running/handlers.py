@@ -333,10 +333,7 @@ def auto_exact_match_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-    correct_answer_key = str(parameters["correct_answer_key"])
+    correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)

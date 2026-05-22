@@ -16,6 +16,7 @@ if typing.TYPE_CHECKING:
     from .environments.client import AsyncEnvironmentsClient, EnvironmentsClient
     from .evaluations.client import AsyncEvaluationsClient, EvaluationsClient
     from .evaluators.client import AsyncEvaluatorsClient, EvaluatorsClient
+    from .events.client import AsyncEventsClient, EventsClient
     from .folders.client import AsyncFoldersClient, FoldersClient
     from .invocations.client import AsyncInvocationsClient, InvocationsClient
     from .keys.client import AsyncKeysClient, KeysClient
@@ -85,6 +86,7 @@ class AgentaApi:
         self._webhooks: typing.Optional[WebhooksClient] = None
         self._legacy: typing.Optional[LegacyClient] = None
         self._traces: typing.Optional[TracesClient] = None
+        self._events: typing.Optional[EventsClient] = None
         self._invocations: typing.Optional[InvocationsClient] = None
         self._annotations: typing.Optional[AnnotationsClient] = None
         self._testcases: typing.Optional[TestcasesClient] = None
@@ -157,6 +159,13 @@ class AgentaApi:
             from .traces.client import TracesClient  # noqa: E402
             self._traces = TracesClient(client_wrapper=self._client_wrapper)
         return self._traces
+    
+    @property
+    def events(self):
+        if self._events is None:
+            from .events.client import EventsClient  # noqa: E402
+            self._events = EventsClient(client_wrapper=self._client_wrapper)
+        return self._events
     
     @property
     def invocations(self):
@@ -321,6 +330,7 @@ class AsyncAgentaApi:
         self._webhooks: typing.Optional[AsyncWebhooksClient] = None
         self._legacy: typing.Optional[AsyncLegacyClient] = None
         self._traces: typing.Optional[AsyncTracesClient] = None
+        self._events: typing.Optional[AsyncEventsClient] = None
         self._invocations: typing.Optional[AsyncInvocationsClient] = None
         self._annotations: typing.Optional[AsyncAnnotationsClient] = None
         self._testcases: typing.Optional[AsyncTestcasesClient] = None
@@ -393,6 +403,13 @@ class AsyncAgentaApi:
             from .traces.client import AsyncTracesClient  # noqa: E402
             self._traces = AsyncTracesClient(client_wrapper=self._client_wrapper)
         return self._traces
+    
+    @property
+    def events(self):
+        if self._events is None:
+            from .events.client import AsyncEventsClient  # noqa: E402
+            self._events = AsyncEventsClient(client_wrapper=self._client_wrapper)
+        return self._events
     
     @property
     def invocations(self):
