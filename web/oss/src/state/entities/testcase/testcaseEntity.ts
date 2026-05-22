@@ -9,7 +9,6 @@ import {
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
-import {get} from "lodash"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
@@ -26,6 +25,8 @@ import {
 } from "./columnState"
 import {currentRevisionIdAtom} from "./queries"
 import {
+    applyTestcaseUserDataUpdates,
+    extractTestcaseUserData,
     flattenTestcase,
     normalizeToFlattenedTestcase,
     testcaseSchema,
@@ -555,20 +556,10 @@ export const testcaseIsDirtyAtomFamily = testcaseDraftState.isDirtyAtomFamily
 
 // Note: updateTestcaseAtom and discardDraftAtom are exported later after entity atom definition
 
-const applyTopLevelUpdates = (
+const applyUserDataUpdates = (
     record: FlattenedTestcase,
     updates: Partial<FlattenedTestcase>,
-): FlattenedTestcase => {
-    const next = {...record, ...updates}
-
-    for (const [key, value] of Object.entries(updates)) {
-        if (value === undefined) {
-            delete next[key]
-        }
-    }
-
-    return next
-}
+): FlattenedTestcase => applyTestcaseUserDataUpdates(record, updates)
 
 const isEmptyObjectLike = (value: unknown): boolean => {
     if (!value || typeof value !== "object") {
@@ -751,27 +742,30 @@ const applyPendingColumnChanges = (
 
     // Apply renames
     for (const [oldKey, newKey] of renames.entries()) {
-        const renameUpdates = buildRenameUpdates(result, oldKey, newKey)
+        const userData = extractTestcaseUserData(result)
+        const renameUpdates = userData ? buildRenameUpdates(userData, oldKey, newKey) : null
         if (renameUpdates) {
-            result = applyTopLevelUpdates(result, renameUpdates)
+            result = applyUserDataUpdates(result, renameUpdates)
             hasChanges = true
         }
     }
 
     // Apply deletions (remove column from data)
     for (const columnKey of deletedColumns) {
-        const deleteUpdates = buildDeleteUpdates(result, columnKey)
+        const userData = extractTestcaseUserData(result)
+        const deleteUpdates = userData ? buildDeleteUpdates(userData, columnKey) : null
         if (deleteUpdates) {
-            result = applyTopLevelUpdates(result, deleteUpdates)
+            result = applyUserDataUpdates(result, deleteUpdates)
             hasChanges = true
         }
     }
 
     // Apply additions (add empty column)
     for (const columnKey of addedColumns) {
-        const addUpdates = buildAddUpdates(result, columnKey)
+        const userData = extractTestcaseUserData(result)
+        const addUpdates = userData ? buildAddUpdates(userData, columnKey) : null
         if (addUpdates) {
-            result = applyTopLevelUpdates(result, addUpdates)
+            result = applyUserDataUpdates(result, addUpdates)
             hasChanges = true
         }
     }
@@ -827,17 +821,7 @@ export const updateTestcaseAtom = atom(
         const current = get(testcaseEntityAtomFamily(id))
         if (!current) return
 
-        // Start with current data
-        const updated = {...current}
-
-        // Apply updates - undefined values delete the key
-        for (const [key, value] of Object.entries(updates)) {
-            if (value === undefined) {
-                delete updated[key]
-            } else {
-                updated[key] = value
-            }
-        }
+        const updated = applyUserDataUpdates(current, updates)
 
         set(testcaseDraftAtomFamily(id), updated)
     },
@@ -895,13 +879,7 @@ export const batchUpdateTestcasesSyncAtom = atom(
 
             if (!current) continue
 
-            // Merge updates, then delete keys that are explicitly set to undefined
-            const updated = {...current, ...entityUpdates}
-            for (const [key, value] of Object.entries(entityUpdates)) {
-                if (value === undefined) {
-                    delete (updated as Record<string, unknown>)[key]
-                }
-            }
+            const updated = applyUserDataUpdates(current, entityUpdates)
             draftsToSet.push({id, data: updated})
         }
 
@@ -937,7 +915,8 @@ export const renameColumnInTestcasesAtom = atom(
             // First check if there's a draft
             const draft = get(testcaseDraftAtomFamily(id))
             if (draft) {
-                const renameUpdates = buildRenameUpdates(draft, oldKey, newKey)
+                const userData = extractTestcaseUserData(draft)
+                const renameUpdates = userData ? buildRenameUpdates(userData, oldKey, newKey) : null
                 if (renameUpdates) {
                     updates.push({id, updates: renameUpdates})
                 }
@@ -949,7 +928,10 @@ export const renameColumnInTestcasesAtom = atom(
             if (rowDataMap) {
                 const rowData = rowDataMap.get(id)
                 if (rowData) {
-                    const renameUpdates = buildRenameUpdates(rowData, oldKey, newKey)
+                    const userData = extractTestcaseUserData(rowData)
+                    const renameUpdates = userData
+                        ? buildRenameUpdates(userData, oldKey, newKey)
+                        : null
                     if (renameUpdates) {
                         updates.push({id, updates: renameUpdates})
                     }
@@ -978,7 +960,8 @@ export const deleteColumnFromTestcasesAtom = atom(null, (get, set, columnKey: st
         const entity = get(testcaseEntityAtomFamily(id))
         if (!entity) continue
 
-        const deleteUpdates = buildDeleteUpdates(entity, columnKey)
+        const userData = extractTestcaseUserData(entity)
+        const deleteUpdates = userData ? buildDeleteUpdates(userData, columnKey) : null
         if (deleteUpdates) {
             updates.push({id, updates: deleteUpdates})
         }
@@ -1006,7 +989,8 @@ export const addColumnToTestcasesAtom = atom(
             const entity = get(testcaseEntityAtomFamily(id))
             if (!entity) continue
 
-            const addUpdates = buildAddUpdates(entity, columnKey, defaultValue)
+            const userData = extractTestcaseUserData(entity)
+            const addUpdates = userData ? buildAddUpdates(userData, columnKey, defaultValue) : null
             if (addUpdates) {
                 updates.push({id, updates: addUpdates})
             }
@@ -1060,9 +1044,11 @@ export const testcaseCellAtomFamily = atomFamily(
                     return undefined
                 }
 
-                // First, try direct key access (handles flat keys with dots like "agents.md")
+                const userData = extractTestcaseUserData(entity)
+
+                // First, try direct user-data access (handles flat keys with dots like "agents.md")
                 // This is important because column names can legitimately contain dots
-                const directValue = (entity as Record<string, unknown>)[column]
+                const directValue = userData?.[column]
                 if (directValue !== undefined) {
                     return directValue
                 }
@@ -1072,30 +1058,12 @@ export const testcaseCellAtomFamily = atomFamily(
                 const parts = column.split(".")
 
                 if (parts.length === 1) {
-                    // Simple top-level access - already tried above, return undefined
-                    return get(entity, column)
+                    return undefined
                 }
 
-                // Nested path - need to parse JSON strings along the way
-                let current: any = entity
-                for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i]
+                let current: any = userData
+                for (const part of parts) {
                     current = current?.[part]
-
-                    // If we got a JSON string and there are more parts to traverse, parse it
-                    if (i < parts.length - 1 && typeof current === "string") {
-                        const trimmed = current.trim()
-                        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-                            try {
-                                current = JSON.parse(trimmed)
-                            } catch {
-                                return undefined
-                            }
-                        } else {
-                            // String but not JSON - can't traverse further
-                            return undefined
-                        }
-                    }
                 }
 
                 return current

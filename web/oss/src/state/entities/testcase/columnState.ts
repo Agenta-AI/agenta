@@ -1,8 +1,8 @@
-import {SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {currentRevisionIdAtom} from "./queries"
+import {extractTestcaseUserData} from "./schema"
 import {
     addColumnToTestcasesAtom,
     deleteColumnFromTestcasesAtom,
@@ -90,7 +90,7 @@ export const clearPendingRenamesAtom = atom(null, (get, set) => {
 // ============================================================================
 
 export const pendingDeletedColumnsAtomFamily = atomFamily((_revisionId: string) =>
-    atom<Set<string>>(new Set()),
+    atom<Set<string>>(new Set<string>()),
 )
 
 /**
@@ -115,7 +115,7 @@ export const addPendingDeletedColumnAtom = atom(null, (get, set, columnKey: stri
 export const clearPendingDeletedColumnsAtom = atom(null, (get, set) => {
     const revisionId = get(currentRevisionIdAtom)
     if (!revisionId) return
-    set(pendingDeletedColumnsAtomFamily(revisionId), new Set())
+    set(pendingDeletedColumnsAtomFamily(revisionId), new Set<string>())
 })
 
 // ============================================================================
@@ -124,7 +124,7 @@ export const clearPendingDeletedColumnsAtom = atom(null, (get, set) => {
 // ============================================================================
 
 export const pendingAddedColumnsAtomFamily = atomFamily((_revisionId: string) =>
-    atom<Set<string>>(new Set()),
+    atom<Set<string>>(new Set<string>()),
 )
 
 /**
@@ -149,7 +149,7 @@ export const addPendingAddedColumnAtom = atom(null, (get, set, columnKey: string
 export const clearPendingAddedColumnsAtom = atom(null, (get, set) => {
     const revisionId = get(currentRevisionIdAtom)
     if (!revisionId) return
-    set(pendingAddedColumnsAtomFamily(revisionId), new Set())
+    set(pendingAddedColumnsAtomFamily(revisionId), new Set<string>())
 })
 
 /**
@@ -217,12 +217,9 @@ export const currentColumnKeysAtom = atom((get) => {
         if (deletedIds.has(id)) return
 
         const entity = get(testcaseEntityAtomFamily(id))
-        if (entity) {
-            Object.keys(entity).forEach((key) => {
-                if (!SYSTEM_FIELDS.has(key)) {
-                    keys.add(key)
-                }
-            })
+        const data = extractTestcaseUserData(entity)
+        if (data) {
+            Object.keys(data).forEach((key) => keys.add(key))
         }
     })
 
@@ -242,12 +239,9 @@ export const serverColumnKeysAtom = atom((get) => {
         // testcaseEntityAtomFamily returns draft if exists, otherwise server data
         // For server keys, we want the entity data (which includes server state)
         const entity = get(testcaseEntityAtomFamily(id))
-        if (entity) {
-            Object.keys(entity).forEach((key) => {
-                if (!SYSTEM_FIELDS.has(key)) {
-                    keys.add(key)
-                }
-            })
+        const data = extractTestcaseUserData(entity)
+        if (data) {
+            Object.keys(data).forEach((key) => keys.add(key))
         }
     })
 
@@ -359,57 +353,24 @@ export interface ExpandedColumn extends Column {
 const MAX_COLUMN_DEPTH = 5
 
 /**
- * Try to parse a value as a plain object (handles JSON strings)
- * Arrays are NOT treated as objects - they should be displayed as JSON
+ * Treat only native objects as expandable objects.
+ * Arrays are NOT treated as objects - they should be displayed as JSON.
  */
 function tryParseAsObject(value: unknown): Record<string, unknown> | null {
-    // Reject arrays explicitly
     if (Array.isArray(value)) {
         return null
     }
-    // Already an object (and not an array)
     if (value && typeof value === "object") {
         return value as Record<string, unknown>
-    }
-    // Try to parse JSON string - only if it's an object (starts with {), not an array
-    if (typeof value === "string") {
-        const trimmed = value.trim()
-        // Only parse objects, not arrays
-        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-            try {
-                const parsed = JSON.parse(trimmed)
-                // Double-check it's not an array after parsing
-                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                    return parsed as Record<string, unknown>
-                }
-            } catch {
-                // Not valid JSON
-            }
-        }
     }
     return null
 }
 
 /**
- * Check if a value is an array (handles JSON strings too)
+ * Check if a value is a native array.
  */
 function isArrayValue(value: unknown): boolean {
-    if (Array.isArray(value)) {
-        return true
-    }
-    // Check for JSON array strings
-    if (typeof value === "string") {
-        const trimmed = value.trim()
-        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-            try {
-                const parsed = JSON.parse(trimmed)
-                return Array.isArray(parsed)
-            } catch {
-                return false
-            }
-        }
-    }
-    return false
+    return Array.isArray(value)
 }
 
 /**
@@ -431,7 +392,7 @@ function collectObjectSubKeysRecursive(
 
     Object.entries(obj).forEach(([subKey, subValue]) => {
         // Never expose internal fields as nested columns.
-        if (subKey.startsWith("__")) return
+        if (subKey.startsWith("__") || subKey === "testcase_dedup_id") return
 
         const fullPath = prefix ? `${prefix}.${subKey}` : subKey
 
@@ -477,7 +438,7 @@ function collectObjectSubKeysRecursive(
 /**
  * Derived atom: analyzes testcase data to detect object-type columns
  * Returns a map of column key -> set of sub-keys found in that column's objects
- * Handles both actual objects and JSON strings
+ * Handles native objects only
  * Recursively expands up to MAX_COLUMN_DEPTH levels
  */
 export const objectColumnSubKeysAtom = atom((get) => {
@@ -496,11 +457,13 @@ export const objectColumnSubKeysAtom = atom((get) => {
         const entity = get(testcaseEntityAtomFamily(id))
         if (!entity) return
 
-        Object.entries(entity).forEach(([key, value]) => {
-            if (SYSTEM_FIELDS.has(key)) return
+        const data = extractTestcaseUserData(entity)
+        if (!data) return
+
+        Object.entries(data).forEach(([key, value]) => {
             if (deletedCols.has(key)) return
 
-            // Try to parse as object (handles JSON strings too)
+            // Expand native objects only.
             const obj = tryParseAsObject(value)
             if (obj && Object.keys(obj).length > 0) {
                 // Recursively collect sub-keys up to MAX_COLUMN_DEPTH

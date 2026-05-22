@@ -11,6 +11,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {testcase} from "@/oss/state/entities/testcase"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
+import {extractTestcaseUserData} from "@/oss/state/entities/testcase/schema"
 
 const {Text} = Typography
 
@@ -55,10 +56,14 @@ const TestcaseEditDrawerContent = ({
         }
     }, [])
 
-    const testcaseData = useAtomValue(testcase.selectors.data(testcaseId)) as Record<
+    const testcaseEntity = useAtomValue(testcase.selectors.data(testcaseId)) as Record<
         string,
         unknown
     > | null
+    const testcaseData = useMemo(
+        () => extractTestcaseUserData(testcaseEntity) ?? {},
+        [testcaseEntity],
+    )
     const dispatch = useSetAtom(testcase.controller(testcaseId))
 
     const editorColumns = useMemo<TestcaseDataEditorColumn[]>(
