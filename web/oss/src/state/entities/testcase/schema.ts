@@ -114,6 +114,23 @@ const TESTCASE_ENTITY_MARKER_FIELDS = new Set([
     "deleted_by_id",
 ])
 
+const TESTCASE_ENTITY_UPDATE_MARKER_FIELDS = new Set([
+    "testset_id",
+    "set_id",
+    "testset_variant_id",
+    "revision_id",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "created_by_id",
+    "updated_by_id",
+    "deleted_by_id",
+])
+
+const isTestcaseEntityUpdate = (updates: Record<string, unknown>): boolean =>
+    isRecord(updates.data) ||
+    Object.keys(updates).some((key) => TESTCASE_ENTITY_UPDATE_MARKER_FIELDS.has(key))
+
 const hasWrappedDataShape = (row: Record<string, unknown>): boolean => {
     if (!isRecord(row.data)) return false
 
@@ -321,15 +338,75 @@ export function filterTestcaseUserDataToColumns(
     return result
 }
 
+const sortComparableValue = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+        return value.map(sortComparableValue)
+    }
+
+    if (isRecord(value)) {
+        const sorted: Record<string, unknown> = {}
+        for (const key of Object.keys(value).sort()) {
+            sorted[key] = sortComparableValue(value[key])
+        }
+        return sorted
+    }
+
+    return value
+}
+
+const normalizeUserDataValueForComparison = (value: unknown): string =>
+    value === undefined || value === null || value === ""
+        ? ""
+        : JSON.stringify(sortComparableValue(value))
+
+export function hasTestcaseUserDataChanges(current: unknown, original: unknown): boolean {
+    const currentUserData = extractTestcaseUserData(current) ?? {}
+    const originalUserData = extractTestcaseUserData(original) ?? {}
+
+    const currentKeys = Object.keys(currentUserData)
+    const originalKeys = Object.keys(originalUserData)
+
+    for (const key of currentKeys) {
+        if (!(key in originalUserData)) {
+            const currentValue = currentUserData[key]
+            if (currentValue !== undefined && currentValue !== null && currentValue !== "") {
+                return true
+            }
+            continue
+        }
+
+        if (
+            normalizeUserDataValueForComparison(currentUserData[key]) !==
+            normalizeUserDataValueForComparison(originalUserData[key])
+        ) {
+            return true
+        }
+    }
+
+    for (const key of originalKeys) {
+        if (!(key in currentUserData)) {
+            const originalValue = originalUserData[key]
+            if (originalValue !== undefined && originalValue !== null && originalValue !== "") {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
 export function applyTestcaseUserDataUpdates(
     flattened: FlattenedTestcase,
     updates: Record<string, unknown>,
 ): FlattenedTestcase {
     const currentData = extractTestcaseUserData(flattened) ?? {}
+    const sanitizedUpdates = isTestcaseEntityUpdate(updates)
+        ? (extractTestcaseUserData(updates) ?? {})
+        : updates
     const nextData: Record<string, unknown> = {...currentData}
     const next: FlattenedTestcase & Record<string, unknown> = {...flattened, data: nextData}
 
-    for (const [key, value] of Object.entries(updates)) {
+    for (const [key, value] of Object.entries(sanitizedUpdates)) {
         if (key === "data") continue
         if (isInternalUserDataField(key)) continue
 

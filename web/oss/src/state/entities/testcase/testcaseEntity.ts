@@ -6,7 +6,7 @@ import {
     parsePath,
     setValueAtPath,
 } from "@agenta/shared/utils"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
@@ -15,7 +15,7 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-import {createEntityDraftState, normalizeValueForComparison} from "../shared/createEntityDraftState"
+import {createEntityDraftState} from "../shared/createEntityDraftState"
 
 import {atomFamilyRegistry} from "./atomCleanup"
 import {
@@ -28,6 +28,7 @@ import {
     applyTestcaseUserDataUpdates,
     extractTestcaseUserData,
     flattenTestcase,
+    hasTestcaseUserDataChanges,
     normalizeToFlattenedTestcase,
     testcaseSchema,
     type FlattenedTestcase,
@@ -436,6 +437,14 @@ const DIRTY_EXCLUDE_FIELDS = new Set([
     "testcase_dedup_id",
 ])
 
+function isTestcaseDraftDirty(
+    currentData: FlattenedTestcase,
+    originalData: FlattenedTestcase,
+    _context: {get: Getter; id: string},
+): boolean {
+    return hasTestcaseUserDataChanges(currentData, originalData)
+}
+
 /**
  * Create draft state management for testcases
  * Uses shared factory with testcase-specific dirty detection
@@ -454,97 +463,7 @@ const testcaseDraftState = createEntityDraftState<FlattenedTestcase, FlattenedTe
     mergeDraft: (testcase, draft) => ({...testcase, ...draft}),
 
     // Complex dirty detection logic with pending column changes
-    isDirty: (currentData, originalData, {get, id}) => {
-        const draft = get(testcaseDraftAtomFamily(id))
-        // Use query atom directly (single source of truth for server data)
-        const queryState = get(testcaseQueryAtomFamily(id))
-        const serverState = normalizeToFlattenedTestcase(queryState.data) ?? null
-
-        // Check if pending column changes affect this entity (even without draft)
-        if (!draft && serverState) {
-            const serverRecord = serverState as Record<string, unknown>
-
-            // Check pending renames
-            const pendingRenames = get(pendingColumnRenamesAtom)
-            for (const oldKey of pendingRenames.keys()) {
-                if (oldKey in serverRecord) {
-                    return true // Server has old column that needs renaming
-                }
-            }
-
-            // Check pending deletions
-            const pendingDeleted = get(pendingDeletedColumnsAtom)
-            for (const columnKey of pendingDeleted) {
-                if (columnKey in serverRecord) {
-                    const value = serverRecord[columnKey]
-                    if (value !== undefined && value !== null && value !== "") {
-                        return true // Server has column with data that needs deleting
-                    }
-                }
-            }
-
-            // Check pending additions (server doesn't have the column yet)
-            const pendingAdded = get(pendingAddedColumnsAtom)
-            for (const columnKey of pendingAdded) {
-                if (!(columnKey in serverRecord)) {
-                    return true // Server doesn't have this added column
-                }
-            }
-
-            return false
-        }
-
-        if (!draft) return false // No draft and no pending changes = not dirty
-
-        if (!serverState) {
-            // New entity (no server state) - dirty if has any data
-            for (const [key, value] of Object.entries(draft)) {
-                if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
-                if (value !== undefined && value !== null && value !== "") {
-                    return true
-                }
-            }
-            return false
-        }
-
-        // Compare draft vs server state field by field
-        const draftRecord = currentData as Record<string, unknown>
-        const serverRecord = originalData as Record<string, unknown>
-
-        // Check draft keys against server
-        for (const key of Object.keys(draftRecord)) {
-            if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
-
-            // Check if this is a new column (draft has it, server doesn't)
-            if (!(key in serverRecord)) {
-                // Draft has a key that server doesn't have - this is an added column
-                return true
-            }
-
-            const draftValue = draftRecord[key]
-            const serverValue = serverRecord[key]
-            // Normalize values for comparison - handles object vs string JSON comparison
-            const normalizedDraft = normalizeValueForComparison(draftValue)
-            const normalizedServer = normalizeValueForComparison(serverValue)
-            if (normalizedDraft !== normalizedServer) {
-                return true
-            }
-        }
-
-        // Check server keys not in draft (deleted columns)
-        for (const key of Object.keys(serverRecord)) {
-            if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
-            if (!(key in draftRecord)) {
-                // Server has key that draft doesn't - check if server value is non-empty
-                const serverValue = serverRecord[key]
-                if (serverValue !== undefined && serverValue !== null && serverValue !== "") {
-                    return true
-                }
-            }
-        }
-
-        return false
-    },
+    isDirty: isTestcaseDraftDirty,
 
     excludeFields: DIRTY_EXCLUDE_FIELDS,
 })
@@ -822,6 +741,12 @@ export const updateTestcaseAtom = atom(
         if (!current) return
 
         const updated = applyUserDataUpdates(current, updates)
+        const original = normalizeToFlattenedTestcase(get(testcaseQueryAtomFamily(id)).data)
+
+        if (original && !isTestcaseDraftDirty(updated, original, {get, id})) {
+            set(testcaseDraftAtomFamily(id), null)
+            return
+        }
 
         set(testcaseDraftAtomFamily(id), updated)
     },

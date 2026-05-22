@@ -12,6 +12,7 @@ import {
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
+import deepEqual from "fast-deep-equal"
 
 import {parseCodeString, toCodeString, type RootDrawerViewMode} from "./codeFormat"
 import type {TestcaseDataEditorColumn, TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
@@ -80,6 +81,7 @@ function FullPayloadCodeEditor({
             const parsed = parseCodeString<unknown>(next, format, editableValue)
             if (parsed === editableValue) return
             const parsedRecord = normalizeTestcaseData(parsed as Record<string, unknown>)
+            if (deepEqual(parsedRecord, editableValue)) return
             onChange(columns?.length ? {...value, ...parsedRecord} : parsedRecord)
         },
         [columns, editable, editableValue, format, onChange, value],
