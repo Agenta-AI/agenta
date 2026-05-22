@@ -49,6 +49,7 @@ class EvaluationPlanner:
         is_live: bool = False,
         has_traces: bool = False,
         has_testcases: bool = False,
+        execute_custom: bool = False,
     ) -> ExecutionPlan:
         return self.plan_bindings(
             run_id=run_id,
@@ -64,6 +65,7 @@ class EvaluationPlanner:
             is_live=is_live,
             has_traces=has_traces,
             has_testcases=has_testcases,
+            execute_custom=execute_custom,
         )
 
     def plan_bindings(
@@ -77,6 +79,7 @@ class EvaluationPlanner:
         is_live: bool = False,
         has_traces: bool = False,
         has_testcases: bool = False,
+        execute_custom: bool = False,
     ) -> ExecutionPlan:
         repeat_indices = build_repeat_indices(repeats)
 
@@ -134,6 +137,7 @@ class EvaluationPlanner:
                         source=source,
                         step=step,
                         repeat_indices=repeat_indices,
+                        execute_custom=execute_custom,
                     )
                 )
 
@@ -175,11 +179,18 @@ class EvaluationPlanner:
         source: ResolvedSourceItem,
         step: EvaluationStep,
         repeat_indices: List[int],
+        execute_custom: bool = False,
     ) -> List[PlannedCell]:
-        is_manual_annotation = step.type == "annotation" and step.origin in {
-            "human",
-            "custom",
-        }
+        # Who executes an annotation step depends on its origin:
+        #   human  -> the web frontend (never executed by the runtime)
+        #   auto   -> the runtime host (backend worker, or SDK locally)
+        #   custom -> the SDK/external client. The runtime only runs custom when
+        #             it IS that client (execute_custom=True, set by the SDK
+        #             evaluate() loop); the backend leaves custom alone.
+        manual_origins = {"human"} if execute_custom else {"human", "custom"}
+        is_manual_annotation = step.type == "annotation" and step.origin in (
+            manual_origins
+        )
         status = (
             EvaluationStatus.PENDING
             if is_manual_annotation

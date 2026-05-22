@@ -1419,7 +1419,15 @@ class EvaluationsService:
                 steps_trace_ids[step_key] = trace_ids
 
         if not steps_trace_ids:
-            log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
+            # A human/custom annotation is run elsewhere (web / SDK), so it has no
+            # trace here by design — only warn if a step we expected to trace
+            # (an invocation or auto annotation) failed to produce one.
+            expected_traces = any(
+                step.type != "annotation" or step.origin not in {"human", "custom"}
+                for step in refreshable_steps
+            )
+            if expected_traces:
+                log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
             return []
 
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}

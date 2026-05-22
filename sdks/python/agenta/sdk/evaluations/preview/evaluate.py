@@ -565,7 +565,10 @@ async def aevaluate(
                     },
                 )
             )
-            if origin == "auto":
+            # The SDK runtime executes both auto (runtime-run) and custom
+            # (SDK/external-run) evaluators locally; only human is left to the
+            # web. Wire a local runner for everything except human.
+            if origin != "human":
                 runners[evaluator_step_key] = SdkLocalEvaluatorRunner()
                 revisions[evaluator_step_key] = evaluator_revision
 
@@ -606,6 +609,8 @@ async def aevaluate(
             runners=runners,
             revisions=revisions,
             trace_loader=trace_loader,
+            # The SDK evaluate() loop IS the executor for custom-origin steps.
+            execute_custom=True,
         )
         scenarios.extend(
             {

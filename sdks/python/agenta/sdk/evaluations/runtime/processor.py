@@ -44,7 +44,7 @@ async def process_evaluation_source_slice(
     run_id: UUID,
     source_items: List[ResolvedSourceItem],
     steps: List[EvaluationStep],
-    repeats: Optional[int],
+    repeats: Optional[int] = None,
     create_scenario: CreateScenario,
     result_logger: ResultLogger,
     refresh_metrics: RefreshMetrics,
@@ -57,6 +57,7 @@ async def process_evaluation_source_slice(
     batch_size: Optional[int] = None,
     max_retries: Optional[int] = None,
     retry_delay: Optional[float] = None,
+    execute_custom: bool = False,
 ) -> List[ProcessedScenario]:
     """Process concrete source items through the SDK-owned runtime contract.
 
@@ -93,6 +94,7 @@ async def process_evaluation_source_slice(
             steps=steps,
             repeats=repeats,
             is_split=is_split,
+            execute_custom=execute_custom,
         )
         results: Dict[str, Any] = {}
         context_by_repeat = _initial_context_by_repeat(

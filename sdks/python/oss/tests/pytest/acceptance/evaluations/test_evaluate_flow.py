@@ -80,6 +80,26 @@ def _assert_eval_result(result, *, expected_scenarios):
     assert len(result["scenarios"]) == expected_scenarios
 
 
+def _metrics_data(result):
+    m = result["metrics"]
+    return getattr(m, "data", None) or {}
+
+
+def _assert_evaluator_metrics_present(result):
+    # The evaluator must actually be EXECUTED by the SDK runtime (custom origin),
+    # so its outputs land in the run metrics. Before the custom-execution fix the
+    # evaluator step was skipped (logged pending, trace_id=None) and produced no
+    # metrics — this assertion guards that regression.
+    data = _metrics_data(result)
+    evaluator_steps = {k: v for k, v in data.items() if k.startswith("evaluator-")}
+    assert evaluator_steps, f"no evaluator metrics in run metrics: {list(data.keys())}"
+    # at least one evaluator step exposes its scored output
+    assert any(
+        any("ag.data.outputs.score" in path for path in v)
+        for v in evaluator_steps.values()
+    ), f"evaluator metrics present but no score output: {evaluator_steps}"
+
+
 class TestEvaluateLocalCallable:
     async def test_basic_testset_app_auto_evaluator(self, agenta_init):
         rev = await _make_testset()
@@ -91,6 +111,8 @@ class TestEvaluateLocalCallable:
         )
         # 2 testcases x 1 repeat = 2 scenarios
         _assert_eval_result(result, expected_scenarios=2)
+        # the custom (SDK-run) evaluator must actually execute and yield metrics
+        _assert_evaluator_metrics_present(result)
 
     async def test_with_repeats(self, agenta_init):
         rev = await _make_testset()
@@ -114,6 +136,7 @@ class TestEvaluateLocalCallable:
             evaluators=[pass_evaluator, length_evaluator],
         )
         _assert_eval_result(result, expected_scenarios=2)
+        _assert_evaluator_metrics_present(result)
 
     async def test_specs_dict_equivalent_to_kwargs(self, agenta_init):
         rev = await _make_testset()

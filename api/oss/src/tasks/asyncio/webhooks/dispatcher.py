@@ -106,12 +106,6 @@ class WebhooksDispatcher:
         )
 
         if cached is not None:
-            log.info(
-                "[WEBHOOKS DISPATCHER] Subscriptions cache hit",
-                project_id=str(project_id),
-                count=len(cached),
-            )
-
             decrypted = []
 
             for sub in cached:
@@ -134,12 +128,6 @@ class WebhooksDispatcher:
             project_id=project_id,
             #
             subscription=WebhookSubscriptionQuery(),
-        )
-
-        log.info(
-            "[WEBHOOKS DISPATCHER] Subscriptions loaded from DB",
-            project_id=str(project_id),
-            count=len(subscriptions),
         )
 
         # Resolve secrets (vault reads happen only on cache miss)
@@ -211,10 +199,6 @@ class WebhooksDispatcher:
                 continue
 
             if not subscriptions:
-                log.info(
-                    "[WEBHOOKS DISPATCHER] No subscriptions for project",
-                    project_id=str(project_id),
-                )
                 continue
 
             for msg in project_batch["events"]:
