@@ -32,101 +32,6 @@ Sources:
 
 ## Open Findings
 
-### [OPEN] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
-
-- ID: `UEL-009`
-- Origin: `scan`
-- Lens: `verification`
-- Severity: `P2`
-- Confidence: `high`
-- Status: `open`
-- Category: `Soundness`
-- Summary: The DAO-side helper `_make_run_flags` (`api/oss/src/dbs/postgres/evaluations/utils.py:73-138`) is the canonical place that derives the eight `has_*` flags from `run.data.steps`. It is invoked from `create_run_flags` / `edit_run_flags`, which the DAO calls inside `create_run` / `create_runs` / `edit_run` / `edit_runs`. The data migration (`a2b3c4d5e6f8`) duplicates the same heuristic in SQL. Both rely on two fragile rules: (1) substring matching of reference keys for `has_queries` / `has_testsets`, and (2) hardcoded step.key literals `{"traces", "query-direct", "testcases", "testset-direct"}` with empty references for `has_traces` / `has_testcases`.
-- Evidence:
-  - `api/oss/src/dbs/postgres/evaluations/utils.py:104-136` walks `run.data.steps`, resets the eight `has_*` flags, and recomputes them from step shape.
-  - Lines 113-116 set `has_traces=True` if `step.key.lower() in {"traces", "query-direct"}` and refs are empty; same idiom for `has_testcases` with `{"testcases", "testset-direct"}`.
-  - Lines 118-124 set `has_queries=True` if any reference key contains the substring `"query"`; `has_testsets=True` if it contains `"testset"`. A reference key like `query_anchor`, `subquery`, or `testset_metadata` would falsely trigger either flag.
-  - `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py:24-39` uses the same literals to backfill `has_traces` / `has_testcases` on existing rows.
-  - `docs/designs/unified-eval-loops/research.md:316-323` and `docs/designs/unify-evals-and-queues/unify-evals-extension-synthesis.md:30-33` explicitly identify "synthetic step-key inspection" as a target for removal under the new model.
-  - `api/oss/tests/pytest/unit/evaluations/test_run_flags.py:61-111` locks in the current heuristic (steps named `"traces"` / `"testcases"` with empty refs are expected to produce `has_traces=True` / `has_testcases=True`).
-- Impact:
-  - Runtime and migration agree on the heuristic, so the backfill is internally consistent with new inserts. The risk is structural, not immediate.
-  - Any caller that constructs a direct-source input step with a non-matching `step.key` (e.g. `"my_traces_source"`) will silently produce `has_traces=False`. Downstream dispatch checks (`SimpleQueuesService._get_kind`, `dispatch_trace_slice`, `dispatch_testcase_slice`) will then misclassify or refuse the run.
-  - Any future reference key containing the substring `"query"` or `"testset"` (e.g. a hypothetical `query_anchor` or `testset_metadata` ref on an unrelated step) would incorrectly flip `has_queries` / `has_testsets` to `True`.
-  - The two heuristics live in two languages (Python and SQL). A future change to the rule must be applied in both places to keep backfilled and runtime rows consistent.
-- Files:
-  - `api/oss/src/dbs/postgres/evaluations/utils.py`
-  - `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py`
-  - `api/oss/tests/pytest/unit/evaluations/test_run_flags.py`
-- Cause: There is no structural marker on a step that identifies its source family. Until one exists, both the migration and the DAO must infer from `step.key` / `step.references` shape.
-- Suggested Fix:
-  - Introduce a structured marker on `EvaluationRunDataStep` for source family (e.g. a `source_kind: Literal["query","testset","trace","testcase"]` field, or a sentinel reference `{"direct_source": Reference(...)}`) and have both the DAO and the migration read it.
-  - Until then, harden the substring match by enforcing exact reference-key membership (`"query_revision" in references` rather than substring-on-key) and lock the direct-source step keys in a single shared constant referenced from both Python and the migration.
-  - Add a unit test that asserts `has_queries` does NOT trigger for a fake reference key like `"some_query_anchor"`.
-- Alternatives:
-  - Accept the heuristic as the persistent rule and document it as a contract; gate any future step-key changes through a versioning check.
-- Re-audit (2026-05-20): **Still reproduces.** Confirmed in `oss/src/dbs/postgres/evaluations/utils.py`: hardcoded direct-source step keys `{"traces", "query-direct"}` / `{"testcases", "testset-direct"}` at lines 113-116, and substring matching `"query" in step_key` / `"testset" in step_key` at lines 121-124 (refs in finding cited 104-136 / 118-124; logic unchanged, lines shifted to ~94-124). Diagnosis and severity unchanged.
-
-### [OPEN] UEL-011: No tests cover default-queue reconciliation, archive/unarchive, or `_validate_default_queue_data`
-
-- ID: `UEL-011`
-- Origin: `scan`
-- Lens: `verification`
-- Severity: `P1`
-- Confidence: `high`
-- Status: `open`
-- Category: `Testing`
-- Summary: The evals×queues unification adds a lot of new behavior — `_reconcile_default_queue`, `archive_queue`, `unarchive_queue`, `_validate_default_queue_data`, `_sync_run_queue_flag_for_default_queue`, default-queue lookup, partial unique index — but pytest coverage is zero.
-- Evidence:
-  - `grep -rn "default queue\|default_queue\|is_default" api/oss/tests/pytest/` returns no relevant hits (matches are all unrelated workspace/project `is_default`).
-  - `grep -rn "reconcile_default_queue\|archive_queue\|unarchive_queue\|fetch_default_queue\|EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS" api/oss/tests/` returns nothing.
-  - Existing acceptance tests in `test_simple_queues_basics.py` cover queue creation and source-family resolution but do not exercise default-queue lifecycle.
-- Impact:
-  - The entire unified-queues lifecycle is unverified. UEL-008/UEL-009/UEL-010/UEL-013 in particular would have been caught by basic coverage.
-  - Future refactors of `_reconcile_default_queue` have no safety net.
-- Files:
-  - `api/oss/tests/pytest/` (no relevant tests)
-  - `api/oss/tests/pytest/unit/evaluations/test_run_flags.py` (covers other flag aspects but not queue reconciliation)
-- Cause: The implementation was prioritized over tests; the design (`unify-evals-and-queues/gap.md` §Tests) lists exactly these as required test cases.
-- Suggested Fix:
-  - Add unit tests for `_reconcile_default_queue` under all four state transitions (`required+missing`, `required+archived`, `required+active`, `not required+active`).
-  - Add tests for `archive_queue`/`unarchive_queue` returning `None` when the queue is missing, raising for closed runs, and syncing `run.flags.is_queue`.
-  - Add tests for `_validate_default_queue_data` rejecting `user_ids`, `scenario_ids`, `step_keys`, `batch_size`, `batch_offset` on `is_default=True` queues, both in create and edit paths.
-  - Add a DAO/integration test asserting that the partial unique index `ux_evaluation_queues_default_per_run` prevents two default queues per run (including archived rows).
-  - Add a regression test for `delete_queue`/`delete_queues` raising "default queues must be archived, not hard deleted".
-- Alternatives:
-  - Cover the same surface through acceptance tests over the HTTP routes (`/queues/{id}/archive`, `/runs/{id}/default-queue`). Reduces unit-level reach but covers HTTP wiring at the same time.
-
-### [OPEN] UEL-020: `is_queue` is recomputed only at the service layer; the DAO neither resets nor derives it
-
-- ID: `UEL-020`
-- Origin: `scan`
-- Lens: `verification`
-- Severity: `P2`
-- Confidence: `high`
-- Status: `open`
-- Category: `Soundness`
-- Summary: The DAO helper `_make_run_flags` resets the eight `has_*` flags on every `create_run` / `edit_run` and re-derives them from `run.data.steps`. It does not touch `is_queue`, which is computed only by `_reconcile_default_queue` and `_sync_run_queue_flag_for_default_queue` at the service layer. Any caller that bypasses the service and writes to the DAO directly (or any future caller that constructs `EvaluationRunFlags(is_queue=True)` and calls `edit_run`) can plant a stale `is_queue` value that survives until reconciliation runs again. The same asymmetry means the DAO has no invariant to detect or correct a desynced `is_queue` on read.
-- Evidence:
-  - `api/oss/src/dbs/postgres/evaluations/utils.py:94-102` resets only `has_queries`, `has_testsets`, `has_traces`, `has_testcases`, `has_evaluators`, `has_custom`, `has_human`, `has_auto`. `is_queue` is left to whatever the caller passed (or the row already had).
-  - `api/oss/src/core/evaluations/service.py:440-447` writes `is_queue` based on `has_human AND default_queue.deleted_at IS NULL`, only inside `_reconcile_default_queue`.
-  - `api/oss/src/core/evaluations/service.py:1818-1849` writes `is_queue` only when the changed queue is `is_default=True`.
-  - `api/oss/src/core/evaluations/service.py:511-533` and `587-635` are the only paths that chain reconcile after a run write. A caller using `evaluations_dao.edit_run` directly will skip reconcile entirely.
-  - Design contract: `is_queue` is "active default queue exists AND active human evaluator work exists" (`docs/designs/unify-evals-and-queues/unify-evals-extension-synthesis.md:40-55`). This is a derived fact that should not be persistable by the DAO without re-derivation.
-- Impact:
-  - In the current codebase, every write path goes through the service, so reconcile fires. The persisted value is correct in practice.
-  - Any new code that writes via the DAO (background jobs, EE extensions, future operations like `add_step`/`remove_step`) must remember to call reconcile or it will leave `is_queue` stale.
-  - There is no DAO-layer invariant test that flags a desynced row, so a regression can go unnoticed.
-- Files:
-  - `api/oss/src/dbs/postgres/evaluations/utils.py`
-  - `api/oss/src/core/evaluations/service.py`
-- Cause: `is_queue` depends on facts outside `run.data.steps` (the existence and lifecycle of a default queue), which the DAO does not load. Service-layer reconciliation was added later as the single source of truth.
-- Suggested Fix:
-  - Document the invariant in `utils.py` (`# is_queue is service-derived; do not write directly`) and add a service-layer regression test that calls `edit_run` with `is_queue=True` on a run that should not be queue-eligible and asserts reconciliation flips it back.
-  - Alternatively, move `is_queue` out of the persisted flag and compute it on read in the service layer, so it cannot be wrong.
-- Alternatives:
-  - Keep `is_queue` persisted but enforce reconciliation as part of every `edit_run` call (e.g. wrap the DAO call inside a service decorator that always runs reconcile afterward).
-
 ### [OPEN] UEL-015: `TensorSliceOperations.process` only refreshes metrics; the documented `process(slice)` contract is unimplemented
 
 - ID: `UEL-015`
@@ -155,14 +60,113 @@ Sources:
   - Mark this method explicitly as `metrics-refresh-only` and provide a separate `execute(slice)` method when planner integration lands. Keep the contract honest.
 - Re-audit (2026-05-20): **Still reproduces.** `runtime/tensor.py` `process` (def at line 151) early-returns `ProcessSummary()` (line 159), calls `refresh_metrics(...)` (line 161), and returns an empty `ProcessSummary()` (line 169). No planner/runner invocation. Diagnosis and severity unchanged.
 
-### [OPEN] UEL-017: Source-aware queue runs may transiently flip run status during multi-batch dispatch
+## Closed Findings
+### [CLOSED] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
+
+- ID: `UEL-009`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Soundness`
+- Summary: The DAO-side helper `_make_run_flags` (`api/oss/src/dbs/postgres/evaluations/utils.py:73-138`) is the canonical place that derives the eight `has_*` flags from `run.data.steps`. It is invoked from `create_run_flags` / `edit_run_flags`, which the DAO calls inside `create_run` / `create_runs` / `edit_run` / `edit_runs`. The data migration (`a2b3c4d5e6f8`) duplicates the same heuristic in SQL. Both rely on two fragile rules: (1) substring matching of reference keys for `has_queries` / `has_testsets`, and (2) hardcoded step.key literals `{"traces", "query-direct", "testcases", "testset-direct"}` with empty references for `has_traces` / `has_testcases`.
+- Evidence:
+  - `api/oss/src/dbs/postgres/evaluations/utils.py:104-136` walks `run.data.steps`, resets the eight `has_*` flags, and recomputes them from step shape.
+  - Lines 113-116 set `has_traces=True` if `step.key.lower() in {"traces", "query-direct"}` and refs are empty; same idiom for `has_testcases` with `{"testcases", "testset-direct"}`.
+  - Lines 118-124 set `has_queries=True` if any reference key contains the substring `"query"`; `has_testsets=True` if it contains `"testset"`. A reference key like `query_anchor`, `subquery`, or `testset_metadata` would falsely trigger either flag.
+  - `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py:24-39` uses the same literals to backfill `has_traces` / `has_testcases` on existing rows.
+  - `docs/designs/unified-eval-loops/research.md:316-323` and `docs/designs/unify-evals-and-queues/unify-evals-extension-synthesis.md:30-33` explicitly identify "synthetic step-key inspection" as a target for removal under the new model.
+  - `api/oss/tests/pytest/unit/evaluations/test_run_flags.py:61-111` locks in the current heuristic (steps named `"traces"` / `"testcases"` with empty refs are expected to produce `has_traces=True` / `has_testcases=True`).
+- Impact:
+  - Runtime and migration agree on the heuristic, so the backfill is internally consistent with new inserts. The risk is structural, not immediate.
+  - Any caller that constructs a direct-source input step with a non-matching `step.key` (e.g. `"my_traces_source"`) will silently produce `has_traces=False`. Downstream dispatch checks (`SimpleQueuesService._get_kind`, `dispatch_trace_slice`, `dispatch_testcase_slice`) will then misclassify or refuse the run.
+  - Any future reference key containing the substring `"query"` or `"testset"` (e.g. a hypothetical `query_anchor` or `testset_metadata` ref on an unrelated step) would incorrectly flip `has_queries` / `has_testsets` to `True`.
+  - The two heuristics live in two languages (Python and SQL). A future change to the rule must be applied in both places to keep backfilled and runtime rows consistent.
+- Files:
+  - `api/oss/src/dbs/postgres/evaluations/utils.py`
+  - `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py`
+  - `api/oss/tests/pytest/unit/evaluations/test_run_flags.py`
+- Cause: There is no structural marker on a step that identifies its source family. Until one exists, both the migration and the DAO must infer from `step.key` / `step.references` shape.
+- Suggested Fix:
+  - Introduce a structured marker on `EvaluationRunDataStep` for source family (e.g. a `source_kind: Literal["query","testset","trace","testcase"]` field, or a sentinel reference `{"direct_source": Reference(...)}`) and have both the DAO and the migration read it.
+  - Until then, harden the substring match by enforcing exact reference-key membership (`"query_revision" in references` rather than substring-on-key) and lock the direct-source step keys in a single shared constant referenced from both Python and the migration.
+  - Add a unit test that asserts `has_queries` does NOT trigger for a fake reference key like `"some_query_anchor"`.
+- Alternatives:
+  - Accept the heuristic as the persistent rule and document it as a contract; gate any future step-key changes through a versioning check.
+- Re-audit (2026-05-20): **Still reproduces.** Confirmed in `oss/src/dbs/postgres/evaluations/utils.py`: hardcoded direct-source step keys `{"traces", "query-direct"}` / `{"testcases", "testset-direct"}` at lines 113-116, and substring matching `"query" in step_key` / `"testset" in step_key` at lines 121-124 (refs in finding cited 104-136 / 118-124; logic unchanged, lines shifted to ~94-124). Diagnosis and severity unchanged.
+- Resolution (2026-05-22): adopted the "harden to exact membership" path. `_make_run_flags` now keys `has_queries` / `has_testsets` on EXACT reference-key presence (`query_revision` / `testset_revision`) instead of substring matching, with the key sets pulled into module constants; direct-source keys stay in `DIRECT_TRACE_STEP_KEYS` / `DIRECT_TESTCASE_STEP_KEYS`. The backfill in `a2b3c4d5e6f8` was updated to match (JSONB `?` key-presence, not substring). Unit tests assert `query_anchor` / `testset_metadata` do NOT trigger the flags and that the exact key still triggers among other refs. The duplication across Python + SQL remains (two languages), and the heuristic-vs-structural-marker tradeoff is unchanged — a `source_kind` marker on the step is still the longer-term option but was not needed to remove the substring fragility.
+
+### [CLOSED] UEL-011: No tests cover default-queue reconciliation, archive/unarchive, or `_validate_default_queue_data`
+
+- ID: `UEL-011`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Testing`
+- Summary: The evals×queues unification adds a lot of new behavior — `_reconcile_default_queue`, `archive_queue`, `unarchive_queue`, `_validate_default_queue_data`, `_sync_run_queue_flag_for_default_queue`, default-queue lookup, partial unique index — but pytest coverage is zero.
+- Evidence:
+  - `grep -rn "default queue\|default_queue\|is_default" api/oss/tests/pytest/` returns no relevant hits (matches are all unrelated workspace/project `is_default`).
+  - `grep -rn "reconcile_default_queue\|archive_queue\|unarchive_queue\|fetch_default_queue\|EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS" api/oss/tests/` returns nothing.
+  - Existing acceptance tests in `test_simple_queues_basics.py` cover queue creation and source-family resolution but do not exercise default-queue lifecycle.
+- Impact:
+  - The entire unified-queues lifecycle is unverified. UEL-008/UEL-009/UEL-010/UEL-013 in particular would have been caught by basic coverage.
+  - Future refactors of `_reconcile_default_queue` have no safety net.
+- Files:
+  - `api/oss/tests/pytest/` (no relevant tests)
+  - `api/oss/tests/pytest/unit/evaluations/test_run_flags.py` (covers other flag aspects but not queue reconciliation)
+- Cause: The implementation was prioritized over tests; the design (`unify-evals-and-queues/gap.md` §Tests) lists exactly these as required test cases.
+- Suggested Fix:
+  - Add unit tests for `_reconcile_default_queue` under all four state transitions (`required+missing`, `required+archived`, `required+active`, `not required+active`).
+  - Add tests for `archive_queue`/`unarchive_queue` returning `None` when the queue is missing, raising for closed runs, and syncing `run.flags.is_queue`.
+  - Add tests for `_validate_default_queue_data` rejecting `user_ids`, `scenario_ids`, `step_keys`, `batch_size`, `batch_offset` on `is_default=True` queues, both in create and edit paths.
+  - Add a DAO/integration test asserting that the partial unique index `ux_evaluation_queues_default_per_run` prevents two default queues per run (including archived rows).
+  - Add a regression test for `delete_queue`/`delete_queues` raising "default queues must be archived, not hard deleted".
+- Alternatives:
+  - Cover the same surface through acceptance tests over the HTTP routes (`/queues/{id}/archive`, `/runs/{id}/default-queue`). Reduces unit-level reach but covers HTTP wiring at the same time.
+- Resolution (2026-05-22): coverage added via the HTTP-route alternative. `test_default_queue_lifecycle.py` exercises all four reconcile transitions (required+missing → create, not-required+active → archive, required+archived → unarchive, required+active → no-op) plus the non-human (no default queue) case, asserting `is_queue` sync each time; `test_default_queue_policy.py` covers `_validate_default_queue_data` rejection of `user_ids`/`scenario_ids`/`step_keys`/`batch_size`/`batch_offset` (create + edit), demotion/deletion-forbidden, and the partial-unique-index uniqueness (reject second active default, recreate after archive, allow across runs — see UEL-030). The planted-`is_queue` reconcile-back regression (UEL-020) is also here. Default-queue lifecycle is no longer untested.
+
+### [CLOSED] UEL-020: `is_queue` is recomputed only at the service layer; the DAO neither resets nor derives it
+
+- ID: `UEL-020`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Soundness`
+- Summary: The DAO helper `_make_run_flags` resets the eight `has_*` flags on every `create_run` / `edit_run` and re-derives them from `run.data.steps`. It does not touch `is_queue`, which is computed only by `_reconcile_default_queue` and `_sync_run_queue_flag_for_default_queue` at the service layer. Any caller that bypasses the service and writes to the DAO directly (or any future caller that constructs `EvaluationRunFlags(is_queue=True)` and calls `edit_run`) can plant a stale `is_queue` value that survives until reconciliation runs again. The same asymmetry means the DAO has no invariant to detect or correct a desynced `is_queue` on read.
+- Evidence:
+  - `api/oss/src/dbs/postgres/evaluations/utils.py:94-102` resets only `has_queries`, `has_testsets`, `has_traces`, `has_testcases`, `has_evaluators`, `has_custom`, `has_human`, `has_auto`. `is_queue` is left to whatever the caller passed (or the row already had).
+  - `api/oss/src/core/evaluations/service.py:440-447` writes `is_queue` based on `has_human AND default_queue.deleted_at IS NULL`, only inside `_reconcile_default_queue`.
+  - `api/oss/src/core/evaluations/service.py:1818-1849` writes `is_queue` only when the changed queue is `is_default=True`.
+  - `api/oss/src/core/evaluations/service.py:511-533` and `587-635` are the only paths that chain reconcile after a run write. A caller using `evaluations_dao.edit_run` directly will skip reconcile entirely.
+  - Design contract: `is_queue` is "active default queue exists AND active human evaluator work exists" (`docs/designs/unify-evals-and-queues/unify-evals-extension-synthesis.md:40-55`). This is a derived fact that should not be persistable by the DAO without re-derivation.
+- Impact:
+  - In the current codebase, every write path goes through the service, so reconcile fires. The persisted value is correct in practice.
+  - Any new code that writes via the DAO (background jobs, EE extensions, future operations like `add_step`/`remove_step`) must remember to call reconcile or it will leave `is_queue` stale.
+  - There is no DAO-layer invariant test that flags a desynced row, so a regression can go unnoticed.
+- Files:
+  - `api/oss/src/dbs/postgres/evaluations/utils.py`
+  - `api/oss/src/core/evaluations/service.py`
+- Cause: `is_queue` depends on facts outside `run.data.steps` (the existence and lifecycle of a default queue), which the DAO does not load. Service-layer reconciliation was added later as the single source of truth.
+- Suggested Fix:
+  - Document the invariant in `utils.py` (`# is_queue is service-derived; do not write directly`) and add a service-layer regression test that calls `edit_run` with `is_queue=True` on a run that should not be queue-eligible and asserts reconciliation flips it back.
+  - Alternatively, move `is_queue` out of the persisted flag and compute it on read in the service layer, so it cannot be wrong.
+- Alternatives:
+  - Keep `is_queue` persisted but enforce reconciliation as part of every `edit_run` call (e.g. wrap the DAO call inside a service decorator that always runs reconcile afterward).
+- Resolution (2026-05-22): adopted the Suggested Fix. The invariant is now documented in `_make_run_flags` (`is_queue` is service-derived, owned by `_reconcile_default_queue`; do not write via the DAO without running reconcile). A regression test (`test_default_queue_lifecycle.py::test_planted_is_queue_flag_is_reconciled_back`) PATCHes `is_queue=True` onto a non-human (non-eligible) run and asserts the edit path reconciles it back to `False` with no default queue. Kept `is_queue` persisted (the compute-on-read alternative was not needed); every write still routes through the service reconcile.
+
+### [CLOSED] UEL-017: Source-aware queue runs may transiently flip run status during multi-batch dispatch
 
 - ID: `UEL-017`
 - Origin: `scan`
 - Lens: `verification`
 - Severity: `P2`
 - Confidence: `medium`
-- Status: `open`
+- Status: `not-a-bug`
 - Category: `Correctness`
 - Summary: `process_evaluation_source_slice` writes the run status (`RUNNING`/`SUCCESS`/`ERRORS`/`FAILURE`) at the end of each invocation when `update_run_status=True`. For source-aware queues that dispatch multiple batches (`_dispatch_source_batches` triggers several slice runs), each batch can flip the status before subsequent batches arrive, producing a `SUCCESS` -> `RUNNING` -> `SUCCESS` thrash.
 - Evidence:
@@ -181,16 +185,21 @@ Sources:
 - Re-audit (2026-05-20): **A concrete, test-failing sub-bug exists that this finding does not capture; promote to `reproduced`.** The failing test `test_source_slice_processor_preserves_higher_queue_status` (pytest dump) is not about the multi-batch race this finding describes — it fails because the severity-floor block in `process_evaluation_source_slice` is gated on `run.flags.has_traces or run.flags.has_testcases` (`tasks/source_slice.py:566-571`). The test's run is `EvaluationRunFlags(is_queue=True, has_queries=True)` (query-backed), so `has_traces`/`has_testcases` are both False, the floor is skipped, and `run_status` stays `SUCCESS` instead of being floored up to the persisted `ERRORS` — hence `assert ... == ERRORS` got `SUCCESS`.
   - So there are now two distinct issues under the "status preservation" umbrella: (1) **this finding's** multi-slice thrash race (still `medium`/un-reproduced as a *race*), and (2) the severity-floor flag gate excluding `has_queries`/`has_testsets` runs (reproduced, test-failing). They share `source_slice.py:566-586`.
   - Corrected suggested fix for (2): include `has_queries`/`has_testsets` (or simply gate on `run.flags.is_queue`) in the severity-floor condition at line 569 so source-backed queue runs preserve their higher persisted status. This is the same `source_slice.py:569` gate referenced in UEL-022's re-audit.
-- Resolution (2026-05-21) — **partial; item (2) fixed, item (1) still OPEN.** The severity-floor flag gate (`source_slice.py:566`) was widened from `has_traces or has_testcases` to also include `has_queries or has_testsets`, so source-backed (query/testset) queue runs now preserve their higher persisted status. The test-failing sub-bug `test_source_slice_processor_preserves_higher_queue_status` passes (resolved together with UEL-022). **Item (1) — the multi-slice status thrash *race* (`SUCCESS -> RUNNING -> SUCCESS` across parallel batches) — is NOT addressed** and keeps this finding OPEN; it needs the "update status only on the final slice" / run-finalize approach from the Suggested Fix. Confidence on the remaining race stays `medium` (un-reproduced as a race).
+- Resolution (2026-05-21) — **partial; item (2) fixed, item (1) still OPEN.** The severity-floor flag gate (`tasks/processor.py`) was widened from `has_traces or has_testcases` to also include `has_queries or has_testsets`, so source-backed (query/testset) queue runs now preserve their higher persisted status. The test-failing sub-bug `test_source_slice_processor_preserves_higher_queue_status` passes (resolved together with UEL-022).
+- Resolution (2026-05-22) — **item (1) is NOT a bug; closing.** Re-analysed the multi-slice (`_dispatch_source_batches` ships one slice per input step) case under the *current* severity order (`FAILURE:4 > ERRORS:3 > SUCCESS:2 > RUNNING:1 > PENDING:0`):
+  - Each slice computes its status from its OWN processed subset: all-done → a terminal status, only its own pending items → RUNNING. A slice that finishes never computes RUNNING for already-done work, and the floor only keeps a *more severe* stored status. So a later all-success slice can never floor the run back UP to RUNNING — the `SUCCESS -> RUNNING -> SUCCESS` thrash the finding described cannot occur with this ordering. (The thrash was an artifact of the OLD ordering where RUNNING outranked SUCCESS; that was the real UEL-028 single-slice pin, since fixed by the reorder.)
+  - The only residual is cosmetic: with concurrent slices the first to finish writes the run's terminal status (and clears `is_active`) slightly before its siblings finish. The final resting state is still correct (the last write lands the right terminal status), and **liveness is not read from `status`** — it lives in `is_active`, which only *acts* via `fetch_live_runs` (DAO), gated on `is_live=True`. Source-batch/queue runs are dispatched as `queue_traces` / `queue_testcases` topologies, never `live_query` (`classify_steps_topology` returns a single dispatch), so `is_active` never gates them and the early write cannot cut off a sibling slice (each slice is an already-queued, independent taskiq task). The glitch is a transient readout only.
+  - Therefore no last-slice-finalize flag is warranted (it would thread a signal through ~6 dispatch hops including the taskiq boundary for a self-correcting cosmetic glitch on a field nobody gates on for these runs).
+- Architectural note (root cause of the whole confusion): `status` overloads two orthogonal axes — liveness (running vs done) and outcome (success/errors/failure). The severity-floor exists only to reconstruct the axis that the single enum throws away. The clean model splits them: liveness = `is_active` (already a flag), outcome = a separate terminal value; then there is no floor and no severity map. Tracked as a future cleanup, not required for correctness now.
 
-### [OPEN] UEL-018: SDK runtime drops extra runner outputs silently when batch is longer than planned cells
+### [CLOSED] UEL-018: SDK runtime drops extra runner outputs silently when batch is longer than planned cells
 
 - ID: `UEL-018`
 - Origin: `scan`
 - Lens: `verification`
 - Severity: `P3`
 - Confidence: `medium`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `process_evaluation_source_slice` zips `batch_cells` with `executions` and only handles the case where there are fewer executions than cells (closed UEL-004). When the runner returns **more** executions than planned cells (a contract violation in the other direction), the trailing executions are silently discarded.
 - Evidence:
@@ -206,15 +215,16 @@ Sources:
   - Optionally, persist a marker result row for the unused executions or surface them in the `ProcessedScenario.metrics`.
 - Alternatives:
   - Treat extra outputs as a hard error (raise). More aggressive but symmetric with UEL-004.
+- Resolution (2026-05-22): the mismatch branch in `processor.py` (SDK runtime) now splits under-count vs over-count. Over-count logs a structured warning with the dropped executions' summaries (`trace_id` / `span_id` / `status` / `error`) and still flags the scenario as having errors; the planned cells are logged from the first executions. Chose the structured-warning path over hard-raise to stay consistent with the soft-worker stance. Unit test `test_sdk_source_slice_handles_over_count_runner_batch` covers it.
 
-### [OPEN] UEL-019: Source-resolver `query_revision` lookup ignores resolver returning `None` and falls through to the next resolver
+### [CLOSED] UEL-019: Source-resolver `query_revision` lookup ignores resolver returning `None` and falls through to the next resolver
 
 - ID: `UEL-019`
 - Origin: `scan`
 - Lens: `verification`
 - Severity: `P3`
 - Confidence: `medium`
-- Status: `open`
+- Status: `fixed`
 - Category: `Soundness`
 - Summary: `resolve_queue_source_batches` iterates resolvers in order and stops as soon as one returns a non-empty batch. If a `query_revision` reference resolves to zero trace IDs, the function returns `None` and the loop tries the testset resolver next, which silently does the wrong thing if the same step (somehow) had both refs.
 - Evidence:
@@ -230,8 +240,8 @@ Sources:
   - Return `ResolvedSourceBatch(kind=..., step_key=..., trace_ids=[])` for empty query results so the loop sees the resolver applied.
 - Alternatives:
   - Document the assumption "exactly one source reference per input step" and add a planner-level validator that rejects steps violating it.
+- Resolution (2026-05-22): combined both directions of the Suggested Fix. Each resolver now declares its exact `source_reference_key` and an `applies(step)` check; `resolve_queue_source_batches` selects the resolver whose key is present (first-applicable, not first non-empty), so an empty query result is a real empty batch for that resolver and never falls through to the testset resolver. The "exactly one source reference per input step" rule is enforced: a step carrying both `query_revision` and `testset_revision` raises `SourceResolutionError`. Unit tests cover the no-fall-through and multi-ref-rejection cases.
 
-## Closed Findings
 
 ### [CLOSED] UEL-030: "one default queue per run" is not enforced — unique index absent and no code-level guard
 

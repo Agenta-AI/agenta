@@ -135,3 +135,26 @@ class TestDefaultQueueLifecycle:
         assert run["flags"]["has_human"] is False
         assert run["flags"]["is_queue"] is False
         assert _default_queue(authed_api, run["id"]) == {}
+
+    def test_planted_is_queue_flag_is_reconciled_back(self, authed_api):
+        # is_queue is service-derived: an edit that tries to PLANT is_queue=True
+        # on a run that is not queue-eligible (no human step) must be reconciled
+        # back to False rather than persisted as-is.
+        run = _create_run(authed_api, steps=[_input_step(), _auto_step()])
+        assert run["flags"]["is_queue"] is False
+
+        response = authed_api(
+            "PATCH",
+            f"/evaluations/runs/{run['id']}",
+            json={
+                "run": {
+                    "id": run["id"],
+                    "name": run["name"],
+                    "flags": {"is_queue": True},
+                    "data": {"steps": [_input_step(), _auto_step()]},
+                }
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["run"]["flags"]["is_queue"] is False
+        assert _default_queue(authed_api, run["id"]) == {}

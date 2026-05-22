@@ -1568,14 +1568,6 @@ class EvaluationsService:
 
                 bucket = buckets[0]
 
-                # log.info(
-                #     f"[METRICS] Step '{step_key}': bucket has metrics: {bool(bucket.metrics)}"
-                # )
-                # if bucket.metrics:
-                #     log.info(
-                #         f"[METRICS] Step '{step_key}': metrics keys: {list(bucket.metrics.keys())}"
-                #     )
-
                 if not bucket.metrics:
                     log.warning("Bucket metrics should not be empty")
                     log.warning("Bucket:", bucket)

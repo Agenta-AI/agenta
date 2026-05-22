@@ -717,11 +717,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationRunDBE.tags.contains(run.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if run.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationRunDBE.meta.contains(run.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if run.status is not None:
                     stmt = stmt.filter(
@@ -1320,11 +1316,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationScenarioDBE.tags.contains(scenario.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if scenario.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationScenarioDBE.meta.contains(scenario.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if scenario.status is not None:
                     stmt = stmt.filter(
@@ -1843,11 +1835,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationResultDBE.tags.contains(result.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if result.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationResultDBE.meta.contains(result.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if result.status is not None:
                     stmt = stmt.filter(
@@ -2301,11 +2289,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationMetricsDBE.tags.contains(metric.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if metric.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationMetricsDBE.meta.contains(metric.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if metric.status is not None:
                     stmt = stmt.filter(
@@ -2843,11 +2827,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationQueueDBE.tags.contains(queue.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if queue.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationQueueDBE.meta.contains(queue.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if queue.name is not None:
                     stmt = stmt.filter(
