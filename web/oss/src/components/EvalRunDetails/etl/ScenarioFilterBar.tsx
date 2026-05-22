@@ -172,26 +172,32 @@ const ScenarioFilterBar = ({
                     return (
                         <div key={index} className="flex items-center gap-1.5">
                             {/*
-                             * Row-level AND/OR connector. The group has a
-                             * single op (flat group — D8), so every
-                             * connector shows and toggles the same value.
+                             * Row-level AND/OR connector in a fixed-width
+                             * slot — so the Column select after it lines up
+                             * across every row regardless of whether the
+                             * connector is the "Where" label or the select.
+                             * The group has a single op (flat group — D8),
+                             * so every connector shows and toggles the same
+                             * value.
                              */}
-                            {index === 0 ? (
-                                <span className="w-16 shrink-0 pl-2 text-zinc-400">Where</span>
-                            ) : (
-                                <Select<"and" | "or">
-                                    size="small"
-                                    variant="borderless"
-                                    className="w-16 shrink-0"
-                                    value={draft.op}
-                                    options={[
-                                        {label: "And", value: "and"},
-                                        {label: "Or", value: "or"},
-                                    ]}
-                                    getPopupContainer={getWithinPopover}
-                                    onChange={(op) => setDraft((d) => ({...d, op}))}
-                                />
-                            )}
+                            <div className="flex w-16 shrink-0 items-center text-zinc-400">
+                                {index === 0 ? (
+                                    <span className="pl-2">Where</span>
+                                ) : (
+                                    <Select<"and" | "or">
+                                        size="small"
+                                        variant="borderless"
+                                        className="w-full"
+                                        value={draft.op}
+                                        options={[
+                                            {label: "And", value: "and"},
+                                            {label: "Or", value: "or"},
+                                        ]}
+                                        getPopupContainer={getWithinPopover}
+                                        onChange={(op) => setDraft((d) => ({...d, op}))}
+                                    />
+                                )}
+                            </div>
                             <Select<string>
                                 size="small"
                                 placeholder="Column"
