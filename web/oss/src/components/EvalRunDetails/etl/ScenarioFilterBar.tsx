@@ -28,6 +28,8 @@ import {Button, Input, InputNumber, Segmented, Select, Tooltip} from "antd"
 import {useAtom} from "jotai"
 import {Plus, X} from "lucide-react"
 
+import type {EvaluationTableColumnsResult} from "../atoms/table"
+
 import {scenarioFilterAtomFamily, isScenarioFilterActive} from "./scenarioFilterState"
 
 const OP_LABELS: Record<FilterOperator, string> = {
@@ -82,9 +84,16 @@ export interface ScenarioFilterBarProps {
         groupSlug: string | null
         columnName: string
     }) => FilterValueType | undefined
+    /** Backend column metadata — used only for the column-select debug log. */
+    columnResult?: EvaluationTableColumnsResult
 }
 
-const ScenarioFilterBar = ({runId, schema, resolveValueType}: ScenarioFilterBarProps) => {
+const ScenarioFilterBar = ({
+    runId,
+    schema,
+    resolveValueType,
+    columnResult,
+}: ScenarioFilterBarProps) => {
     const [filter, setFilter] = useAtom(scenarioFilterAtomFamily(runId))
 
     const fields = useMemo(
@@ -167,6 +176,32 @@ const ScenarioFilterBar = ({runId, schema, resolveValueType}: ScenarioFilterBarP
                             onChange={(value) => {
                                 const picked = fieldByKey.get(value)
                                 if (!picked) return
+                                // [debug] surface the schema info for the
+                                // picked column so a mistyped field (e.g.
+                                // a boolean shown with a text input) can
+                                // be diagnosed. Remove once resolved.
+
+                                console.info("[ScenarioFilter][debug] column selected", {
+                                    field: {
+                                        groupKind: picked.groupKind,
+                                        groupSlug: picked.groupSlug,
+                                        columnName: picked.columnName,
+                                    },
+                                    resolvedValueType: picked.valueType,
+                                    resolvedOperators: picked.operators,
+                                    columnResultMatches: (columnResult?.columns ?? [])
+                                        .filter((c) => c.label === picked.columnName)
+                                        .map((c) => ({
+                                            label: c.label,
+                                            metricType: c.metricType,
+                                            kind: c.kind,
+                                            stepType: c.stepType,
+                                            evaluatorSlug: c.evaluatorSlug,
+                                            evaluatorId: c.evaluatorId,
+                                            metricKey: c.metricKey,
+                                        })),
+                                    evaluators: columnResult?.evaluators,
+                                })
                                 const nextOps = UI_OPERATORS.filter((o) =>
                                     picked.operators.includes(o),
                                 )
@@ -243,7 +278,6 @@ const ConditionValueInput = ({
         // boolean as a string and decode on change.
         return (
             <Select<string>
-                size="small"
                 style={{minWidth: 96}}
                 placeholder="Value"
                 disabled={disabled}
@@ -259,7 +293,6 @@ const ConditionValueInput = ({
     if (valueType === "number") {
         return (
             <InputNumber
-                size="small"
                 style={{width: 120}}
                 placeholder="Value"
                 disabled={disabled}
@@ -270,7 +303,6 @@ const ConditionValueInput = ({
     }
     return (
         <Input
-            size="small"
             style={{width: 140}}
             placeholder="Value"
             disabled={disabled}
