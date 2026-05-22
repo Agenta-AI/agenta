@@ -56,11 +56,9 @@ molecule-cache pattern."* This is that project.
 | **D2 — comparison display** | Interleaved rows (today's model), not testcase-aligned columns. Compare-mode column set = shared testcase inputs + the **common-evaluator intersection** across compared runs + the standard invocation output. Reuses single-run column derivation. |
 | **D3 — live updates** | Match production's modest bar: run-status poll + page invalidation while non-terminal + human-eval metrics gap-fill. No real scenario streaming. |
 | **D5 — perf gate** | After Phase 1, benchmark the new table vs the current `useScenarioCellValue` table on a 1000+ scenario run with comparison on. A regression stops Phase 2. |
+| **D8 — filter composition** | **Multi-predicate from day 1.** Phase 2 ships multi-condition AND/OR filtering, not the PoC's single predicate. The predicate type generalises to a condition *group* (`{op: "and" \| "or", conditions: RowPredicate[]}`); the filter bar reuses the observability multi-condition filter UI. Closed at Phase 2 start (was the one open decision). |
 
-**Still open — closes before Phase 2:**
-
-- **Filter composition** — single predicate (PoC today) vs multi-condition
-  AND/OR. `eval-filtering.md` specs the fuller version. Decide at Phase 2 start.
+**No open decisions.**
 
 ---
 
@@ -131,14 +129,19 @@ current one on a 1000+ scenario run, comparison on. Regression → stop, rethink
 
 ## Phase 2 — filtering
 
-- **T4 — filtering.** Decide filter composition first (see open decisions).
-  `filterSchema` derives filterable fields: columns → evaluator steps →
-  evaluator output schemas → typed fields + type-matched operators
-  (`eval-filtering.md` D4). The `filterTransform` evaluates the predicate per
-  row against hydrated metrics; the loop runs until the viewport fills.
-  **Reuse `withRateLimitRetry`** for the scan — a low-hit-ratio filter scans
-  many scenario + metric pages and EE throttling will 429 it (the batch-add
-  lesson).
+- **T4 — multi-predicate filtering (D8).** Ships multi-condition AND/OR
+  from day 1 — not the PoC's single predicate. `filterSchema` derives
+  filterable fields: columns → evaluator steps → evaluator output schemas
+  → typed fields + type-matched operators (`eval-filtering.md` D4). The
+  predicate generalises from `RowPredicate` to a condition *group*
+  (`{op: "and" | "or", conditions: RowPredicate[]}`, one nesting level for
+  v1 — flat AND/OR, no arbitrary trees); `predicateToEntitySlices` takes
+  the union of every condition's slices. The `filterTransform` evaluates
+  the group per row against hydrated metrics; the loop runs until the
+  viewport fills. The filter bar reuses the observability multi-condition
+  filter UI. **Reuse `withRateLimitRetry`** for the scan — a low-hit-ratio
+  filter scans many scenario + metric pages and EE throttling will 429 it
+  (the batch-add lesson).
 
 ---
 
@@ -193,8 +196,8 @@ design; these are the genuinely new design surfaces).
   blocking overlay.
 
 **Filter bar** — lives in the eval run details header row, following the
-observability `Filters` placement. Single vs multi-predicate composition is the
-open Phase 2 decision; if multi-predicate, reuse the observability filter UI.
+observability `Filters` placement. Multi-predicate AND/OR composition (D8) —
+reuses the observability multi-condition filter UI.
 
 ## Test plan
 
@@ -206,8 +209,9 @@ T2 schema columns      [GAP][CRITICAL][REGRESSION] resolveMappings column set
                               "other" columns INCLUDED — before deleting the old path
 T3 cells               [GAP] resolve from caches; pending/running/failed render
                        [GAP] skeleton-while-pending: not-hydrated vs not-run
-T4 filtering           [GAP] filterSchema typed fields; filterTransform
-                              match/no-match/pending; [→E2E] filter → rows
+T4 filtering           [GAP] filterSchema typed fields; multi-predicate
+                              AND/OR filterTransform — match/no-match/pending
+                              + group semantics; [→E2E] multi-condition → rows
 T5 comparison          [GAP] compare-run schema fetch; testcase_id join;
                               common-evaluator intersection; [→E2E] compare+filter
 T6 live updates        [GAP] poll stops at terminal; page invalidation; gap-fill
@@ -270,12 +274,12 @@ co-consumers.
 ## Implementation tasks
 
 **Phase 1 — column + cell swap** (T1 dropped — `evaluationPreviewTableStore` is already thin; see Phase 1)
-- [ ] **T2 (P1, human: ~1d / CC: ~2h)** — schema columns for the **rendered** table; keep "other" columns (ripples into `ColumnLeaf`/`EtlResolvedCell`/`useCellMaterialization`); **column-parity regression test**. Keep `usePreviewColumns`/`columnResult` alive for the export path — full retirement is Phase 3 / T5. Lands together with T3 (coupled).
-- [ ] **T3 (P1, human: ~3d / CC: ~half-day)** — self-hydrating cells **plus non-terminal scenario rendering + skeleton-while-pending** (the unbuilt part). Lands together with T2.
-- [ ] **Perf gate (P1)** — benchmark vs the old table, 1000+ scenarios, comparison on.
+- [x] **T2 (P1)** — schema columns for the **rendered** table; keeps "other" columns; **column-parity regression test** (`groupRunColumns.test.ts`). `usePreviewColumns`/`columnResult` kept alive for the export path. Landed with T3.
+- [x] **T3 (P1)** — self-hydrating cells **plus non-terminal scenario rendering + skeleton-while-pending**. Landed with T2.
+- [ ] **Perf gate (P1)** — benchmark vs the old table, 1000+ scenarios, comparison on. **Gates T4.**
 
 **Phase 2 — filtering**
-- [ ] **T4 (P1, human: ~3d / CC: ~half-day)** — `filterSchema` + `filterTransform` + predicate UI + viewport-fill loop; reuse `withRateLimitRetry`. Close the composition decision first.
+- [ ] **T4 (P1, human: ~3d / CC: ~half-day)** — `filterSchema` + **multi-predicate AND/OR** `filterTransform` + multi-condition predicate UI + viewport-fill loop; reuse `withRateLimitRetry`. Composition decided (D8). Gated on the Phase 1 perf gate.
 
 **Phase 3 — comparison, live, co-consumers**
 - [ ] **T5 (P1, human: ~3d / CC: ~half-day)** — comparison build: compare-run schema fetch + per-run hydration + testcase_id join + export-path migration.
@@ -300,5 +304,7 @@ co-consumers.
 - **DESIGN DECISIONS:** focused review (migration preserves the visual design) · live hit-ratio counter for filter scanning · interaction-state specs added (skeleton, non-terminal cells, filter no-match empty state, rate-limited indicator).
 - **D6 (implementation-time finding):** starting Phase 1 confirmed `evaluationPreviewTableStore` is already a thin store (identity + status, no column data, per-eval-type order). **T1 is dropped** — Phase 1 is the coupled T2+T3 column+cell swap against the existing store. Confirms the eng-review outside voice's "T1 re-implements an existing store" point.
 - **D7 (implementation-time finding):** reading `Table.tsx` showed the CSV export path (`exportResolveValue`, `columnLookupMap`, `loadAllPagesBeforeExport`) is keyed off `columnResult` column ids, which differ from `useEtlColumns` keys. **Phase 1 swaps display columns only** and keeps `usePreviewColumns`/`columnResult` alive for export; the old column path fully retires in Phase 3 with the export migration (T5). The "other"-column un-drop ripples into `ColumnLeaf`, `EtlResolvedCell`, and `useCellMaterialization`.
-- **UNRESOLVED:** 1 — filter composition (single vs multi-predicate) + its UI, intentionally deferred to Phase 2 start. Phase 1 has no open decisions.
-- **VERDICT:** ENG + DESIGN REVIEW CLEARED — ready to implement Phase 1 (T2+T3).
+- **D8 (Phase 2 decision):** filter composition resolved — **multi-predicate AND/OR from day 1**, not the PoC's single predicate. The predicate type generalises to a flat condition group; the filter bar reuses the observability multi-condition UI.
+- **UNRESOLVED:** 0 — filter composition closed (D8). No open decisions.
+- **STATUS:** Phase 1 (T2+T3) implemented and committed. Next: the D5 perf gate, which gates T4.
+- **VERDICT:** ENG + DESIGN REVIEW CLEARED — Phase 1 (T2+T3) shipped; T4 is multi-predicate, gated on the perf gate.
