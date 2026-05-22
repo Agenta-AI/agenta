@@ -11,12 +11,14 @@ response formats, providers, or any service-specific concern. That layering is
 required for WP-B2 (message renderer + JSON-return renderer) and WP-B3
 (``mustache`` mode) to build cleanly on top.
 
+JSONPath (``{{$...}}``) is handled uniformly across ``curly``, ``mustache``, and
+``jinja2`` — resolved as inert data, with :class:`UnresolvedVariablesError` on
+failure (see ``_render_with_jsonpath``).
+
 Behavior:
 - ``mustache``: real Mustache rendering through ``mystace`` (sections, inverted
-  sections, dotted names, comments, unescaped variables), with one Agenta
-  extension: tags that start with ``{{$`` are pre-rendered as JSONPath
-  expressions against the context before the Mustache render runs. Whole
-  objects/arrays are rendered as compact JSON text. Partials (``{{>...}}``) and
+  sections, dotted names, comments, unescaped variables), plus the shared
+  ``{{$...}}`` JSONPath handling described above. Partials (``{{>...}}``) and
   empty placeholders (``{{}}``) are unsupported and raise
   :class:`MustacheTemplateError`. This is the default format for newly created
   apps / prompt configs.
@@ -27,14 +29,15 @@ Behavior:
   placeholders cannot be resolved. Legacy compatibility mode for existing apps.
 - ``fstring``: Python ``str.format`` semantics. Raises ``KeyError``/``IndexError``
   on missing keys, like the standard library does.
-- ``jinja2``: full sandboxed Jinja2. Raises ``jinja2.TemplateError`` on render
-  failures (sandbox violations, template syntax errors, etc.). Callers decide
-  whether to re-raise or fall back.
+- ``jinja2``: full sandboxed Jinja2 (plus the shared ``{{$...}}`` JSONPath
+  handling). Raises ``jinja2.TemplateError`` on native render failures (sandbox
+  violations, template syntax errors, etc.). Callers decide whether to re-raise
+  or fall back.
 """
 
 import re
 import json
-from typing import Any, Mapping, Literal, Optional
+from typing import Any, Callable, Mapping, Literal, Optional
 
 from agenta.sdk.utils.helpers import apply_replacements_with_tracking, _PLACEHOLDER_RE
 from agenta.sdk.utils.lazy import _load_jinja2, _load_jsonpath, _load_mystace
@@ -66,22 +69,10 @@ class MustacheTemplateError(ValueError):
 
     Covers the cases Agenta rejects deliberately rather than delegating to the
     Mustache engine: unsupported partials (``{{>...}}``), empty placeholders
-    (``{{}}``), JSONPath pre-render failures, and normalized ``mystace`` parse
-    errors. Subclass of ``ValueError`` so existing ``except ValueError`` paths
-    keep working.
-    """
-
-
-class MustacheInvalidJsonPathError(MustacheTemplateError):
-    """Raised when a ``{{$...}}`` tag is not a syntactically valid JSONPath.
-
-    In ``mustache`` every tag whose body starts with ``$`` is reserved for the
-    JSONPath pre-render pass (strict contract: a ``$``-prefixed name is never
-    treated as a plain Mustache variable). When the body after ``$`` is not a
-    valid JSONPath expression (anything not ``$``, ``$.`` or ``$[``), this is an
-    authoring mistake, not missing data, so it is surfaced as its own error
-    distinct from the generic "matched no values" pre-render failure. Subclass
-    of :class:`MustacheTemplateError` so broad ``except`` paths still catch it.
+    (``{{}}``), and normalized ``mystace`` parse errors. (JSONPath ``{{$...}}``
+    resolution failures are reported as :class:`UnresolvedVariablesError`, the
+    same as ``curly`` — see :func:`_render_with_jsonpath`.) Subclass of
+    ``ValueError`` so existing ``except ValueError`` paths keep working.
     """
 
 
@@ -153,9 +144,18 @@ def _render_fstring(template: str, context: Mapping[str, Any]) -> str:
 
 
 def _render_jinja2(template: str, context: Mapping[str, Any]) -> str:
+    # ``$``-JSONPath is not valid Jinja2 syntax, so ``{{$...}}`` tags are resolved
+    # around the Jinja2 engine the same way as for ``mustache`` / ``curly``:
+    # shielded from the engine, then substituted last as inert data (never
+    # re-parsed). Native Jinja2 tags (``{{ var }}``, ``{% %}``, ``{# #}``) are
+    # rendered by the engine as before.
     SandboxedEnvironment, _TemplateError = _load_jinja2()
     env = SandboxedEnvironment()
-    return env.from_string(template).render(**context)
+
+    def _engine(masked: str) -> str:
+        return env.from_string(masked).render(**context)
+
+    return _render_with_jsonpath(template, context, engine=_engine)
 
 
 # A Mustache tag: ``{{`` then an optional sigil and body, then ``}}``. The body
@@ -192,72 +192,93 @@ def _reject_unsupported_mustache_tags(template: str) -> None:
             )
 
 
-def _prerender_jsonpath_tags(template: str, context: Mapping[str, Any]) -> str:
-    """Resolve ``{{$...}}`` tags as JSONPath, leaving all other tags untouched.
+# ---- Shared JSONPath ({{$...}}) resolution ----
+# Resolve ``{{$...}}`` tags as inert data around the engine (curly/mustache/jinja2
+# all behave the same). Design: docs/design/prompt-runtime-unification/wp-b3-mustache-rendering.
+# NUL-delimited sentinel: cannot occur in prompt text and is inert in both engines.
+_JSONPATH_SHIELD_RE = re.compile("\x00JP(\\d+)\x00")
 
-    This is a separate substitution pass run *before* the Mustache engine, not a
-    name resolver inside Mustache. Resolved values follow the same coercion as
-    ``curly``: dict/list become compact JSON text, everything else uses ``str``.
+
+def _render_with_jsonpath(
+    template: str,
+    context: Mapping[str, Any],
+    *,
+    engine: Callable[[str], str],
+) -> str:
+    """Resolve ``{{$...}}`` JSONPath tags as inert data around a template ``engine``.
+
+    Shield tags from ``engine``, render, then substitute resolved values last so
+    they are never re-parsed. Matches ``curly``: a failed ``{{$...}}`` raises
+    :class:`UnresolvedVariablesError`; values use ``curly`` coercion.
     """
 
-    def _replace(match: "re.Match[str]") -> str:
-        expr = match.group(1)
-        try:
-            value = resolve_json_path(expr, dict(context))
-        except ValueError as exc:
-            # ``resolve_json_path`` raises ``ValueError`` only for malformed
-            # JSONPath syntax (not for valid-but-unmatched expressions, which
-            # raise ``KeyError``). A ``$``-prefixed tag that is not valid
-            # JSONPath is an authoring mistake under the strict contract.
-            raise MustacheInvalidJsonPathError(
-                f"Invalid JSONPath expression {expr!r} in a mustache '{{{{$...}}}}' tag. "
-                "Tags starting with '$' are always resolved as JSONPath and must "
-                "start with '$', '$.' or '$[' (a '$'-prefixed plain variable is "
-                "not supported)."
-            ) from exc
-        except Exception as exc:
-            raise MustacheTemplateError(
-                f"Could not resolve JSONPath expression {expr!r}: {exc}"
-            ) from exc
-        return _coerce_to_str(value)
+    shielded: list[str] = []
 
-    return _MUSTACHE_JSONPATH_TAG_RE.sub(_replace, template)
+    def _shield(match: "re.Match[str]") -> str:
+        shielded.append(match.group(1))
+        return f"\x00JP{len(shielded) - 1}\x00"
+
+    masked = _MUSTACHE_JSONPATH_TAG_RE.sub(_shield, template)
+    rendered = engine(masked)
+    if not shielded:
+        return rendered
+
+    unresolved: set = set()
+
+    def _substitute(match: "re.Match[str]") -> str:
+        expr = shielded[int(match.group(1))]
+        try:
+            return _coerce_to_str(resolve_json_path(expr, dict(context)))
+        except Exception:
+            # Match ``curly``: a failed ``$``-path is treated as an unresolved
+            # placeholder rather than a distinct error. Leave the sentinel's
+            # original tag text in place and report it at the end.
+            unresolved.add(expr)
+            return f"{{{{{expr}}}}}"
+
+    result = _JSONPATH_SHIELD_RE.sub(_substitute, rendered)
+
+    if unresolved:
+        raise UnresolvedVariablesError(
+            unresolved=unresolved,
+            hint=_missing_lib_hint(unresolved),
+        )
+
+    return result
 
 
 def _render_mustache(template: str, context: Mapping[str, Any]) -> str:
-    """Render a template using JSONPath pre-rendering then ``mystace``.
+    """Render a template combining JSONPath ``{{$...}}`` resolution and ``mystace``.
 
-    Stages:
-
-    1. reject unsupported tags (partials, empty placeholders)
-    2. pre-render ``{{$...}}`` tags through JSONPath
-    3. render the resulting template with ``mystace``
+    Unsupported tags (partials, empty placeholders) are rejected first. ``{{$...}}``
+    tags are resolved via :func:`_render_with_jsonpath` (shielded, then substituted
+    last), so a JSONPath value containing ``{{other}}`` is NOT rendered recursively
+    — matching plain ``{{var}}`` and ``curly``.
 
     HTML escaping is disabled because prompt text is not HTML, and ``stringify``
-    matches the ``curly`` coercion so whole-object insertion renders compact
-    JSON. Variable values are treated as data, not templates, so a value that
-    contains ``{{other}}`` is not rendered recursively.
+    matches the ``curly`` coercion so whole-object insertion renders compact JSON.
     """
 
     _reject_unsupported_mustache_tags(template)
 
-    prerendered = _prerender_jsonpath_tags(template, context)
-
     render_from_template = _load_mystace()
 
-    try:
-        return render_from_template(
-            prerendered,
-            dict(context),
-            stringify=_coerce_to_str,
-            html_escape_fn=lambda text: text,
-        )
-    except MustacheTemplateError:
-        raise
-    except Exception as exc:
-        raise MustacheTemplateError(
-            f"Mustache template error in content: '{template}'. Error: {exc}"
-        ) from exc
+    def _engine(masked: str) -> str:
+        try:
+            return render_from_template(
+                masked,
+                dict(context),
+                stringify=_coerce_to_str,
+                html_escape_fn=lambda text: text,
+            )
+        except MustacheTemplateError:
+            raise
+        except Exception as exc:
+            raise MustacheTemplateError(
+                f"Mustache template error in content: '{template}'. Error: {exc}"
+            ) from exc
+
+    return _render_with_jsonpath(template, context, engine=_engine)
 
 
 # ---- Public entry point ----

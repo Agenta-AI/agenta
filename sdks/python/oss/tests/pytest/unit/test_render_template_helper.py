@@ -27,7 +27,6 @@ from agenta.sdk.engines.running.handlers import _format_with_template
 from agenta.sdk.types import PromptTemplate, TemplateFormatError
 from agenta.sdk.utils.lazy import _load_jinja2
 from agenta.sdk.utils.templating import (
-    MustacheInvalidJsonPathError,
     MustacheTemplateError,
     UnresolvedVariablesError,
     render_template,
@@ -1029,39 +1028,37 @@ def test_mustache_only_dollar_tags_are_prerendered():
     assert out == "top|nested|nested"
 
 
-def test_mustache_unresolved_jsonpath_raises():
-    with pytest.raises(MustacheTemplateError):
+def test_mustache_unresolved_jsonpath_raises_like_curly():
+    # A ``{{$...}}`` that matches no value is reported as an unresolved
+    # placeholder — the same ``UnresolvedVariablesError`` contract as ``curly``.
+    with pytest.raises(UnresolvedVariablesError):
         _mustache("{{$.nope}}", {"a": 1})
 
 
-def test_mustache_dollar_prefixed_tag_is_always_jsonpath():
-    # WPB3-002 (strict contract): every ``{{$...}}`` tag is reserved for the
-    # JSONPath pre-render pass. A tag whose body is not valid JSONPath (here
-    # ``$id``) raises a dedicated ``MustacheInvalidJsonPathError`` rather than
-    # falling back to a plain Mustache variable lookup. A context key literally
-    # named ``$id`` is therefore NOT addressable as ``{{$id}}``.
-    with pytest.raises(MustacheInvalidJsonPathError):
+def test_mustache_malformed_jsonpath_is_treated_as_unresolved_like_curly():
+    # A ``$``-prefixed tag that is not valid JSONPath (here ``$id``) fails to
+    # resolve. Matching ``curly`` exactly, this is surfaced as an unresolved
+    # placeholder rather than a distinct error; a context key literally named
+    # ``$id`` is therefore NOT addressable as ``{{$id}}``.
+    with pytest.raises(UnresolvedVariablesError):
         _mustache("{{$id}}", {"$id": "Z"})
 
-    # The error is distinct from the valid-but-unmatched ("matched no values")
-    # case, which stays a plain ``MustacheTemplateError``.
-    assert issubclass(MustacheInvalidJsonPathError, MustacheTemplateError)
-    with pytest.raises(MustacheTemplateError) as missing:
-        _mustache("{{$.nope}}", {"a": 1})
-    assert not isinstance(missing.value, MustacheInvalidJsonPathError)
 
-
-def test_mustache_jsonpath_value_with_placeholder_is_rendered_recursively():
-    # WPB3-001 (KNOWN DIVERGENCE, pending decision): unlike plain ``{{var}}``
-    # tags (see test_mustache_value_with_placeholder_is_not_rendered_recursively),
-    # a ``{{$...}}``-resolved value IS fed back through the engine and any
-    # ``{{...}}`` inside it is rendered a second time. This pins the *current*
-    # behavior so a fix is detected; it is NOT an endorsement of recursion. When
-    # WPB3-001 is resolved, replace this with the literal-output expectation:
-    #   assert _mustache("{{$.u}}", {"u": "hi {{secret}}", "secret": "LEAK"}) \
-    #       == "hi {{secret}}"
+def test_mustache_jsonpath_value_is_not_rendered_recursively():
+    # A ``{{$...}}``-resolved value is substituted into the rendered output LAST
+    # and is never re-parsed, so any ``{{...}}`` inside it stays literal — exactly
+    # like a plain ``{{var}}`` value
+    # (see test_mustache_value_with_placeholder_is_not_rendered_recursively) and
+    # exactly like ``curly``.
     out = _mustache("{{$.u}}", {"u": "hi {{secret}}", "secret": "LEAK"})
-    assert out == "hi LEAK"
+    assert out == "hi {{secret}}"
+
+
+def test_mustache_jsonpath_whole_object_insertion_is_not_re_rendered():
+    # Whole-object JSONPath insertion survives verbatim: braces inside the
+    # inserted JSON are not re-interpreted as tags.
+    out = _mustache("{{$.o}}", {"o": {"k": "{{v}}"}, "v": "X"})
+    assert out == '{"k": "{{v}}"}'
 
 
 # =============================================================================
@@ -1192,3 +1189,109 @@ def test_mustache_parity_whole_object_is_valid_json():
     rendered = _mustache("{{obj}}", {"obj": {"name": "Bob", "tags": ["x", "y"]}})
     assert _json.loads(rendered) == {"name": "Bob", "tags": ["x", "y"]}
     assert "'" not in rendered  # no python-repr single quotes
+
+
+# =============================================================================
+# 16. Jinja2 JSONPath ({{$...}})
+#
+# ``$``-JSONPath is not valid Jinja2 syntax, so ``{{$...}}`` tags are resolved
+# around the Jinja2 engine the same way as for curly / mustache. Native Jinja2
+# tags still render normally alongside them.
+# =============================================================================
+
+
+def _jinja2(template, context):
+    return render_template(template=template, mode="jinja2", context=context)
+
+
+def test_jinja2_jsonpath_field():
+    assert _jinja2("{{$.profile.name}}", {"profile": {"name": "Zed"}}) == "Zed"
+
+
+def test_jinja2_jsonpath_root_renders_compact_json():
+    assert _jinja2("{{$}}", {"a": 1}) == '{"a": 1}'
+
+
+def test_jinja2_jsonpath_list_index():
+    assert _jinja2("{{$.tags[0]}}", {"tags": ["t0", "t1"]}) == "t0"
+
+
+def test_jinja2_jsonpath_whole_object_renders_compact_json():
+    assert _jinja2("{{$.o}}", {"o": {"x": 1}}) == '{"x": 1}'
+
+
+def test_jinja2_jsonpath_value_is_not_rendered_recursively():
+    # The JSONPath value is inserted after the Jinja2 render, so a ``{{...}}``
+    # inside it is left literal (not re-evaluated by Jinja2).
+    out = _jinja2("{{$.u}}", {"u": "hi {{secret}}", "secret": "LEAK"})
+    assert out == "hi {{secret}}"
+
+
+def test_jinja2_jsonpath_alongside_native_tags():
+    # Native Jinja2 ``{{ var }}`` / ``{% %}`` render normally; the ``{{$...}}``
+    # tag is resolved as JSONPath. They coexist in one template.
+    out = _jinja2(
+        "{{ greeting }} {{$.profile.name}}{% if shout %}!{% endif %}",
+        {"greeting": "hi", "profile": {"name": "Zed"}, "shout": True},
+    )
+    assert out == "hi Zed!"
+
+
+def test_jinja2_unresolved_jsonpath_raises_like_curly():
+    with pytest.raises(UnresolvedVariablesError):
+        _jinja2("{{$.nope}}", {"a": 1})
+
+
+def test_jinja2_malformed_jsonpath_is_treated_as_unresolved_like_curly():
+    with pytest.raises(UnresolvedVariablesError):
+        _jinja2("{{$id}}", {"$id": "Z"})
+
+
+# =============================================================================
+# 17. Cross-format JSONPath parity: curly == mustache == jinja2
+#
+# The point of WP-B3's shared JSONPath handling: all three formats resolve a
+# ``{{$...}}`` tag to the same value, coerce it the same way, leave it as inert
+# data (no recursive re-render), and report the same failure. These tests run
+# the identical (template, context) through all three modes and assert equality,
+# so a future divergence in any single format is caught.
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "template,context,expected",
+    [
+        # field access
+        ("{{$.profile.name}}", {"profile": {"name": "Ada"}}, "Ada"),
+        # whole-context root as compact JSON
+        ("{{$}}", {"a": 1, "b": 2}, '{"a": 1, "b": 2}'),
+        # list index
+        ("{{$.tags[0]}}", {"tags": ["t0", "t1"]}, "t0"),
+        # whole-object insertion stays valid JSON
+        ("{{$.o}}", {"o": {"x": 1, "y": [2, 3]}}, '{"x": 1, "y": [2, 3]}'),
+        # resolved value with template markers is NOT re-rendered
+        ("{{$.u}}", {"u": "hi {{secret}}", "secret": "LEAK"}, "hi {{secret}}"),
+        # scalar coercion
+        ("{{$.n}}", {"n": 42}, "42"),
+    ],
+)
+def test_jsonpath_parity_across_formats(template, context, expected):
+    curly = render_template(template=template, mode="curly", context=context)
+    mustache = render_template(template=template, mode="mustache", context=context)
+    jinja2 = render_template(template=template, mode="jinja2", context=context)
+    assert curly == mustache == jinja2 == expected
+
+
+@pytest.mark.parametrize(
+    "template,context",
+    [
+        ("{{$.nope}}", {"a": 1}),  # valid path, no match
+        ("{{$id}}", {"$id": "Z"}),  # malformed JSONPath
+    ],
+)
+def test_jsonpath_failure_parity_across_formats(template, context):
+    # All three formats report a failed ``{{$...}}`` resolution the same way:
+    # an ``UnresolvedVariablesError`` carrying the offending expression.
+    for mode in ("curly", "mustache", "jinja2"):
+        with pytest.raises(UnresolvedVariablesError):
+            render_template(template=template, mode=mode, context=context)
