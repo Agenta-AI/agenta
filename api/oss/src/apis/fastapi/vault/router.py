@@ -185,6 +185,7 @@ class VaultRouter:
             project_id=UUID(request.state.project_id),
             secret_id=UUID(secret_id),
             update_secret_dto=body,
+            user_id=UUID(request.state.user_id),
         )
         if secrets_dto is None:
             raise HTTPException(

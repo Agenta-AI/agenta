@@ -99,6 +99,7 @@ class SecretsDAO(SecretsDAOInterface):
         update_secret_dto: UpdateSecretDTO,
         project_id: UUID | None,
         organization_id: UUID | None,
+        user_id: UUID | None = None,
     ):
         async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
@@ -113,7 +114,9 @@ class SecretsDAO(SecretsDAOInterface):
                 return None
 
             map_secrets_dto_to_dbe_update(
-                secrets_dbe=secrets_dbe, update_secret_dto=update_secret_dto
+                secrets_dbe=secrets_dbe,
+                update_secret_dto=update_secret_dto,
+                user_id=user_id,
             )
 
             await session.commit()

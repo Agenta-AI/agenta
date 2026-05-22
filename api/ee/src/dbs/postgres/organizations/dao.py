@@ -1,4 +1,5 @@
 from typing import Optional, List
+from datetime import datetime, timezone
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -217,9 +218,12 @@ class OrganizationDomainsDAO:
         """Update domain flags (e.g., mark as verified)."""
         domain = await self.get_by_id(domain_id=domain_id, organization_id="")
 
+        now = datetime.now(timezone.utc)
+
         if self.session:
             if domain:
                 domain.flags = flags
+                domain.updated_at = now
                 domain.updated_by_id = updated_by_id
 
                 await self.session.flush()
@@ -235,6 +239,7 @@ class OrganizationDomainsDAO:
 
                     if domain:
                         domain.flags = flags
+                        domain.updated_at = now
                         domain.updated_by_id = updated_by_id
 
                         await session.commit()
@@ -475,6 +480,8 @@ class OrganizationProvidersDAO:
         #
     ) -> Optional[OrganizationProviderDBE]:
         """Update a provider's secret reference or flags."""
+        now = datetime.now(timezone.utc)
+
         if self.session:
             provider = await self.session.get(OrganizationProviderDBE, provider_id)
 
@@ -483,6 +490,7 @@ class OrganizationProvidersDAO:
                     provider.secret_id = secret_id
                 if flags is not None:
                     provider.flags = flags
+                provider.updated_at = now
                 if updated_by_id:
                     provider.updated_by_id = updated_by_id
 
@@ -500,6 +508,7 @@ class OrganizationProvidersDAO:
                         provider.secret_id = secret_id
                     if flags is not None:
                         provider.flags = flags
+                    provider.updated_at = now
                     if updated_by_id:
                         provider.updated_by_id = updated_by_id
 
