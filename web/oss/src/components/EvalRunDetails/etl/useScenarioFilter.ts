@@ -2,10 +2,12 @@
  * useScenarioFilter — applies the active multi-predicate filter (D8) to
  * the scenario rows.
  *
- * A row is kept when its resolved columns satisfy the filter. Rows whose
- * slices are not hydrated yet are kept visible ("keep-visible-until-known")
- * so a real match is never hidden while it loads; the viewport-fill loop
- * and the confirmed-match count gate on *confirmed* matches only.
+ * While a filter is active the result holds **confirmed matches only** —
+ * a row appears once it is hydrated AND satisfies the filter. The list
+ * therefore only ever grows during a scan: rows materialize as their data
+ * arrives, and a row is never shown and then dropped, so the table does
+ * not flicker. Unhydrated rows and skeleton placeholders are withheld
+ * until they confirm (or are ruled out).
  *
  * Because a strict filter can reduce the visible row count below the
  * viewport height, the IVT's scroll-triggered `loadMore` may never fire.
@@ -135,12 +137,15 @@ export function useScenarioFilter<TRow extends FilterableRow>({
     const effectiveFilter = useMemo(() => toEffectiveFilter(rawFilter), [rawFilter])
     const active = isScenarioFilterActive(rawFilter)
 
+    // Confirmed matches only — a row is included once it is hydrated AND
+    // satisfies the filter. Skeleton / unhydrated rows are withheld, so
+    // the list only grows as the scan progresses (no show-then-drop).
     const filteredBaseRows = useMemo(() => {
         if (!active || !schema || !projectId || !runId) return baseRows as TRow[]
         return (baseRows as TRow[]).filter((r) => {
             const scenarioId = typeof r.scenarioId === "string" ? r.scenarioId : null
-            // Skeleton / not-yet-keyed rows pass — they can't be evaluated.
-            if (r.__isSkeleton || !scenarioId) return true
+            // Skeleton / not-yet-keyed rows can't be evaluated — withhold.
+            if (r.__isSkeleton || !scenarioId) return false
             const cols = resolveScenarioColumnsFromCache(
                 queryClient,
                 projectId,
@@ -148,33 +153,15 @@ export function useScenarioFilter<TRow extends FilterableRow>({
                 scenarioId,
                 schema,
             )
-            // Not hydrated yet — keep visible until known.
-            if (!cols) return true
+            // Not hydrated yet — withhold until its data arrives.
+            if (!cols) return false
             return evaluateRowFilter(effectiveFilter, cols)
         })
     }, [baseRows, active, schema, projectId, runId, effectiveFilter, hydrationVersion, queryClient])
 
-    // Count of CONFIRMED matches — hydrated AND actually satisfying the
-    // filter. Excludes "keep-visible-until-known" rows, so it does not
-    // oscillate as pages hydrate.
-    const confirmedMatchCount = useMemo(() => {
-        if (!active || !schema || !projectId || !runId) return 0
-        let n = 0
-        for (const r of baseRows as TRow[]) {
-            const scenarioId = typeof r.scenarioId === "string" ? r.scenarioId : null
-            if (r.__isSkeleton || !scenarioId) continue
-            const cols = resolveScenarioColumnsFromCache(
-                queryClient,
-                projectId,
-                runId,
-                scenarioId,
-                schema,
-            )
-            if (!cols) continue
-            if (evaluateRowFilter(effectiveFilter, cols)) n += 1
-        }
-        return n
-    }, [baseRows, active, schema, projectId, runId, effectiveFilter, hydrationVersion, queryClient])
+    // With a filter active, every row in `filteredBaseRows` is a confirmed
+    // match — so the count is just its length.
+    const confirmedMatchCount = active ? filteredBaseRows.length : 0
 
     // Viewport-fill loop — a strict filter may keep the visible row count
     // below the viewport, so IVT's scroll-triggered loadMore never fires.

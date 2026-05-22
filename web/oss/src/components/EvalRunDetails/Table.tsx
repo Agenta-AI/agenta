@@ -50,10 +50,6 @@ import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
 
 type TableRowData = PreviewTableRow
 
-// Stable empty reference for the table's rows while a filter is still
-// scanning with zero confirmed matches — avoids per-page flicker.
-const EMPTY_MERGED_ROWS: TableRowData[] = []
-
 interface EvalRunDetailsTableProps {
     runId: string
     evaluationType: "auto" | "human" | "online"
@@ -153,15 +149,14 @@ const EvalRunDetailsTable = ({
         sliceMode: "auto",
     })
 
-    // "Scanning" — a filter is active, nothing has confirmed-matched yet,
-    // and the pipeline is still working (pages to load OR a hydrate batch
-    // in flight). Gating on `isHydrating` too (not just `hasMore`) is what
-    // stops the table flickering between the empty state and partially
-    // hydrated rows while it gathers data.
-    const isScanning =
-        active &&
-        confirmedMatchCount === 0 &&
-        (basePagination.paginationInfo.hasMore || hydration.isHydrating)
+    // The filter scan is still running — more pages to load OR a hydrate
+    // batch in flight.
+    const scanInProgress =
+        active && (basePagination.paginationInfo.hasMore || hydration.isHydrating)
+    // Nothing has confirmed-matched yet — show the full empty + loading
+    // overlay. Once the first match lands, rows show and grow (no overlay,
+    // no flicker — `filteredBaseRows` only ever grows during a scan).
+    const isScanning = scanInProgress && confirmedMatchCount === 0
 
     // Cell-side lazy materializer — coalesces visible cells' slice
     // requests into one bulk fetch per (slice, run).
@@ -409,14 +404,14 @@ const EvalRunDetailsTable = ({
 
     const paginationForShell = useMemo<TableFeaturePagination<TableRowData>>(
         () => ({
-            // While a filter is still scanning with zero confirmed
-            // matches, hand the table a stable empty array so it shows one
-            // steady loading state instead of per-page row flicker.
-            rows: isScanning ? EMPTY_MERGED_ROWS : mergedRows,
+            // `mergedRows` is monotonic during a scan (confirmed matches
+            // only), so it can be handed to the table directly — no empty
+            // placeholder swap needed.
+            rows: mergedRows,
             loadNextPage: handleLoadMore,
             resetPages: handleResetPages,
         }),
-        [handleLoadMore, handleResetPages, mergedRows, isScanning],
+        [handleLoadMore, handleResetPages, mergedRows],
     )
 
     // Build group map for export label resolution
@@ -970,6 +965,8 @@ const EvalRunDetailsTable = ({
                     runId={runId}
                     schema={runSchema}
                     resolveValueType={filterValueTypeResolver}
+                    scanning={scanInProgress}
+                    matchCount={confirmedMatchCount}
                 />
                 <div className="w-full grow min-h-0 overflow-auto">
                     <InfiniteVirtualTableFeatureShell<TableRowData>

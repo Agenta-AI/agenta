@@ -26,7 +26,7 @@ import {
 } from "@agenta/entities/evaluationRun/etl"
 import {Button, Input, InputNumber, Segmented, Select, Tooltip} from "antd"
 import {useAtom} from "jotai"
-import {Plus, X} from "lucide-react"
+import {Loader2, Plus, X} from "lucide-react"
 
 import {scenarioFilterAtomFamily, isScenarioFilterActive} from "./scenarioFilterState"
 
@@ -82,9 +82,19 @@ export interface ScenarioFilterBarProps {
         groupSlug: string | null
         columnName: string
     }) => FilterValueType | undefined
+    /** True while the filter scan is still running. */
+    scanning?: boolean
+    /** Confirmed matches found so far. */
+    matchCount?: number
 }
 
-const ScenarioFilterBar = ({runId, schema, resolveValueType}: ScenarioFilterBarProps) => {
+const ScenarioFilterBar = ({
+    runId,
+    schema,
+    resolveValueType,
+    scanning = false,
+    matchCount = 0,
+}: ScenarioFilterBarProps) => {
     const [filter, setFilter] = useAtom(scenarioFilterAtomFamily(runId))
 
     const fields = useMemo(
@@ -212,6 +222,16 @@ const ScenarioFilterBar = ({runId, schema, resolveValueType}: ScenarioFilterBarP
             >
                 Add filter
             </Button>
+
+            {active && (
+                <span className="inline-flex items-center gap-1 text-zinc-500">
+                    {scanning && <Loader2 size={12} className="animate-spin" />}
+                    <span>
+                        {matchCount} {matchCount === 1 ? "match" : "matches"}
+                        {scanning ? " · scanning…" : ""}
+                    </span>
+                </span>
+            )}
 
             {active && (
                 <Button
