@@ -48,12 +48,14 @@ The core renderer change is sound and well-layered: `render_template(mode="musta
 
 The original scan also surfaced four issues, all now resolved (see Closed Findings): the JSONPath pre-render stage (`{{$...}}`) re-exposed resolved values to the Mustache engine so they were recursively rendered, unlike plain `{{var}}` tags (WPB3-001); a tag-claiming case where a `{{$...}}` that is not valid JSONPath raised rather than rendering as a plain variable (WPB3-002, kept strict by decision); a frontend molecule that silently coerced `mustache -> curly` (WPB3-003); and test-coverage gaps on the riskiest behaviors (WPB3-004).
 
-Update (2026-05-22): all four findings are fixed and moved to Closed; there are no open findings.
+Update (2026-05-22): all seven findings are fixed and moved to Closed; there are no open findings. (WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-05-22 re-scan against the prompt-unification design docs.)
 
 - WPB3-004 (test gaps) and WPB3-003 (frontend coercion) fixed (2026-05-21).
 - WPB3-001 + WPB3-002 (JSONPath `{{$...}}` handling) resolved together (2026-05-22) by unifying JSONPath across curly / mustache / jinja2: a shared `_render_with_jsonpath` resolves `{{$...}}` to a value, substitutes it into the rendered output last, and never re-parses it — exactly what `curly` already did, now extended to mustache and jinja2. Failure handling also matches `curly` (`UnresolvedVariablesError` for both missing and malformed `{{$...}}`). The interim `MUSTACHE_RENDER_ORDER` switch and `MustacheInvalidJsonPathError` were removed. Context-provenance analysis confirmed no OS-secret/env-var leak is possible (the render context is explicitly and narrowly constructed); the issue was the chain-of-replacement ordering surprise, now removed. Cross-format parity is pinned by `test_jsonpath_parity_across_formats` / `test_jsonpath_failure_parity_across_formats`.
 
 ## Notes (verified, no finding required)
+
+- Re-scan (2026-05-22, fresh context, committed state on `feat/add-mustache-rendering`): leftover-symbol check clean — no references to the removed `MUSTACHE_RENDER_ORDER` or `MustacheInvalidJsonPathError` anywhere outside this findings file's history; no `_prerender_jsonpath_tags` leftovers. No dead imports: `Callable` and `resolve_json_path` are both used in `templating.py`. The `if not shielded: return rendered` early-out correctly covers the no-JSONPath common case (one mask-regex pass only). Error normalization holds end to end: a mustache IndexError, a jinja2 `UnresolvedVariablesError`, and a `MustacheTemplateError` all wrap to `TemplateFormatError` on the chat path and `PromptFormattingV0Error` on the judge path (verified at runtime) — no unwrapped escape. Triple-stache `{{{$.x}}}` resolves and is unescaped correctly. Whole-object `{{$.obj}}` inserts compact JSON and is not re-rendered. Sentinel survives mustache section iteration intact (`{{#users}}[{{$.x}}]{{/users}}` → `[V][V][V]`). Intent conformance verified: builtin `auto_ai_critique_v0` v5+mustache, all four evaluator presets v5+mustache + `settings_template` default mustache, catalog `template_format` enum includes mustache with default mustache, `llm_v0` legacy fallback stays `curly`, judge version map v2→fstring / v3-4→curly / v5→mustache. Frontend `resolveTemplateFormat` preserves mustache and is the single source of truth (molecule + utils). Intent conformance with WP-B3 and the prompt-unification design docs as a whole confirmed. The re-scan surfaced three low/medium findings (WPB3-005..007; no P0/P1), all since fixed (see Closed) — 161 render-helper / 268 four-suite tests pass; ruff clean.
 
 - Structured rendering really handles mustache. `render_messages` / `render_json_like` in `rendering.py` pass `mode` verbatim into `render_template` (`rendering.py:59`), and `render_template` dispatches `mustache` first (`templating.py:273-274`). Runtime probe confirms substitution, not fall-through. Not just type-widening.
 - Coercion + escaping parity verified at runtime. `_render_mustache` passes `stringify=_coerce_to_str` and `html_escape_fn=lambda t: t` (`templating.py:225-230`). Probe confirmed `{{a}}`->`{"x": 1}` (compact JSON, double quotes), `<b> & "` survives unescaped, `{{{h}}}` unescaped, scalars/None render as `str()`/empty. Matches `curly`.
@@ -73,6 +75,45 @@ Update (2026-05-22): all four findings are fixed and moved to Closed; there are 
 (none — all findings resolved as of 2026-05-22)
 
 ## Closed Findings
+
+### [CLOSED] WPB3-005 — Jinja2 `{% raw %}` / `{# #}` did not suppress `{{$...}}` JSONPath tags (raw-block contract)
+
+- ID: WPB3-005
+- Origin: scan
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Correctness (cross-format soundness)
+- Summary: The JSONPath unification shielded `{{$...}}` tags *before* the engine ran, so for jinja2 a `{{$...}}` inside `{% raw %}...{% endraw %}` or a `{# ... #}` comment was JSONPath-resolved even though the appendix raw-block contract says raw blocks emit contents verbatim and comments are dropped. An author could not emit a literal `{{$.foo}}` in jinja2, and a failing `{{$...}}` inside a raw block/comment could raise.
+- Fix applied: `_render_with_jsonpath` gained a `skip` parameter (a compiled regex of spans to leave for the engine); `_render_jinja2` passes `_JINJA2_RAW_RE` matching `{% raw %}...{% endraw %}` and `{# ... #}`, so `{{$...}}` inside those spans is left untouched and handled by jinja2 natively. Mustache passes no `skip` (it has no equivalent verbatim region).
+- Verification: `{% raw %}{{$.x}}{% endraw %}` → `'{{$.x}}'`; `a {# {{$.x}} #} b` → `'a  b'`; a failing `{{$.nope}}` inside raw/comment no longer raises; `{{$.x}}` outside raw still resolves. Tests: `test_jinja2_raw_block_emits_jsonpath_tag_verbatim`, `test_jinja2_comment_does_not_resolve_jsonpath_tag`, `test_jinja2_jsonpath_outside_raw_still_resolves`.
+
+### [CLOSED] WPB3-006 — NUL-sentinel collision in template text
+
+- ID: WPB3-006
+- Origin: scan
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Soundness
+- Summary: The JSONPath shield used `\x00JP<n>\x00` sentinels; a template literally containing that text plus a real `{{$...}}` tag would be silently corrupted or raise an opaque (but wrapped) IndexError. The "sentinel cannot occur in prompt text" assumption was unenforced; curly was unaffected (asymmetry).
+- Fix applied: `_render_with_jsonpath` rejects any template containing a NUL byte (`\x00`) up front with a clear `MustacheTemplateError`. NUL cannot occur in a real prompt, so this eliminates both the corruption and the IndexError and enforces the sentinel assumption.
+- Verification: a template with `\x00` raises immediately. Test: `test_mustache_nul_byte_in_template_raises`.
+
+### [CLOSED] WPB3-007 — Mustache `{{/a/b}}` JSON-Pointer tag gave an opaque `mystace` error
+
+- ID: WPB3-007
+- Origin: scan
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Functionality (error quality)
+- Summary: JSON Pointer is intentionally unsupported in mustache (RFC), but `{{/obj/k}}` produced a cryptic `mystace` "Opening tag" error instead of a clear product message.
+- Fix applied: `_reject_unsupported_mustache_tags` detects a body starting with `/` that contains an inner `/` (a JSON Pointer, e.g. `/obj/k`) and raises a clear "JSON Pointer is not supported in mustache templates …" message. A bare section close `{{/x}}` (no inner `/`) is left to the engine, so valid `{{#x}}…{{/x}}` sections are unaffected.
+- Verification: `{{/obj/k}}` raises with "JSON Pointer" in the message; `{{#x}}hi{{/x}}` still renders `hi`. Tests: `test_mustache_json_pointer_raises_clear_error`, `test_mustache_section_close_is_not_mistaken_for_json_pointer`.
 
 ### [CLOSED] WPB3-001 — JSONPath value re-render divergence, fixed by unifying `{{$...}}` handling across curly / mustache / jinja2
 
@@ -138,16 +179,19 @@ Update (2026-05-22): all four findings are fixed and moved to Closed; there are 
 - Lens: verification
 - Severity: P2
 - Confidence: high
-- Status: fixed (2026-05-21) — tests added; WPB3-001 case pinned-as-current pending its decision
+- Status: fixed (test names reconciled 2026-05-22 after the WPB3-001 JSONPath redesign)
 - Category: Testing
-- Summary: The new suites covered happy paths, parity, partials, and version defaults, but the riskiest behaviors were untested. Tests have now been added (Python `test_render_template_helper.py` 138 passing; frontend entity-ui vitest 11 passing).
-- Tests added:
+- Summary: The new suites covered happy paths, parity, partials, and version defaults, but the riskiest behaviors were untested. Tests have been added and (after the JSONPath unification) updated to assert the final behavior. Current counts: Python `test_render_template_helper.py` 155 passing (262 across the four focused suites); frontend entity-ui vitest 11 passing.
+- Tests added (current names, post-redesign):
   - Ampersand-unescape `{{&var}}`: `test_mustache_ampersand_is_unescaped` (section 10) + a `{{&h}}` row in the engine-parity table (`test_mustache_engine_parity_contract`), so a future engine swap is caught.
-  - `$`-prefixed plain variable (WPB3-002): `test_mustache_dollar_prefixed_tag_is_always_jsonpath` pins the current strict behavior (`{{$id}}` over a `$id` key raises) until the WPB3-002 contract decision is made.
-  - JSONPath recursive-render (WPB3-001): `test_mustache_jsonpath_value_with_placeholder_is_rendered_recursively` pins the CURRENT (divergent) behavior with an explicit in-test note that it is NOT an endorsement and the assertion must flip to literal-output once WPB3-001 is resolved. This was deliberately added as a change-detector, not as a passing security test.
-  - Frontend mustache recognition (`chatPrompts.ts`): `web/packages/agenta-entity-ui/tests/unit/chatPromptsMustache.test.ts` asserts `extractPromptTemplateContext` preserves a stored `mustache` format (snake_case and camelCase), extracts `{{var}}` tokens from mustache content, and still defaults to `curly` when no format is declared.
+  - `$`-prefixed / malformed JSONPath: `test_mustache_malformed_jsonpath_is_treated_as_unresolved_like_curly` (`{{$id}}` over a `$id` key raises `UnresolvedVariablesError`, matching curly) — replaced the interim strict-contract test when WPB3-002 was finalized to match curly.
+  - JSONPath non-recursion (WPB3-001): `test_mustache_jsonpath_value_is_not_rendered_recursively` and `test_mustache_jsonpath_whole_object_insertion_is_not_re_rendered` assert the resolved value stays literal — replaced the earlier change-detector that pinned the (now-removed) recursive behavior.
+  - Unresolved JSONPath: `test_mustache_unresolved_jsonpath_raises_like_curly`.
+  - jinja2 JSONPath (section 16): field/root/list/object, `test_jinja2_jsonpath_value_is_not_rendered_recursively`, `test_jinja2_jsonpath_alongside_native_tags`, `test_jinja2_unresolved_jsonpath_raises_like_curly`, `test_jinja2_malformed_jsonpath_is_treated_as_unresolved_like_curly`.
+  - Cross-format parity (section 17): `test_jsonpath_parity_across_formats` and `test_jsonpath_failure_parity_across_formats` run the same inputs through curly+mustache+jinja2 and assert identical output / identical failure.
+  - Frontend mustache recognition (`chatPrompts.ts`): `web/packages/agenta-entity-ui/tests/unit/chatPromptsMustache.test.ts` asserts `extractPromptTemplateContext` preserves a stored `mustache` format (snake_case and camelCase), extracts `{{var}}` tokens, and still defaults to `curly` when no format is declared.
 - Files:
-  - `sdks/python/oss/tests/pytest/unit/test_render_template_helper.py` (sections 10, 12, 15)
+  - `sdks/python/oss/tests/pytest/unit/test_render_template_helper.py` (sections 10, 12, 15, 16, 17)
   - `web/packages/agenta-entity-ui/tests/unit/chatPromptsMustache.test.ts` (new)
-- Verification: `.venv` pytest 138 passed; ruff format/check clean; entity-ui vitest 11 passed; `pnpm lint-fix` clean.
+- Verification: `.venv` pytest 155 (render-helper) / 262 (four suites) passed; ruff format/check clean; entity-ui vitest 11 passed; `pnpm lint-fix` clean.
 - Residual (intentionally not added): `PromptSchemaControl.tsx`'s `resolvedTemplateFormat` is an inline `useMemo` inside a React component and is not pure-testable without extracting it; extraction was judged out of proportion to a P2 and the logic is already correct (recognizes `mustache`, sensible fallback). The delimiter-swap × pre-render interaction remains parity-table-only.
