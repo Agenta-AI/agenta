@@ -180,12 +180,11 @@ const ScenarioFilterBar = ({
                              * so every connector shows and toggles the same
                              * value.
                              */}
-                            <div className="flex w-16 shrink-0 items-center text-zinc-400">
+                            <div className="flex w-20 shrink-0 items-center text-zinc-400">
                                 {index === 0 ? (
                                     <span className="pl-2">Where</span>
                                 ) : (
                                     <Select<"and" | "or">
-                                        size="small"
                                         variant="borderless"
                                         className="w-full"
                                         value={draft.op}
@@ -199,7 +198,6 @@ const ScenarioFilterBar = ({
                                 )}
                             </div>
                             <Select<string>
-                                size="small"
                                 placeholder="Column"
                                 className="w-[200px] shrink-0"
                                 showSearch
@@ -223,7 +221,6 @@ const ScenarioFilterBar = ({
                                 }}
                             />
                             <Select<FilterOperator>
-                                size="small"
                                 className="w-[110px] shrink-0"
                                 value={condition.op}
                                 disabled={!field}
@@ -327,7 +324,6 @@ const ConditionValueInput = ({
         // boolean as a string and decode on change.
         return (
             <Select<string>
-                size="small"
                 className="w-full"
                 placeholder="Value"
                 disabled={disabled}
@@ -344,7 +340,6 @@ const ConditionValueInput = ({
     if (valueType === "number") {
         return (
             <InputNumber
-                size="small"
                 className="w-full"
                 placeholder="Value"
                 disabled={disabled}
@@ -355,7 +350,6 @@ const ConditionValueInput = ({
     }
     return (
         <Input
-            size="small"
             className="w-full"
             placeholder="Value"
             disabled={disabled}
