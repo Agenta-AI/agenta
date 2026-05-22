@@ -15,13 +15,13 @@ Check:
 
 Milestone: lock `mystace` as the renderer and document partial failure behavior.
 
-## Phase 2: JSONPath Pre-Rendering
+## Phase 2: JSONPath Resolution
 
-Add a pre-render pass that only intercepts tags starting with `{{$`.
+Add a pass that shields tags starting with `{{$`, then substitutes their resolved values into the rendered output last (never re-parsed).
 
 Milestone: direct tests prove:
 
-- `{{$.…}}` tags are resolved as JSONPath
+- `{{$.…}}` tags are resolved as JSONPath and inserted as inert data
 - non-JSONPath tags are left for Mustache rendering
 - `curly` still resolves with the existing literal-key-first behavior
 
@@ -31,9 +31,8 @@ Extend `TemplateMode` and `render_template(...)` with `mustache`.
 
 Have `_render_mustache(...)` run:
 
-1. JSONPath pre-rendering
-2. partial detection / partial failure
-3. `mystace` render
+1. partial detection / partial failure
+2. shield `{{$...}}`, `mystace` render, then substitute resolved JSONPath values last
 
 Keep the existing SDK error contract centered on the current prompt-formatting types:
 

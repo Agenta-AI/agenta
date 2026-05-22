@@ -1286,6 +1286,14 @@ def test_jinja2_jsonpath_outside_raw_still_resolves():
     assert out == "A {{$.y}}"
 
 
+def test_jinja2_nul_byte_raises_mode_agnostic_value_error():
+    # The NUL guard lives in the shared JSONPath helper. On the jinja2 path it
+    # must surface as a plain ValueError, not the mustache-specific subclass.
+    with pytest.raises(ValueError) as exc:
+        _jinja2("LIT=\x00 {{$.x}}", {"x": "V"})
+    assert not isinstance(exc.value, MustacheTemplateError)
+
+
 # =============================================================================
 # 17. Cross-format JSONPath parity: curly == mustache == jinja2
 #

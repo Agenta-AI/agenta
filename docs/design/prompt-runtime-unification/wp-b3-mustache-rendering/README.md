@@ -1,8 +1,8 @@
 # WP-B3 Mustache Rendering
 
-This workspace tracks WP-B3 from the prompt runtime unification RFC.
+This workstream tracks WP-B3 from the prompt runtime unification RFC.
 
-WP-B3 builds on WP-B1 and WP-B2. WP-B1 extracted the low-level string renderer at `sdks/python/agenta/sdk/utils/templating.py`. WP-B2 added the structured renderer at `sdks/python/agenta/sdk/utils/rendering.py` and routed prompt messages plus JSON-return configuration through it. WP-B3 adds the `mustache` template format to that stack using `mystace`, with JSONPath pre-rendering for tags that start with `{{$`.
+WP-B3 builds on WP-B1 and WP-B2. WP-B1 extracted the low-level string renderer at `sdks/python/agenta/sdk/utils/templating.py`. WP-B2 added the structured renderer at `sdks/python/agenta/sdk/utils/rendering.py` and routed prompt messages plus JSON-return configuration through it. WP-B3 adds the `mustache` template format to that stack using `mystace`, with JSONPath `{{$...}}` tags resolved as inert data and substituted into the rendered output last (never re-parsed) — the same handling `curly` already had, now unified across `curly` / `mustache` / `jinja2`.
 
 ## Scope
 

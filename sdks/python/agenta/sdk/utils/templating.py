@@ -217,10 +217,10 @@ def _render_with_jsonpath(
     """
 
     # NUL would collide with the shield sentinel; it cannot occur in a real prompt.
+    # Mode-agnostic here (the helper is shared by mustache + jinja2); the mustache
+    # entrypoint maps it to MustacheTemplateError.
     if "\x00" in template:
-        raise MustacheTemplateError(
-            "Template contains a NUL byte (\\x00), which is not allowed."
-        )
+        raise ValueError("Template contains a NUL byte (\\x00), which is not allowed.")
 
     shielded: list[str] = []
 
@@ -297,7 +297,16 @@ def _render_mustache(template: str, context: Mapping[str, Any]) -> str:
                 f"Mustache template error in content: '{template}'. Error: {exc}"
             ) from exc
 
-    return _render_with_jsonpath(template, context, engine=_engine)
+    try:
+        return _render_with_jsonpath(template, context, engine=_engine)
+    except UnresolvedVariablesError:
+        raise
+    except MustacheTemplateError:
+        raise
+    except ValueError as exc:
+        # Mode-agnostic helper errors (e.g. the NUL-byte guard) surface as
+        # MustacheTemplateError on the mustache path.
+        raise MustacheTemplateError(str(exc)) from exc
 
 
 # ---- Public entry point ----
@@ -332,7 +341,8 @@ def render_template(
         KeyError / IndexError: ``fstring`` references a missing key or index.
         jinja2.TemplateError: ``jinja2`` rendering failed (sandbox violation,
             syntax error, etc.). Callers decide whether to re-raise or fall back.
-        ValueError: when ``mode`` is unsupported.
+        ValueError: when ``mode`` is unsupported, or ``jinja2`` is given a template
+            containing a NUL byte.
     """
 
     if mode == "mustache":

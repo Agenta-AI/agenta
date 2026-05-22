@@ -19,7 +19,7 @@ WP-B3 uses `mystace` for Mustache rendering. Agenta adds one extension around it
 7. Reject partials clearly.
 8. Make whole-object and whole-array insertion render as compact JSON text.
 9. Extend backend validation and schemas to accept `mustache`.
-10. Add focused tests across pre-rendering, Mustache rendering, structured rendering, chat/completion, and LLM-as-a-judge.
+10. Add focused tests across JSONPath resolution, Mustache rendering, structured rendering, chat/completion, and LLM-as-a-judge.
 
 ## Non-Goals
 
@@ -46,7 +46,7 @@ Why:
 - modern, active Python Mustache library
 - good fit if we want real Mustache behavior instead of a custom subset
 - no need to invent our own dot-notation semantics
-- only one product-specific extension is needed: JSONPath pre-rendering for tags that start with `{{$`
+- only one product-specific extension is needed: JSONPath resolution for tags that start with `{{$`
 
 ## Proposed Semantics
 
@@ -77,17 +77,18 @@ Newlines inside a placeholder are not supported. Keep the current single-line pl
 
 ### Resolution Model
 
-WP-B3 uses two stages:
+WP-B3 resolves `{{$...}}` JSONPath tags as inert data:
 
-1. JSONPath pre-rendering:
-   Only tags that start with `{{$` are resolved as JSONPath expressions against the render context.
-2. Mustache rendering:
-   The resulting template is rendered by `mystace` using normal Mustache behavior.
+1. Shield `{{$...}}` tags from the engine.
+2. Render the rest with `mystace` using normal Mustache behavior.
+3. Substitute the resolved JSONPath values into the rendered output last, as literal text — never re-parsed.
+
+This matches the handling `curly` already had, now unified across `curly` / `mustache` / `jinja2`.
 
 Examples:
 
 ```text
-{{$.profile.name}} -> JSONPath pre-render
+{{$.profile.name}} -> JSONPath tag (resolved as data)
 {{name}} -> Mustache variable
 {{profile.name}} -> Mustache dotted name
 {{#users}}...{{/users}} -> Mustache section
@@ -132,9 +133,8 @@ Add `_render_mustache(...)`.
 
 `_render_mustache(...)` should:
 
-1. pre-render tags that start with `{{$` using JSONPath
-2. reject partial tags clearly
-3. render the resulting template through `mystace`
+1. reject partial tags clearly
+2. shield `{{$...}}` JSONPath tags, render through `mystace`, then substitute the resolved values into the output last (never re-parsed)
 
 Keep `resolve_any(...)` unchanged for `curly`.
 
@@ -214,7 +214,7 @@ Mitigation: in WP-B3, widen only the minimal frontend/shared type surfaces requi
 
 ## Review Checklist
 
-- `mustache` tests prove `{{$.…}}` tags are pre-rendered through JSONPath
+- `mustache` tests prove `{{$.…}}` tags are resolved through JSONPath (as inert data, substituted last)
 - `mustache` tests prove ordinary tags are rendered by `mystace`
 - partial tags fail clearly
 - existing `curly` edge-case tests still pass unchanged

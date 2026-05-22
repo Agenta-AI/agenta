@@ -1,6 +1,6 @@
 # RFC: Prompt Variables, JSON Values, and LLM Runtime Unification
 
-+++ ## Context
+## Context
 
 Agenta runs several LLM-backed services that share most of their lifecycle but were built separately:
 
@@ -13,9 +13,7 @@ Each can be invoked from multiple surfaces — direct API, SDK (including local 
 
 The same conceptual operation appears in all of them: take structured inputs, expose variables to a prompt, render message templates, resolve provider/model settings, call an LLM, and normalize outputs. Today those steps differ enough that users and developers cannot rely on one consistent mental model.
 
-+++
-
-+++ ## Problem Statement
+## Problem Statement
 
 Users need a consistent answer to these questions:
 
@@ -28,11 +26,9 @@ Users need a consistent answer to these questions:
 
 The current system makes those answers difficult because runtime behavior and frontend transport behavior are not fully aligned.
 
-+++
+## Current State
 
-+++ ## Current State
-
-+++ ### Runtime services
+### Runtime services
 
 **Chat and completion** share the same prompt runtime.
 
@@ -46,9 +42,7 @@ The current system makes those answers difficult because runtime behavior and fr
 * Renders through the evaluator runtime path in `sdks/python/agenta/sdk/engines/running/handlers.py`. Existing evaluator defaults still depend on `version` — `fstring` for v2, `curly` for v3+ — until new configs explicitly write `mustache`.
 * Render context combines the testcase row, app outputs, ground-truth aliases, trace, and evaluator parameters. See [Variable Matrix](<#variable-matrix>) for the full list with types and availability.
 
-+++
-
-+++ ### Runtime gaps
+### Runtime gaps
 
 All three services should share the same building blocks but currently don't:
 
@@ -57,9 +51,7 @@ All three services should share the same building blocks but currently don't:
 * **Config.** The judge does not allow configuring `temperature`. It currently sends a hard-coded `temperature=0.01`, which some models reject as an unsupported optional parameter.
 * **Output.** Completion, chat, and judge return different output shapes. Shared runtime code should stop before handler-specific output normalization.
 
-+++
-
-+++ ### Invocation surfaces
+### Invocation surfaces
 
 **Direct API and SDK calls.** The caller sends `data.inputs` as JSON; the runtime receives native JSON values. For chat, `messages` arrives as a typed message list.
 
@@ -75,9 +67,7 @@ All three services should share the same building blocks but currently don't:
 
 **Evaluator playground.** Combines testcase data, upstream app output, traces, evaluator settings, and evaluator input schema. Like the normal playground, it stringifies object and array testcase values via `normalizeCompact` in `web/packages/agenta-entities/src/runnable/utils.ts`; the inputs reach the evaluator runtime as JSON-encoded strings rather than native objects. Types in play: testcase columns (any JSON), `prediction` / upstream output (any JSON, currently sent as a string), evaluator parameters (object).
 
-+++
-
-+++ ### Playground transport
+### Playground transport
 
 The playground discovers variables from prompt templates and configuration, then builds input rows from testcase data or manual entry. It also extracts variables from response formats and tools in some prompt configurations.
 
@@ -113,19 +103,13 @@ Example.
 
 `profile` is a string whose text happens to contain JSON. The runtime treats it as a string. It does not silently parse the value — that would make strings ambiguous and break users who intentionally store JSON text.
 
-+++
+## Solution Requirements
 
-+++
-
-+++ ## Solution Requirements
-
-+++ ### 1\. Preserve native value types
+### 1\. Preserve native value types
 
 * Playground execution must preserve native JSON objects and arrays when the stored testcase value is an object or array.
 
-+++
-
-+++ ### 2\. Make field types visible and editable
+### 2\. Make field types visible and editable
 
 * Show the field type wherever testcase or trace values are edited or inspected: `string`, `object`, `array`, `number`, `boolean`, `null`, `messages`.
 * Use the same type-display pattern in the playground, testset views, and observability views.
@@ -133,9 +117,7 @@ Example.
 * Allow users to intentionally convert a field between string and JSON.
 * Preserve the selected type when saving or invoking.
 
-+++
-
-+++ ### 3\. Template rendering semantics
+### 3\. Template rendering semantics
 
 Three substitution formats plus one full templating engine:
 
@@ -144,26 +126,20 @@ Three substitution formats plus one full templating engine:
 * `fstring` — `{variable}` substitution. Supported for backward compatibility. Not recommended for nested JSON because of brace-escaping conflicts. Not extended. We should hide it from the playground.
 * `jinja2` — full sandboxed Jinja2. The format to pick when conditionals, loops, filters, or other logic are required.
 
-+++
-
-+++ ### 4\. Variable by service
+### 4\. Variable by service
 
 * Provide a variable matrix for each service and invocation surface (see [Variable Matrix](<#variable-matrix>) below).
 * Document variable name, type, source, and when the variable is available.
 * Add tests for the render context each service exposes.
 
-+++
-
-+++ ### 5\. Align model and provider resolution
+### 5\. Align model and provider resolution
 
 * All services should resolve provider settings using the same path. As such:
   * They should all support custom/self-hosted models configured in the UI.
 * LLM-as-a-judge must not inject unsupported optional parameters such as `temperature`. The default should be `None` unless explicitly set, matching current chat/completion behavior.
 * The existing judge flat config and output shape must remain compatible. We will achieve that by creating a new LLM-as-a-judge judge_v0 that supersedes the auto_ai_critique (and hide auto_ai_critique from the catalogues while keeping existing ones working)
 
-+++
-
-+++ ### 6\. Playground UX
+### 6\. Playground UX
 
 * Field type is visible: string, JSON object, JSON array, number, boolean, null, messages.
 * Users can edit JSON values without losing their type.
@@ -173,9 +149,7 @@ Three substitution formats plus one full templating engine:
   * variables available from the current testcase or trace context, labeled with source and type
 * The prompt editor provides autocomplete for available variables. A degraded solution with only top-level autocomplete is acceptable; a fuller nested autocomplete experience is a later enhancement.
 
-+++
-
-+++ ### 7\. Documentation
+### 7\. Documentation
 
 The shipped documentation must include:
 
@@ -186,15 +160,11 @@ The shipped documentation must include:
 * SDK examples for local usage of completion, chat, and LLM-as-a-judge.
 * Evaluation service examples showing app invocation and evaluator invocation.
 
-+++
-
-+++
-
-+++ ## Variable Matrix
+## Variable Matrix
 
 What variables are exposed to prompt rendering, by service. Surface availability is described after the per-service lists.
 
-+++ ### Completion
+### Completion
 
 | Variable | Type | Source |
 | -- | -- | -- |
@@ -202,9 +172,7 @@ What variables are exposed to prompt rendering, by service. Surface availability
 
 No special variables. Whatever keys the caller puts into `inputs` become available to the prompt template, with their native types.
 
-+++
-
-+++ ### Chat
+### Chat
 
 | Variable | Type | Source |
 | -- | -- | -- |
@@ -213,9 +181,7 @@ No special variables. Whatever keys the caller puts into `inputs` become availab
 
 `messages` is **not** a regular template variable. It is removed from the render context, then appended as chat history after the prompt template renders. The evaluation service preserves native message-list values; for legacy rows that store a JSON-encoded string, it parses the string into a list — that is the only place the system converts string-encoded messages to a list.
 
-+++
-
-+++ ### LLM-as-a-judge
+### LLM-as-a-judge
 
 | Variable | Type | Source |
 | -- | -- | -- |
@@ -234,17 +200,13 @@ Notes on the judge variables:
 * `trace` — A plain dict (the result of `trace.model_dump(mode="json")` on the trace passed in by the evaluation service). Prompt authors can dot-traverse it; the structure follows the trace schema (root span, spans, attributes including `ag.data.*` and `ag.meta.*`). Populated when the judge runs in a context that produced a trace — primarily online evaluation.
 * `parameters` — The evaluator's own configuration object. Useful when a prompt needs to reference its own settings (rare).
 
-+++
+### Variable population by interface
 
-+++ ### Variable population by interface
-
-+++ #### Direct API / SDK
+#### Direct API / SDK
 
 All variables come from the request payload — caller decides what's there. Native JSON values arrive intact.
 
-+++
-
-+++ #### Evaluator playground
+#### Evaluator playground
 
 * `inputs`: from the testcase row.
 * `outputs` / `prediction`: from the chained app run, when present.
@@ -253,9 +215,7 @@ All variables come from the request payload — caller decides what's there. Nat
 
 The evaluator playground currently stringifies object and array values before transport via `normalizeCompact` in `web/packages/agenta-entities/src/runnable/utils.ts`. Same fix as WP2 needs to apply here so JSON arrives native.
 
-+++
-
-+++ #### Evaluation service — offline (testset-driven)
+#### Evaluation service — offline (testset-driven)
 
 Reference: `api/oss/src/core/evaluations/tasks/legacy.py`.
 
@@ -266,9 +226,7 @@ Reference: `api/oss/src/core/evaluations/tasks/legacy.py`.
 
 Native JSON preserved end to end (this is the reference behavior the playground paths should match).
 
-+++
-
-+++ #### Evaluation service — online (trace-driven)
+#### Evaluation service — online (trace-driven)
 
 Reference: `api/oss/src/core/evaluations/tasks/live.py`.
 
@@ -277,27 +235,19 @@ Reference: `api/oss/src/core/evaluations/tasks/live.py`.
 * `ground_truth`: typically not present — traces don't carry ground-truth columns.
 * `trace`: the trace itself.
 
-+++
-
-+++
-
-+++
-
-+++ ## Work Packages
+## Work Packages
 
 The work falls into three layers: backend service alignment, frontend UX, documentation. Within each layer the order matters because later packages build on earlier ones.
 
-+++ ### Backend
+### Backend
 
-+++ #### WP-B1 — Secret handling and low-level rendering helper 🟩
+#### WP-B1 — Secret handling and low-level rendering helper 🟩
 
 * Patch `auto_ai_critique_v0` to use the shared provider/secret resolution path. Custom and self-hosted models configured in the UI become available to the judge.
 * Stop sending hard-coded `temperature=0.01` from the judge LLM call.
 * Extract a low-level rendering helper with signature roughly `(template_string, mode, context) -> rendered_string`. Pure, unit-testable, no service knowledge. The substitution modes (`mustache`, `curly`, `fstring`) and `jinja2` all funnel through it.
 
-+++
-
-+++ #### WP-B2 — Message and JSON-return rendering on top of the helper
+#### WP-B2 — Message and JSON-return rendering on top of the helper
 
 Builds on WP-B1.
 
@@ -306,9 +256,7 @@ Builds on WP-B1.
 * Align Jinja2 error behavior on **raise** across all services. The judge's silent-return-on-error is removed.
 * Keep handler-specific output parsing in the handlers (judge keeps its output normalization).
 
-+++
-
-+++ #### WP-B3 — Add `mustache` template format
+#### WP-B3 — Add `mustache` template format
 
 Builds on WP-B1.
 
@@ -316,13 +264,9 @@ Builds on WP-B1.
 * `mustache` becomes the default rendering format for newly created apps / prompt configs. Existing apps continue to use the format they declared.
 * `mustache` is added anywhere prompt rendering is configured: completion/chat prompts and LLM-as-a-judge evaluator prompts.
 
-+++
+### Frontend
 
-+++
-
-+++ ### Frontend
-
-+++ #### WP-F1 — JSON ↔ string switching, applied everywhere
+#### WP-F1 — JSON ↔ string switching, applied everywhere
 
 The same UX pattern lives in playground inputs, the testset editor, observability/trace views, and evaluation result views.
 
@@ -330,9 +274,7 @@ The same UX pattern lives in playground inputs, the testset editor, observabilit
 * Convert action between `string` and `JSON`. The user's choice is preserved.
 * The selected type round-trips through save/load and through invocation.
 
-+++
-
-+++ #### WP-F2 — Playground execution with native JSON and dotless variable handling
+#### WP-F2 — Playground execution with native JSON and dotless variable handling
 
 Depends on WP-B3 (`mustache` available) and WP-F1 (type switching available).
 
@@ -340,22 +282,16 @@ Depends on WP-B3 (`mustache` available) and WP-F1 (type switching available).
 * In `mustache` mode, `{{$.a.b}}` is the explicit JSONPath escape hatch. Plain Mustache tags such as `{{a}}` or `{{profile.name}}` follow ordinary Mustache rendering behavior. The playground's variable discovery for nested JSON is still a frontend concern.
 * The frontend honors the WP-B3 `mustache` default and hides `curly` from the format list unless the current old app already has `curly` selected. Existing apps still on `curly` continue to work — the literal-key-first behavior is preserved for them.
 
-+++
-
-+++ #### WP-F3 — Variable discovery (autocomplete)
+#### WP-F3 — Variable discovery (autocomplete)
 
 A nicety on top of WP-F2.
 
 * Autocomplete in the prompt editor surfaces top-level variables only — no nesting. Combines variables referenced in the prompt template with variables available from the testcase, trace, or evaluator context, labeled with source and type.
 * The variables panel (right side of the playground) shows the same set, plus expandable nested fields.
 
-+++
+### Documentation
 
-+++
-
-+++ ### Documentation
-
-+++ #### WP-D1 — Documentation and SDK examples
+#### WP-D1 — Documentation and SDK examples
 
 * Publish prompt templating docs covering `mustache` (default for new apps), `curly` (legacy compat), `fstring`, and `jinja2`. Spell out the JSONPath pre-render rule for `mustache` and the literal-key-first distinction of `curly`.
 * Publish the variable matrix by service and interface.
@@ -386,13 +322,7 @@ This is an object and supports nested lookup.
 
 This is a string. It does not support nested lookup unless the user explicitly parses it elsewhere.
 
-+++
-
-+++
-
-+++
-
-+++ ## Rollout Plan
+## Rollout Plan
 
 The work packages have a natural order:
 
@@ -404,9 +334,7 @@ The work packages have a natural order:
 6. **WP-F3** adds autocomplete on top.
 7. **WP-D1** publishes the templating docs, variable matrix, and SDK examples.
 
-+++
-
-+++ ## Test Plan
+## Test Plan
 
 ### Backend runtime
 
@@ -445,13 +373,11 @@ The work packages have a natural order:
 * Examples cover string, JSON object, array, JSONPath, Mustache dotted names, messages, and brace escaping in each format.
 * Variable matrix covers completion, chat, judge, and the four interfaces (Direct API/SDK, evaluator playground, evaluation service offline, evaluation service online).
 
-+++
-
-+++ ## Future Directions
+## Future Directions
 
 Sketches for follow-up work. None of this is part of the present RFC.
 
-+++ ### Sharing the prompt template across services
+### Sharing the prompt template across services
 
 Today, chat and completion store their prompt config under `parameters.prompt`. The judge has a flat config with `prompt_template`, `model`, `response_type`, `json_schema`, `correct_answer_key`, `threshold`, `version`. The follow-up is to give the judge a `prompt` field with the same shape as chat/completion (messages, template format, input keys, llm_config), and keep judge-specific fields alongside it — rather than try to invent one structure that fits every service.
 
@@ -482,6 +408,3 @@ Notes:
 * **Open Question:** `response_type` and `json_schema` in today's judge config describe the same thing chat/completion's `response_format` does — the response shape. The unification collapses them into a single `response_format` (e.g. `{type: "json_schema", json_schema: ...}`).
 * **Open Question:** A migration adapter at the API boundary translates legacy judge flat config into the unified shape. The old shape stays valid until usage drops to zero, then is deprecated.
 
-+++
-
-+++

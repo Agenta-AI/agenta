@@ -58,7 +58,7 @@ The core renderer change is sound and well-layered: `render_template(mode="musta
 
 The original scan also surfaced four issues, all now resolved (see Closed Findings): the JSONPath pre-render stage (`{{$...}}`) re-exposed resolved values to the Mustache engine so they were recursively rendered, unlike plain `{{var}}` tags (WPB3-001); a tag-claiming case where a `{{$...}}` that is not valid JSONPath raised rather than rendering as a plain variable (WPB3-002, kept strict by decision); a frontend molecule that silently coerced `mustache -> curly` (WPB3-003); and test-coverage gaps on the riskiest behaviors (WPB3-004).
 
-Update (2026-05-22): all nine findings are fixed and Closed; there are no open findings. The sync against PR #4393 surfaced two P3 doc/impl mismatches — WPB3-008 (the `render_template` docstring still said unresolved `{{$...}}` raises `MustacheTemplateError`; it raises `UnresolvedVariablesError`) and WPB3-009 (`qa.md` said a missing top-level var raises; mustache is permissive) — both now corrected (the runtime contract was already right and test-pinned; only the prose lagged). (WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-05-22 re-scan; WPB3-008..009 from the PR #4393 sync.)
+Update (2026-05-22): all thirteen findings are fixed and Closed; there are no open findings. The final PR #4393 review pass added two P2 cross-format error-contract bugs surfaced by the JSONPath unification, both now fixed with tests: WPB3-012 (the shared `_render_with_jsonpath` raised the mustache-named `MustacheTemplateError` on a NUL byte even on the jinja2 path → now a mode-agnostic `ValueError`, mapped to `MustacheTemplateError` only in the mustache entrypoint) and WPB3-013 (`_format_with_template` and the structured-render path reported mustache/jinja2 `{{$...}}` failures as a "curly template" error → now interpolate the actual format). 270 across the four focused suites pass; ruff clean. The sync against PR #4393 added four doc-only fixes (the runtime contract was already correct and test-pinned; only prose lagged): WPB3-008 (`render_template` docstring Raises mismatch), WPB3-009 (`qa.md` missing-var-raises vs permissive), WPB3-010 (whole wp-b3 doc set still framed `{{$...}}` as a "pre-render stage" instead of shield-and-substitute), and WPB3-011 (root `rfc.md` `+++` heading prefixes/separators). (WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-05-22 re-scan; WPB3-008..011 from the PR #4393 sync.)
 
 - WPB3-004 (test gaps) and WPB3-003 (frontend coercion) fixed (2026-05-21).
 - WPB3-001 + WPB3-002 (JSONPath `{{$...}}` handling) resolved together (2026-05-22) by unifying JSONPath across curly / mustache / jinja2: a shared `_render_with_jsonpath` resolves `{{$...}}` to a value, substitutes it into the rendered output last, and never re-parses it — exactly what `curly` already did, now extended to mustache and jinja2. Failure handling also matches `curly` (`UnresolvedVariablesError` for both missing and malformed `{{$...}}`). The interim `MUSTACHE_RENDER_ORDER` switch and `MustacheInvalidJsonPathError` were removed. Context-provenance analysis confirmed no OS-secret/env-var leak is possible (the render context is explicitly and narrowly constructed); the issue was the chain-of-replacement ordering surprise, now removed. Cross-format parity is pinned by `test_jsonpath_parity_across_formats` / `test_jsonpath_failure_parity_across_formats`.
@@ -85,6 +85,63 @@ Update (2026-05-22): all nine findings are fixed and Closed; there are no open f
 (none — all findings resolved as of 2026-05-22)
 
 ## Closed Findings
+
+### [CLOSED] WPB3-012 — `_render_with_jsonpath` raised a mustache-named error on the jinja2 path (NUL byte)
+
+- ID: WPB3-012
+- Origin: sync (PR #4393, Copilot thread `3286943741`)
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Correctness (cross-format error contract)
+- Summary: `_render_with_jsonpath` raised `MustacheTemplateError` for a NUL byte, but the helper is shared by both mustache and jinja2 (`_render_jinja2` calls it with `skip=_JINJA2_RAW_RE`). So `render_template(mode="jinja2", ...)` on a NUL-containing template raised a *mustache*-specific exception, which is surprising and made the `render_template` Raises contract misleading.
+- Fix applied: the shared helper's NUL guard now raises a mode-agnostic `ValueError`; `_render_mustache` wraps a `ValueError` from the helper into `MustacheTemplateError` (re-raising `UnresolvedVariablesError` / `MustacheTemplateError` unchanged), so the mustache path keeps its subclass while jinja2 surfaces a plain `ValueError`. The `render_template` docstring's `ValueError` entry now notes the jinja2-NUL case.
+- Files: `sdks/python/agenta/sdk/utils/templating.py` (NUL guard in `_render_with_jsonpath`; `ValueError`→`MustacheTemplateError` wrap in `_render_mustache`; docstring).
+- Verification: `test_jinja2_nul_byte_raises_mode_agnostic_value_error` (jinja2 NUL raises `ValueError`, not `MustacheTemplateError`); existing `test_mustache_nul_byte_in_template_raises` still asserts the mustache path raises `MustacheTemplateError`. 270 across the four suites pass; ruff clean.
+
+### [CLOSED] WPB3-013 — `_format_with_template` reported mustache/jinja2 `{{$...}}` failures as "curly template"
+
+- ID: WPB3-013
+- Origin: sync (PR #4393, Copilot thread `3286943795`)
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Correctness (error message accuracy)
+- Summary: The `UnresolvedVariablesError` catch re-raised `TemplateFormatError("Unreplaced variables in curly template: ...")`. After the WPB3-001 unification, `UnresolvedVariablesError` also fires for mustache / jinja2 `{{$...}}` failures, so a mustache prompt's failure was reported as a curly error.
+- Evidence: `types.py:816` AND `types.py:860` (the structured/messages path `_template_error_from_structured_error`) both hardcoded "curly template".
+- Fix applied: interpolated `self.template_format` at both call sites — "Unreplaced variables in {format} template: ...".
+- Files: `sdks/python/agenta/sdk/utils/types.py:816` (`_format_with_template`), `:860` (`_template_error_from_structured_error`).
+- Verification: `test_mustache_unresolved_jsonpath_error_names_mustache_not_curly` (asserts "mustache template" present, "curly template" absent) — it exercised the structured path and caught the second occurrence the first edit missed. 270 across the four suites pass; ruff clean.
+
+### [CLOSED] WPB3-011 — Root `rfc.md` used non-standard `+++` heading prefixes / separators
+
+- ID: WPB3-011
+- Origin: sync (PR #4393, Copilot threads `3280567210`, `3281567626`)
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Consistency (docs rendering)
+- Summary: `docs/design/prompt-runtime-unification/rfc.md` prefixed headings with `+++` (e.g. `+++ ## Context`) and used standalone `+++` lines as separators — non-standard Markdown that renders as literal text and breaks heading anchors/TOC.
+- Fix applied: stripped the prefix from 39 headings (`+++ ## X` → `## X`) and removed 39 standalone `+++` separator lines; collapsed resulting 3+ blank runs to one. 0 `+++` remain; 46 headings intact.
+- Files: `docs/design/prompt-runtime-unification/rfc.md`
+
+### [CLOSED] WPB3-010 — WP-B3 docs described the superseded "JSONPath pre-rendering" two-stage model
+
+- ID: WPB3-010
+- Origin: sync (PR #4393 review pass; found while triaging coderabbit/Copilot threads)
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Consistency (doc/impl drift)
+- Summary: `README.md`, `research.md`, `plan.md`, `qa.md`, and `rfc.md` described `{{$...}}` handling as a *pre-rendering* stage that runs *before* the engine and feeds its output back through it ("WP-B3 now has two stages: 1. JSONPath pre-rendering ... 2. Mustache rendering"). The WPB3-001 redesign replaced that with shield-and-substitute: `{{$...}}` is shielded from the engine, the engine runs, then resolved values are substituted **last** (never re-parsed), uniformly across curly / mustache / jinja2. The "pre-render" framing was wrong and contradicted the closed WPB3-001/008.
+- Evidence: the framing appeared across the wp-b3 doc set — `README.md:5`, `research.md:99,174-180,191`, `plan.md:20,34`, `qa.md:9,46,47,100`, `rfc.md:22,49,80-85,135,217`.
+- Fix applied: reframed the contract docs (README, research, plan, qa, rfc) as shield-and-substitute — explicit three-step (shield / render / substitute-last), "never re-parsed", and "unified across curly / mustache / jinja2"; swept the residual "pre-render(ing)" wording to "JSONPath resolution". Left `status.md` dated log/decision entries as historical record (accurate at the time; the redesign is captured by later entries + this findings doc).
+- Files: `README.md`, `research.md`, `plan.md`, `qa.md`, `rfc.md` (wp-b3 doc set).
+- Verification: `grep` confirms no wrong "pre-render" framing remains in the contract docs (only the one intentional "it is NOT a pre-render stage" clarifier in `research.md:180`).
 
 ### [CLOSED] WPB3-008 — `render_template` docstring Raises section was stale re unresolved `{{$...}}`
 

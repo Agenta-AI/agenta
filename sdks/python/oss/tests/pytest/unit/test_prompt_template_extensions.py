@@ -707,3 +707,16 @@ def test_mustache_partial_in_prompt_raises_template_format_error():
     )
     with pytest.raises(TemplateFormatError):
         prompt.format()
+
+
+def test_mustache_unresolved_jsonpath_error_names_mustache_not_curly():
+    # An unresolved {{$...}} now raises UnresolvedVariablesError for mustache too;
+    # the surfaced message must name the actual format, not "curly".
+    prompt = PromptTemplate(
+        template_format="mustache",
+        messages=[{"role": "user", "content": "{{$.missing}}"}],
+    )
+    with pytest.raises(TemplateFormatError) as exc:
+        prompt.format()
+    assert "mustache template" in str(exc.value)
+    assert "curly template" not in str(exc.value)
