@@ -181,20 +181,29 @@ def query_metrics(authed_api, run_id):
     return response.json().get("metrics", [])
 
 
-def wait_for_metrics(authed_api, run_id, *, expected_count=1, max_retries=20):
-    """Poll metrics until at least `expected_count` rows exist, then return them.
+def wait_for_metrics(
+    authed_api, run_id, *, expected_count=1, condition=None, max_retries=20
+):
+    """Poll metrics until they satisfy a condition, then return them.
 
-    A run can flip to a terminal status a beat before its global (whole-run)
-    metric row is written, so tests that assert on the global metric poll here
-    rather than reading once.
+    A run can flip to a terminal status a beat before its metric rows are
+    written, and the worker writes them incrementally per scenario, so tests
+    poll here rather than reading once. By default waits for `expected_count`
+    rows; pass `condition` (a callable over the metrics list) to wait for a
+    settled shape (e.g. the global aggregate reaching its final count).
     """
+    if condition is None:
+
+        def condition(metrics):
+            return len(metrics) >= expected_count
+
     wait_for_response(
         authed_api,
         "POST",
         "/evaluations/metrics/query",
         json={"metrics": {"run_id": str(run_id)}},
         condition_fn=lambda r: (
-            r.status_code == 200 and len(r.json().get("metrics", [])) >= expected_count
+            r.status_code == 200 and condition(r.json().get("metrics", []))
         ),
         max_retries=max_retries,
     )
