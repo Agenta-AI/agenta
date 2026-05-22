@@ -16,6 +16,7 @@ import {useCallback, useMemo} from "react"
 
 import {
     buildFilterSchema,
+    type ColumnGroup,
     type FilterOperator,
     type FilterValueType,
     type RowPredicate,
@@ -41,6 +42,23 @@ const OP_LABELS: Record<FilterOperator, string> = {
 // Operators offered in the UI. `in` / `nin` are supported by the filter
 // engine but need an array-value input — deferred from this v1 bar.
 const UI_OPERATORS: FilterOperator[] = ["eq", "ne", "lt", "lte", "gt", "gte"]
+
+/**
+ * v1 column-kind allowlist for filtering. Only metric-related columns
+ * (evaluator outputs + metrics) are offered for now; testset (input) and
+ * application (output) columns are deliberately withheld.
+ *
+ * This is a UI allowlist only — the filter engine (`evaluateRowFilter`,
+ * `predicateToEntitySlices`) supports every kind. Flip a kind to `true`
+ * here to enable it; no other change is needed.
+ */
+const FILTERABLE_COLUMN_KINDS: Record<ColumnGroup["kind"], boolean> = {
+    evaluator: true,
+    metrics: true,
+    testset: false,
+    application: false,
+    other: false,
+}
 
 const NUMERIC_HINTS = [
     "score",
@@ -85,7 +103,10 @@ const ScenarioFilterBar = ({runId, schema}: ScenarioFilterBarProps) => {
     const [filter, setFilter] = useAtom(scenarioFilterAtomFamily(runId))
 
     const fields = useMemo(
-        () => buildFilterSchema(schema, {resolveValueType: heuristicValueType}).fields,
+        () =>
+            buildFilterSchema(schema, {resolveValueType: heuristicValueType}).fields.filter(
+                (f) => FILTERABLE_COLUMN_KINDS[f.groupKind],
+            ),
         [schema],
     )
     const fieldByKey = useMemo(() => new Map(fields.map((f) => [encodeField(f), f])), [fields])
