@@ -74,7 +74,7 @@ export const PROVIDER_FIELDS: {
         label: "Access key ID",
         placeholder: "Enter access key ID",
         note: "This secret will be encrypted in transit and at rest.",
-        model: ["bedrock", "bedrock_converse", "sagemaker"],
+        model: ["bedrock", "sagemaker"],
         required: false,
     },
     {
@@ -82,7 +82,7 @@ export const PROVIDER_FIELDS: {
         label: "Secret Access Key",
         placeholder: "Enter secret access key",
         note: "This secret will be encrypted in transit and at rest.",
-        model: ["bedrock", "bedrock_converse", "sagemaker"],
+        model: ["bedrock", "sagemaker"],
         required: false,
     },
     {
