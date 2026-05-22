@@ -58,6 +58,8 @@ The core renderer change is sound and well-layered: `render_template(mode="musta
 
 The original scan also surfaced four issues, all now resolved (see Closed Findings): the JSONPath pre-render stage (`{{$...}}`) re-exposed resolved values to the Mustache engine so they were recursively rendered, unlike plain `{{var}}` tags (WPB3-001); a tag-claiming case where a `{{$...}}` that is not valid JSONPath raised rather than rendering as a plain variable (WPB3-002, kept strict by decision); a frontend molecule that silently coerced `mustache -> curly` (WPB3-003); and test-coverage gaps on the riskiest behaviors (WPB3-004).
 
+Update (2026-05-22, latest pass): two more Copilot threads synced and fixed — WPB3-021 (how-to said dict/list render with "no extra whitespace", but `json.dumps` default separators produce `{"x": 1, "y": 2}`; doc reworded), WPB3-022 (parent RFC/README still used the superseded "pre-render then re-render" framing for `{{$...}}` — WPB3-010 had only covered the wp-b3 doc set; reworded all occurrences in the parent docs to shield → render → substitute-last). Threads `3287741721` and `3287741764` resolved.
+
 Update (2026-05-22, later pass): three new Copilot threads synced and fixed — WPB3-018 (`chatPrompts.ts` mustache regex missed `{{ name }}` inner whitespace; fixed + tested), WPB3-019 (`TokenPlugin.tsx` comment overstated "fstring fallback" coverage; comment corrected), WPB3-020 (`PromptTemplate.template_format` description called mustache the default while the field default is `curly`; description reworded). All three threads (`3287635462`, `3287635521`, `3287635556`) resolved.
 
 Update (2026-05-22): all findings (WPB3-001..017) are fixed and Closed; there are no open findings, and all PR #4393 review threads are resolved. WPB3-014 (escape behavior) was closed via Option 3 — document the per-format reality now (delimiter swap / `{% raw %}` / none for curly; no backslash escape), defer a `\{{` escape pending real demand; full evidence and the tested `\{{` vs `\{\{` result are in `escape-analysis.md`, and the user-facing how-to gained an "Escaping" section. WPB3-017 (frontend `extractTemplateVariables` JSDoc omitted mustache) was fixed. 270 across the four focused suites pass; ruff clean. GitHub: 14 solved-by-content threads resolved (the WPB3-015 RFC cluster `3280747520`/`3280759652`/`3280767036`/`3280770190`/`3280772919`/`3280776786`/`3280781711`/`3280782719`/`3280579226`, the WPB3-016 how-to `3280800719`, and the scope/PR-title threads `3280751193`/`3280761180`/`3280794168`/`3281567723`); the only 3 left unresolved are the escape threads (`3280753760`, `3280788530`, `3280579221`) mapped to the open WPB3-014.
@@ -89,6 +91,33 @@ Finding lineage: WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-
 (none — all findings resolved as of 2026-05-22)
 
 ## Closed Findings
+
+### [CLOSED] WPB3-021 — How-to claimed dict/list render as compact JSON with "no extra whitespace"
+
+- ID: WPB3-021
+- Origin: sync (PR #4393, Copilot thread `3287741721`)
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Correctness (doc/impl mismatch)
+- Summary: `_mustache-templates.mdx` said dict/list values render as "compact JSON (`{"x": 1}`, no extra whitespace)". The renderer uses `json.dumps(value, ensure_ascii=False)` (`templating.py:89`) with **default** separators, so the actual output is `{"x": 1, "y": 2}` — spaces after `:` and `,` (verified empirically). "No extra whitespace" and the `{"x": 1}` example were wrong.
+- Fix applied: reworded the table row to "JSON via `json.dumps` (unicode preserved), e.g. `{"x": 1, "y": 2}`" and dropped the "no extra whitespace" claim. (Renderer unchanged — the doc was the error, not the code; matching `curly` is the intended behavior.)
+- Files: `docs/docs/prompt-engineering/integrating-prompts/_mustache-templates.mdx` (value-coercion table).
+
+### [CLOSED] WPB3-022 — Parent RFC/README still described `{{$...}}` as "pre-rendered, then re-rendered" (superseded model)
+
+- ID: WPB3-022
+- Origin: sync (PR #4393, Copilot thread `3287741764`)
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Consistency (doc/impl drift)
+- Summary: WPB3-010 swept the "pre-render" framing from the **wp-b3** doc set, but the **parent** RFC (`prompt-runtime-unification/rfc.md`) and its mirror `README.md` still said `{{$...}}` tags are "pre-rendered as JSONPath expressions … then the resulting template is rendered with a Mustache engine" — implying JSONPath results are fed back through the engine. The implementation shields `{{$...}}` from the engine, renders, then substitutes resolved values **last** as inert data (never re-parsed); jinja2 additionally skips shielding inside `{% raw %}` / `{# #}`. The comment pinned rfc.md:124, but the same wrong framing repeated at rfc.md:263/296/342 and README.md:124/270/303/349/425.
+- Fix applied: reworded every occurrence in both parent docs to the shield → render → substitute-last model ("resolved as JSONPath and substituted as inert data after the Mustache render, never re-parsed"). Also tightened wp-b3 `rfc.md:9` ("before the Mustache render runs" → substitute-last phrasing) for consistency.
+- Files: `docs/design/prompt-runtime-unification/rfc.md`; `docs/design/prompt-runtime-unification/README.md`; `docs/design/prompt-runtime-unification/wp-b3-mustache-rendering/rfc.md`.
+- Note: WPB3-010 was scoped to the wp-b3 doc set only; this is the same class of fix extended to the parent RFC/README that WPB3-010 did not cover.
 
 ### [CLOSED] WPB3-018 — `chatPrompts.ts` mustache regex missed `{{ name }}` (inner whitespace)
 
