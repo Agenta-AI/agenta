@@ -46,9 +46,12 @@ Design docs reviewed: `research.md`, `qa.md`, `status.md` in `docs/design/prompt
 
 The core renderer change is sound and well-layered: `render_template(mode="mustache", ...)` is the single dispatch point, and `rendering.py` (`render_messages` / `render_json_like`) routes the `mode` straight through, so structured judge/chat paths genuinely render mustache (verified, not just type-widened). Coercion (compact JSON for dict/list) and escaping-off match the documented `curly` parity contract, confirmed by runtime probe. Version mapping (v2->fstring, v3/v4->curly, v5->mustache) is robust (`str(... or "3")`), the four LLM-as-a-judge presets are all bumped to v5 + `template_format="mustache"`, and the catalog `settings_template` declares the hidden `template_format`. Existing apps/judges are not migrated (runtime fallback stays `curly`).
 
-However, the JSONPath pre-render stage (`{{$...}}`) has a real correctness/security divergence from the documented contract: pre-rendered values are re-exposed to the Mustache engine and recursively rendered, unlike plain `{{var}}` tags. This enables template injection from untrusted judge context (`inputs`/`outputs`/`prediction`) and bypasses the partial rejection. There is also a tag-claiming trap where any `{{$...}}` that is not valid JSONPath raises rather than rendering as a plain variable, and (originally) a frontend molecule that silently coerced `mustache -> curly`.
+The original scan also surfaced four issues, all now resolved (see Closed Findings): the JSONPath pre-render stage (`{{$...}}`) re-exposed resolved values to the Mustache engine so they were recursively rendered, unlike plain `{{var}}` tags (WPB3-001); a tag-claiming case where a `{{$...}}` that is not valid JSONPath raised rather than rendering as a plain variable (WPB3-002, kept strict by decision); a frontend molecule that silently coerced `mustache -> curly` (WPB3-003); and test-coverage gaps on the riskiest behaviors (WPB3-004).
 
-Update (2026-05-21): WPB3-004 (test gaps), WPB3-003 (frontend coercion), and WPB3-002 (`{{$...}}` strict contract) are fixed and moved to Closed. WPB3-002 was resolved by user decision in favor of the strict contract, now enforced with a dedicated `MustacheInvalidJsonPathError`. WPB3-001 (recursive re-render / injection) is the single open finding and is held for a user decision on intended behavior; its current behavior is pinned by a change-detector test that must flip to literal-output once a fix lands.
+Update (2026-05-22): all four findings are fixed and moved to Closed; there are no open findings.
+
+- WPB3-004 (test gaps) and WPB3-003 (frontend coercion) fixed (2026-05-21).
+- WPB3-001 + WPB3-002 (JSONPath `{{$...}}` handling) resolved together (2026-05-22) by unifying JSONPath across curly / mustache / jinja2: a shared `_render_with_jsonpath` resolves `{{$...}}` to a value, substitutes it into the rendered output last, and never re-parses it — exactly what `curly` already did, now extended to mustache and jinja2. Failure handling also matches `curly` (`UnresolvedVariablesError` for both missing and malformed `{{$...}}`). The interim `MUSTACHE_RENDER_ORDER` switch and `MustacheInvalidJsonPathError` were removed. Context-provenance analysis confirmed no OS-secret/env-var leak is possible (the render context is explicitly and narrowly constructed); the issue was the chain-of-replacement ordering surprise, now removed. Cross-format parity is pinned by `test_jsonpath_parity_across_formats` / `test_jsonpath_failure_parity_across_formats`.
 
 ## Notes (verified, no finding required)
 
@@ -63,59 +66,53 @@ Update (2026-05-21): WPB3-004 (test gaps), WPB3-003 (frontend coercion), and WPB
 ## Open Questions
 
 - Is recursive rendering of JSONPath-resolved values (WPB3-001) intended? If yes, the docstring is wrong and the injection surface needs an explicit security decision; if no, the pre-render output must be neutralized. Recommend `needs-user-decision`.
-- ~~Should a context variable whose name legitimately starts with `$` be addressable as a plain Mustache variable, or is `{{$...}}`-is-always-JSONPath absolute? (WPB3-002.)~~ **Resolved 2026-05-21: strict** — `{{$...}}` is always JSONPath; malformed syntax raises `MustacheInvalidJsonPathError`. See closed WPB3-002.
+- ~~Should a context variable whose name legitimately starts with `$` be addressable as a plain Mustache variable, or is `{{$...}}`-is-always-JSONPath absolute? (WPB3-002.)~~ **Resolved 2026-05-22: `{{$...}}` is always JSONPath, and failure handling matches `curly`** — a failed `{{$...}}` (malformed or missing) is reported as `UnresolvedVariablesError`. See closed WPB3-002.
 
 ## Open Findings
 
-### [OPEN] WPB3-001 — JSONPath pre-rendered values are recursively re-rendered by the Mustache engine (template injection)
+(none — all findings resolved as of 2026-05-22)
+
+## Closed Findings
+
+### [CLOSED] WPB3-001 — JSONPath value re-render divergence, fixed by unifying `{{$...}}` handling across curly / mustache / jinja2
 
 - ID: WPB3-001
 - Origin: scan
 - Lens: verification
-- Severity: P1
+- Severity: P1 (downgraded in scope after context-provenance analysis — see below)
 - Confidence: high
-- Status: confirmed (needs-user-decision on intended behavior)
-- Category: Security / Correctness / Consistency
-- Summary: `_prerender_jsonpath_tags` substitutes `{{$...}}` with the coerced value as literal template text, then hands the whole string to `mystace`. Any `{{...}}` (or section/inverted syntax) contained in the resolved value is therefore rendered a second time by the engine. Plain `{{var}}` tags are NOT recursively rendered, so the two paths diverge, contradicting the documented contract.
-- Evidence (runtime probe via `sdks/python/.venv`, against the real `render_template`):
-  - `render_template(mode="mustache", template="{{$.untrusted}}", context={"untrusted":"hello {{secret}}","secret":"LEAK"})` -> `'hello LEAK'` (secret leaked through injected tag).
-  - `template="{{$.u}}", context={"u":"{{#secret}}leaked{{/secret}}","secret":True}` -> `'leaked'` (injected section executed).
-  - `template="{{$.untrusted}}", context={"untrusted":"x {{> p}} y"}` -> `'x  y'` (injected partial rendered empty — and NOT rejected, because `_reject_unsupported_mustache_tags` runs on the original template before pre-render).
-  - Contrast: `template="{{u}}", context={"u":"hi {{secret}}","secret":"LEAK"}` -> `'hi {{secret}}'` (regular var is NOT recursive — the contract `_render_mustache`'s docstring claims for all values).
-  - `template="{{$.o}}", context={"o":{"k":"{{v}}"},"v":"X"}` -> `'{"k": "X"}'` (JSONPath dict insertion is also recursively rendered).
+- Status: fixed (2026-05-22) — `{{$...}}` now resolved as inert data in all three formats
+- Category: Correctness / Consistency (originally also flagged Security)
+- Summary: `_prerender_jsonpath_tags` substituted `{{$...}}` with the coerced value as literal template text, then handed the whole string to `mystace`, so any `{{...}}`/section syntax inside the resolved value was rendered a SECOND time. Plain `{{var}}` tags are never recursive, so the two paths diverged. The surprise is the chain-of-replacement ordering, not an OS-secret leak.
+- Context-provenance analysis (answers "can secrets/env vars be accidentally included?"): **No.** The render context for both paths is explicitly and narrowly constructed; there is no `os.environ`, globals, or wildcard merge.
+  - Normal prompts: context is exactly `run_inputs["variables"]` (`handlers.py:3488,3493`).
+  - LLM-as-a-judge: context is a hand-built dict with a fixed key set — `parameters`, `ground_truth`/`correct_answer`/`reference`, the spread of `inputs` plus `inputs`, `prediction`/`outputs`, `trace` (`handlers.py:991-1031`).
+  - The real (bounded) risk was cross-field within that defined context: an untrusted field (`prediction`, `inputs`) pulled via `{{$...}}` and containing `{{ground_truth}}`/`{{$.parameters...}}` could echo another context field or inject control flow into the judge prompt. Bounded, not OS-level — but still an integrity surprise worth removing.
+- Decision (user, 2026-05-22): drop the alternative-ordering switch; pick the single design that **matches what `curly` already does** (resolve `{{$...}}` to a value, substitute verbatim, never re-parse) and **extend it to jinja2 too**, so curly / mustache / jinja2 behave the same with respect to JSONPath. (Supersedes the earlier interim `MUSTACHE_RENDER_ORDER` switch, which has been removed.)
+- Fix applied: a single shared helper `_render_with_jsonpath(template, context, engine=...)` shields `{{$...}}` tags from the engine via NUL sentinels, runs the engine, then substitutes the resolved JSONPath values into the output LAST (never re-parsed). Both `_render_mustache` and `_render_jinja2` route through it; `curly` already had this behavior natively via `resolve_any`. Whole-object JSON insertion is preserved verbatim; resolved values behave exactly like plain variable values.
+  - Error contract also matched to `curly` (user choice, see WPB3-002): a `{{$...}}` that fails to resolve — malformed syntax *or* no match — is collected and surfaced as `UnresolvedVariablesError`, the same as an unresolved curly placeholder. The interim strict `MustacheInvalidJsonPathError` was removed.
 - Files:
-  - `sdks/python/agenta/sdk/utils/templating.py:182-200` (`_prerender_jsonpath_tags` returns substituted text into the template stream)
-  - `sdks/python/agenta/sdk/utils/templating.py:203-236` (`_render_mustache`: reject -> prerender -> `render_from_template` over the prerendered string)
-  - `sdks/python/agenta/sdk/utils/templating.py:213-215` (docstring claim: "Variable values are treated as data, not templates ... not rendered recursively" — false for the JSONPath path)
-- Cause: The JSONPath pre-render is a string-substitution pass that emits its output back into the template that mystace then parses. Mustache cannot distinguish pre-rendered data from authored template, so injected `{{...}}` / `{{#...}}` / `{{>...}}` inside the resolved value are interpreted. The judge runtime context includes untrusted fields (`inputs`, `outputs`, `prediction`, `ground_truth`, `trace`), so a `{{$.inputs...}}`-style tag over attacker-influenced data can exfiltrate other context values or alter the rendered judge prompt.
-- Explanation: This is both a correctness inconsistency (JSONPath values behave differently from plain vars, opposite to the docstring) and a security concern (prompt injection / context exfiltration via the judge's own inputs/outputs). The partial-rejection guarantee is also incomplete because rejection precedes pre-render.
-- Suggested Fix:
-  - Primary: do not feed JSONPath-resolved values back through the engine. Resolve `{{$...}}` after the mystace render, or render the JSONPath values into the already-rendered output via a final `re.sub`, so resolved data is never re-parsed as a template.
-  - Alternative: keep the pre-render order but escape/neutralize Mustache control characters in the coerced JSONPath output (would corrupt JSON braces in whole-object insertion, so post-render is cleaner).
-  - Tests to add: a value containing `{{secret}}`, `{{#x}}...{{/x}}`, and `{{> p}}` resolved through `{{$...}}` must render literally; add to `test_render_template_helper.py` section 12.
-  - Docs: correct the `_render_mustache` docstring to match actual behavior once fixed.
+  - `sdks/python/agenta/sdk/utils/templating.py` — `_render_with_jsonpath`, `_JSONPATH_SHIELD_RE`, `_render_mustache` (uses shared helper), `_render_jinja2` (now JSONPath-aware), `Callable` import.
+- Verification (runtime + tests): identical output across all three formats for field/root/list-index/whole-object/non-recursion/scalar cases, and identical `UnresolvedVariablesError` for missing + malformed `{{$...}}` (runtime parity table confirmed all-identical).
+  - New tests: section 16 (jinja2 JSONPath: field/root/list/object/non-recursion/native-tag-coexistence/unresolved/malformed), section 17 (`test_jsonpath_parity_across_formats` and `test_jsonpath_failure_parity_across_formats` run the same inputs through curly+mustache+jinja2 and assert equality), plus mustache `..._is_not_rendered_recursively` / `..._whole_object_insertion_is_not_re_rendered` / `..._unresolved_jsonpath_raises_like_curly` / `..._malformed_jsonpath_is_treated_as_unresolved_like_curly`. 155 render-template tests / 262 across the four suites pass; ruff clean.
+- Note: the partial-rejection gap (injected `{{>p}}` inside a resolved value) is closed as a side effect — an injected partial is inserted as literal text after render, never parsed as a partial.
 
-## Closed Findings
-
-### [CLOSED] WPB3-002 — A `{{$...}}` tag that is not valid JSONPath raises (strict contract + dedicated error)
+### [CLOSED] WPB3-002 — Failure handling for a `{{$...}}` tag that is not valid JSONPath (final: match `curly`)
 
 - ID: WPB3-002
 - Origin: scan
 - Lens: verification
 - Severity: P3
 - Confidence: high
-- Status: fixed (2026-05-21) — user chose the strict contract
+- Status: fixed (2026-05-22) — final contract matches `curly`
 - Category: Correctness / Compatibility
-- Decision (user, 2026-05-21): **Strict.** Every `{{$...}}` tag is reserved for the JSONPath pre-render pass; a `$`-prefixed name is never treated as a plain Mustache variable. When the body after `$` is not valid JSONPath syntax, raise a *domain-specific* error rather than leaking the raw resolver message or conflating it with missing data.
-- Fix applied: added `MustacheInvalidJsonPathError(MustacheTemplateError)` and split the `_prerender_jsonpath_tags` failure handling — malformed syntax (resolver `ValueError`) now raises the dedicated error with an authoring-oriented message; valid-but-unmatched (resolver `KeyError`) keeps the generic "Could not resolve JSONPath" `MustacheTemplateError`. The new class subclasses `MustacheTemplateError` (which subclasses `ValueError`), so every existing broad `except` path still catches it.
+- Decision history:
+  - Interim (2026-05-21): strict — a malformed `{{$...}}` raised a dedicated `MustacheInvalidJsonPathError`, distinct from valid-but-missing.
+  - **Final (2026-05-22): match `curly` exactly.** As part of unifying JSONPath across curly / mustache / jinja2 (WPB3-001), the user chose to make the failure contract identical to `curly`'s: a `{{$...}}` that fails to resolve — whether malformed syntax or no match — is collected as an unresolved placeholder and surfaced as `UnresolvedVariablesError`. The interim `MustacheInvalidJsonPathError` was removed.
+- Net behavior: a context key literally named `$id` is still NOT addressable as `{{$id}}` (the tag is treated as JSONPath, fails, and is reported unresolved) — same as `curly`. The only change from the interim fix is the error *type*: one uniform `UnresolvedVariablesError` instead of a mustache-specific subclass.
 - Files:
-  - `sdks/python/agenta/sdk/utils/templating.py:75-87` (`MustacheInvalidJsonPathError`)
-  - `sdks/python/agenta/sdk/utils/templating.py:200-216` (`_prerender_jsonpath_tags` `_replace`: distinct `except ValueError` branch)
-- Verification (runtime probe + tests):
-  - `{{$id}}` over `{"$id":"Z"}` -> `MustacheInvalidJsonPathError` ("Invalid JSONPath expression '$id' in a mustache '{{$...}}' tag …").
-  - `{{$.nope}}` over `{"a":1}` -> generic `MustacheTemplateError` (NOT the subclass) — missing data stays distinct from malformed syntax.
-  - `{{$.profile.name}}` still resolves normally.
-  - Pinned by `test_mustache_dollar_prefixed_tag_is_always_jsonpath` (asserts the subclass for malformed, and that the missing-data case is *not* the subclass). 138 render-template tests pass; ruff clean.
+  - `sdks/python/agenta/sdk/utils/templating.py` — `_render_with_jsonpath` collects failed `{{$...}}` exprs and raises `UnresolvedVariablesError`; `MustacheInvalidJsonPathError` class removed; `MustacheTemplateError` docstring updated.
+- Verification: `test_mustache_unresolved_jsonpath_raises_like_curly`, `test_mustache_malformed_jsonpath_is_treated_as_unresolved_like_curly`, and the cross-format `test_jsonpath_failure_parity_across_formats` (asserts curly == mustache == jinja2 all raise `UnresolvedVariablesError` for both missing and malformed). 155 render-template tests / 262 across the four suites pass; ruff clean.
 
 ### [CLOSED] WPB3-003 — Evaluator-config molecule still coerces `mustache -> curly`
 
