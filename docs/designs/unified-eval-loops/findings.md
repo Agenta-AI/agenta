@@ -32,14 +32,18 @@ Sources:
 
 ## Open Findings
 
-### [OPEN] UEL-015: `TensorSliceOperations.process` only refreshes metrics; the documented `process(slice)` contract is unimplemented
+None. (UEL-015 was the last open finding; closed 2026-05-22 — see below.)
+
+## Closed Findings
+
+### [CLOSED] UEL-015: `TensorSliceOperations.process` only refreshes metrics; the documented `process(slice)` contract is unimplemented
 
 - ID: `UEL-015`
 - Origin: `scan`
 - Lens: `verification`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Completeness`
 - Summary: `TensorSliceOperations.process` is the only in-process implementation of the design's central `process(slice)` operation. It does not plan, execute, or populate cells — it only calls `evaluations_service.refresh_metrics(...)` and returns an empty `ProcessSummary`. The actual planner/executor pipeline runs only through `tasks/source_slice.py` and `tasks/run.py`, which are full-batch entrypoints rather than slice-aware.
 - Evidence:
@@ -59,8 +63,12 @@ Sources:
 - Alternatives:
   - Mark this method explicitly as `metrics-refresh-only` and provide a separate `execute(slice)` method when planner integration lands. Keep the contract honest.
 - Re-audit (2026-05-20): **Still reproduces.** `runtime/tensor.py` `process` (def at line 151) early-returns `ProcessSummary()` (line 159), calls `refresh_metrics(...)` (line 161), and returns an empty `ProcessSummary()` (line 169). No planner/runner invocation. Diagnosis and severity unchanged.
+- Resolution (2026-05-22): made `process(slice)` an honest plan->execute->populate->refresh op via the design's "same executor, different adapters" seam, rather than faking it or renaming it down. Two parts:
+  - **Seam (`runtime/tensor.py`).** Added a `SliceProcessor` protocol and an optional `slice_processor` dep on `TensorSliceOperations`. `process` now short-circuits empty slices, then delegates to the injected processor; with no processor wired it raises `NotImplementedError` instead of silently refreshing metrics and returning an empty summary (the actual bug — it "silently does almost nothing"). The seam is adapter-free so `runtime/` does not depend on `tasks/`; the concrete impl is injected at the composition root.
+  - **Backend executor (`tasks/processor.py`).** Added `BackendSliceProcessor`, the real slice re-executor for the canonical `TensorSlice` (existing scenarios x steps x repeats — the retry / fill-missing / re-run-one-evaluator axis). For each scenario it rebuilds the source binding from the stored input result cell (`trace_id` for trace/query sources, `testcase_id` for testcase/testset sources), re-hydrates trace/testcase context via `resolve_direct_source_items`, plans from the run's CURRENT graph (so modified steps re-run with freshly resolved revisions), and reuses the SDK `process_evaluation_source_slice` engine with an existing-scenario `create_scenario` adapter — so cells populate against the addressed scenario, not a new one. Hashed-trace handling is correct because the runners are `BackendCachedRunner`s (cache lookup by step references/links before invoking), shared with the ingest path via the extracted `_resolve_runners_and_revisions` helper.
+  - This is the design distinction the finding's "Suggested Fix" missed: `process_evaluation_source_slice` is an INGEST loop (one source item -> one freshly CREATED scenario), so it could not be a thin translation target for a `TensorSlice` that addresses EXISTING cells. The re-executor bridges the two by reconstructing bindings from stored cells.
+  - Tests (`api/oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py`): existing tensor-ops test now asserts `process` raises without a processor (was: returns empty summary + refreshes metrics); added `test_tensor_slice_process_delegates_to_injected_processor` and `test_backend_slice_processor_reexecutes_existing_scenario` (rebuilds source from input cell, reuses the existing scenario, wires the auto evaluator runner). Full api suite green via `py-run-tests`.
 
-## Closed Findings
 ### [CLOSED] UEL-009: Inferred-flag derivation is shared between migration and runtime, with brittle heuristics
 
 - ID: `UEL-009`

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Protocol
 from uuid import UUID
 
 from oss.src.core.evaluations.runtime.models import (
@@ -39,9 +39,40 @@ def _query_from_slice(tensor_slice: TensorSlice) -> EvaluationResultQuery:
     )
 
 
+class SliceProcessor(Protocol):
+    """Execution boundary for `process(slice)`.
+
+    A slice processor takes the canonical output coordinate (existing
+    scenarios x steps x repeats) and re-executes the runnable (`auto`) cells in
+    that scope: it plans from the scenarios' existing source bindings, restricts
+    to the requested `step_keys`/`repeat_idxs`, invokes only missing work,
+    populates the result cells, and refreshes metrics for the affected scope.
+
+    It is deliberately adapter-free at this seam so `runtime/` does not depend on
+    `tasks/`: the concrete implementation (which closes over the tracing /
+    testcases / workflows / applications services and the run's revisions) is
+    wired at the composition root and injected here. The same shape lets the SDK
+    or an in-memory test supply its own processor without changing tensor ops.
+    """
+
+    async def process(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        tensor_slice: TensorSlice,
+    ) -> ProcessSummary: ...
+
+
 class TensorSliceOperations:
-    def __init__(self, *, evaluations_service):
+    def __init__(
+        self,
+        *,
+        evaluations_service,
+        slice_processor: Optional[SliceProcessor] = None,
+    ):
         self.evaluations_service = evaluations_service
+        self.slice_processor = slice_processor
 
     async def probe(
         self,
@@ -155,18 +186,35 @@ class TensorSliceOperations:
         user_id: UUID,
         tensor_slice: TensorSlice,
     ) -> ProcessSummary:
+        """Execute the runnable cells in the slice and return what changed.
+
+        This is the plan->execute->populate->refresh loop of the design's
+        `process(slice)` operation. The actual execution is delegated to the
+        injected `slice_processor`; this method owns only the slice-level
+        guard (an empty dimension means "nothing addressed", so there is
+        nothing to execute).
+
+        Execution requires a wired `slice_processor`. Earlier this method
+        silently refreshed metrics and returned an empty summary, which read as
+        "executed the slice" while doing almost nothing (UEL-015) — so when no
+        processor is wired we now fail loudly rather than masquerade.
+        """
         if _slice_is_empty(tensor_slice):
             return ProcessSummary()
 
-        await self.evaluations_service.refresh_metrics(
+        if self.slice_processor is None:
+            raise NotImplementedError(
+                "process(slice) requires a wired slice_processor; "
+                "TensorSliceOperations was constructed without one. "
+                "Use probe/populate/prune for read/write/delete, or wire a "
+                "SliceProcessor at the composition root to execute the slice."
+            )
+
+        return await self.slice_processor.process(
             project_id=project_id,
             user_id=user_id,
-            metrics=EvaluationMetricsRefresh(
-                run_id=tensor_slice.run_id,
-                scenario_ids=tensor_slice.scenario_ids,
-            ),
+            tensor_slice=tensor_slice,
         )
-        return ProcessSummary()
 
     async def _refresh_results_metrics(
         self,

@@ -58,7 +58,7 @@ graph", so create and edit share one reconciliation path.
 | `populate(slice, results)` | **done** (in-process) | `TensorSliceOperations.populate`. A bulk/slice HTTP write surface is still listed as a gap (gap.md:339). |
 | `add_result` | **done** (CRUD) | `create_result`/`create_results` on the service + `/evaluations/results/` routes. This is the low-level cell write that `populate` builds on. |
 | `prune(slice)` | **done** | `TensorSliceOperations.prune`. Also driven by `remove_step` via `_prune_removed_steps`. |
-| `process(slice)` | **partial** | `TensorSliceOperations.process` only refreshes metrics; it does not yet plan/execute/populate cells. The real planner/executor runs through `tasks/source_slice.py` keyed on `run_id`, not the canonical `TensorSlice`. Tracked by open finding UEL-015. proposal.md:160-208. |
+| `process(slice)` | **done** | `TensorSliceOperations.process` delegates to an injected `SliceProcessor` (the adapter-free execution seam in `runtime/tensor.py`); the backend impl `BackendSliceProcessor` (`tasks/processor.py`) re-executes the runnable cells for the EXISTING scenarios a `TensorSlice` addresses — rebuilds each scenario's source binding from its stored input cell, re-hydrates trace/testcase context, plans from the run's current graph (so modified steps re-run), runs the cache-aware runners (hashed-trace reuse), populates, and refreshes metrics. With no processor wired it raises rather than silently refreshing metrics. Closed finding UEL-015. proposal.md:160-208. |
 
 ### Run operations
 

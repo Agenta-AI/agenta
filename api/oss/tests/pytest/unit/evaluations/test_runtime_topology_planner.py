@@ -864,20 +864,56 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
         user_id=user_id,
         tensor_slice=tensor_slice,
     )
+
+    assert probed == [result]
+    assert populated == [result]
+    assert pruned == [result_id]
+    assert evaluations_service.query_results.await_count == 2
+    assert evaluations_service.create_results.await_count == 1
+    assert evaluations_service.delete_results.await_count == 1
+    # probe/populate/prune each refresh metrics for the affected scope.
+    assert evaluations_service.refresh_metrics.await_count == 2
+
+    # process() with no wired slice_processor must fail loudly rather than
+    # masquerade as execution by silently refreshing metrics (UEL-015).
+    with pytest.raises(NotImplementedError):
+        await operations.process(
+            project_id=project_id,
+            user_id=user_id,
+            tensor_slice=tensor_slice,
+        )
+
+
+@pytest.mark.asyncio
+async def test_tensor_slice_process_delegates_to_injected_processor():
+    project_id = uuid4()
+    user_id = uuid4()
+    run_id = uuid4()
+    expected = ProcessSummary(created=2, pending=1)
+    slice_processor = SimpleNamespace(process=AsyncMock(return_value=expected))
+    operations = TensorSliceOperations(
+        evaluations_service=SimpleNamespace(),
+        slice_processor=slice_processor,
+    )
+    tensor_slice = TensorSlice(
+        run_id=run_id,
+        scenario_ids=[uuid4()],
+        step_keys=["evaluator-auto"],
+        repeat_idxs=[0],
+    )
+
     summary = await operations.process(
         project_id=project_id,
         user_id=user_id,
         tensor_slice=tensor_slice,
     )
 
-    assert probed == [result]
-    assert populated == [result]
-    assert pruned == [result_id]
-    assert summary == ProcessSummary()
-    assert evaluations_service.query_results.await_count == 2
-    assert evaluations_service.create_results.await_count == 1
-    assert evaluations_service.delete_results.await_count == 1
-    assert evaluations_service.refresh_metrics.await_count == 3
+    assert summary == expected
+    slice_processor.process.assert_awaited_once_with(
+        project_id=project_id,
+        user_id=user_id,
+        tensor_slice=tensor_slice,
+    )
 
 
 @pytest.mark.asyncio
@@ -2126,3 +2162,130 @@ async def test_run_processor_returns_false_for_missing_or_unsupported_run():
         )
         is False
     )
+
+
+@pytest.mark.asyncio
+async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch):
+    # A TensorSlice addresses an EXISTING scenario. The backend slice processor
+    # must rebuild that scenario's source binding from its stored input cell,
+    # re-hydrate trace context, and re-run the SDK loop AGAINST THE EXISTING
+    # scenario (not a freshly created one), returning a populated ProcessSummary.
+    project_id = uuid4()
+    user_id = uuid4()
+    run_id = uuid4()
+    scenario_id = uuid4()
+    evaluator_revision_id = uuid4()
+    trace_id = "trace-existing"
+
+    run = _run(
+        flags=EvaluationRunFlags(has_traces=True),
+        steps=[
+            _step(
+                "query-main",
+                "input",
+                references={"query_revision": Reference(id=uuid4())},
+            ),
+            _step(
+                "evaluator-auto",
+                "annotation",
+                origin="auto",
+                references={"evaluator_revision": Reference(id=evaluator_revision_id)},
+            ),
+        ],
+    )
+    run.id = run_id
+
+    # The slice probe returns the evaluator cell; the per-scenario probe returns
+    # the input cell carrying the bound trace_id.
+    input_cell = EvaluationResult(
+        id=uuid4(),
+        run_id=run_id,
+        scenario_id=scenario_id,
+        step_key="query-main",
+        repeat_idx=0,
+        status=EvaluationStatus.SUCCESS,
+        trace_id=trace_id,
+    )
+    evaluator_cell = EvaluationResult(
+        id=uuid4(),
+        run_id=run_id,
+        scenario_id=scenario_id,
+        step_key="evaluator-auto",
+        repeat_idx=0,
+        status=EvaluationStatus.FAILURE,
+    )
+
+    async def _query_results(*, project_id, result=None, windowing=None):
+        if result is not None and result.scenario_id == scenario_id:
+            return [input_cell, evaluator_cell]
+        return [evaluator_cell]
+
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        query_results=AsyncMock(side_effect=_query_results),
+    )
+    workflows_service = SimpleNamespace(
+        fetch_workflow_revision=AsyncMock(
+            return_value=SimpleNamespace(id=evaluator_revision_id)
+        )
+    )
+
+    monkeypatch.setattr(
+        source_slice_tasks,
+        "resolve_direct_source_items",
+        AsyncMock(
+            return_value=[
+                ResolvedSourceItem(
+                    kind="trace",
+                    step_key="query-main",
+                    trace_id=trace_id,
+                    inputs={"prompt": "hi"},
+                )
+            ]
+        ),
+    )
+    sdk_loop = AsyncMock(
+        return_value=[
+            SdkProcessedScenario(
+                scenario=SimpleNamespace(id=scenario_id),
+                results={"evaluator-auto": object()},
+                auto_results_created=True,
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        source_slice_tasks,
+        "sdk_process_evaluation_source_slice",
+        sdk_loop,
+    )
+
+    processor = source_slice_tasks.BackendSliceProcessor(
+        evaluations_service=evaluations_service,
+        tracing_service=None,
+        testcases_service=None,
+        workflows_service=workflows_service,
+        applications_service=None,
+    )
+    summary = await processor.process(
+        project_id=project_id,
+        user_id=user_id,
+        tensor_slice=TensorSlice(
+            run_id=run_id,
+            scenario_ids=[scenario_id],
+            step_keys=["evaluator-auto"],
+            repeat_idxs=[0],
+        ),
+    )
+
+    # The auto evaluator re-ran for the existing scenario.
+    assert summary.created == 1
+    sdk_loop.assert_awaited_once()
+    kwargs = sdk_loop.await_args.kwargs
+    # Source rebuilt from the input cell's trace_id.
+    assert kwargs["source_items"][0].trace_id == trace_id
+    # The loop reuses the EXISTING scenario rather than creating a new one.
+    created_scenario = await kwargs["create_scenario"](run_id)
+    assert created_scenario.id == scenario_id
+    # The auto evaluator runner was wired from the run's current revision.
+    assert "evaluator-auto" in kwargs["runners"]
+    assert "evaluator-auto" in kwargs["revisions"]
