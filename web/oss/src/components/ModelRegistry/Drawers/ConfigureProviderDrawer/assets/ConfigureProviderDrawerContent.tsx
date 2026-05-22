@@ -193,6 +193,7 @@ const ConfigureProviderDrawerContent = ({
                 accessKeyId: "",
                 accessKey: "",
                 sessionToken: "",
+                roleArn: "",
                 models: [""],
             }}
         >
@@ -223,7 +224,7 @@ const ConfigureProviderDrawerContent = ({
                             const field = rawField as FieldWithAttributes
                             const isJson = field.attributes?.kind === "json"
                             const isRequired =
-                                field.key === "apiBaseUrl"
+                                field.key === "apiBaseUrl" || field.required === false
                                     ? false
                                     : !shouldFilter
                                       ? !!field.required

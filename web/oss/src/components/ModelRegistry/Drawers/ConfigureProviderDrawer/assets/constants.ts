@@ -93,4 +93,12 @@ export const PROVIDER_FIELDS: {
         model: [],
         required: false,
     },
+    {
+        key: "roleArn",
+        label: "Role ARN",
+        placeholder: "arn:aws:iam::123456789012:role/my-role",
+        note: "Optional. If set, this role will be assumed before each request.",
+        model: ["bedrock", "sagemaker"],
+        required: false,
+    },
 ]
