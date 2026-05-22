@@ -120,9 +120,15 @@ def _build_from_template(default: dict) -> Optional[SimpleEvaluatorCreate]:
     #             "parameters": { "correct_answer_key": "correct_answer" } }
     parameters: Optional[dict] = None
     if template.data and template.data.schemas and template.data.schemas.parameters:
+        parameter_schema = template.data.schemas.parameters
+        properties = (
+            parameter_schema.get("properties", {})
+            if isinstance(parameter_schema, dict)
+            else {}
+        )
         extracted = {
             key: val["default"]
-            for key, val in template.data.schemas.parameters.items()
+            for key, val in properties.items()
             if isinstance(val, dict) and "default" in val
         }
         parameters = extracted or None
