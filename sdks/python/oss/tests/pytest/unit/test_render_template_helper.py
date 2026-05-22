@@ -1082,6 +1082,26 @@ def test_mustache_whitespace_only_placeholder_raises():
         _mustache("hi {{   }}", {})
 
 
+def test_mustache_json_pointer_raises_clear_error():
+    # JSON Pointer is unsupported in mustache (RFC). A {{/a/b}} tag gives a clear
+    # product message, not a cryptic mystace "Opening tag" error.
+    with pytest.raises(MustacheTemplateError) as exc:
+        _mustache("{{/obj/k}}", {"obj": {"k": 1}})
+    assert "JSON Pointer" in str(exc.value)
+
+
+def test_mustache_section_close_is_not_mistaken_for_json_pointer():
+    # A bare section close {{/x}} (no inner '/') is left to the engine.
+    assert _mustache("{{#x}}hi{{/x}}", {"x": True}) == "hi"
+
+
+def test_mustache_nul_byte_in_template_raises():
+    # A NUL byte cannot appear in a real prompt and would collide with the
+    # JSONPath shield sentinel, so it is rejected up front.
+    with pytest.raises(MustacheTemplateError):
+        _mustache("LIT=\x00JP0\x00 {{$.x}}", {"x": "V"})
+
+
 def test_mustache_error_is_value_error_subclass():
     # Existing ``except ValueError`` call-site paths keep catching mustache errors.
     assert issubclass(MustacheTemplateError, ValueError)
@@ -1245,6 +1265,25 @@ def test_jinja2_unresolved_jsonpath_raises_like_curly():
 def test_jinja2_malformed_jsonpath_is_treated_as_unresolved_like_curly():
     with pytest.raises(UnresolvedVariablesError):
         _jinja2("{{$id}}", {"$id": "Z"})
+
+
+def test_jinja2_raw_block_emits_jsonpath_tag_verbatim():
+    # A {{$...}} inside {% raw %} must NOT be JSONPath-resolved — the raw block
+    # emits its contents verbatim (matches the {{ name }} escape).
+    assert _jinja2("{% raw %}{{$.x}}{% endraw %}", {"x": "V"}) == "{{$.x}}"
+
+
+def test_jinja2_comment_does_not_resolve_jsonpath_tag():
+    # A {{$...}} inside a {# #} comment is dropped with the comment, not resolved
+    # (and a failing one inside a comment must not raise).
+    assert _jinja2("a {# {{$.x}} #} b", {"x": "V"}) == "a  b"
+    assert _jinja2("a {# {{$.nope}} #} b", {}) == "a  b"
+
+
+def test_jinja2_jsonpath_outside_raw_still_resolves():
+    # Shielding is skipped only inside raw/comment; tags outside still resolve.
+    out = _jinja2("{{$.x}} {% raw %}{{$.y}}{% endraw %}", {"x": "A", "y": "B"})
+    assert out == "A {{$.y}}"
 
 
 # =============================================================================

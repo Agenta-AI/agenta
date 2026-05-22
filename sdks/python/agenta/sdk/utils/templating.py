@@ -144,18 +144,15 @@ def _render_fstring(template: str, context: Mapping[str, Any]) -> str:
 
 
 def _render_jinja2(template: str, context: Mapping[str, Any]) -> str:
-    # ``$``-JSONPath is not valid Jinja2 syntax, so ``{{$...}}`` tags are resolved
-    # around the Jinja2 engine the same way as for ``mustache`` / ``curly``:
-    # shielded from the engine, then substituted last as inert data (never
-    # re-parsed). Native Jinja2 tags (``{{ var }}``, ``{% %}``, ``{# #}``) are
-    # rendered by the engine as before.
+    # ``{{$...}}`` JSONPath is resolved around the engine (see _render_with_jsonpath);
+    # ``skip`` leaves tags inside ``{% raw %}`` / ``{# #}`` to Jinja2.
     SandboxedEnvironment, _TemplateError = _load_jinja2()
     env = SandboxedEnvironment()
 
     def _engine(masked: str) -> str:
         return env.from_string(masked).render(**context)
 
-    return _render_with_jsonpath(template, context, engine=_engine)
+    return _render_with_jsonpath(template, context, engine=_engine, skip=_JINJA2_RAW_RE)
 
 
 # A Mustache tag: ``{{`` then an optional sigil and body, then ``}}``. The body
@@ -169,14 +166,8 @@ _MUSTACHE_JSONPATH_TAG_RE = re.compile(r"\{\{\{?\s*(\$[^{}]*?)\s*\}?\}\}")
 
 
 def _reject_unsupported_mustache_tags(template: str) -> None:
-    """Raise a deterministic error for tags Agenta does not support in ``mustache``.
-
-    Partials (``{{>name}}``) have no registry or template loader in the runtime,
-    and ``mystace`` would silently render them as empty text. Empty / whitespace
-    only placeholders (``{{}}``) are almost always authoring mistakes. Both are
-    rejected before the engine runs so product errors are stable and do not
-    depend on library wording.
-    """
+    """Reject tags unsupported in ``mustache`` (partials, empty placeholders, JSON
+    Pointer) with a stable product error instead of an opaque ``mystace`` one."""
 
     for match in _MUSTACHE_TAG_RE.finditer(template):
         body = match.group(1)
@@ -190,13 +181,25 @@ def _reject_unsupported_mustache_tags(template: str) -> None:
                 "Empty placeholder is not allowed in mustache templates "
                 "(e.g. '{{}}' or '{{   }}')."
             )
+        # ``{{/seg/seg}}`` is a JSON Pointer (unsupported in mustache per RFC);
+        # a bare ``{{/x}}`` section close (no inner ``/``) is left to the engine.
+        if body.startswith("/") and "/" in body[1:]:
+            raise MustacheTemplateError(
+                f"JSON Pointer is not supported in mustache templates: {match.group(0)!r}. "
+                "Use a '{{$...}}' JSONPath tag, or the curly format."
+            )
 
 
 # ---- Shared JSONPath ({{$...}}) resolution ----
-# Resolve ``{{$...}}`` tags as inert data around the engine (curly/mustache/jinja2
-# all behave the same). Design: docs/design/prompt-runtime-unification/wp-b3-mustache-rendering.
-# NUL-delimited sentinel: cannot occur in prompt text and is inert in both engines.
+# Design: docs/design/prompt-runtime-unification/wp-b3-mustache-rendering.
 _JSONPATH_SHIELD_RE = re.compile("\x00JP(\\d+)\x00")
+
+# Jinja2 ``{% raw %}`` / ``{# #}`` spans: ``{{$...}}`` inside them is left to the
+# engine (raw-block escape contract), not JSONPath-resolved.
+_JINJA2_RAW_RE = re.compile(
+    r"\{%-?\s*raw\s*-?%\}.*?\{%-?\s*endraw\s*-?%\}|\{#.*?#\}",
+    re.DOTALL,
+)
 
 
 def _render_with_jsonpath(
@@ -204,13 +207,20 @@ def _render_with_jsonpath(
     context: Mapping[str, Any],
     *,
     engine: Callable[[str], str],
+    skip: Optional["re.Pattern[str]"] = None,
 ) -> str:
     """Resolve ``{{$...}}`` JSONPath tags as inert data around a template ``engine``.
 
-    Shield tags from ``engine``, render, then substitute resolved values last so
-    they are never re-parsed. Matches ``curly``: a failed ``{{$...}}`` raises
-    :class:`UnresolvedVariablesError`; values use ``curly`` coercion.
+    Shield tags, render, then substitute resolved values last (never re-parsed).
+    Matches ``curly``: a failed tag raises :class:`UnresolvedVariablesError`.
+    ``skip`` marks spans whose ``{{$...}}`` tags are left to the engine.
     """
+
+    # NUL would collide with the shield sentinel; it cannot occur in a real prompt.
+    if "\x00" in template:
+        raise MustacheTemplateError(
+            "Template contains a NUL byte (\\x00), which is not allowed."
+        )
 
     shielded: list[str] = []
 
@@ -218,7 +228,21 @@ def _render_with_jsonpath(
         shielded.append(match.group(1))
         return f"\x00JP{len(shielded) - 1}\x00"
 
-    masked = _MUSTACHE_JSONPATH_TAG_RE.sub(_shield, template)
+    if skip is None:
+        masked = _MUSTACHE_JSONPATH_TAG_RE.sub(_shield, template)
+    else:
+        # Shield ``{{$...}}`` only outside the skipped spans.
+        pos = 0
+        parts: list[str] = []
+        for region in skip.finditer(template):
+            parts.append(
+                _MUSTACHE_JSONPATH_TAG_RE.sub(_shield, template[pos : region.start()])
+            )
+            parts.append(region.group(0))
+            pos = region.end()
+        parts.append(_MUSTACHE_JSONPATH_TAG_RE.sub(_shield, template[pos:]))
+        masked = "".join(parts)
+
     rendered = engine(masked)
     if not shielded:
         return rendered
@@ -248,15 +272,10 @@ def _render_with_jsonpath(
 
 
 def _render_mustache(template: str, context: Mapping[str, Any]) -> str:
-    """Render a template combining JSONPath ``{{$...}}`` resolution and ``mystace``.
+    """Render via ``mystace`` with shared ``{{$...}}`` JSONPath handling.
 
-    Unsupported tags (partials, empty placeholders) are rejected first. ``{{$...}}``
-    tags are resolved via :func:`_render_with_jsonpath` (shielded, then substituted
-    last), so a JSONPath value containing ``{{other}}`` is NOT rendered recursively
-    — matching plain ``{{var}}`` and ``curly``.
-
-    HTML escaping is disabled because prompt text is not HTML, and ``stringify``
-    matches the ``curly`` coercion so whole-object insertion renders compact JSON.
+    Rejects unsupported tags first. HTML escaping is off (prompt text is not HTML)
+    and ``stringify`` matches ``curly`` coercion (whole objects -> compact JSON).
     """
 
     _reject_unsupported_mustache_tags(template)
