@@ -23,7 +23,7 @@ import {
     type RowPredicate,
     type RunSchema,
 } from "@agenta/entities/evaluationRun/etl"
-import {Button, Divider, Input, InputNumber, Popover, Segmented, Select, Tooltip} from "antd"
+import {Button, Divider, Input, InputNumber, Popover, Select, Tooltip} from "antd"
 import {useAtom} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
 
@@ -160,21 +160,6 @@ const ScenarioFilterBar = ({
             <div className="px-1 pb-2 font-medium text-zinc-600">Filter scenarios</div>
             <Divider className="!my-0 !mb-2" />
 
-            {conditions.length >= 2 && (
-                <div className="mb-2 flex items-center gap-2 px-1">
-                    <span className="text-zinc-400">Match</span>
-                    <Segmented<"and" | "or">
-                        size="small"
-                        value={draft.op}
-                        options={[
-                            {label: "All (AND)", value: "and"},
-                            {label: "Any (OR)", value: "or"},
-                        ]}
-                        onChange={(op) => setDraft((d) => ({...d, op}))}
-                    />
-                </div>
-            )}
-
             <div className="flex flex-col gap-1.5">
                 {conditions.map((condition, index) => {
                     const fieldKey = condition.columnName ? encodeField(condition) : undefined
@@ -186,9 +171,27 @@ const ScenarioFilterBar = ({
 
                     return (
                         <div key={index} className="flex items-center gap-1.5">
-                            <span className="w-10 shrink-0 text-zinc-400">
-                                {index === 0 ? "Where" : draft.op === "and" ? "And" : "Or"}
-                            </span>
+                            {/*
+                             * Row-level AND/OR connector. The group has a
+                             * single op (flat group — D8), so every
+                             * connector shows and toggles the same value.
+                             */}
+                            {index === 0 ? (
+                                <span className="w-16 shrink-0 pl-2 text-zinc-400">Where</span>
+                            ) : (
+                                <Select<"and" | "or">
+                                    size="small"
+                                    variant="borderless"
+                                    className="w-16 shrink-0"
+                                    value={draft.op}
+                                    options={[
+                                        {label: "And", value: "and"},
+                                        {label: "Or", value: "or"},
+                                    ]}
+                                    getPopupContainer={getWithinPopover}
+                                    onChange={(op) => setDraft((d) => ({...d, op}))}
+                                />
+                            )}
                             <Select<string>
                                 size="small"
                                 placeholder="Column"
