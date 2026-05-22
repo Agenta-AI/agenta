@@ -125,15 +125,16 @@ const EvalRunDetailsTable = ({
 
     // Phase 2 — multi-predicate filtering (D8). Filters the base run's
     // rows; each comparison group follows its base row.
-    const {filteredBaseRows, effectiveFilter, active, confirmedMatchCount} = useScenarioFilter({
-        projectId,
-        runId,
-        schema: runSchema,
-        baseRows: basePagination.rows,
-        loadNextPage: basePagination.loadNextPage,
-        hasMore: basePagination.paginationInfo.hasMore,
-        isFetching: basePagination.paginationInfo.isFetching,
-    })
+    const {filteredBaseRows, effectiveFilter, active, confirmedMatchCount, isFilling} =
+        useScenarioFilter({
+            projectId,
+            runId,
+            schema: runSchema,
+            baseRows: basePagination.rows,
+            loadNextPage: basePagination.loadNextPage,
+            hasMore: basePagination.paginationInfo.hasMore,
+            isFetching: basePagination.paginationInfo.isFetching,
+        })
 
     const etlColumns = useEtlColumns({projectId, runId, schema: runSchema})
 
@@ -149,10 +150,13 @@ const EvalRunDetailsTable = ({
         sliceMode: "auto",
     })
 
-    // The filter scan is still running — more pages to load OR a hydrate
-    // batch in flight.
+    // The filter scan is actively working — the viewport-fill loop still
+    // wants more pages (`isFilling`), a page is being fetched, or a
+    // hydrate batch is in flight. Once enough matches are found the loop
+    // stops, so this goes false even though the dataset has more pages
+    // (`hasMore`) — it only shows "scanning" while real work is happening.
     const scanInProgress =
-        active && (basePagination.paginationInfo.hasMore || hydration.isHydrating)
+        isFilling || (active && (basePagination.paginationInfo.isFetching || hydration.isHydrating))
     // Nothing has confirmed-matched yet — show the full empty + loading
     // overlay. Once the first match lands, rows show and grow (no overlay,
     // no flicker — `filteredBaseRows` only ever grows during a scan).

@@ -118,6 +118,14 @@ export interface UseScenarioFilterResult<TRow extends FilterableRow> {
     filteredBaseRows: TRow[]
     /** Rows confirmed (hydrated AND matching) to satisfy the filter. */
     confirmedMatchCount: number
+    /**
+     * True while the viewport-fill loop still intends to load more pages
+     * (a filter is active, the target match count is not yet reached, and
+     * the dataset has more pages). Goes false once enough matches are
+     * found — even if the dataset has more pages — so the UI can stop
+     * showing "scanning" when the loop is actually idle.
+     */
+    isFilling: boolean
 }
 
 export function useScenarioFilter<TRow extends FilterableRow>({
@@ -163,6 +171,10 @@ export function useScenarioFilter<TRow extends FilterableRow>({
     // match — so the count is just its length.
     const confirmedMatchCount = active ? filteredBaseRows.length : 0
 
+    // The viewport-fill loop still wants more pages — i.e. the autonomous
+    // scan is genuinely in progress.
+    const isFilling = active && hasMore && confirmedMatchCount < VIEWPORT_FILL_TARGET
+
     // Viewport-fill loop — a strict filter may keep the visible row count
     // below the viewport, so IVT's scroll-triggered loadMore never fires.
     // Drive it ourselves until enough confirmed matches accumulate or the
@@ -180,5 +192,6 @@ export function useScenarioFilter<TRow extends FilterableRow>({
         active,
         filteredBaseRows,
         confirmedMatchCount,
+        isFilling,
     }
 }
