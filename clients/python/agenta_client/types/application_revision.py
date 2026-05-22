@@ -12,10 +12,16 @@ from .application_revision_flags import ApplicationRevisionFlags
 
 
 class ApplicationRevision(UniversalBaseModel):
+    application_variant_slug: typing.Optional[str] = None
+    workflow_variant_slug: typing.Optional[str] = None
+    application_slug: typing.Optional[str] = None
+    workflow_slug: typing.Optional[str] = None
     application_variant_id: typing.Optional[str] = None
     workflow_variant_id: typing.Optional[str] = None
     application_id: typing.Optional[str] = None
     workflow_id: typing.Optional[str] = None
+    variant_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     variant_id: typing.Optional[str] = None
     artifact_id: typing.Optional[str] = None
     author: typing.Optional[str] = None
