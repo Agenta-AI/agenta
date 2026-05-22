@@ -106,10 +106,16 @@ Phase 1 is the **column + cell swap** in `Table.tsx`. T2 and T3 are **coupled**
 — a column definition carries its own cell `render` function, so the column
 source and the cell renderer swap together in one change.
 
-- **T2 — schema columns.** Wire `useEtlColumns` / `resolveMappings` into
-  `Table.tsx`; retire `usePreviewColumns` + `tableColumnsAtomFamily`. **Remove
-  the "other"-column drop** (`useEtlColumns.tsx:56`) so the visible column set
-  matches today.
+- **T2 — schema columns (display only).** Wire `useEtlColumns` /
+  `resolveMappings` into `Table.tsx` for the **rendered** columns. **Remove the
+  "other"-column drop** (`useEtlColumns.tsx:56`) so the visible set matches
+  today — note this ripples: `ColumnLeaf["kind"]`, `EtlResolvedCell`'s
+  `columnKind`, and `useCellMaterialization`'s slice map all need an "other"
+  case. `usePreviewColumns` / `usePreviewTableData` / `columnResult` **stay
+  alive** — the CSV export (`exportResolveValue`, `columnLookupMap`) is keyed
+  off `columnResult` ids, which differ from `useEtlColumns` keys. Full
+  retirement of the old column path moves to Phase 3 with the export
+  migration (T5). Two column systems coexist transitionally (accepted under D1).
 - **T3 — self-hydrating cells + non-terminal rendering.** `EtlResolvedCell` +
   `useHydrateScenarios` + `useCellMaterialization`, against the existing
   `evaluationPreviewTableStore` rows (keyed by `scenarioId`). **Not** purely
@@ -264,7 +270,7 @@ co-consumers.
 ## Implementation tasks
 
 **Phase 1 — column + cell swap** (T1 dropped — `evaluationPreviewTableStore` is already thin; see Phase 1)
-- [ ] **T2 (P1, human: ~1d / CC: ~2h)** — schema columns; keep "other" columns; **column-parity regression test** before deleting `usePreviewColumns`. Lands together with T3 (coupled).
+- [ ] **T2 (P1, human: ~1d / CC: ~2h)** — schema columns for the **rendered** table; keep "other" columns (ripples into `ColumnLeaf`/`EtlResolvedCell`/`useCellMaterialization`); **column-parity regression test**. Keep `usePreviewColumns`/`columnResult` alive for the export path — full retirement is Phase 3 / T5. Lands together with T3 (coupled).
 - [ ] **T3 (P1, human: ~3d / CC: ~half-day)** — self-hydrating cells **plus non-terminal scenario rendering + skeleton-while-pending** (the unbuilt part). Lands together with T2.
 - [ ] **Perf gate (P1)** — benchmark vs the old table, 1000+ scenarios, comparison on.
 
@@ -293,5 +299,6 @@ co-consumers.
 - **ENG DECISIONS:** D1 phase the migration · D2 interleaved rows + common-evaluator intersection columns · D3 match production's live bar · D4 outside voice ran · D5 perf-validation gate after Phase 1.
 - **DESIGN DECISIONS:** focused review (migration preserves the visual design) · live hit-ratio counter for filter scanning · interaction-state specs added (skeleton, non-terminal cells, filter no-match empty state, rate-limited indicator).
 - **D6 (implementation-time finding):** starting Phase 1 confirmed `evaluationPreviewTableStore` is already a thin store (identity + status, no column data, per-eval-type order). **T1 is dropped** — Phase 1 is the coupled T2+T3 column+cell swap against the existing store. Confirms the eng-review outside voice's "T1 re-implements an existing store" point.
+- **D7 (implementation-time finding):** reading `Table.tsx` showed the CSV export path (`exportResolveValue`, `columnLookupMap`, `loadAllPagesBeforeExport`) is keyed off `columnResult` column ids, which differ from `useEtlColumns` keys. **Phase 1 swaps display columns only** and keeps `usePreviewColumns`/`columnResult` alive for export; the old column path fully retires in Phase 3 with the export migration (T5). The "other"-column un-drop ripples into `ColumnLeaf`, `EtlResolvedCell`, and `useCellMaterialization`.
 - **UNRESOLVED:** 1 — filter composition (single vs multi-predicate) + its UI, intentionally deferred to Phase 2 start. Phase 1 has no open decisions.
 - **VERDICT:** ENG + DESIGN REVIEW CLEARED — ready to implement Phase 1 (T2+T3).
