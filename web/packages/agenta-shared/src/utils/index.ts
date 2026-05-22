@@ -66,6 +66,8 @@ export {
     getAttachmentInfo,
     getAttachments,
     hasAttachments,
+    isChatMessageObject,
+    isChatMessagesArray,
     messageHasContent,
     messageHasToolCalls,
     normalizeMessagesFromField,

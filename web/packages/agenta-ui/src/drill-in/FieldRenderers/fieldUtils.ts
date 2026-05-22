@@ -6,7 +6,7 @@
  */
 
 import type {SimpleChatMessage, MessageContent} from "@agenta/shared/types"
-import {tryParseAsObject, tryParseAsArray} from "@agenta/shared/utils"
+import {isChatMessageObject, tryParseAsObject, tryParseAsArray} from "@agenta/shared/utils"
 
 import type {DataType} from "../coreTypes"
 
@@ -67,25 +67,7 @@ export function canExpand(value: string): boolean {
     return false
 }
 
-/**
- * Check if a single object looks like a chat message
- */
-export function isChatMessageObject(item: unknown): boolean {
-    if (!item || typeof item !== "object") return false
-    const obj = item as Record<string, unknown>
-    const hasRole =
-        typeof obj.role === "string" ||
-        typeof obj.sender === "string" ||
-        typeof obj.author === "string"
-    // Content can be present, or tool_calls for assistant messages, or function_call for legacy
-    const hasContent =
-        obj.content !== undefined ||
-        obj.text !== undefined ||
-        obj.message !== undefined ||
-        Array.isArray(obj.tool_calls) ||
-        obj.function_call !== undefined
-    return hasRole && hasContent
-}
+export {isChatMessageObject} from "@agenta/shared/utils"
 
 /**
  * Check if a value is an array of messages (not a single object)
