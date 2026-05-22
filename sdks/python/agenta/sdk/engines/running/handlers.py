@@ -1846,6 +1846,9 @@ def _resolve_aws_credentials(provider_settings: Dict) -> Dict:
     secret_key = provider_settings.get(
         "aws_secret_access_key"
     ) or provider_settings.get("AWS_SECRET_ACCESS_KEY")
+    session_token = provider_settings.get("aws_session_token") or provider_settings.get(
+        "AWS_SESSION_TOKEN"
+    )
     region = (
         provider_settings.get("aws_region_name")
         or provider_settings.get("aws_region")
@@ -1857,6 +1860,7 @@ def _resolve_aws_credentials(provider_settings: Dict) -> Dict:
         "sts",
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
+        aws_session_token=session_token,
         region_name=region,
     )
     resp = sts.assume_role(RoleArn=role_arn, RoleSessionName="agenta-bedrock")

@@ -73,6 +73,7 @@ def test_lowercase_role_arn_triggers_sts():
         "sts",
         aws_access_key_id=None,
         aws_secret_access_key=None,
+        aws_session_token=None,
         region_name="us-east-1",
     )
     sts.assume_role.assert_called_once_with(
@@ -208,8 +209,51 @@ def test_base_credentials_forwarded_to_sts():
         "sts",
         aws_access_key_id="BASE_KEY",
         aws_secret_access_key="BASE_SECRET",
+        aws_session_token=None,
         region_name="ap-southeast-1",
     )
+
+
+@pytest.mark.parametrize(
+    ("settings", "expected_kwargs"),
+    [
+        (
+            {
+                "aws_role_arn": _ROLE_ARN,
+                "aws_access_key_id": "BASE_KEY",
+                "aws_secret_access_key": "BASE_SECRET",
+                "aws_session_token": "BASE_TOKEN",
+            },
+            {
+                "aws_access_key_id": "BASE_KEY",
+                "aws_secret_access_key": "BASE_SECRET",
+                "aws_session_token": "BASE_TOKEN",
+                "region_name": "us-east-1",
+            },
+        ),
+        (
+            {
+                "aws_role_arn": _ROLE_ARN,
+                "AWS_ACCESS_KEY_ID": "UC_KEY",
+                "AWS_SECRET_ACCESS_KEY": "UC_SECRET",
+                "AWS_SESSION_TOKEN": "UC_TOKEN",
+            },
+            {
+                "aws_access_key_id": "UC_KEY",
+                "aws_secret_access_key": "UC_SECRET",
+                "aws_session_token": "UC_TOKEN",
+                "region_name": "us-east-1",
+            },
+        ),
+    ],
+)
+def test_session_credentials_forwarded_to_sts(settings, expected_kwargs):
+    sts = _mock_sts()
+
+    with patch("boto3.client", return_value=sts) as mock_client:
+        _resolve_aws_credentials(settings)
+
+    mock_client.assert_called_once_with("sts", **expected_kwargs)
 
 
 def test_uppercase_base_credentials_forwarded_to_sts():
@@ -227,6 +271,7 @@ def test_uppercase_base_credentials_forwarded_to_sts():
         "sts",
         aws_access_key_id="UC_KEY",
         aws_secret_access_key="UC_SECRET",
+        aws_session_token=None,
         region_name="us-east-1",
     )
 
