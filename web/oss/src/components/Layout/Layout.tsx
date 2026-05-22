@@ -52,9 +52,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
         : query.selectedEvaluation
 
     const isHumanEval =
-        pathname.includes("/evaluations") ||
-        pathname.includes("/etl-poc") ||
-        selectedEvaluation === "human_annotation"
+        pathname.includes("/evaluations") || selectedEvaluation === "human_annotation"
     const isEvaluator = pathname.includes("/evaluators")
     const isTestsets = pathname.includes("/testsets") || pathname.includes("/prompts")
     const isAnnotations = pathname.includes("/annotations")
