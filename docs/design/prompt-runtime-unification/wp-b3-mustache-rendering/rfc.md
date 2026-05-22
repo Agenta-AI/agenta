@@ -41,12 +41,39 @@ No evaluator config migration. The judge flat config remains valid.
 
 Use `mystace`.
 
-Why:
+The choice is backed by a head-to-head evaluation of `mystace` (1.0.1) vs `chevron` (0.14.0) — see `research.md` ("Library Evaluation" + "Benchmark"). Summary of the evidence:
 
-- modern, active Python Mustache library
-- good fit if we want real Mustache behavior instead of a custom subset
-- no need to invent our own dot-notation semantics
-- only one product-specific extension is needed: JSONPath resolution for tags that start with `{{$`
+- **Behavior is equivalent.** 22/22 benchmark cases produced byte-identical output across variables, dotted/deep-dotted names, sections, inverted sections, comments, delimiter swaps, and triple-brace.
+- **Performance is a wash** for prompt rendering (microseconds per render; `chevron` faster on scalars, `mystace` faster on iteration-heavy sections).
+- **The deciding factor is integration cleanliness.** WP-B3 needs HTML escaping off and compact-JSON coercion for whole-object insertion. `mystace` exposes `stringify=` and `html_escape_fn=` so both are one-liners; `chevron` exposes neither and would require pre-walking/pre-stringifying the context by hand.
+- **Spec-aligned and current.** `mystace` claims Mustache spec v1.4.3 compliance, targets Python >=3.10, and is actively released (1.0.1, 2025-12-19). `chevron`'s last release is 2021 and advertises Python only through 3.6.
+
+`langchain_core.utils.mustache` was considered and rejected: it is a heavy, fast-moving dependency outside its maintainers' core focus, and it implements neither JSONPath nor JSON Pointer selectors (its resolver is dot-splitting only), so it would not satisfy the `{{$...}}` requirement without a custom resolver anyway.
+
+### Mustache Conformance and Deviations
+
+Principle: **follow Mustache to the letter**, deviating only where a stated product requirement demands it. We do not invent a custom dotted-name dialect or a Mustache subset.
+
+There are exactly three intentional deviations from stock Mustache, all delegated to `mystace` configuration or a thin wrapper:
+
+1. **`{{$...}}` JSONPath resolution** — the one additive extension (see Resolution Model below).
+2. **HTML escaping off** — prompt text is not HTML, so `{{var}}` is not entity-escaped (`html_escape_fn` passthrough). `{{{var}}}` / `{{&var}}` therefore behave like `{{var}}`.
+3. **Compact-JSON coercion** — dict/list values render as compact JSON instead of Python `repr`, to match `curly` (`stringify=`).
+
+Everything else (sections, inverted sections, comments, delimiter swaps, lambdas as data, permissive missing keys) is stock `mystace` behavior. Partials are the only standard feature deliberately **rejected** rather than supported (no registry or template loader; a `{{>...}}` tag raises a clear error).
+
+### JSONPath Compatibility Requirement
+
+Hard requirement: **no regression to the JSONPath functionality `curly` already provides.** `mustache` (and `jinja2`) must resolve `{{$...}}` exactly as `curly` does — same resolution, same coercion, same failure contract. This is enforced by cross-format parity tests (`test_jsonpath_parity_across_formats`, `test_jsonpath_failure_parity_across_formats`) that run identical inputs through all three formats and assert byte-identical output and identical errors.
+
+### Security
+
+The render context is explicitly and narrowly constructed; there is no `os.environ`, globals, or wildcard merge, so OS secrets / env vars cannot leak into a prompt:
+
+- normal prompts: context is exactly the invocation's `variables`.
+- LLM-as-a-judge: context is a hand-built dict with a fixed key set (parameters, ground truth/reference, inputs, prediction/outputs, trace).
+
+The only bounded risk was cross-field echo *within* that defined context (an untrusted field pulled via `{{$...}}` that itself contains template syntax). The "never re-parse a resolved value" rule in the Resolution Model removes it: resolved values are inserted as inert data and are never rendered a second time.
 
 ## Proposed Semantics
 
