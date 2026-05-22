@@ -2,9 +2,8 @@
  * useHydrateScenarios
  *
  * Watches the scenario rows the table has loaded and triggers a bulk
- * hydrate pass per *new* page. Mirrors the ETL strategy proved by the
- * `EtlPocScenarios` PoC: bulk requests per page, all entities populated
- * together.
+ * hydrate pass per *new* page — bulk requests per page, all entities
+ * populated together.
  *
  * Flow per newly-seen scenario set:
  *   1. evaluationResultMolecule.actions.prefetchByScenarioIds  → results

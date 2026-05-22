@@ -279,15 +279,18 @@ co-consumers.
 - [ ] **Perf gate (P1)** — benchmark vs the old table, 1000+ scenarios, comparison on. **Gates T4.**
 
 **Phase 2 — filtering**
-- [ ] **T4 (P1, human: ~3d / CC: ~half-day)** — `filterSchema` + **multi-predicate AND/OR** `filterTransform` + multi-condition predicate UI + viewport-fill loop; reuse `withRateLimitRetry`. Composition decided (D8). Gated on the Phase 1 perf gate.
+- [x] **T4 (P1)** — multi-predicate AND/OR filtering (D8): `filterSchema` + `evaluateRowFilter` / `PredicateGroup` core (entities, unit-tested) + a popover filter bar in the run header + confirmed-match incremental rendering + viewport-fill loop. Column value types come from the evaluator output schema. v1 withholds testset/application columns behind a UI allowlist and `in`/`nin` operators from the UI.
 
 **Phase 3 — comparison, live, co-consumers**
-- [ ] **T5 (P1, human: ~3d / CC: ~half-day)** — comparison build: compare-run schema fetch + per-run hydration + testcase_id join + export-path migration.
+- [ ] **T5 (P1, human: ~3d / CC: ~half-day)** — comparison build: compare-run schema fetch + per-run hydration + testcase_id join + export-path migration. (Phase 1 ships best-effort: compare rows resolve against the base run's schema.)
 - [ ] **T6 (P2, human: ~1d / CC: ~2h)** — live updates: poll + page invalidation + human gap-fill.
 - [ ] **T8 (P1, human: ~1d / CC: ~2h)** — migrate focus drawer + `SingleScenarioViewer` off `useScenarioCellValue`; delete it.
 
 **Cleanup**
-- [ ] **T7 (P2, human: ~1h / CC: ~10min)** — delete `EtlPocScenarios/` + `/etl-poc` routes once Phase 3 parity is verified.
+- [x] **T7** — `EtlPocScenarios/` + `/etl-poc` routes (oss + ee) deleted. Done ahead of the Phase-3 gate at the maintainer's direction: production has its own copies of the ported hooks, so the PoC was dead test-page code.
+
+**Open / advisory**
+- The **D5 perf gate** was not formally benchmarked — the table was QA'd functionally throughout Phase 1 + 2 instead.
 
 ## GSTACK REVIEW REPORT
 
@@ -306,5 +309,5 @@ co-consumers.
 - **D7 (implementation-time finding):** reading `Table.tsx` showed the CSV export path (`exportResolveValue`, `columnLookupMap`, `loadAllPagesBeforeExport`) is keyed off `columnResult` column ids, which differ from `useEtlColumns` keys. **Phase 1 swaps display columns only** and keeps `usePreviewColumns`/`columnResult` alive for export; the old column path fully retires in Phase 3 with the export migration (T5). The "other"-column un-drop ripples into `ColumnLeaf`, `EtlResolvedCell`, and `useCellMaterialization`.
 - **D8 (Phase 2 decision):** filter composition resolved — **multi-predicate AND/OR from day 1**, not the PoC's single predicate. The predicate type generalises to a flat condition group; the filter bar reuses the observability multi-condition UI.
 - **UNRESOLVED:** 0 — filter composition closed (D8). No open decisions.
-- **STATUS:** Phase 1 (T2+T3) implemented and committed. Next: the D5 perf gate, which gates T4.
-- **VERDICT:** ENG + DESIGN REVIEW CLEARED — Phase 1 (T2+T3) shipped; T4 is multi-predicate, gated on the perf gate.
+- **STATUS:** Phase 1 (T2+T3) and Phase 2 (T4, multi-predicate filtering) shipped. The PoC is retired (T7). Remaining: Phase 3 — T5 comparison, T6 live updates, T8 co-consumer migration (focus drawer + `SingleScenarioViewer` still on `useScenarioCellValue`).
+- **VERDICT:** ENG + DESIGN REVIEW CLEARED — Phase 1 + Phase 2 shipped + PoC retired; Phase 3 (T5/T6/T8) remains.
