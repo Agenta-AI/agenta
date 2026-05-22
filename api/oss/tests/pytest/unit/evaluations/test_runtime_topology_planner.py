@@ -871,8 +871,17 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     assert evaluations_service.query_results.await_count == 2
     assert evaluations_service.create_results.await_count == 1
     assert evaluations_service.delete_results.await_count == 1
-    # probe/populate/prune each refresh metrics for the affected scope.
-    assert evaluations_service.refresh_metrics.await_count == 2
+    # probe/populate/prune operate on results only — none of them refresh
+    # metrics. Metrics are the separate `refresh` op.
+    assert evaluations_service.refresh_metrics.await_count == 0
+
+    # refresh() is the metrics op; it recomputes the slice's scope.
+    await operations.refresh(
+        project_id=project_id,
+        user_id=user_id,
+        tensor_slice=tensor_slice,
+    )
+    assert evaluations_service.refresh_metrics.await_count == 1
 
     # process() with no wired slice_processor must fail loudly rather than
     # masquerade as execution by silently refreshing metrics (UEL-015).

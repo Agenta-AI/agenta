@@ -181,6 +181,26 @@ def query_metrics(authed_api, run_id):
     return response.json().get("metrics", [])
 
 
+def wait_for_metrics(authed_api, run_id, *, expected_count=1, max_retries=20):
+    """Poll metrics until at least `expected_count` rows exist, then return them.
+
+    A run can flip to a terminal status a beat before its global (whole-run)
+    metric row is written, so tests that assert on the global metric poll here
+    rather than reading once.
+    """
+    wait_for_response(
+        authed_api,
+        "POST",
+        "/evaluations/metrics/query",
+        json={"metrics": {"run_id": str(run_id)}},
+        condition_fn=lambda r: (
+            r.status_code == 200 and len(r.json().get("metrics", [])) >= expected_count
+        ),
+        max_retries=max_retries,
+    )
+    return query_metrics(authed_api, run_id)
+
+
 # - lifecycle mutations --------------------------------------------------------
 
 

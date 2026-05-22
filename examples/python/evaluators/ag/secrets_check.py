@@ -35,7 +35,7 @@ def evaluate(
         )
 
         response = requests.get(
-            f"{host}/api/vault/v1/secrets/",
+            f"{host}/api/secrets/",
             headers=headers,
             timeout=10,
         )

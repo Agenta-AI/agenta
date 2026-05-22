@@ -223,7 +223,7 @@ This approach keeps tests fast, reliable, and focused on application logic, redu
 ## Best Practices
 - **Type Safety:** Always import API response types from `web/oss/src/lib/Types.ts` (never use `any` or define custom interfaces for backend types).
 - **API Validation:** Use API helpers to verify server state before asserting DOM state.
-- **API Endpoint Accuracy:** When working with API-driven selectors and type-safe assertions, always verify the actual backend endpoint for a given type. For example, the canonical endpoint for `StandardSecretDTO` is `/api/vault/v1/secrets` (not `/api/secrets`). Do not assume endpoint paths based on type or naming alone—inspect the implementation if unsure.
+- **API Endpoint Accuracy:** When working with API-driven selectors and type-safe assertions, always verify the actual backend endpoint for a given type. For example, the canonical endpoint for `StandardSecretDTO` is `/api/secrets` (not `/api/secrets`). Do not assume endpoint paths based on type or naming alone—inspect the implementation if unsure.
 - **Authentication:** Assume the user is already logged in (handled by Playwright globalSetup). Do not use deprecated session/user fixtures.
 - **Component Analysis:** Extract UI structure and semantics to create robust selectors and assertions.
 - **Documentation:** Update this guide and helper READMEs when adding or changing utilities/fixtures.

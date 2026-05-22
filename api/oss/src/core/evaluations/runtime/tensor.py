@@ -43,10 +43,11 @@ class SliceProcessor(Protocol):
     """Execution boundary for `process(slice)`.
 
     A slice processor takes the canonical output coordinate (existing
-    scenarios x steps x repeats) and re-executes the runnable (`auto`) cells in
-    that scope: it plans from the scenarios' existing source bindings, restricts
-    to the requested `step_keys`/`repeat_idxs`, invokes only missing work,
-    populates the result cells, and refreshes metrics for the affected scope.
+    scenarios x steps x repeats) and re-executes the runnable cells in that
+    scope: it plans from the scenarios' existing source bindings, restricts to
+    the requested `step_keys`/`repeat_idxs`, invokes only missing work, and
+    populates the result cells. It does NOT refresh metrics — that is the
+    separate `refresh` op, invoked by the caller on the right boundary.
 
     It is deliberately adapter-free at this seam so `runtime/` does not depend on
     `tasks/`: the concrete implementation (which closes over the tracing /
@@ -94,25 +95,18 @@ class TensorSliceOperations:
         project_id: UUID,
         user_id: UUID,
         results: List[EvaluationResultCreate],
-        refresh_metrics: bool = True,
     ) -> List[EvaluationResult]:
+        # `populate` only writes result cells. Metrics are a separate operation
+        # (`refresh`): the three metric kinds refresh on different boundaries
+        # (scenario-complete / interval / run), so the caller decides when.
         if not results:
             return []
 
-        created = await self.evaluations_service.create_results(
+        return await self.evaluations_service.create_results(
             project_id=project_id,
             user_id=user_id,
             results=results,
         )
-
-        if refresh_metrics:
-            await self._refresh_results_metrics(
-                project_id=project_id,
-                user_id=user_id,
-                results=created,
-            )
-
-        return created
 
     async def probe_summary(
         self,
@@ -155,8 +149,11 @@ class TensorSliceOperations:
         project_id: UUID,
         user_id: UUID,
         tensor_slice: TensorSlice,
-        refresh_metrics: bool = True,
     ) -> List[UUID]:
+        # `prune` deletes result cells only. It does NOT touch metrics: metrics
+        # are aggregates over a whole scenario/interval/run (not per-cell), so
+        # pruning cells doesn't delete an aggregate — it just leaves it needing
+        # recomputation, which is the separate `refresh` op.
         results = await self.probe(
             project_id=project_id,
             tensor_slice=tensor_slice,
@@ -165,19 +162,10 @@ class TensorSliceOperations:
         if not result_ids:
             return []
 
-        deleted = await self.evaluations_service.delete_results(
+        return await self.evaluations_service.delete_results(
             project_id=project_id,
             result_ids=result_ids,
         )
-
-        if refresh_metrics:
-            await self._refresh_results_metrics(
-                project_id=project_id,
-                user_id=user_id,
-                results=results,
-            )
-
-        return deleted
 
     async def process(
         self,
@@ -188,8 +176,9 @@ class TensorSliceOperations:
     ) -> ProcessSummary:
         """Execute the runnable cells in the slice and return what changed.
 
-        This is the plan->execute->populate->refresh loop of the design's
-        `process(slice)` operation. The actual execution is delegated to the
+        This is the plan->execute->populate loop of the design's `process(slice)`
+        operation — results only. Metrics are refreshed by the separate
+        `refresh` op, not here. The actual execution is delegated to the
         injected `slice_processor`; this method owns only the slice-level
         guard (an empty dimension means "nothing addressed", so there is
         nothing to execute).
@@ -216,25 +205,29 @@ class TensorSliceOperations:
             tensor_slice=tensor_slice,
         )
 
-    async def _refresh_results_metrics(
+    async def refresh(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
-        results: List[EvaluationResult],
+        tensor_slice: TensorSlice,
     ) -> None:
-        scenario_ids = sorted(
-            {result.scenario_id for result in results if result.scenario_id},
-            key=str,
-        )
-        if not results:
+        """Recompute metrics over the slice's scope.
+
+        First-class peer of probe/process/populate/prune. Kept separate from
+        them because the three metric kinds (variational / temporal / global)
+        refresh on different boundaries — scenario-complete, interval, run — so
+        the caller invokes `refresh` at the right boundary rather than having
+        every write implicitly recompute.
+        """
+        if _slice_is_empty(tensor_slice):
             return
 
         await self.evaluations_service.refresh_metrics(
             project_id=project_id,
             user_id=user_id,
             metrics=EvaluationMetricsRefresh(
-                run_id=results[0].run_id,
-                scenario_ids=scenario_ids or None,
+                run_id=tensor_slice.run_id,
+                scenario_ids=tensor_slice.scenario_ids,
             ),
         )

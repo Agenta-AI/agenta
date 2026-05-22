@@ -335,13 +335,10 @@ class BackendSliceProcessor:
                     interval=None,
                     evaluations_service=self.evaluations_service,
                 ),
-                refresh_metrics=BackendMetricsRefresher(
-                    project_id=project_id,
-                    user_id=user_id,
-                    timestamp=None,
-                    interval=None,
-                    evaluations_service=self.evaluations_service,
-                ),
+                # process() writes result cells only; metric refresh is the
+                # separate `refresh` op invoked by the caller on the right
+                # boundary. The SDK loop requires a callback, so pass a no-op.
+                refresh_metrics=_noop_refresh_metrics,
                 runners=runners,
                 revisions=revisions,
                 trace_loader=(
@@ -406,6 +403,16 @@ class _ExistingScenario:
 
     async def __call__(self, run_id: UUID):
         return self._scenario
+
+
+async def _noop_refresh_metrics(run_id: UUID, scenario_id):
+    """No-op refresh callback for `process` (results-only).
+
+    The SDK slice loop requires a `refresh_metrics` callback, but `process` no
+    longer refreshes metrics — that is the separate `refresh` op. This satisfies
+    the contract without recomputing anything.
+    """
+    return None
 
 
 async def _resolve_testset_input_specs(

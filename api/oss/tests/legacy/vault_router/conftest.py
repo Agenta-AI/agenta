@@ -6,7 +6,7 @@ from httpx import AsyncClient, Timeout
 
 
 AGENTA_HOST = os.environ.get("AGENTA_HOST", "http://localhost")
-API_BASE_URL = f"{AGENTA_HOST}/api/vault/v1/"
+API_BASE_URL = f"{AGENTA_HOST}/api/"
 
 
 @pytest.fixture

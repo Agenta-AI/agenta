@@ -325,7 +325,7 @@ async def get_secrets(
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{api_url}/vault/v1/secrets/",
+                f"{api_url}/secrets/",
                 headers=headers,
             )
 
