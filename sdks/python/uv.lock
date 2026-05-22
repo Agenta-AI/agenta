@@ -8,6 +8,7 @@ version = "0.100.0"
 source = { editable = "." }
 dependencies = [
     { name = "agenta-client" },
+    { name = "boto3" },
     { name = "daytona" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -45,6 +46,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "agenta-client", editable = "../../clients/python" },
+    { name = "boto3", specifier = ">=1,<2" },
     { name = "daytona", specifier = ">=0.176,<0.177" },
     { name = "fastapi", specifier = ">=0.136,<0.137" },
     { name = "httpx", specifier = ">=0.28,<0.29" },

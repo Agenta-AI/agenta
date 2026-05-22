@@ -74,7 +74,7 @@ export const PROVIDER_FIELDS: {
         label: "Access key ID",
         placeholder: "Enter access key ID",
         note: "This secret will be encrypted in transit and at rest.",
-        model: ["bedrock", "sagemaker"],
+        model: ["bedrock", "bedrock_converse", "sagemaker"],
         required: false,
     },
     {
@@ -82,7 +82,7 @@ export const PROVIDER_FIELDS: {
         label: "Secret Access Key",
         placeholder: "Enter secret access key",
         note: "This secret will be encrypted in transit and at rest.",
-        model: ["bedrock", "sagemaker"],
+        model: ["bedrock", "bedrock_converse", "sagemaker"],
         required: false,
     },
     {
@@ -91,6 +91,14 @@ export const PROVIDER_FIELDS: {
         placeholder: "Enter session token",
         note: "This secret will be encrypted in transit and at rest.",
         model: [],
+        required: false,
+    },
+    {
+        key: "roleArn",
+        label: "Role ARN",
+        placeholder: "arn:aws:iam::123456789012:role/my-role",
+        note: "Optional. If set, this role will be assumed before each request.",
+        model: ["bedrock", "bedrock_converse", "sagemaker"],
         required: false,
     },
 ]

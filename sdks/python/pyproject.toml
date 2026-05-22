@@ -29,6 +29,7 @@ dependencies = [
     "fastapi>=0.136,<0.137",
     "pyyaml>=6,<7",
     "litellm>=1,<2",
+    "boto3>=1,<2",
     "openai>=2,<3",
     "jinja2>=3,<4",
     "orjson>=3,<4",
