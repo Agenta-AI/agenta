@@ -184,7 +184,12 @@ export const createInfiniteTableStore = <
     // in createPaginatedEntityStore for why this matters (without
     // preserving the original areEqual fns, params would dedup by
     // reference and break memoization → pagination state loss).
-    const atomFamily = <P, A>(
+    // Constrain `A extends Atom<unknown>` to match `instrumentedAtomFamily`'s
+    // signature so the atom-type generic survives the wrapper. Returning the
+    // erased `…<P, never>` shape (as the earlier version did) collapsed every
+    // `get(family(params))` call to `unknown` — that's the leak the `as never`
+    // casts were papering over.
+    const atomFamily = <P, A extends Atom<unknown>>(
         create: (p: P) => A,
         areEqualOrName?: ((a: P, b: P) => boolean) | string,
         nameArg?: string,
@@ -197,13 +202,13 @@ export const createInfiniteTableStore = <
         } else if (typeof areEqualOrName === "string") {
             resolvedName = areEqualOrName
         }
-        const fam = instrumentedAtomFamily(create as never, {
+        const fam = instrumentedAtomFamily<P, A>(create, {
             name: resolvedName,
             skipRegistry: true,
-            areEqual: resolvedAreEqual as never,
+            areEqual: resolvedAreEqual,
         })
         ownedFamilies.push(fam as unknown as ManagedFamily)
-        return fam as unknown as ReturnType<typeof instrumentedAtomFamily<P, never>>
+        return fam
     }
 
     const tableRowsQueryAtomFamily = atomFamily(

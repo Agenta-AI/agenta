@@ -98,18 +98,23 @@ export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, Api
         readonly name: string
     }
     const ownedFamilies: ManagedFamily[] = []
-    const trackFamily = <P, A>(
+    // Constrain `A extends Atom<unknown>` to match `instrumentedAtomFamily`'s
+    // signature so the atom-type generic survives the wrapper. Returning the
+    // erased `…<P, never>` shape (as the earlier version did) collapsed every
+    // `get(family(params))` call to `unknown` — that's the leak the `as never`
+    // casts were papering over.
+    const trackFamily = <P, A extends Atom<unknown>>(
         create: (p: P) => A,
         name: string,
         areEqual?: (a: P, b: P) => boolean,
     ) => {
-        const fam = instrumentedAtomFamily(create as never, {
+        const fam = instrumentedAtomFamily<P, A>(create, {
             name,
             skipRegistry: true,
-            areEqual: areEqual as never,
+            areEqual,
         })
         ownedFamilies.push(fam as unknown as ManagedFamily)
-        return fam as unknown as ReturnType<typeof instrumentedAtomFamily<P, never>>
+        return fam
     }
 
     const selectionAtomFamily = trackFamily(

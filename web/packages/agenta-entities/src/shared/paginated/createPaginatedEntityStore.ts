@@ -427,7 +427,12 @@ export function createPaginatedEntityStore<
     // reference identity instead of structural equality, so every call
     // would create a fresh atom and break memoization (visible as
     // pagination state being lost between chunks).
-    const atomFamily = <P, A>(
+    // Constrain `A extends Atom<unknown>` to match `instrumentedAtomFamily`'s
+    // signature so the atom-type generic survives the wrapper. Returning the
+    // erased `…<P, never>` shape (as the earlier version did) collapsed every
+    // `get(family(params))` call to `unknown` — that's the leak the `as never`
+    // casts were papering over.
+    const atomFamily = <P, A extends Atom<unknown>>(
         create: (p: P) => A,
         areEqualOrName?: ((a: P, b: P) => boolean) | string,
         nameArg?: string,
@@ -440,13 +445,13 @@ export function createPaginatedEntityStore<
         } else if (typeof areEqualOrName === "string") {
             resolvedName = areEqualOrName
         }
-        const fam = instrumentedAtomFamily(create as never, {
+        const fam = instrumentedAtomFamily<P, A>(create, {
             name: resolvedName,
             skipRegistry: true,
-            areEqual: resolvedAreEqual as never,
+            areEqual: resolvedAreEqual,
         })
         ownedFamilies.push(fam as unknown as ManagedFamily)
-        return fam as unknown as ReturnType<typeof instrumentedAtomFamily<P, never>>
+        return fam
     }
 
     // Rows selector atom family
