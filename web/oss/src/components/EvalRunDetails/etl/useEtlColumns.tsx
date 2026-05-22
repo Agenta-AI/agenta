@@ -53,7 +53,16 @@ export const useEtlColumns = ({
     return useMemo<ColumnsType<PreviewTableRow>>(() => {
         if (!schema || !projectId || !runId) return []
 
-        const grouped = groupRunColumns(schema.steps, schema.mappings)
+        // "metrics"-kind columns are intentionally skipped here. The
+        // scenario table's "Metrics" group is the *static* invocation
+        // metrics (cost / duration / tokens) injected by the
+        // backend-metadata column path — not run-mapping-derived — so that
+        // group is kept on the production path in `Table.tsx` and rendered
+        // by the existing metric cell. Emitting an ETL metrics group too
+        // would duplicate it.
+        const grouped = groupRunColumns(schema.steps, schema.mappings).filter(
+            (g) => g.group.kind !== "metrics",
+        )
 
         return grouped.map((g) => {
             const children = g.columns.map((leaf) => {

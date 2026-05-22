@@ -672,6 +672,10 @@ export interface RunColumnGroup {
  * backend-metadata column path also surfaces — dropping them would
  * silently shrink the visible column set.
  *
+ * Internal dedup keys (column names containing `_dedup_id`, e.g.
+ * `testcase_dedup_id`) are **excluded** — they are not user-facing
+ * columns. The backend-metadata column path drops them too.
+ *
  * Group order: testset → application → evaluator(s) → metrics → other.
  * Within a kind, groups appear in the order their columns first appear in
  * the mapping list (matching `groupResolvedColumns`).
@@ -686,6 +690,8 @@ export function groupRunColumns(steps: RunStep[], mappings: RunMapping[]): RunCo
     mappings.forEach((mapping, idx) => {
         const columnName = mapping.column?.name
         if (typeof columnName !== "string" || !columnName) return
+        // Internal dedup keys are not user-facing columns.
+        if (columnName.includes("_dedup_id")) return
         const step = mapping.step?.key ? (stepByKey.get(mapping.step.key) ?? null) : null
         const path = mapping.step?.path ?? ""
         const group = computeColumnGroup(step, path)

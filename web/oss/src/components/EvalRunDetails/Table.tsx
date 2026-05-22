@@ -131,9 +131,24 @@ const EvalRunDetailsTable = ({
     // Evict molecule caches written for the outgoing run on scope change.
     useScopeChangeEviction({projectId, runId})
 
+    // Production metric-group ids. The scenario table's "Metrics" group is
+    // the static invocation metrics (cost / duration / tokens) — injected
+    // by the backend-metadata path, not run-mapping-derived — so it is kept
+    // as-is rather than replaced by ETL columns.
+    const metricGroupKeys = useMemo(
+        () =>
+            new Set(
+                (columnResult?.groups ?? [])
+                    .filter((g) => g.kind === "metric")
+                    .map((g) => String(g.id)),
+            ),
+        [columnResult?.groups],
+    )
+
     // Final rendered column set: production meta columns (index / status,
-    // timestamp, action) and the column-visibility trigger are kept; the
-    // schema group columns are replaced by the ETL-derived ones. While the
+    // timestamp, action), the column-visibility trigger, and the static
+    // metric group(s) are kept; the testset / application / evaluator /
+    // other schema groups are replaced by the ETL-derived ones. While the
     // run schema is still loading, the production columns are used whole
     // (their skeleton groups cover the gap).
     const tableColumns = useMemo(() => {
@@ -144,24 +159,27 @@ const EvalRunDetailsTable = ({
         for (const col of src) {
             const children = (col as {children?: unknown[]}).children
             const isGroup = Array.isArray(children) && children.length > 0
-            if (isGroup) {
+            const key = String((col as {key?: unknown}).key ?? "")
+            const isMetricGroup = isGroup && metricGroupKeys.has(key)
+            if (isGroup && !isMetricGroup) {
                 if (!inserted) {
                     out.push(...(etlColumns as typeof src))
                     inserted = true
                 }
-                // drop the production schema group column
+                // drop the production schema group column (replaced by ETL)
             } else {
+                // keep: meta / visibility columns AND static metric groups
                 out.push(col)
             }
         }
         if (!inserted) {
-            // No production group columns — insert ETL groups before the
-            // trailing column-visibility trigger.
+            // No replaceable production group columns — insert ETL groups
+            // before the trailing column-visibility trigger.
             const at = Math.max(out.length - 1, 0)
             out.splice(at, 0, ...(etlColumns as typeof src))
         }
         return out
-    }, [previewColumns.columns, etlColumns, runSchema])
+    }, [previewColumns.columns, etlColumns, runSchema, metricGroupKeys])
 
     // Inject synthetic columns for comparison exports (do not render in UI)
     const exportColumns = useMemo(() => {

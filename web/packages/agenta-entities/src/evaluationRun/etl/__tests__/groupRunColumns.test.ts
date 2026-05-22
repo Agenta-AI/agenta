@@ -152,6 +152,24 @@ describe("groupRunColumns — edge cases", () => {
         assert.deepEqual(groupRunColumns([], []), [])
     })
 
+    it("drops internal _dedup_id columns (regression)", () => {
+        const mappings: RunMapping[] = [
+            ...MAPPINGS,
+            {
+                column: {kind: "input", name: "testcase_dedup_id"},
+                step: {key: "input", path: "data.testcase_dedup_id"},
+            },
+        ]
+        const grouped = groupRunColumns(STEPS, mappings)
+        const names = grouped.flatMap((g) => g.columns.map((c) => c.name))
+        assert.equal(names.includes("testcase_dedup_id"), false)
+        // The dedup column is excluded; every other mapped column is kept.
+        assert.equal(
+            grouped.reduce((n, g) => n + g.columns.length, 0),
+            MAPPINGS.length,
+        )
+    })
+
     it("disambiguates two evaluators emitting the same column name", () => {
         const steps: RunStep[] = [
             ...STEPS,
