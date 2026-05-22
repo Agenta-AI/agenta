@@ -19,6 +19,7 @@ import {simpleQueueMolecule, type SimpleQueue} from "@agenta/entities/simpleQueu
 import {
     addAllMatchingTracesToQueue,
     BatchFlushError,
+    DEFAULT_MAX_ITEMS,
     type TracePageFetcher,
 } from "@agenta/entities/simpleQueue/etl"
 import {notification} from "@agenta/ui/app-message"
@@ -28,6 +29,11 @@ import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimit
 
 /** Page throttle — paced below EE's request limit to reduce 429s. */
 const SCAN_PAGE_DELAY_MS = 300
+
+/** Per-run cap on queued trace ids — mirrors the pipeline default. */
+const MAX_ITEMS = DEFAULT_MAX_ITEMS
+/** Pre-formatted cap for toast copy (e.g. "1,000"). */
+const MAX_LABEL = MAX_ITEMS.toLocaleString()
 
 export interface BatchAddRunInput {
     queue: SimpleQueue
@@ -56,6 +62,11 @@ export const useBatchAddTracesToQueue = () => {
         const controller = new AbortController()
         abortRef.current = controller
 
+        // True only while this run still owns the toast key. A run superseded
+        // by a newer run (same queue → same `key`) must stay silent on its
+        // terminal toast, or it clobbers the live counter the new run owns.
+        const isCurrentRun = () => abortRef.current === controller
+
         const cancelBtn = (
             <Button size="small" onClick={() => controller.abort()}>
                 Cancel
@@ -71,7 +82,7 @@ export const useBatchAddTracesToQueue = () => {
             notification.open({
                 key,
                 message: `Queuing traces to "${queueName}"`,
-                description: `Queued ${queued.toLocaleString()} traces so far…`,
+                description: `Queued ${queued.toLocaleString()} of up to ${MAX_LABEL} traces…`,
                 duration: 0,
                 btn: cancelBtn,
             })
@@ -82,8 +93,9 @@ export const useBatchAddTracesToQueue = () => {
                 key,
                 message: "Rate limited — pausing",
                 description:
-                    `Queued ${lastQueued.toLocaleString()} traces so far. The server is ` +
-                    `throttling requests; retrying in ${Math.ceil(delayMs / 1000)}s…`,
+                    `Queued ${lastQueued.toLocaleString()} of up to ${MAX_LABEL} traces. ` +
+                    `The server is throttling requests; retrying in ` +
+                    `${Math.ceil(delayMs / 1000)}s…`,
                 duration: 0,
                 btn: cancelBtn,
             })
@@ -118,6 +130,10 @@ export const useBatchAddTracesToQueue = () => {
                     },
                 })
 
+                // A superseded run resolves as "cancelled" — bail before it
+                // can overwrite the toast the newer run now owns.
+                if (!isCurrentRun()) return
+
                 if (result.stoppedBy === "cancelled") {
                     notification.warning({
                         key,
@@ -138,12 +154,16 @@ export const useBatchAddTracesToQueue = () => {
                     return
                 }
 
-                const capNote = result.stoppedBy === "cap" ? " (scan limit reached)" : ""
+                const capped = result.stoppedBy === "cap"
                 notification.success({
                     key,
                     message: `Queued ${result.queued.toLocaleString()} traces`,
-                    description: `Queued to "${queueName}"${capNote}. They'll appear as the queue processes.`,
-                    duration: 8,
+                    description: capped
+                        ? `Queued to "${queueName}". Hit the ${MAX_LABEL}-trace limit ` +
+                          `for one run — narrow the filter to queue the rest. ` +
+                          `They'll appear as the queue processes.`
+                        : `Queued to "${queueName}". They'll appear as the queue processes.`,
+                    duration: capped ? 10 : 8,
                     btn: viewQueueUrl ? (
                         <Button size="small" type="primary" href={viewQueueUrl}>
                             View queue
@@ -151,6 +171,10 @@ export const useBatchAddTracesToQueue = () => {
                     ) : undefined,
                 })
             } catch (err) {
+                // Stale runs never reach here (an abort resolves, not rejects),
+                // but guard anyway so a superseded run can't surface an error.
+                if (!isCurrentRun()) return
+
                 const retryBtn = (
                     <Button
                         size="small"

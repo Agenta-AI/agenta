@@ -96,8 +96,9 @@ describe("addAllMatchingTracesToQueue", () => {
         expect(progress[progress.length - 1].queued).toBe(2)
     })
 
-    it("stops at the maxTraces cap", async () => {
+    it("stops at the maxItems cap and queues exactly maxItems", async () => {
         let page = 0
+        const flushed: string[][] = []
         const result = await addAllMatchingTracesToQueue({
             // Pages never run out — only the cap stops the scan.
             fetchPage: async () => {
@@ -107,15 +108,42 @@ describe("addAllMatchingTracesToQueue", () => {
                     nextCursor: `c${page}`,
                 }
             },
-            addTraces: async () => "q",
+            addTraces: async (_queueId, ids) => {
+                flushed.push(ids)
+                return "q"
+            },
             queueId: "q",
-            maxTraces: 250,
+            maxItems: 250,
             batchSize: 1000,
             pageDelayMs: 0,
         })
 
         expect(result.stoppedBy).toBe("cap")
+        // The transform's `limit` makes the cap exact — never an overshoot.
+        expect(result.queued).toBe(250)
+        expect(flushed.flat()).toHaveLength(250)
         expect(result.scanned).toBeGreaterThanOrEqual(250)
+    })
+
+    it("reports `done`, not `cap`, when the source exhausts exactly at the cap", async () => {
+        const result = await addAllMatchingTracesToQueue({
+            fetchPage: pagesFetcher([
+                {
+                    rows: Array.from({length: 250}, (_, i) => ({trace_id: `t${i}`})),
+                    nextCursor: null,
+                },
+            ]),
+            addTraces: async () => "q",
+            queueId: "q",
+            maxItems: 250,
+            batchSize: 1000,
+            pageDelayMs: 0,
+        })
+
+        // Everything matching was queued — the limit was reached but nothing
+        // was truncated, so this is a clean completion.
+        expect(result.stoppedBy).toBe("done")
+        expect(result.queued).toBe(250)
     })
 
     it("surfaces a flush failure as BatchFlushError", async () => {

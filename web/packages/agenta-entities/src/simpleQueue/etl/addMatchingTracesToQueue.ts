@@ -69,14 +69,20 @@ export interface AddMatchingTracesOptions {
     pageDelayMs?: number
     /** Trace ids already in the queue — excluded from the add. */
     excludeTraceIds?: ReadonlySet<string>
-    /** Safety ceiling on traces scanned. Default 20 000. */
-    maxTraces?: number
+    /**
+     * Hard cap on unique trace ids queued in one run. The scan stops once
+     * this many matching ids have been collected. Default 1 000.
+     */
+    maxItems?: number
     /** Live progress callback, fired after each page and once at the end. */
     onProgress?: (progress: AddMatchingTracesProgress) => void
 }
 
-/** Safety ceiling on traces scanned in one run. */
-const DEFAULT_MAX_TRACES = 20_000
+/**
+ * Hard cap on unique trace ids queued in one run. Keeps a single batch-add
+ * bounded — to queue more, narrow the filter and run again.
+ */
+export const DEFAULT_MAX_ITEMS = 1_000
 
 /**
  * Scan every trace matching the filter and add them to an annotation queue.
@@ -92,13 +98,16 @@ export const addAllMatchingTracesToQueue = async ({
     batchSize,
     pageDelayMs,
     excludeTraceIds,
-    maxTraces = DEFAULT_MAX_TRACES,
+    maxItems = DEFAULT_MAX_ITEMS,
     onProgress,
 }: AddMatchingTracesOptions): Promise<AddMatchingTracesResult> => {
     const source = makeSourceFromCursorFetch<ScannedTrace>({fetchPage, pageDelayMs})
     const transform = makeUniqueKeyTransform<ScannedTrace>({
         selectKey: (trace) => trace.trace_id,
         exclude: excludeTraceIds,
+        // The transform stops emitting past the cap, so the queued count
+        // never overshoots `maxItems` even on a large final page.
+        limit: maxItems,
     })
     const sinkHandle = makeBufferedBatchSink<string>({
         batchSize,
@@ -135,13 +144,19 @@ export const addAllMatchingTracesToQueue = async ({
             // reconciled from the sink handle after the loop.
             onProgress?.({scanned, queued: step.value.loaded})
 
-            if (scanned >= maxTraces) {
+            // Cap on matched (deduplicated) ids, not rows scanned — the
+            // transform's own `limit` already stops it emitting past the cap,
+            // so this just ends the scan early instead of paging on uselessly.
+            // A `cursor` of null means the source is already exhausted: that
+            // is a clean `done`, not a cap, even if `matched` landed exactly
+            // on the limit.
+            if (step.value.matched >= maxItems && step.value.cursor !== null) {
                 cappedOut = true
                 // Stop the generator — its `finally` runs `sink.finalize`,
                 // flushing the buffered remainder.
                 await gen.return({
                     scanned,
-                    matched: 0,
+                    matched: step.value.matched,
                     loaded: sinkHandle.getFlushedCount(),
                     cursor: null,
                     done: true,

@@ -226,4 +226,37 @@ describe("makeUniqueKeyTransform", () => {
 
         expect(out.items).toEqual(["a"])
     })
+
+    it("caps total emitted keys at the limit, across chunk boundaries", async () => {
+        const transform = makeUniqueKeyTransform<{id: string}>({
+            selectKey: (row) => row.id,
+            limit: 3,
+        })
+
+        const first = await transform({items: [{id: "a"}, {id: "b"}], cursor: "x"})
+        const second = await transform({
+            items: [{id: "c"}, {id: "d"}, {id: "e"}],
+            cursor: null,
+        })
+
+        expect(first.items).toEqual(["a", "b"])
+        // Only "c" fits under the limit of 3 — "d" and "e" are dropped.
+        expect(second.items).toEqual(["c"])
+    })
+
+    it("does not count excluded keys toward the limit", async () => {
+        const transform = makeUniqueKeyTransform<{id: string}>({
+            selectKey: (row) => row.id,
+            exclude: new Set(["a", "b"]),
+            limit: 2,
+        })
+
+        const out = await transform({
+            items: [{id: "a"}, {id: "b"}, {id: "c"}, {id: "d"}, {id: "e"}],
+            cursor: null,
+        })
+
+        // a, b excluded (never emitted, never counted); c, d fill the limit.
+        expect(out.items).toEqual(["c", "d"])
+    })
 })

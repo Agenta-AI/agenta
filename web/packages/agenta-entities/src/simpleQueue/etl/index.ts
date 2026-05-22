@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-export {addAllMatchingTracesToQueue} from "./addMatchingTracesToQueue"
+export {addAllMatchingTracesToQueue, DEFAULT_MAX_ITEMS} from "./addMatchingTracesToQueue"
 export type {
     AddMatchingTracesOptions,
     AddMatchingTracesProgress,
