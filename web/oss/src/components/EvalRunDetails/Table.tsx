@@ -32,6 +32,7 @@ import {useCellMaterialization} from "./etl/useCellMaterialization"
 import {useEtlColumns} from "./etl/useEtlColumns"
 import {useHydrateScenarios} from "./etl/useHydrateScenarios"
 import {useScenarioFilter} from "./etl/useScenarioFilter"
+import {useScenarioLiveUpdates} from "./etl/useScenarioLiveUpdates"
 import {useScopeChangeEviction} from "./etl/useScopeChangeEviction"
 import {
     evaluationPreviewDatasetStore,
@@ -106,6 +107,13 @@ const EvalRunDetailsTable = ({
     const projectId = _projectId ?? effectiveProjectId
 
     const runQuery = useAtomValue(useMemo(() => evaluationRunQueryAtomFamily(runId), [runId]))
+    // Run-level status — drives the live-update loop below. While the run
+    // is non-terminal completed scenarios must refresh; once terminal the
+    // loop stops.
+    const runStatus = useMemo<string | null>(
+        () => runQuery.data?.rawRun?.status ?? runQuery.data?.camelRun?.status ?? null,
+        [runQuery.data],
+    )
     const runSchema = useMemo<RunSchema | null>(() => {
         const data = runQuery.data?.rawRun?.data
         const steps = data?.steps
@@ -182,6 +190,12 @@ const EvalRunDetailsTable = ({
 
     // Evict molecule caches written for the outgoing run on scope change.
     useScopeChangeEviction({projectId, runId})
+
+    // Live updates (T6) — while the run is executing, periodically refetch
+    // the loaded scenario pages (row statuses) and refresh the molecule
+    // caches of running / just-finished scenarios so completed cells leave
+    // the "Running" state. Inert once the run is terminal.
+    useScenarioLiveUpdates({projectId, runId, runStatus, pageSize})
 
     // Production metric-group ids. The scenario table's "Metrics" group is
     // the static invocation metrics (cost / duration / tokens) — injected
