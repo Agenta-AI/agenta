@@ -7,6 +7,7 @@ import { BillingClient } from "./api/resources/billing/client/Client.js";
 import { EnvironmentsClient } from "./api/resources/environments/client/Client.js";
 import { EvaluationsClient } from "./api/resources/evaluations/client/Client.js";
 import { EvaluatorsClient } from "./api/resources/evaluators/client/Client.js";
+import { EventsClient } from "./api/resources/events/client/Client.js";
 import { FoldersClient } from "./api/resources/folders/client/Client.js";
 import { InvocationsClient } from "./api/resources/invocations/client/Client.js";
 import { KeysClient } from "./api/resources/keys/client/Client.js";
@@ -44,6 +45,7 @@ export class AgentaApiClient {
     protected _webhooks: WebhooksClient | undefined;
     protected _legacy: LegacyClient | undefined;
     protected _traces: TracesClient | undefined;
+    protected _events: EventsClient | undefined;
     protected _invocations: InvocationsClient | undefined;
     protected _annotations: AnnotationsClient | undefined;
     protected _testcases: TestcasesClient | undefined;
@@ -95,6 +97,10 @@ export class AgentaApiClient {
 
     public get traces(): TracesClient {
         return (this._traces ??= new TracesClient(this._options));
+    }
+
+    public get events(): EventsClient {
+        return (this._events ??= new EventsClient(this._options));
     }
 
     public get invocations(): InvocationsClient {

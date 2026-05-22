@@ -28,7 +28,7 @@ import {
 import {appIdentifiersAtom, useQueryParamState} from "@/oss/state/appState"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {getProjectValues} from "@/oss/state/project"
-import {recentEvaluatorIdAtom} from "@/oss/state/workflow"
+import {EVALUATOR_FULL_PAGE_NAV_ENABLED, recentEvaluatorIdAtom} from "@/oss/state/workflow"
 
 import {DEFAULT_EVALUATOR_TAB, EVALUATOR_TABS} from "./assets/constants"
 import type {EvaluatorCategory} from "./assets/types"
@@ -265,8 +265,14 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             // json_multi_field_match, …) fall back to the drawer-edit flow —
             // their config is a handful of form fields and the playground
             // page would surface misleading envelope variable inputs.
+            //
+            // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is
+            // off, every row click resolves to the drawer regardless of the
+            // evaluator's classifier (the new flow stays code-complete but
+            // hidden until follow-up fixes land).
             const entity = record.revisionId ? workflowMolecule.get.data(record.revisionId) : null
             const shouldNavigateToFullPage = Boolean(
+                EVALUATOR_FULL_PAGE_NAV_ENABLED &&
                 record.workflowId &&
                 entity &&
                 hasFullPagePlaygroundUX(entity as Parameters<typeof hasFullPagePlaygroundUX>[0]),
