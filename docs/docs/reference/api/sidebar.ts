@@ -2730,18 +2730,6 @@ const sidebar: SidebarsConfig = {
         },
       ],
     },
-    {
-      type: "category",
-      label: "Events",
-      items: [
-        {
-          type: "doc",
-          id: "reference/api/query-events-rpc",
-          label: "Query Events",
-          className: "api-method post",
-        },
-      ],
-    },
   ],
 };
 
