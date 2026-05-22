@@ -20,8 +20,12 @@ export const scenarioFilterAtomFamily = atomFamily((_runId: string) =>
 )
 
 /** A condition is complete once it has a column and a defined, non-empty value. */
-export const isConditionComplete = (c: RowPredicate): boolean =>
-    !!c.columnName && c.value !== undefined && c.value !== ""
+export const isConditionComplete = (c: RowPredicate): boolean => {
+    if (!c.columnName) return false
+    // `in` / `nin` values are arrays — complete once non-empty.
+    if (Array.isArray(c.value)) return c.value.length > 0
+    return c.value !== undefined && c.value !== ""
+}
 
 /**
  * The filter actually evaluated — half-built conditions dropped. Returns

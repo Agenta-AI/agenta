@@ -46,9 +46,12 @@ const OP_LABELS: Record<FilterOperator, string> = {
     nin: "not in",
 }
 
-// Operators offered in the UI. `in` / `nin` are supported by the filter
-// engine but need an array-value input — deferred from this v1 bar.
-const UI_OPERATORS: FilterOperator[] = ["eq", "ne", "lt", "lte", "gt", "gte"]
+// Operators offered in the UI. `in` / `nin` take a list of values (a tag
+// input); the rest take a single value.
+const UI_OPERATORS: FilterOperator[] = ["eq", "ne", "lt", "lte", "gt", "gte", "in", "nin"]
+
+/** True for operators whose value is a list rather than a scalar. */
+const isListOperator = (op: FilterOperator) => op === "in" || op === "nin"
 
 /**
  * v1 column-kind allowlist for filtering. Only metric-related columns
@@ -244,9 +247,19 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
                                 disabled={!field}
                                 options={ops.map((o) => ({value: o, label: OP_LABELS[o]}))}
                                 getPopupContainer={getWithinPopover}
-                                onChange={(op) => updateCondition(index, {op})}
+                                onChange={(op) => {
+                                    // Switching between scalar and list
+                                    // operators changes the value shape —
+                                    // reset it so it stays valid.
+                                    const isList = isListOperator(op)
+                                    const wasList = Array.isArray(condition.value)
+                                    const value =
+                                        isList === wasList ? condition.value : isList ? [] : ""
+                                    updateCondition(index, {op, value})
+                                }}
                             />
                             <ConditionValueInput
+                                op={condition.op}
                                 valueType={valueType}
                                 value={condition.value}
                                 disabled={!field}
@@ -318,18 +331,44 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
     )
 }
 
-/** Value input — shape depends on the field's (best-effort) value type. */
+/** Value input — shape depends on the operator and the field value type. */
 const ConditionValueInput = ({
+    op,
     valueType,
     value,
     disabled,
     onChange,
 }: {
+    op: FilterOperator
     valueType: FilterValueType
     value: unknown
     disabled: boolean
     onChange: (value: unknown) => void
 }) => {
+    // `in` / `nin` — a list of values entered as tags.
+    if (isListOperator(op)) {
+        const tags = Array.isArray(value) ? value.map((v) => String(v)) : []
+        return (
+            <Select
+                mode="tags"
+                className="w-full"
+                placeholder="Add values…"
+                disabled={disabled}
+                value={tags}
+                open={false}
+                suffixIcon={null}
+                tokenSeparators={[","]}
+                getPopupContainer={getWithinPopover}
+                onChange={(vals: string[]) => {
+                    const coerced =
+                        valueType === "number"
+                            ? vals.map(Number).filter((n) => !Number.isNaN(n))
+                            : vals
+                    onChange(coerced)
+                }}
+            />
+        )
+    }
     if (valueType === "boolean") {
         // antd Select option values must be string|number — encode the
         // boolean as a string and decode on change.
