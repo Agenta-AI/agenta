@@ -77,6 +77,7 @@ from oss.src.core.evaluations.types import (
     SimpleQueueSettings,
 )
 from oss.src.core.evaluations.types import CURRENT_VERSION
+from oss.src.core.evaluations.types import EvaluationClosedConflict
 from oss.src.core.tracing.dtos import (
     TracingQuery,
     Filtering,
@@ -1959,20 +1960,26 @@ class EvaluationsService:
             return
         flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
         flags.is_queue = is_queue
-        await self.evaluations_dao.edit_run(
-            project_id=project_id,
-            user_id=user_id,
-            run=EvaluationRunEdit(
-                id=run.id,
-                name=run.name,
-                description=run.description,
-                flags=flags,
-                tags=run.tags,
-                meta=run.meta,
-                status=run.status,
-                data=run.data,
-            ),
-        )
+        try:
+            await self.evaluations_dao.edit_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=EvaluationRunEdit(
+                    id=run.id,
+                    name=run.name,
+                    description=run.description,
+                    flags=flags,
+                    tags=run.tags,
+                    meta=run.meta,
+                    status=run.status,
+                    data=run.data,
+                ),
+            )
+        except EvaluationClosedConflict:
+            # Archiving/unarchiving a default queue is a worklist action allowed
+            # on a closed run, but the closed run rejects content edits. The
+            # derived is_queue flag is best-effort here; it reconciles on reopen.
+            pass
 
     async def archive_queue(
         self,
