@@ -268,12 +268,11 @@ async def add_default_simple_evaluators(
 
     for evaluator in direct_use_evaluators:
         try:
-            # Extract default settings for ground truth keys
+            # Extract runtime defaults from the evaluator settings template.
             settings_values = {
                 setting_name: setting.get("default")
                 for setting_name, setting in evaluator.settings_template.items()
-                if setting.get("ground_truth_key") is True
-                and setting.get("default", "")
+                if isinstance(setting, dict) and setting.get("default") is not None
             }
 
             # Generate slug from name

@@ -11,6 +11,8 @@ from .workflow_variant_flags import WorkflowVariantFlags
 
 
 class WorkflowVariant(UniversalBaseModel):
+    workflow_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     workflow_id: typing.Optional[str] = None
     artifact_id: typing.Optional[str] = None
     flags: typing.Optional[WorkflowVariantFlags] = None

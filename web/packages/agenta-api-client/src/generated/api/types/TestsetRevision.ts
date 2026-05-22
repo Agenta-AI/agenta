@@ -3,6 +3,10 @@
 import type * as AgentaApi from "../index.js";
 
 export interface TestsetRevision {
+    testset_variant_slug?: (string | null) | undefined;
+    variant_slug?: (string | null) | undefined;
+    testset_slug?: (string | null) | undefined;
+    artifact_slug?: (string | null) | undefined;
     testset_variant_id?: (string | null) | undefined;
     variant_id?: (string | null) | undefined;
     testset_id?: (string | null) | undefined;
