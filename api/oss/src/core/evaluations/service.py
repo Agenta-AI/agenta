@@ -107,7 +107,7 @@ from oss.src.core.evaluations.utils import (
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from oss.src.core.evaluations.runtime.sources import resolve_queue_source_batches
-from oss.src.core.evaluations.runtime.task_runner import TaskiqEvaluationTaskRunner
+from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 
 
 log = get_module_logger(__name__)

@@ -6,7 +6,7 @@ from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep as SdkEvaluationStep,
     ResolvedSourceItem as SdkResolvedSourceItem,
 )
-from agenta.sdk.evaluations.runtime.source_slice import (
+from agenta.sdk.evaluations.runtime.processor import (
     process_evaluation_source_slice as sdk_process_evaluation_source_slice,
 )
 

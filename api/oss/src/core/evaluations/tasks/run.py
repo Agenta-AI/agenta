@@ -5,7 +5,7 @@ from uuid import UUID
 from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from oss.src.core.evaluations.service import EvaluationsService
-from oss.src.core.evaluations.tasks.source_slice import (
+from oss.src.core.evaluations.tasks.processor import (
     process_evaluation_source_slice,
     process_testset_source_run,
 )

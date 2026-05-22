@@ -11,7 +11,7 @@ Coverage spans the worker dispatch topologies (see
   - batch_testset    (testset -> mock app -> mock auto-evaluator)  -> success
   - batch_invocation (testset -> mock app)                         -> success
   - live_query       (live + query -> evaluator)                   -> stays running
-  - batch_query      (query -> evaluator)                          -> xfail (UEL-029)
+  - batch_query      (query -> evaluator)                          -> xfail
 """
 
 import time
@@ -90,7 +90,7 @@ class TestEvaluationRunFlows:
     def test_live_query_evaluation_stays_running_and_active(self, authed_api):
         # live_query never finalizes via the slice (update_run_status=False); it
         # stays running/active so the scheduler keeps polling. This guards that
-        # the UEL-028 finalization fix does NOT finalize live evals.
+        # the finalization fix does NOT finalize live evals.
         # ARRANGE --------------------------------------------------------------
         query = create_query(authed_api, trace_type="invocation")
         evaluator = create_mock_evaluator(authed_api, key="pass")
@@ -120,7 +120,7 @@ class TestEvaluationRunFlows:
     def test_batch_query_to_evaluator_runs_to_success(self, authed_api):
         # batch_query: query -> evaluator (no app, not live). Resolves traces via
         # the query filter; with no matching traces in the test env it resolves
-        # zero items and still finalizes to success (UEL-029 fix: batch query
+        # zero items and still finalizes to success (batch query
         # runs finalize, unlike live query runs).
         # ARRANGE --------------------------------------------------------------
         query = create_query(authed_api, trace_type="invocation")

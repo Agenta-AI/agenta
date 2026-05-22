@@ -28,13 +28,14 @@ from oss.src.core.evaluations.runtime.planner import (
     planned_cells_to_result_creates,
 )
 from oss.src.core.evaluations.runtime.sources import (
+    SourceResolutionError,
     resolve_direct_source_items,
     resolve_live_query_traces,
     resolve_queue_source_batches,
     resolve_testset_input_specs,
 )
 from oss.src.core.evaluations.runtime.tensor import TensorSliceOperations
-from oss.src.core.evaluations.runtime.task_runner import TaskiqEvaluationTaskRunner
+from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep as SdkEvaluationStep,
@@ -43,7 +44,7 @@ from agenta.sdk.evaluations.runtime.models import (
     WorkflowExecutionRequest,
     WorkflowExecutionResult,
 )
-from agenta.sdk.evaluations.runtime.source_slice import (
+from agenta.sdk.evaluations.runtime.processor import (
     ProcessedScenario as SdkProcessedScenario,
 )
 from agenta.sdk.models.evaluations import EvaluationStatus as SdkEvaluationStatus
@@ -62,7 +63,7 @@ from oss.src.core.evaluations.types import (
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.tracing.dtos import Windowing
 from oss.src.core.evaluations.service import SimpleEvaluationsService
-from oss.src.core.evaluations.tasks import source_slice as source_slice_tasks
+from oss.src.core.evaluations.tasks import processor as source_slice_tasks
 from oss.src.core.evaluations.tasks import run as run_tasks
 
 
@@ -562,6 +563,64 @@ async def test_queue_source_resolver_skips_empty_sources():
     )
 
     assert batches == []
+
+
+@pytest.mark.asyncio
+async def test_queue_source_resolver_empty_query_does_not_fall_through_to_testset():
+    # A query step whose query revision resolves to zero traces is a real empty
+    # batch — it must not fall through to the testset resolver, which should
+    # never be asked about a query-only step.
+    run = _run(
+        steps=[
+            _step(
+                "query-source",
+                "input",
+                references={"query_revision": Reference(id=uuid4())},
+            ),
+        ],
+    )
+    fetch_testset_revision = AsyncMock(
+        return_value=SimpleNamespace(data=SimpleNamespace(testcase_ids=[uuid4()]))
+    )
+
+    batches = await resolve_queue_source_batches(
+        project_id=uuid4(),
+        run=run,
+        queries_service=SimpleNamespace(
+            fetch_query_revision=AsyncMock(
+                return_value=SimpleNamespace(data=SimpleNamespace(trace_ids=[]))
+            )
+        ),
+        testsets_service=SimpleNamespace(fetch_testset_revision=fetch_testset_revision),
+    )
+
+    assert batches == []
+    fetch_testset_revision.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_queue_source_resolver_rejects_step_with_multiple_source_refs():
+    # An input step must carry exactly one recognized source reference.
+    run = _run(
+        steps=[
+            _step(
+                "ambiguous-source",
+                "input",
+                references={
+                    "query_revision": Reference(id=uuid4()),
+                    "testset_revision": Reference(id=uuid4()),
+                },
+            ),
+        ],
+    )
+
+    with pytest.raises(SourceResolutionError):
+        await resolve_queue_source_batches(
+            project_id=uuid4(),
+            run=run,
+            queries_service=SimpleNamespace(fetch_query_revision=AsyncMock()),
+            testsets_service=SimpleNamespace(fetch_testset_revision=AsyncMock()),
+        )
 
 
 @pytest.mark.asyncio

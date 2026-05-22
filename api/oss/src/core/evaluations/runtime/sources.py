@@ -66,7 +66,22 @@ def _extract_ag_data(trace: Any) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+class SourceResolutionError(Exception):
+    """An input step does not carry exactly one recognized source reference."""
+
+    pass
+
+
 class SourceResolver:
+    # The exact reference key this resolver handles. The dispatch loop selects a
+    # resolver by which key the step carries, not by which one happens to return
+    # a non-empty batch.
+    source_reference_key: str = ""
+
+    def applies(self, step: EvaluationRunDataStep) -> bool:
+        refs = step.references or {}
+        return self.source_reference_key in refs
+
     async def resolve(
         self,
         *,
@@ -77,6 +92,8 @@ class SourceResolver:
 
 
 class QueryRevisionTraceResolver(SourceResolver):
+    source_reference_key = "query_revision"
+
     def __init__(self, *, queries_service: Any):
         self.queries_service = queries_service
 
@@ -114,6 +131,8 @@ class QueryRevisionTraceResolver(SourceResolver):
 
 
 class TestsetRevisionTestcaseResolver(SourceResolver):
+    source_reference_key = "testset_revision"
+
     def __init__(self, *, testsets_service: Any):
         self.testsets_service = testsets_service
 
@@ -232,14 +251,28 @@ async def resolve_queue_source_batches(
         if step.type != "input" or not step.key:
             continue
 
-        for resolver in resolvers:
-            batch = await resolver.resolve(
-                project_id=project_id,
-                step=step,
+        # Exactly one recognized source reference per input step. Selecting by
+        # the applicable key (not by first non-empty result) means an empty
+        # result — a query with zero traces — stays an empty batch instead of
+        # falling through to the wrong resolver.
+        applicable = [resolver for resolver in resolvers if resolver.applies(step)]
+
+        if not applicable:
+            continue
+
+        if len(applicable) > 1:
+            raise SourceResolutionError(
+                f"Input step '{step.key}' carries multiple source references "
+                f"({', '.join(r.source_reference_key for r in applicable)}); "
+                "exactly one is allowed."
             )
-            if batch:
-                batches.append(batch)
-                break
+
+        batch = await applicable[0].resolve(
+            project_id=project_id,
+            step=step,
+        )
+        if batch:
+            batches.append(batch)
 
     return batches
 

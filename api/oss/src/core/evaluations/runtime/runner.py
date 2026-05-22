@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
 
-from agenta.sdk.evaluations.runtime.execution import EvaluationTaskRunner
+from agenta.sdk.evaluations.runtime.executor import EvaluationTaskRunner
 
 
 class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):

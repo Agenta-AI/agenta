@@ -47,7 +47,7 @@ from oss.src.core.evaluations.types import (
 
 
 from oss.src.core.evaluations.runtime.sources import resolve_query_source_items
-from oss.src.core.evaluations.tasks.source_slice import process_evaluation_source_slice
+from oss.src.core.evaluations.tasks.processor import process_evaluation_source_slice
 
 
 log = get_module_logger(__name__)

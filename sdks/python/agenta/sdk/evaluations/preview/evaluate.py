@@ -41,7 +41,7 @@ from agenta.sdk.evaluations.metrics import (
     arefresh as acompute_metrics,
 )
 from agenta.sdk.evaluations.runtime.models import EvaluationStep, ResolvedSourceItem
-from agenta.sdk.evaluations.runtime.source_slice import process_evaluation_source_slice
+from agenta.sdk.evaluations.runtime.processor import process_evaluation_source_slice
 from agenta.sdk.evaluations.runtime.adapters import (
     SdkLocalApplicationRunner,
     SdkLocalEvaluatorRunner,

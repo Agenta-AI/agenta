@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agenta.sdk.evaluations.runtime.execution import (
+from agenta.sdk.evaluations.runtime.executor import (
     ResultLogger,
     TraceLoader,
     execute_workflow_batch,
@@ -219,15 +219,42 @@ async def process_evaluation_source_slice(
                     f"Runner for {cell.step_key} returned {len(executions)} "
                     f"execution(s) for {len(batch_cells)} planned cell(s)."
                 )
-                for batch_cell in batch_cells[len(executions) :]:
-                    results[batch_cell.step_key] = await result_logger.log(
-                        ResultLogRequest(
-                            cell=_failed_cell(batch_cell, message=message),
-                            testcase_id=source_item.testcase_id,
-                            error={"message": message},
+                if len(executions) < len(batch_cells):
+                    # Fewer executions than cells: fail the unplanned-for cells so
+                    # the mismatch is visible per cell.
+                    for batch_cell in batch_cells[len(executions) :]:
+                        results[batch_cell.step_key] = await result_logger.log(
+                            ResultLogRequest(
+                                cell=_failed_cell(batch_cell, message=message),
+                                testcase_id=source_item.testcase_id,
+                                error={"message": message},
+                            )
                         )
+                        scenario_auto_results_created = True
+                else:
+                    # More executions than cells: the extras have no cell and were
+                    # dropped by the zip() above. Warn with their summaries so the
+                    # contract violation leaves an audit trail.
+                    extra_executions = executions[len(batch_cells) :]
+                    logger.warning(
+                        message,
+                        step_key=cell.step_key,
+                        planned_cells=len(batch_cells),
+                        returned_executions=len(executions),
+                        dropped_executions=[
+                            {
+                                "trace_id": str(execution.trace_id)
+                                if execution.trace_id
+                                else None,
+                                "span_id": str(execution.span_id)
+                                if execution.span_id
+                                else None,
+                                "status": str(execution.status),
+                                "error": execution.error,
+                            }
+                            for execution in extra_executions
+                        ],
                     )
-                    scenario_auto_results_created = True
 
             idx += len(batch_cells)
 

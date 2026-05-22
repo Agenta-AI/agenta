@@ -5,7 +5,7 @@ import pytest
 
 import agenta.sdk.evaluations.preview.evaluate as preview_evaluate
 import agenta.sdk.evaluations.runtime.adapters as runtime_adapters
-from agenta.sdk.evaluations.runtime.execution import execute_workflow_batch
+from agenta.sdk.evaluations.runtime.executor import execute_workflow_batch
 from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep,
     PlannedCell,
@@ -14,7 +14,7 @@ from agenta.sdk.evaluations.runtime.models import (
     ScenarioBinding,
 )
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
-from agenta.sdk.evaluations.runtime.source_slice import (
+from agenta.sdk.evaluations.runtime.processor import (
     process_evaluation_source_slice,
 )
 from agenta.sdk.evaluations.runtime.topology import classify_steps_topology
@@ -325,6 +325,70 @@ async def test_sdk_source_slice_marks_short_runner_batch_as_error():
             "Runner for evaluator-auto returned 1 execution(s) for 2 planned cell(s)."
         )
     }
+
+
+@pytest.mark.asyncio
+async def test_sdk_source_slice_handles_over_count_runner_batch():
+    # Runner returns more executions than planned cells: the planned cells are
+    # logged from the first executions, the extras have no cell and are dropped
+    # (with a structured warning), and the scenario is flagged as having errors.
+    run_id = uuid4()
+    scenario_id = uuid4()
+    logged = []
+
+    class LongRunner:
+        async def execute_batch(self, requests, semaphore=None):
+            # 3 executions for 2 planned cells (repeats=2).
+            return [
+                WorkflowExecutionResult(
+                    status=EvaluationStatus.SUCCESS,
+                    trace_id=f"trace-{i}",
+                    span_id=f"span-{i}",
+                )
+                for i in range(3)
+            ]
+
+    class Logger:
+        async def log(self, request):
+            logged.append(request)
+            return SimpleNamespace(id=uuid4())
+
+    async def create_scenario(run_id):
+        return SimpleNamespace(id=scenario_id)
+
+    async def refresh_metrics(run_id, scenario_id):
+        return SimpleNamespace(id=uuid4())
+
+    processed = await process_evaluation_source_slice(
+        run_id=run_id,
+        source_items=[
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="testset-main",
+                testcase_id=uuid4(),
+                inputs={"prompt": "hello"},
+            )
+        ],
+        steps=[
+            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=2,
+        create_scenario=create_scenario,
+        result_logger=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": LongRunner()},
+        revisions={"evaluator-auto": {"id": "revision"}},
+    )
+
+    assert processed[0].has_errors is True
+    # Both planned evaluator cells were logged from the first two executions; the
+    # third (extra) execution is dropped, not logged as a cell.
+    evaluator_logs = [
+        entry for entry in logged if entry.cell.step_key == "evaluator-auto"
+    ]
+    assert len(evaluator_logs) == 2
+    assert {entry.cell.repeat_idx for entry in evaluator_logs} == {0, 1}
 
 
 @pytest.mark.asyncio

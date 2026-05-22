@@ -1,12 +1,12 @@
 """
-Default-queue policy + validation (UEL-011, UEL-016).
+Default-queue policy + validation.
 
 A *default* queue (`flags.is_default=True`) is a system-managed worklist tied to
 a run's human evaluators. It must not carry per-user/scenario/step/batch filters,
 must not be demoted to a normal queue, and must not be hard-deleted (archive
 instead). These are enforced in the service layer with typed domain exceptions
 (`DefaultQueueDataInvalid` -> 422, `DefaultQueueDemotionForbidden` /
-`DefaultQueueDeletionForbidden` -> 409) per UEL-016.
+`DefaultQueueDeletionForbidden` -> 409).
 
 These tests drive the `/evaluations/queues/` HTTP surface directly — no worker.
 """
@@ -173,7 +173,7 @@ class TestDefaultQueueDeletionForbidden:
 class TestDefaultQueueUniqueness:
     # At most one ACTIVE default queue per run, enforced by the partial unique
     # index ux_evaluation_queues_default_per_run; create_queue surfaces the
-    # unique violation as an EntityCreationConflict (409). See UEL-030.
+    # unique violation as an EntityCreationConflict (409).
 
     def test_second_default_queue_for_same_run_is_rejected(self, authed_api):
         run_id = _create_run(authed_api)

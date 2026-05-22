@@ -156,7 +156,7 @@ from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
 import oss.src.core.evaluations.tasks.query  # noqa: F401
 import oss.src.core.evaluations.tasks.run  # noqa: F401
-import oss.src.core.evaluations.tasks.source_slice  # noqa: F401
+import oss.src.core.evaluations.tasks.processor  # noqa: F401
 
 print("[STARTUP] About to import agenta SDK")
 _t_ag_import = time.perf_counter()

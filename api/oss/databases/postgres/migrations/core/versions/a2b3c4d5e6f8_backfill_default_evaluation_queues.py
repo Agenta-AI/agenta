@@ -3,6 +3,11 @@
 Revision ID: a2b3c4d5e6f8
 Revises: a1d2e3f4a5b6
 Create Date: 2026-05-15 00:10:00
+
+Backfills source-family flags (`has_traces` / `has_testcases` / `has_queries` /
+`has_testsets`) to match the runtime derivation rule, then mass-creates default
+queues per the runtime policy and recomputes `is_queue`. The query/testset
+recompute keys on exact reference-key presence, not a substring match.
 """
 
 from typing import Sequence, Union
@@ -16,9 +21,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Backfill the newly inferred direct-source flags for existing runs.
-    # `evaluation_runs.data` is a `json` column (not `jsonb`), so cast it to
-    # jsonb before navigating with jsonb operators / jsonb_array_elements.
+    # Backfill source-family flags to match the runtime derivation rule in
+    # dbs/postgres/evaluations/utils.py. `data` is a `json` column, so cast to
+    # jsonb before navigating. Direct sources (`has_traces`/`has_testcases`) come
+    # from the exact step key on a reference-less input; reference-backed sources
+    # (`has_queries`/`has_testsets`) from exact-key presence (JSONB `?`), not a
+    # substring match that would misfire on `query_anchor` / `testset_metadata`.
     op.execute("""
         UPDATE evaluation_runs
         SET flags = COALESCE(flags, '{}'::jsonb)
@@ -36,6 +44,18 @@ def upgrade() -> None:
                     WHERE step ->> 'type' = 'input'
                       AND COALESCE(step -> 'references', '{}'::jsonb) = '{}'::jsonb
                       AND lower(COALESCE(step ->> 'key', '')) IN ('testcases', 'testset-direct')
+                ),
+                'has_queries', EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(COALESCE(data::jsonb -> 'steps', '[]'::jsonb)) AS step
+                    WHERE step ->> 'type' = 'input'
+                      AND COALESCE(step -> 'references', '{}'::jsonb) ? 'query_revision'
+                ),
+                'has_testsets', EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(COALESCE(data::jsonb -> 'steps', '[]'::jsonb)) AS step
+                    WHERE step ->> 'type' = 'input'
+                      AND COALESCE(step -> 'references', '{}'::jsonb) ? 'testset_revision'
                 )
             )
     """)

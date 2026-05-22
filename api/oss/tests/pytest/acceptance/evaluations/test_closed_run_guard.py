@@ -7,7 +7,7 @@ Closing a run (`POST /runs/{id}/close`) locks it: subsequent content mutations
 (`POST /runs/{id}/open`) lifts the lock.
 
 Queue archive/unarchive is intentionally NOT blocked on a closed run — that is a
-worklist action (UEL-012), covered by test_evaluation_flows_modify.py.
+worklist action, covered by test_evaluation_flows_modify.py.
 """
 
 from uuid import uuid4

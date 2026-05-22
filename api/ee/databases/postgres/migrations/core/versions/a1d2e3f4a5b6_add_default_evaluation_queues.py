@@ -4,16 +4,15 @@ Revision ID: a1d2e3f4a5b6
 Revises: b2c3d4e5f7a8
 Create Date: 2026-05-15 00:00:00
 
-NOTE: this migration previously shared the revision id `a1b2c3d4e5f6` with
-`drop_corrupted_metrics_for_some_runs`, so alembic could not resolve it and the
-index below never ran (see UEL-030). Renamed to `a1d2e3f4a5b6`. It is chained
-after the current EE head (`b2c3d4e5f7a8`) so the branch's new migrations form a
-single linear chain on top of EE's head, instead of forking off an older node.
-The EE chain extends past the shared OSS head `e6f7a8b9c0d1` with EE-only
-migrations (`9d3e8f0a1b2c -> a1b2c3d4e5f7 -> b2c3d4e5f7a8`), so the EE copy chains
-after `b2c3d4e5f7a8` while the OSS copy chains after `e6f7a8b9c0d1`. The partial
-unique index is scoped to ACTIVE default queues (`deleted_at IS NULL`) so a
-default queue can be archived and later recreated/unarchived by reconcile.
+Previously shared revision id `a1b2c3d4e5f6` with
+`drop_corrupted_metrics_for_some_runs`, so alembic skipped it and the index
+below never ran. Renamed to `a1d2e3f4a5b6`. The EE chain extends past the shared
+OSS head `e6f7a8b9c0d1` with EE-only migrations
+(`9d3e8f0a1b2c -> a1b2c3d4e5f7 -> b2c3d4e5f7a8`), so this EE copy chains after
+`b2c3d4e5f7a8` while the OSS copy chains after `e6f7a8b9c0d1`.
+
+The partial unique index is scoped to ACTIVE default queues (`deleted_at IS
+NULL`) so a default can be archived then recreated/unarchived by reconcile.
 """
 
 from typing import Sequence, Union

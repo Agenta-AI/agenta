@@ -234,7 +234,7 @@ class TestSimpleQueuesBasics:
     def test_source_backed_queue_with_bare_evaluator_list_is_human_queue(
         self, authed_api
     ):
-        # UEL-021: a source-backed queue created with a bare evaluator list (no
+        # a source-backed queue created with a bare evaluator list (no
         # explicit origin) must default the evaluator to origin="human", so the
         # backing run becomes a real queue (has_human -> is_queue). Before the
         # fix the source builder defaulted to "custom", leaving is_queue=False

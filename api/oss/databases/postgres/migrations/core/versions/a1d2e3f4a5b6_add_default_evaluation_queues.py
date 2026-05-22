@@ -4,14 +4,13 @@ Revision ID: a1d2e3f4a5b6
 Revises: e6f7a8b9c0d1
 Create Date: 2026-05-15 00:00:00
 
-NOTE: this migration previously shared the revision id `a1b2c3d4e5f6` with
-`drop_corrupted_metrics_for_some_runs`, so alembic could not resolve it and the
-index below never ran (see UEL-030). Renamed to `a1d2e3f4a5b6`. It is chained
-after the current head of `main` (`e6f7a8b9c0d1`) so the branch's new migrations
-form a single linear chain on top of main, instead of forking off an older node.
+Previously shared revision id `a1b2c3d4e5f6` with
+`drop_corrupted_metrics_for_some_runs`, so alembic skipped it and the index
+below never ran. Renamed to `a1d2e3f4a5b6` and chained after main's head
+`e6f7a8b9c0d1` to keep the branch a single linear chain.
+
 The partial unique index is scoped to ACTIVE default queues (`deleted_at IS
-NULL`) so a default queue can be archived and later recreated/unarchived by
-reconcile.
+NULL`) so a default can be archived then recreated/unarchived by reconcile.
 """
 
 from typing import Sequence, Union

@@ -1,5 +1,5 @@
 """
-Default-queue reconciliation state machine (UEL-011).
+Default-queue reconciliation state machine.
 
 `_reconcile_default_queue` runs after every create/edit of a run and brings the
 default queue + `run.flags.is_queue` in line with the run graph:

@@ -7,10 +7,10 @@ Uses the deterministic LLM-free `agenta:custom:mock:v0` workflow. See
 
 Covers:
   - re-start a finished batch run -> it re-dispatches and finalizes again
-    (validates UEL-028 Option B: a (re)dispatched run resets to running, then
+    (validates the finalization rule: a (re)dispatched run resets to running, then
     the slice re-finalizes it).
   - archive / unarchive a default queue on a CLOSED run -> both succeed
-    (UEL-012: queue archival is a worklist action, independent of run lock).
+    (queue archival is a worklist action, independent of run lock).
 """
 
 from ._flow_helpers import (
@@ -55,7 +55,7 @@ class TestEvaluationModifyFlows:
         # ----------------------------------------------------------------------
 
         # ASSERT: it re-dispatches and reaches a terminal status again ---------
-        # (UEL-028 Option B: activation resets status=RUNNING, then the slice
+        # (activation resets status=RUNNING, then the slice
         # finalizes it. We assert the end state is terminal again.)
         final = wait_for_run_terminal(authed_api, run_id)
         assert final.json()["run"]["status"] == "success", final.json()["run"]
@@ -63,7 +63,7 @@ class TestEvaluationModifyFlows:
 
     def test_unarchive_and_archive_default_queue_on_closed_run(self, authed_api):
         # A human evaluator makes the run a queue (gets a default queue).
-        # Closing the run reconciles and archives the default queue. UEL-012:
+        # Closing the run reconciles and archives the default queue;
         # archiving/unarchiving a queue must work even on a CLOSED (locked) run,
         # because queue archival is a worklist action, not a content edit.
         # ARRANGE --------------------------------------------------------------
@@ -90,7 +90,7 @@ class TestEvaluationModifyFlows:
         # ----------------------------------------------------------------------
 
         # ACT + ASSERT: mutate the queue on the CLOSED run ---------------------
-        # The UEL-012 regression guard: before the fix these raised
+        # Regression guard: before the fix these raised
         # EvaluationClosedConflict -> HTTP 409. Now the closed run must NOT block
         # queue archival, so neither call returns 409. (The exact archived/active
         # state depends on close-time reconciliation, which is not what this test
