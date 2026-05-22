@@ -490,9 +490,19 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
             }
 
             const evaluator = column.evaluatorId ? evaluatorById.get(column.evaluatorId) : undefined
+            // Match the evaluator's metric definition by the canonical
+            // metric key (e.g. "attributes.ag.data.outputs.score") OR the
+            // bare value key (e.g. "score"). `extractMetrics` keys metrics
+            // by the output-schema property name — the bare key — so a
+            // canonical-key-only match misses and `metricType` falls back
+            // to "string", mis-typing the column (e.g. a boolean output).
             const metricKey = column.metricKey || column.valueKey
             const metricDefinition = evaluator?.metrics.find(
-                (metric) => metric.name === metricKey || metric.path === metricKey,
+                (metric) =>
+                    metric.name === metricKey ||
+                    metric.path === metricKey ||
+                    metric.name === column.valueKey ||
+                    metric.path === column.valueKey,
             )
             const metricType =
                 metricDefinition?.metricType || column.metricType || METRIC_TYPE_FALLBACK

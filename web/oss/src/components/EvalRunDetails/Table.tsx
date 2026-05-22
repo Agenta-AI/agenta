@@ -960,7 +960,6 @@ const EvalRunDetailsTable = ({
                     runId={runId}
                     schema={runSchema}
                     resolveValueType={filterValueTypeResolver}
-                    columnResult={columnResult}
                 />
                 <div className="w-full grow min-h-0 overflow-auto">
                     <InfiniteVirtualTableFeatureShell<TableRowData>
