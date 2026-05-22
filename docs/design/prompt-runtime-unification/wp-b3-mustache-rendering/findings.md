@@ -58,7 +58,7 @@ The core renderer change is sound and well-layered: `render_template(mode="musta
 
 The original scan also surfaced four issues, all now resolved (see Closed Findings): the JSONPath pre-render stage (`{{$...}}`) re-exposed resolved values to the Mustache engine so they were recursively rendered, unlike plain `{{var}}` tags (WPB3-001); a tag-claiming case where a `{{$...}}` that is not valid JSONPath raised rather than rendering as a plain variable (WPB3-002, kept strict by decision); a frontend molecule that silently coerced `mustache -> curly` (WPB3-003); and test-coverage gaps on the riskiest behaviors (WPB3-004).
 
-Update (2026-05-22): WPB3-001..013, 015, 016 are fixed and Closed. One open finding remains, awaiting a user decision: WPB3-014 (no literal-`{{`/escape mechanism in mustache or curly — document-only vs build a `\{{` escape). 270 across the four focused suites pass; ruff clean. No GitHub threads were resolved this pass (per user: resolve none yet).
+Update (2026-05-22): all findings (WPB3-001..017) are fixed and Closed; there are no open findings, and all PR #4393 review threads are resolved. WPB3-014 (escape behavior) was closed via Option 3 — document the per-format reality now (delimiter swap / `{% raw %}` / none for curly; no backslash escape), defer a `\{{` escape pending real demand; full evidence and the tested `\{{` vs `\{\{` result are in `escape-analysis.md`, and the user-facing how-to gained an "Escaping" section. WPB3-017 (frontend `extractTemplateVariables` JSDoc omitted mustache) was fixed. 270 across the four focused suites pass; ruff clean. GitHub: 14 solved-by-content threads resolved (the WPB3-015 RFC cluster `3280747520`/`3280759652`/`3280767036`/`3280770190`/`3280772919`/`3280776786`/`3280781711`/`3280782719`/`3280579226`, the WPB3-016 how-to `3280800719`, and the scope/PR-title threads `3280751193`/`3280761180`/`3280794168`/`3281567723`); the only 3 left unresolved are the escape threads (`3280753760`, `3280788530`, `3280579221`) mapped to the open WPB3-014.
 
 Finding lineage: WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-05-22 re-scan; WPB3-008..011 (doc-only prose fixes — docstring/qa/pre-render-framing/`+++` markers); WPB3-012..013 (P2 cross-format error-contract bugs, fixed with tests); WPB3-014 (escape, OPEN); WPB3-015 (RFC library/deviation/requirement/security consolidation, `langchain_core` recorded as considered-and-rejected); WPB3-016 (draft `_mustache-templates.mdx` how-to). WPB3-008..016 are all from the PR #4393 sync.
 
@@ -84,29 +84,38 @@ Finding lineage: WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-
 
 ## Open Findings
 
-### [OPEN] WPB3-014 — No literal-`{{`/escape mechanism in mustache or curly (escape-behavior spec)
+(none — all findings resolved as of 2026-05-22)
+
+## Closed Findings
+
+### [CLOSED] WPB3-014 — Literal-`{{`/escape behavior (spec gap) — documented; backslash escape deferred
 
 - ID: WPB3-014
 - Origin: sync (PR #4393 — mmabrouk threads `3280753760` rfc.md:25, `3280788530` rfc.md:176; coderabbit `3280579221` research.md:178)
 - Lens: verification
 - Severity: P2
 - Confidence: high
-- Status: needs-user-decision
+- Status: fixed (2026-05-22) — Option 3 (document now, defer backslash escape)
 - Category: Functionality / Completeness (spec gap)
-- Summary: The reviewers asked how a prompt author emits a **literal** `{{name}}` (i.e. an escape mechanism), and whether `\{{` vs `\{\{` and other problematic characters are handled. A runtime probe (2026-05-22) shows there is currently **no escape** in `mustache` or `curly`, and the once-proposed `\{{` backslash mechanism was removed from the WP-B3 docs (commit `687c92498`), so the threads now point at a real, undocumented gap.
-- Probe results (literal `{{name}}` with `{"name": "Ada"}`):
-  - `mustache`: `\{{name}}` → `\Ada` (backslash is literal, tag still expands); `{{{{name}}}}` → `}`; triple `{{{name}}}` → `Ada`. **Standard mustache escape = delimiter swap**: `{{=<% %>=}}{{name}}` → `{{name}}` (works). No backslash escape.
-  - `curly`: `\{{name}}` → `\Ada`; `{{{{name}}}}` → raises `UnresolvedVariablesError`. No escape at all.
-  - `jinja2`: native `{% raw %}{{name}}{% endraw %}` → `{{name}}` (works); `\{{name}}` → `\Ada`. Has a real escape (raw block), the other two do not.
-- Impact: an author cannot reliably output a literal `{{...}}` in `mustache`/`curly` except via the non-obvious mustache delimiter-swap trick; `curly` has no mechanism. Cross-format inconsistency (jinja2 has `{% raw %}`, the others do not).
-- Decision needed (pick one):
-  1. **Document only** — state the supported escapes per format (mustache: delimiter swap `{{=<% %>=}}`; jinja2: `{% raw %}`; curly: none) and declare backslash unsupported. Lowest cost; closes the threads as "by design".
-  2. **Add a `\{{` backslash escape** to mustache (and curly) via shield-before-render. More work; needs its own edge-case spec (double backslash, `\{{`-then-real-tag, `\}}`), which is exactly what coderabbit `3280579221` asked for.
-- Files (if option 2): `sdks/python/agenta/sdk/utils/templating.py`; spec in `research.md` / `rfc.md`.
+- Summary: Reviewers asked how an author emits a **literal** `{{name}}`, whether `\{{` vs `\{\{` is handled, and about other problematic characters. Probes (our three engines + real `langchain_core` 1.2.7) confirmed there is **no backslash escape** anywhere: `\{{name}}` → `\Ada` (tag still expands); `\{\{name}}` suppresses the tag but leaves stray backslashes (not a clean literal). Neither mystace nor langchain/chevron implements a backslash escape; the spec mechanism is the delimiter swap (mustache) / `{% raw %}` (jinja2); curly has none.
+- Decision: **Option 3.** No backslash escape now; the per-format reality is documented. Deferred: a `\{{` escape for curly via shield-and-substitute, gated on real demand (not scheduled). Full evidence + edge-case spec + options in `escape-analysis.md`.
+- Fix applied: added an "Emitting literal `{{ }}` (escaping)" section to `_mustache-templates.mdx` (delimiter swap for mustache, `{% raw %}` for jinja2, none for curly); recorded the decision in `escape-analysis.md`.
+- Files: `docs/docs/prompt-engineering/integrating-prompts/_mustache-templates.mdx`; `docs/design/prompt-runtime-unification/wp-b3-mustache-rendering/escape-analysis.md`.
+- Library finding (answers `3280788530`): `langchain_core.utils.mustache` has zero backslash handling (`grep -c '\\' = 0`); mystace likewise. `\{{` is not a Mustache concept, so there is no reason to prefer `\{{` over `\{\{` — either would be a new non-standard deviation.
 
-(WPB3-001..013 remain resolved — see Closed Findings.)
+### [CLOSED] WPB3-017 — `extractTemplateVariables` JSDoc omitted mustache
 
-## Closed Findings
+- ID: WPB3-017
+- Origin: sync (PR #4393, Copilot thread `3287283407`)
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Consistency (doc/code mismatch, frontend)
+- Summary: `TemplateFormat` (`utils.ts:449`) includes `"mustache"` and `extractTemplateVariables` accepts it (mustache shares the curly/jinja2 `{{...}}` scan), but the JSDoc listed only curly / jinja2 / fstring — misleading about whether mustache is supported here.
+- Fix applied: added a `"mustache": {{variableName}}` line to the JSDoc noting it shares the `{{...}}` extraction path, and updated the inline scan comment to "curly, jinja2, and mustache".
+- Files: `web/packages/agenta-entities/src/runnable/utils.ts` (JSDoc + inline comment).
+- Verification: `@agenta/entities` lint + `types:check` clean.
 
 ### [CLOSED] WPB3-015 — RFC did not consolidate the mystace rationale, deviations, JSONPath requirement, and security stance
 

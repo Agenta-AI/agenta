@@ -85,6 +85,22 @@ HTML is **not** escaped — prompt text is not HTML, so `{{var}}` and `{{{var}}}
 - **Empty placeholders** (`{{}}`, `{{   }}`) — raise a formatting error.
 - **JSON Pointer** (`{{/a/b}}`) — not supported; use a `{{$...}}` JSONPath tag instead.
 
+## Emitting literal `{{ }}` (escaping)
+
+There is no backslash escape — `\{{name}}` renders a literal backslash and still expands the tag. To output a literal `{{...}}` that is **not** treated as a variable, use the standard Mustache delimiter swap: change the delimiters, write the literal text, then change them back.
+
+```text
+{{=<% %>=}}This {{is}} literal.<%={{ }}=%> And this {{renders}}.
+```
+
+`{{=<% %>=}}` switches the delimiters to `<%` / `%>`, so the `{{is}}` in between is emitted verbatim; `<%={{ }}=%>` switches back so `{{renders}}` is a normal variable again.
+
+Per format:
+
+- **mustache**: delimiter swap, as above.
+- **jinja2**: use a raw block — `{% raw %}{{not_a_variable}}{% endraw %}`.
+- **curly**: no escape mechanism; if a prompt must contain literal `{{...}}`, author it in `mustache` or `jinja2`.
+
 ## Choosing a format
 
 | Format | Use it when |
