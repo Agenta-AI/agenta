@@ -100,6 +100,8 @@ See `escape-analysis.md` and `_mustache-templates.mdx` for the full reasoning. I
 
 The backend rejects, with a clear message: partials (`{{>x}}`), empty placeholders (`{{}}` / `{{   }}`), JSON-Pointer tags (`{{/a/b}}`), and NUL bytes. Confirm these errors render usefully in whatever surface invokes rendering (playground run, evaluation), rather than failing silently or with a raw stack trace.
 
+Note an error-message change that is mostly invisible but worth knowing: the "Unreplaced variables in … template" message now names the actual format (e.g. "…in mustache template…") instead of always saying "curly". For curly the wording is unchanged; the new labels appear for mustache/jinja2 when a `{{$...}}` tag fails to resolve. If any frontend code string-matches that message (it shouldn't), the format word is now variable.
+
 ## Integration considerations / boundaries
 
 - **The frontend does not render templates.** Mustache rendering happens in the SDK/backend at invocation time. Don't add a JS mustache renderer for prompt preview unless you deliberately match the backend's three deviations (JSONPath, HTML-escape off, compact-JSON) — divergence will confuse users.

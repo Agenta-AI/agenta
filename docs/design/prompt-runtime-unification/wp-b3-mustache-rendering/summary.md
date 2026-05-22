@@ -16,6 +16,15 @@ This is primarily a backend/SDK package. The frontend changes are the minimal ty
 - **`types.py`** — `PromptTemplate` accepts `mustache` and keeps its public `TemplateFormatError` surface for chat/completion callers.
 - **`rendering.py`** — type-widening only; `render_messages(...)` / `render_json_like(...)` work unchanged once the mode is accepted.
 
+#### Effect on the other renderers (`curly` / `jinja2` / `fstring`)
+
+Adding `mustache` was done by extracting one shared `{{$...}}` JSONPath helper (`_render_with_jsonpath`) rather than a mustache-only path, so the other formats are touched to varying degrees:
+
+- **`curly` — functionally equivalent.** Its output is unchanged: it already resolved `{{$...}}` as inert data, and `resolvers.py` has zero diff. It is now the *reference* behavior the other two `{{ }}` formats match, rather than a special case.
+- **`jinja2` — refactored onto the shared helper, behavior preserved.** `_render_jinja2` no longer renders directly; it routes through `_render_with_jsonpath`, so `{{$...}}` is shielded from Jinja, the engine runs, and resolved values are substituted last as inert data (`{% raw %}` / `{# #}` spans are skipped and left to Jinja). Same rendered output, now sharing curly's JSONPath contract.
+- **`fstring` — untouched.** Still `template.format(**context)`; no JSONPath, no change.
+- **One error-contract change that spans all formats (but is only newly observable for mustache/jinja2).** The `TemplateFormatError` message for unresolved variables now interpolates the actual `template_format` instead of the hardcoded literal `"curly"` (`types.py`, both the chat/completion and structured paths). For **`curly` the wording is identical to before** ("…in curly template…"). What changed is that, after the JSONPath unification, an unresolved `{{$...}}` tag can now raise `UnresolvedVariablesError` from **mustache** and **jinja2** too — so the interpolation is what keeps *their* error message correctly labeled (previously they would have been mislabeled "curly"). `fstring` never raises this error (it uses `str.format`, surfacing `KeyError`), so for fstring the branch is dormant — the change applies to it in principle but is not currently triggerable.
+
 ### Engine config (`sdks/python/agenta/sdk/engines/running/`)
 
 - **`interfaces.py`** — the mustache default lands here for **all three workflow types**:
