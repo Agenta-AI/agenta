@@ -116,8 +116,6 @@ export interface UseScenarioFilterResult<TRow extends FilterableRow> {
     filteredBaseRows: TRow[]
     /** Rows confirmed (hydrated AND matching) to satisfy the filter. */
     confirmedMatchCount: number
-    /** True while the fill loop is still scanning with zero confirmed matches. */
-    isScanning: boolean
 }
 
 export function useScenarioFilter<TRow extends FilterableRow>({
@@ -189,14 +187,11 @@ export function useScenarioFilter<TRow extends FilterableRow>({
         loadNextPage()
     }, [active, hasMore, isFetching, confirmedMatchCount, loadNextPage])
 
-    const isScanning = active && confirmedMatchCount === 0 && hasMore
-
     return {
         rawFilter,
         effectiveFilter,
         active,
         filteredBaseRows,
         confirmedMatchCount,
-        isScanning,
     }
 }

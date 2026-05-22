@@ -129,7 +129,7 @@ const EvalRunDetailsTable = ({
 
     // Phase 2 — multi-predicate filtering (D8). Filters the base run's
     // rows; each comparison group follows its base row.
-    const {filteredBaseRows, effectiveFilter, isScanning} = useScenarioFilter({
+    const {filteredBaseRows, effectiveFilter, active, confirmedMatchCount} = useScenarioFilter({
         projectId,
         runId,
         schema: runSchema,
@@ -144,7 +144,7 @@ const EvalRunDetailsTable = ({
     // Page-level hydrate — predicate-aware: with an active filter it
     // fetches the entity slices the filter needs to be evaluated; with no
     // filter it is inert and cells materialize their own visible data.
-    useHydrateScenarios({
+    const hydration = useHydrateScenarios({
         projectId,
         runId,
         rows: basePagination.rows,
@@ -152,6 +152,16 @@ const EvalRunDetailsTable = ({
         predicate: effectiveFilter,
         sliceMode: "auto",
     })
+
+    // "Scanning" — a filter is active, nothing has confirmed-matched yet,
+    // and the pipeline is still working (pages to load OR a hydrate batch
+    // in flight). Gating on `isHydrating` too (not just `hasMore`) is what
+    // stops the table flickering between the empty state and partially
+    // hydrated rows while it gathers data.
+    const isScanning =
+        active &&
+        confirmedMatchCount === 0 &&
+        (basePagination.paginationInfo.hasMore || hydration.isHydrating)
 
     // Cell-side lazy materializer — coalesces visible cells' slice
     // requests into one bulk fetch per (slice, run).
