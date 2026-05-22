@@ -44,4 +44,30 @@ describe("extractPromptTemplateContext — mustache", () => {
         const {templateFormat} = extractPromptTemplateContext([{messages: []}])
         expect(templateFormat).toBe("curly")
     })
+
+    // Mustache treats {{ name }} and {{name}} as equivalent (whitespace inside the
+    // delimiters is ignored), so token extraction must match spaced tags too.
+    it("extracts mustache tokens with inner whitespace ({{ name }})", () => {
+        const {tokens} = extractPromptTemplateContext([
+            {
+                template_format: "mustache",
+                messages: [
+                    {role: "system", content: "Judge {{ question }} now."},
+                    {role: "user", content: "A: {{answer}} / {{  question  }}"},
+                ],
+            },
+        ])
+        // spaced and unspaced forms resolve to the same identifier and de-dupe
+        expect(new Set(tokens)).toEqual(new Set(["question", "answer"]))
+    })
+
+    it("extracts curly tokens with inner whitespace too", () => {
+        const {tokens} = extractPromptTemplateContext([
+            {
+                template_format: "curly",
+                messages: [{role: "user", content: "{{ name }} and {{ city }}"}],
+            },
+        ])
+        expect(new Set(tokens)).toEqual(new Set(["name", "city"]))
+    })
 })

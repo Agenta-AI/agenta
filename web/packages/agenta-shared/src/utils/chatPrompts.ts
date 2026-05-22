@@ -44,10 +44,10 @@ export function normalizeEnhancedMessages(configMessages: unknown[]): SimpleChat
 function extractVariablesFromText(text: string, format: TemplateFormat): string[] {
     const patterns: Record<TemplateFormat, RegExp> = {
         // mustache shares curly's {{name}} delimiters for plain variables.
-        mustache: /\{\{(\w+)\}\}/g,
-        curly: /\{\{(\w+)\}\}/g,
+        mustache: /\{\{\s*(\w+)\s*\}\}/g,
+        curly: /\{\{\s*(\w+)\s*\}\}/g,
         fstring: /\{(\w+)\}/g,
-        jinja2: /\{\{(\w+)\}\}/g,
+        jinja2: /\{\{\s*(\w+)\s*\}\}/g,
     }
     const regex = patterns[format]
     const vars = new Set<string>()
