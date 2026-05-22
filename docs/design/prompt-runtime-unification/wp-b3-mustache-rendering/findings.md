@@ -58,7 +58,9 @@ The core renderer change is sound and well-layered: `render_template(mode="musta
 
 The original scan also surfaced four issues, all now resolved (see Closed Findings): the JSONPath pre-render stage (`{{$...}}`) re-exposed resolved values to the Mustache engine so they were recursively rendered, unlike plain `{{var}}` tags (WPB3-001); a tag-claiming case where a `{{$...}}` that is not valid JSONPath raised rather than rendering as a plain variable (WPB3-002, kept strict by decision); a frontend molecule that silently coerced `mustache -> curly` (WPB3-003); and test-coverage gaps on the riskiest behaviors (WPB3-004).
 
-Update (2026-05-22): all thirteen findings are fixed and Closed; there are no open findings. The final PR #4393 review pass added two P2 cross-format error-contract bugs surfaced by the JSONPath unification, both now fixed with tests: WPB3-012 (the shared `_render_with_jsonpath` raised the mustache-named `MustacheTemplateError` on a NUL byte even on the jinja2 path → now a mode-agnostic `ValueError`, mapped to `MustacheTemplateError` only in the mustache entrypoint) and WPB3-013 (`_format_with_template` and the structured-render path reported mustache/jinja2 `{{$...}}` failures as a "curly template" error → now interpolate the actual format). 270 across the four focused suites pass; ruff clean. The sync against PR #4393 added four doc-only fixes (the runtime contract was already correct and test-pinned; only prose lagged): WPB3-008 (`render_template` docstring Raises mismatch), WPB3-009 (`qa.md` missing-var-raises vs permissive), WPB3-010 (whole wp-b3 doc set still framed `{{$...}}` as a "pre-render stage" instead of shield-and-substitute), and WPB3-011 (root `rfc.md` `+++` heading prefixes/separators). (WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-05-22 re-scan; WPB3-008..011 from the PR #4393 sync.)
+Update (2026-05-22): WPB3-001..013, 015, 016 are fixed and Closed. One open finding remains, awaiting a user decision: WPB3-014 (no literal-`{{`/escape mechanism in mustache or curly — document-only vs build a `\{{` escape). 270 across the four focused suites pass; ruff clean. No GitHub threads were resolved this pass (per user: resolve none yet).
+
+Finding lineage: WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-05-22 re-scan; WPB3-008..011 (doc-only prose fixes — docstring/qa/pre-render-framing/`+++` markers); WPB3-012..013 (P2 cross-format error-contract bugs, fixed with tests); WPB3-014 (escape, OPEN); WPB3-015 (RFC library/deviation/requirement/security consolidation, `langchain_core` recorded as considered-and-rejected); WPB3-016 (draft `_mustache-templates.mdx` how-to). WPB3-008..016 are all from the PR #4393 sync.
 
 - WPB3-004 (test gaps) and WPB3-003 (frontend coercion) fixed (2026-05-21).
 - WPB3-001 + WPB3-002 (JSONPath `{{$...}}` handling) resolved together (2026-05-22) by unifying JSONPath across curly / mustache / jinja2: a shared `_render_with_jsonpath` resolves `{{$...}}` to a value, substitutes it into the rendered output last, and never re-parses it — exactly what `curly` already did, now extended to mustache and jinja2. Failure handling also matches `curly` (`UnresolvedVariablesError` for both missing and malformed `{{$...}}`). The interim `MUSTACHE_RENDER_ORDER` switch and `MustacheInvalidJsonPathError` were removed. Context-provenance analysis confirmed no OS-secret/env-var leak is possible (the render context is explicitly and narrowly constructed); the issue was the chain-of-replacement ordering surprise, now removed. Cross-format parity is pinned by `test_jsonpath_parity_across_formats` / `test_jsonpath_failure_parity_across_formats`.
@@ -82,9 +84,57 @@ Update (2026-05-22): all thirteen findings are fixed and Closed; there are no op
 
 ## Open Findings
 
-(none — all findings resolved as of 2026-05-22)
+### [OPEN] WPB3-014 — No literal-`{{`/escape mechanism in mustache or curly (escape-behavior spec)
+
+- ID: WPB3-014
+- Origin: sync (PR #4393 — mmabrouk threads `3280753760` rfc.md:25, `3280788530` rfc.md:176; coderabbit `3280579221` research.md:178)
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: needs-user-decision
+- Category: Functionality / Completeness (spec gap)
+- Summary: The reviewers asked how a prompt author emits a **literal** `{{name}}` (i.e. an escape mechanism), and whether `\{{` vs `\{\{` and other problematic characters are handled. A runtime probe (2026-05-22) shows there is currently **no escape** in `mustache` or `curly`, and the once-proposed `\{{` backslash mechanism was removed from the WP-B3 docs (commit `687c92498`), so the threads now point at a real, undocumented gap.
+- Probe results (literal `{{name}}` with `{"name": "Ada"}`):
+  - `mustache`: `\{{name}}` → `\Ada` (backslash is literal, tag still expands); `{{{{name}}}}` → `}`; triple `{{{name}}}` → `Ada`. **Standard mustache escape = delimiter swap**: `{{=<% %>=}}{{name}}` → `{{name}}` (works). No backslash escape.
+  - `curly`: `\{{name}}` → `\Ada`; `{{{{name}}}}` → raises `UnresolvedVariablesError`. No escape at all.
+  - `jinja2`: native `{% raw %}{{name}}{% endraw %}` → `{{name}}` (works); `\{{name}}` → `\Ada`. Has a real escape (raw block), the other two do not.
+- Impact: an author cannot reliably output a literal `{{...}}` in `mustache`/`curly` except via the non-obvious mustache delimiter-swap trick; `curly` has no mechanism. Cross-format inconsistency (jinja2 has `{% raw %}`, the others do not).
+- Decision needed (pick one):
+  1. **Document only** — state the supported escapes per format (mustache: delimiter swap `{{=<% %>=}}`; jinja2: `{% raw %}`; curly: none) and declare backslash unsupported. Lowest cost; closes the threads as "by design".
+  2. **Add a `\{{` backslash escape** to mustache (and curly) via shield-before-render. More work; needs its own edge-case spec (double backslash, `\{{`-then-real-tag, `\}}`), which is exactly what coderabbit `3280579221` asked for.
+- Files (if option 2): `sdks/python/agenta/sdk/utils/templating.py`; spec in `research.md` / `rfc.md`.
+
+(WPB3-001..013 remain resolved — see Closed Findings.)
 
 ## Closed Findings
+
+### [CLOSED] WPB3-015 — RFC did not consolidate the mystace rationale, deviations, JSONPath requirement, and security stance
+
+- ID: WPB3-015
+- Origin: sync (PR #4393 — mmabrouk threads `3280747520` rfc:22, `3280759652` rfc:33, `3280767036` rfc:57, `3280770190` rfc:59, `3280772919` rfc:67, `3280776786` rfc:69, `3280781711` rfc:53, `3280782719` rfc:108; coderabbit `3280579226` rfc:77)
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Completeness (RFC justification)
+- Summary: The reviewers asked the RFC to (a) state the no-JSONPath-regression requirement, (b) explain what `mystace` gives for free vs what is rejected, and the security risks, (c) back the library claim with evidence rather than assertion, (d) state the "follow mustache to the letter" principle and any deviations, and (e) drop `langchain_core`. The data existed in `research.md` and the closed findings but `rfc.md` did not pull it together; mmabrouk's comments were pinned to pre-rewrite line numbers (langchain_core was already removed from the docs in commit `687c92498`).
+- Fix applied: expanded `## Dependency Choice` in `rfc.md` to (1) summarize the `mystace` vs `chevron` benchmark and explicitly record `langchain_core` as considered-and-rejected (heavy/fast-moving, no JSONPath/JSON Pointer); (2) add `### Mustache Conformance and Deviations` stating the follow-to-the-letter principle and the three intentional deviations (`{{$...}}`, HTML-escape off, compact-JSON coercion); (3) add `### JSONPath Compatibility Requirement` (no regression vs curly, pinned by the parity tests); (4) add `### Security` (narrow context, no env/secret leak, never-re-parse removes cross-field echo).
+- Files: `docs/design/prompt-runtime-unification/wp-b3-mustache-rendering/rfc.md` (`## Dependency Choice` and new subsections).
+- Note: scope-acknowledgement threads (`3280751193` compact=JSON, `3280761180` frontend out of scope, `3280794168` judge-switch out of scope) and the PR-title thread (`3281567723`) are satisfied by current content/Non-Goals; left unresolved on GitHub pending user reply (no replies posted this pass).
+
+### [CLOSED] WPB3-016 — No user-facing how-to for the mustache template format
+
+- ID: WPB3-016
+- Origin: sync (PR #4393, mmabrouk thread `3280800719` rfc:214)
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Documentation
+- Summary: mmabrouk asked for a draft how-to (`_`-prefixed mdx) explaining how to use the format, modeled on the LangChain prompt-template-format guide.
+- Fix applied: added `docs/docs/prompt-engineering/integrating-prompts/_mustache-templates.mdx` (draft, `_`-prefixed so it is excluded from the sidebar build) covering variables, sections, `{{$...}}` JSONPath (inert-data / never-re-parsed), value coercion, unsupported features (partials / empty placeholders / JSON Pointer), and a format-choice table. Links the LangChain guide as further reading.
+- Files: `docs/docs/prompt-engineering/integrating-prompts/_mustache-templates.mdx` (new).
+- Note: escape behavior is intentionally omitted from the how-to pending the WPB3-014 decision.
 
 ### [CLOSED] WPB3-012 — `_render_with_jsonpath` raised a mustache-named error on the jinja2 path (NUL byte)
 
