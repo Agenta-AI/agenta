@@ -42,7 +42,12 @@
 import type {Chunk, Transform} from "../../etl/core/types"
 
 import type {HydratedScenarioRow, HydratableScenario} from "./hydrateScenariosTransform"
-import {resolveMappings, type ColumnGroup, type RunSchema} from "./resolveMappings"
+import {
+    resolveMappings,
+    type ColumnGroup,
+    type ResolvedColumn,
+    type RunSchema,
+} from "./resolveMappings"
 
 /**
  * One value-comparison clause against a single resolved column.
@@ -186,6 +191,134 @@ export function makeRowPredicateFilter<TScenario extends HydratableScenario>(
             }
         }
 
+        return {...chunk, items: passing}
+    }
+}
+
+// ============================================================================
+// Multi-predicate AND/OR composition (Phase 2 / T4 — decision D8)
+//
+// `RowPredicate` above is a single clause. A `PredicateGroup` joins several
+// clauses with ONE boolean operator. v1 is intentionally FLAT — `conditions`
+// are leaf predicates, not nested groups. That covers the real cases
+// ("score > 0.8 AND exact_match == true", "country in ['US','CA']") without
+// an arbitrary-tree filter UI. Nested groups can come later if needed.
+// ============================================================================
+
+/**
+ * A flat group of predicates joined by a single boolean operator.
+ *
+ * One nesting level only: `conditions` are leaf `RowPredicate`s.
+ *
+ * An **empty** group (`conditions: []`) is treated as *no constraint* —
+ * every row passes, regardless of `op`. An empty filter shows all rows.
+ */
+export interface PredicateGroup {
+    op: "and" | "or"
+    conditions: RowPredicate[]
+}
+
+/** A filter is either a single predicate or a flat AND/OR group. */
+export type RowFilter = RowPredicate | PredicateGroup
+
+/** Narrow a `RowFilter` to a `PredicateGroup`. */
+export function isPredicateGroup(filter: RowFilter): filter is PredicateGroup {
+    return Array.isArray((filter as PredicateGroup).conditions)
+}
+
+/** Find the resolved column a predicate targets (by kind + optional slug + name). */
+function findTargetColumn(
+    cols: ResolvedColumn[],
+    predicate: RowPredicate,
+): ResolvedColumn | undefined {
+    return cols.find((c) => {
+        if (c.group.kind !== predicate.groupKind) return false
+        if (predicate.groupSlug != null && c.group.slug !== predicate.groupSlug) return false
+        return c.name === predicate.columnName
+    })
+}
+
+/**
+ * Evaluate one predicate against a row's already-resolved columns.
+ *
+ * A column the predicate references but the schema doesn't surface, or one
+ * that resolved to no value, compares against `undefined` — same semantics
+ * as `makeRowPredicateFilter` (so `eq`/`lt`/… fail, `ne` passes).
+ *
+ * This is *pure*: it does not know about hydration state. "Keep a row
+ * visible until its slices are hydrated" is a wiring-layer concern — the
+ * caller decides that before calling this.
+ */
+export function evaluateRowPredicate(predicate: RowPredicate, cols: ResolvedColumn[]): boolean {
+    const target = findTargetColumn(cols, predicate)
+    const actual = unwrapStatsForCompare(target?.value)
+    return compare(actual, predicate.op, predicate.value)
+}
+
+/**
+ * Evaluate a flat AND/OR group against a row's resolved columns.
+ *
+ * - `op: "and"` — every condition must match.
+ * - `op: "or"`  — at least one condition must match.
+ * - empty `conditions` — no constraint, the row passes.
+ */
+export function evaluatePredicateGroup(group: PredicateGroup, cols: ResolvedColumn[]): boolean {
+    if (group.conditions.length === 0) return true
+    return group.op === "and"
+        ? group.conditions.every((p) => evaluateRowPredicate(p, cols))
+        : group.conditions.some((p) => evaluateRowPredicate(p, cols))
+}
+
+/** Evaluate any `RowFilter` (single predicate or AND/OR group) against resolved columns. */
+export function evaluateRowFilter(filter: RowFilter, cols: ResolvedColumn[]): boolean {
+    return isPredicateGroup(filter)
+        ? evaluatePredicateGroup(filter, cols)
+        : evaluateRowPredicate(filter, cols)
+}
+
+/**
+ * Convenience: resolve a hydrated row's columns from the run schema, then
+ * evaluate the filter. This is the row-level entry point the scenario
+ * table's `filteredRows` derivation uses.
+ */
+export function matchesRowFilter<TScenario extends HydratableScenario>(
+    filter: RowFilter,
+    schema: RunSchema,
+    row: HydratedScenarioRow<TScenario>,
+): boolean {
+    return evaluateRowFilter(filter, resolveMappings(row, schema))
+}
+
+export interface PredicateGroupFilterOptions {
+    /** The active filter — a single predicate or a flat AND/OR group. */
+    filter: RowFilter
+    /** Run schema (steps + mappings), used to resolve columns per row. */
+    schema: RunSchema
+    /** Optional per-chunk telemetry callback. */
+    onChunkFiltered?: (info: {chunk: number; scanned: number; matched: number}) => void
+}
+
+/**
+ * Build a `Transform` that keeps only rows satisfying a `RowFilter`
+ * (single predicate or AND/OR group). The ETL-pipeline counterpart of the
+ * row-level `matchesRowFilter` — use this for headless / chunked runs.
+ */
+export function makePredicateGroupFilter<TScenario extends HydratableScenario>(
+    options: PredicateGroupFilterOptions,
+): Transform<HydratedScenarioRow<TScenario>, HydratedScenarioRow<TScenario>> {
+    const {filter, schema} = options
+    let chunkIdx = 0
+
+    return async (chunk: Chunk<HydratedScenarioRow<TScenario>>) => {
+        chunkIdx++
+        const passing = chunk.items.filter((row) =>
+            evaluateRowFilter(filter, resolveMappings(row, schema)),
+        )
+        options.onChunkFiltered?.({
+            chunk: chunkIdx,
+            scanned: chunk.items.length,
+            matched: passing.length,
+        })
         return {...chunk, items: passing}
     }
 }

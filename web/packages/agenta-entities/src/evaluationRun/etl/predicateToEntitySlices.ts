@@ -26,7 +26,8 @@
 
 import type {ColumnGroup, RunMapping, RunSchema, RunStep} from "./resolveMappings"
 import {computeColumnGroup} from "./resolveMappings"
-import type {RowPredicate} from "./rowPredicateFilter"
+import type {PredicateGroup, RowPredicate} from "./rowPredicateFilter"
+import {isPredicateGroup} from "./rowPredicateFilter"
 
 export type EntitySlice = "results" | "metrics" | "testcases" | "traces"
 
@@ -132,18 +133,28 @@ function sliceForPredicate(schema: RunSchema, predicate: RowPredicate): EntitySl
 /**
  * Resolve the full set of slices needed across all active predicates.
  *
+ * Accepts a single predicate, a predicate array, or a `PredicateGroup`
+ * (flat AND/OR — decision D8). For a group the slice set is the **union**
+ * of every condition's slices: evaluating either an AND or an OR needs the
+ * data behind every condition, so the boolean operator does not change the
+ * fetch set.
+ *
  * Empty predicate set = no filter active = no predicate-driven fetch
  * required. Caller decides what to do (fetch all for display, or wait
  * for cells to materialize themselves).
  */
 export function predicateToEntitySlices(
     schema: RunSchema | null,
-    predicates: RowPredicate | RowPredicate[] | null | undefined,
+    predicates: RowPredicate | RowPredicate[] | PredicateGroup | null | undefined,
 ): PredicateSliceResult {
     if (!schema || !predicates) {
         return {slices: new Set(), matchedColumns: [], fallbackToAll: false}
     }
-    const list = Array.isArray(predicates) ? predicates : [predicates]
+    const list: RowPredicate[] = Array.isArray(predicates)
+        ? predicates
+        : isPredicateGroup(predicates)
+          ? predicates.conditions
+          : [predicates]
     if (list.length === 0) {
         return {slices: new Set(), matchedColumns: [], fallbackToAll: false}
     }
