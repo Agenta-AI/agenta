@@ -2669,8 +2669,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if queue_dbe is None:
                 return None
 
-            queue_dbe.deleted_at = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            queue_dbe.deleted_at = now
             queue_dbe.deleted_by_id = user_id
+            queue_dbe.updated_at = now
+            queue_dbe.updated_by_id = user_id
             await session.commit()
             return create_dto_from_dbe(DTO=EvaluationQueue, dbe=queue_dbe)
 
