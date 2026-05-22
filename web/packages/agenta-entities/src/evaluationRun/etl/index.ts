@@ -41,6 +41,8 @@ export type {
     ResolveMappingsOptions,
     ColumnGroup,
     ResolvedColumnGroup,
+    RunColumnLeaf,
+    RunColumnGroup,
 } from "./resolveMappings"
 export {
     DEFAULT_STEP_RESOLVERS,
@@ -53,6 +55,7 @@ export {
     resolveMappings,
     computeColumnGroup,
     groupResolvedColumns,
+    groupRunColumns,
 } from "./resolveMappings"
 
 // Molecule-backed cache-aware fetchers — all 4 entity types go through

@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useRef} from "react"
 
+import type {RunSchema} from "@agenta/entities/evaluationRun/etl"
 import {message} from "@agenta/ui/app-message"
 import clsx from "clsx"
 import {useAtomValue, useStore} from "jotai"
@@ -19,11 +20,17 @@ import {
 import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
 
 import {MAX_COMPARISON_RUNS, compareRunIdsAtom, getComparisonColor} from "./atoms/compare"
+import {effectiveProjectIdAtom} from "./atoms/run"
 import {runDisplayNameAtomFamily} from "./atoms/runDerived"
 import type {EvaluationTableColumn} from "./atoms/table"
-import {DEFAULT_SCENARIO_PAGE_SIZE} from "./atoms/table"
+import {DEFAULT_SCENARIO_PAGE_SIZE, evaluationRunQueryAtomFamily} from "./atoms/table"
 import type {PreviewTableRow} from "./atoms/tableRows"
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
+import {CellMaterializerContext} from "./etl/cellMaterializerContext"
+import {useCellMaterialization} from "./etl/useCellMaterialization"
+import {useEtlColumns} from "./etl/useEtlColumns"
+import {useHydrateScenarios} from "./etl/useHydrateScenarios"
+import {useScopeChangeEviction} from "./etl/useScopeChangeEviction"
 import {
     evaluationPreviewDatasetStore,
     evaluationPreviewTableStore,
@@ -86,6 +93,75 @@ const EvalRunDetailsTable = ({
     const {columnResult} = usePreviewTableData({runId})
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
+
+    // ── ETL schema columns + self-hydrating cells (Phase 1 — T2 + T3) ──
+    // The schema columns (testset / application / evaluator / metrics /
+    // other) are derived from the run graph and rendered by cells that
+    // resolve from molecule caches. `usePreviewColumns` / `columnResult`
+    // stay alive above for the CSV export path (keyed off `columnResult`
+    // ids) — only the *display* columns swap here.
+    const effectiveProjectId = useAtomValue(effectiveProjectIdAtom)
+    const projectId = _projectId ?? effectiveProjectId
+
+    const runQuery = useAtomValue(useMemo(() => evaluationRunQueryAtomFamily(runId), [runId]))
+    const runSchema = useMemo<RunSchema | null>(() => {
+        const data = runQuery.data?.rawRun?.data
+        const steps = data?.steps
+        const mappings = data?.mappings
+        if (!Array.isArray(steps) || !Array.isArray(mappings)) return null
+        return {steps, mappings}
+    }, [runQuery.data])
+
+    const etlColumns = useEtlColumns({projectId, runId, schema: runSchema})
+
+    // Page-level hydrate — predicate-aware (Phase 2). In Phase 1 (no
+    // predicate) this is inert; cells materialize their own visible data.
+    useHydrateScenarios({
+        projectId,
+        runId,
+        rows: basePagination.rows,
+        schema: runSchema,
+        sliceMode: "auto",
+    })
+
+    // Cell-side lazy materializer — coalesces visible cells' slice
+    // requests into one bulk fetch per (slice, run).
+    const cellMaterializer = useCellMaterialization({projectId, runId})
+
+    // Evict molecule caches written for the outgoing run on scope change.
+    useScopeChangeEviction({projectId, runId})
+
+    // Final rendered column set: production meta columns (index / status,
+    // timestamp, action) and the column-visibility trigger are kept; the
+    // schema group columns are replaced by the ETL-derived ones. While the
+    // run schema is still loading, the production columns are used whole
+    // (their skeleton groups cover the gap).
+    const tableColumns = useMemo(() => {
+        const src = previewColumns.columns
+        if (!runSchema || etlColumns.length === 0) return src
+        const out: typeof src = []
+        let inserted = false
+        for (const col of src) {
+            const children = (col as {children?: unknown[]}).children
+            const isGroup = Array.isArray(children) && children.length > 0
+            if (isGroup) {
+                if (!inserted) {
+                    out.push(...(etlColumns as typeof src))
+                    inserted = true
+                }
+                // drop the production schema group column
+            } else {
+                out.push(col)
+            }
+        }
+        if (!inserted) {
+            // No production group columns — insert ETL groups before the
+            // trailing column-visibility trigger.
+            const at = Math.max(out.length - 1, 0)
+            out.splice(at, 0, ...(etlColumns as typeof src))
+        }
+        return out
+    }, [previewColumns.columns, etlColumns, runSchema])
 
     // Inject synthetic columns for comparison exports (do not render in UI)
     const exportColumns = useMemo(() => {
@@ -828,74 +904,76 @@ const EvalRunDetailsTable = ({
     const hasCompareRuns = compareSlots.some(Boolean)
 
     return (
-        <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
-            <div className="w-full grow min-h-0 overflow-auto">
-                <InfiniteVirtualTableFeatureShell<TableRowData>
-                    datasetStore={evaluationPreviewDatasetStore}
-                    tableScope={tableScope}
-                    store={store}
-                    columns={previewColumns.columns}
-                    rowKey={(record) => record.key}
-                    tableClassName={clsx(
-                        "agenta-scenario-table",
-                        `agenta-scenario-table--row-${rowHeight}`,
-                    )}
-                    resizableColumns
-                    useSettingsDropdown
-                    settingsDropdownMenuItems={rowHeightMenuItems}
-                    columnVisibilityMenuRenderer={(
-                        controls,
-                        close,
-                        {scopeId, onExport, isExporting},
-                    ) => (
-                        <ScenarioColumnVisibilityPopoverContent
-                            controls={controls}
-                            onClose={close}
-                            scopeId={scopeId}
-                            runId={runId}
-                            evaluationType={evaluationType}
-                            onExport={onExport}
-                            isExporting={isExporting}
-                        />
-                    )}
-                    pagination={paginationForShell}
-                    exportOptions={exportOptions}
-                    tableProps={{
-                        rowClassName: (record) =>
-                            clsx("scenario-row", {
-                                "scenario-row--comparison": record.isComparisonRow,
-                            }),
-                        size: "small",
-                        sticky: true,
-                        virtual: true,
-                        bordered: true,
-                        tableLayout: "fixed",
-                        onRow: (record) => {
-                            const backgroundColor = hasCompareRuns
-                                ? getComparisonColor(
-                                      typeof record.compareIndex === "number"
-                                          ? record.compareIndex
-                                          : 0,
-                                  )
-                                : "#fff"
-
-                            return {
-                                onClick: (event) => {
-                                    const target = event.target as HTMLElement | null
-                                    if (target?.closest("[data-ivt-stop-row-click]")) return
-                                    handleRowClick(record as TableRowData)
-                                },
-                                className: clsx({
-                                    "comparison-row": record.isComparisonRow,
+        <CellMaterializerContext.Provider value={cellMaterializer}>
+            <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
+                <div className="w-full grow min-h-0 overflow-auto">
+                    <InfiniteVirtualTableFeatureShell<TableRowData>
+                        datasetStore={evaluationPreviewDatasetStore}
+                        tableScope={tableScope}
+                        store={store}
+                        columns={tableColumns}
+                        rowKey={(record) => record.key}
+                        tableClassName={clsx(
+                            "agenta-scenario-table",
+                            `agenta-scenario-table--row-${rowHeight}`,
+                        )}
+                        resizableColumns
+                        useSettingsDropdown
+                        settingsDropdownMenuItems={rowHeightMenuItems}
+                        columnVisibilityMenuRenderer={(
+                            controls,
+                            close,
+                            {scopeId, onExport, isExporting},
+                        ) => (
+                            <ScenarioColumnVisibilityPopoverContent
+                                controls={controls}
+                                onClose={close}
+                                scopeId={scopeId}
+                                runId={runId}
+                                evaluationType={evaluationType}
+                                onExport={onExport}
+                                isExporting={isExporting}
+                            />
+                        )}
+                        pagination={paginationForShell}
+                        exportOptions={exportOptions}
+                        tableProps={{
+                            rowClassName: (record) =>
+                                clsx("scenario-row", {
+                                    "scenario-row--comparison": record.isComparisonRow,
                                 }),
-                                style: backgroundColor ? {backgroundColor} : undefined,
-                            }
-                        },
-                    }}
-                />
-            </div>
-            <VirtualizedScenarioTableAnnotateDrawer runId={runId} />
-        </section>
+                            size: "small",
+                            sticky: true,
+                            virtual: true,
+                            bordered: true,
+                            tableLayout: "fixed",
+                            onRow: (record) => {
+                                const backgroundColor = hasCompareRuns
+                                    ? getComparisonColor(
+                                          typeof record.compareIndex === "number"
+                                              ? record.compareIndex
+                                              : 0,
+                                      )
+                                    : "#fff"
+
+                                return {
+                                    onClick: (event) => {
+                                        const target = event.target as HTMLElement | null
+                                        if (target?.closest("[data-ivt-stop-row-click]")) return
+                                        handleRowClick(record as TableRowData)
+                                    },
+                                    className: clsx({
+                                        "comparison-row": record.isComparisonRow,
+                                    }),
+                                    style: backgroundColor ? {backgroundColor} : undefined,
+                                }
+                            },
+                        }}
+                    />
+                </div>
+                <VirtualizedScenarioTableAnnotateDrawer runId={runId} />
+            </section>
+        </CellMaterializerContext.Provider>
     )
 }
 
