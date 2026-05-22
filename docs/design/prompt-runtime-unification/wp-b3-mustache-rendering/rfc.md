@@ -6,7 +6,7 @@ WP-B3 adds `mustache` as the fourth prompt template format and makes it the defa
 
 This is a backend runtime package. It extends the renderer foundation from WP-B1 and the structured renderer from WP-B2. It does not redesign evaluator storage, change playground native JSON transport, or force existing apps to migrate away from `curly`.
 
-WP-B3 uses `mystace` for Mustache rendering. Agenta adds one extension around it: tags that start with `{{$` are resolved as JSONPath expressions against the render context before the Mustache render runs. Partials are not supported and must fail clearly.
+WP-B3 uses `mystace` for Mustache rendering. Agenta adds one extension around it: tags that start with `{{$` are shielded from the engine, then resolved as JSONPath expressions against the render context and substituted into the output last, as inert data (never re-parsed). Partials are not supported and must fail clearly.
 
 ## Goals
 

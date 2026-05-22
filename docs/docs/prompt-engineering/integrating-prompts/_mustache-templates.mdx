@@ -75,7 +75,7 @@ Values are stringified at the substitution boundary, matching `curly`:
 | string | unchanged |
 | number / boolean | `str(value)` |
 | `null` / missing | empty text |
-| dict / list | compact JSON (`{"x": 1}`, no extra whitespace) |
+| dict / list | JSON via `json.dumps` (unicode preserved), e.g. `{"x": 1, "y": 2}` |
 
 HTML is **not** escaped — prompt text is not HTML, so `{{var}}` and `{{{var}}}` both emit the raw value. (`{{{var}}}` and `{{&var}}` are the standard Mustache "unescaped" forms; here they behave the same as `{{var}}`.)
 

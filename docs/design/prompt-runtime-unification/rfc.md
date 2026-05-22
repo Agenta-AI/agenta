@@ -121,7 +121,7 @@ Example.
 
 Three substitution formats plus one full templating engine:
 
-* `mustache` — Mustache rendering for new apps. The default for new apps. Tags that start with `{{$` are pre-rendered as JSONPath expressions against the render context, then the resulting template is rendered with a Mustache engine. Ordinary Mustache behavior handles plain tags such as `{{name}}`, dotted names such as `{{profile.name}}`, and standard Mustache sections. Partials are not supported in Agenta runtime and must fail clearly if present. JSON objects and arrays render as compact JSON text when inserted as whole values into a string template.
+* `mustache` — Mustache rendering for new apps. The default for new apps. Tags that start with `{{$` are resolved as JSONPath expressions against the render context and substituted into the rendered output last, as inert data (never re-parsed) — they are shielded from the Mustache engine, not fed back through it. Ordinary Mustache behavior handles plain tags such as `{{name}}`, dotted names such as `{{profile.name}}`, and standard Mustache sections. Partials are not supported in Agenta runtime and must fail clearly if present. JSON objects and arrays render as compact JSON text when inserted as whole values into a string template.
 * `curly` — `{{variable}}` substitution. Deprecated. Same delimiter syntax as `mustache`, but the resolver applies literal-key-first lookup: if a top-level key is literally named `foo.bar`, `{{foo.bar}}` returns that key's value before nested traversal is attempted. This is what keeps old apps that have variables with literal dots in their names working. Not surfaced in the playground for new apps; existing apps keep their declared format.
 * `fstring` — `{variable}` substitution. Supported for backward compatibility. Not recommended for nested JSON because of brace-escaping conflicts. Not extended. We should hide it from the playground.
 * `jinja2` — full sandboxed Jinja2. The format to pick when conditionals, loops, filters, or other logic are required.
@@ -260,7 +260,7 @@ Builds on WP-B1.
 
 Builds on WP-B1.
 
-* Add `mustache` as a new template-format option in the runtime. Semantics: tags that start with `{{$` are pre-rendered as JSONPath expressions; all other tags render through a Mustache engine. Partials are unsupported and fail clearly.
+* Add `mustache` as a new template-format option in the runtime. Semantics: tags that start with `{{$` are resolved as JSONPath expressions and substituted as inert data after rendering (never re-parsed); all other tags render through a Mustache engine. Partials are unsupported and fail clearly.
 * `mustache` becomes the default rendering format for newly created apps / prompt configs. Existing apps continue to use the format they declared.
 * `mustache` is added anywhere prompt rendering is configured: completion/chat prompts and LLM-as-a-judge evaluator prompts.
 
@@ -293,7 +293,7 @@ A nicety on top of WP-F2.
 
 #### WP-D1 — Documentation and SDK examples
 
-* Publish prompt templating docs covering `mustache` (default for new apps), `curly` (legacy compat), `fstring`, and `jinja2`. Spell out the JSONPath pre-render rule for `mustache` and the literal-key-first distinction of `curly`.
+* Publish prompt templating docs covering `mustache` (default for new apps), `curly` (legacy compat), `fstring`, and `jinja2`. Spell out the JSONPath shield-and-substitute rule for `mustache` and the literal-key-first distinction of `curly`.
 * Publish the variable matrix by service and interface.
 * Add SDK / local examples for completion, chat, and LLM-as-a-judge.
 * Document escaping rules, JSON vs. stringified JSON, and JSONPath. Document JSON Pointer only for legacy `curly` semantics if it remains supported there.
@@ -339,7 +339,7 @@ The work packages have a natural order:
 ### Backend runtime
 
 * The low-level rendering helper keeps current `curly` behavior and adds `mustache` support.
-* In `mustache` mode, only tags that start with `{{$` are pre-rendered through JSONPath; other tags render through the Mustache engine.
+* In `mustache` mode, only tags that start with `{{$` are resolved through JSONPath (shielded from the engine and substituted last as inert data); other tags render through the Mustache engine.
 * `curly` preserves literal-key-first behavior on dotted keys.
 * Whole-object insertion renders as compact JSON text in both modes.
 * `fstring` and `jinja2` behavior is preserved.
