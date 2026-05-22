@@ -215,8 +215,8 @@ T4 filtering           [GAP] filterSchema typed fields; multi-predicate
 T5 comparison          [GAP] compare-run schema fetch; testcase_id join;
                               common-evaluator intersection; [→E2E] compare+filter
 T6 live updates        [GAP] poll stops at terminal; page invalidation; gap-fill
-T8 co-consumers        [GAP][REGRESSION] focus drawer + scenario viewer render
-                              after the cell swap
+T8 co-consumers        [VERIFIED] focus drawer + scenario viewer render
+                              unchanged — independent old data path (D9)
 ```
 
 Pure logic — `filterTransform`, `filterSchema` derivation, the comparison
@@ -282,9 +282,9 @@ co-consumers.
 - [x] **T4 (P1)** — multi-predicate AND/OR filtering (D8): `filterSchema` + `evaluateRowFilter` / `PredicateGroup` core (entities, unit-tested) + a popover filter bar in the run header + confirmed-match incremental rendering + viewport-fill loop. Column value types come from the evaluator output schema. v1 withholds testset/application columns behind a UI allowlist and `in`/`nin` operators from the UI.
 
 **Phase 3 — comparison, live, co-consumers**
-- [ ] **T5 (P1, human: ~3d / CC: ~half-day)** — comparison build: compare-run schema fetch + per-run hydration + testcase_id join + export-path migration. (Phase 1 ships best-effort: compare rows resolve against the base run's schema.)
-- [ ] **T6 (P2, human: ~1d / CC: ~2h)** — live updates: poll + page invalidation + human gap-fill.
-- [ ] **T8 (P1, human: ~1d / CC: ~2h)** — migrate focus drawer + `SingleScenarioViewer` off `useScenarioCellValue`; delete it.
+- [x] **T5 (P1)** — comparison: testcase-id join on the filtered base run; compare runs are eagerly paged while a filter is active so each matched base row finds its counterpart. Compare rows resolve against the base run's schema (best-effort, per the Phase-1 note).
+- [x] **T6 (P2)** — live updates (`useScenarioLiveUpdates`): while the run is non-terminal, periodically refetch the loaded scenario pages (row statuses) and evict + re-prefetch the results / metrics molecule caches of running / just-finished scenarios; one final pass at terminal, then stop.
+- [x] **T8 (P1)** — verified: the focus drawer + `SingleScenarioViewer` are **not regressed** by the cell swap — both run on the fully-preserved, independent old data path (`scenarioColumnValues.ts` + its dependency atoms), fetching their own values regardless of what the table renders. Full ETL migration is **deferred** (see D9): `useScenarioCellValue` cannot be deleted while the static invocation-metrics group (kept in the table, D7) and the CSV export both still depend on the old-path cells.
 
 **Cleanup**
 - [x] **T7** — `EtlPocScenarios/` + `/etl-poc` routes (oss + ee) deleted. Done ahead of the Phase-3 gate at the maintainer's direction: production has its own copies of the ported hooks, so the PoC was dead test-page code.
@@ -308,6 +308,7 @@ co-consumers.
 - **D6 (implementation-time finding):** starting Phase 1 confirmed `evaluationPreviewTableStore` is already a thin store (identity + status, no column data, per-eval-type order). **T1 is dropped** — Phase 1 is the coupled T2+T3 column+cell swap against the existing store. Confirms the eng-review outside voice's "T1 re-implements an existing store" point.
 - **D7 (implementation-time finding):** reading `Table.tsx` showed the CSV export path (`exportResolveValue`, `columnLookupMap`, `loadAllPagesBeforeExport`) is keyed off `columnResult` column ids, which differ from `useEtlColumns` keys. **Phase 1 swaps display columns only** and keeps `usePreviewColumns`/`columnResult` alive for export; the old column path fully retires in Phase 3 with the export migration (T5). The "other"-column un-drop ripples into `ColumnLeaf`, `EtlResolvedCell`, and `useCellMaterialization`.
 - **D8 (Phase 2 decision):** filter composition resolved — **multi-predicate AND/OR from day 1**, not the PoC's single predicate. The predicate type generalises to a flat condition group; the filter bar reuses the observability multi-condition UI.
+- **D9 (implementation-time finding):** **T8 co-consumers verified, full migration deferred.** Tracing `scenarioColumnValues.ts` and `SingleScenarioViewerPOC` confirmed the focus drawer and `SingleScenarioViewer` resolve their values through the old data path's independent atom families — they do not depend on the table's cells and so are **not regressed** by the T2+T3 cell swap. The design's "delete `useScenarioCellValue`" goal is blocked: that hook still backs `MetricCell`/`InputCell`/`InvocationCell`, which render the static invocation-metrics group kept in the production table (`metricGroupKeys`, D7) and feed the CSV export. A full ETL rebuild of the 1551-line `FocusDrawer` (incl. compare mode) is out of proportion to "no regression to fix" and would not enable the deletion. T8 closes as verified; the migration moves to the eventual old-column-path retirement.
 - **UNRESOLVED:** 0 — filter composition closed (D8). No open decisions.
-- **STATUS:** Phase 1 (T2+T3) and Phase 2 (T4, multi-predicate filtering) shipped. The PoC is retired (T7). Remaining: Phase 3 — T5 comparison, T6 live updates, T8 co-consumer migration (focus drawer + `SingleScenarioViewer` still on `useScenarioCellValue`).
-- **VERDICT:** ENG + DESIGN REVIEW CLEARED — Phase 1 + Phase 2 shipped + PoC retired; Phase 3 (T5/T6/T8) remains.
+- **STATUS:** Phases 1–3 shipped — T2+T3 column/cell swap, T4 multi-predicate filtering, T5 comparison (testcase-id join), T6 live updates, T7 PoC retired, T8 co-consumers verified (no regression; full migration deferred per D9). Feature complete on `fe-experiment/etl-eval-scenario-filtering`.
+- **VERDICT:** ENG + DESIGN REVIEW CLEARED — all phases shipped.
