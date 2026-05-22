@@ -164,7 +164,7 @@ async def aupsert(
 
         req = await application_workflow.inspect()
 
-        simple_application_flags = SimpleApplicationFlags(**req.flags)
+        simple_application_flags = SimpleApplicationFlags(**(req.flags or {}))
 
         simple_application_data = SimpleApplicationData(
             **(
