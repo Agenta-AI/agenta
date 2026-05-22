@@ -2,14 +2,13 @@
  * ScenarioFilterBar — multi-condition AND/OR filter for the evaluation
  * run scenarios table (decision D8).
  *
- * Follows the observability `Filters` pattern: a compact "Filters" button
- * opens a popover holding the condition rows, so the conditions never
- * take over the page layout. Edits are staged in a draft and committed on
- * "Apply" (so the table is not re-scanned on every keystroke).
+ * Self-contained: given only a `runId` it derives the run schema, the
+ * column value types, and the live scan status from atoms — so it can be
+ * dropped into the run header rather than sitting above the table.
  *
- * Columns come from `buildFilterSchema` (run graph); column value types
- * come from the evaluator output schema via `resolveValueType`, which
- * drives the operator set and the value input.
+ * Follows the observability `Filters` pattern: a compact "Filters" button
+ * opens a popover holding the condition rows. Edits are staged in a draft
+ * and committed on "Apply".
  */
 
 import {useMemo, useState} from "react"
@@ -24,10 +23,17 @@ import {
     type RunSchema,
 } from "@agenta/entities/evaluationRun/etl"
 import {Button, Divider, Input, InputNumber, Popover, Select, Tooltip} from "antd"
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
 
-import {scenarioFilterAtomFamily, isConditionComplete} from "./scenarioFilterState"
+import {evaluationRunQueryAtomFamily, tableColumnsAtomFamily} from "../atoms/table"
+
+import {buildColumnValueTypeResolver} from "./columnValueTypes"
+import {
+    scenarioFilterAtomFamily,
+    isConditionComplete,
+    scenarioFilterStatusAtomFamily,
+} from "./scenarioFilterState"
 
 const OP_LABELS: Record<FilterOperator, string> = {
     eq: "equals",
@@ -79,30 +85,31 @@ const getWithinPopover = (trigger: HTMLElement) =>
 
 export interface ScenarioFilterBarProps {
     runId: string
-    schema: RunSchema | null
-    /** Column value-type resolver, sourced from the evaluator output schema. */
-    resolveValueType: (field: {
-        groupKind: string
-        groupSlug: string | null
-        columnName: string
-    }) => FilterValueType | undefined
-    /** True while the filter scan is still running. */
-    scanning?: boolean
-    /** Confirmed matches found so far. */
-    matchCount?: number
 }
 
-const ScenarioFilterBar = ({
-    runId,
-    schema,
-    resolveValueType,
-    scanning = false,
-    matchCount = 0,
-}: ScenarioFilterBarProps) => {
+const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
     const [applied, setApplied] = useAtom(scenarioFilterAtomFamily(runId))
+    const {matchCount, scanning} = useAtomValue(scenarioFilterStatusAtomFamily(runId))
     const [open, setOpen] = useState(false)
     // Draft conditions edited inside the popover; committed on Apply.
     const [draft, setDraft] = useState<PredicateGroup>(applied)
+
+    // Run schema (steps + mappings) — drives the filterable columns.
+    const runQuery = useAtomValue(useMemo(() => evaluationRunQueryAtomFamily(runId), [runId]))
+    const schema = useMemo<RunSchema | null>(() => {
+        const data = runQuery.data?.rawRun?.data
+        const steps = data?.steps
+        const mappings = data?.mappings
+        if (!Array.isArray(steps) || !Array.isArray(mappings)) return null
+        return {steps, mappings}
+    }, [runQuery.data])
+
+    // Column value types — sourced from the evaluator output schemas.
+    const columnResult = useAtomValue(useMemo(() => tableColumnsAtomFamily(runId), [runId]))
+    const resolveValueType = useMemo(
+        () => buildColumnValueTypeResolver(columnResult),
+        [columnResult],
+    )
 
     const fields = useMemo(
         () =>
@@ -275,7 +282,7 @@ const ScenarioFilterBar = ({
     )
 
     return (
-        <div className="flex items-center gap-2 border-b border-zinc-200 bg-white px-3 py-1.5 text-xs">
+        <div className="inline-flex items-center gap-2 text-xs">
             <Popover
                 open={open}
                 onOpenChange={handleOpenChange}

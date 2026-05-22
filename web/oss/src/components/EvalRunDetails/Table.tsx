@@ -1,9 +1,9 @@
-import {useCallback, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import type {RunSchema} from "@agenta/entities/evaluationRun/etl"
 import {message} from "@agenta/ui/app-message"
 import clsx from "clsx"
-import {useAtomValue, useStore} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
 import {
@@ -27,8 +27,7 @@ import {DEFAULT_SCENARIO_PAGE_SIZE, evaluationRunQueryAtomFamily} from "./atoms/
 import type {PreviewTableRow} from "./atoms/tableRows"
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 import {CellMaterializerContext} from "./etl/cellMaterializerContext"
-import {buildColumnValueTypeResolver} from "./etl/columnValueTypes"
-import ScenarioFilterBar from "./etl/ScenarioFilterBar"
+import {scenarioFilterStatusAtomFamily} from "./etl/scenarioFilterState"
 import {useCellMaterialization} from "./etl/useCellMaterialization"
 import {useEtlColumns} from "./etl/useEtlColumns"
 import {useHydrateScenarios} from "./etl/useHydrateScenarios"
@@ -97,14 +96,6 @@ const EvalRunDetailsTable = ({
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
 
-    // Filter column value types — sourced from the evaluator output
-    // schemas (column `metricType`), so the filter bar offers the right
-    // operators + value input per column.
-    const filterValueTypeResolver = useMemo(
-        () => buildColumnValueTypeResolver(columnResult),
-        [columnResult],
-    )
-
     // ── ETL schema columns + self-hydrating cells (Phase 1 — T2 + T3) ──
     // The schema columns (testset / application / evaluator / metrics /
     // other) are derived from the run graph and rendered by cells that
@@ -161,6 +152,15 @@ const EvalRunDetailsTable = ({
     // overlay. Once the first match lands, rows show and grow (no overlay,
     // no flicker — `filteredBaseRows` only ever grows during a scan).
     const isScanning = scanInProgress && confirmedMatchCount === 0
+
+    // Publish the scan status so the filter bar — which lives in the run
+    // header, a separate part of the tree — can show the match count.
+    const setFilterStatus = useSetAtom(
+        useMemo(() => scenarioFilterStatusAtomFamily(runId), [runId]),
+    )
+    useEffect(() => {
+        setFilterStatus({matchCount: confirmedMatchCount, scanning: scanInProgress})
+    }, [setFilterStatus, confirmedMatchCount, scanInProgress])
 
     // Cell-side lazy materializer — coalesces visible cells' slice
     // requests into one bulk fetch per (slice, run).
@@ -965,13 +965,6 @@ const EvalRunDetailsTable = ({
     return (
         <CellMaterializerContext.Provider value={cellMaterializer}>
             <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
-                <ScenarioFilterBar
-                    runId={runId}
-                    schema={runSchema}
-                    resolveValueType={filterValueTypeResolver}
-                    scanning={scanInProgress}
-                    matchCount={confirmedMatchCount}
-                />
                 <div className="w-full grow min-h-0 overflow-auto">
                     <InfiniteVirtualTableFeatureShell<TableRowData>
                         /*
