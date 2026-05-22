@@ -164,7 +164,18 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
 
     const popoverContent = (
         <div className="flex w-[560px] max-w-[calc(100vw-32px)] flex-col text-xs">
-            <div className="px-1 pb-2 font-medium text-zinc-600">Filter scenarios</div>
+            <div className="flex items-center justify-between gap-3 px-1 pb-2">
+                <span className="font-medium text-zinc-600">Filter scenarios</span>
+                {appliedCount > 0 ? (
+                    <span className="inline-flex items-center gap-1 font-normal text-zinc-500">
+                        {scanning ? <Loader2 size={12} className="animate-spin" /> : null}
+                        <span>
+                            {matchCount} {matchCount === 1 ? "match" : "matches"}
+                            {scanning ? " · scanning…" : ""}
+                        </span>
+                    </span>
+                ) : null}
+            </div>
             <Divider className="!my-0 !mb-2" />
 
             <div className="flex flex-col gap-1.5">
@@ -282,35 +293,28 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
     )
 
     return (
-        <div className="inline-flex items-center gap-2 text-xs">
-            <Popover
-                open={open}
-                onOpenChange={handleOpenChange}
-                trigger="click"
-                placement="bottomLeft"
-                arrow={false}
-                content={popoverContent}
+        <Popover
+            open={open}
+            onOpenChange={handleOpenChange}
+            trigger="click"
+            placement="bottomRight"
+            arrow={false}
+            content={popoverContent}
+        >
+            <Button
+                icon={<FilterIcon size={14} />}
+                aria-label="Filter scenarios"
+                className="inline-flex items-center gap-1"
             >
-                <Button size="small" icon={<FilterIcon size={14} />}>
-                    Filters
-                    {appliedCount > 0 && (
-                        <span className="ml-1 rounded-full bg-zinc-700 px-1.5 text-[10px] font-medium text-white">
-                            {appliedCount}
-                        </span>
-                    )}
-                </Button>
-            </Popover>
-
-            {appliedCount > 0 && (
-                <span className="inline-flex items-center gap-1 text-zinc-500">
-                    {scanning && <Loader2 size={12} className="animate-spin" />}
-                    <span>
-                        {matchCount} {matchCount === 1 ? "match" : "matches"}
-                        {scanning ? " · scanning…" : ""}
-                    </span>
+                <span
+                    className={`rounded-full px-1.5 text-[10px] font-medium ${
+                        appliedCount > 0 ? "bg-zinc-700 text-white" : "bg-zinc-100 text-zinc-500"
+                    }`}
+                >
+                    {appliedCount}
                 </span>
-            )}
-        </div>
+            </Button>
+        </Popover>
     )
 }
 

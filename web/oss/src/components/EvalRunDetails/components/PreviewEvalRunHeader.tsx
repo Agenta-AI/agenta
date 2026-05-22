@@ -176,45 +176,38 @@ const PreviewEvalRunMeta = ({
 
     return (
         <div className={clsx("flex items-center justify-between gap-4 px-4", className)}>
-            <div className="flex min-w-0 items-center gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                    <Typography.Text className="whitespace-nowrap">Evaluations:</Typography.Text>
-                    <div className="flex flex-nowrap gap-2 min-w-0 overflow-x-auto">
-                        {runDescriptors.map((run, index) => {
-                            const isBaseRun = index === 0
-                            const tagColor = getComparisonSolidColor(index)
-                            return (
-                                <EvaluationRunTag
-                                    key={run.id}
-                                    label={run.name}
-                                    compareIndex={index}
-                                    isBaseRun={isBaseRun}
-                                    closable={!isBaseRun}
-                                    closeIcon={
-                                        !isBaseRun ? (
-                                            <XCircleIcon size={14} style={{color: tagColor}} />
-                                        ) : undefined
-                                    }
-                                    onClose={
-                                        !isBaseRun
-                                            ? (event) => {
-                                                  event.preventDefault()
-                                                  setCompareRunIds((prev) =>
-                                                      prev.filter((id) => id !== run.id),
-                                                  )
-                                              }
-                                            : undefined
-                                    }
-                                />
-                            )
-                        })}
-                    </div>
+            <div className="flex min-w-0 items-center gap-2">
+                <Typography.Text className="whitespace-nowrap">Evaluations:</Typography.Text>
+                <div className="flex flex-nowrap gap-2 min-w-0 overflow-x-auto">
+                    {runDescriptors.map((run, index) => {
+                        const isBaseRun = index === 0
+                        const tagColor = getComparisonSolidColor(index)
+                        return (
+                            <EvaluationRunTag
+                                key={run.id}
+                                label={run.name}
+                                compareIndex={index}
+                                isBaseRun={isBaseRun}
+                                closable={!isBaseRun}
+                                closeIcon={
+                                    !isBaseRun ? (
+                                        <XCircleIcon size={14} style={{color: tagColor}} />
+                                    ) : undefined
+                                }
+                                onClose={
+                                    !isBaseRun
+                                        ? (event) => {
+                                              event.preventDefault()
+                                              setCompareRunIds((prev) =>
+                                                  prev.filter((id) => id !== run.id),
+                                              )
+                                          }
+                                        : undefined
+                                }
+                            />
+                        )
+                    })}
                 </div>
-                {activeView === "scenarios" ? (
-                    <div className="shrink-0">
-                        <ScenarioFilterBar runId={runId} />
-                    </div>
-                ) : null}
             </div>
 
             <div className="flex items-center gap-2">
@@ -230,6 +223,7 @@ const PreviewEvalRunMeta = ({
                         </Button>
                     </Tooltip>
                 ) : null}
+                {activeView === "scenarios" ? <ScenarioFilterBar runId={runId} /> : null}
                 <CompareRunsMenu runId={runId} />
             </div>
         </div>
