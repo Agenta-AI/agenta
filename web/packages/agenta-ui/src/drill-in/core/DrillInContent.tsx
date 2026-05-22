@@ -355,38 +355,6 @@ export function DrillInContent({
                 }))
         }
 
-        // Check if string value contains JSON (stringified JSON in native mode)
-        if (typeof value === "string") {
-            try {
-                const parsed = JSON.parse(value)
-                if (Array.isArray(parsed)) {
-                    const parentKey = currentPath[currentPath.length - 1] || ""
-                    const singularName = parentKey.endsWith("s")
-                        ? parentKey.slice(0, -1)
-                        : parentKey || "Item"
-                    const displayName = singularName.charAt(0).toUpperCase() + singularName.slice(1)
-
-                    return parsed.map((item, index) => ({
-                        key: String(index),
-                        name: `${displayName} ${index + 1}`,
-                        value: item,
-                        isColumn: false,
-                    }))
-                } else if (typeof parsed === "object" && parsed !== null) {
-                    return Object.keys(parsed)
-                        .sort()
-                        .map((key) => ({
-                            key,
-                            name: key,
-                            value: parsed[key],
-                            isColumn: false,
-                        }))
-                }
-            } catch {
-                // Not valid JSON, treat as primitive string
-            }
-        }
-
         // Primitive value
         const fieldName = currentPath[currentPath.length - 1] || "value"
         return [{key: fieldName, name: fieldName, value: value, isColumn: false}]
@@ -430,10 +398,15 @@ export function DrillInContent({
     // Check if a value is expandable
     const isExpandable = useCallback(
         (value: unknown): boolean => {
+            if (valueMode === "native") return checkIsExpandable(value)
             const strValue = valueToString(value)
-            return checkIsExpandable(strValue)
+            try {
+                return checkIsExpandable(JSON.parse(strValue))
+            } catch {
+                return false
+            }
         },
-        [valueToString],
+        [valueMode, valueToString],
     )
 
     // Get item count for arrays/objects
@@ -624,7 +597,8 @@ export function DrillInContent({
 
                     // Use locked type if available, otherwise detect from value
                     const dataType: DataType =
-                        lockedFieldTypes[fieldKey] ?? detectDataType(stringValue)
+                        lockedFieldTypes[fieldKey] ??
+                        detectDataType(valueMode === "string" ? stringValue : item.value, valueMode)
                     const isRawMode = rawModeFields[fieldKey] ?? false
                     const isCollapsed = collapsedFields[fieldKey] ?? false
                     const expandable = isExpandable(item.value)

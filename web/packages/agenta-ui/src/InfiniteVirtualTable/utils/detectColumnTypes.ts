@@ -1,4 +1,4 @@
-import {inferLogicalType, tryParseJson} from "@agenta/shared/utils"
+import {inferLogicalType} from "@agenta/shared/utils"
 
 import type {TypePrimitive, RenderHint} from "../../type-chip/TypeChip"
 
@@ -38,11 +38,6 @@ function isToolCallsArray(arr: unknown[]): boolean {
     )
 }
 
-function isStringifiedJson(s: string): boolean {
-    if (s.length < 2 || (s[0] !== "{" && s[0] !== "[")) return false
-    return tryParseJson(s) !== null
-}
-
 function isMarkdownString(s: string): boolean {
     return s.length > 100 || s.includes("\n")
 }
@@ -58,7 +53,6 @@ export function detectColumnTypes(
         let observedHint: ColumnRenderHint | null = null
         let sawAnyValue = false
         let sawAnyString = false
-        let allStringsStringified = true
         let allStringsMarkdown = true
 
         for (const row of rows) {
@@ -66,19 +60,16 @@ export function detectColumnTypes(
             if (v === undefined) continue
             sawAnyValue = true
 
-            // Use the shared logical-type inference so stringified primitives
-            // ("42", "true", "null") and stringified objects/arrays surface as
-            // their underlying type, matching the chip and renderer dispatch.
+            // Use native type inference only. Strings that contain JSON remain
+            // strings; explicit decode flows are responsible for parsing.
             const nextType = inferLogicalType(v) as ColumnTypePrimitive
             let nextHint: ColumnRenderHint | null = null
 
             if (nextType === "json-array") {
-                const arr = Array.isArray(v) ? v : (tryParseJson<unknown[]>(v as string) ?? [])
-                if (isMessagesArray(arr)) nextHint = "messages"
-                else if (isToolCallsArray(arr)) nextHint = "tool-calls"
+                if (Array.isArray(v) && isMessagesArray(v)) nextHint = "messages"
+                else if (Array.isArray(v) && isToolCallsArray(v)) nextHint = "tool-calls"
             } else if (nextType === "string" && typeof v === "string") {
                 sawAnyString = true
-                if (!isStringifiedJson(v)) allStringsStringified = false
                 if (!isMarkdownString(v)) allStringsMarkdown = false
             }
 
@@ -98,8 +89,7 @@ export function detectColumnTypes(
 
         if (sawAnyValue && observedType !== null) {
             if (observedType === "string" && sawAnyString) {
-                if (allStringsStringified) observedHint = "stringified"
-                else if (allStringsMarkdown) observedHint = "markdown"
+                if (allStringsMarkdown) observedHint = "markdown"
             }
             result.set(key, {type: observedType, hint: observedHint})
         }

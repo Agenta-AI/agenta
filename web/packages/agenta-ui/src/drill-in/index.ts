@@ -128,8 +128,6 @@ export {
 } from "./utils"
 export {getViewOptions} from "./utils/getViewOptions"
 export type {ViewMode, ViewOption} from "./utils/getViewOptions"
-export {inferRenderHint} from "./utils/inferRenderHint"
-export type {RenderHint} from "./utils/inferRenderHint"
 
 // ============================================================================
 // FIELD RENDERERS

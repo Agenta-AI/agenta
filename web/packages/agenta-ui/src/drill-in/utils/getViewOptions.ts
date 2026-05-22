@@ -7,8 +7,6 @@ export interface ViewOption {
 
 /**
  * Returns the ordered view-mode options for a value.
- *
- * The long-string threshold intentionally matches inferRenderHint.
  */
 export function getViewOptions(value: unknown, enableFormView = false): ViewOption[] {
     const jsonYaml: ViewOption[] = [

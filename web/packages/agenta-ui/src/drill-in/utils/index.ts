@@ -38,5 +38,3 @@ export {
 } from "./drillInUtils"
 export {getViewOptions} from "./getViewOptions"
 export type {ViewMode, ViewOption} from "./getViewOptions"
-export {inferRenderHint} from "./inferRenderHint"
-export type {RenderHint} from "./inferRenderHint"

@@ -441,57 +441,12 @@ export function DrillInContent({
         if (typeof value === "object") {
             return Object.keys(value)
                 .sort()
-                .map((key) => {
-                    const childValue = (value as Record<string, unknown>)[key]
-                    return {
-                        key,
-                        name: key,
-                        value: childValue,
-                        isColumn: false,
-                        // If child is a string containing JSON, preserve it for Raw mode
-                        originalStringValue:
-                            typeof childValue === "string" ? childValue : undefined,
-                    }
-                })
-        }
-
-        // Check if string value contains JSON (stringified JSON in native mode)
-        if (typeof value === "string") {
-            try {
-                const parsed = JSON.parse(value)
-                if (Array.isArray(parsed)) {
-                    const parentKey = currentPath[currentPath.length - 1] || ""
-                    const singularName = parentKey.endsWith("s")
-                        ? parentKey.slice(0, -1)
-                        : parentKey || "Item"
-                    const displayName = singularName.charAt(0).toUpperCase() + singularName.slice(1)
-
-                    return parsed.map((item, index) => ({
-                        key: String(index),
-                        name: `${displayName} ${index + 1}`,
-                        value: item,
-                        isColumn: false,
-                        // Preserve original string for Raw mode
-                        originalStringValue: typeof item === "string" ? item : JSON.stringify(item),
-                    }))
-                } else if (typeof parsed === "object" && parsed !== null) {
-                    return Object.keys(parsed)
-                        .sort()
-                        .map((key) => ({
-                            key,
-                            name: key,
-                            value: parsed[key],
-                            isColumn: false,
-                            // Preserve original string for Raw mode
-                            originalStringValue:
-                                typeof parsed[key] === "string"
-                                    ? parsed[key]
-                                    : JSON.stringify(parsed[key]),
-                        }))
-                }
-            } catch {
-                // Not valid JSON, treat as primitive string
-            }
+                .map((key) => ({
+                    key,
+                    name: key,
+                    value: (value as Record<string, unknown>)[key],
+                    isColumn: false,
+                }))
         }
 
         // Primitive value
@@ -525,6 +480,12 @@ export function DrillInContent({
     // Check if a value is expandable
     const isExpandable = useCallback(
         (value: unknown): boolean => {
+            if (valueMode === "native") {
+                if (typeof value === "string" || value == null) return false
+                if (Array.isArray(value)) return value.length > 0
+                return typeof value === "object" && Object.keys(value).length > 0
+            }
+
             const strValue = valueToString(value)
             try {
                 const parsed = JSON.parse(strValue)
@@ -538,12 +499,20 @@ export function DrillInContent({
                 return false
             }
         },
-        [valueToString],
+        [valueMode, valueToString],
     )
 
     // Get item count for arrays/objects
     const getItemCount = useCallback(
         (value: unknown): string => {
+            if (valueMode === "native") {
+                if (Array.isArray(value)) return `${value.length} items`
+                if (value && typeof value === "object") {
+                    return `${Object.keys(value).length} properties`
+                }
+                return ""
+            }
+
             const strValue = valueToString(value)
             try {
                 const parsed = JSON.parse(strValue)
@@ -555,7 +524,7 @@ export function DrillInContent({
             }
             return ""
         },
-        [valueToString],
+        [valueMode, valueToString],
     )
 
     const resolveFieldViewModeOptions = useCallback(
@@ -568,12 +537,9 @@ export function DrillInContent({
 
             const options: FieldViewMode[] = []
 
-            // Check if value is structured data (object/array) - either natively or as stringified JSON
+            // Check only native structured data. Strings that contain JSON stay strings.
             const isStructuredData =
-                dataType === "json-object" ||
-                dataType === "json-array" ||
-                dataType === "messages" ||
-                (typeof value === "string" && tryParseStructuredJson(value) !== null)
+                dataType === "json-object" || dataType === "json-array" || dataType === "messages"
 
             // Only show JSON/YAML when value is structured data
             if (isStructuredData) {
@@ -586,14 +552,11 @@ export function DrillInContent({
                 options.push("rendered-json")
             }
 
-            // Show "Raw" option when:
-            // 1. We have an originalStringValue (from auto-parsed stringified JSON), OR
-            // 2. The value itself is a stringified JSON string
+            // Show "Raw" option when legacy string-mode parsing preserved the
+            // original storage string for a nested value.
             const hasOriginalString = !!originalStringValue
-            const isStringifiedJson =
-                typeof value === "string" && tryParseStructuredJson(value) !== null
 
-            if (hasOriginalString || isStringifiedJson) {
+            if (hasOriginalString) {
                 options.push("raw")
             }
 
@@ -815,7 +778,12 @@ export function DrillInContent({
                         const stringValue = valueToString(item.value)
 
                         // Use locked type if available, otherwise detect from value
-                        const dataType = lockedFieldTypes[fieldKey] ?? detectDataType(stringValue)
+                        const dataType =
+                            lockedFieldTypes[fieldKey] ??
+                            detectDataType(
+                                valueMode === "string" ? stringValue : item.value,
+                                valueMode,
+                            )
                         const isRawMode = rawModeFields[fieldKey] ?? false
                         const isCollapsed = collapsedFields[fieldKey] ?? false
                         const expandable = isExpandable(item.value)
@@ -1089,27 +1057,6 @@ function propertyTypeToDataType(propType: PropertyType): DataType {
     }
 }
 
-function tryParseStructuredJson(value: string): unknown | null {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-
-    // Only parse structured JSON (objects/arrays), not plain strings/booleans/numbers.
-    if (
-        !(
-            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-            (trimmed.startsWith("[") && trimmed.endsWith("]"))
-        )
-    ) {
-        return null
-    }
-
-    try {
-        return JSON.parse(trimmed)
-    } catch {
-        return null
-    }
-}
-
 function getDefaultFieldViewMode(value: unknown, availableModes: FieldViewMode[]): FieldViewMode {
     const hasMode = (mode: FieldViewMode) => availableModes.includes(mode)
 
@@ -1130,13 +1077,7 @@ function safeJsonStringify(value: unknown): string {
 }
 
 function toStringifiedJsonLiteral(value: unknown): string {
-    const compactJsonString =
-        typeof value === "string"
-            ? (() => {
-                  const parsed = tryParseStructuredJson(value)
-                  return parsed !== null ? (JSON.stringify(parsed) ?? "null") : value
-              })()
-            : (JSON.stringify(value) ?? "null")
+    const compactJsonString = typeof value === "string" ? value : (JSON.stringify(value) ?? "null")
 
     return JSON.stringify(compactJsonString) ?? '""'
 }
@@ -1199,21 +1140,7 @@ function renderFieldContentByMode({
     dataType,
 }: RenderFieldContentByModeProps) {
     if (selectedViewMode === "json") {
-        // JSON mode - show parsed/formatted JSON
-        // If value is a stringified JSON string, parse it first then format nicely
-        let jsonValue: string
-        if (typeof item.value === "string") {
-            const parsed = tryParseStructuredJson(item.value)
-            if (parsed !== null) {
-                // Value was stringified JSON - show the parsed version formatted
-                jsonValue = safeJsonStringify(parsed)
-            } else {
-                // Plain string - just stringify it
-                jsonValue = safeJsonStringify(item.value)
-            }
-        } else {
-            jsonValue = safeJsonStringify(item.value)
-        }
+        const jsonValue = safeJsonStringify(item.value)
         return (
             <ReadOnlyCodeView
                 editorId={`drill-field-${fieldKey}`}
@@ -1250,16 +1177,11 @@ function renderFieldContentByMode({
     }
 
     if (selectedViewMode === "yaml") {
-        const yamlSource =
-            typeof item.value === "string"
-                ? (tryParseStructuredJson(item.value) ?? item.value)
-                : item.value
-
         let yamlValue = ""
         try {
-            yamlValue = yaml.dump(yamlSource, {lineWidth: 120})
+            yamlValue = yaml.dump(item.value, {lineWidth: 120})
         } catch {
-            yamlValue = String(yamlSource ?? "")
+            yamlValue = String(item.value ?? "")
         }
 
         return (
@@ -1274,10 +1196,10 @@ function renderFieldContentByMode({
     const editorId = `drill-field-${fieldKey}`
     const textValue =
         typeof item.value === "string"
-            ? getTextModeValue(stringValue)
+            ? getTextModeValue(stringValue, valueMode)
             : valueMode === "string"
-              ? getTextModeValue(stringValue)
-              : getTextModeValue(item.originalStringValue ?? stringValue)
+              ? getTextModeValue(stringValue, valueMode)
+              : getTextModeValue(item.originalStringValue ?? stringValue, valueMode)
 
     return (
         <EditorProvider
@@ -1608,7 +1530,7 @@ function renderFieldContent({
     const editorId = `drill-field-${fieldKey}`
     // For null values, use empty string; otherwise get text mode value
     const isNull = dataType === "null" || item.value === null
-    const textValue = isNull ? "" : getTextModeValue(stringValue)
+    const textValue = isNull ? "" : getTextModeValue(stringValue, valueMode)
     return (
         <EditorProvider
             key={`${editorId}-provider`}
@@ -1628,8 +1550,12 @@ function renderFieldContent({
                         // Transitioning from null - store as string directly
                         setValue(fullPath, newValue)
                     } else {
-                        const storageValue = textModeToStorageValue(newValue, stringValue)
-                        setValue(fullPath, valueMode === "string" ? storageValue : storageValue)
+                        const storageValue = textModeToStorageValue(
+                            newValue,
+                            stringValue,
+                            valueMode,
+                        )
+                        setValue(fullPath, storageValue)
                     }
                 }}
                 placeholder={`Enter ${item.name}...`}

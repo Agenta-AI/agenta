@@ -14,7 +14,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 
 import {parseCodeString, toCodeString, type RootDrawerViewMode} from "./codeFormat"
-import type {TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
+import type {TestcaseDataEditorColumn, TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
 import {
     getTestcasePathValue,
     getTestcaseRootItems,
@@ -48,23 +48,41 @@ function FullPayloadCodeEditor({
     onChange,
     format,
     editable,
+    columns,
 }: {
     value: Record<string, unknown>
     onChange?: (next: Record<string, unknown>) => void
     format: "json" | "yaml"
     editable: boolean
+    columns?: TestcaseDataEditorColumn[]
 }) {
-    const displayValue = useMemo(() => toCodeString(value, format), [value, format])
+    // When data columns are provided, scope the JSON/YAML view to just those
+    // columns. The full flattened entity also contains system fields like
+    // `tags`, `flags`, `meta`, `created_at` etc. — surfacing them here lets the
+    // user accidentally overwrite a system record with a primitive (testset
+    // commit then fails zod validation). On change, merge edits back over the
+    // original value so system fields survive.
+    const editableValue = useMemo(() => {
+        if (!columns?.length) return value
+        const subset: Record<string, unknown> = {}
+        for (const column of columns) {
+            subset[column.key] = value[column.key]
+        }
+        return subset
+    }, [columns, value])
+
+    const displayValue = useMemo(() => toCodeString(editableValue, format), [editableValue, format])
     const editorId = `testcase-root-${format}-editor`
 
     const handleChange = useCallback(
         (next: string) => {
             if (!editable || !onChange) return
-            const parsed = parseCodeString<unknown>(next, format, value)
-            if (parsed === value) return
-            onChange(normalizeTestcaseData(parsed as Record<string, unknown>))
+            const parsed = parseCodeString<unknown>(next, format, editableValue)
+            if (parsed === editableValue) return
+            const parsedRecord = normalizeTestcaseData(parsed as Record<string, unknown>)
+            onChange(columns?.length ? {...value, ...parsedRecord} : parsedRecord)
         },
-        [editable, format, onChange, value],
+        [columns, editable, editableValue, format, onChange, value],
     )
 
     if (!editable) {
@@ -201,6 +219,7 @@ export function TestcaseDataEditor({
                     onChange={editable ? onChange : undefined}
                     format={controlledRootViewMode as "json" | "yaml"}
                     editable={editable}
+                    columns={columns}
                 />
             </div>
         )

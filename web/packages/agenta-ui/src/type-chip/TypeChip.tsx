@@ -4,7 +4,7 @@ import {inferLogicalType, type LogicalType} from "@agenta/shared/utils"
 
 export type TypePrimitive = LogicalType
 
-export type RenderHint = "markdown" | "stringified" | "messages" | "tool-calls"
+export type RenderHint = "markdown" | "messages" | "tool-calls"
 
 export type StateChip =
     | "dotted-key"
@@ -45,13 +45,6 @@ const STYLES: Record<
         fg: "#722ed1",
         label: "markdown",
         border: "1px dashed #722ed1",
-        italic: true,
-    },
-    stringified: {
-        bg: "#e6f4ff",
-        fg: "#1677ff",
-        label: "stringified",
-        border: "1px dashed #1677ff",
         italic: true,
     },
     messages: {
@@ -103,9 +96,8 @@ const STYLES: Record<
 
 const AMBIGUOUS_HIDE = new Set<ChipVariant>(["string", "number", "boolean"])
 
-// Delegates to the shared inferLogicalType so the chip matches the drill-in
-// renderer's dispatch: CSV/legacy stringified primitives like "42" / "true"
-// must report as number/boolean, not string.
+// Delegates to shared native-type inference. Strings that contain JSON or
+// primitive literals remain strings; explicit decode flows parse separately.
 const inferVariant = inferLogicalType
 
 if (typeof document !== "undefined" && !document.getElementById("type-chip-badge-keyframes")) {
