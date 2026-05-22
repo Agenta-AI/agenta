@@ -315,6 +315,32 @@ def test_infer_and_propagate_trace_type_by_trace_preserves_input_order():
     assert out[1].attributes["ag"]["type"]["trace"] == TraceType.ANNOTATION.value
 
 
+def test_infer_and_propagate_trace_type_by_trace_treats_empty_links_as_annotation():
+    # A queue annotation on a testcase has no link target, so the frontend sends
+    # links={}, which build_otel_links converts to an empty list []. An explicitly
+    # set (even empty) links list means annotation; only None means invocation.
+    trace_a = "trace-a"
+    trace_b = "trace-b"
+    spans = [
+        _span(span_id="span-a1", span_name="a1", trace_id=trace_a, links=None),
+        _span(span_id="span-b1", span_name="b1", trace_id=trace_b, links=[]),
+    ]
+
+    out = infer_and_propagate_trace_type_by_trace(spans)
+
+    out_idx = {span.span_id: span for span in out}
+    assert out_idx["span-a1"].trace_type == TraceType.INVOCATION
+    assert out_idx["span-b1"].trace_type == TraceType.ANNOTATION
+    assert (
+        out_idx["span-a1"].attributes["ag"]["type"]["trace"]
+        == TraceType.INVOCATION.value
+    )
+    assert (
+        out_idx["span-b1"].attributes["ag"]["type"]["trace"]
+        == TraceType.ANNOTATION.value
+    )
+
+
 def test_trace_map_to_traces_and_back_and_get_span_helpers():
     root = _otel_span_from_flat(_span(span_id=ROOT_UUID, span_name="root"))
     child = _otel_span_from_flat(

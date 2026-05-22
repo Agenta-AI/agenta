@@ -123,7 +123,9 @@ const EDITOR_RESET_CLASSES = [
     "[&_.agenta-editor-wrapper]:!min-h-0",
 ].join(" ")
 
-const DEFAULT_MAX_RENDER_DEPTH = 5
+// Allow deep trace payloads to keep expanding in beautified mode.
+// Guardrails are still provided by collapsible rendering and natural JSON size.
+const DEFAULT_MAX_RENDER_DEPTH = 100
 const DEFAULT_EXPAND_DEPTH = 2
 
 const tryParseJsonString = (value: string): unknown | null => {

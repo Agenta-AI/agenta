@@ -352,7 +352,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["Content-Type"] + get_all_supertokens_cors_headers(),
-    expose_headers=["front-token", "x-ag-support-id", "x-ag-support-ts"],
 )
 
 if ee and is_ee():
@@ -786,7 +785,6 @@ app.include_router(
     router=events.router,
     prefix="/events",
     tags=["Events"],
-    include_in_schema=False,
 )
 
 app.include_router(
