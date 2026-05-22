@@ -4,12 +4,16 @@ import {copyToClipboard} from "@agenta/ui"
 import {
     DrillInContent,
     DrillInRootToolbar,
+    JsonEditorWithLocalState,
     type FieldViewModeOption,
     type PropertyType,
     type RootViewMode,
 } from "@agenta/ui/drill-in"
+import {EditorProvider} from "@agenta/ui/editor"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 
+import {parseCodeString, toCodeString, type RootDrawerViewMode} from "./codeFormat"
 import type {TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
 import {
     getTestcasePathValue,
@@ -39,6 +43,81 @@ const TESTCASE_VIEW_OPTIONS: FieldViewModeOption[] = [
 const getTestcaseViewOptions = (): FieldViewModeOption[] => TESTCASE_VIEW_OPTIONS
 const renderTestcaseTypeChip = (value: unknown) => <TypeChip value={value} />
 
+function FullPayloadCodeEditor({
+    value,
+    onChange,
+    format,
+    editable,
+}: {
+    value: Record<string, unknown>
+    onChange?: (next: Record<string, unknown>) => void
+    format: "json" | "yaml"
+    editable: boolean
+}) {
+    const displayValue = useMemo(() => toCodeString(value, format), [value, format])
+    const editorId = `testcase-root-${format}-editor`
+
+    const handleChange = useCallback(
+        (next: string) => {
+            if (!editable || !onChange) return
+            const parsed = parseCodeString<unknown>(next, format, value)
+            if (parsed === value) return
+            onChange(normalizeTestcaseData(parsed as Record<string, unknown>))
+        },
+        [editable, format, onChange, value],
+    )
+
+    if (!editable) {
+        return (
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 p-4 bg-gray-50 overflow-auto">
+                {displayValue}
+            </pre>
+        )
+    }
+
+    if (format === "json") {
+        return (
+            <div className="p-4">
+                <JsonEditorWithLocalState
+                    editorKey={editorId}
+                    initialValue={displayValue}
+                    onValidChange={handleChange}
+                />
+            </div>
+        )
+    }
+
+    return (
+        <div className="p-4">
+            <EditorProvider
+                key={`${editorId}-provider`}
+                id={editorId}
+                initialValue={displayValue}
+                showToolbar={false}
+                codeOnly
+                language="yaml"
+            >
+                <SharedEditor
+                    id={editorId}
+                    initialValue={displayValue}
+                    value={displayValue}
+                    handleChange={handleChange}
+                    editorType="border"
+                    className="min-h-[200px] overflow-hidden"
+                    disableDebounce
+                    noProvider
+                    editorProps={{
+                        codeOnly: true,
+                        language: "yaml",
+                        showLineNumbers: true,
+                        disableLongText: true,
+                    }}
+                />
+            </EditorProvider>
+        </div>
+    )
+}
+
 export function TestcaseDataEditor({
     value,
     columns,
@@ -56,12 +135,15 @@ export function TestcaseDataEditor({
     onMapToColumn,
     onUnmap,
     getDefaultValueForType,
+    rootViewMode: controlledRootViewMode,
+    collapseSignal: controlledCollapseSignal,
 }: TestcaseDataEditorProps) {
-    const [rootViewMode, setRootViewMode] = useState<RootViewMode>("text")
-    const [collapseSignal, setCollapseSignal] = useState(0)
+    const isRootViewControlled = controlledRootViewMode !== undefined
+    const [uncontrolledRootViewMode, setUncontrolledRootViewMode] = useState<RootViewMode>("text")
+    const [uncontrolledCollapseSignal, setUncontrolledCollapseSignal] = useState(0)
 
     const handleCollapseAll = useCallback(() => {
-        setCollapseSignal((signal) => signal + 1)
+        setUncontrolledCollapseSignal((signal) => signal + 1)
     }, [])
 
     const handleCopy = useCallback(() => {
@@ -99,14 +181,43 @@ export function TestcaseDataEditor({
         [getDefaultValueForType],
     )
 
+    // When controlled by a parent (drawer), the root view drives the body
+    // between Form / JSON / YAML and we render the toolbar in the drawer
+    // header instead of inline. In uncontrolled mode the in-body toolbar
+    // keeps its legacy Text/Markdown/JSON/YAML semantics.
+    const activeRootViewMode: RootDrawerViewMode | RootViewMode = isRootViewControlled
+        ? controlledRootViewMode
+        : uncontrolledRootViewMode
+
+    const isFullPayloadCodeView =
+        isRootViewControlled &&
+        (controlledRootViewMode === "json" || controlledRootViewMode === "yaml")
+
+    if (isFullPayloadCodeView) {
+        return (
+            <div className={className}>
+                <FullPayloadCodeEditor
+                    value={resolvedValue}
+                    onChange={editable ? onChange : undefined}
+                    format={controlledRootViewMode as "json" | "yaml"}
+                    editable={editable}
+                />
+            </div>
+        )
+    }
+
+    const collapseSignal = isRootViewControlled
+        ? (controlledCollapseSignal ?? 0)
+        : uncontrolledCollapseSignal
+
     return (
         <div className={className}>
-            {resolvedFeatures.rootViewMode && (
+            {!isRootViewControlled && resolvedFeatures.rootViewMode && (
                 <DrillInRootToolbar
                     label={label}
                     headerSlot={headerSlot}
-                    viewMode={rootViewMode}
-                    onViewModeChange={setRootViewMode}
+                    viewMode={activeRootViewMode as RootViewMode}
+                    onViewModeChange={setUncontrolledRootViewMode}
                     onCollapseAll={handleCollapseAll}
                     onCopy={handleCopy}
                     enableFormView={false}
@@ -134,13 +245,20 @@ export function TestcaseDataEditor({
                 onUnmap={resolvedFeatures.columnMapping && editable ? onUnmap : undefined}
                 getDefaultValueForType={defaultValueForType}
                 collapseSignal={collapseSignal}
-                viewModeResetSignal={rootViewMode}
+                viewModeResetSignal={
+                    isRootViewControlled ? undefined : (activeRootViewMode as RootViewMode)
+                }
                 enableFieldViewModes
                 showProperties={resolvedFeatures.showProperties}
                 getFieldViewModeOptions={getTestcaseViewOptions}
-                getDefaultFieldViewMode={({options}) =>
-                    options.includes(rootViewMode) ? rootViewMode : (options[0] ?? "json")
-                }
+                getDefaultFieldViewMode={({options}) => {
+                    if (isRootViewControlled) {
+                        return options[0] ?? "json"
+                    }
+                    return options.includes(activeRootViewMode as RootViewMode)
+                        ? (activeRootViewMode as RootViewMode)
+                        : (options[0] ?? "json")
+                }}
                 getFieldTypeChip={resolvedFeatures.typeChips ? renderTestcaseTypeChip : undefined}
                 hideBreadcrumb={surface === "drawer" || surface === "playground"}
                 fieldHeaderVariant="flat"

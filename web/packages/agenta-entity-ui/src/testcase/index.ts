@@ -15,6 +15,7 @@ export type {
     TestcaseDataEditorProps,
     TestcaseDataEditorSurface,
 } from "./TestcaseDataEditor.types"
+export type {RootDrawerViewMode} from "./codeFormat"
 export {useTestcaseDrawerNavigation} from "./useTestcaseDrawerNavigation"
 export type {
     TestcaseDrawerNavigation,

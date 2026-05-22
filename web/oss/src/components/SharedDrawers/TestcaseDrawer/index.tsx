@@ -59,7 +59,12 @@ const TestcaseEditDrawer = ({
     )
 
     const renderContent = useCallback(
-        ({initialPath, onPathChange}: TestcaseDrawerContentRenderProps): ReactNode => (
+        ({
+            initialPath,
+            onPathChange,
+            rootViewMode,
+            collapseSignal,
+        }: TestcaseDrawerContentRenderProps): ReactNode => (
             <TestcaseEditDrawerContent
                 key={testcaseId}
                 testcaseId={testcaseId!}
@@ -67,6 +72,8 @@ const TestcaseEditDrawer = ({
                 isNewRow={isNewRow}
                 initialPath={initialPath}
                 onPathChange={onPathChange}
+                rootViewMode={rootViewMode}
+                collapseSignal={collapseSignal}
             />
         ),
         [testcaseId, columns, isNewRow],
@@ -105,6 +112,7 @@ const TestcaseEditDrawer = ({
             onRestoreSessionStart={handleRestoreSessionStart}
             renderContent={renderContent}
             renderAddToQueue={renderAddToQueue}
+            enableRootViewMode
         />
     )
 }

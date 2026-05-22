@@ -9,21 +9,18 @@ import {
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Switch} from "antd"
-import {dump as dumpYaml, load as loadYaml} from "js-yaml"
+
+import {parseCodeString, toCodeString} from "./codeFormat"
 
 function toDisplayString(value: unknown, viewMode?: ViewMode): string {
-    if (viewMode === "yaml") return dumpYaml(value)
-    if (viewMode === "json") return JSON.stringify(value, null, 2) ?? ""
+    if (viewMode === "yaml") return toCodeString(value, "yaml")
+    if (viewMode === "json") return toCodeString(value, "json")
     if (typeof value === "string") return value
-    return JSON.stringify(value, null, 2) ?? ""
+    return toCodeString(value, "json")
 }
 
 function parseCodeEditorValue(value: string, fallback: unknown, viewMode?: ViewMode): unknown {
-    try {
-        return viewMode === "yaml" ? loadYaml(value) : JSON.parse(value)
-    } catch {
-        return fallback
-    }
+    return parseCodeString(value, viewMode === "yaml" ? "yaml" : "json", fallback)
 }
 
 function CodeEditor({

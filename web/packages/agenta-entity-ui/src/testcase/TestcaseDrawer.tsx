@@ -2,21 +2,34 @@ import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 
 
 import {copyToClipboard} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {ViewModeDropdown} from "@agenta/ui/drill-in"
 import {
+    ArrowsInLineVertical,
     CaretDoubleRight,
     CaretDown,
     CaretUp,
+    Check,
     Copy,
     CornersIn,
     CornersOut,
 } from "@phosphor-icons/react"
 import {Alert, Button, Dropdown, Skeleton, Space, Tooltip} from "antd"
 
+import type {RootDrawerViewMode} from "./codeFormat"
+
 const EXPANDED_DRAWER_WIDTH = 1920
+
+const ROOT_VIEW_OPTIONS: {value: RootDrawerViewMode; label: string}[] = [
+    {value: "form", label: "Form"},
+    {value: "json", label: "JSON"},
+    {value: "yaml", label: "YAML"},
+]
 
 export interface TestcaseDrawerContentRenderProps {
     initialPath: string[]
     onPathChange: (path: string[]) => void
+    rootViewMode: RootDrawerViewMode
+    collapseSignal: number
 }
 
 export interface TestcaseDrawerProps<TData = unknown> {
@@ -67,6 +80,14 @@ export interface TestcaseDrawerProps<TData = unknown> {
      * metrics from trace/annotation data — the shell stays platform-neutral.
      */
     renderEvaluatorMetrics?: (testcaseId: string) => ReactNode
+    /**
+     * When true, the drawer header renders the Form/JSON/YAML view-mode
+     * dropdown plus Collapse-all and Copy-payload buttons, and pipes the
+     * selected `rootViewMode` + `collapseSignal` through `renderContent`.
+     * Defaults to false so existing consumers (eval/playground adapters)
+     * keep their current header chrome.
+     */
+    enableRootViewMode?: boolean
 }
 
 function TestcaseDrawer<TData = unknown>({
@@ -100,6 +121,7 @@ function TestcaseDrawer<TData = unknown>({
     closeOnLayoutClick = false,
     initialWidth,
     renderEvaluatorMetrics,
+    enableRootViewMode = false,
 }: TestcaseDrawerProps<TData>) {
     const skipDeferredFlow = viewOnly || editMode === "autoApply"
     const sessionStartDraftsRef = useRef<Map<string, TData>>(new Map())
@@ -108,9 +130,12 @@ function TestcaseDrawer<TData = unknown>({
         : null
 
     const [isIdCopied, setIsIdCopied] = useState(false)
+    const [isPayloadCopied, setIsPayloadCopied] = useState(false)
     const [isDrawerExpanded, setIsDrawerExpanded] = useState(false)
     const [drillInPath, setDrillInPath] = useState<string[]>([])
     const [everDirtyIds, setEverDirtyIds] = useState<Set<string>>(new Set())
+    const [rootViewMode, setRootViewMode] = useState<RootDrawerViewMode>("form")
+    const [collapseSignal, setCollapseSignal] = useState(0)
 
     useEffect(() => {
         if (skipDeferredFlow) return
@@ -143,6 +168,8 @@ function TestcaseDrawer<TData = unknown>({
         } else if (!open) {
             sessionStartDraftsRef.current.clear()
             setDrillInPath([])
+            setRootViewMode("form")
+            setCollapseSignal(0)
         }
     }, [open, testcaseId, testcaseData])
 
@@ -179,6 +206,17 @@ function TestcaseDrawer<TData = unknown>({
         setIsIdCopied(true)
         setTimeout(() => setIsIdCopied(false), 2000)
     }, [copyId, displayId, testcaseId])
+
+    const handleCopyPayload = useCallback(async () => {
+        if (testcaseData == null) return
+        await copyToClipboard(JSON.stringify(testcaseData, null, 2))
+        setIsPayloadCopied(true)
+        setTimeout(() => setIsPayloadCopied(false), 2000)
+    }, [testcaseData])
+
+    const handleCollapseAll = useCallback(() => {
+        setCollapseSignal((signal) => signal + 1)
+    }, [])
 
     const queueItemIds = useMemo(
         () => (testcaseId && !isNewRow && !testcaseId.startsWith("new-") ? [testcaseId] : []),
@@ -251,6 +289,37 @@ function TestcaseDrawer<TData = unknown>({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
+                    {enableRootViewMode && (
+                        <>
+                            {rootViewMode === "form" && (
+                                <Tooltip title="Collapse all">
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<ArrowsInLineVertical size={14} />}
+                                        onClick={handleCollapseAll}
+                                        aria-label="Collapse all fields"
+                                    />
+                                </Tooltip>
+                            )}
+                            <Tooltip title={isPayloadCopied ? "Copied" : "Copy testcase"}>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={
+                                        isPayloadCopied ? <Check size={14} /> : <Copy size={14} />
+                                    }
+                                    onClick={handleCopyPayload}
+                                    aria-label="Copy testcase payload"
+                                />
+                            </Tooltip>
+                            <ViewModeDropdown<RootDrawerViewMode>
+                                value={rootViewMode}
+                                options={ROOT_VIEW_OPTIONS}
+                                onChange={setRootViewMode}
+                            />
+                        </>
+                    )}
                     {renderAddToQueue ? renderAddToQueue(queueItemIds) : null}
                 </div>
             </div>
@@ -272,6 +341,11 @@ function TestcaseDrawer<TData = unknown>({
             showExpandButton,
             queueItemIds,
             renderAddToQueue,
+            enableRootViewMode,
+            rootViewMode,
+            handleCollapseAll,
+            handleCopyPayload,
+            isPayloadCopied,
         ],
     )
 
@@ -364,6 +438,8 @@ function TestcaseDrawer<TData = unknown>({
                         renderContent({
                             initialPath: drillInPath,
                             onPathChange: setDrillInPath,
+                            rootViewMode,
+                            collapseSignal,
                         })}
                     {testcaseData && testcaseId && renderOutputs?.(testcaseId)}
                     {testcaseData && testcaseId && renderEvaluatorMetrics?.(testcaseId)}
