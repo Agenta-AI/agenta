@@ -127,6 +127,20 @@ const EvalRunDetailsTable = ({
             isFetching: basePagination.paginationInfo.isFetching,
         })
 
+    // Comparison + filter: the viewport-fill loop scans base pages, but a
+    // strict filter means the table may never scroll — so compare runs
+    // would stay on page 1 and the testcase-id join in `mergedRows` would
+    // miss most counterparts. While a filter is active, eagerly load every
+    // compare-run page so each matched base row can find its counterpart.
+    useEffect(() => {
+        if (!active) return
+        comparePaginations.forEach((pagination, idx) => {
+            if (!compareSlots[idx]) return
+            const {hasMore, isFetching} = pagination.paginationInfo
+            if (hasMore && !isFetching) pagination.loadNextPage()
+        })
+    }, [active, comparePaginations, compareSlots])
+
     const etlColumns = useEtlColumns({projectId, runId, schema: runSchema})
 
     // Page-level hydrate — predicate-aware: with an active filter it
