@@ -31,6 +31,7 @@ import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entiti
 import {
     predicateToEntitySlices,
     type EntitySlice,
+    type PredicateGroup,
     type RowPredicate,
     type RunSchema,
 } from "@agenta/entities/evaluationRun/etl"
@@ -98,8 +99,12 @@ export interface UseHydrateScenariosArgs {
     rows: readonly HydratableRowRef[]
     /** Run schema — maps an active predicate's column to entity slices. */
     schema?: RunSchema | null
-    /** Active predicate(s) — Phase 2 filtering. Null in Phase 1. */
-    predicate?: RowPredicate | RowPredicate[] | null
+    /**
+     * Active filter — a single predicate, a predicate array, or a flat
+     * AND/OR `PredicateGroup` (Phase 2). When present, page-level hydrate
+     * fetches the entity slices the filter needs so it can be evaluated.
+     */
+    predicate?: RowPredicate | RowPredicate[] | PredicateGroup | null
     /** Hydrate strategy — see `SliceFetchMode`. Default "auto". */
     sliceMode?: SliceFetchMode
 }

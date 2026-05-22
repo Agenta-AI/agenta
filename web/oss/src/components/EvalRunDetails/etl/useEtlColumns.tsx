@@ -82,6 +82,11 @@ export const useEtlColumns = ({
                     ellipsis: true,
                     align: "left" as const,
                     render: (_: unknown, record: PreviewTableRow) => {
+                        // antd's virtual table can briefly call a cell
+                        // render with an out-of-range `undefined` record
+                        // while the (filtered) dataSource is shrinking —
+                        // render nothing for those phantom rows.
+                        if (record == null) return null
                         // Skeleton / not-yet-keyed rows (incl. comparison
                         // placeholders) render a fixed-height placeholder.
                         if (record.__isSkeleton || !record.scenarioId) {

@@ -27,9 +27,11 @@ import {DEFAULT_SCENARIO_PAGE_SIZE, evaluationRunQueryAtomFamily} from "./atoms/
 import type {PreviewTableRow} from "./atoms/tableRows"
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 import {CellMaterializerContext} from "./etl/cellMaterializerContext"
+import ScenarioFilterBar from "./etl/ScenarioFilterBar"
 import {useCellMaterialization} from "./etl/useCellMaterialization"
 import {useEtlColumns} from "./etl/useEtlColumns"
 import {useHydrateScenarios} from "./etl/useHydrateScenarios"
+import {useScenarioFilter} from "./etl/useScenarioFilter"
 import {useScopeChangeEviction} from "./etl/useScopeChangeEviction"
 import {
     evaluationPreviewDatasetStore,
@@ -46,6 +48,10 @@ import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
 
 type TableRowData = PreviewTableRow
+
+// Stable empty reference for the table's rows while a filter is still
+// scanning with zero confirmed matches — avoids per-page flicker.
+const EMPTY_MERGED_ROWS: TableRowData[] = []
 
 interface EvalRunDetailsTableProps {
     runId: string
@@ -112,15 +118,29 @@ const EvalRunDetailsTable = ({
         return {steps, mappings}
     }, [runQuery.data])
 
+    // Phase 2 — multi-predicate filtering (D8). Filters the base run's
+    // rows; each comparison group follows its base row.
+    const {filteredBaseRows, effectiveFilter, isScanning} = useScenarioFilter({
+        projectId,
+        runId,
+        schema: runSchema,
+        baseRows: basePagination.rows,
+        loadNextPage: basePagination.loadNextPage,
+        hasMore: basePagination.paginationInfo.hasMore,
+        isFetching: basePagination.paginationInfo.isFetching,
+    })
+
     const etlColumns = useEtlColumns({projectId, runId, schema: runSchema})
 
-    // Page-level hydrate — predicate-aware (Phase 2). In Phase 1 (no
-    // predicate) this is inert; cells materialize their own visible data.
+    // Page-level hydrate — predicate-aware: with an active filter it
+    // fetches the entity slices the filter needs to be evaluated; with no
+    // filter it is inert and cells materialize their own visible data.
     useHydrateScenarios({
         projectId,
         runId,
         rows: basePagination.rows,
         schema: runSchema,
+        predicate: effectiveFilter,
         sliceMode: "auto",
     })
 
@@ -219,7 +239,7 @@ const EvalRunDetailsTable = ({
 
     const mergedRows = useMemo(() => {
         if (!compareSlots.some(Boolean)) {
-            return basePagination.rows.map((row) => ({
+            return filteredBaseRows.map((row) => ({
                 ...row,
                 baseScenarioId: row.scenarioId ?? row.id,
                 compareIndex: 0,
@@ -227,7 +247,7 @@ const EvalRunDetailsTable = ({
             }))
         }
 
-        const baseRows = basePagination.rows.map((row) => ({
+        const baseRows = filteredBaseRows.map((row) => ({
             ...row,
             baseScenarioId: row.scenarioId ?? row.id,
             compareIndex: 0,
@@ -309,7 +329,7 @@ const EvalRunDetailsTable = ({
         })
 
         return result
-    }, [basePagination.rows, compareSlots, compareRowsBySlot])
+    }, [filteredBaseRows, compareSlots, compareRowsBySlot])
 
     const handleRowClick = useCallback(
         (record: TableRowData) => {
@@ -370,11 +390,14 @@ const EvalRunDetailsTable = ({
 
     const paginationForShell = useMemo<TableFeaturePagination<TableRowData>>(
         () => ({
-            rows: mergedRows,
+            // While a filter is still scanning with zero confirmed
+            // matches, hand the table a stable empty array so it shows one
+            // steady loading state instead of per-page row flicker.
+            rows: isScanning ? EMPTY_MERGED_ROWS : mergedRows,
             loadNextPage: handleLoadMore,
             resetPages: handleResetPages,
         }),
-        [handleLoadMore, handleResetPages, mergedRows],
+        [handleLoadMore, handleResetPages, mergedRows, isScanning],
     )
 
     // Build group map for export label resolution
@@ -924,13 +947,27 @@ const EvalRunDetailsTable = ({
     return (
         <CellMaterializerContext.Provider value={cellMaterializer}>
             <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
+                <ScenarioFilterBar runId={runId} schema={runSchema} />
                 <div className="w-full grow min-h-0 overflow-auto">
                     <InfiniteVirtualTableFeatureShell<TableRowData>
+                        /*
+                         * Remount on filter change. Applying a filter
+                         * shrinks the row set sharply; remounting resets
+                         * the virtual render window to the new length so
+                         * its row renderer can't index past the end.
+                         * Column visibility survives (localStorage-backed).
+                         */
+                        key={`scenario-table-${runId}-${JSON.stringify(effectiveFilter)}`}
                         datasetStore={evaluationPreviewDatasetStore}
                         tableScope={tableScope}
                         store={store}
                         columns={tableColumns}
-                        rowKey={(record) => record.key}
+                        /*
+                         * Defensive rowKey — antd's virtual table can hand
+                         * this an out-of-range `undefined` record for a
+                         * frame while the filtered row set is shrinking.
+                         */
+                        rowKey={(record, index) => record?.key ?? `__phantom_${index ?? 0}`}
                         tableClassName={clsx(
                             "agenta-scenario-table",
                             `agenta-scenario-table--row-${rowHeight}`,
@@ -965,6 +1002,11 @@ const EvalRunDetailsTable = ({
                             virtual: true,
                             bordered: true,
                             tableLayout: "fixed",
+                            // One steady overlay while a filter scans for
+                            // its first match — replaces per-page flicker.
+                            loading: isScanning
+                                ? {spinning: true, tip: "Scanning for matches…"}
+                                : false,
                             onRow: (record) => {
                                 const backgroundColor = hasCompareRuns
                                     ? getComparisonColor(
