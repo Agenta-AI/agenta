@@ -29,9 +29,10 @@ function buildRegexes(templateFormat: TemplateFormat) {
         const exact = /^(\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})$/
         return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
     }
-    // Default: {{ }} variable tokens only. Covers both "curly" and "mustache"
-    // (and the fstring fallback) — mustache shares curly's {{name}} delimiters
-    // for plain variables, so it tokenizes through this path.
+    // Default: {{ }} variable tokens only. Covers "curly" and "mustache" —
+    // mustache shares curly's {{name}} delimiters for plain variables, so it
+    // tokenizes through this path. (fstring also falls through to here, but its
+    // {...} single-brace placeholders are NOT matched by these {{ }} regexes.)
     const full = /\{\{[^{}]*\}\}/
     const input = /\{\{[^{}]*$/
     const exact = /^\{\{[^{}]*\}\}$/

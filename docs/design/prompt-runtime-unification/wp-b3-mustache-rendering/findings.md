@@ -58,6 +58,8 @@ The core renderer change is sound and well-layered: `render_template(mode="musta
 
 The original scan also surfaced four issues, all now resolved (see Closed Findings): the JSONPath pre-render stage (`{{$...}}`) re-exposed resolved values to the Mustache engine so they were recursively rendered, unlike plain `{{var}}` tags (WPB3-001); a tag-claiming case where a `{{$...}}` that is not valid JSONPath raised rather than rendering as a plain variable (WPB3-002, kept strict by decision); a frontend molecule that silently coerced `mustache -> curly` (WPB3-003); and test-coverage gaps on the riskiest behaviors (WPB3-004).
 
+Update (2026-05-22, later pass): three new Copilot threads synced and fixed — WPB3-018 (`chatPrompts.ts` mustache regex missed `{{ name }}` inner whitespace; fixed + tested), WPB3-019 (`TokenPlugin.tsx` comment overstated "fstring fallback" coverage; comment corrected), WPB3-020 (`PromptTemplate.template_format` description called mustache the default while the field default is `curly`; description reworded). All three threads (`3287635462`, `3287635521`, `3287635556`) resolved.
+
 Update (2026-05-22): all findings (WPB3-001..017) are fixed and Closed; there are no open findings, and all PR #4393 review threads are resolved. WPB3-014 (escape behavior) was closed via Option 3 — document the per-format reality now (delimiter swap / `{% raw %}` / none for curly; no backslash escape), defer a `\{{` escape pending real demand; full evidence and the tested `\{{` vs `\{\{` result are in `escape-analysis.md`, and the user-facing how-to gained an "Escaping" section. WPB3-017 (frontend `extractTemplateVariables` JSDoc omitted mustache) was fixed. 270 across the four focused suites pass; ruff clean. GitHub: 14 solved-by-content threads resolved (the WPB3-015 RFC cluster `3280747520`/`3280759652`/`3280767036`/`3280770190`/`3280772919`/`3280776786`/`3280781711`/`3280782719`/`3280579226`, the WPB3-016 how-to `3280800719`, and the scope/PR-title threads `3280751193`/`3280761180`/`3280794168`/`3281567723`); the only 3 left unresolved are the escape threads (`3280753760`, `3280788530`, `3280579221`) mapped to the open WPB3-014.
 
 Finding lineage: WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-05-22 re-scan; WPB3-008..011 (doc-only prose fixes — docstring/qa/pre-render-framing/`+++` markers); WPB3-012..013 (P2 cross-format error-contract bugs, fixed with tests); WPB3-014 (escape, OPEN); WPB3-015 (RFC library/deviation/requirement/security consolidation, `langchain_core` recorded as considered-and-rejected); WPB3-016 (draft `_mustache-templates.mdx` how-to). WPB3-008..016 are all from the PR #4393 sync.
@@ -87,6 +89,48 @@ Finding lineage: WPB3-001..004 from the first scan; WPB3-005..007 from the 2026-
 (none — all findings resolved as of 2026-05-22)
 
 ## Closed Findings
+
+### [CLOSED] WPB3-018 — `chatPrompts.ts` mustache regex missed `{{ name }}` (inner whitespace)
+
+- ID: WPB3-018
+- Origin: sync (PR #4393, Copilot thread `3287635462`)
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Correctness (variable extraction, frontend)
+- Summary: `extractVariablesFromText` in `agenta-shared/chatPrompts.ts` used `/\{\{(\w+)\}\}/g` for mustache (and curly/jinja2), which does not match a tag with inner whitespace like `{{ name }}`. Mustache treats `{{ name }}` and `{{name}}` as equivalent (verified: both render `Ada`), and the new how-to says so, so token discovery (and downstream highlighting/autocomplete relying on `tokens`) silently missed spaced variables. The sibling extractor `runnable/utils.ts` already `.trim()`s the captured name, so this one was inconsistent with the rest of the codebase.
+- Fix applied: allow optional surrounding whitespace in the `{{...}}` patterns — `/\{\{\s*(\w+)\s*\}\}/g` for mustache, curly, and jinja2 (kept consistent across the three that share `{{ }}` delimiters); fstring `{...}` left unchanged.
+- Files: `web/packages/agenta-shared/src/utils/chatPrompts.ts` (`extractVariablesFromText` patterns).
+- Verification: new whitespace cases in `agenta-entity-ui/tests/unit/chatPromptsMustache.test.ts` (exercises `extractVariablesFromText` via the public `extractPromptTemplateContext`); vitest green.
+
+### [CLOSED] WPB3-019 — `TokenPlugin.tsx` comment claimed the default path covers an "fstring fallback"
+
+- ID: WPB3-019
+- Origin: sync (PR #4393, Copilot thread `3287635521`)
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Consistency (misleading comment, frontend)
+- Summary: The default-branch comment in `buildRegexes` said it covers "the fstring fallback", but the default regexes only match `{{...}}` and not fstring's `{...}` placeholders. fstring is no longer offered in the picker (only mustache/jinja2 are), but legacy fstring prompts still route through this branch and genuinely do not highlight `{...}` — pre-existing and out of scope for this PR. The comment overstated coverage.
+- Fix applied: removed the "(and the fstring fallback)" clause so the comment states reality — the default path is the `{{ }}` path for curly and mustache; fstring `{...}` highlighting is not handled here.
+- Files: `web/packages/agenta-ui/src/Editor/plugins/token/TokenPlugin.tsx` (default-branch comment).
+- Verification: `@agenta/ui` types:check + lint (no behavior change; comment only).
+
+### [CLOSED] WPB3-020 — `PromptTemplate.template_format` description said mustache is the default while the field default is `curly`
+
+- ID: WPB3-020
+- Origin: sync (PR #4393, Copilot thread `3287635556`)
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed (2026-05-22)
+- Category: Consistency (doc/code mismatch)
+- Summary: The Pydantic field `template_format` defaults to `"curly"`, but its `description` called mustache the "default for new apps". A consumer constructing `PromptTemplate()` directly gets `curly`, so the description was misleading about what the model itself does. Mustache is the default applied by app-creation flows / engine interfaces (which set it explicitly), not by the model default.
+- Fix applied: reworded the description to state the model default is `curly` (legacy compatibility) while app-creation flows / interfaces default to `mustache` when explicitly set.
+- Files: `sdks/python/agenta/sdk/utils/types.py` (`template_format` field description).
+- Verification: ruff format + ruff check clean (description string only; no behavior change).
 
 ### [CLOSED] WPB3-014 — Literal-`{{`/escape behavior (spec gap) — documented; backslash escape deferred
 

@@ -705,7 +705,7 @@ class PromptTemplate(AgSchemaMixin):
     )
     template_format: Literal["mustache", "fstring", "jinja2", "curly"] = Field(
         default="curly",
-        description="Format type for template variables: mustache {{var}} (default for new apps), fstring {var}, jinja2 {{ var }}, or curly {{var}} (legacy)",
+        description="Format type for template variables: mustache {{var}}, fstring {var}, jinja2 {{ var }}, or curly {{var}}. This model defaults to `curly` for legacy compatibility; app-creation flows and engine interfaces set `mustache` explicitly for new apps.",
     )
     input_keys: Optional[List[str]] = Field(
         default=None,
