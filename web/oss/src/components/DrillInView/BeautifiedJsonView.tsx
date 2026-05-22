@@ -139,6 +139,14 @@ const tryParseJsonString = (value: string): unknown | null => {
     }
 }
 
+const safeStringify = (value: unknown): string => {
+    try {
+        return JSON.stringify(value, null, 2)
+    } catch {
+        return String(value)
+    }
+}
+
 const getTextPartContent = (rec: Record<string, unknown>): string | null => {
     if (rec.type !== "text") return null
     if (typeof rec.text === "string") return rec.text
@@ -235,13 +243,20 @@ const getMessagePartText = (part: unknown): string | null => {
     }
 
     const rec = part as Record<string, unknown>
-    return (
+    const known =
         getTextPartContent(rec) ??
         getToolCallPartText(rec) ??
         getToolResultPartText(rec) ??
         (typeof rec.text === "string" ? rec.text : null) ??
         (typeof rec.content === "string" ? rec.content : null)
-    )
+    if (known !== null) return known
+
+    // Plain data object with no part `type` (e.g. a custom tool result like
+    // {message, endpoints}). Render the whole object instead of dropping it.
+    // Typed parts (image_url, file, ...) are left to their own renderers.
+    if (typeof rec.type !== "string") return safeStringify(rec)
+
+    return null
 }
 
 const getStructuredMessageText = (content: unknown): string | null => {
