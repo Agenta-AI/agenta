@@ -6,7 +6,7 @@ WP-B3 adds a new format that shares `{{...}}` delimiters with legacy `curly`. QA
 
 The test plan must prove:
 
-1. `mustache` pre-renders only `{{$.…}}` tags through JSONPath.
+1. `mustache` resolves only `{{$.…}}` tags through JSONPath (as inert data, substituted last).
 2. `curly` behavior is unchanged.
 3. All WP-B2 structured rendering call sites accept `mustache`.
 4. New apps / prompt configs default to `mustache` without migrating old configs.
@@ -43,8 +43,8 @@ These tests can live in `test_render_template_helper.py` or a new focused helper
 
 Target behavior:
 
-- `{{$.profile.name}}` pre-renders correctly
-- `{{$.profile.tags[0]}}` pre-renders correctly
+- `{{$.profile.name}}` resolves correctly
+- `{{$.profile.tags[0]}}` resolves correctly
 - only tags starting with `{{$` are intercepted
 - `{{name}}` is left for Mustache
 - `{{profile.name}}` is left for Mustache
@@ -97,7 +97,7 @@ Target:
 - JSONPath root: `{{$}}`
 - JSONPath field: `{{$.profile.name}}`
 - JSONPath list index: `{{$.profile.tags[0]}}`
-- only `{{$.…}}` tags are handled by the pre-render pass
+- only `{{$.…}}` tags are handled by the JSONPath pass
 
 ### Structured Rendering
 

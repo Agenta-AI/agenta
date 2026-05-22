@@ -96,7 +96,7 @@ Why `mystace` fits:
 - modern, active Python Mustache library
 - clean fit if we want real Mustache behavior instead of a custom subset
 - no need to invent our own dot-notation semantics for normal Mustache tags
-- only one product-specific extension is needed: JSONPath pre-rendering for tags that start with `{{$`
+- only one product-specific extension is needed: JSONPath resolution for tags that start with `{{$`
 
 Why not `chevron`:
 
@@ -171,16 +171,15 @@ performance, and the exact extension points the contract needs.
 
 ## Rendering Shape
 
-WP-B3 now has two stages:
+WP-B3 resolves `{{$...}}` JSONPath tags as inert data, never re-parsed:
 
-1. JSONPath pre-rendering:
-   Only tags that start with `{{$` are resolved as JSONPath against the render context.
-2. Mustache rendering:
-   The resulting template is rendered by `mystace` using normal Mustache behavior.
+1. Shield: `{{$...}}` tags are hidden from the engine (replaced by sentinels).
+2. Render: the engine (`mystace` for `mustache`) renders the rest normally.
+3. Substitute: the resolved JSONPath values are inserted into the rendered output last, as literal text.
 
-This is not “JSONPath inside Mustache name resolution.” It is a separate pre-rendering step followed by the Mustache engine.
+This is not “JSONPath inside Mustache name resolution,” and it is not a pre-render stage whose output is fed back through the engine. The resolved value is never re-rendered, so it behaves exactly like a plain variable value. This is the handling `curly` already had natively, now unified across `curly` / `mustache` / `jinja2`.
 
-## JSONPath Pre-Rendering Need
+## JSONPath Resolution Need
 
 WP-B3 needs a small pass over the template that finds tags whose expression starts with `$` and resolves them through the existing JSONPath helper.
 
@@ -189,7 +188,7 @@ Important constraints:
 - only `{{$.…}}`-style tags are intercepted
 - no JSON Pointer support in `mustache`
 - non-JSONPath tags remain ordinary Mustache tags
-- values inserted during the pre-render step should follow the same coercion rules as current string substitution: dict/list -> compact JSON text, everything else -> `str(...)`
+- resolved values should follow the same coercion rules as current string substitution: dict/list -> compact JSON text, everything else -> `str(...)`
 
 ## Partial Handling
 

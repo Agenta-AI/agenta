@@ -813,7 +813,7 @@ class PromptTemplate(AgSchemaMixin):
         except UnresolvedVariablesError as e:
             suffix = f" Hint: {e.hint}" if e.hint else ""
             raise TemplateFormatError(
-                f"Unreplaced variables in curly template: "
+                f"Unreplaced variables in {self.template_format} template: "
                 f"{sorted(e.unresolved)}.{suffix}"
             )
         except KeyError as e:
@@ -857,7 +857,7 @@ class PromptTemplate(AgSchemaMixin):
         if isinstance(renderer_error, UnresolvedVariablesError):
             suffix = f" Hint: {renderer_error.hint}" if renderer_error.hint else ""
             return TemplateFormatError(
-                f"Unreplaced variables in curly template: "
+                f"Unreplaced variables in {self.template_format} template: "
                 f"{sorted(renderer_error.unresolved)}.{suffix}",
                 error=renderer_error,
             )
