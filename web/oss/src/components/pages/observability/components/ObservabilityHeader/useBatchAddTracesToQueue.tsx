@@ -134,6 +134,14 @@ export const useBatchAddTracesToQueue = () => {
                 // can overwrite the toast the newer run now owns.
                 if (!isCurrentRun()) return
 
+                // Antd's notification.{success,info,warning} called with an
+                // existing key UPDATES the entry in place — and when the
+                // previous entry was `duration: 0` (the running counter),
+                // the timer doesn't kick in from the new finite duration.
+                // Destroy first so each terminal toast lands as a fresh
+                // notification that honours its own duration.
+                notification.destroy(key)
+
                 if (result.stoppedBy === "cancelled") {
                     notification.warning({
                         key,
