@@ -63,13 +63,21 @@ function installQc(): QueryClient {
     return qc
 }
 
+// `InfiniteTableRowBase` requires `key` and a `[key: string]: unknown` index
+// signature — we mirror `id` into `key` so the rest of the test code can stay
+// id-keyed.
 interface FakeRow {
+    key: string
     id: string
     status: string
     run_id: string
+    [k: string]: unknown
 }
 
+// `BaseTableMeta` requires `projectId` — null is fine for the synthetic
+// store because we override `isEnabled` below to skip the projectId check.
 interface FakeMeta {
+    projectId: string | null
     runId: string
 }
 
@@ -82,7 +90,7 @@ interface FakeMeta {
  * override `isEnabled` to always allow the fetch.
  */
 function buildSyntheticStore(scopeRunId: string, totalRows: number, pageSize: number) {
-    const metaAtom = atom<FakeMeta>({runId: scopeRunId})
+    const metaAtom = atom<FakeMeta>({projectId: null, runId: scopeRunId})
     return createPaginatedEntityStore<FakeRow, FakeRow, FakeMeta>({
         entityName: `synthetic-${scopeRunId}`,
         metaAtom,
@@ -92,7 +100,8 @@ function buildSyntheticStore(scopeRunId: string, totalRows: number, pageSize: nu
             const endIdx = Math.min(startIdx + limit, totalRows)
             const rows: FakeRow[] = []
             for (let i = startIdx; i < endIdx; i++) {
-                rows.push({id: `${meta.runId}-row-${i}`, status: "success", run_id: meta.runId})
+                const rowId = `${meta.runId}-row-${i}`
+                rows.push({key: rowId, id: rowId, status: "success", run_id: meta.runId})
             }
             const nextCursor = endIdx < totalRows ? String(endIdx) : null
             return {

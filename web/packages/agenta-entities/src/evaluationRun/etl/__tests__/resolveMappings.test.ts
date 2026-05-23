@@ -494,11 +494,19 @@ describe("computeColumnGroup", () => {
 
     it("two annotation steps with same column name get distinct groups", () => {
         const g1 = computeColumnGroup(
-            {key: "eval-1", type: "annotation", references: {evaluator: {slug: "exact-match"}}},
+            {
+                key: "eval-1",
+                type: "annotation",
+                references: {evaluator: {id: "e-exact", slug: "exact-match"}},
+            },
             "attributes.ag.data.outputs.success",
         )
         const g2 = computeColumnGroup(
-            {key: "eval-2", type: "annotation", references: {evaluator: {slug: "fuzzy-match"}}},
+            {
+                key: "eval-2",
+                type: "annotation",
+                references: {evaluator: {id: "e-fuzzy", slug: "fuzzy-match"}},
+            },
             "attributes.ag.data.outputs.success",
         )
         // Same column NAME, different group KEY — no collision.
@@ -512,7 +520,7 @@ describe("computeColumnGroup", () => {
             {
                 key: "app-x",
                 type: "invocation",
-                references: {application: {slug: "comp-1"}},
+                references: {application: {id: "a-comp-1", slug: "comp-1"}},
             },
             "attributes.ag.metrics.tokens.cumulative.total",
         )
@@ -528,7 +536,11 @@ describe("computeColumnGroup", () => {
 
     it("references fallback: testset_revision.slug if testset.slug absent", () => {
         const g = computeColumnGroup(
-            {key: "k", type: "input", references: {testset_revision: {slug: "rev-abc"}}},
+            {
+                key: "k",
+                type: "input",
+                references: {testset_revision: {id: "tr-rev-abc", slug: "rev-abc"}},
+            },
             "data.x",
         )
         assert.equal(g.kind, "testset")
@@ -548,12 +560,12 @@ describe("groupResolvedColumns", () => {
                 {
                     key: "eval-1",
                     type: "annotation",
-                    references: {evaluator: {slug: "exact-match"}},
+                    references: {evaluator: {id: "e-exact", slug: "exact-match"}},
                 },
                 {
                     key: "eval-2",
                     type: "annotation",
-                    references: {evaluator: {slug: "fuzzy-match"}},
+                    references: {evaluator: {id: "e-fuzzy", slug: "fuzzy-match"}},
                 },
             ],
             mappings: [
@@ -602,7 +614,11 @@ describe("groupResolvedColumns", () => {
     it("metrics paths from multiple steps all land in one 'Metrics' group", () => {
         const schema: RunSchema = {
             steps: [
-                {key: "app-1", type: "invocation", references: {application: {slug: "comp-1"}}},
+                {
+                    key: "app-1",
+                    type: "invocation",
+                    references: {application: {id: "a-comp-1", slug: "comp-1"}},
+                },
             ],
             mappings: [
                 {
@@ -640,9 +656,9 @@ describe("groupResolvedColumns", () => {
     it("group ordering: testset → application → evaluator → metrics → other", () => {
         const schema: RunSchema = {
             steps: [
-                {key: "ts", type: "input", references: {testset: {slug: "ts1"}}},
-                {key: "app", type: "invocation", references: {application: {slug: "a1"}}},
-                {key: "ev", type: "annotation", references: {evaluator: {slug: "e1"}}},
+                {key: "ts", type: "input", references: {testset: {id: "ts1", slug: "ts1"}}},
+                {key: "app", type: "invocation", references: {application: {id: "a1", slug: "a1"}}},
+                {key: "ev", type: "annotation", references: {evaluator: {id: "e1", slug: "e1"}}},
             ],
             // Intentionally out-of-order in mappings to verify the sort
             mappings: [

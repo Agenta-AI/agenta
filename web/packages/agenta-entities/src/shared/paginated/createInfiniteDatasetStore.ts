@@ -85,6 +85,13 @@ export interface InfiniteDatasetStore<Row extends InfiniteTableRowBase, ApiRow, 
             params: ScopeParams,
         ) => [Key[], (next: Key[] | ((prev: Key[]) => Key[])) => void]
     }
+    /**
+     * Release every atomFamily entry this store owns and cascade into the
+     * inner table store. Returns the total number of entries removed.
+     */
+    dispose: () => number
+    /** Diagnostic — names + sizes for every owned family (and inner store). */
+    familySizes: () => {name: string; size: number}[]
 }
 
 export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, ApiRow, Meta>(

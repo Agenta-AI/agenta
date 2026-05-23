@@ -26,8 +26,9 @@
  * @packageDocumentation
  */
 
-import {getDefaultStore, type Atom} from "jotai"
+import {getDefaultStore, type Atom, type WritableAtom} from "jotai"
 
+import type {WindowingState} from "../../shared/tableTypes"
 import type {Chunk, Source} from "../core/types"
 
 // ============================================================================
@@ -50,18 +51,29 @@ export interface PaginatedStoreLike<TApiRow> {
                     isFetching: boolean
                     hasMore: boolean
                     nextCursor: string | null
+                    nextOffset: number | null
+                    nextWindowing: WindowingState | null
                     totalCount: number | null
                 }>
                 combinedRowsAtomFamily: (params: {
                     scopeId: string
                     pageSize: number
                 }) => Atom<TApiRow[]>
+                // Must match `ScheduleWriteArg` in createInfiniteTableStore.ts:
+                // a real paginated store's scheduler requires all four fields.
                 scheduleNextPageAtomFamily: (params: {
                     scopeId: string
                     pageSize: number
-                }) => Atom<
+                }) => WritableAtom<
                     null,
-                    [{nextCursor: string | null; nextOffset: number; nextWindowing?: unknown}],
+                    [
+                        null | {
+                            nextCursor: string
+                            nextOffset: number
+                            nextWindowing: WindowingState | null
+                            totalRows: number
+                        },
+                    ],
                     void
                 >
             }
@@ -179,9 +191,19 @@ export function makeSourceFromPaginatedStore<TApiRow>(
                     if (!nextCursor || nextCursor === lastCursor) return
                     lastCursor = nextCursor
 
+                    // Mirror `useInfiniteTablePagination.loadNextPage` — the
+                    // store's scheduler reducer requires all four fields.
+                    const nextWindowing: WindowingState = pagination.nextWindowing ?? {
+                        next: nextCursor,
+                        order: "ascending",
+                        limit: pageSize,
+                        stop: null,
+                    }
                     store.set(scheduleAtom, {
                         nextCursor,
-                        nextOffset: rowsSeen,
+                        nextOffset: pagination.nextOffset ?? rowsSeen,
+                        nextWindowing,
+                        totalRows: rowsSeen,
                     })
                 }
             } finally {
