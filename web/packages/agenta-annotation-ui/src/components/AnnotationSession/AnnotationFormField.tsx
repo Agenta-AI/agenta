@@ -194,11 +194,12 @@ const StringField = memo(function StringField({
             className={`flex flex-col gap-1 playground-property-control ${readOnly ? READONLY_CLASS : ""}`}
         >
             <Typography.Text className="playground-property-control-label">{label}</Typography.Text>
-            <Input
+            <Input.TextArea
                 value={value ?? ""}
                 onChange={(e) => onChange(e.target.value || null)}
                 disabled={isDisabled}
                 placeholder="Enter value"
+                autoSize={{minRows: 2, maxRows: 6}}
             />
         </div>
     )

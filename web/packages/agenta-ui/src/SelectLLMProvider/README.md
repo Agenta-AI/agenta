@@ -77,7 +77,7 @@ In the OSS codebase, you can wrap this component with vault integration:
 
 ```tsx
 import {SelectLLMProviderBase} from '@agenta/ui'
-import {useVaultSecret} from '@/oss/hooks/useVaultSecret'
+import {useVaultSecret} from '@agenta/entities/secret'
 
 function SelectLLMProvider(props) {
   const {customRowSecrets} = useVaultSecret()

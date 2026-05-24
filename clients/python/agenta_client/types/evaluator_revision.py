@@ -12,10 +12,16 @@ from .evaluator_revision_flags import EvaluatorRevisionFlags
 
 
 class EvaluatorRevision(UniversalBaseModel):
+    evaluator_variant_slug: typing.Optional[str] = None
+    workflow_variant_slug: typing.Optional[str] = None
+    evaluator_slug: typing.Optional[str] = None
+    workflow_slug: typing.Optional[str] = None
     evaluator_variant_id: typing.Optional[str] = None
     workflow_variant_id: typing.Optional[str] = None
     evaluator_id: typing.Optional[str] = None
     workflow_id: typing.Optional[str] = None
+    variant_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     variant_id: typing.Optional[str] = None
     artifact_id: typing.Optional[str] = None
     author: typing.Optional[str] = None

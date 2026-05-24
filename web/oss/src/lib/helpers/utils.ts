@@ -1,4 +1,11 @@
-import {dataUriToObjectUrl, isBase64, isUrl, safeJson5Parse} from "@agenta/shared/utils"
+import type {LlmProvider} from "@agenta/shared/types"
+import {
+    dataUriToObjectUrl,
+    isBase64,
+    isUrl,
+    removeEmptyFromObjects as sharedRemoveEmptyFromObjects,
+    safeJson5Parse,
+} from "@agenta/shared/utils"
 import {notification} from "antd"
 import yaml from "js-yaml"
 import JSON5 from "json5"
@@ -6,7 +13,6 @@ import Router from "next/router"
 import {v4 as uuidv4} from "uuid"
 
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {waitForValidURL} from "@/oss/state/url"
 
 import {GenericObject} from "../Types"
@@ -217,26 +223,9 @@ export const formatVariantIdWithHash = (variantId: string) => {
 
 export const getUsernameFromEmail = (email: string) => email.split("@")[0]
 
-export const removeEmptyFromObjects = (obj: any): any => {
-    if (Array.isArray(obj)) {
-        return obj
-            .map(removeEmptyFromObjects)
-            .filter((item) => item && (typeof item !== "object" || Object.keys(item).length))
-    }
-    if (obj && typeof obj === "object") {
-        return Object.entries(obj).reduce(
-            (acc, [key, value]) => {
-                const cleaned = removeEmptyFromObjects(value)
-                if (cleaned !== null && cleaned !== undefined && cleaned !== "") {
-                    acc[key] = cleaned
-                }
-                return acc
-            },
-            {} as Record<string, any>,
-        )
-    }
-    return obj
-}
+// Canonical implementation lives in @agenta/shared/utils.
+// Re-exported here to keep the existing @/oss/lib/helpers/utils import path working.
+export const removeEmptyFromObjects = sharedRemoveEmptyFromObjects
 
 export const isUuid = (id: string) => {
     // Check for full UUID format (8-4-4-4-12)

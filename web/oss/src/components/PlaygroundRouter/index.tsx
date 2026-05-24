@@ -14,7 +14,11 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {appIdentifiersAtom} from "@/oss/state/appState"
-import {currentWorkflowAtom, currentWorkflowContextAtom} from "@/oss/state/workflow"
+import {
+    currentWorkflowAtom,
+    currentWorkflowContextAtom,
+    EVALUATOR_FULL_PAGE_NAV_ENABLED,
+} from "@/oss/state/workflow"
 
 const PlaygroundLoadingShell = () => {
     return (
@@ -112,8 +116,12 @@ const useEvaluatorPlaygroundGuard = () => {
         )
         if (!hasUri && !hasTypeFlag) return
 
+        // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off,
+        // skip the "stay on /playground" early return so every evaluator URL
+        // (including direct visits / bookmarks) bounces back to /evaluators
+        // and opens the drawer.
         const classifyTarget = latestRevision ?? workflow
-        if (hasFullPagePlaygroundUX(classifyTarget)) return
+        if (EVALUATOR_FULL_PAGE_NAV_ENABLED && hasFullPagePlaygroundUX(classifyTarget)) return
 
         const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}`
         const target = latestRevisionId

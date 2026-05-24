@@ -13,8 +13,19 @@ from sqlalchemy import text
 import uuid_utils.compat as uuid
 
 from oss.src.utils.env import env
-from ee.src.core.subscriptions.types import FREE_PLAN
 from sqlalchemy.dialects import postgresql
+
+# Point-in-time literal; the runtime free-plan slug is now resolved via
+# `ee.src.core.subscriptions.settings.get_free_plan()`.
+#
+# Operators running this migration MUST either:
+#   1. keep `cloud_v0_hobby` in their effective `AGENTA_ACCESS_PLANS` set, or
+#   2. set one entry of `AGENTA_BILLING_PRICING` to `"free": true` so
+#      `get_free_plan()` resolves without falling back to this literal.
+#
+# `settings._build_settings()` enforces this at startup; mismatches fail
+# loudly rather than silently writing an unknown plan slug.
+FREE_PLAN = "cloud_v0_hobby"
 
 # revision identifiers, used by Alembic.
 revision: str = "a9f3e8b7c5d1"
@@ -402,7 +413,7 @@ def upgrade() -> None:
             WHERE s.organization_id = o.id
         )
     """),
-        {"plan": FREE_PLAN.value},
+        {"plan": FREE_PLAN},
     )
 
     # Step 13: Ensure any remaining orgs have flags set

@@ -10,7 +10,6 @@ from ..core.pydantic_utilities import parse_obj_as
 from ..core.request_options import RequestOptions
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
-from ..types.plan import Plan
 
 
 class RawBillingClient:
@@ -81,11 +80,11 @@ class RawBillingClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def create_checkout(self, *, plan: Plan, success_url: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+    def create_checkout(self, *, plan: str, success_url: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
-        plan : Plan
+        plan : str
         
         success_url : str
         
@@ -159,11 +158,11 @@ class RawBillingClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def switch_plans(self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+    def switch_plans(self, *, plan: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
-        plan : Plan
+        plan : str
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -298,6 +297,78 @@ class RawBillingClient:
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def fetch_billing_catalog(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[typing.Dict[str, typing.Any]]]:
+        """
+        Return the effective billing catalog with pricing merged in.
+        
+        Each entry carries `title`, `description`, `plan`, `type`, `features`,
+        and (when configured) a `price` block sourced from the matching
+        `AGENTA_BILLING_PRICING` entry. Pre-joining avoids a client-side
+        catalog × pricing merge by slug.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.List[typing.Dict[str, typing.Any]]]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "billing/catalog",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.List[typing.Dict[str, typing.Any]],
+                    parse_obj_as(
+                        type_ =typing.List[typing.Dict[str, typing.Any]],  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def fetch_billing_pricing(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Dict[str, typing.Dict[str, typing.Any]]]:
+        """
+        Return the effective pricing map: plan slug -> normalized pricing.
+        
+        Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
+        (see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.Dict[str, typing.Dict[str, typing.Any]]]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "billing/pricing",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Dict[str, typing.Dict[str, typing.Any]],
+                    parse_obj_as(
+                        type_ =typing.Dict[str, typing.Dict[str, typing.Any]],  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 class AsyncRawBillingClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
@@ -366,11 +437,11 @@ class AsyncRawBillingClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def create_checkout(self, *, plan: Plan, success_url: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
+    async def create_checkout(self, *, plan: str, success_url: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
-        plan : Plan
+        plan : str
         
         success_url : str
         
@@ -444,11 +515,11 @@ class AsyncRawBillingClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def switch_plans(self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
+    async def switch_plans(self, *, plan: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
-        plan : Plan
+        plan : str
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -575,6 +646,78 @@ class AsyncRawBillingClient:
                     typing.Any,
                     parse_obj_as(
                         type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def fetch_billing_catalog(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[typing.Dict[str, typing.Any]]]:
+        """
+        Return the effective billing catalog with pricing merged in.
+        
+        Each entry carries `title`, `description`, `plan`, `type`, `features`,
+        and (when configured) a `price` block sourced from the matching
+        `AGENTA_BILLING_PRICING` entry. Pre-joining avoids a client-side
+        catalog × pricing merge by slug.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.List[typing.Dict[str, typing.Any]]]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "billing/catalog",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.List[typing.Dict[str, typing.Any]],
+                    parse_obj_as(
+                        type_ =typing.List[typing.Dict[str, typing.Any]],  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def fetch_billing_pricing(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Dict[str, typing.Dict[str, typing.Any]]]:
+        """
+        Return the effective pricing map: plan slug -> normalized pricing.
+        
+        Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
+        (see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.Dict[str, typing.Dict[str, typing.Any]]]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "billing/pricing",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Dict[str, typing.Dict[str, typing.Any]],
+                    parse_obj_as(
+                        type_ =typing.Dict[str, typing.Dict[str, typing.Any]],  # type: ignore
                         object_ =_response.json()
                     )
                 )

@@ -186,7 +186,7 @@ const AnnotationSession = ({
             try {
                 await addScenariosToTestset({
                     targetMode: params.mode === "new" ? "new" : "existing",
-                    commitMessage: params.message,
+                    commitMessage: params.message ?? "",
                     newTestsetName: params.entityName,
                     newTestsetSlug: params.entitySlug,
                 })

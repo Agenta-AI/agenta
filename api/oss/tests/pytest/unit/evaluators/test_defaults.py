@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.evaluators import defaults as defaults_module
+from oss.src.core.workflows.dtos import JsonSchemas, WorkflowRevisionData
 from oss.src.core.shared.exceptions import EntityCreationConflict
 
 
@@ -36,6 +37,39 @@ async def test_create_default_evaluators_ignores_duplicate_conflicts(monkeypatch
         project_id=uuid4(),
         user_id=uuid4(),
     )
+
+
+def test_build_from_template_persists_schema_parameter_defaults(monkeypatch):
+    template = SimpleNamespace(
+        name="Exact Match",
+        description="Exact match",
+        data=WorkflowRevisionData(
+            uri="agenta:builtin:auto_exact_match:v0",
+            schemas=JsonSchemas(
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "correct_answer_key": {
+                            "type": "string",
+                            "default": "correct_answer",
+                        }
+                    },
+                }
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        defaults_module,
+        "get_workflow_catalog_template",
+        lambda **_: template,
+    )
+
+    evaluator = defaults_module._build_from_template(
+        {"template_key": "auto_exact_match", "slug": "exact-match"}
+    )
+
+    assert evaluator.data.parameters == {"correct_answer_key": "correct_answer"}
 
 
 @pytest.mark.asyncio

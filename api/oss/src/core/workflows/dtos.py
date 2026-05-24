@@ -92,6 +92,24 @@ class WorkflowRevisionIdAlias(AliasConfig):
     )
 
 
+class WorkflowSlugAlias(AliasConfig):
+    workflow_slug: Optional[str] = None
+    artifact_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="workflow_slug",
+    )
+
+
+class WorkflowVariantSlugAlias(AliasConfig):
+    workflow_variant_slug: Optional[str] = None
+    variant_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="workflow_variant_slug",
+    )
+
+
 # globals ----------------------------------------------------------------------
 
 
@@ -203,11 +221,13 @@ class WorkflowQuery(ArtifactQuery):
 class WorkflowVariant(
     Variant,
     WorkflowIdAlias,
+    WorkflowSlugAlias,
 ):
     flags: Optional[WorkflowVariantFlags] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
+        sync_alias("workflow_slug", "artifact_slug", self)
 
 
 class WorkflowVariantCreate(
@@ -235,6 +255,8 @@ class WorkflowRevision(
     Revision,
     WorkflowIdAlias,
     WorkflowVariantIdAlias,
+    WorkflowSlugAlias,
+    WorkflowVariantSlugAlias,
 ):
     flags: Optional[WorkflowRevisionFlags] = None
 
@@ -243,6 +265,8 @@ class WorkflowRevision(
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
         sync_alias("workflow_variant_id", "variant_id", self)
+        sync_alias("workflow_slug", "artifact_slug", self)
+        sync_alias("workflow_variant_slug", "variant_slug", self)
 
 
 class WorkflowRevisionCreate(

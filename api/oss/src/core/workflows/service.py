@@ -1414,6 +1414,10 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
+        # Do not publish workflow commits here: applications/evaluators delegate
+        # through this method and would double-emit their own commit events.
+        # await publish_revision_event(domain="workflow", action="commit", ...)
+
         return await self._normalize_revision_for_read(
             project_id=project_id,
             revision=_workflow_revision,

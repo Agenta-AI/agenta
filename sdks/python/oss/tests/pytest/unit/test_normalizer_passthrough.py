@@ -15,6 +15,8 @@ import pytest
 
 from agenta.sdk.middlewares.running.normalizer import NormalizerMiddleware
 from agenta.sdk.models.workflows import (
+    WorkflowRequestData,
+    WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
     WorkflowServiceResponseData,
@@ -45,6 +47,37 @@ async def _collect(stream_response: WorkflowServiceStreamResponse):
 # ---------------------------------------------------------------------------
 # Async generator -> WorkflowServiceStreamResponse
 # ---------------------------------------------------------------------------
+
+
+class TestRequestNormalization:
+    @pytest.mark.asyncio
+    async def test_parameters_none_is_normalized_to_empty_dict(self):
+        def handler(parameters):
+            return parameters
+
+        request = WorkflowServiceRequest(
+            data=WorkflowRequestData(parameters=None),
+        )
+
+        mw = NormalizerMiddleware()
+        kwargs = await mw._normalize_request(request, handler)
+
+        assert kwargs["parameters"] == {}
+        assert request.data.parameters == {}
+
+    @pytest.mark.asyncio
+    async def test_parameters_dict_is_preserved(self):
+        def handler(parameters):
+            return parameters
+
+        request = WorkflowServiceRequest(
+            data=WorkflowRequestData(parameters={"correct_answer_key": "answer"}),
+        )
+
+        mw = NormalizerMiddleware()
+        kwargs = await mw._normalize_request(request, handler)
+
+        assert kwargs["parameters"] == {"correct_answer_key": "answer"}
 
 
 class TestAsyncGenerator:

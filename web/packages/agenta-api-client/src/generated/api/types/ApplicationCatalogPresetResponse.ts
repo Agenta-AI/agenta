@@ -6,8 +6,6 @@ import type * as AgentaApi from "../index.js";
  * Single preset response envelope.
  */
 export interface ApplicationCatalogPresetResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     /** `1` when found, `0` otherwise. */
     count?: number | undefined;
     /** Catalog preset definition. */

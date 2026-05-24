@@ -1,7 +1,6 @@
 from typing import Optional, List
 
 from pydantic import BaseModel, Field
-from oss.src.utils.exceptions import Support
 
 from oss.src.core.shared.dtos import (
     Windowing,
@@ -40,7 +39,6 @@ from oss.src.core.embeds.dtos import (
     ErrorPolicy,
     ResolutionInfo,
 )
-
 
 # WORKFLOWS --------------------------------------------------------------------
 
@@ -94,7 +92,7 @@ class WorkflowForkRequest(BaseModel):
     )
 
 
-class WorkflowResponse(Support):
+class WorkflowResponse(BaseModel):
     count: int = Field(
         default=0,
         description="`1` when a workflow is returned, `0` when none matched.",
@@ -105,7 +103,7 @@ class WorkflowResponse(Support):
     )
 
 
-class WorkflowsResponse(Support):
+class WorkflowsResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of workflows in this page.",
@@ -166,7 +164,7 @@ class WorkflowVariantQueryRequest(BaseModel):
     )
 
 
-class WorkflowVariantResponse(Support):
+class WorkflowVariantResponse(BaseModel):
     count: int = Field(
         default=0,
         description="`1` when a variant is returned, `0` when none matched.",
@@ -177,7 +175,7 @@ class WorkflowVariantResponse(Support):
     )
 
 
-class WorkflowVariantsResponse(Support):
+class WorkflowVariantsResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of variants in this page.",
@@ -344,7 +342,7 @@ class WorkflowRevisionsLogRequest(BaseModel):
     )
 
 
-class WorkflowRevisionResponse(Support):
+class WorkflowRevisionResponse(BaseModel):
     count: int = Field(
         default=0,
         description="`1` when a revision is returned, `0` when none matched.",
@@ -359,7 +357,7 @@ class WorkflowRevisionResponse(Support):
     )
 
 
-class WorkflowRevisionsResponse(Support):
+class WorkflowRevisionsResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of revisions in this page.",
@@ -413,7 +411,7 @@ class WorkflowRevisionResolveRequest(BaseModel):
     )
 
 
-class WorkflowRevisionResolveResponse(Support):
+class WorkflowRevisionResolveResponse(BaseModel):
     count: int = Field(
         default=0,
         description="`1` when a revision is returned, `0` when none matched.",
@@ -431,7 +429,7 @@ class WorkflowRevisionResolveResponse(Support):
 # WORKFLOW CATALOG -------------------------------------------------------------
 
 
-class WorkflowCatalogTypeResponse(Support):
+class WorkflowCatalogTypeResponse(BaseModel):
     count: int = Field(
         default=0,
         description="`1` when a type definition is returned, `0` when not found.",
@@ -442,7 +440,7 @@ class WorkflowCatalogTypeResponse(Support):
     )
 
 
-class WorkflowCatalogTypesResponse(Support):
+class WorkflowCatalogTypesResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of type definitions available.",
@@ -453,7 +451,7 @@ class WorkflowCatalogTypesResponse(Support):
     )
 
 
-class WorkflowCatalogTemplateResponse(Support):
+class WorkflowCatalogTemplateResponse(BaseModel):
     count: int = Field(
         default=0,
         description="`1` when the template is returned, `0` when not found.",
@@ -464,7 +462,7 @@ class WorkflowCatalogTemplateResponse(Support):
     )
 
 
-class WorkflowCatalogTemplatesResponse(Support):
+class WorkflowCatalogTemplatesResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of templates returned.",
@@ -475,7 +473,7 @@ class WorkflowCatalogTemplatesResponse(Support):
     )
 
 
-class WorkflowCatalogPresetResponse(Support):
+class WorkflowCatalogPresetResponse(BaseModel):
     count: int = Field(
         default=0,
         description="`1` when the preset is returned, `0` when not found.",
@@ -486,7 +484,7 @@ class WorkflowCatalogPresetResponse(Support):
     )
 
 
-class WorkflowCatalogPresetsResponse(Support):
+class WorkflowCatalogPresetsResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of presets returned.",
@@ -540,7 +538,7 @@ class SimpleWorkflowQueryRequest(BaseModel):
     )
 
 
-class SimpleWorkflowResponse(Support):
+class SimpleWorkflowResponse(BaseModel):
     count: int = Field(
         default=0,
         description="`1` when a simple workflow is returned, `0` when none matched.",
@@ -551,7 +549,7 @@ class SimpleWorkflowResponse(Support):
     )
 
 
-class SimpleWorkflowsResponse(Support):
+class SimpleWorkflowsResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of workflows in the response.",

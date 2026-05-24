@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SimpleQueryResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     query?: (AgentaApi.SimpleQuery | null) | undefined;
 }
