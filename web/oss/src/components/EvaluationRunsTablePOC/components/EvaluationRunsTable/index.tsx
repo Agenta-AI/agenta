@@ -34,7 +34,7 @@ import {
 } from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 
-import {shouldIgnoreRowClick} from "../../../../InfiniteVirtualTable/hooks/useTableManager"
+import {shouldIgnoreRowClick} from "@/oss/components/InfiniteVirtualTable/hooks/useTableManager"
 import {
     evaluationRunsDeleteContextAtom,
     evaluationRunsTableFetchEnabledAtom,
