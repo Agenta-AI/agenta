@@ -21,7 +21,6 @@ import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdow
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
-import {downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
@@ -31,6 +30,7 @@ import {
     executeTraceQuery,
 } from "@/oss/state/newObservability/atoms/queryHelpers"
 import {adaptiveSleep} from "@/oss/state/newObservability/etl/adaptiveExportPacing"
+import {createExportWriter, PICKER_CANCELLED} from "@/oss/state/newObservability/etl/exportWriter"
 import {createObservabilityTraceFetchPage} from "@/oss/state/newObservability/etl/observabilityTraceFetchPage"
 import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimitRetry"
 import {getAgData} from "@/oss/state/newObservability/selectors/tracing"
@@ -288,66 +288,67 @@ const ObservabilityHeader = ({
     const onExport = useCallback(async () => {
         const exportKey = "observability-export"
 
+        if (!canExportData) return
+        if (!traces.length) return
+
+        const {currentApp} = getAppValues()
+        const appId = currentApp?.id || ""
+        const filename = `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
+
+        const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
+            buildTraceQueryParams(filters, sort, traceTabs, undefined)
+
+        const headers =
+            columns
+                .map((col) => {
+                    if (col.title === "ID") return "Trace ID"
+                    return typeof col.title === "string" ? col.title : null
+                })
+                .filter((header): header is string => Boolean(header)) || []
+        const csvHeaders = headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS
+
+        // Open the native file picker BEFORE starting the scan when the
+        // browser supports `showSaveFilePicker` (Chromium). User-cancel of
+        // the picker bails before any request is fired. On Safari / Firefox
+        // this falls back to the buffered Blob path — same UX as before.
+        const writer = await createExportWriter({filename, headers: csvHeaders})
+        if (writer === PICKER_CANCELLED) return
+
+        const controller = new AbortController()
+        exportAbortRef.current = controller
+
+        setIsExporting(true)
+        message.loading({
+            content: "Preparing export",
+            key: exportKey,
+            duration: 0,
+        })
+
+        // Both the batch-add-to-queue scan and this export now share
+        // `executeTraceQuery` as the only transport. `size` is set per
+        // page so the API returns the same chunk the CSV flushes.
+        const scanParams: Record<string, any> = {...params, size: DEFAULT_EXPORT_PAGE_SIZE}
+        if (!scanParams.newest) {
+            scanParams.newest = new Date().toISOString()
+        }
+
+        // Last reported row count — kept so a rate-limit pause can keep
+        // showing progress while the scan is paused for backoff.
+        let lastRowCount = 0
+        // Latest server-reported throttle bucket state. Drives the
+        // adaptive pre-fetch sleep: free-tier (small burst capacity)
+        // ramps the delay up as the bucket drains; business-tier (large
+        // capacity) stays at the floor delay throughout.
+        let lastRateLimit: {remaining: number | null; limit: number | null} = {
+            remaining: null,
+            limit: null,
+        }
+        // First call has no prior bucket reading — skip the adaptive
+        // sleep and let `withRateLimitRetry` handle any 429 that comes
+        // back. Subsequent calls pace based on the previous response.
+        let isFirstFetch = true
+
         try {
-            if (!canExportData) return
-            if (!traces.length) return
-
-            const {currentApp} = getAppValues()
-            const appId = currentApp?.id || ""
-            const filename = `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
-
-            const {
-                params,
-                hasAnnotationConditions,
-                hasAnnotationOperator,
-                isHasAnnotationSelected,
-            } = buildTraceQueryParams(filters, sort, traceTabs, undefined)
-
-            const headers =
-                columns
-                    .map((col) => {
-                        if (col.title === "ID") return "Trace ID"
-                        return typeof col.title === "string" ? col.title : null
-                    })
-                    .filter((header): header is string => Boolean(header)) || []
-
-            const controller = new AbortController()
-            exportAbortRef.current = controller
-
-            setIsExporting(true)
-            message.loading({
-                content: "Preparing export",
-                key: exportKey,
-                duration: 0,
-            })
-
-            // Both the batch-add-to-queue scan and this export now share
-            // `executeTraceQuery` as the only transport. `size` is set per
-            // page so the API returns the same chunk the CSV flushes.
-            const scanParams: Record<string, any> = {...params, size: DEFAULT_EXPORT_PAGE_SIZE}
-            if (!scanParams.newest) {
-                scanParams.newest = new Date().toISOString()
-            }
-
-            const csvHeaders = headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS
-            const csvParts: BlobPart[] = [Papa.unparse({fields: csvHeaders, data: []})]
-
-            // Last reported row count — kept so a rate-limit pause can keep
-            // showing progress while the scan is paused for backoff.
-            let lastRowCount = 0
-            // Latest server-reported throttle bucket state. Drives the
-            // adaptive pre-fetch sleep: free-tier (small burst capacity)
-            // ramps the delay up as the bucket drains; business-tier (large
-            // capacity) stays at the floor delay throughout.
-            let lastRateLimit: {remaining: number | null; limit: number | null} = {
-                remaining: null,
-                limit: null,
-            }
-            // First call has no prior bucket reading — skip the adaptive
-            // sleep and let `withRateLimitRetry` handle any 429 that comes
-            // back. Subsequent calls pace based on the previous response.
-            let isFirstFetch = true
-
             const {rowCount, limitReached} = await exportMatchingTraces({
                 // Wrap `executeTraceQuery` in the shared 429-retry wrapper —
                 // a 429 (despite proactive pacing) pauses the scan instead
@@ -395,12 +396,16 @@ const ObservabilityHeader = ({
                 },
                 flushBatch: async (batch) => {
                     const rows = batch.map(createTraceObject)
-                    csvParts.push(
-                        "\r\n",
-                        Papa.unparse(
-                            {fields: csvHeaders, data: rows},
-                            {header: false, escapeFormulae: true},
-                        ),
+                    // The writer streams to disk on Chromium and buffers in
+                    // memory on Safari / Firefox — at this seam they look
+                    // identical to the pipeline, so memory stays bounded by
+                    // one batch on supported browsers.
+                    await writer.write(
+                        "\r\n" +
+                            Papa.unparse(
+                                {fields: csvHeaders, data: rows},
+                                {header: false, escapeFormulae: true},
+                            ),
                     )
                 },
                 signal: controller.signal,
@@ -417,16 +422,17 @@ const ObservabilityHeader = ({
                 },
             })
 
+            // `finalize(0)` aborts the streaming writable so no header-only
+            // file is left on disk, and is a no-op on the buffered path.
+            await writer.finalize(rowCount)
+
             if (!rowCount) {
                 message.info({
                     content: "No traces to export",
                     key: exportKey,
                 })
-
                 return
             }
-
-            downloadCsv(csvParts, filename)
 
             if (limitReached) {
                 message.warning({
@@ -441,6 +447,9 @@ const ObservabilityHeader = ({
                 })
             }
         } catch (error) {
+            // Discard any partial bytes already streamed to disk / buffered.
+            await writer.abort().catch(() => {})
+
             if ((error as Error).name === "AbortError") {
                 message.info({
                     content: "Export cancelled",
