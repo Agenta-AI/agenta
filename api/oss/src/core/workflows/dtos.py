@@ -58,8 +58,13 @@ from agenta.sdk.models.workflows import (
     WorkflowRevisionData as BaseWorkflowRevisionData,
 )
 
+
 class WorkflowRevisionData(BaseWorkflowRevisionData):
     pass
+
+
+WorkflowRevisionCommitData = WorkflowRevisionData
+
 
 class WorkflowRevisionCommitData(BaseWorkflowRevisionData):
     model_config = ConfigDict(extra="forbid")
@@ -299,7 +304,7 @@ class WorkflowRevisionCommit(
 ):
     flags: Optional[WorkflowFlags] = None
 
-    data: Optional[WorkflowRevisionCommitData] = None
+    data: Optional[WorkflowRevisionData] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
