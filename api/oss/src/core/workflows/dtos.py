@@ -3,7 +3,6 @@ from uuid import UUID, uuid4  # noqa: F401
 
 from pydantic import (
     BaseModel,
-    ConfigDict,
     Field,
 )
 

@@ -564,7 +564,7 @@ class EvaluatorVariantIdAlias(AliasConfig):
 
 
 class EvaluatorRevisionData(WorkflowRevisionData):
-    pass
+    model_config = ConfigDict(extra="forbid")
 
 
 class EvaluatorFlags(WorkflowFlags):
@@ -714,7 +714,7 @@ class ApplicationVariantEdit(WorkflowVariantEdit):
 
 
 class ApplicationRevisionData(WorkflowRevisionData):
-    pass
+    model_config = ConfigDict(extra="forbid")
 
 
 class ApplicationRevision(
