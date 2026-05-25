@@ -889,8 +889,14 @@ function InsertInitialCodeBlockPlugin({
         let needsDispatch = languageChanged
         let forceUpdate = false
         editor.getEditorState().read(() => {
+            const hasCodeBlock = $getRoot().getChildren().some($isCodeBlockNode)
             const currentEditorContent = $getEditorCodeAsString()
             const hasExistingContent = !!currentEditorContent
+
+            if (!hasCodeBlock) {
+                needsDispatch = true
+                return
+            }
 
             // Fast path: when the user is typing, the typed content flows
             // through onChange → parent state → back here as `initialValue`.

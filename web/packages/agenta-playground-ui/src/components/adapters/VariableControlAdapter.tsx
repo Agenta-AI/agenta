@@ -1,19 +1,9 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useState} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {getCollapseStyle} from "@agenta/ui/components/presentational"
 import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
-import {
-    DrillInProvider,
-    EditorProvider,
-    $getRoot,
-    $isCodeBlockNode,
-    $createCodeBlockNode,
-    createHighlightedNodes,
-    $wrapLinesInSegments,
-    markdownViewAtom,
-    useLexicalComposerContext,
-} from "@agenta/ui/editor"
+import {DrillInProvider, EditorProvider, markdownViewAtom} from "@agenta/ui/editor"
 import type {EditorProps} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
@@ -86,126 +76,6 @@ const VariableHeader: React.FC<{
     </div>
 )
 
-/**
- * Inline JSON code editor used by the schema-typed branch of
- * `VariableControlAdapter`. Mirrors `JsonEditorWithLocalState`'s composition
- * exactly (EditorProvider with codeOnly+json wrapping SharedEditor with
- * showLineNumbers, disableLongText, syncWithInitialValueChanges, and local
- * state that swallows invalid JSON instead of propagating it) — but accepts
- * a `header` slot so we can render the standard `VariableHeader` (blue mono
- * label + action buttons) above the editor surface, and a `footer` slot for
- * the schema shape hint.
- */
-/**
- * Seeds the JSON editor with a 3-line `{ \n \n }` skeleton on mount so an
- * empty cell visually invites the user to type fields inside the braces
- * instead of presenting a blank box. The cell value tracks the editor's
- * onChange — once the editor renders `"{\n\n}"`, the cell value matches,
- * which parses to `{}` at submission (the SDK's `parseIfJsonObject`
- * round-trips identically).
- *
- * Why we don't use `INITIAL_CONTENT_COMMAND`: that handler runs
- * `JSON.stringify(JSON5.parse(content), null, 2)` on language=json
- * payloads. An empty object stringifies to single-line `"{}"`, collapsing
- * the multi-line skeleton. We build the Lexical node tree directly to
- * preserve the exact visual.
- *
- * Deferred to the next animation frame because this component mounts as
- * a sibling of `SharedEditor`. React fires sibling effects in document
- * order, so a synchronous edit here would run before `SharedEditor` had
- * a chance to initialize the Lexical state. Deferring lets the editor
- * settle first.
- *
- * Mounted as a sibling plugin inside the JSON editor's `EditorProvider`.
- * Fires once per editor instance.
- */
-const EmptyCodeBlockSeed: React.FC<{shouldSeed: boolean}> = ({shouldSeed}) => {
-    const [editor] = useLexicalComposerContext()
-    const seededRef = useRef(false)
-    useEffect(() => {
-        if (!shouldSeed || seededRef.current) return
-        let cancelled = false
-        let attempts = 0
-        const maxAttempts = 10
-        const trySeed = () => {
-            if (cancelled || seededRef.current) return
-            attempts += 1
-            let seeded = false
-            editor.update(() => {
-                const root = $getRoot()
-                // Bail when the editor already holds *non-empty* user
-                // content — we never clobber typed JSON. But the
-                // CodeEditorPlugin may have already created a single-line
-                // `{}` CodeBlockNode from the stale `"{}"` initial value
-                // before our deferred effect runs; that block parses to an
-                // empty object and we *do* want to replace it with the
-                // 3-line skeleton. The `shouldSeed` gate upstream already
-                // confirmed the cell is effectively empty (either truly
-                // empty or `{}`-equivalent), so reaching here means it's
-                // safe to rebuild.
-                const existing = root.getChildren().find($isCodeBlockNode)
-                if (existing) {
-                    const text = existing.getTextContent().trim()
-                    if (text) {
-                        try {
-                            const parsed = JSON.parse(text)
-                            const isEmptyObject =
-                                parsed &&
-                                typeof parsed === "object" &&
-                                !Array.isArray(parsed) &&
-                                Object.keys(parsed).length === 0
-                            if (!isEmptyObject) {
-                                seeded = true
-                                return
-                            }
-                        } catch {
-                            // Invalid JSON the user typed — don't clobber.
-                            seeded = true
-                            return
-                        }
-                    }
-                }
-                root.clear()
-                const codeBlock = $createCodeBlockNode("json")
-                // Use the editor's own `createHighlightedNodes` helper so the
-                // resulting `CodeLineNode`s contain properly-tokenized
-                // `CodeHighlightNode` + `CodeTabNode` children. A naive
-                // `$createTextNode` approach renders the right glyphs but
-                // the syntax-highlight transform pipeline doesn't recognise
-                // plain `TextNode`s as canonical code content and ends up
-                // pruning my middle/close lines on the next tick.
-                //
-                // `createHighlightedNodes` skips its JSON reformat path
-                // when the input has `\n  ` (multi-line indent), so the
-                // 3-line skeleton survives intact. The two-space indent on
-                // the middle line becomes a `CodeTabNode` so the user's
-                // typed content lands nested inside the braces.
-                const highlighted = createHighlightedNodes("{\n  \n}", "json", true)
-                $wrapLinesInSegments(highlighted).forEach((node) => {
-                    codeBlock.append(node)
-                })
-                root.append(codeBlock)
-                seeded = true
-            })
-            if (seeded) {
-                seededRef.current = true
-                return
-            }
-            if (attempts < maxAttempts) {
-                requestAnimationFrame(trySeed)
-            } else {
-                seededRef.current = true
-            }
-        }
-        const id = requestAnimationFrame(trySeed)
-        return () => {
-            cancelled = true
-            cancelAnimationFrame(id)
-        }
-    }, [editor, shouldSeed])
-    return null
-}
-
 const MarkdownViewSynchronizer: React.FC<{editorId: string; enabled: boolean}> = ({
     editorId,
     enabled,
@@ -219,6 +89,14 @@ const MarkdownViewSynchronizer: React.FC<{editorId: string; enabled: boolean}> =
     return null
 }
 
+/**
+ * Inline JSON/YAML code editor used by the schema-typed branch of
+ * `VariableControlAdapter`. It mirrors `JsonEditorWithLocalState`'s
+ * composition (EditorProvider wrapping SharedEditor with line numbers,
+ * disabled long text, syncWithInitialValueChanges, and local state that
+ * swallows invalid JSON instead of propagating it), while accepting header
+ * and footer slots for the standard variable chrome and schema hint.
+ */
 const JsonVariableEditor: React.FC<{
     editorKey: string
     initialValue: string
@@ -242,40 +120,7 @@ const JsonVariableEditor: React.FC<{
     collapsed,
     placeholder,
 }) => {
-    // Empty cells render with a 3-line `{ \n \n }` skeleton on mount via
-    // `EmptyCodeBlockSeed` below — gives the user a JSON-shaped invitation
-    // instead of a blank box. We previously seeded the cell *value* with
-    // `"{}"` for the same purpose, but that surfaced as a single-line
-    // artifact (QA: "Inputs always start with `{}`, why??"). The direct
-    // Lexical mutation preserves the multi-line visual.
-    //
-    // "Effectively empty" covers both truly empty cells (no value yet) AND
-    // cells whose value parses to an empty object/array. The latter happens
-    // when a stale `"{}"` value is still in the testcase store from earlier
-    // builds of this code; we want the new skeleton to apply there too,
-    // not show single-line `{}` lingering from the old default. The cell
-    // value then tracks the editor's onChange, becoming `"{\n\n}"` after
-    // the seed runs — which parses to the same `{}` at submit time.
     const [localValue, setLocalValue] = useState(initialValue)
-    const shouldSeedEmptyLine = useMemo(() => {
-        if (language !== "json") return false
-        if (!initialValue) return true
-        try {
-            const parsed = JSON.parse(initialValue)
-            if (
-                parsed &&
-                typeof parsed === "object" &&
-                !Array.isArray(parsed) &&
-                Object.keys(parsed).length === 0
-            ) {
-                return true
-            }
-        } catch {
-            // Invalid JSON — leave alone; the user has content that doesn't
-            // parse and we'd rather not clobber whatever they typed.
-        }
-        return false
-    }, [initialValue, language])
 
     useEffect(() => {
         setLocalValue(initialValue)
@@ -306,7 +151,6 @@ const JsonVariableEditor: React.FC<{
         >
             <DrillInProvider value={{enabled: false, decodeEscapedJsonStrings: false}}>
                 <EditorProvider key={editorKey} codeOnly language={language} showToolbar={false}>
-                    <EmptyCodeBlockSeed shouldSeed={shouldSeedEmptyLine} />
                     <SharedEditor
                         key={`${editorKey}-shared`}
                         initialValue={localValue}

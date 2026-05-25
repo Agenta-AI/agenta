@@ -5,51 +5,98 @@
  * with ChatMessageEditor from @agenta/ui, otherwise uses JSON editor.
  */
 
-import {memo, useCallback} from "react"
+import {useEffect, useMemo, useState} from "react"
 
-import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
-import {useAtomValue} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {ChatMessageEditor} from "@agenta/ui/chat-message"
 
-import {SET_MARKDOWN_VIEW} from "../../Editor/plugins/markdown/commands"
 import {markdownViewAtom} from "../../Editor/state/assets/atoms"
 import {useDrillInUI} from "../context/DrillInUIContext"
 import {ViewModeDropdown} from "../core/ViewModeDropdown"
+import {getViewOptions, type ViewMode} from "../utils/getViewOptions"
 
 import {isChatMessageObject} from "./fieldUtils"
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
 import type {JsonObjectFieldProps} from "./types"
 
-type ChatViewMode = "text" | "markdown"
+type ChatViewMode = Extract<ViewMode, "text" | "markdown" | "json" | "yaml">
 
-const CHAT_VIEW_OPTIONS: {value: ChatViewMode; label: string}[] = [
-    {value: "text", label: "Text"},
-    {value: "markdown", label: "Markdown"},
-]
+/**
+ * Extracted so we can host the viewMode state + markdownView atom sync
+ * needed by the 4-mode ViewModeDropdown. Mirrors the per-message pattern
+ * from ChatMessageList: viewMode lives in parent state, the editor key
+ * remounts on switch, and JSON/YAML modes flip ChatMessageEditor into
+ * codeOnly via `isJSON` + `language`.
+ */
+function ChatMessageObjectField({
+    messageEditorId,
+    role,
+    content,
+    parsed,
+    fullPath,
+    editable,
+    setValue,
+    valueMode,
+    originalWasString,
+}: {
+    messageEditorId: string
+    role: string
+    content: string
+    parsed: Record<string, unknown>
+    fullPath: string[]
+    editable: boolean
+    setValue: JsonObjectFieldProps["setValue"]
+    valueMode: JsonObjectFieldProps["valueMode"]
+    originalWasString: boolean
+}) {
+    const [viewMode, setViewMode] = useState<ChatViewMode>("text")
+    const isCodeMode = viewMode === "json" || viewMode === "yaml"
+    const editorLanguage: "json" | "yaml" = viewMode === "yaml" ? "yaml" : "json"
 
-// Inline sub-component: runs inside ChatMessageEditor's Lexical context so it
-// can read markdownViewAtom and dispatch SET_MARKDOWN_VIEW. Reuses the shared
-// ViewModeDropdown so chat-shaped JSON objects use the same affordance as the
-// testcase drawer.
-const ViewModeButton = memo(({id}: {id: string}) => {
-    const [editor] = useLexicalComposerContext()
-    const markdownView = useAtomValue(markdownViewAtom(id))
-    const onChange = useCallback(
-        (mode: ChatViewMode) => {
-            editor.dispatchCommand(SET_MARKDOWN_VIEW, mode === "markdown")
-        },
-        [editor],
+    const setMarkdownView = useSetAtom(markdownViewAtom(messageEditorId))
+    useEffect(() => {
+        setMarkdownView(viewMode === "markdown")
+    }, [setMarkdownView, viewMode])
+
+    const viewOptions = useMemo(
+        () => getViewOptions(content) as {value: ChatViewMode; label: string}[],
+        [content],
     )
+
     return (
-        <ViewModeDropdown<ChatViewMode>
-            value={markdownView ? "markdown" : "text"}
-            options={CHAT_VIEW_OPTIONS}
-            onChange={onChange}
+        <ChatMessageEditor
+            id={messageEditorId}
+            key={`${messageEditorId}-${viewMode}`}
+            role={role}
+            text={content}
+            disabled={!editable}
+            isJSON={isCodeMode}
+            language={editorLanguage}
+            enableTokens={!isCodeMode}
+            templateFormat="curly"
+            onChangeRole={(newRole: string) => {
+                const updated = {...parsed, role: newRole}
+                const shouldStringify = valueMode === "string" || originalWasString
+                setValue(fullPath, shouldStringify ? JSON.stringify(updated) : updated)
+            }}
+            onChangeText={(newText: string) => {
+                const updated = {...parsed, content: newText}
+                const shouldStringify = valueMode === "string" || originalWasString
+                setValue(fullPath, shouldStringify ? JSON.stringify(updated) : updated)
+            }}
+            headerRight={
+                <div className="flex items-center gap-1">
+                    <ViewModeDropdown<ChatViewMode>
+                        value={viewMode}
+                        options={viewOptions}
+                        onChange={setViewMode}
+                    />
+                </div>
+            }
         />
     )
-})
-ViewModeButton.displayName = "JsonObjectFieldViewModeButton"
+}
 
 export function JsonObjectField({
     item,
@@ -93,28 +140,16 @@ export function JsonObjectField({
         const messageEditorId = `drill-msg-${fullPath.join("-")}`
 
         return (
-            <ChatMessageEditor
-                id={messageEditorId}
+            <ChatMessageObjectField
+                messageEditorId={messageEditorId}
                 role={role}
-                text={content}
-                disabled={!editable}
-                enableTokens={true}
-                templateFormat="curly"
-                onChangeRole={(newRole: string) => {
-                    const updated = {...parsed, role: newRole}
-                    const shouldStringify = valueMode === "string" || originalWasString
-                    setValue(fullPath, shouldStringify ? JSON.stringify(updated) : updated)
-                }}
-                onChangeText={(newText: string) => {
-                    const updated = {...parsed, content: newText}
-                    const shouldStringify = valueMode === "string" || originalWasString
-                    setValue(fullPath, shouldStringify ? JSON.stringify(updated) : updated)
-                }}
-                headerRight={
-                    <div className="flex items-center gap-1">
-                        <ViewModeButton id={messageEditorId} />
-                    </div>
-                }
+                content={content}
+                parsed={parsed}
+                fullPath={fullPath}
+                editable={!!editable}
+                setValue={setValue}
+                valueMode={valueMode}
+                originalWasString={originalWasString}
             />
         )
     }
