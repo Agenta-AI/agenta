@@ -1,7 +1,11 @@
 import {useCallback, useMemo} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import {TestcaseDataEditor, type TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
+import {
+    TestcaseDataEditor,
+    type RootDrawerViewMode,
+    type TestcaseDataEditorColumn,
+} from "@agenta/entity-ui/testcase"
 import {executionItemController} from "@agenta/playground"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
@@ -27,19 +31,7 @@ function defaultValueForType(type: string): unknown {
     return ""
 }
 
-/**
- * Playground testcase editor.
- *
- * Renders existing testcase columns through the shared testcase data editor.
- * Prompt-referenced columns that don't yet exist on the testcase are listed
- * separately as "Suggested" — adding them is an explicit user action.
- *
- * Why the split: a testcase may legitimately NOT have a field that the prompt
- * references. Auto-creating it on prompt edit would conflate "referenced" with
- * "defined" and ship implicit structure. The user decides when a column
- * becomes real.
- */
-function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
+export function usePlaygroundTestcaseEditorModel(testcaseId: string) {
     const entityData = useAtomValue(testcaseMolecule.data(testcaseId))
 
     const rawColumns = useAtomValue(testcaseMolecule.atoms.columns) as Column[] | null
@@ -111,6 +103,50 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
         [testcaseId, updateTestcase],
     )
 
+    return {
+        entityData,
+        existingColumns,
+        editorColumns,
+        suggestedColumns,
+        handleAddSuggested,
+        handleEditorChange,
+    }
+}
+
+/**
+ * Playground testcase editor.
+ *
+ * Renders existing testcase columns through the shared testcase data editor.
+ * Prompt-referenced columns that don't yet exist on the testcase are listed
+ * separately as "Suggested" — adding them is an explicit user action.
+ *
+ * Why the split: a testcase may legitimately NOT have a field that the prompt
+ * references. Auto-creating it on prompt edit would conflate "referenced" with
+ * "defined" and ship implicit structure. The user decides when a column
+ * becomes real.
+ */
+function PlaygroundTestcaseEditor({
+    testcaseId,
+    initialPath,
+    onPathChange,
+    rootViewMode = "form",
+    collapseSignal = 0,
+}: {
+    testcaseId: string
+    initialPath?: string[]
+    onPathChange?: (path: string[]) => void
+    rootViewMode?: RootDrawerViewMode
+    collapseSignal?: number
+}) {
+    const {
+        entityData,
+        existingColumns,
+        editorColumns,
+        suggestedColumns,
+        handleAddSuggested,
+        handleEditorChange,
+    } = usePlaygroundTestcaseEditorModel(testcaseId)
+
     return (
         <div>
             {existingColumns.length > 0 || suggestedColumns.length === 0 ? (
@@ -120,11 +156,15 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
                     onChange={handleEditorChange}
                     mode="edit"
                     surface="playground"
+                    initialPath={initialPath}
+                    onPathChange={onPathChange}
                     features={{
                         typeChips: true,
-                        rootViewMode: true,
+                        rootViewMode: false,
                         columnMapping: false,
                     }}
+                    rootViewMode={rootViewMode}
+                    collapseSignal={collapseSignal}
                 />
             ) : null}
 

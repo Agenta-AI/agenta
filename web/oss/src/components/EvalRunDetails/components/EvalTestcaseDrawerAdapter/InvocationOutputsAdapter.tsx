@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import type {TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
+import type {RootDrawerViewMode, TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
 import {atom, useAtomValue} from "jotai"
 
 import {
@@ -16,6 +16,8 @@ interface InvocationOutputsAdapterProps {
     runId: string
     scenarioId: string
     sections: EvalDrawerOutputSection[]
+    rootViewMode?: RootDrawerViewMode
+    collapseSignal?: number
 }
 
 const toEditorColumn = (
@@ -33,7 +35,11 @@ const toEditorColumn = (
     }
 }
 
-const InvocationOutputsAdapter = ({runId, scenarioId, sections}: InvocationOutputsAdapterProps) => {
+export function useInvocationOutputDrawerData({
+    runId,
+    scenarioId,
+    sections,
+}: Pick<InvocationOutputsAdapterProps, "runId" | "scenarioId" | "sections">) {
     const editorColumns = useMemo(
         () =>
             sections.flatMap((section) =>
@@ -67,9 +73,29 @@ const InvocationOutputsAdapter = ({runId, scenarioId, sections}: InvocationOutpu
     )
     const value = useAtomValue(valueAtom)
 
-    if (!editorColumns.length) return null
+    return {columns: editorColumns, value}
+}
 
-    return <EvalDrawerDataSection title="Outputs" value={value} columns={editorColumns} />
+const InvocationOutputsAdapter = ({
+    runId,
+    scenarioId,
+    sections,
+    rootViewMode,
+    collapseSignal,
+}: InvocationOutputsAdapterProps) => {
+    const {columns, value} = useInvocationOutputDrawerData({runId, scenarioId, sections})
+
+    if (!columns.length) return null
+
+    return (
+        <EvalDrawerDataSection
+            title="Outputs"
+            value={value}
+            columns={columns}
+            rootViewMode={rootViewMode}
+            collapseSignal={collapseSignal}
+        />
+    )
 }
 
 export default InvocationOutputsAdapter

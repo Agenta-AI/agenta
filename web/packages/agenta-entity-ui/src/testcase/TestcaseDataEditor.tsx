@@ -97,28 +97,21 @@ function FullPayloadCodeEditor({
         [columns, editable, editableValue, format, onChange, value],
     )
 
-    if (!editable) {
-        return (
-            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 p-4 bg-gray-50 overflow-auto">
-                {displayValue}
-            </pre>
-        )
-    }
-
     if (format === "json") {
         return (
-            <div className="p-4">
+            <div className="px-6 py-4">
                 <JsonEditorWithLocalState
                     editorKey={editorId}
                     initialValue={displayValue}
                     onValidChange={handleChange}
+                    readOnly={!editable}
                 />
             </div>
         )
     }
 
     return (
-        <div className="p-4">
+        <div className="px-6 py-4">
             <EditorProvider
                 key={`${editorId}-provider`}
                 id={editorId}
@@ -131,11 +124,13 @@ function FullPayloadCodeEditor({
                     id={editorId}
                     initialValue={displayValue}
                     value={displayValue}
-                    handleChange={handleChange}
+                    handleChange={editable ? handleChange : undefined}
                     editorType="border"
                     className="min-h-[200px] overflow-hidden"
                     disableDebounce
                     noProvider
+                    disabled={!editable}
+                    state={editable ? undefined : "readOnly"}
                     editorProps={{
                         codeOnly: true,
                         language: "yaml",
