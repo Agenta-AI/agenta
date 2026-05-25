@@ -14,15 +14,18 @@ import {
     CopySimpleIcon,
     DatabaseIcon,
     ExamIcon,
+    Info,
     LightningIcon,
     MarkdownLogoIcon,
     MinusCircleIcon,
     PlayIcon,
     RowsIcon,
+    X,
 } from "@phosphor-icons/react"
 import {Tag} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
 import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
@@ -47,6 +50,38 @@ import {
 } from "../../../shared/NodeResultCard"
 
 import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
+
+// Dismissable callout that explains what the two evaluator playground
+// variables represent (the application being evaluated's inputs and output).
+// Persisted per-user via localStorage so it doesn't reappear after the user
+// acknowledges it once.
+const evaluatorCalloutDismissedAtom = atomWithStorage<boolean>(
+    "agenta:playground:evaluator-callout-dismissed",
+    false,
+)
+
+/**
+ * Visual grouping container for the evaluator-with-fields layout. Wraps a
+ * set of related variable rows with a subtle left-border accent so they
+ * read as one group (field ports + the envelope catch-all share the
+ * runtime `data.inputs` envelope and we want users to *see* that).
+ *
+ * Children render with their full headers + hover actions intact — this
+ * container is pure styling, no header label of its own, so it never
+ * collides with the per-port label or hides the action cluster.
+ */
+const SectionBlock: React.FC<{
+    children: React.ReactNode
+    ariaLabel?: string
+}> = ({children, ariaLabel}) => (
+    <div
+        role="group"
+        aria-label={ariaLabel}
+        className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[#1677FF22]"
+    >
+        {children}
+    </div>
+)
 
 interface Props {
     rowId: string
@@ -423,6 +458,50 @@ const SingleView = ({
         useMemo(() => workflowMolecule.selectors.query(entityId), [entityId]),
     )
 
+    // Whether this is an evaluator workflow — used to gate the one-time
+    // callout that explains the meaning of the two envelope variables
+    // and to switch the variables list into a grouped layout (field ports
+    // nested under their parent envelope section) for evaluator playgrounds.
+    const isEvaluator = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.isEvaluator(entityId), [entityId]),
+    )
+    const [evaluatorCalloutDismissed, setEvaluatorCalloutDismissed] = useAtom(
+        evaluatorCalloutDismissedAtom,
+    )
+
+    // Partition variables into the grouped layout for evaluators. Field
+    // ports (everything except `inputs`/`outputs`) belong inside the
+    // `inputs` envelope at runtime, so visually group them together with
+    // the envelope catch-all under one left-border block. All ports —
+    // field and envelope — render with their full headers + hover
+    // actions; the container itself carries no separate label so the
+    // existing per-port labels and affordances stay intact.
+    const {fieldPortIds, hasInputsEnvelope, hasOutputsEnvelope} = useMemo(() => {
+        const fields: string[] = []
+        let inputsEnv = false
+        let outputsEnv = false
+        for (const id of variableIds) {
+            if (id === "inputs") {
+                inputsEnv = true
+            } else if (id === "outputs") {
+                outputsEnv = true
+            } else {
+                fields.push(id)
+            }
+        }
+        return {
+            fieldPortIds: fields,
+            hasInputsEnvelope: inputsEnv,
+            hasOutputsEnvelope: outputsEnv,
+        }
+    }, [variableIds])
+
+    // Only use the grouped layout when there's actual grouping to do —
+    // an evaluator with no extracted field ports renders flat (just the
+    // two envelopes) since there's nothing to nest. Apps always render
+    // flat regardless.
+    const useGroupedLayout = isEvaluator && fieldPortIds.length > 0
+
     const {getNodeLabel} = usePlaygroundNodeLabels(nodes)
 
     // Per-step execution action
@@ -718,66 +797,134 @@ const SingleView = ({
                 >
                     {variableIds.length > 0 && (
                         <div className="flex flex-col gap-2 w-full">
-                            {variableIds.map((id) => {
-                                const isVariableInputCollapsed =
-                                    collapsedVariableInputs[id] || false
-                                return (
-                                    <div
-                                        key={id}
-                                        className={clsx([
-                                            "relative group/item px-0 w-full",
-                                            "hover:[&_.collapse-icon]:opacity-100",
-                                        ])}
-                                    >
-                                        <VariableControlAdapter
-                                            entityId={entityId}
-                                            variableKey={id}
-                                            rowId={rowId}
-                                            appType={appType}
-                                            collapsed={isVariableInputCollapsed}
-                                            containerRef={getVariableRef(id)}
-                                            className="*:!border-none overflow-hidden"
-                                            onMarkdownToggleReady={(toggle) => {
-                                                setMarkdownToggles((prev) => ({
-                                                    ...(prev[id] === (toggle ?? undefined)
-                                                        ? prev
-                                                        : {
-                                                              ...prev,
-                                                              [id]: toggle ?? undefined,
-                                                          }),
-                                                }))
-                                            }}
-                                            headerActions={
-                                                <>
-                                                    <EnhancedButton
-                                                        size="small"
-                                                        type="text"
-                                                        icon={<MarkdownLogoIcon size={14} />}
-                                                        onClick={() => markdownToggles[id]?.()}
-                                                        disabled={!markdownToggles[id]}
-                                                        tooltipProps={{
-                                                            title: "Preview markdown",
-                                                        }}
-                                                    />
-                                                    <CopyVariableButton
-                                                        rowId={rowId}
-                                                        variableKey={id}
-                                                    />
-                                                    <CollapseToggleButton
-                                                        className="collapse-icon"
-                                                        collapsed={isVariableInputCollapsed}
-                                                        onToggle={() =>
-                                                            toggleVariableInputCollapse(id)
-                                                        }
-                                                        contentRef={getVariableRef(id)}
-                                                    />
-                                                </>
-                                            }
-                                            editorProps={{enableTokens: false}}
-                                        />
+                            {isEvaluator && !evaluatorCalloutDismissed && (
+                                <div
+                                    className={clsx(
+                                        "flex items-start gap-2 px-3 py-2 rounded-md",
+                                        "bg-blue-50 border border-solid border-blue-100",
+                                    )}
+                                >
+                                    <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                                    <div className="flex-1 text-xs text-gray-700 leading-relaxed">
+                                        Fill these with the data the application being evaluated
+                                        received and produced. The evaluator will judge this pair —
+                                        not your own typed values.
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEvaluatorCalloutDismissed(true)}
+                                        className={clsx(
+                                            "shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-blue-100",
+                                            "border-0 bg-transparent cursor-pointer",
+                                        )}
+                                        aria-label="Dismiss"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            )}
+                            {(() => {
+                                // Inline renderer for a single variable row —
+                                // shared between the flat layout (apps + the
+                                // no-fields evaluator case) and the grouped
+                                // layout (evaluator with extracted field
+                                // ports nested under their envelope section).
+                                const renderVariable = (id: string) => {
+                                    const isVariableInputCollapsed =
+                                        collapsedVariableInputs[id] || false
+                                    return (
+                                        <div
+                                            key={id}
+                                            className={clsx([
+                                                "relative group/item px-0 w-full",
+                                                "hover:[&_.collapse-icon]:opacity-100",
+                                            ])}
+                                        >
+                                            <VariableControlAdapter
+                                                entityId={entityId}
+                                                variableKey={id}
+                                                rowId={rowId}
+                                                appType={appType}
+                                                collapsed={isVariableInputCollapsed}
+                                                containerRef={getVariableRef(id)}
+                                                className="*:!border-none overflow-hidden"
+                                                onMarkdownToggleReady={(toggle) => {
+                                                    setMarkdownToggles((prev) => ({
+                                                        ...(prev[id] === (toggle ?? undefined)
+                                                            ? prev
+                                                            : {
+                                                                  ...prev,
+                                                                  [id]: toggle ?? undefined,
+                                                              }),
+                                                    }))
+                                                }}
+                                                headerActions={
+                                                    <>
+                                                        <EnhancedButton
+                                                            size="small"
+                                                            type="text"
+                                                            icon={<MarkdownLogoIcon size={14} />}
+                                                            onClick={() => markdownToggles[id]?.()}
+                                                            disabled={!markdownToggles[id]}
+                                                            tooltipProps={{
+                                                                title: "Preview markdown",
+                                                            }}
+                                                        />
+                                                        <CopyVariableButton
+                                                            rowId={rowId}
+                                                            variableKey={id}
+                                                        />
+                                                        <CollapseToggleButton
+                                                            className="collapse-icon"
+                                                            collapsed={isVariableInputCollapsed}
+                                                            onToggle={() =>
+                                                                toggleVariableInputCollapse(id)
+                                                            }
+                                                            contentRef={getVariableRef(id)}
+                                                        />
+                                                    </>
+                                                }
+                                                editorProps={{enableTokens: false}}
+                                            />
+                                        </div>
+                                    )
+                                }
+
+                                // Flat layout — apps, and evaluators with no
+                                // extracted field ports (default template).
+                                if (!useGroupedLayout) {
+                                    return variableIds.map((id) => renderVariable(id))
+                                }
+
+                                // Grouped layout — evaluators with field
+                                // ports. Field ports + the envelope catch-all
+                                // share `data.inputs` at runtime, so we wrap
+                                // them in one left-border block to surface
+                                // that relationship visually. Each port
+                                // renders with its full header (label + ⓘ
+                                // tooltip + hover-revealed action cluster:
+                                // JSON/text toggle, markdown, copy, collapse)
+                                // and the editor's own border, so envelope
+                                // and field rows look identical and the
+                                // hover affordances stay intact. The group
+                                // identity comes from the container; we
+                                // intentionally don't add a separate header
+                                // label to avoid colliding with the envelope
+                                // port's own header.
+                                return (
+                                    <>
+                                        <SectionBlock ariaLabel="inputs">
+                                            {fieldPortIds.map((id) => renderVariable(id))}
+                                            {hasInputsEnvelope && renderVariable("inputs")}
+                                        </SectionBlock>
+                                        {hasOutputsEnvelope && (
+                                            <SectionBlock ariaLabel="outputs">
+                                                {renderVariable("outputs")}
+                                            </SectionBlock>
+                                        )}
+                                    </>
                                 )
-                            })}
+                            })()}
                         </div>
                     )}
                 </div>

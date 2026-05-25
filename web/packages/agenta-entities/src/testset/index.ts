@@ -113,10 +113,12 @@ export {
     // Fetch
     fetchRevision,
     fetchRevisionWithTestcases,
+    fetchLatestRevisionWithTestcases,
     fetchRevisionsList,
     fetchLatestRevision,
     fetchLatestRevisionsBatch,
     fetchRevisionsBatch,
+    fetchTestsetsBatch,
     fetchTestsetsList,
     fetchTestsetDetail,
     fetchVariantDetail,

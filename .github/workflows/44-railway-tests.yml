@@ -160,6 +160,9 @@ concurrency:
   group: railway-preview-tests-${{ inputs.agenta_web_url }}-${{ inputs.packages }}
   cancel-in-progress: true
 
+env:
+  UV_VERSION: "0.11.14"
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -284,7 +287,7 @@ jobs:
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          package_json_file: web/package.json
 
       - name: Install auth bootstrap dependencies
         if: steps.auth_bootstrap.outputs.enabled == 'true'
@@ -348,7 +351,7 @@ jobs:
 
       - name: Install API dependencies
         run: |
-          pip install "uv==0.11.9"
+          pip install "uv==${UV_VERSION}"
           cd api
           uv sync --locked --python 3.13
           uv pip install --python .venv/bin/python --editable ../sdks/python/
@@ -357,27 +360,7 @@ jobs:
         run: |
           cd api
 
-          case "${{ matrix.layer }}" in
-            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
-            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
-            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
-            *)
-              echo "Unsupported API test layer: ${{ matrix.layer }}"
-              exit 1
-              ;;
-          esac
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing API layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty API layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(uv run --no-sync python run-tests.py)
+          CMD=(uv run --no-sync python run-tests.py --layer "${{ matrix.layer }}")
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -389,7 +372,6 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
 
       - name: Publish API test results
@@ -415,7 +397,7 @@ jobs:
     needs: [prepare, wait-for-readiness]
     if: >-
       ${{
-        contains(fromJSON('["all","all-but-web","sdk-only"]'), inputs.packages) &&
+        contains(fromJSON('["all","all-but-web","api-only","sdk-only","services-only"]'), inputs.packages) &&
         (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
       }}
     runs-on: ubuntu-latest
@@ -449,7 +431,7 @@ jobs:
 
       - name: Install SDK dependencies
         run: |
-          pip install "uv==0.11.9"
+          pip install "uv==${UV_VERSION}"
           cd sdks/python
           uv sync --locked --python 3.13
 
@@ -457,27 +439,7 @@ jobs:
         run: |
           cd sdks/python
 
-          case "${{ matrix.layer }}" in
-            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
-            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
-            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
-            *)
-              echo "Unsupported SDK test layer: ${{ matrix.layer }}"
-              exit 1
-              ;;
-          esac
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing SDK layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty SDK layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(uv run --no-sync python run-tests.py)
+          CMD=(uv run --no-sync python run-tests.py --layer "${{ matrix.layer }}")
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -489,7 +451,6 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
 
       - name: Publish SDK test results
@@ -550,7 +511,7 @@ jobs:
 
       - name: Install services dependencies
         run: |
-          pip install "uv==0.11.9"
+          pip install "uv==${UV_VERSION}"
           cd services
           uv sync --locked --python 3.13
           uv pip install --python .venv/bin/python --editable ../sdks/python/
@@ -559,27 +520,7 @@ jobs:
         run: |
           cd services
 
-          case "${{ matrix.layer }}" in
-            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
-            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
-            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
-            *)
-              echo "Unsupported services test layer: ${{ matrix.layer }}"
-              exit 1
-              ;;
-          esac
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing services layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty services layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(uv run --no-sync python run-tests.py)
+          CMD=(uv run --no-sync python run-tests.py --layer "${{ matrix.layer }}")
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -591,7 +532,6 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
 
       - name: Publish services test results
@@ -652,11 +592,13 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          package_json_file: web/package.json
 
       - name: Install dependencies
         working-directory: web
-        run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
+        # Full install (not scoped): the layer runs package vitest suites whose
+        # devDeps (e.g. vitest) aren't pulled by a dependency-only filter.
+        run: pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         working-directory: web/tests
@@ -665,19 +607,10 @@ jobs:
       - name: Run web tests
         working-directory: web/tests
         run: |
-          TARGET_PATH="../oss/tests/playwright/${{ matrix.layer }}"
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing web layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty web layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --reporter=html,github)
+          # run-tests.ts runs every source for the layer (package vitest, then
+          # playwright) and resolves the playwright dir from --layer itself,
+          # skipping internally when that dir is empty. No pre-guard needed.
+          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --layer "${{ matrix.layer }}" --reporter=html,github)
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -689,8 +622,19 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
+
+      - name: Publish web test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          # playwright layer junit + per-package vitest junit (unit: junit.xml,
+          # integration: integration-junit.xml) — the layer runs both sources.
+          files: |
+            web/tests/results/oss/junit.xml
+            web/packages/*/test-results/*junit.xml
+          check_name: Railway Web Test Results (${{ matrix.layer }})
+          comment_mode: off
 
       - name: Upload test report
         id: upload_report
@@ -698,7 +642,10 @@ jobs:
         if: always()
         with:
           name: playwright-report-${{ matrix.layer }}
-          path: web/tests/reports/oss/
+          # playwright html report + per-package vitest junit (the layer runs both)
+          path: |
+            web/tests/reports/oss/
+            web/packages/*/test-results/
           retention-days: 14
 
       - name: Upload test results
@@ -707,7 +654,9 @@ jobs:
         if: failure()
         with:
           name: playwright-results-${{ matrix.layer }}
-          path: web/tests/results/oss/
+          path: |
+            web/tests/results/oss/
+            web/packages/*/test-results/
           retention-days: 7
 
       - name: Write job summary

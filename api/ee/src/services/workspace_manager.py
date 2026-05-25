@@ -20,6 +20,7 @@ from ee.src.core.workspaces.types import (
     CreateWorkspace,
     UpdateWorkspace,
 )
+from ee.src.core.entitlements.controls import get_role
 from ee.src.models.shared_models import Permission, WorkspaceRole
 from oss.src.services.organization_service import (
     create_invitation,
@@ -100,16 +101,9 @@ async def update_workspace(
     )
 
 
-async def get_all_workspace_roles() -> List[WorkspaceRole]:
-    """
-    Retrieve all workspace roles.
-
-    Returns:
-        List[WorkspaceRole]: A list of all workspace roles in the DB.
-    """
-
-    workspace_roles_from_db = await db_manager_ee.get_all_workspace_roles()
-    return workspace_roles_from_db
+async def get_all_workspace_roles() -> List[dict]:
+    """Return the effective workspace role catalog (env-overridable)."""
+    return await db_manager_ee.get_all_workspace_roles()
 
 
 async def get_all_workspace_permissions() -> List[Permission]:
@@ -223,6 +217,15 @@ async def invite_user_to_workspace(
                         else WorkspaceRole.VIEWER.value
                     )
                 )
+                # Validate against the effective workspace catalog
+                # (env-overridable via AGENTA_ACCESS_ROLES). Catches typos
+                # since the API model now accepts any string for forward-
+                # compatibility with custom roles.
+                if get_role("workspace", role) is None:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": f"Workspace role '{role}' is invalid."},
+                    )
                 invitation = await create_invitation(
                     role, project_id, payload_invite.email
                 )
@@ -414,7 +417,7 @@ async def accept_workspace_invitation(
 async def remove_user_from_workspace(
     workspace_id: str,
     email: str,
-) -> WorkspaceResponse:
+) -> bool:
     """
     Remove a user from a workspace.
 
@@ -423,7 +426,7 @@ async def remove_user_from_workspace(
         payload (UserRole): The payload containing the user ID and role to remove.
 
     Returns:
-        WorkspaceResponse: The updated workspace.
+        bool: True when the member or pending invitation was removed.
     """
 
     remove_user = await db_manager_ee.remove_user_from_workspace(workspace_id, email)

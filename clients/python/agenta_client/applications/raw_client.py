@@ -55,6 +55,13 @@ class RawApplicationsClient:
     
     def list_application_catalog_types(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationCatalogTypesResponse]:
         """
+        List shared catalog types.
+        
+        Catalog types are reusable JSON-Schema building blocks referenced from
+        template schemas (for example `message`, `prompt-template`). Types are
+        read-only and version with the product.
+        See the [Applications guide](/reference/api-guide/applications#catalog).
+        
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
@@ -85,6 +92,13 @@ class RawApplicationsClient:
     
     def list_application_catalog_templates(self, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationCatalogTemplatesResponse]:
         """
+        List application templates available in the catalog.
+        
+        Templates describe the handler (`uri`) and JSON schemas used to create
+        a new application. Pass `include_archived=true` to include retired
+        templates (useful when editing applications created from an old
+        template). Templates are global and read-only.
+        
         Parameters
         ----------
         include_archived : typing.Optional[bool]
@@ -127,6 +141,13 @@ class RawApplicationsClient:
     
     def fetch_application_catalog_template(self, template_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationCatalogTemplateResponse]:
         """
+        Fetch one application template by key.
+        
+        Use this to inspect the exact `uri`, `data`, and JSON Schemas for a
+        template before creating an application from it. `template_key` comes
+        from the `key` field of a template returned by the list endpoint
+        (for example `completion`, `chat`, `hook`).
+        
         Parameters
         ----------
         template_key : str
@@ -167,6 +188,13 @@ class RawApplicationsClient:
     
     def list_application_catalog_presets(self, template_key: str, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationCatalogPresetsResponse]:
         """
+        List presets scoped to a template.
+        
+        Presets are named parameter sets (for example a curated prompt +
+        model combination) that scaffold the first revision when creating an
+        application from a template. Pass `include_archived=true` to include
+        retired presets.
+        
         Parameters
         ----------
         template_key : str
@@ -211,6 +239,11 @@ class RawApplicationsClient:
     
     def fetch_application_catalog_preset(self, template_key: str, preset_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationCatalogPresetResponse]:
         """
+        Fetch one preset by key within a template.
+        
+        Returns the preset's `data` so clients can use it as the payload for a
+        first revision when creating an application from a template.
+        
         Parameters
         ----------
         template_key : str
@@ -253,9 +286,18 @@ class RawApplicationsClient:
     
     def create_application(self, *, application: ApplicationCreate, application_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationResponse]:
         """
+        Create an application artifact only.
+        
+        Returns an empty application without any variants or revisions.
+        Most callers should use `POST /simple/applications/` instead — it
+        creates the artifact, a default variant, and a first committed
+        revision in one request.
+        See the [Applications guide](/reference/api-guide/applications).
+        
         Parameters
         ----------
         application : ApplicationCreate
+            Artifact-level fields for the new application: `slug`, `name`, `description`, `flags`, `tags`, `meta`. The `slug` must be unique within the project.
         
         application_id : typing.Optional[str]
         
@@ -304,6 +346,12 @@ class RawApplicationsClient:
     
     def fetch_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationResponse]:
         """
+        Fetch one application artifact by ID.
+        
+        Returns artifact-level fields only. To get the current variant,
+        revision, and `data` in a single call, use
+        `GET /simple/applications/{application_id}`.
+        
         Parameters
         ----------
         application_id : str
@@ -344,11 +392,19 @@ class RawApplicationsClient:
     
     def edit_application(self, application_id: str, *, application: ApplicationEdit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationResponse]:
         """
+        Edit artifact-level fields on an application.
+        
+        Editable fields: `description`, `flags`, `tags`, `meta`. Editing `name`
+        is currently disabled and returns `400`. Prompt or model-parameter
+        changes go through `POST /applications/revisions/commit`, not this
+        endpoint.
+        
         Parameters
         ----------
         application_id : str
         
         application : ApplicationEdit
+            Artifact fields to update. The `id` must match the `application_id` in the URL path.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -393,6 +449,14 @@ class RawApplicationsClient:
     
     def archive_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationResponse]:
         """
+        Soft-delete an application.
+        
+        Archiving sets `deleted_at` on the application and hides it from
+        queries that don't set `include_archived: true`. Its variants and
+        revisions become unreachable from listing but their IDs remain
+        resolvable so historical traces stay intact.
+        See [Versioning](/reference/api-guide/versioning#archive-and-unarchive).
+        
         Parameters
         ----------
         application_id : str
@@ -433,6 +497,12 @@ class RawApplicationsClient:
     
     def unarchive_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationResponse]:
         """
+        Restore a previously archived application.
+        
+        Clears `deleted_at` and makes the application visible to standard
+        queries again. Safe to call on an already-active application; it is a
+        no-op in that case.
+        
         Parameters
         ----------
         application_id : str
@@ -473,15 +543,26 @@ class RawApplicationsClient:
     
     def query_applications(self, *, application: typing.Optional[ApplicationQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationsResponse]:
         """
+        Query application artifacts.
+        
+        Returns only artifact-level fields; the variant, revision, and `data`
+        payload are not included. For one row per application with those
+        merged in, use `POST /simple/applications/query`.
+        See [Query Pattern](/reference/api-guide/query-pattern).
+        
         Parameters
         ----------
         application : typing.Optional[ApplicationQuery]
+            Attribute filter. Accepts `slug`, `slugs`, `flags`, `tags`, `meta`. All fields are AND-ed.
         
         application_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to specific applications by `id` or `slug`. Combined with the `application` filter with AND semantics.
         
         include_archived : typing.Optional[bool]
+            When `true`, include soft-deleted applications. Defaults to `false`.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time-range controls.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -529,9 +610,17 @@ class RawApplicationsClient:
     
     def create_application_variant(self, *, application_variant: ApplicationVariantCreate, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationVariantResponse]:
         """
+        Create a new variant on an existing application.
+        
+        A variant is an independent branch of the application's history. The
+        new variant starts empty — call `POST /applications/revisions/commit`
+        to add its first revision. Use `POST /applications/variants/fork` when
+        you want the new variant to inherit an existing revision history.
+        
         Parameters
         ----------
         application_variant : ApplicationVariantCreate
+            Variant fields. Must include `application_id` (the artifact the variant belongs to) and a `slug` unique within the project.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -576,6 +665,12 @@ class RawApplicationsClient:
     
     def fetch_application_variant(self, application_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationVariantResponse]:
         """
+        Fetch one variant by ID.
+        
+        Returns variant-level fields. To get the variant's tip revision and
+        its `data`, call `POST /applications/revisions/retrieve` with
+        `application_variant_ref`.
+        
         Parameters
         ----------
         application_variant_id : str
@@ -616,11 +711,18 @@ class RawApplicationsClient:
     
     def edit_application_variant(self, application_variant_id: str, *, application_variant: ApplicationVariantEdit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationVariantResponse]:
         """
+        Edit a variant's header fields (`name`, `description`, `tags`, `meta`).
+        
+        Configuration changes go through a new commit via
+        `POST /applications/revisions/commit`. This endpoint only touches
+        variant-level metadata.
+        
         Parameters
         ----------
         application_variant_id : str
         
         application_variant : ApplicationVariantEdit
+            Full variant body. Edit replaces the artifact-level fields in a single PUT, so include every editable field even if its value is unchanged. `id` must match the `application_variant_id` in the URL path; `slug` is immutable. Configuration changes (prompt, model parameters) go through `/applications/revisions/commit`, not this endpoint.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -665,6 +767,12 @@ class RawApplicationsClient:
     
     def archive_application_variant(self, application_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationVariantResponse]:
         """
+        Soft-delete a variant.
+        
+        The variant and its revisions are hidden from queries unless
+        `include_archived: true` is sent. Revision IDs remain resolvable so
+        historical traces are preserved.
+        
         Parameters
         ----------
         application_variant_id : str
@@ -705,6 +813,8 @@ class RawApplicationsClient:
     
     def unarchive_application_variant(self, application_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationVariantResponse]:
         """
+        Restore a previously archived variant.
+        
         Parameters
         ----------
         application_variant_id : str
@@ -745,6 +855,14 @@ class RawApplicationsClient:
     
     def query_application_variants(self, *, application_id: typing.Optional[str] = None, application_ids: typing.Optional[typing.Sequence[str]] = None, application_slug: typing.Optional[str] = None, application_slugs: typing.Optional[typing.Sequence[str]] = None, application_variant_id: typing.Optional[str] = None, application_variant_ids: typing.Optional[typing.Sequence[str]] = None, application_variant_slug: typing.Optional[str] = None, application_variant_slugs: typing.Optional[typing.Sequence[str]] = None, name: typing.Optional[str] = None, description: typing.Optional[str] = None, flags: typing.Optional[str] = None, tags: typing.Optional[str] = None, meta: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, next: typing.Optional[str] = None, newest: typing.Optional[dt.datetime] = None, oldest: typing.Optional[dt.datetime] = None, limit: typing.Optional[int] = None, order: typing.Optional[QueryApplicationVariantsRequestOrder] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationVariantsResponse]:
         """
+        Query variants across one or more applications.
+        
+        Filters are parsed from both query-string parameters and the request
+        body; body values take precedence. Use `application_refs` to scope to
+        specific applications, `application_variant_refs` to narrow to
+        specific variants.
+        See [Query Pattern](/reference/api-guide/query-pattern).
+        
         Parameters
         ----------
         application_id : typing.Optional[str]
@@ -823,9 +941,21 @@ class RawApplicationsClient:
     
     def fork_application_variant(self, *, application: ApplicationFork, application_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationVariantResponse]:
         """
+        Fork an existing variant into a new variant on the same application.
+        
+        Use this to experiment without touching the source variant's history.
+        The fork copies the source variant's revisions up to the specified
+        revision (or tip) into the new variant, then commits the supplied
+        `revision` object on top. Both `variant` and `revision` sub-objects
+        in the request must be present; the server returns `count: 0` when
+        either is missing. Returns `400 Bad Request` if the fork target is
+        invalid (for example, the source variant or revision cannot be
+        located in this application's lineage).
+        
         Parameters
         ----------
         application : ApplicationFork
+            Fork payload. Must include the source `application_variant_id` (or `application_revision_id`) plus a `variant` object describing the new branch and a `revision` object for the new tip commit.
         
         application_variant_id : typing.Optional[str]
         
@@ -874,23 +1004,40 @@ class RawApplicationsClient:
     
     def retrieve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
+        Retrieve one application revision by reference.
+        
+        Accepts application / variant / revision references for direct lookup,
+        or an environment reference (with optional `key`) to resolve the
+        currently-deployed revision in that environment. Returns the revision
+        including its `data` payload (URL, parameters, schemas), which clients
+        use to invoke the application.
+        Set `resolve: true` to inline embedded references inside `data`.
+        
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
+            Application reference. When only an application is supplied, the latest revision of its default variant is returned.
         
         application_variant_ref : typing.Optional[Reference]
+            Variant reference. Returns the latest revision on that variant.
         
         application_revision_ref : typing.Optional[Reference]
+            Revision reference. Returns that exact revision.
         
         environment_ref : typing.Optional[Reference]
+            Environment reference. Returns the revision currently deployed to that environment under the given `key`.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant reference; used together with `environment_ref`.
         
         environment_revision_ref : typing.Optional[Reference]
+            Environment revision reference; used to pin to a specific environment commit instead of the current tip.
         
         key : typing.Optional[str]
+            Deployment key inside the environment revision. When omitted and `application_ref` is supplied, the server derives it as `{application_slug}.revision`.
         
         resolve : typing.Optional[bool]
+            When `true`, resolve embedded references in the returned revision's `data` (for example, snippet references).
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -942,23 +1089,39 @@ class RawApplicationsClient:
     
     def deploy_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, message: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
+        Deploy an application revision to an environment.
+        
+        Writes a reference from the environment revision to the application
+        revision under `key` (default: `{application_slug}.revision`). Clients
+        that subsequently call `/applications/revisions/retrieve` with the
+        same `environment_ref` and `key` resolve to this revision.
+        See the [Applications guide](/reference/api-guide/applications#deployment).
+        
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
+            Application reference. If provided, the latest revision of the default variant is deployed.
         
         application_variant_ref : typing.Optional[Reference]
+            Variant reference. Its latest revision is deployed.
         
         application_revision_ref : typing.Optional[Reference]
+            Revision reference. The exact revision is deployed.
         
         environment_ref : typing.Optional[Reference]
+            Target environment (for example `{"slug": "production"}`).
         
         environment_variant_ref : typing.Optional[Reference]
+            Target environment variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Target environment revision; advanced use only.
         
         key : typing.Optional[str]
+            Deployment key inside the environment revision. Defaults to `{application_slug}.revision`.
         
         message : typing.Optional[str]
+            Optional commit message attached to the environment revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1010,9 +1173,16 @@ class RawApplicationsClient:
     
     def create_application_revision(self, *, application_revision: ApplicationRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
+        Create a revision row directly, without the commit workflow.
+        
+        Advanced use only. For normal development loops prefer
+        `POST /applications/revisions/commit`, which commits the new revision
+        as the variant's tip and assigns a version number.
+        
         Parameters
         ----------
         application_revision : ApplicationRevisionCreate
+            Revision fields. Must reference the parent variant.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1057,6 +1227,11 @@ class RawApplicationsClient:
     
     def fetch_application_revision(self, application_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
+        Fetch one revision by its ID.
+        
+        Returns the revision including its `data` payload. For lookup by
+        variant slug or environment, use `POST /applications/revisions/retrieve`.
+        
         Parameters
         ----------
         application_revision_id : str
@@ -1097,11 +1272,19 @@ class RawApplicationsClient:
     
     def edit_application_revision(self, application_revision_id: str, *, application_revision: ApplicationRevisionEdit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
+        Edit a revision's header fields only.
+        
+        Revisions are immutable snapshots; `data`, `author`, `date`, and
+        `message` cannot be changed. This endpoint updates header fields such
+        as `description` and `tags`. To change configuration, commit a new
+        revision with `POST /applications/revisions/commit`.
+        
         Parameters
         ----------
         application_revision_id : str
         
         application_revision : ApplicationRevisionEdit
+            Full revision body. Edit replaces the editable fields in a single PUT, so include every editable field even if its value is unchanged. `id` must match the `application_revision_id` in the URL path. `data`, `author`, `date`, and `message` are immutable.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1146,6 +1329,12 @@ class RawApplicationsClient:
     
     def archive_application_revision(self, application_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
+        Soft-delete a revision.
+        
+        Archived revisions are hidden from `/query` and `/log` responses
+        unless `include_archived: true` is set. The ID remains resolvable for
+        traces and deployed environment references.
+        
         Parameters
         ----------
         application_revision_id : str
@@ -1186,6 +1375,8 @@ class RawApplicationsClient:
     
     def unarchive_application_revision(self, application_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
+        Restore a previously archived revision.
+        
         Parameters
         ----------
         application_revision_id : str
@@ -1226,21 +1417,37 @@ class RawApplicationsClient:
     
     def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionsResponse]:
         """
+        Query revisions across one or more applications or variants.
+        
+        Use `application_refs` / `application_variant_refs` to scope the
+        query, or filter on commit metadata (`author`, `date`, `message`) via
+        the `application_revision` object. For the ordered history of a
+        single variant, `POST /applications/revisions/log` is more direct.
+        Set `resolve: true` to inline embedded references in each revision's
+        `data`.
+        
         Parameters
         ----------
         application_revision : typing.Optional[ApplicationRevisionQuery]
+            Attribute filter. Includes standard fields (`slug`, `slugs`, `flags`) plus revision-specific ones (`author`, `authors`, `date`, `dates`, `message`).
         
         application_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope to revisions belonging to these applications.
         
         application_variant_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope to revisions belonging to these variants.
         
         application_revision_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to specific revisions by `id` or by `slug` + `version`.
         
         include_archived : typing.Optional[bool]
+            When `true`, include archived revisions. Defaults to `false`.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time-range controls.
         
         resolve : typing.Optional[bool]
+            When `true`, resolve embedded references in each returned revision's `data` (for example, snippet references). Defaults to `false`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1291,9 +1498,17 @@ class RawApplicationsClient:
     
     def commit_application_revision(self, *, application_revision_commit: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
+        Commit a new revision on a variant.
+        
+        The new revision becomes the variant's tip and is assigned the next
+        `version` number. Revisions are immutable once committed; to change
+        configuration, commit a new revision.
+        See [Versioning](/reference/api-guide/versioning#committing-a-revision).
+        
         Parameters
         ----------
         application_revision_commit : ApplicationRevisionCommit
+            Commit payload. Must include `application_variant_id` and `data`. `message` is a human-readable commit message. `slug` is optional; if omitted, the server generates one.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1338,9 +1553,17 @@ class RawApplicationsClient:
     
     def log_application_revisions(self, *, application: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionsResponse]:
         """
+        Return the ordered revision log for a variant.
+        
+        Pass `application_variant_id` to list the full history of that
+        variant; optionally pass `application_revision_id` + `depth` to walk
+        back a bounded number of commits from a specific revision. Entries
+        are returned newest-first and include the full revision record.
+        
         Parameters
         ----------
         application : ApplicationRevisionsLog
+            Filter for the log. Typically set `application_variant_id` to list the revision history of a single variant; optionally set `application_revision_id` + `depth` to walk back a bounded number of commits from a specific revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1385,19 +1608,33 @@ class RawApplicationsClient:
     
     def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResolveResponse]:
         """
+        Fetch a revision with embedded references inlined.
+        
+        When a revision's `data` carries references to other entities
+        (snippets, linked revisions), this endpoint resolves them in place and
+        returns the fully-inlined configuration along with `resolution_info`
+        describing what was substituted. Use it when clients need a
+        self-contained configuration for invocation or export.
+        
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
+            Application reference.
         
         application_variant_ref : typing.Optional[Reference]
+            Variant reference; resolves the latest revision on it.
         
         application_revision_ref : typing.Optional[Reference]
+            Revision reference; resolves that exact revision.
         
         max_depth : typing.Optional[int]
+            Maximum nesting depth for embedded references. Protects against runaway recursion. Defaults to `10`.
         
         max_embeds : typing.Optional[int]
+            Maximum total number of embedded references to follow. Defaults to `100`.
         
         error_policy : typing.Optional[ErrorPolicy]
+            How to handle resolution errors. `exception` (default) aborts; `placeholder` substitutes a marker; `keep` leaves the original reference untouched.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1447,9 +1684,19 @@ class RawApplicationsClient:
     
     def create_simple_application(self, *, application: SimpleApplicationCreate, application_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SimpleApplicationResponse]:
         """
+        Create an application end-to-end.
+        
+        Creates the application artifact, a default variant, and a first
+        committed revision whose `data` comes from the request. This is the
+        recommended entry point for "spin up a new application from a
+        template". For more control over variant and revision creation, use
+        the structured endpoints under `/applications/`.
+        See [Simple Endpoints](/reference/api-guide/simple-endpoints).
+        
         Parameters
         ----------
         application : SimpleApplicationCreate
+            Application fields plus `data` for the first revision. `data.uri` selects the template (for example `agenta:builtin:completion:v0`); `data.parameters` carries the prompt and model config.
         
         application_id : typing.Optional[str]
         
@@ -1498,15 +1745,27 @@ class RawApplicationsClient:
     
     def query_simple_applications(self, *, application: typing.Optional[SimpleApplicationQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SimpleApplicationsResponse]:
         """
+        Query applications with variant, revision, and `data` merged per row.
+        
+        This is the shape most clients want for dashboards or invocation
+        pickers: each row carries `variant_id`, `revision_id`, and `data`
+        (URL, parameters, schemas) alongside the artifact fields. For the
+        structured query that returns artifacts only, use
+        `POST /applications/query`.
+        
         Parameters
         ----------
         application : typing.Optional[SimpleApplicationQuery]
+            Attribute filter. Supports `slug`, `slugs`, `flags`, and `meta`. `flags` filter both artifact flags (`is_application`, etc.) and revision flags (`is_chat`, `has_url`, etc.).
         
         application_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to specific applications by `id` or `slug`.
         
         include_archived : typing.Optional[bool]
+            When `true`, include archived applications. Defaults to `false`.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time-range controls.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1554,6 +1813,12 @@ class RawApplicationsClient:
     
     def fetch_simple_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SimpleApplicationResponse]:
         """
+        Fetch one application with its current variant, revision, and `data` merged.
+        
+        The returned `data` includes the invocation `url`, the `parameters`
+        the revision was committed with, and the JSON `schemas` for inputs,
+        outputs, and parameters.
+        
         Parameters
         ----------
         application_id : str
@@ -1594,11 +1859,21 @@ class RawApplicationsClient:
     
     def edit_simple_application(self, application_id: str, *, application: SimpleApplicationEdit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SimpleApplicationResponse]:
         """
+        Edit an application and commit a new revision if configuration changed.
+        
+        Fields other than `id` in the request body are treated as changes and
+        produce a new committed revision. Supplying `data` changes the
+        configuration; supplying only header fields (`flags`, `tags`, `meta`)
+        still produces a new revision with the updated header but the
+        existing `data`. Editing the application `name` is currently
+        disabled and returns `400`.
+        
         Parameters
         ----------
         application_id : str
         
         application : SimpleApplicationEdit
+            Fields to change. `id` must match the path. Supplying `data` commits a new revision with that configuration; supplying `flags`/`tags`/`meta` commits a revision with the updated header but the existing `data`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1643,6 +1918,12 @@ class RawApplicationsClient:
     
     def archive_simple_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SimpleApplicationResponse]:
         """
+        Archive an application through the simple endpoint layer.
+        
+        Equivalent to `POST /applications/{application_id}/archive`; returns
+        the archived application in the simple shape (with its last known
+        variant, revision, and `data`).
+        
         Parameters
         ----------
         application_id : str
@@ -1683,6 +1964,11 @@ class RawApplicationsClient:
     
     def unarchive_simple_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SimpleApplicationResponse]:
         """
+        Unarchive an application through the simple endpoint layer.
+        
+        Equivalent to `POST /applications/{application_id}/unarchive`, with
+        the response shape of `/simple/applications/`.
+        
         Parameters
         ----------
         application_id : str
@@ -1726,6 +2012,13 @@ class AsyncRawApplicationsClient:
     
     async def list_application_catalog_types(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationCatalogTypesResponse]:
         """
+        List shared catalog types.
+        
+        Catalog types are reusable JSON-Schema building blocks referenced from
+        template schemas (for example `message`, `prompt-template`). Types are
+        read-only and version with the product.
+        See the [Applications guide](/reference/api-guide/applications#catalog).
+        
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
@@ -1756,6 +2049,13 @@ class AsyncRawApplicationsClient:
     
     async def list_application_catalog_templates(self, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationCatalogTemplatesResponse]:
         """
+        List application templates available in the catalog.
+        
+        Templates describe the handler (`uri`) and JSON schemas used to create
+        a new application. Pass `include_archived=true` to include retired
+        templates (useful when editing applications created from an old
+        template). Templates are global and read-only.
+        
         Parameters
         ----------
         include_archived : typing.Optional[bool]
@@ -1798,6 +2098,13 @@ class AsyncRawApplicationsClient:
     
     async def fetch_application_catalog_template(self, template_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationCatalogTemplateResponse]:
         """
+        Fetch one application template by key.
+        
+        Use this to inspect the exact `uri`, `data`, and JSON Schemas for a
+        template before creating an application from it. `template_key` comes
+        from the `key` field of a template returned by the list endpoint
+        (for example `completion`, `chat`, `hook`).
+        
         Parameters
         ----------
         template_key : str
@@ -1838,6 +2145,13 @@ class AsyncRawApplicationsClient:
     
     async def list_application_catalog_presets(self, template_key: str, *, include_archived: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationCatalogPresetsResponse]:
         """
+        List presets scoped to a template.
+        
+        Presets are named parameter sets (for example a curated prompt +
+        model combination) that scaffold the first revision when creating an
+        application from a template. Pass `include_archived=true` to include
+        retired presets.
+        
         Parameters
         ----------
         template_key : str
@@ -1882,6 +2196,11 @@ class AsyncRawApplicationsClient:
     
     async def fetch_application_catalog_preset(self, template_key: str, preset_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationCatalogPresetResponse]:
         """
+        Fetch one preset by key within a template.
+        
+        Returns the preset's `data` so clients can use it as the payload for a
+        first revision when creating an application from a template.
+        
         Parameters
         ----------
         template_key : str
@@ -1924,9 +2243,18 @@ class AsyncRawApplicationsClient:
     
     async def create_application(self, *, application: ApplicationCreate, application_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationResponse]:
         """
+        Create an application artifact only.
+        
+        Returns an empty application without any variants or revisions.
+        Most callers should use `POST /simple/applications/` instead — it
+        creates the artifact, a default variant, and a first committed
+        revision in one request.
+        See the [Applications guide](/reference/api-guide/applications).
+        
         Parameters
         ----------
         application : ApplicationCreate
+            Artifact-level fields for the new application: `slug`, `name`, `description`, `flags`, `tags`, `meta`. The `slug` must be unique within the project.
         
         application_id : typing.Optional[str]
         
@@ -1975,6 +2303,12 @@ class AsyncRawApplicationsClient:
     
     async def fetch_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationResponse]:
         """
+        Fetch one application artifact by ID.
+        
+        Returns artifact-level fields only. To get the current variant,
+        revision, and `data` in a single call, use
+        `GET /simple/applications/{application_id}`.
+        
         Parameters
         ----------
         application_id : str
@@ -2015,11 +2349,19 @@ class AsyncRawApplicationsClient:
     
     async def edit_application(self, application_id: str, *, application: ApplicationEdit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationResponse]:
         """
+        Edit artifact-level fields on an application.
+        
+        Editable fields: `description`, `flags`, `tags`, `meta`. Editing `name`
+        is currently disabled and returns `400`. Prompt or model-parameter
+        changes go through `POST /applications/revisions/commit`, not this
+        endpoint.
+        
         Parameters
         ----------
         application_id : str
         
         application : ApplicationEdit
+            Artifact fields to update. The `id` must match the `application_id` in the URL path.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2064,6 +2406,14 @@ class AsyncRawApplicationsClient:
     
     async def archive_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationResponse]:
         """
+        Soft-delete an application.
+        
+        Archiving sets `deleted_at` on the application and hides it from
+        queries that don't set `include_archived: true`. Its variants and
+        revisions become unreachable from listing but their IDs remain
+        resolvable so historical traces stay intact.
+        See [Versioning](/reference/api-guide/versioning#archive-and-unarchive).
+        
         Parameters
         ----------
         application_id : str
@@ -2104,6 +2454,12 @@ class AsyncRawApplicationsClient:
     
     async def unarchive_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationResponse]:
         """
+        Restore a previously archived application.
+        
+        Clears `deleted_at` and makes the application visible to standard
+        queries again. Safe to call on an already-active application; it is a
+        no-op in that case.
+        
         Parameters
         ----------
         application_id : str
@@ -2144,15 +2500,26 @@ class AsyncRawApplicationsClient:
     
     async def query_applications(self, *, application: typing.Optional[ApplicationQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationsResponse]:
         """
+        Query application artifacts.
+        
+        Returns only artifact-level fields; the variant, revision, and `data`
+        payload are not included. For one row per application with those
+        merged in, use `POST /simple/applications/query`.
+        See [Query Pattern](/reference/api-guide/query-pattern).
+        
         Parameters
         ----------
         application : typing.Optional[ApplicationQuery]
+            Attribute filter. Accepts `slug`, `slugs`, `flags`, `tags`, `meta`. All fields are AND-ed.
         
         application_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict the query to specific applications by `id` or `slug`. Combined with the `application` filter with AND semantics.
         
         include_archived : typing.Optional[bool]
+            When `true`, include soft-deleted applications. Defaults to `false`.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time-range controls.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2200,9 +2567,17 @@ class AsyncRawApplicationsClient:
     
     async def create_application_variant(self, *, application_variant: ApplicationVariantCreate, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationVariantResponse]:
         """
+        Create a new variant on an existing application.
+        
+        A variant is an independent branch of the application's history. The
+        new variant starts empty — call `POST /applications/revisions/commit`
+        to add its first revision. Use `POST /applications/variants/fork` when
+        you want the new variant to inherit an existing revision history.
+        
         Parameters
         ----------
         application_variant : ApplicationVariantCreate
+            Variant fields. Must include `application_id` (the artifact the variant belongs to) and a `slug` unique within the project.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2247,6 +2622,12 @@ class AsyncRawApplicationsClient:
     
     async def fetch_application_variant(self, application_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationVariantResponse]:
         """
+        Fetch one variant by ID.
+        
+        Returns variant-level fields. To get the variant's tip revision and
+        its `data`, call `POST /applications/revisions/retrieve` with
+        `application_variant_ref`.
+        
         Parameters
         ----------
         application_variant_id : str
@@ -2287,11 +2668,18 @@ class AsyncRawApplicationsClient:
     
     async def edit_application_variant(self, application_variant_id: str, *, application_variant: ApplicationVariantEdit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationVariantResponse]:
         """
+        Edit a variant's header fields (`name`, `description`, `tags`, `meta`).
+        
+        Configuration changes go through a new commit via
+        `POST /applications/revisions/commit`. This endpoint only touches
+        variant-level metadata.
+        
         Parameters
         ----------
         application_variant_id : str
         
         application_variant : ApplicationVariantEdit
+            Full variant body. Edit replaces the artifact-level fields in a single PUT, so include every editable field even if its value is unchanged. `id` must match the `application_variant_id` in the URL path; `slug` is immutable. Configuration changes (prompt, model parameters) go through `/applications/revisions/commit`, not this endpoint.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2336,6 +2724,12 @@ class AsyncRawApplicationsClient:
     
     async def archive_application_variant(self, application_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationVariantResponse]:
         """
+        Soft-delete a variant.
+        
+        The variant and its revisions are hidden from queries unless
+        `include_archived: true` is sent. Revision IDs remain resolvable so
+        historical traces are preserved.
+        
         Parameters
         ----------
         application_variant_id : str
@@ -2376,6 +2770,8 @@ class AsyncRawApplicationsClient:
     
     async def unarchive_application_variant(self, application_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationVariantResponse]:
         """
+        Restore a previously archived variant.
+        
         Parameters
         ----------
         application_variant_id : str
@@ -2416,6 +2812,14 @@ class AsyncRawApplicationsClient:
     
     async def query_application_variants(self, *, application_id: typing.Optional[str] = None, application_ids: typing.Optional[typing.Sequence[str]] = None, application_slug: typing.Optional[str] = None, application_slugs: typing.Optional[typing.Sequence[str]] = None, application_variant_id: typing.Optional[str] = None, application_variant_ids: typing.Optional[typing.Sequence[str]] = None, application_variant_slug: typing.Optional[str] = None, application_variant_slugs: typing.Optional[typing.Sequence[str]] = None, name: typing.Optional[str] = None, description: typing.Optional[str] = None, flags: typing.Optional[str] = None, tags: typing.Optional[str] = None, meta: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, next: typing.Optional[str] = None, newest: typing.Optional[dt.datetime] = None, oldest: typing.Optional[dt.datetime] = None, limit: typing.Optional[int] = None, order: typing.Optional[QueryApplicationVariantsRequestOrder] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationVariantsResponse]:
         """
+        Query variants across one or more applications.
+        
+        Filters are parsed from both query-string parameters and the request
+        body; body values take precedence. Use `application_refs` to scope to
+        specific applications, `application_variant_refs` to narrow to
+        specific variants.
+        See [Query Pattern](/reference/api-guide/query-pattern).
+        
         Parameters
         ----------
         application_id : typing.Optional[str]
@@ -2494,9 +2898,21 @@ class AsyncRawApplicationsClient:
     
     async def fork_application_variant(self, *, application: ApplicationFork, application_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationVariantResponse]:
         """
+        Fork an existing variant into a new variant on the same application.
+        
+        Use this to experiment without touching the source variant's history.
+        The fork copies the source variant's revisions up to the specified
+        revision (or tip) into the new variant, then commits the supplied
+        `revision` object on top. Both `variant` and `revision` sub-objects
+        in the request must be present; the server returns `count: 0` when
+        either is missing. Returns `400 Bad Request` if the fork target is
+        invalid (for example, the source variant or revision cannot be
+        located in this application's lineage).
+        
         Parameters
         ----------
         application : ApplicationFork
+            Fork payload. Must include the source `application_variant_id` (or `application_revision_id`) plus a `variant` object describing the new branch and a `revision` object for the new tip commit.
         
         application_variant_id : typing.Optional[str]
         
@@ -2545,23 +2961,40 @@ class AsyncRawApplicationsClient:
     
     async def retrieve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
+        Retrieve one application revision by reference.
+        
+        Accepts application / variant / revision references for direct lookup,
+        or an environment reference (with optional `key`) to resolve the
+        currently-deployed revision in that environment. Returns the revision
+        including its `data` payload (URL, parameters, schemas), which clients
+        use to invoke the application.
+        Set `resolve: true` to inline embedded references inside `data`.
+        
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
+            Application reference. When only an application is supplied, the latest revision of its default variant is returned.
         
         application_variant_ref : typing.Optional[Reference]
+            Variant reference. Returns the latest revision on that variant.
         
         application_revision_ref : typing.Optional[Reference]
+            Revision reference. Returns that exact revision.
         
         environment_ref : typing.Optional[Reference]
+            Environment reference. Returns the revision currently deployed to that environment under the given `key`.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant reference; used together with `environment_ref`.
         
         environment_revision_ref : typing.Optional[Reference]
+            Environment revision reference; used to pin to a specific environment commit instead of the current tip.
         
         key : typing.Optional[str]
+            Deployment key inside the environment revision. When omitted and `application_ref` is supplied, the server derives it as `{application_slug}.revision`.
         
         resolve : typing.Optional[bool]
+            When `true`, resolve embedded references in the returned revision's `data` (for example, snippet references).
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2613,23 +3046,39 @@ class AsyncRawApplicationsClient:
     
     async def deploy_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, message: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
+        Deploy an application revision to an environment.
+        
+        Writes a reference from the environment revision to the application
+        revision under `key` (default: `{application_slug}.revision`). Clients
+        that subsequently call `/applications/revisions/retrieve` with the
+        same `environment_ref` and `key` resolve to this revision.
+        See the [Applications guide](/reference/api-guide/applications#deployment).
+        
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
+            Application reference. If provided, the latest revision of the default variant is deployed.
         
         application_variant_ref : typing.Optional[Reference]
+            Variant reference. Its latest revision is deployed.
         
         application_revision_ref : typing.Optional[Reference]
+            Revision reference. The exact revision is deployed.
         
         environment_ref : typing.Optional[Reference]
+            Target environment (for example `{"slug": "production"}`).
         
         environment_variant_ref : typing.Optional[Reference]
+            Target environment variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Target environment revision; advanced use only.
         
         key : typing.Optional[str]
+            Deployment key inside the environment revision. Defaults to `{application_slug}.revision`.
         
         message : typing.Optional[str]
+            Optional commit message attached to the environment revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2681,9 +3130,16 @@ class AsyncRawApplicationsClient:
     
     async def create_application_revision(self, *, application_revision: ApplicationRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
+        Create a revision row directly, without the commit workflow.
+        
+        Advanced use only. For normal development loops prefer
+        `POST /applications/revisions/commit`, which commits the new revision
+        as the variant's tip and assigns a version number.
+        
         Parameters
         ----------
         application_revision : ApplicationRevisionCreate
+            Revision fields. Must reference the parent variant.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2728,6 +3184,11 @@ class AsyncRawApplicationsClient:
     
     async def fetch_application_revision(self, application_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
+        Fetch one revision by its ID.
+        
+        Returns the revision including its `data` payload. For lookup by
+        variant slug or environment, use `POST /applications/revisions/retrieve`.
+        
         Parameters
         ----------
         application_revision_id : str
@@ -2768,11 +3229,19 @@ class AsyncRawApplicationsClient:
     
     async def edit_application_revision(self, application_revision_id: str, *, application_revision: ApplicationRevisionEdit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
+        Edit a revision's header fields only.
+        
+        Revisions are immutable snapshots; `data`, `author`, `date`, and
+        `message` cannot be changed. This endpoint updates header fields such
+        as `description` and `tags`. To change configuration, commit a new
+        revision with `POST /applications/revisions/commit`.
+        
         Parameters
         ----------
         application_revision_id : str
         
         application_revision : ApplicationRevisionEdit
+            Full revision body. Edit replaces the editable fields in a single PUT, so include every editable field even if its value is unchanged. `id` must match the `application_revision_id` in the URL path. `data`, `author`, `date`, and `message` are immutable.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2817,6 +3286,12 @@ class AsyncRawApplicationsClient:
     
     async def archive_application_revision(self, application_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
+        Soft-delete a revision.
+        
+        Archived revisions are hidden from `/query` and `/log` responses
+        unless `include_archived: true` is set. The ID remains resolvable for
+        traces and deployed environment references.
+        
         Parameters
         ----------
         application_revision_id : str
@@ -2857,6 +3332,8 @@ class AsyncRawApplicationsClient:
     
     async def unarchive_application_revision(self, application_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
+        Restore a previously archived revision.
+        
         Parameters
         ----------
         application_revision_id : str
@@ -2897,21 +3374,37 @@ class AsyncRawApplicationsClient:
     
     async def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionsResponse]:
         """
+        Query revisions across one or more applications or variants.
+        
+        Use `application_refs` / `application_variant_refs` to scope the
+        query, or filter on commit metadata (`author`, `date`, `message`) via
+        the `application_revision` object. For the ordered history of a
+        single variant, `POST /applications/revisions/log` is more direct.
+        Set `resolve: true` to inline embedded references in each revision's
+        `data`.
+        
         Parameters
         ----------
         application_revision : typing.Optional[ApplicationRevisionQuery]
+            Attribute filter. Includes standard fields (`slug`, `slugs`, `flags`) plus revision-specific ones (`author`, `authors`, `date`, `dates`, `message`).
         
         application_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope to revisions belonging to these applications.
         
         application_variant_refs : typing.Optional[typing.Sequence[Reference]]
+            Scope to revisions belonging to these variants.
         
         application_revision_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to specific revisions by `id` or by `slug` + `version`.
         
         include_archived : typing.Optional[bool]
+            When `true`, include archived revisions. Defaults to `false`.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time-range controls.
         
         resolve : typing.Optional[bool]
+            When `true`, resolve embedded references in each returned revision's `data` (for example, snippet references). Defaults to `false`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2962,9 +3455,17 @@ class AsyncRawApplicationsClient:
     
     async def commit_application_revision(self, *, application_revision_commit: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
+        Commit a new revision on a variant.
+        
+        The new revision becomes the variant's tip and is assigned the next
+        `version` number. Revisions are immutable once committed; to change
+        configuration, commit a new revision.
+        See [Versioning](/reference/api-guide/versioning#committing-a-revision).
+        
         Parameters
         ----------
         application_revision_commit : ApplicationRevisionCommit
+            Commit payload. Must include `application_variant_id` and `data`. `message` is a human-readable commit message. `slug` is optional; if omitted, the server generates one.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -3009,9 +3510,17 @@ class AsyncRawApplicationsClient:
     
     async def log_application_revisions(self, *, application: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionsResponse]:
         """
+        Return the ordered revision log for a variant.
+        
+        Pass `application_variant_id` to list the full history of that
+        variant; optionally pass `application_revision_id` + `depth` to walk
+        back a bounded number of commits from a specific revision. Entries
+        are returned newest-first and include the full revision record.
+        
         Parameters
         ----------
         application : ApplicationRevisionsLog
+            Filter for the log. Typically set `application_variant_id` to list the revision history of a single variant; optionally set `application_revision_id` + `depth` to walk back a bounded number of commits from a specific revision.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -3056,19 +3565,33 @@ class AsyncRawApplicationsClient:
     
     async def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResolveResponse]:
         """
+        Fetch a revision with embedded references inlined.
+        
+        When a revision's `data` carries references to other entities
+        (snippets, linked revisions), this endpoint resolves them in place and
+        returns the fully-inlined configuration along with `resolution_info`
+        describing what was substituted. Use it when clients need a
+        self-contained configuration for invocation or export.
+        
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
+            Application reference.
         
         application_variant_ref : typing.Optional[Reference]
+            Variant reference; resolves the latest revision on it.
         
         application_revision_ref : typing.Optional[Reference]
+            Revision reference; resolves that exact revision.
         
         max_depth : typing.Optional[int]
+            Maximum nesting depth for embedded references. Protects against runaway recursion. Defaults to `10`.
         
         max_embeds : typing.Optional[int]
+            Maximum total number of embedded references to follow. Defaults to `100`.
         
         error_policy : typing.Optional[ErrorPolicy]
+            How to handle resolution errors. `exception` (default) aborts; `placeholder` substitutes a marker; `keep` leaves the original reference untouched.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -3118,9 +3641,19 @@ class AsyncRawApplicationsClient:
     
     async def create_simple_application(self, *, application: SimpleApplicationCreate, application_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SimpleApplicationResponse]:
         """
+        Create an application end-to-end.
+        
+        Creates the application artifact, a default variant, and a first
+        committed revision whose `data` comes from the request. This is the
+        recommended entry point for "spin up a new application from a
+        template". For more control over variant and revision creation, use
+        the structured endpoints under `/applications/`.
+        See [Simple Endpoints](/reference/api-guide/simple-endpoints).
+        
         Parameters
         ----------
         application : SimpleApplicationCreate
+            Application fields plus `data` for the first revision. `data.uri` selects the template (for example `agenta:builtin:completion:v0`); `data.parameters` carries the prompt and model config.
         
         application_id : typing.Optional[str]
         
@@ -3169,15 +3702,27 @@ class AsyncRawApplicationsClient:
     
     async def query_simple_applications(self, *, application: typing.Optional[SimpleApplicationQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SimpleApplicationsResponse]:
         """
+        Query applications with variant, revision, and `data` merged per row.
+        
+        This is the shape most clients want for dashboards or invocation
+        pickers: each row carries `variant_id`, `revision_id`, and `data`
+        (URL, parameters, schemas) alongside the artifact fields. For the
+        structured query that returns artifacts only, use
+        `POST /applications/query`.
+        
         Parameters
         ----------
         application : typing.Optional[SimpleApplicationQuery]
+            Attribute filter. Supports `slug`, `slugs`, `flags`, and `meta`. `flags` filter both artifact flags (`is_application`, etc.) and revision flags (`is_chat`, `has_url`, etc.).
         
         application_refs : typing.Optional[typing.Sequence[Reference]]
+            Restrict to specific applications by `id` or `slug`.
         
         include_archived : typing.Optional[bool]
+            When `true`, include archived applications. Defaults to `false`.
         
         windowing : typing.Optional[Windowing]
+            Cursor pagination and time-range controls.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -3225,6 +3770,12 @@ class AsyncRawApplicationsClient:
     
     async def fetch_simple_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SimpleApplicationResponse]:
         """
+        Fetch one application with its current variant, revision, and `data` merged.
+        
+        The returned `data` includes the invocation `url`, the `parameters`
+        the revision was committed with, and the JSON `schemas` for inputs,
+        outputs, and parameters.
+        
         Parameters
         ----------
         application_id : str
@@ -3265,11 +3816,21 @@ class AsyncRawApplicationsClient:
     
     async def edit_simple_application(self, application_id: str, *, application: SimpleApplicationEdit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SimpleApplicationResponse]:
         """
+        Edit an application and commit a new revision if configuration changed.
+        
+        Fields other than `id` in the request body are treated as changes and
+        produce a new committed revision. Supplying `data` changes the
+        configuration; supplying only header fields (`flags`, `tags`, `meta`)
+        still produces a new revision with the updated header but the
+        existing `data`. Editing the application `name` is currently
+        disabled and returns `400`.
+        
         Parameters
         ----------
         application_id : str
         
         application : SimpleApplicationEdit
+            Fields to change. `id` must match the path. Supplying `data` commits a new revision with that configuration; supplying `flags`/`tags`/`meta` commits a revision with the updated header but the existing `data`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -3314,6 +3875,12 @@ class AsyncRawApplicationsClient:
     
     async def archive_simple_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SimpleApplicationResponse]:
         """
+        Archive an application through the simple endpoint layer.
+        
+        Equivalent to `POST /applications/{application_id}/archive`; returns
+        the archived application in the simple shape (with its last known
+        variant, revision, and `data`).
+        
         Parameters
         ----------
         application_id : str
@@ -3354,6 +3921,11 @@ class AsyncRawApplicationsClient:
     
     async def unarchive_simple_application(self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SimpleApplicationResponse]:
         """
+        Unarchive an application through the simple endpoint layer.
+        
+        Equivalent to `POST /applications/{application_id}/unarchive`, with
+        the response shape of `/simple/applications/`.
+        
         Parameters
         ----------
         application_id : str

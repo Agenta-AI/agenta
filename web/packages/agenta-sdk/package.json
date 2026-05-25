@@ -25,7 +25,7 @@
         "src"
     ],
     "dependencies": {
-        "@agenta/api-client": "workspace:../agenta-api-client"
+        "@agentaai/api-client": "workspace:../agenta-api-client"
     },
     "devDependencies": {
         "@types/node": "^20.8.10",

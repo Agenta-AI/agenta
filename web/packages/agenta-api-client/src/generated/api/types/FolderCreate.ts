@@ -9,6 +9,8 @@ export interface FolderCreate {
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
+    /** Resource family the folder organizes. Defaults to `applications` when omitted. */
     kind?: (AgentaApi.FolderKind | null) | undefined;
+    /** Id of the parent folder. Omit or set to `null` to create a root folder. */
     parent_id?: (string | null) | undefined;
 }

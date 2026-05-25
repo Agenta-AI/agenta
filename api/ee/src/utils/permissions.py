@@ -14,10 +14,11 @@ from ee.src.models.shared_models import (
     Permission,
     WorkspaceRole,
 )
+from ee.src.core.entitlements.controls import get_role, get_role_permissions
 
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee
-from ee.src.utils.entitlements import check_entitlements, Flag
+from ee.src.utils.entitlements import check_entitlements, scope_from, Flag
 from ee.src.services.selectors import get_user_org_and_workspace_id
 
 
@@ -82,12 +83,18 @@ def _project_has_permission(
     permission: Permission,
     members: Sequence[Any],
 ) -> bool:
-    """True if the user's role implies the given permission."""
+    """True if the user's role implies the given permission.
+
+    Role permissions are resolved via access-controls (env-overridable via
+    AGENTA_ACCESS_ROLES); not the closed `Permission.default_permissions` table.
+    """
     role = _get_project_member_role(user_id, members)
     if role is None:
         return False
-    # Permission.default_permissions was used in the old model methods
-    return permission in Permission.default_permissions(role)
+    role_slug = role.value if hasattr(role, "value") else role
+    role_permissions = get_role_permissions("project", role_slug)
+    # "*" is the wildcard owner permission — implies everything.
+    return "*" in role_permissions or permission.value in role_permissions
 
 
 async def _get_workspace_member_ids(workspace: WorkspaceDB) -> List[str]:
@@ -363,10 +370,13 @@ async def check_project_has_role_or_permission(
 
     if not is_demo:
         # For non-demo members, check if RBAC is enabled
-        # If RBAC is disabled, grant full access (current behavior for paid plans)
+        # If RBAC is disabled, grant full access (current behavior for paid plans).
+        # The flag is per-org; project it onto the target project's org so
+        # cross-org permission checks read the correct plan's RBAC setting
+        # rather than the ambient caller's plan.
         check, _, _ = await check_entitlements(
-            organization_id=project.organization_id,
             key=Flag.RBAC,
+            scope=scope_from(organization_id=project.organization_id),
         )
 
         if not check:
@@ -382,7 +392,8 @@ async def check_project_has_role_or_permission(
         return True
 
     if role is not None:
-        if role not in list(WorkspaceRole):
+        role_slug = role.value if hasattr(role, "value") else role
+        if get_role("project", role_slug) is None:
             raise Exception("Invalid role specified")
         return _project_has_role(user_id, role, project_members)
 

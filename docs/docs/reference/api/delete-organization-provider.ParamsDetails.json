@@ -1,1 +1,1 @@
-{"parameters":[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}},{"name":"provider_id","in":"path","required":true,"schema":{"type":"string","title":"Provider Id"}}]}
+{"parameters":[{"name":"provider_id","in":"path","required":true,"schema":{"type":"string","title":"Provider Id"}}]}

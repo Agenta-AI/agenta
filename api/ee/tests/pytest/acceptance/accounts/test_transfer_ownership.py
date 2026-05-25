@@ -62,7 +62,7 @@ class TestTransferOwnership:
                 "membership": {
                     "organization_ref": {"id": org_id},
                     "user_ref": {"id": tgt_user_id},
-                    "role": "member",
+                    "role": "viewer",
                 }
             },
         )
@@ -115,7 +115,7 @@ class TestTransferOwnership:
                 "membership": {
                     "organization_ref": {"id": org_id},
                     "user_ref": {"id": tgt_user_id},
-                    "role": "member",
+                    "role": "viewer",
                 }
             },
         )
@@ -142,7 +142,7 @@ class TestTransferOwnership:
         # explicitly; a 200 means it was found and removed, not a 404.
         delete_org_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/organizations/{org_id}/",
+            f"/admin/simple/accounts/organizations/{org_id}",
         )
         assert delete_org_resp.status_code == 200, (
             f"Organization {org_id} was not found after source user deleted - "

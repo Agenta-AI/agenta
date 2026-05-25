@@ -7,12 +7,20 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface WorkflowRevisionRetrieveRequest {
+    /** Return the latest revision across all variants of this workflow. */
     workflow_ref?: AgentaApi.Reference | null;
+    /** Return the latest revision of this variant. */
     workflow_variant_ref?: AgentaApi.Reference | null;
+    /** Return this exact revision (by `id`, or by `slug` + `version`). */
     workflow_revision_ref?: AgentaApi.Reference | null;
+    /** Environment artifact backing the deployment to resolve from. */
     environment_ref?: AgentaApi.Reference | null;
+    /** Environment variant backing the deployment to resolve from. */
     environment_variant_ref?: AgentaApi.Reference | null;
+    /** Specific environment revision to resolve from. */
     environment_revision_ref?: AgentaApi.Reference | null;
+    /** Key into the environment revision's reference map. Required when retrieving via environment refs. */
     key?: string | null;
+    /** When true, resolve `@ag.references` tokens embedded in the revision configuration before returning it. */
     resolve?: boolean | null;
 }

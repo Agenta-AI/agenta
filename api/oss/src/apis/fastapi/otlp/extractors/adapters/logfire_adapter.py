@@ -1,5 +1,5 @@
 from typing import Dict, List, Any, Tuple
-from json import loads
+from json import loads, JSONDecodeError
 
 from oss.src.apis.fastapi.otlp.extractors.base_adapter import BaseAdapter
 from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
@@ -14,6 +14,94 @@ from oss.src.apis.fastapi.otlp.utils.serialization import (
 )
 
 log = get_module_logger(__name__)
+
+
+def _try_parse_json(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            return loads(value)
+        except (JSONDecodeError, TypeError):
+            return value
+    return value
+
+
+def _normalize_pydantic_messages(messages: list) -> list:
+    """Convert PydanticAI {role, parts} messages to {role, content} format.
+
+    Only used for chat spans where the frontend needs conversation rendering.
+    """
+    normalized = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role", "")
+        parts = msg.get("parts", [])
+
+        if "content" in msg and "parts" not in msg:
+            normalized.append(msg)
+            continue
+
+        if not parts:
+            normalized.append({"role": role, "content": ""})
+            continue
+
+        text_parts = [
+            p for p in parts if isinstance(p, dict) and p.get("type") == "text"
+        ]
+        tool_call_parts = [
+            p for p in parts if isinstance(p, dict) and p.get("type") == "tool_call"
+        ]
+        tool_response_parts = [
+            p
+            for p in parts
+            if isinstance(p, dict) and p.get("type") == "tool_call_response"
+        ]
+        thinking_parts = [
+            p for p in parts if isinstance(p, dict) and p.get("type") == "thinking"
+        ]
+
+        for tr in tool_response_parts:
+            normalized.append(
+                {
+                    "role": "tool",
+                    "content": tr.get("result", ""),
+                    "tool_call_id": tr.get("id", ""),
+                    "name": tr.get("name", ""),
+                }
+            )
+
+        if text_parts or tool_call_parts or thinking_parts:
+            content = (
+                " ".join(p.get("content", "") for p in text_parts) if text_parts else ""
+            )
+
+            result_msg: Dict[str, Any] = {"role": role, "content": content}
+
+            if tool_call_parts:
+                result_msg["tool_calls"] = [
+                    {
+                        "id": tc.get("id", ""),
+                        "type": "function",
+                        "function": {
+                            "name": tc.get("name", ""),
+                            "arguments": tc.get("arguments", {}),
+                        },
+                    }
+                    for tc in tool_call_parts
+                ]
+
+            if thinking_parts:
+                result_msg["thinking"] = " ".join(
+                    p.get("content", "") for p in thinking_parts
+                )
+
+            if msg.get("finish_reason"):
+                result_msg["finish_reason"] = msg["finish_reason"]
+
+            normalized.append(result_msg)
+
+    return normalized
+
 
 GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     # Core Data
@@ -45,6 +133,23 @@ GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     ("agent_name", "ag.meta.agent_name"),
     ("model_name", "ag.meta.model_name"),
     ("final_result", "ag.meta.final_result"),
+    # v3+ tool attribute names
+    ("gen_ai.tool.call.arguments", "ag.meta.tool.call.arguments"),
+    ("gen_ai.tool.call.result", "ag.meta.tool.call.result"),
+    # Tool response (v1/v2, was missing)
+    ("tool_response", "ag.meta.tool_response"),
+    # System instructions
+    ("gen_ai.system_instructions", "ag.meta.system_instructions"),
+    # Agent description
+    ("gen_ai.agent.description", "ag.meta.agent.description"),
+    # Provider name
+    ("gen_ai.provider.name", "ag.meta.provider.name"),
+    # Cache usage
+    ("gen_ai.usage.cache_read.input_tokens", "ag.metrics.unit.tokens.cache_read"),
+    (
+        "gen_ai.usage.cache_creation.input_tokens",
+        "ag.metrics.unit.tokens.cache_creation",
+    ),
 ]
 
 OPERATION_TO_NODETYPE = {
@@ -84,7 +189,6 @@ class LogfireAdapter(BaseAdapter):
                 transformed_attributes[ag_key] = value
                 has_logfire_data = True
             if key == "gen_ai.operation.name":
-                # Map GenAI operation names to Agenta node types
                 transformed_attributes["ag.type.node"] = OPERATION_TO_NODETYPE.get(
                     value, "task"
                 )
@@ -106,28 +210,32 @@ class LogfireAdapter(BaseAdapter):
             for namespace, feature in NAMESPACE_PREFIX_FEATURE_MAPPING.items():
                 if k.startswith(namespace):
                     flat_attribute = process_attribute((k, v), namespace)
-                    features.__getattribute__(feature).update(flat_attribute)
+                    getattr(features, feature).update(flat_attribute)
 
-        if bag.span_attributes.get("events") or bag.span_attributes.get(
-            "all_messages_events"
+        # ── v2+ data extraction ─────────────────────────────────────
+        self._extract_chat_span_data(bag, features)
+        self._extract_tool_span_data(bag, features)
+        self._extract_agent_span_data(bag, features)
+
+        # ── v1 fallback: events-based extraction ────────────────────
+        if not features.data and (
+            bag.span_attributes.get("events")
+            or bag.span_attributes.get("all_messages_events")
         ):
-            # Parse the events string if it's a string
             events_data = self._parse_events(
                 bag.span_attributes.get("events")
                 or bag.span_attributes.get("all_messages_events")
             )
 
-            # Filter input events (all except gen_ai.choice)
             input_events = [
                 e for e in events_data if e.get("event.name") != "gen_ai.choice"
             ]
-            # Get the output event (gen_ai.choice)
             output_event = next(
-                (e for e in events_data if e.get("event.name") == "gen_ai.choice"), None
+                (e for e in events_data if e.get("event.name") == "gen_ai.choice"),
+                None,
             )
 
             if input_events:
-                # Format input events as prompt messages
                 prompt_messages = []
                 for event in input_events:
                     message = {}
@@ -137,7 +245,6 @@ class LogfireAdapter(BaseAdapter):
                         message["content"] = event.get("content")
                     if "tool_calls" in event:
                         message["tool_calls"] = decode_value(event.get("tool_calls"))
-                    # Add any other relevant fields
                     if message:
                         prompt_messages.append(message)
 
@@ -145,7 +252,6 @@ class LogfireAdapter(BaseAdapter):
                     features.data["inputs"] = {"prompt": prompt_messages}
 
             if output_event:
-                # Format output event as completion
                 completion_messages = []
                 if "message" in output_event:
                     message = output_event.get("message", {})
@@ -163,8 +269,94 @@ class LogfireAdapter(BaseAdapter):
                 if completion_messages:
                     features.data["outputs"] = {"completion": completion_messages}
 
+    def _extract_chat_span_data(
+        self, bag: CanonicalAttributes, features: SpanFeatures
+    ) -> None:
+        input_messages = bag.span_attributes.get("gen_ai.input.messages")
+        output_messages = bag.span_attributes.get("gen_ai.output.messages")
+
+        if input_messages is None and output_messages is None:
+            return
+
+        if input_messages is not None:
+            parsed = _try_parse_json(input_messages)
+            if isinstance(parsed, list):
+                features.data["inputs"] = {
+                    "prompt": _normalize_pydantic_messages(parsed)
+                }
+
+        if output_messages is not None:
+            parsed = _try_parse_json(output_messages)
+            if isinstance(parsed, list):
+                features.data["outputs"] = {
+                    "completion": _normalize_pydantic_messages(parsed)
+                }
+
+    def _extract_tool_span_data(
+        self, bag: CanonicalAttributes, features: SpanFeatures
+    ) -> None:
+        tool_name = bag.span_attributes.get("gen_ai.tool.name")
+        if not tool_name:
+            return
+
+        if features.data:
+            return
+
+        tool_args = bag.span_attributes.get(
+            "tool_arguments"
+        ) or bag.span_attributes.get("gen_ai.tool.call.arguments")
+        tool_response = bag.span_attributes.get(
+            "tool_response"
+        ) or bag.span_attributes.get("gen_ai.tool.call.result")
+
+        inputs: Dict[str, Any] = {"name": tool_name}
+        if tool_args:
+            inputs["arguments"] = _try_parse_json(tool_args)
+        features.data["inputs"] = inputs
+
+        if tool_response is not None:
+            features.data["outputs"] = _try_parse_json(tool_response)
+
+    def _extract_agent_span_data(
+        self, bag: CanonicalAttributes, features: SpanFeatures
+    ) -> None:
+        all_messages_str = bag.span_attributes.get("pydantic_ai.all_messages")
+        final_result = bag.span_attributes.get("final_result")
+        operation_name = bag.span_attributes.get("gen_ai.operation.name")
+
+        if operation_name != "invoke_agent" and final_result is None:
+            return
+
+        if features.data:
+            return
+
+        if all_messages_str:
+            all_messages = _try_parse_json(all_messages_str)
+            if isinstance(all_messages, list):
+                normalized = _normalize_pydantic_messages(all_messages)
+                if normalized:
+                    input_msgs = [
+                        m
+                        for m in normalized
+                        if isinstance(m, dict) and m.get("role") != "assistant"
+                    ]
+                    output_msgs = [
+                        m
+                        for m in normalized
+                        if isinstance(m, dict) and m.get("role") == "assistant"
+                    ]
+                    if input_msgs:
+                        features.data["inputs"] = {"prompt": input_msgs}
+                    if output_msgs:
+                        features.data["outputs"] = {"completion": output_msgs}
+                    elif final_result is not None:
+                        features.data["outputs"] = {"completion": final_result}
+                else:
+                    features.data["inputs"] = {"messages": all_messages}
+        elif final_result is not None:
+            features.data["outputs"] = {"completion": final_result}
+
     def _parse_events(self, events_str: str) -> List[Dict[str, Any]]:
-        """Parse events string into a list of events."""
         try:
             if isinstance(events_str, str):
                 return loads(events_str)

@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleWorkflowEditRequest {
     workflow_id: string;
+    /** Simple-workflow edit payload. Updates artifact-level fields and commits a new revision when `data` changes. */
     workflow: AgentaApi.SimpleWorkflowEdit;
 }

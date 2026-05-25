@@ -7,9 +7,14 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface SpansQueryRequest {
+    /** Span-level conditions. */
     filtering?: AgentaApi.FilteringInput | null;
+    /** Cursor pagination and time range. */
     windowing?: AgentaApi.Windowing | null;
+    /** Resolve filtering/windowing from a saved query. */
     query_ref?: AgentaApi.Reference | null;
+    /** Resolve from the latest revision of a specific query variant. */
     query_variant_ref?: AgentaApi.Reference | null;
+    /** Resolve from a specific query revision. Returns `409` when the revision's stored `formatting.focus` is `trace`. */
     query_revision_ref?: AgentaApi.Reference | null;
 }

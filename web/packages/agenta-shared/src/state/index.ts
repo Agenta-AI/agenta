@@ -4,6 +4,7 @@
 
 export {projectIdAtom, setProjectIdAtom} from "./project"
 export {sessionAtom, setSessionAtom} from "./session"
+export {userAtom, setUserAtom} from "./user"
 export {atomWithRefresh} from "jotai/utils"
 export {
     atomWithCompare,

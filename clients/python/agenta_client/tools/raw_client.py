@@ -72,7 +72,7 @@ class RawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def get_tool_provider(self, provider_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogProviderResponse]:
+    def fetch_tool_provider(self, provider_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogProviderResponse]:
         """
         Parameters
         ----------
@@ -168,7 +168,7 @@ class RawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def get_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogIntegrationResponse]:
+    def fetch_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogIntegrationResponse]:
         """
         Parameters
         ----------
@@ -268,7 +268,7 @@ class RawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def get_tool_action(self, provider_key: str, integration_key: str, action_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogActionResponse]:
+    def fetch_tool_action(self, provider_key: str, integration_key: str, action_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogActionResponse]:
         """
         Parameters
         ----------
@@ -463,7 +463,7 @@ class RawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def get_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolConnectionResponse]:
+    def fetch_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolConnectionResponse]:
         """
         Get a connection by ID.
         
@@ -721,7 +721,7 @@ class AsyncRawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def get_tool_provider(self, provider_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogProviderResponse]:
+    async def fetch_tool_provider(self, provider_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogProviderResponse]:
         """
         Parameters
         ----------
@@ -817,7 +817,7 @@ class AsyncRawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def get_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogIntegrationResponse]:
+    async def fetch_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogIntegrationResponse]:
         """
         Parameters
         ----------
@@ -917,7 +917,7 @@ class AsyncRawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def get_tool_action(self, provider_key: str, integration_key: str, action_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogActionResponse]:
+    async def fetch_tool_action(self, provider_key: str, integration_key: str, action_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogActionResponse]:
         """
         Parameters
         ----------
@@ -1112,7 +1112,7 @@ class AsyncRawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def get_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolConnectionResponse]:
+    async def fetch_tool_connection(self, connection_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolConnectionResponse]:
         """
         Get a connection by ID.
         

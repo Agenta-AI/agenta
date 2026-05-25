@@ -95,7 +95,7 @@ class TestSimpleUserIdentities:
         # Delete that identity
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/users/{user_id}/identities/{identity_id}/",
+            f"/admin/simple/accounts/users/{user_id}/identities/{identity_id}",
         )
         assert delete_resp.status_code == 200
         delete_body = delete_resp.json()
@@ -112,7 +112,7 @@ class TestSimpleUserIdentities:
 
         response = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/users/{user_id}/identities/{fake_identity_id}/",
+            f"/admin/simple/accounts/users/{user_id}/identities/{fake_identity_id}",
         )
         assert response.status_code == 404
 
@@ -133,7 +133,7 @@ class TestSimpleOrganizations:
     def test_delete_nonexistent_org_returns_404(self, admin_api):
         response = admin_api(
             "DELETE",
-            "/admin/simple/accounts/organizations/00000000-0000-0000-0000-000000000000/",
+            "/admin/simple/accounts/organizations/00000000-0000-0000-0000-000000000000",
         )
         assert response.status_code == 404
 
@@ -152,7 +152,7 @@ class TestSimpleWorkspaces:
     def test_delete_nonexistent_workspace_returns_404(self, admin_api):
         response = admin_api(
             "DELETE",
-            "/admin/simple/accounts/workspaces/00000000-0000-0000-0000-000000000000/",
+            "/admin/simple/accounts/workspaces/00000000-0000-0000-0000-000000000000",
         )
         assert response.status_code == 404
 
@@ -189,7 +189,7 @@ class TestSimpleProjects:
 
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/projects/{project_id}/",
+            f"/admin/simple/accounts/projects/{project_id}",
         )
         assert delete_resp.status_code == 200
         assert delete_resp.json()["deleted"]["projects"]
@@ -199,7 +199,7 @@ class TestSimpleProjects:
     def test_delete_nonexistent_project_returns_404(self, admin_api):
         response = admin_api(
             "DELETE",
-            "/admin/simple/accounts/projects/00000000-0000-0000-0000-000000000000/",
+            "/admin/simple/accounts/projects/00000000-0000-0000-0000-000000000000",
         )
         assert response.status_code == 404
 
@@ -237,7 +237,7 @@ class TestSimpleApiKeys:
 
         delete_resp = admin_api(
             "DELETE",
-            f"/admin/simple/accounts/api-keys/{api_key_id}/",
+            f"/admin/simple/accounts/api-keys/{api_key_id}",
         )
         assert delete_resp.status_code == 200
         assert delete_resp.json()["deleted"]["api_keys"]
@@ -247,6 +247,6 @@ class TestSimpleApiKeys:
     def test_delete_nonexistent_api_key_returns_404(self, admin_api):
         response = admin_api(
             "DELETE",
-            "/admin/simple/accounts/api-keys/00000000-0000-0000-0000-000000000000/",
+            "/admin/simple/accounts/api-keys/00000000-0000-0000-0000-000000000000",
         )
         assert response.status_code == 404

@@ -5,8 +5,8 @@ services:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-api:latest
         build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.dev
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -26,8 +26,8 @@ services:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-services:latest
         build:
-            context: ../../../services
-            dockerfile: oss/docker/Dockerfile.dev
+            context: ../../..
+            dockerfile: services/oss/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -77,9 +77,17 @@ services:
                 "8000",
                 "--reload",
                 "--reload-dir",
-                "/sdks/python",
+                "/app/oss/src",
                 "--reload-dir",
-                "/clients/python",
+                "/app/entrypoints",
+                "--reload-dir",
+                "/sdks/python/agenta",
+                "--reload-dir",
+                "/clients/python/agenta_client",
+                "--reload-exclude",
+                "*.pyc",
+                "--reload-exclude",
+                "__pycache__",
                 "--root-path",
                 "/api",
                 "--loop",
@@ -354,9 +362,17 @@ services:
                 "8080",
                 "--reload",
                 "--reload-dir",
-                "/sdks/python",
+                "/app/oss/src",
                 "--reload-dir",
-                "/clients/python",
+                "/app/entrypoints",
+                "--reload-dir",
+                "/sdks/python/agenta",
+                "--reload-dir",
+                "/clients/python/agenta_client",
+                "--reload-exclude",
+                "*.pyc",
+                "--reload-exclude",
+                "__pycache__",
                 "--root-path",
                 "/services",
                 "--loop",

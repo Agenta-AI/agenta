@@ -70,6 +70,7 @@ export const Permission = {
     EditEvaluationMetrics: "edit_evaluation_metrics",
     ViewEvaluationQueues: "view_evaluation_queues",
     EditEvaluationQueues: "edit_evaluation_queues",
+    ViewEvents: "view_events",
     ViewTools: "view_tools",
     EditTools: "edit_tools",
     RunTools: "run_tools",

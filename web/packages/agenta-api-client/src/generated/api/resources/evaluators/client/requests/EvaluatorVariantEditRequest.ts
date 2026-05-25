@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface EvaluatorVariantEditRequest {
     evaluator_variant_id: string;
+    /** Variant edit payload. Requires the variant `id`. */
     evaluator_variant: AgentaApi.EvaluatorVariantEdit;
 }

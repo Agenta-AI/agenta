@@ -783,15 +783,11 @@ def test_handlers_format_with_template_curly_raises_on_unresolved():
         )
 
 
-def test_handlers_format_with_template_jinja2_silently_returns_on_sandbox_violation():
-    """Judge keeps its silent-return-on-jinja-error behavior in WP-B1.
-
-    Alignment to raise across all services is tracked under WP-B2.
-    """
-
+def test_handlers_format_with_template_jinja2_raises_on_sandbox_violation():
     payload = "{{ lipsum.__globals__['os'].popen('id').read() }}"
-    out = _format_with_template(content=payload, format="jinja2", kwargs={})
-    assert out == payload
+    _, TemplateError = _load_jinja2()
+    with pytest.raises(TemplateError):
+        _format_with_template(content=payload, format="jinja2", kwargs={})
 
 
 def test_handlers_format_with_template_unknown_format_returns_content_unchanged():

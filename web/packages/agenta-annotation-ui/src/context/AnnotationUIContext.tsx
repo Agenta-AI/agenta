@@ -4,13 +4,15 @@ export interface AnnotationUINavigation {
     /** Navigate to a specific queue's session view */
     navigateToQueue: (queueId: string) => void
     /** Navigate back to the queue list */
-    navigateToQueueList: () => void
+    navigateToQueueList?: () => void
     /** Navigate to evaluation results */
-    navigateToResults: (runId: string) => void
+    navigateToResults?: (runId: string) => void
     /** Navigate to observability page */
     navigateToObservability?: () => void
     /** Open the trace detail drawer for a given trace/span */
     openTraceDetail?: (params: {traceId: string; spanId?: string | null}) => void
+    /** Navigate to a specific testset */
+    navigateToTestset?: (testsetId: string) => void
 }
 
 /**
@@ -95,6 +97,11 @@ export function useAnnotationUI(): AnnotationUIContextValue {
 
 export function useAnnotationNavigation(): AnnotationUINavigation {
     return useAnnotationUI().navigation
+}
+
+export function useAnnotationNavigationSafe(): AnnotationUINavigation | null {
+    const ctx = useContext(AnnotationUIContext)
+    return ctx?.navigation ?? null
 }
 
 export function useTraceContentRenderer(): React.ComponentType<TraceContentRendererProps> | null {

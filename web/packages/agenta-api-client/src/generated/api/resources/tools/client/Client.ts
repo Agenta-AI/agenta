@@ -100,25 +100,25 @@ export class ToolsClient {
     }
 
     /**
-     * @param {AgentaApi.GetToolProviderRequest} request
+     * @param {AgentaApi.FetchToolProviderRequest} request
      * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.tools.getToolProvider({
+     *     await client.tools.fetchToolProvider({
      *         provider_key: "provider_key"
      *     })
      */
-    public getToolProvider(
-        request: AgentaApi.GetToolProviderRequest,
+    public fetchToolProvider(
+        request: AgentaApi.FetchToolProviderRequest,
         requestOptions?: ToolsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.ToolCatalogProviderResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__getToolProvider(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__fetchToolProvider(request, requestOptions));
     }
 
-    private async __getToolProvider(
-        request: AgentaApi.GetToolProviderRequest,
+    private async __fetchToolProvider(
+        request: AgentaApi.FetchToolProviderRequest,
         requestOptions?: ToolsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.ToolCatalogProviderResponse>> {
         const { provider_key: providerKey, full_details: fullDetails } = request;
@@ -271,26 +271,26 @@ export class ToolsClient {
     }
 
     /**
-     * @param {AgentaApi.GetToolIntegrationRequest} request
+     * @param {AgentaApi.FetchToolIntegrationRequest} request
      * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.tools.getToolIntegration({
+     *     await client.tools.fetchToolIntegration({
      *         provider_key: "provider_key",
      *         integration_key: "integration_key"
      *     })
      */
-    public getToolIntegration(
-        request: AgentaApi.GetToolIntegrationRequest,
+    public fetchToolIntegration(
+        request: AgentaApi.FetchToolIntegrationRequest,
         requestOptions?: ToolsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.ToolCatalogIntegrationResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__getToolIntegration(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__fetchToolIntegration(request, requestOptions));
     }
 
-    private async __getToolIntegration(
-        request: AgentaApi.GetToolIntegrationRequest,
+    private async __fetchToolIntegration(
+        request: AgentaApi.FetchToolIntegrationRequest,
         requestOptions?: ToolsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.ToolCatalogIntegrationResponse>> {
         const { provider_key: providerKey, integration_key: integrationKey, full_details: fullDetails } = request;
@@ -442,27 +442,27 @@ export class ToolsClient {
     }
 
     /**
-     * @param {AgentaApi.GetToolActionRequest} request
+     * @param {AgentaApi.FetchToolActionRequest} request
      * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.tools.getToolAction({
+     *     await client.tools.fetchToolAction({
      *         provider_key: "provider_key",
      *         integration_key: "integration_key",
      *         action_key: "action_key"
      *     })
      */
-    public getToolAction(
-        request: AgentaApi.GetToolActionRequest,
+    public fetchToolAction(
+        request: AgentaApi.FetchToolActionRequest,
         requestOptions?: ToolsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.ToolCatalogActionResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__getToolAction(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__fetchToolAction(request, requestOptions));
     }
 
-    private async __getToolAction(
-        request: AgentaApi.GetToolActionRequest,
+    private async __fetchToolAction(
+        request: AgentaApi.FetchToolActionRequest,
         requestOptions?: ToolsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.ToolCatalogActionResponse>> {
         const {
@@ -752,25 +752,25 @@ export class ToolsClient {
     /**
      * Get a connection by ID.
      *
-     * @param {AgentaApi.GetToolConnectionRequest} request
+     * @param {AgentaApi.FetchToolConnectionRequest} request
      * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.tools.getToolConnection({
+     *     await client.tools.fetchToolConnection({
      *         connection_id: "connection_id"
      *     })
      */
-    public getToolConnection(
-        request: AgentaApi.GetToolConnectionRequest,
+    public fetchToolConnection(
+        request: AgentaApi.FetchToolConnectionRequest,
         requestOptions?: ToolsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.ToolConnectionResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__getToolConnection(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__fetchToolConnection(request, requestOptions));
     }
 
-    private async __getToolConnection(
-        request: AgentaApi.GetToolConnectionRequest,
+    private async __fetchToolConnection(
+        request: AgentaApi.FetchToolConnectionRequest,
         requestOptions?: ToolsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.ToolConnectionResponse>> {
         const { connection_id: connectionId } = request;

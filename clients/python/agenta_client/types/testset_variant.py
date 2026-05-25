@@ -11,6 +11,8 @@ from .testset_flags import TestsetFlags
 
 
 class TestsetVariant(UniversalBaseModel):
+    testset_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     testset_id: typing.Optional[str] = None
     artifact_id: typing.Optional[str] = None
     flags: typing.Optional[TestsetFlags] = None

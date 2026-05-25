@@ -92,6 +92,11 @@ export interface UseCascadingModeOptions<
      * Null entries are skipped. Applied once when the selections atom is empty.
      */
     initialSelections?: (string | null)[]
+
+    /**
+     * Called when the user actively clears the selection (e.g., clicks 'x' in a select).
+     */
+    onDeselect?: () => void
 }
 
 /**
@@ -244,7 +249,7 @@ function useCascadingLevelWithData(
 export function useCascadingMode<TSelection = EntitySelectionResult>(
     options: UseCascadingModeOptions<TSelection>,
 ): UseCascadingModeResult<TSelection> {
-    const {onSelect, maxLevels, initialSelections} = options
+    const {onSelect, maxLevels, initialSelections, onDeselect} = options
 
     // Get core utilities
     const {
@@ -420,9 +425,13 @@ export function useCascadingMode<TSelection = EntitySelectionResult>(
     // Trigger onSelect when selection completes — but only after user interaction
     const getSelectionId = useCallback((s: TSelection) => (s as EntitySelectionResult).id, [])
     const triggerSelect = useSelectionCallbackTrigger(onSelect, getSelectionId)
+    const onDeselectRef = useRef(onDeselect)
+    onDeselectRef.current = onDeselect
     useEffect(() => {
         if (selection && userHasInteractedRef.current) {
             triggerSelect(selection)
+        } else if (!selection && userHasInteractedRef.current) {
+            onDeselectRef.current?.()
         }
     }, [selection, triggerSelect])
 

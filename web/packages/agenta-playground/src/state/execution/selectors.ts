@@ -926,15 +926,21 @@ export const inputVariableNamesAtom = atom<string[]>((get) => {
  * (e.g. JSON editor for object types, number input for numbers).
  */
 export const inputPortSchemaMapAtom = atom<
-    Record<string, {type: string; name?: string; schema?: unknown}>
+    Record<string, {type: string; name?: string; schema?: unknown; helpText?: string}>
 >((get) => {
     const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
-    const map: Record<string, {type: string; name?: string; schema?: unknown}> = {}
+    const map: Record<string, {type: string; name?: string; schema?: unknown; helpText?: string}> =
+        {}
     for (const node of nodes) {
         const ports = get(workflowMolecule.selectors.inputPorts(node.entityId)) as RunnablePort[]
         for (const port of ports || []) {
             if (port.key && !(port.key in map)) {
-                map[port.key] = {type: port.type, name: port.name, schema: port.schema}
+                map[port.key] = {
+                    type: port.type,
+                    name: port.name,
+                    schema: port.schema,
+                    helpText: port.helpText,
+                }
             }
         }
     }

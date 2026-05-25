@@ -426,6 +426,27 @@ def _maybe_xfail_for_llm_provider_error(
         pytest.xfail(f"[{case_id}] live LLM provider unavailable or quota exhausted")
 
 
+def _maybe_xfail_for_daytona_error(resp, *, case_id: str) -> None:
+    """xfail when custom-code execution can't provision a Daytona sandbox.
+
+    Custom-code workflows run user code in a Daytona sandbox. When the test
+    environment lacks a usable snapshot/region (e.g. snapshot not published to
+    the targeted region), provisioning fails with a 500 before the workflow can
+    run. That's an infra gap, not a regression — so xfail rather than fail.
+    Where Daytona is properly provisioned the error never appears and the test
+    runs normally (no XPASS).
+    """
+    text = (getattr(resp, "text", "") or "")[:2000]
+    markers = (
+        "Failed to create sandbox",
+        "is not available in region",
+        "No Daytona snapshot configured",
+        "custom-code-server-error",
+    )
+    if resp.status_code == 500 and any(marker in text for marker in markers):
+        pytest.xfail(f"[{case_id}] Daytona sandbox unavailable in this environment")
+
+
 def _build_data_payload(case: Dict[str, Any]) -> dict:
     data: dict = {}
     if "inputs" in case:
@@ -721,6 +742,7 @@ class TestManagedWorkflowLifecycle:
             case_id=ctx["template_key"],
             allow_llm_failure=ctx.get("requires_llm", False),
         )
+        _maybe_xfail_for_daytona_error(resp, case_id=ctx["template_key"])
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     def test_invoke_inline(self):
@@ -739,6 +761,7 @@ class TestManagedWorkflowLifecycle:
             case_id=ctx["template_key"],
             allow_llm_failure=ctx.get("requires_llm", False),
         )
+        _maybe_xfail_for_daytona_error(resp, case_id=ctx["template_key"])
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     def test_invoke_by_env(self):
@@ -767,6 +790,7 @@ class TestManagedWorkflowLifecycle:
             case_id=ctx["template_key"],
             allow_llm_failure=ctx.get("requires_llm", False),
         )
+        _maybe_xfail_for_daytona_error(resp, case_id=ctx["template_key"])
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     def test_output_matches_expected_shape(self):
@@ -790,6 +814,7 @@ class TestManagedWorkflowLifecycle:
             case_id=ctx["template_key"],
             allow_llm_failure=ctx.get("requires_llm", False),
         )
+        _maybe_xfail_for_daytona_error(resp, case_id=ctx["template_key"])
         payload = _assert_invoke_response(resp, case_id=ctx["template_key"])
         _assert_case_outputs(payload, case=ctx)
 

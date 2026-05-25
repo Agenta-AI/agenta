@@ -185,9 +185,10 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
         # ----------------------------------------------------------------------
 
         # LINKS ----------------------------------------------------------------
-        links = []
+        links = None
 
-        if features.links:
+        if features.links is not None:
+            links = []
             for link in features.links:
                 try:
                     links.append(

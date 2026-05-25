@@ -56,6 +56,15 @@ pytestmark = [pytest.mark.acceptance]
 
 
 @pytest.mark.acceptance
+@pytest.mark.skip(
+    reason=(
+        "Targets deprecated /tracing/* SDK methods (create_trace_tracing, "
+        "fetch_trace_tracing, edit_trace_tracing, delete_trace_tracing) which "
+        "were dropped from client regen. Rewrite against the canonical "
+        "ag.api.traces.{create_trace,fetch_trace,edit_trace,delete_trace} which "
+        "take a single Trace (tree) instead of a list of spans."
+    )
+)
 def test_observability_trace_lifecycle(agenta_init, otlp_flat_span_factory):
     # Provide client-side IDs, but treat server-returned IDs as canonical.
     # Some deployments may normalize or rewrite trace/span identifiers.
@@ -176,6 +185,14 @@ def test_observability_trace_lifecycle(agenta_init, otlp_flat_span_factory):
 class TestObservabilityAsync:
     """Test async observability API."""
 
+    @pytest.mark.skip(
+        reason=(
+            "Targets deprecated /tracing/* async SDK methods "
+            "(create_trace_tracing, fetch_trace_tracing, delete_trace_tracing) "
+            "which were dropped from client regen. Rewrite against the canonical "
+            "ag.async_api.traces.{create_trace,fetch_trace,delete_trace}."
+        )
+    )
     async def test_async_trace_lifecycle(self, agenta_init, otlp_flat_span_factory):
         """Test async trace create/fetch/delete."""
         # Generate client-side IDs

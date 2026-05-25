@@ -31,6 +31,9 @@ export {
     openWorkflowRevisionDrawerAtom,
     closeWorkflowRevisionDrawerAtom,
     navigateWorkflowRevisionDrawerAtom,
+    suppressDrawerCloseUrlCleanupAtom,
+    // Helpers
+    isCreateContext,
     // Types
     type DrawerContext,
     type OpenDrawerParams,

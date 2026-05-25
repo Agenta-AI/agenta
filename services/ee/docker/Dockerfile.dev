@@ -1,4 +1,4 @@
-ARG UV_VERSION=0.11.9
+ARG UV_VERSION=0.11.14
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
 FROM python:3.13-slim-trixie
@@ -11,21 +11,22 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
 
 COPY --from=uv /uv /uvx /bin/
 
-COPY ./pyproject.toml ./uv.lock* /app/
+# Build context is `application/` so `uv sync` can resolve the local-path source
+# `agenta = { path = "../sdks/python", editable = true }` declared in services/pyproject.toml.
+COPY ./services/pyproject.toml ./services/uv.lock* /app/
+COPY ./sdks/python /sdks/python/
+COPY ./clients/python /clients/python/
 
-RUN uv sync --locked
+RUN --mount=type=cache,id=uv-services-ee-dev,target=/root/.cache/uv \
+    UV_HTTP_TIMEOUT=300 uv sync --locked
 
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
 
-COPY --chown=agenta:agenta ./oss /app/oss/
-COPY --chown=agenta:agenta ./entrypoints /app/entrypoints/
+COPY --chown=agenta:agenta ./services/oss /app/oss/
+COPY --chown=agenta:agenta ./services/entrypoints /app/entrypoints/
 
 ENV PYTHONPATH=/sdks/python:/clients/python:$PYTHONPATH
-
-RUN site_packages="$(python -c 'import site; print(site.getsitepackages()[0])')" \
-    && echo "/clients/python" > "${site_packages}/agenta_client_path.pth" \
-    && echo "/sdks/python" >> "${site_packages}/agenta_client_path.pth"
 
 USER 10001
 

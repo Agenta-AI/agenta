@@ -35,7 +35,7 @@ class RawSecretsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "vault/v1/secrets/",method="GET",
+            "secrets/",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -69,7 +69,7 @@ class RawSecretsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "vault/v1/secrets/",method="POST",
+            "secrets/",method="POST",
             json={
                 "header": convert_and_respect_annotation_metadata(object_=header, annotation=Header, direction="write"),
                 "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=SecretDto, direction="write"),
@@ -117,7 +117,7 @@ class RawSecretsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",method="GET",
+            f"secrets/{jsonable_encoder(secret_id)}",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -161,7 +161,7 @@ class RawSecretsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",method="PUT",
+            f"secrets/{jsonable_encoder(secret_id)}",method="PUT",
             json={
                 "header": convert_and_respect_annotation_metadata(object_=header, annotation=typing.Optional[Header], direction="write"),
                 "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=typing.Optional[SecretDto], direction="write"),
@@ -208,7 +208,7 @@ class RawSecretsClient:
         HttpResponse[None]
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",method="DELETE",
+            f"secrets/{jsonable_encoder(secret_id)}",method="DELETE",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -242,7 +242,7 @@ class AsyncRawSecretsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "vault/v1/secrets/",method="GET",
+            "secrets/",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -276,7 +276,7 @@ class AsyncRawSecretsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "vault/v1/secrets/",method="POST",
+            "secrets/",method="POST",
             json={
                 "header": convert_and_respect_annotation_metadata(object_=header, annotation=Header, direction="write"),
                 "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=SecretDto, direction="write"),
@@ -324,7 +324,7 @@ class AsyncRawSecretsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",method="GET",
+            f"secrets/{jsonable_encoder(secret_id)}",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -368,7 +368,7 @@ class AsyncRawSecretsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",method="PUT",
+            f"secrets/{jsonable_encoder(secret_id)}",method="PUT",
             json={
                 "header": convert_and_respect_annotation_metadata(object_=header, annotation=typing.Optional[Header], direction="write"),
                 "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=typing.Optional[SecretDto], direction="write"),
@@ -415,7 +415,7 @@ class AsyncRawSecretsClient:
         AsyncHttpResponse[None]
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",method="DELETE",
+            f"secrets/{jsonable_encoder(secret_id)}",method="DELETE",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:

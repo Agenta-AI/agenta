@@ -110,120 +110,11 @@ export interface LanguageItem {
     languageKey: string
 }
 
-export interface HeaderDTO {
-    name?: string | null
-    description?: string | null
-}
-
-export interface StandardSecret {
-    kind: SecretDTOProvider
-    provider: {
-        key: string
-    }
-}
-
-export type StandardSecretDTO<T extends "payload" | "response" = "response"> = {
-    header: HeaderDTO
-} & (T extends "payload"
-    ? {secret: {data: StandardSecret; kind: SecretDTOKind.PROVIDER_KEY}}
-    : {
-          kind: SecretDTOKind.PROVIDER_KEY
-          data: StandardSecret
-          id: string
-          lifecycle: {created_at: string}
-      })
-
-export enum SecretDTOKind {
-    PROVIDER_KEY = "provider_key",
-    CUSTOM_PROVIDER_KEY = "custom_provider",
-}
-
-export enum SecretDTOProvider {
-    OPENAI = "openai",
-    COHERE = "cohere",
-    ANYSCALE = "anyscale",
-    DEEPINFRA = "deepinfra",
-    ALEPHALPHA = "alephalpha",
-    GROQ = "groq",
-    MISTRAL = "mistral",
-    ANTHROPIC = "anthropic",
-    PERPLEXITYAI = "perplexityai",
-    TOGETHERAI = "together_ai",
-    OPENROUTER = "openrouter",
-    GEMINI = "gemini",
-    MINIMAX = "minimax",
-}
-
-export const PROVIDER_LABELS: Record<string, string> = {
-    openai: "OpenAI",
-    cohere: "Cohere",
-    anyscale: "Anyscale",
-    deepinfra: "DeepInfra",
-    alephalpha: "Aleph Alpha",
-    groq: "Groq",
-    mistral: "Mistral AI",
-    mistralai: "Mistral AI",
-    anthropic: "Anthropic",
-    perplexityai: "Perplexity AI",
-    together_ai: "Together AI",
-    openrouter: "OpenRouter",
-    gemini: "Google Gemini",
-    vertex_ai: "Google Vertex AI",
-    bedrock: "AWS Bedrock",
-    azure: "Azure OpenAI",
-    minimax: "MiniMax",
-    custom: "Custom Provider",
-}
-
-export const PROVIDER_KINDS: Record<string, string> = {
-    ...Object.entries(PROVIDER_LABELS).reduce(
-        (acc, [kind, label]) => {
-            acc[kind] = kind
-            acc[label.toLowerCase()] = kind
-            return acc
-        },
-        {} as Record<string, string>,
-    ),
-    // Normalize legacy "mistralai" slug to canonical "mistral"
-    mistralai: "mistral",
-}
-
-interface VaultModels {
-    slug: string
-}
-interface VaultProvider {
-    url: string
-    version: string
-    extras: {
-        aws_access_key_id?: string
-        aws_secret_access_key?: string
-        aws_session_token?: string
-        aws_region_name?: string
-        vertex_ai_project?: string
-        vertex_ai_location?: string
-        vertex_ai_credentials?: string
-        api_key?: string
-    }
-}
-
-interface VaultData {
-    kind: string
-    provider: VaultProvider
-    models: VaultModels[]
-    model_keys: string[]
-    provider_slug: string
-}
-
-export type CustomSecretDTO<T extends "payload" | "response" = "response"> = {
-    header: HeaderDTO
-} & (T extends "payload"
-    ? {secret: {kind: SecretDTOKind.CUSTOM_PROVIDER_KEY; data: VaultData}}
-    : {
-          kind: SecretDTOKind.CUSTOM_PROVIDER_KEY
-          data: VaultData
-          id: string
-          lifecycle: {created_at: string}
-      })
+// Secret-domain types (HeaderDTO, StandardSecretDTO, CustomSecretDTO,
+// VaultData, SecretDTOKind, SecretDTOProvider, PROVIDER_KINDS,
+// PROVIDER_LABELS, etc.) live in @agenta/entities/secret. Import from
+// there directly — re-exporting from @agenta packages is disallowed
+// (see eslint no-restricted-syntax rule for tree-shaking).
 
 export type GenericObject = Record<string, any>
 export type KeyValuePair = Record<string, string>
@@ -493,18 +384,6 @@ export interface EvaluationSettingsTemplate {
     options?: string[]
 }
 
-export interface User {
-    id: string
-    uid: string
-    username: string
-    email: string
-}
-
-// billings
-export enum Plan {
-    Hobby = "cloud_v0_hobby",
-    Pro = "cloud_v0_pro",
-    Business = "cloud_v0_business",
-    Enterprise = "cloud_v0_enterprise",
-    SelfHostedEnterprise = "self_hosted_enterprise",
-}
+// User type lives in @agenta/shared/types. Import from there directly —
+// re-exporting from @agenta packages is disallowed (see eslint
+// no-restricted-syntax rule for tree-shaking).

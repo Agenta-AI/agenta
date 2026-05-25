@@ -18,7 +18,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from agenta.sdk.engines.running import handlers as critique_handlers
-from agenta.sdk.engines.running.errors import InvalidSecretsV0Error
+from agenta.sdk.engines.running.errors import (
+    InvalidSecretsV0Error,
+    PromptFormattingV0Error,
+)
 
 
 # The handler is wrapped by ``@instrument()``. The decorator exposes the raw
@@ -240,6 +243,106 @@ async def test_response_format_uses_json_schema_when_configured(
         "type": "json_schema",
         "json_schema": schema,
     }
+
+
+async def test_json_schema_variables_are_rendered_before_llm_call(
+    mocked_secrets, mocked_llm_call
+):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    schema = {
+        "name": "verdict",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "{{question}}": {
+                    "type": "string",
+                    "description": "Expected {{correct_answer}} at {{parameters.threshold}}",
+                }
+            },
+            "required": ["{{question}}"],
+        },
+    }
+
+    await _auto_ai_critique_v0(
+        parameters=_base_parameters(
+            response_type="json_schema",
+            json_schema=schema,
+        ),
+        inputs={"question": "score", "expected": "gold"},
+        outputs="o",
+    )
+
+    kwargs = mocked_llm_call.captured["kwargs"]
+    assert kwargs["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "verdict",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "score": {
+                        "type": "string",
+                        "description": "Expected gold at 0.5",
+                    }
+                },
+                "required": ["score"],
+            },
+        },
+    }
+    assert schema["schema"]["properties"]["{{question}}"]["description"] == (
+        "Expected {{correct_answer}} at {{parameters.threshold}}"
+    )
+
+
+async def test_response_format_json_object_does_not_attach_schema(
+    mocked_secrets, mocked_llm_call
+):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    await _auto_ai_critique_v0(
+        parameters=_base_parameters(
+            response_type="json_object",
+            json_schema={"name": "ignored"},
+        ),
+        inputs={"question": "q", "expected": "e"},
+        outputs="o",
+    )
+
+    kwargs = mocked_llm_call.captured["kwargs"]
+    assert kwargs["response_format"] == {"type": "json_object"}
+
+
+async def test_jinja_render_error_raises_prompt_formatting_before_llm_call(
+    mocked_secrets, mocked_llm_call
+):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    with pytest.raises(PromptFormattingV0Error):
+        await _auto_ai_critique_v0(
+            parameters=_base_parameters(
+                template_format="jinja2",
+                prompt_template=[
+                    {
+                        "role": "user",
+                        "content": "{{ lipsum.__globals__['os'].popen('id').read() }}",
+                    }
+                ],
+            ),
+            inputs={"question": "q", "expected": "e"},
+            outputs="o",
+        )
+
+    mocked_llm_call.acompletion.assert_not_called()
 
 
 async def test_inputs_and_outputs_aliases_available_to_template(

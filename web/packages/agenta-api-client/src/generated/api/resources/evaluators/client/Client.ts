@@ -27,6 +27,13 @@ export class EvaluatorsClient {
     }
 
     /**
+     * List the JSON schema types the evaluator catalog understands.
+     *
+     * Types are static metadata shipped with the product. Use this when
+     * rendering a catalog UI or validating that a template's schema is
+     * supported. See the Evaluators guide for how the catalog relates
+     * to user-owned evaluator artifacts.
+     *
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @example
@@ -83,6 +90,14 @@ export class EvaluatorsClient {
     }
 
     /**
+     * List evaluator templates from the catalog.
+     *
+     * Templates are blueprints that describe an evaluator's handler
+     * URI, JSON schemas, and default configuration. Pass
+     * `include_archived=true` to include deprecated templates. Use the
+     * returned `key` with `/catalog/templates/{template_key}/presets/`
+     * to list its presets.
+     *
      * @param {AgentaApi.ListEvaluatorCatalogTemplatesRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -161,6 +176,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Fetch one evaluator template by key.
+     *
+     * Returns an empty envelope (`count: 0`) when no template matches
+     * the key. Template keys come from
+     * `GET /catalog/templates/`.
+     *
      * @param {AgentaApi.FetchEvaluatorCatalogTemplateRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -238,6 +259,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * List presets defined against one evaluator template.
+     *
+     * A preset is a named set of parameter values pre-filled against
+     * the template. Use the returned `key` to fetch a specific preset
+     * via `GET /catalog/templates/{template_key}/presets/{preset_key}`.
+     *
      * @param {AgentaApi.ListEvaluatorCatalogPresetsRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -318,6 +345,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Fetch one evaluator preset by template and preset key.
+     *
+     * Presets are not separate entities; they are metadata. Use the
+     * returned preset payload as the starting point when creating a
+     * new evaluator from a template. See the Evaluators guide.
+     *
      * @param {AgentaApi.FetchEvaluatorCatalogPresetRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -396,6 +429,14 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Create an evaluator artifact, its first variant, and its initial revision.
+     *
+     * Use this endpoint when you already know you want to manage the
+     * artifact / variant / revision layers independently. For a
+     * one-shot "create and forget" call that returns a flat record,
+     * see `POST /simple/evaluators/`. See the Versioning guide for
+     * commit semantics.
+     *
      * @param {AgentaApi.EvaluatorCreateRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -471,6 +512,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Fetch an evaluator artifact by id.
+     *
+     * Returns the artifact-level record (slug, name, flags, lifecycle)
+     * without variant or revision data. Use the variant and revision
+     * endpoints to retrieve those layers.
+     *
      * @param {AgentaApi.FetchEvaluatorRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -540,6 +587,13 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Edit an evaluator artifact's metadata.
+     *
+     * Edits are limited to metadata fields (description, tags, meta).
+     * Renaming is temporarily disabled and returns 400. To change
+     * evaluator behavior, commit a new revision on the variant — see
+     * `/evaluators/revisions/commit`.
+     *
      * @param {AgentaApi.EvaluatorEditRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -613,6 +667,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Soft-delete an evaluator artifact.
+     *
+     * Sets `deleted_at` on the evaluator and hides it from subsequent
+     * `/query` responses unless `include_archived=true`. Revision IDs
+     * remain resolvable so historical traces stay intact.
+     *
      * @param {AgentaApi.ArchiveEvaluatorRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -687,6 +747,11 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Restore a soft-deleted evaluator artifact.
+     *
+     * Clears `deleted_at` on the evaluator so it re-appears in `/query`
+     * responses.
+     *
      * @param {AgentaApi.UnarchiveEvaluatorRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -761,6 +826,13 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Query evaluator artifacts with filters and pagination.
+     *
+     * Returns artifact-level records only. The request body follows
+     * the shared query pattern (filter + refs + windowing). Send `{}`
+     * to list all evaluators in the project. See the Query Pattern
+     * guide.
+     *
      * @param {AgentaApi.EvaluatorQueryRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -830,6 +902,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Create a new variant on an existing evaluator.
+     *
+     * A variant is a named branch of the evaluator's history. New
+     * revisions committed to this variant do not touch other variants.
+     * See the Versioning guide.
+     *
      * @param {AgentaApi.EvaluatorVariantCreateRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -901,6 +979,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Fetch an evaluator variant by id.
+     *
+     * Returns the variant record (slug, flags, lifecycle) without the
+     * committed revisions. Use `/evaluators/revisions/retrieve` to
+     * read the variant's current revision payload.
+     *
      * @param {AgentaApi.FetchEvaluatorVariantRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -975,6 +1059,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Edit a variant's metadata.
+     *
+     * Edits only touch variant-level metadata. To change evaluator
+     * behavior commit a new revision via
+     * `/evaluators/revisions/commit`.
+     *
      * @param {AgentaApi.EvaluatorVariantEditRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1053,6 +1143,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Soft-delete an evaluator variant.
+     *
+     * Sets `deleted_at` on the variant. Its revisions stay resolvable
+     * by id; they are hidden from `/query` unless the caller sets
+     * `include_archived=true`.
+     *
      * @param {AgentaApi.ArchiveEvaluatorVariantRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1127,6 +1223,8 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Restore a soft-deleted evaluator variant.
+     *
      * @param {AgentaApi.UnarchiveEvaluatorVariantRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1201,6 +1299,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Query evaluator variants with filters, reference scoping, and pagination.
+     *
+     * Accepts parameters from both the query string and a JSON body;
+     * the two are merged. Use `evaluator_refs` to scope to one or more
+     * evaluators, or `evaluator_variant_refs` for specific variants.
+     *
      * @param {AgentaApi.QueryEvaluatorVariantsRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1309,6 +1413,13 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Fork an evaluator variant into a new variant.
+     *
+     * Creates a new branch whose initial revision is copied from the
+     * source. Use this to experiment without touching the original.
+     * The returned variant has a fresh id and slug but inherits
+     * lineage metadata from its source.
+     *
      * @param {AgentaApi.EvaluatorForkRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1384,6 +1495,16 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Retrieve one evaluator revision, either directly or via an environment key.
+     *
+     * Provide one of:
+     * an evaluator / variant / revision reference (returns that
+     * revision, or the latest revision on the variant or evaluator),
+     * or an environment reference plus `key` (returns the revision
+     * currently pinned to that key). Supplying both forms returns 400.
+     * Pass `resolve=true` to expand embedded references on the
+     * returned payload.
+     *
      * @param {AgentaApi.EvaluatorRevisionRetrieveRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1458,6 +1579,15 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Pin an evaluator revision into an environment revision under a key.
+     *
+     * Requires an evaluator ref (`evaluator_ref`,
+     * `evaluator_variant_ref`, or `evaluator_revision_ref`) and an
+     * environment ref. When `key` is omitted it defaults to
+     * `<evaluator_slug>.revision`. The deployment is recorded as a
+     * new commit on the environment revision. See the Evaluators
+     * guide for the deployment model.
+     *
      * @param {AgentaApi.EvaluatorRevisionDeployRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1527,6 +1657,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Create a new revision on an evaluator variant.
+     *
+     * Prefer `/evaluators/revisions/commit` for the standard commit
+     * flow. This endpoint exists for internal create paths that need
+     * to insert a revision without the commit semantics.
+     *
      * @param {AgentaApi.EvaluatorRevisionCreateRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1598,6 +1734,13 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Fetch a specific evaluator revision by id.
+     *
+     * Returns the full revision including `data` (handler uri,
+     * schemas, and parameters). To pick the latest revision on a
+     * variant without knowing its id, use
+     * `/evaluators/revisions/retrieve`.
+     *
      * @param {AgentaApi.FetchEvaluatorRevisionRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1672,6 +1815,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Edit a revision's metadata.
+     *
+     * Revision `data` is immutable once committed. This endpoint is
+     * for metadata fields only (description, tags, meta). To change
+     * evaluator behavior, commit a new revision instead.
+     *
      * @param {AgentaApi.EvaluatorRevisionEditRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1750,6 +1899,11 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Soft-delete an evaluator revision.
+     *
+     * Archived revisions remain resolvable by id but are excluded from
+     * revision logs and queries unless `include_archived=true`.
+     *
      * @param {AgentaApi.ArchiveEvaluatorRevisionRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1824,6 +1978,8 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Restore a soft-deleted evaluator revision.
+     *
      * @param {AgentaApi.UnarchiveEvaluatorRevisionRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1898,6 +2054,13 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Query evaluator revisions with filters, reference scoping, and pagination.
+     *
+     * Returns revision payloads. Use `evaluator_refs`,
+     * `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
+     * the query. Pass `resolve=true` to expand embedded references on
+     * each revision's `data`.
+     *
      * @param {AgentaApi.EvaluatorRevisionQueryRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1967,6 +2130,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Commit a new revision on an evaluator variant.
+     *
+     * The commit body carries the target `evaluator_variant_id`, an
+     * optional `message`, and the revision `data` (handler uri,
+     * schemas, parameters). A committed revision is immutable.
+     *
      * @param {AgentaApi.EvaluatorRevisionCommitRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2038,6 +2207,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * List the revision log of an evaluator variant.
+     *
+     * Returns revisions in commit order. Scope the log by supplying
+     * an evaluator, variant, or revision reference. Use the retrieve
+     * endpoint to fetch a specific revision's full payload.
+     *
      * @param {AgentaApi.EvaluatorRevisionsLogRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2109,6 +2284,13 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Resolve embedded references on an evaluator revision's `data`.
+     *
+     * Walks embedded references (for example, references to other
+     * revisions or to secrets) up to `max_depth` and `max_embeds`.
+     * The response includes a `resolution_info` block with counts,
+     * depth reached, and errors according to `error_policy`.
+     *
      * @param {AgentaApi.EvaluatorRevisionResolveRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2186,6 +2368,13 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Create an evaluator via the simple surface.
+     *
+     * Creates the artifact, its first variant, and its initial
+     * revision in one call. Returns the flat evaluator record
+     * (latest revision merged into `data`). Use this when you do not
+     * need to manage variants or revisions directly.
+     *
      * @param {AgentaApi.SimpleEvaluatorCreateRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2261,9 +2450,12 @@ export class EvaluatorsClient {
     }
 
     /**
-     * Returns the list of built-in evaluator templates.
+     * List the legacy built-in evaluator templates.
      *
-     * These are static evaluator type definitions (not user-created configs).
+     * Returns static evaluator-type definitions shipped with the
+     * product. Prefer the `/evaluators/catalog/*` endpoints for new
+     * integrations; this endpoint is kept for older clients. Pass
+     * `include_archived=true` to include deprecated templates.
      *
      * @param {AgentaApi.ListEvaluatorTemplatesRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2335,6 +2527,11 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Fetch one evaluator via the simple surface.
+     *
+     * Returns the flat evaluator record including its current variant
+     * and revision ids and the merged `data` payload.
+     *
      * @param {AgentaApi.FetchSimpleEvaluatorRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2409,6 +2606,12 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Edit an evaluator via the simple surface.
+     *
+     * Touches metadata and (when `data` is supplied) commits a new
+     * revision on the evaluator's variant. Renaming is temporarily
+     * disabled and returns 400.
+     *
      * @param {AgentaApi.SimpleEvaluatorEditRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2487,6 +2690,11 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Soft-delete an evaluator via the simple surface.
+     *
+     * Archives the underlying artifact. Historical traces that
+     * reference specific revision ids remain resolvable.
+     *
      * @param {AgentaApi.ArchiveSimpleEvaluatorRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2561,6 +2769,8 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Restore a soft-deleted evaluator via the simple surface.
+     *
      * @param {AgentaApi.UnarchiveSimpleEvaluatorRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2635,6 +2845,13 @@ export class EvaluatorsClient {
     }
 
     /**
+     * Query evaluators via the simple surface with filters and pagination.
+     *
+     * Returns flat evaluator records (one per artifact with its
+     * latest variant and revision merged into `data`). Send `{}` to
+     * list all evaluators in the project. See the Query Pattern
+     * guide.
+     *
      * @param {AgentaApi.SimpleEvaluatorQueryRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *

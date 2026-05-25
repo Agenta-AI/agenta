@@ -102,7 +102,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Inputs",
             key: "inputs",
             width: 400,
-            className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
+            maxWidth: 400,
             render: (_, record) => {
                 const inputs = getTraceInputs(record)
                 const {data: sanitizedInputs} = sanitizeDataWithBlobUrls(inputs)
@@ -119,7 +119,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Outputs",
             key: "outputs",
             width: 400,
-            className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
+            maxWidth: 400,
             render: (_, record) => {
                 const outputs = getTraceOutputs(record)
                 const {data: sanitizedOutputs} = sanitizeDataWithBlobUrls(outputs)

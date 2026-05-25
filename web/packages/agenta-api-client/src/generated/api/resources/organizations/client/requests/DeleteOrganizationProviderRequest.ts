@@ -3,11 +3,9 @@
 /**
  * @example
  *     {
- *         organization_id: "organization_id",
  *         provider_id: "provider_id"
  *     }
  */
 export interface DeleteOrganizationProviderRequest {
-    organization_id: string;
     provider_id: string;
 }

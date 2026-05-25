@@ -17,10 +17,10 @@ from pydantic import BaseModel, Field
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.lazy import (
-    _load_jinja2,
     _load_litellm,
     _load_openai,
 )
+from agenta.sdk.utils.rendering import render_json_like, render_messages
 from agenta.sdk.utils.templating import render_template
 
 from agenta.sdk.litellm import mockllm
@@ -159,20 +159,34 @@ from agenta.sdk.utils.resolvers import (  # noqa: E402
 )
 
 
-_ENVELOPE_RESERVED_INPUT_KEYS = frozenset({"inputs"})
+_BUILTIN_HANDLER_INPUT_KEYS = frozenset({"inputs", "messages"})
 
 
-def _reject_reserved_input_keys(inputs: Optional[Dict[str, Any]]) -> None:
-    """Raise InvalidInputsV0Error if user-supplied inputs collide with
-    envelope slot names that the dual-access pattern injects on top."""
+def _normalize_envelope_inputs(
+    inputs: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Normalize the @instrument decorator's kwarg wrapper when detected.
+
+    Built-in handlers (completion_v0, chat_v0) receive a parameter named
+    ``inputs``.  The @instrument decorator records function kwargs by name,
+    so traces store ``ag.data.inputs = {"inputs": {"country": "Tuvalu"}}``.
+    Online evaluation reads this back and passes it to the evaluator,
+    creating a nested wrapper that collides with the dual-access envelope.
+
+    Heuristic: if the only keys are ``inputs`` (and optionally ``messages``)
+    and ``inputs["inputs"]`` is a dict, lift the inner inputs to the top
+    level while preserving other wrapper-level values.
+    """
     if not inputs:
-        return
-    collisions = sorted(_ENVELOPE_RESERVED_INPUT_KEYS.intersection(inputs.keys()))
-    if collisions:
-        raise InvalidInputsV0Error(
-            expected=f"input keys not in {sorted(_ENVELOPE_RESERVED_INPUT_KEYS)} (reserved by the envelope resolver)",
-            got=collisions,
-        )
+        return inputs
+    if (
+        isinstance(inputs.get("inputs"), dict)
+        and inputs.keys() <= _BUILTIN_HANDLER_INPUT_KEYS
+    ):
+        unwrapped = {key: value for key, value in inputs.items() if key != "inputs"}
+        unwrapped.update(inputs["inputs"])
+        return unwrapped
+    return inputs
 
 
 def _format_with_template(
@@ -182,25 +196,12 @@ def _format_with_template(
 ) -> str:
     """Format content via the shared rendering helper.
 
-    Preserves the judge's silent-return-on-jinja-error behavior: any Jinja
-    sandbox violation or template error is logged and the original content is
-    returned. Alignment to a consistent raise semantic across services lands in
-    WP-B2.
+    Kept for compatibility with direct callers. Runtime handlers use the
+    structured renderers, which raise on Jinja failures.
     """
 
     if format not in ("curly", "fstring", "jinja2"):
         return content
-
-    if format == "jinja2":
-        _SandboxedEnvironment, TemplateError = _load_jinja2()
-        try:
-            return render_template(template=content, mode=format, context=kwargs)
-        except TemplateError as e:
-            log.warning(
-                "Jinja2 template rendering failed (possible sandbox violation): %s",
-                str(e),
-            )
-            return content
 
     return render_template(template=content, mode=format, context=kwargs)
 
@@ -332,10 +333,7 @@ def auto_exact_match_v0(
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-    correct_answer_key = str(parameters["correct_answer_key"])
+    correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
@@ -944,11 +942,6 @@ async def auto_ai_critique_v0(
             got=json_schema,
         )
 
-    response_format: dict = dict(type=response_type)
-
-    if response_type == "json_schema":
-        response_format["json_schema"] = json_schema
-
     correct_answer = None
 
     if inputs:
@@ -1001,7 +994,7 @@ async def auto_ai_critique_v0(
         )
 
     if inputs is not None:
-        _reject_reserved_input_keys(inputs)
+        inputs = _normalize_envelope_inputs(inputs)
         context.update(**inputs)
         context.update(
             **{
@@ -1025,17 +1018,19 @@ async def auto_ai_critique_v0(
         )
 
     try:
-        formatted_prompt_template = [
-            {
-                "role": message["role"],
-                "content": _format_with_template(
-                    content=message["content"],
-                    format=template_format,
-                    kwargs=context,
-                ),
-            }
-            for message in prompt_template
-        ]
+        formatted_prompt_template = render_messages(
+            messages=prompt_template,
+            mode=template_format,
+            context=context,
+        )
+        response_format: dict = dict(type=response_type)
+        if response_type == "json_schema":
+            response_format["json_schema"] = render_json_like(
+                json_like=json_schema,
+                mode=template_format,
+                context=context,
+                location="json_schema",
+            )
     except Exception as e:
         raise PromptFormattingV0Error(
             message=str(e),
@@ -2123,7 +2118,7 @@ async def completion_v0(
             got=inputs,
         )
 
-    _reject_reserved_input_keys(inputs)
+    inputs = _normalize_envelope_inputs(inputs)
 
     _variables = dict(inputs or {})
 
@@ -2195,7 +2190,7 @@ async def chat_v0(
             got=inputs,
         )
 
-    _reject_reserved_input_keys(inputs)
+    inputs = _normalize_envelope_inputs(inputs)
 
     _variables = dict(inputs or {})
     _messages = _variables.pop("messages", None)

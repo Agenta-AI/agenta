@@ -16,18 +16,66 @@ class FolderQuery(UniversalBaseModel):
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
-    id: typing.Optional[str] = None
-    ids: typing.Optional[typing.List[str]] = None
-    slug: typing.Optional[str] = None
-    slugs: typing.Optional[typing.List[str]] = None
-    kind: typing.Optional[FolderKind] = None
-    kinds: typing.Optional[FolderQueryKinds] = None
-    parent_id: typing.Optional[str] = None
-    parent_ids: typing.Optional[typing.List[str]] = None
-    path: typing.Optional[str] = None
-    paths: typing.Optional[typing.List[str]] = None
-    prefix: typing.Optional[str] = None
-    prefixes: typing.Optional[typing.List[str]] = None
+    id: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Match a single folder id.
+    """
+    
+    ids: typing.Optional[typing.List[str]] = pydantic.Field(default=None)
+    """
+    Match any of the given folder ids.
+    """
+    
+    slug: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Match a folder by slug, regardless of its position in the tree.
+    """
+    
+    slugs: typing.Optional[typing.List[str]] = pydantic.Field(default=None)
+    """
+    Match folders whose slug is in the given list.
+    """
+    
+    kind: typing.Optional[FolderKind] = pydantic.Field(default=None)
+    """
+    Match folders of a single resource family.
+    """
+    
+    kinds: typing.Optional[FolderQueryKinds] = pydantic.Field(default=None)
+    """
+    Filter by presence of a kind. `false` returns folders with no kind, `true` returns folders where `kind` is set, and an array restricts to the given kinds.
+    """
+    
+    parent_id: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Match folders whose parent is this id. Send `null` to return only root folders.
+    """
+    
+    parent_ids: typing.Optional[typing.List[str]] = pydantic.Field(default=None)
+    """
+    Match folders whose parent is any of the given ids.
+    """
+    
+    path: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Exact match on the materialized `path` (e.g. `support.prod`).
+    """
+    
+    paths: typing.Optional[typing.List[str]] = pydantic.Field(default=None)
+    """
+    Exact match on any of the given paths.
+    """
+    
+    prefix: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Subtree lookup: returns the folder at this path and every descendant.
+    """
+    
+    prefixes: typing.Optional[typing.List[str]] = pydantic.Field(default=None)
+    """
+    Subtree lookup across multiple prefixes, OR-ed together.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

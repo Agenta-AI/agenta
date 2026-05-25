@@ -17,6 +17,7 @@ import {
     Descriptions,
     Input,
     Modal,
+    Skeleton,
     Space,
     Switch,
     Typography,
@@ -124,7 +125,7 @@ const SectionLabel: FC<{children: React.ReactNode}> = ({children}) => (
 
 const Organization: FC = () => {
     const {selectedOrg, loading, refetch} = useOrgData()
-    const {hasAccessControl, hasDomains, hasSSO} = useEntitlements()
+    const {hasAccessControl, hasDomains, hasSSO, isLoading: entitlementsLoading} = useEntitlements()
     const queryClient = useQueryClient()
     const [slugValue, setSlugValue] = useState("")
     const [slugModalVisible, setSlugModalVisible] = useState(false)
@@ -634,8 +635,17 @@ const Organization: FC = () => {
         },
     ]
 
-    if (loading) {
-        return <div>Loading...</div>
+    if (loading || entitlementsLoading) {
+        return (
+            <Space direction="vertical" size="middle" style={{width: "100%"}}>
+                <Card>
+                    <Skeleton active paragraph={{rows: 6}} />
+                </Card>
+                <Card>
+                    <Skeleton active paragraph={{rows: 4}} />
+                </Card>
+            </Space>
+        )
     }
 
     if (!selectedOrg) {

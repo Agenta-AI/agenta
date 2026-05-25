@@ -1,0 +1,76 @@
+---
+id: query-users
+title: "List Users"
+description: "List distinct user IDs from span attributes."
+sidebar_label: "List Users"
+hide_title: true
+hide_table_of_contents: true
+api: eJztmN1v2zYQwP8V4p5l2XHz0Wovy5oCNdq1aZKuwByjOksnm51EqiSVxDP0vw9H+tuJMxR7GdC8xCbvjsf7+JH0HBxOLCRDuKDaUIaOchhFkJPNjKyd1AoSeC+tE7m0TqrMicaSEYMLKwqjK2FrVAKdM3LcOLLxrbpVV+Qao6xwU1qr3WHZkBW6EClOYjYSyzwVmBltrTdjhVSsc6uyxhhSTtRGf6PMxeIaKxI1TqRC9kmgykVqCEsnK0qFpQqVk5kVaG9Vevnx+kZ0ncFMqknXkrVSK9v93pCZpb+IGm3wzXg/KRfpvVS5vpdqEit6cKn3wGojtBK2GVv63rA7GZaljSECXZPxjgxySMDb/co7shCBYWHrftP5DJI5ZFo5Uo4/Yl2XMvN63W+WIzsHm02pQv5UG7bqJFn+ttyb11OzjwUkwzm4WU2QwFjrklBBG62GVFOW0I4icNKVPHC1NLCbzC9TUiJ1pqE0WoaUxHgm0hKt+4qZk3eUxiLIFVhaSoU2olGW3LYGx9A6HJck0kKatbYI4YuhjWAV2u2tbG9X0T1Z9+hmrTOsHEGhTYUOEsjRUcfv7VAAPgSTbQS6zP9r4x+DyTYCrpd/abppZP6Myw/eZikr+bhRqRxNyBy08t5r875NTuawb6SairsfbUYqD2NcLosvo4Mx8ObbyDtl7rD8YY8HSwNtBAbd40Wvmmr8jJ0r1m3baCmgx0wPWAt8WdXiY2a2++R1IMAOdLgyhEE1ofjgSp+ZBp8YDFeBB3t9uBgXY53PRKGN2MGW58mCWbxWG9AiDeWQcPv6AVtrZUMP9Xs9/re9ynWTZWRt0ZTiaiEM0Y9CKdNNUNrJ7Xrbr73E7lY/+NQx+ldnhye9tBxeir1CgU3pIOm1EbDUV5n7NaWjym6suSjddejRGJztRF4McrvnxcUzJ9GTLg1HPzH2E2P/b4wxYPi45jyHCheXfA26IzNGJyuBdu8W9DzhBrldUaX1iDru9/ch9AeWMg8MfWOMNj9OoJwcynKLC9sCpc62Zp+qmY3ArVI7ehoq73VwkFNb2ck+j9aiv5O1OKE1oZ4W9cEQNzzr669uAl1X9cQDbQSZe9gws5eJ1xxLbrlHsrU+MoY+NsH9hdxGza1TFDL0dCguQgoOlcbbm5vLPYOhPvL1M8MfYhFU5Kaar9G19qdkjW4KCTx2DkIElswd37M5o40pWRBr6dMZvk6dq23S7VITZ6Vu8hgnpBzGKIPgiG1kjZFu5o2cXw7e0ewtoYfMcLQpcM1VGOpqW2yVC6zlO2K/FPJdHc4bN9VG/h2KhXPKLgUt3j7X99X6gfDmAau6pO0LfwjL1nmzPFeg3+sfd3pnnf6rm6OT5OQo6b+Me2dHf8L6eDgkEygPLwp8eVKcHndOzo7OOscnp/3O+EWRdfrZq9MXxekpFngKK373Vgje4usal70l7nqtL+NCb1bxuY+/OL8c7J3IW1NMBMx8AyyD6ach2snsOqFM/srzABxh9etqhsuXyyQs04uP4h4PcYVVqDaW8C/bz4uX25ZzGy+3n+/f3ffvovqZOt26ROm56LM0X/TvEBbLQ7jOcXxDD48imHKnJ0OYz8do6bMp25aHw3wyHEVwh0byu3Jx+Zou23MOf9FsiTzlOp6dLF42oR13jhLmQtA4zzKq3UHZ0QaMOIQQwXjxiq90zjoG75mpeA8J+J8BWDu813lsDiWqScP0TyDY5L9/AKyg+GI=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Users"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/tracing/users/query"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+:::caution[deprecated]
+
+This endpoint has been deprecated and may be replaced or removed in future versions of the API.
+
+:::
+
+List distinct user IDs from span attributes.
+
+Returns the distinct values of `ag.user.id` across spans in the
+current project. Same pagination and `realtime` semantics as
+`POST /tracing/sessions/query`; pass the returned `windowing.next`
+cursor on subsequent calls.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./query-users.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./query-users.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

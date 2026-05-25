@@ -1,11 +1,11 @@
 ---
 id: list-organization-domains
-title: "List Organization Domains"
-description: "List all domains for an organization."
-sidebar_label: "List Organization Domains"
+title: "List Domains"
+description: "List all domains for the organization."
+sidebar_label: "List Domains"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVE1P3DAQ/SvRnFrJ2t2innLqqqB2BRUIaC+rCA3JbGKaxMZ2ENvI/70aJ9kkLKD2lHj85sNv5k0LDnML8RYuTY61/INOqtpCIiAjmxqp+QwxXEjrIizLKFMVytpGO2UirCM1cVuAAKXJhMMmgxhKad3dFHLXu4MAjQYrcmQ4fQs1VgQxzMAyAwGS02t0BQgw9NhIQxnEzjQkwKYFVQhxC26v2d06I+scBDjpSjZMnxVtMvA+4TBWq9qSZc+T1Yo/8+feNGlK1u6aMrruwSAgVbWj2jEctS5lGsIuHyz7tGM13nsv4PPJyXHgX1jKrKvmzBhl/iMqaMPsOtnVnZFDWfKfdFTZY0Cp0tkt1vvLXeB6TpYXB4usHeVkwCdeDDY0BvcTRi9UVyB4AZXN3yP/B1mLOcEh2NvQQEZ0y7eee66bQMhwvQkGLyB1z5Mw6v6BUjcJ85W5fHbgx/oPmHF4toGbrvwel4wxxhZ1HXqbitOuBa8lGyDfb2+vjgJ281GRKxSrJCcX9OAKiGE5VYBdti8E4ZejgiyZp0E+jSnZGbUM/eyOhXPaxsslNYu0VE22wJxqhwuUHTDhGGljpNuHIOurzTntvxNmZCDeJlPADY9hN1hz2KEZqOU5MT29lNeNK5TpSx+EXHRePjR5p6Y9XofiovXVBl5un9kV6wXTMB5DpnAN4sWzx9eCAKqCWsARVl8ON9xc5rBLs1p8WqzYpJV1FdaTFGH/zZbJ6aEPs1rbUc//vDR7Anlyl7pEGbQV3tL2Y7GdLUZOGh9vymEyEgGFso692vYeLf00pfdsfmzIcKsTAU9oJN4z8dsWMmn5P4N4h6Wld5704bpX0cforcKHcah5Fp6wbPgEAn7T/pUFH1ZNMYxc26PWaUraTfyPNiPP5kFB385uwfu/yP5V1Q==
+api: eJydVclu2zAQ/RVhzqzt9qhTjbqLkaIJmuRkGMFEGltMKFEhh0FdQ/9eDLVEctKgjQ+2Rc763pvRERj3HtINnLs9Vvo3sraVh62CnHzmdC3PkMJ37TlBY5Lclqgrn+ysS7igxI78ZqDA1uTiwzqHFIz2fDM2uen8QYEjX9vKk4f0CB8WC/mZJr0MWUbe74JJfnbGoCCzFVPFYo51bXQWA8/vvPgcwWcFlSj/NFMZg9dOqmLdptK5fPOhJkjBs9PVHhTsrCuRIYUQdA4KWLMRg3UOjQJvwv4lr97qUu4bBRWWFAurDuc7SDenHo0aTqpgDDTbpxg/xLc5Af5toVajEI2CnYkkHwHzXMshmosRJOwCqT6Wvb2jjEetfYnOjQK29/Tmiq6ic6Mgc4RM+Q3yqyzkyPSOdUmjSj61rsmSJVCo81Ggv9X0YsjXCr1uw3ZJJtL9P+GMByoRFTXPMXb0ELSjXAYwOkeddTKaKqFnsedhguQEjedVb1+uahVHcTRZ0+nrL5LS5mTiwGM3/jN4agadw8Oo78EtrowJCqtu9hv5KCiJCytbYk9SdY1cQArzcfV+3u2LuYBD7pGcjywHZ8QWax3ZbB8L5tqn8zmFWWZsyGe4p4pxhro13EqMLDjNhxhkebE+o8M3wpwcpJvt2OBS1ki7MKZmgwKw1md06NlKYRm4sK4rHBRoAbFovaRdXe1sdO+AWsbikuXF+hn0kyvZd5hFlfeZ4rWwPmn7qVtQQCVquWTC8uNwI7wJhm2axez9bCFHtfVcYjVKEclbDbv6ZCcNK/jf3wsdaEy/eF4b1HEZxPqPHfObiW5j1iG/SLiwnsXqeLxFT9fONI0cPwRyQudWwSM6jbcC7mbbqB57YfqeDoJbllEtUntEE1oKT94fooBBll8/X0HT/AEjnHCU
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -23,13 +23,13 @@ import Translate from "@docusaurus/Translate";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"List Organization Domains"}
+  children={"List Domains"}
 >
 </Heading>
 
 <MethodEndpoint
   method={"get"}
-  path={"/organizations/{organization_id}/domains"}
+  path={"/organizations/domains/"}
   context={"endpoint"}
 >
   
@@ -37,19 +37,9 @@ import Translate from "@docusaurus/Translate";
 
 
 
-List all domains for an organization.
+List all domains for the organization.
 
-<Heading
-  id={"request"}
-  as={"h2"}
-  className={"openapi-tabs__heading"}
->
-  <Translate id="theme.openapi.request.title">Request</Translate>
-</Heading>
-
-<ParamsDetails
-  {...require("./list-organization-domains.ParamsDetails.json")}
->
+<ParamsDetails>
   
 </ParamsDetails>
 

@@ -6,14 +6,8 @@ from json import dumps
 from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.common import is_ee
 from oss.src.services import llm_apps_service
 from oss.src.models.shared_models import InvokationResult
-from oss.src.services.db_manager import get_project_by_id
-
-if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, Counter
-
 
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testcases.service import TestcasesService
@@ -260,19 +254,12 @@ async def evaluate_batch_testset(
     request.state.project_id = str(project_id)
     request.state.user_id = str(user_id)
 
-    project = None
     run = None
 
     try:
         # ----------------------------------------------------------------------
         log.info(
             "[SCOPE]       ", run_id=run_id, project_id=project_id, user_id=user_id
-        )
-        # ----------------------------------------------------------------------
-
-        # fetch project --------------------------------------------------------
-        project = await get_project_by_id(
-            project_id=str(project_id),
         )
         # ----------------------------------------------------------------------
 
@@ -1279,15 +1266,6 @@ async def evaluate_batch_testset(
         run=run_edit,
     )
 
-    # edit meters to avoid counting failed evaluations --------------------------
-    if run_status == EvaluationStatus.FAILURE and project is not None:
-        if is_ee():
-            await check_entitlements(
-                organization_id=project.organization_id,
-                key=Counter.EVALUATIONS,
-                delta=-1,
-            )
-
     log.info("[DONE]      ", run_id=run_id, project_id=project_id, user_id=user_id)
 
     return
@@ -1318,12 +1296,6 @@ async def evaluate_batch_invocation(
         # ----------------------------------------------------------------------
         log.info(
             "[SCOPE]       ", run_id=run_id, project_id=project_id, user_id=user_id
-        )
-        # ----------------------------------------------------------------------
-
-        # fetch project --------------------------------------------------------
-        project = await get_project_by_id(
-            project_id=str(project_id),
         )
         # ----------------------------------------------------------------------
 
@@ -1646,13 +1618,6 @@ async def evaluate_batch_invocation(
             data=run.data,
         ),
     )
-
-    if run_status == EvaluationStatus.FAILURE and is_ee():
-        await check_entitlements(
-            organization_id=project.organization_id,  # type: ignore[attr-defined]
-            key=Counter.EVALUATIONS,
-            delta=-1,
-        )
 
     log.info("[DONE]      ", run_id=run_id, project_id=project_id, user_id=user_id)
     return

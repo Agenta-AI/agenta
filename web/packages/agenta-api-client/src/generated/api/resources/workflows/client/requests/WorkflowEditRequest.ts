@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface WorkflowEditRequest {
     workflow_id: string;
+    /** Workflow fields to update. `id` is required and must match the path parameter; only supplied fields are modified. */
     workflow: AgentaApi.WorkflowEdit;
 }

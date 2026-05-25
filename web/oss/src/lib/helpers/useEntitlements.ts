@@ -1,13 +1,8 @@
 import {useMemo} from "react"
 
-import {useSubscriptionDataWrapper} from "./useSubscriptionDataWrapper"
+import {useAtomValue} from "jotai"
 
-type Plan =
-    | "cloud_v0_hobby"
-    | "cloud_v0_pro"
-    | "cloud_v0_business"
-    | "cloud_v0_enterprise"
-    | "self_hosted_enterprise"
+import {currentSubscriptionQueryAtom, plansQueryAtom} from "@/oss/state/access/atoms"
 
 export enum Feature {
     ACCESS = "access",
@@ -15,61 +10,39 @@ export enum Feature {
     SSO = "sso",
     RBAC = "rbac",
     HOOKS = "hooks",
+    AUDIT = "audit",
 }
 
 /**
- * Check if a feature is entitled for a given plan
- */
-const isFeatureEntitled = (plan: Plan | undefined, feature: Feature): boolean => {
-    if (!plan) return false
-
-    // Hobby and Pro plans have no access to ACCESS, DOMAINS, or SSO
-    if (plan === "cloud_v0_hobby" || plan === "cloud_v0_pro") {
-        return false
-    }
-
-    // Business, Enterprise, and self-hosted enterprise have access to all features
-    if (
-        plan === "cloud_v0_business" ||
-        plan === "cloud_v0_enterprise" ||
-        plan === "self_hosted_enterprise"
-    ) {
-        return true
-    }
-
-    return false
-}
-
-/**
- * Hook to check entitlements for various features
+ * Read entitlements from the access-controls catalog returned by
+ * `/api/access/plans`, keyed by the org's current plan slug from
+ * `/api/billing/subscription`. The previous implementation hardcoded
+ * a slug allowlist (Hobby/Pro/Business/Enterprise) and broke for any
+ * deployment using `AGENTA_ACCESS_PLANS` with custom slugs.
  */
 export const useEntitlements = () => {
-    const {subscription} = useSubscriptionDataWrapper()
+    const subscriptionQuery = useAtomValue(currentSubscriptionQueryAtom)
+    const plansQuery = useAtomValue(plansQueryAtom)
 
-    const hasAccessControl = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.ACCESS),
-        [subscription?.plan],
-    )
+    const plan = subscriptionQuery.data?.plan
+    const flags = useMemo(() => {
+        if (!plan) return undefined
+        return plansQuery.data?.[plan]?.flags
+    }, [plan, plansQuery.data])
 
-    const hasDomains = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.DOMAINS),
-        [subscription?.plan],
-    )
+    const hasAccessControl = !!flags?.access
+    const hasDomains = !!flags?.domains
+    const hasSSO = !!flags?.sso
+    const hasRBAC = !!flags?.rbac
+    const hasHooks = !!flags?.hooks
+    const hasAudit = !!flags?.audit
 
-    const hasSSO = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.SSO),
-        [subscription?.plan],
-    )
-
-    const hasRBAC = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.RBAC),
-        [subscription?.plan],
-    )
-
-    const hasHooks = useMemo(
-        () => isFeatureEntitled(subscription?.plan, Feature.HOOKS),
-        [subscription?.plan],
-    )
+    // Both queries must resolve before flags are meaningful. While either is
+    // pending, every `has*` read returns `false`, which is indistinguishable
+    // from "feature disabled" — callers that gate UI on these should defer
+    // rendering until `isLoading` is false to avoid a flash of the locked
+    // state on first paint / soft navigation.
+    const isLoading = subscriptionQuery.isPending || plansQuery.isPending
 
     return {
         hasAccessControl,
@@ -77,6 +50,8 @@ export const useEntitlements = () => {
         hasSSO,
         hasRBAC,
         hasHooks,
-        plan: subscription?.plan,
+        hasAudit,
+        plan,
+        isLoading,
     }
 }

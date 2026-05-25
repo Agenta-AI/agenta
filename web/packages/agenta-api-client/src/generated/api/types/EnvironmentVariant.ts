@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EnvironmentVariant {
+    environment_slug?: (string | null) | undefined;
+    artifact_slug?: (string | null) | undefined;
     environment_id?: (string | null) | undefined;
     artifact_id?: (string | null) | undefined;
     flags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;

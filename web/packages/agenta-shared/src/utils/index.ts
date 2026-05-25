@@ -194,6 +194,13 @@ export {
 } from "./connectionSlug"
 export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
 
+// Gateway Tool JSON-Schema → form-field descriptor utilities
+export {
+    buildFormFieldsFromData,
+    buildFormFieldsFromSchema,
+    type FormFieldDescriptor,
+} from "./gatewayToolSchema"
+
 // Polling utilities
 export {shortPoll} from "./shortPoll"
 
@@ -202,3 +209,9 @@ export {removeTrailingSlash} from "./uriUtils"
 
 // Trace ID conversion utilities (UUID ↔ OpenTelemetry)
 export {uuidToSpanId, uuidToTraceId} from "./traceIds"
+
+// LLM provider catalog (cross-cutting between secret entity and provider UI)
+export {llmAvailableProviders, llmAvailableProvidersToken} from "./llmProviders"
+
+// Object cleanup utilities
+export {removeEmptyFromObjects} from "./objectUtils"

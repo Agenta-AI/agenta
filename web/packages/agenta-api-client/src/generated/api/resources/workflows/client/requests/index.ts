@@ -1,6 +1,6 @@
 export type { ArchiveSimpleWorkflowRequest } from "./ArchiveSimpleWorkflowRequest.js";
 export type { ArchiveWorkflowRequest } from "./ArchiveWorkflowRequest.js";
-export type { ArchiveWorkflowRevisionRpcRequest } from "./ArchiveWorkflowRevisionRpcRequest.js";
+export type { ArchiveWorkflowRevisionRequest } from "./ArchiveWorkflowRevisionRequest.js";
 export type { ArchiveWorkflowVariantRequest } from "./ArchiveWorkflowVariantRequest.js";
 export type { FetchSimpleWorkflowRequest } from "./FetchSimpleWorkflowRequest.js";
 export type { FetchWorkflowCatalogPresetRequest } from "./FetchWorkflowCatalogPresetRequest.js";
@@ -19,7 +19,7 @@ export type { SimpleWorkflowEditRequest } from "./SimpleWorkflowEditRequest.js";
 export type { SimpleWorkflowQueryRequest } from "./SimpleWorkflowQueryRequest.js";
 export type { UnarchiveSimpleWorkflowRequest } from "./UnarchiveSimpleWorkflowRequest.js";
 export type { UnarchiveWorkflowRequest } from "./UnarchiveWorkflowRequest.js";
-export type { UnarchiveWorkflowRevisionRpcRequest } from "./UnarchiveWorkflowRevisionRpcRequest.js";
+export type { UnarchiveWorkflowRevisionRequest } from "./UnarchiveWorkflowRevisionRequest.js";
 export type { UnarchiveWorkflowVariantRequest } from "./UnarchiveWorkflowVariantRequest.js";
 export type { WorkflowCreateRequest } from "./WorkflowCreateRequest.js";
 export type { WorkflowEditRequest } from "./WorkflowEditRequest.js";

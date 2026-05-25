@@ -12,6 +12,7 @@ import {
 } from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 import {observabilityTabAtom} from "@/oss/state/newObservability/atoms/controls"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 import ObservabilityTable from "./components/ObservabilityTable"
 import SessionsTable from "./components/SessionsTable"
@@ -29,6 +30,18 @@ const ObservabilityTabs = () => {
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const [isSetupTracingModalOpen, setIsSetupTracingModalOpen] = useState(false)
+
+    // Phase 6.3.3: hide the Sessions tab when current workflow is an evaluator
+    // (sessions are an app-flow concept; evaluators don't emit them). Plus URL
+    // rewrite for stale bookmarks landing directly on ?tab=sessions.
+    const workflowCtx = useAtomValue(currentWorkflowContextAtom)
+    const isCurrentWorkflowEvaluator = workflowCtx.workflowKind === "evaluator"
+
+    useEffect(() => {
+        if (isCurrentWorkflowEvaluator && activeTab === "sessions") {
+            setTabParam("traces")
+        }
+    }, [isCurrentWorkflowEvaluator, activeTab, setTabParam])
 
     useEffect(() => {
         setObservabilityTab(activeTab)
@@ -58,17 +71,21 @@ const ObservabilityTabs = () => {
                     </span>
                 ),
             },
-            {
-                key: "sessions",
-                label: (
-                    <span className="flex items-center gap-2">
-                        <Chats size={size} />
-                        <span>Sessions</span>
-                    </span>
-                ),
-            },
+            ...(isCurrentWorkflowEvaluator
+                ? []
+                : [
+                      {
+                          key: "sessions",
+                          label: (
+                              <span className="flex items-center gap-2">
+                                  <Chats size={size} />
+                                  <span>Sessions</span>
+                              </span>
+                          ),
+                      },
+                  ]),
         ]
-    }, [])
+    }, [isCurrentWorkflowEvaluator])
 
     return (
         <PageLayout

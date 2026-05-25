@@ -1,11 +1,11 @@
 ---
 id: list-organization-providers
-title: "List Organization Providers"
-description: "List all SSO providers for an organization."
-sidebar_label: "List Organization Providers"
+title: "List Providers"
+description: "List all SSO providers for the organization."
+sidebar_label: "List Providers"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVMFu2zAM/RWDpw0QkqzYyacFW7EG7dCgyXYJjEK1GVudbakSHTQz9O8D5Tixm7ZAT7aoR4p85GMLJHMH8QZubS5r9U+S0rWDRECGLrXK8BliuFGOIlmW0Wp1GxmrdypD66KttpGsIz1wnoAAbdCGwyKDGErl6H4IuT8GAAFGWlkh8SHetFDLCiGGEVxlIEBxGkZSAQIsPjXKYgYx2QYFuLTASkLcAu0Nuzuyqs5BACkq2TAsL1pk4H3CYZzRtUPHnhezGX/GZa+aNEXntk0Z3R3AICDVNWFNDJfGlCoNYaePjn3aUzbeey/g68XFeeA/slRZl82ltdp+ICoYy/yS6vLOkKQq+U8RVu4cUOp0dCvr/e02cD0my4ujRdWEOVrwiRe9TVor9wNGb3SXIHgBlcvfI/8XOidzhGOwt6GBjGjNt557bppASH+9CAYvIKXnQRj98IgpDcJ8Zy6fCfwp/yPmNDybwE2X/gGXnGKcWtR16G0qfnQteO2xHnK1Xi/PAnbzUSEVmnWSIwU9UAExTIcKcNP2hSD8dKghh3bXC6ixJbtLo0JHu2NBZFw8nWIzSUvdZBOZY01yIlUHTDhG2lhF+xBkvlxc4/4KZYYW4k0yBKx4ELvRGsOO7ZBGXSMTdBDzvKFC20PyvZSLzsuHNm/1sMvzkFw0Xy7g5R4aXbFiZBoGpH8pXIN4UfapWhCAVdALEMrq2/GG28scds/MJl8mMzYZ7aiS9eCJsAlH62Q56MQo2/ak6Q8u0AORPMNTU0oVVBZqag8DshmtSH46Pt+ZpxlJBBTaEfu17YN0+NuW3rP5qUHLTU8E7KRV8oFbsGkhU47/M4i3snT4Tmmf7g6K+hy9lXo/GDVPxU6WDZ9AwF/cv7Lsw9op+uFrD6h5mqKhgf/ZluQpParp5+UavP8Py4RdsQ==
+api: eJydVU1v2zAM/SsGz1qS7ejTgn0GHdZg2U5BUKg2E6uTLVWigmWB//tA+aNy2hVoc0hiiXwU33uiz0Dy4CHfwrU7yEb9laRM42EnoERfOGX5GXL4pjxlUutss7nOrDNHVaLz2d64jCrMTJI9AwHGoosPqxJy0MrTTRpyMyKAAIfemsajh/wM7xYL/pkW34SiQO/3QWc/+mAQUJiGsCEOl9ZqVUTo+Z3nnDP4osJa8j9FWEdw6/hcpLpSquRvOlmEHDw51RxAwN64WhLkEIIqQQAp0hywKqEV4HU4PJU1RG14vxXQyBrjwZrT9R7y7WVGK8aVJmgN7e4B4zvnthcCvA7qYwLRCtjrKPYZZFkqXpR6nVBCLqAYsMztHRaUtPY5JjMHSKSa1wNthvxWQOFQEpY3kp7VopSEb0jVmMB86FKzJTFQsGUC9D+unoR8jsBfHWxfZGLhl9knvV4Ze6l9TJDD+6AclnwdY3J0W2+mqR8GLRM1JmROCHl88N3TB1v3tzK5ZNOLOGxktSlRx9svm8lImMFDY9I5eUo4GLPjMJkwsh7nQcsfATVSZXh2HJAbsJIqyGGeNuLn4xSZRyLckQFY9eA0R0urorrdY0VkfT6fY5gV2oRyJg/YkJxJ1QXuGKMITtEpgizXqys8fUVZooN8u0sDNjxcujEyDRsdIa26wtOgXg7LQJVx/dFBgGI+qy6LG1bN3sT0nqxlPFy2XK8eqTDZ4ikoi+j6oVLcZgtM2n7oFgRgLRVvEsr6/bjD2jGHXZnF7O1swUvWeKplk5SIAq6TGX4xq8bR/NL3Rk8e4R+aWy1VHFuxj3Pvge3EzFw7fZewsyvjiePO51vp8ZfTbcvL9wEdC7sTcJROyVumebtrxaACa/4bT8xgUaBl2x2lDp2YF+8X9sJo0S+ffkLb/gOH1oG+
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -23,13 +23,13 @@ import Translate from "@docusaurus/Translate";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"List Organization Providers"}
+  children={"List Providers"}
 >
 </Heading>
 
 <MethodEndpoint
   method={"get"}
-  path={"/organizations/{organization_id}/providers"}
+  path={"/organizations/providers/"}
   context={"endpoint"}
 >
   
@@ -37,19 +37,9 @@ import Translate from "@docusaurus/Translate";
 
 
 
-List all SSO providers for an organization.
+List all SSO providers for the organization.
 
-<Heading
-  id={"request"}
-  as={"h2"}
-  className={"openapi-tabs__heading"}
->
-  <Translate id="theme.openapi.request.title">Request</Translate>
-</Heading>
-
-<ParamsDetails
-  {...require("./list-organization-providers.ParamsDetails.json")}
->
+<ParamsDetails>
   
 </ParamsDetails>
 

@@ -26,82 +26,6 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.RefreshRunsAdminEvaluationsRunsRefreshPostRequest} request
-     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.evaluations.refreshRuns()
-     */
-    public refreshRuns(
-        request: AgentaApi.RefreshRunsAdminEvaluationsRunsRefreshPostRequest = {},
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): core.HttpResponsePromise<unknown> {
-        return core.HttpResponsePromise.fromPromise(this.__refreshRuns(request, requestOptions));
-    }
-
-    private async __refreshRuns(
-        request: AgentaApi.RefreshRunsAdminEvaluationsRunsRefreshPostRequest = {},
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<unknown>> {
-        const { trigger_interval: triggerInterval, trigger_datetime: triggerDatetime } = request;
-        const _queryParams: Record<string, unknown> = {
-            trigger_interval: triggerInterval,
-            trigger_datetime: triggerDatetime !== undefined ? triggerDatetime : undefined,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "admin/evaluations/runs/refresh",
-            ),
-            method: "POST",
-            headers: _headers,
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/admin/evaluations/runs/refresh",
-        );
-    }
-
-    /**
      * @param {AgentaApi.EvaluationRunsCreateRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -526,7 +450,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.FetchRunEvaluationsRunsRunIdGetRequest} request
+     * @param {AgentaApi.FetchRunRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -537,14 +461,14 @@ export class EvaluationsClient {
      *     })
      */
     public fetchRun(
-        request: AgentaApi.FetchRunEvaluationsRunsRunIdGetRequest,
+        request: AgentaApi.FetchRunRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationRunResponse> {
         return core.HttpResponsePromise.fromPromise(this.__fetchRun(request, requestOptions));
     }
 
     private async __fetchRun(
-        request: AgentaApi.FetchRunEvaluationsRunsRunIdGetRequest,
+        request: AgentaApi.FetchRunRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationRunResponse>> {
         const { run_id: runId } = request;
@@ -595,7 +519,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.DeleteRunEvaluationsRunsRunIdDeleteRequest} request
+     * @param {AgentaApi.DeleteRunRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -606,14 +530,14 @@ export class EvaluationsClient {
      *     })
      */
     public deleteRun(
-        request: AgentaApi.DeleteRunEvaluationsRunsRunIdDeleteRequest,
+        request: AgentaApi.DeleteRunRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationRunIdResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteRun(request, requestOptions));
     }
 
     private async __deleteRun(
-        request: AgentaApi.DeleteRunEvaluationsRunsRunIdDeleteRequest,
+        request: AgentaApi.DeleteRunRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationRunIdResponse>> {
         const { run_id: runId } = request;
@@ -737,26 +661,103 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.CloseRunEvaluationsRunsRunIdCloseStatusPostRequest} request
+     * @param {AgentaApi.CloseRunRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
      *     await client.evaluations.closeRun({
-     *         run_id: "run_id",
-     *         status: "pending"
+     *         run_id: "run_id"
      *     })
      */
     public closeRun(
-        request: AgentaApi.CloseRunEvaluationsRunsRunIdCloseStatusPostRequest,
+        request: AgentaApi.CloseRunRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationRunResponse> {
         return core.HttpResponsePromise.fromPromise(this.__closeRun(request, requestOptions));
     }
 
     private async __closeRun(
-        request: AgentaApi.CloseRunEvaluationsRunsRunIdCloseStatusPostRequest,
+        request: AgentaApi.CloseRunRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.EvaluationRunResponse>> {
+        const { run_id: runId, status } = request;
+        const _queryParams: Record<string, unknown> = {
+            status: status !== undefined ? status : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `evaluations/runs/${core.url.encodePathParam(runId)}/close`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.EvaluationRunResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/evaluations/runs/{run_id}/close",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.CloseRunWithStatusRequest} request
+     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.evaluations.closeRunWithStatus({
+     *         run_id: "run_id",
+     *         status: "pending"
+     *     })
+     */
+    public closeRunWithStatus(
+        request: AgentaApi.CloseRunWithStatusRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.EvaluationRunResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__closeRunWithStatus(request, requestOptions));
+    }
+
+    private async __closeRunWithStatus(
+        request: AgentaApi.CloseRunWithStatusRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationRunResponse>> {
         const { run_id: runId, status } = request;
@@ -812,7 +813,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.OpenRunEvaluationsRunsRunIdOpenPostRequest} request
+     * @param {AgentaApi.OpenRunRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -823,14 +824,14 @@ export class EvaluationsClient {
      *     })
      */
     public openRun(
-        request: AgentaApi.OpenRunEvaluationsRunsRunIdOpenPostRequest,
+        request: AgentaApi.OpenRunRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationRunResponse> {
         return core.HttpResponsePromise.fromPromise(this.__openRun(request, requestOptions));
     }
 
     private async __openRun(
-        request: AgentaApi.OpenRunEvaluationsRunsRunIdOpenPostRequest,
+        request: AgentaApi.OpenRunRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationRunResponse>> {
         const { run_id: runId } = request;
@@ -1182,7 +1183,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.FetchScenarioEvaluationsScenariosScenarioIdGetRequest} request
+     * @param {AgentaApi.FetchScenarioRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -1193,14 +1194,14 @@ export class EvaluationsClient {
      *     })
      */
     public fetchScenario(
-        request: AgentaApi.FetchScenarioEvaluationsScenariosScenarioIdGetRequest,
+        request: AgentaApi.FetchScenarioRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationScenarioResponse> {
         return core.HttpResponsePromise.fromPromise(this.__fetchScenario(request, requestOptions));
     }
 
     private async __fetchScenario(
-        request: AgentaApi.FetchScenarioEvaluationsScenariosScenarioIdGetRequest,
+        request: AgentaApi.FetchScenarioRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationScenarioResponse>> {
         const { scenario_id: scenarioId } = request;
@@ -1256,7 +1257,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.DeleteScenarioEvaluationsScenariosScenarioIdDeleteRequest} request
+     * @param {AgentaApi.DeleteScenarioRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -1267,14 +1268,14 @@ export class EvaluationsClient {
      *     })
      */
     public deleteScenario(
-        request: AgentaApi.DeleteScenarioEvaluationsScenariosScenarioIdDeleteRequest,
+        request: AgentaApi.DeleteScenarioRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationScenarioIdResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteScenario(request, requestOptions));
     }
 
     private async __deleteScenario(
-        request: AgentaApi.DeleteScenarioEvaluationsScenariosScenarioIdDeleteRequest,
+        request: AgentaApi.DeleteScenarioRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationScenarioIdResponse>> {
         const { scenario_id: scenarioId } = request;
@@ -1700,7 +1701,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.FetchResultEvaluationsResultsResultIdGetRequest} request
+     * @param {AgentaApi.FetchResultRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -1711,14 +1712,14 @@ export class EvaluationsClient {
      *     })
      */
     public fetchResult(
-        request: AgentaApi.FetchResultEvaluationsResultsResultIdGetRequest,
+        request: AgentaApi.FetchResultRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationResultResponse> {
         return core.HttpResponsePromise.fromPromise(this.__fetchResult(request, requestOptions));
     }
 
     private async __fetchResult(
-        request: AgentaApi.FetchResultEvaluationsResultsResultIdGetRequest,
+        request: AgentaApi.FetchResultRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationResultResponse>> {
         const { result_id: resultId } = request;
@@ -1774,7 +1775,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.DeleteResultEvaluationsResultsResultIdDeleteRequest} request
+     * @param {AgentaApi.DeleteResultRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -1785,14 +1786,14 @@ export class EvaluationsClient {
      *     })
      */
     public deleteResult(
-        request: AgentaApi.DeleteResultEvaluationsResultsResultIdDeleteRequest,
+        request: AgentaApi.DeleteResultRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationResultIdResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteResult(request, requestOptions));
     }
 
     private async __deleteResult(
-        request: AgentaApi.DeleteResultEvaluationsResultsResultIdDeleteRequest,
+        request: AgentaApi.DeleteResultRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationResultIdResponse>> {
         const { result_id: resultId } = request;
@@ -2568,7 +2569,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.FetchQueueEvaluationsQueuesQueueIdGetRequest} request
+     * @param {AgentaApi.FetchQueueRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -2579,14 +2580,14 @@ export class EvaluationsClient {
      *     })
      */
     public fetchQueue(
-        request: AgentaApi.FetchQueueEvaluationsQueuesQueueIdGetRequest,
+        request: AgentaApi.FetchQueueRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationQueueResponse> {
         return core.HttpResponsePromise.fromPromise(this.__fetchQueue(request, requestOptions));
     }
 
     private async __fetchQueue(
-        request: AgentaApi.FetchQueueEvaluationsQueuesQueueIdGetRequest,
+        request: AgentaApi.FetchQueueRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationQueueResponse>> {
         const { queue_id: queueId } = request;
@@ -2642,7 +2643,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.DeleteQueueEvaluationsQueuesQueueIdDeleteRequest} request
+     * @param {AgentaApi.DeleteQueueRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -2653,14 +2654,14 @@ export class EvaluationsClient {
      *     })
      */
     public deleteQueue(
-        request: AgentaApi.DeleteQueueEvaluationsQueuesQueueIdDeleteRequest,
+        request: AgentaApi.DeleteQueueRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationQueueIdResponse> {
         return core.HttpResponsePromise.fromPromise(this.__deleteQueue(request, requestOptions));
     }
 
     private async __deleteQueue(
-        request: AgentaApi.DeleteQueueEvaluationsQueuesQueueIdDeleteRequest,
+        request: AgentaApi.DeleteQueueRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationQueueIdResponse>> {
         const { queue_id: queueId } = request;
@@ -2880,18 +2881,18 @@ export class EvaluationsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.createEvaluation({
+     *     await client.evaluations.createSimpleEvaluation({
      *         evaluation: {}
      *     })
      */
-    public createEvaluation(
+    public createSimpleEvaluation(
         request: AgentaApi.SimpleEvaluationCreateRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__createEvaluation(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__createSimpleEvaluation(request, requestOptions));
     }
 
-    private async __createEvaluation(
+    private async __createSimpleEvaluation(
         request: AgentaApi.SimpleEvaluationCreateRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationResponse>> {
@@ -2945,25 +2946,25 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.FetchEvaluationSimpleEvaluationsEvaluationIdGetRequest} request
+     * @param {AgentaApi.FetchSimpleEvaluationRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.fetchEvaluation({
+     *     await client.evaluations.fetchSimpleEvaluation({
      *         evaluation_id: "evaluation_id"
      *     })
      */
-    public fetchEvaluation(
-        request: AgentaApi.FetchEvaluationSimpleEvaluationsEvaluationIdGetRequest,
+    public fetchSimpleEvaluation(
+        request: AgentaApi.FetchSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__fetchEvaluation(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__fetchSimpleEvaluation(request, requestOptions));
     }
 
-    private async __fetchEvaluation(
-        request: AgentaApi.FetchEvaluationSimpleEvaluationsEvaluationIdGetRequest,
+    private async __fetchSimpleEvaluation(
+        request: AgentaApi.FetchSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationResponse>> {
         const { evaluation_id: evaluationId } = request;
@@ -3019,25 +3020,25 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.DeleteEvaluationSimpleEvaluationsEvaluationIdDeleteRequest} request
+     * @param {AgentaApi.DeleteSimpleEvaluationRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.deleteEvaluation({
+     *     await client.evaluations.deleteSimpleEvaluation({
      *         evaluation_id: "evaluation_id"
      *     })
      */
-    public deleteEvaluation(
-        request: AgentaApi.DeleteEvaluationSimpleEvaluationsEvaluationIdDeleteRequest,
+    public deleteSimpleEvaluation(
+        request: AgentaApi.DeleteSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationIdResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__deleteEvaluation(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__deleteSimpleEvaluation(request, requestOptions));
     }
 
-    private async __deleteEvaluation(
-        request: AgentaApi.DeleteEvaluationSimpleEvaluationsEvaluationIdDeleteRequest,
+    private async __deleteSimpleEvaluation(
+        request: AgentaApi.DeleteSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationIdResponse>> {
         const { evaluation_id: evaluationId } = request;
@@ -3099,19 +3100,19 @@ export class EvaluationsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.editEvaluation({
+     *     await client.evaluations.editSimpleEvaluation({
      *         evaluation_id: "evaluation_id",
      *         evaluation: {}
      *     })
      */
-    public editEvaluation(
+    public editSimpleEvaluation(
         request: AgentaApi.SimpleEvaluationEditRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__editEvaluation(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__editSimpleEvaluation(request, requestOptions));
     }
 
-    private async __editEvaluation(
+    private async __editSimpleEvaluation(
         request: AgentaApi.SimpleEvaluationEditRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationResponse>> {
@@ -3177,16 +3178,16 @@ export class EvaluationsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.queryEvaluations()
+     *     await client.evaluations.querySimpleEvaluations()
      */
-    public queryEvaluations(
+    public querySimpleEvaluations(
         request: AgentaApi.SimpleEvaluationQueryRequest = {},
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__queryEvaluations(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__querySimpleEvaluations(request, requestOptions));
     }
 
-    private async __queryEvaluations(
+    private async __querySimpleEvaluations(
         request: AgentaApi.SimpleEvaluationQueryRequest = {},
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationsResponse>> {
@@ -3314,25 +3315,25 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.StopEvaluationSimpleEvaluationsEvaluationIdStopPostRequest} request
+     * @param {AgentaApi.StopSimpleEvaluationRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.stopEvaluation({
+     *     await client.evaluations.stopSimpleEvaluation({
      *         evaluation_id: "evaluation_id"
      *     })
      */
-    public stopEvaluation(
-        request: AgentaApi.StopEvaluationSimpleEvaluationsEvaluationIdStopPostRequest,
+    public stopSimpleEvaluation(
+        request: AgentaApi.StopSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__stopEvaluation(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__stopSimpleEvaluation(request, requestOptions));
     }
 
-    private async __stopEvaluation(
-        request: AgentaApi.StopEvaluationSimpleEvaluationsEvaluationIdStopPostRequest,
+    private async __stopSimpleEvaluation(
+        request: AgentaApi.StopSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationResponse>> {
         const { evaluation_id: evaluationId } = request;
@@ -3388,25 +3389,25 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.CloseEvaluationSimpleEvaluationsEvaluationIdClosePostRequest} request
+     * @param {AgentaApi.CloseSimpleEvaluationRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.closeEvaluation({
+     *     await client.evaluations.closeSimpleEvaluation({
      *         evaluation_id: "evaluation_id"
      *     })
      */
-    public closeEvaluation(
-        request: AgentaApi.CloseEvaluationSimpleEvaluationsEvaluationIdClosePostRequest,
+    public closeSimpleEvaluation(
+        request: AgentaApi.CloseSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__closeEvaluation(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__closeSimpleEvaluation(request, requestOptions));
     }
 
-    private async __closeEvaluation(
-        request: AgentaApi.CloseEvaluationSimpleEvaluationsEvaluationIdClosePostRequest,
+    private async __closeSimpleEvaluation(
+        request: AgentaApi.CloseSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationResponse>> {
         const { evaluation_id: evaluationId } = request;
@@ -3462,25 +3463,25 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.OpenEvaluationSimpleEvaluationsEvaluationIdOpenPostRequest} request
+     * @param {AgentaApi.OpenSimpleEvaluationRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.openEvaluation({
+     *     await client.evaluations.openSimpleEvaluation({
      *         evaluation_id: "evaluation_id"
      *     })
      */
-    public openEvaluation(
-        request: AgentaApi.OpenEvaluationSimpleEvaluationsEvaluationIdOpenPostRequest,
+    public openSimpleEvaluation(
+        request: AgentaApi.OpenSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__openEvaluation(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__openSimpleEvaluation(request, requestOptions));
     }
 
-    private async __openEvaluation(
-        request: AgentaApi.OpenEvaluationSimpleEvaluationsEvaluationIdOpenPostRequest,
+    private async __openSimpleEvaluation(
+        request: AgentaApi.OpenSimpleEvaluationRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationResponse>> {
         const { evaluation_id: evaluationId } = request;

@@ -1,13 +1,20 @@
 import {memo, useMemo} from "react"
 
 import {Card, Button, Typography} from "antd"
+import {useAtomValue} from "jotai"
 
-import {Plan} from "@/oss/lib/Types"
+import {currentCatalogEntryAtom, freePlanSlugAtom} from "@/oss/state/access/atoms"
 
 import {PricingCardProps} from "../types"
 
 const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardProps) => {
     const _isLoading = isLoading === plan.plan
+    const currentCatalogEntry = useAtomValue(currentCatalogEntryAtom)
+    const freePlanSlug = useAtomValue(freePlanSlugAtom)
+    const isCurrentPlanCustom = currentCatalogEntry?.type === "custom"
+    const isThisPlanCustom = plan.type === "custom"
+    const isThisPlanFree = plan.plan === freePlanSlug
+
     const isDisabled = useMemo(() => {
         if (isLoading !== null && isLoading !== plan.plan) {
             return true
@@ -17,16 +24,13 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
             return true
         }
 
-        if (currentPlan?.plan === Plan.Enterprise) {
-            return true
-        }
-
-        if (currentPlan?.plan === Plan.Business && plan.plan === Plan.Pro) {
+        // No self-serve switching off a custom/enterprise plan.
+        if (isCurrentPlanCustom) {
             return true
         }
 
         return false
-    }, [isLoading, currentPlan?.plan, plan.plan])
+    }, [isLoading, currentPlan?.plan, plan.plan, isCurrentPlanCustom])
 
     return (
         <Card
@@ -41,16 +45,16 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
             }}
             rootClassName="flex flex-col justify-between"
             actions={[
-                plan.title == "Enterprise" ? (
+                isThisPlanCustom ? (
                     <Button
                         disabled={isDisabled}
                         className="w-full"
-                        type={currentPlan?.plan == Plan.Enterprise ? "link" : "primary"}
+                        type={isCurrentPlanCustom ? "link" : "primary"}
                         onClick={() =>
                             window.open("https://cal.com/mahmoud-mabrouk-ogzgey/demo", "_blank")
                         }
                     >
-                        {currentPlan?.plan == Plan.Enterprise ? "Current plan" : "Talk to us"}
+                        {isCurrentPlanCustom ? "Current plan" : "Talk to us"}
                     </Button>
                 ) : (
                     <Button
@@ -61,15 +65,15 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
                         type={
                             currentPlan?.plan === plan.plan
                                 ? "link"
-                                : plan.plan === Plan.Hobby
+                                : isThisPlanFree
                                   ? "text"
                                   : "default"
                         }
                     >
                         {currentPlan?.plan === plan.plan
                             ? "Current plan"
-                            : plan.plan === Plan.Hobby
-                              ? "Move to Hobby"
+                            : isThisPlanFree
+                              ? `Move to ${plan.title}`
                               : `Upgrade to ${plan.title}`}
                     </Button>
                 ),
