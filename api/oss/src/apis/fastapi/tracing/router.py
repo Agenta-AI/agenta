@@ -300,7 +300,7 @@ class TracingRouter:
         )
 
         link_response = OTelLinksResponse(
-            count=len(links) + len(dropped),
+            count=len(links),
             links=links,
             dropped=dropped or None,
         )
