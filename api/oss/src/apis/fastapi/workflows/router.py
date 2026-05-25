@@ -12,6 +12,7 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.git.types import VariantForkError
+from oss.src.core.workflows.dtos import WorkflowRefInvalid
 from oss.src.core.workflows.service import (
     WorkflowsService,
     SimpleWorkflowsService,
@@ -1232,6 +1233,12 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        # This route only accepts `workflow_revision_id` as a path param and
+        # constructs `Reference(id=workflow_revision_id)`. That shape always
+        # satisfies the service's ambiguity validation, so no try/except for
+        # `WorkflowRefInvalid` is needed here. The other two call sites
+        # (`deploy_workflow_revision` and `retrieve_workflow_revision`) pass
+        # through caller-supplied refs and do wrap this call.
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1522,13 +1529,19 @@ class WorkflowsRouter:
                 detail="Workflow deploy requires environment refs.",
             )
 
-        workflow_revision = await self.workflows_service.fetch_workflow_revision(
-            project_id=UUID(request.state.project_id),
-            #
-            workflow_ref=workflow_deploy_request.workflow_ref,
-            workflow_variant_ref=workflow_deploy_request.workflow_variant_ref,
-            workflow_revision_ref=workflow_deploy_request.workflow_revision_ref,
-        )
+        try:
+            workflow_revision = await self.workflows_service.fetch_workflow_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                workflow_ref=workflow_deploy_request.workflow_ref,
+                workflow_variant_ref=workflow_deploy_request.workflow_variant_ref,
+                workflow_revision_ref=workflow_deploy_request.workflow_revision_ref,
+            )
+        except WorkflowRefInvalid as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.message,
+            ) from e
 
         if not workflow_revision:
             raise HTTPException(
@@ -1703,23 +1716,29 @@ class WorkflowsRouter:
                     detail="Environment-backed workflow retrieve requires key.",
                 )
 
-        (
-            workflow_revision,
-            resolution_info,
-        ) = await self.workflows_service.retrieve_workflow_revision(
-            project_id=UUID(request.state.project_id),
-            #
-            environment_ref=environment_ref,
-            environment_variant_ref=environment_variant_ref,
-            environment_revision_ref=environment_revision_ref,
-            key=key,
-            #
-            workflow_ref=workflow_ref,
-            workflow_variant_ref=workflow_variant_ref,
-            workflow_revision_ref=workflow_revision_ref,
-            #
-            resolve=workflow_revision_retrieve_request.resolve or False,
-        )
+        try:
+            (
+                workflow_revision,
+                resolution_info,
+            ) = await self.workflows_service.retrieve_workflow_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+                key=key,
+                #
+                workflow_ref=workflow_ref,
+                workflow_variant_ref=workflow_variant_ref,
+                workflow_revision_ref=workflow_revision_ref,
+                #
+                resolve=workflow_revision_retrieve_request.resolve or False,
+            )
+        except WorkflowRefInvalid as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.message,
+            ) from e
 
         if environment_lookup_requested and not workflow_revision:
             raise HTTPException(
