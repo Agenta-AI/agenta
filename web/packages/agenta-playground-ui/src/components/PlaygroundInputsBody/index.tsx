@@ -12,6 +12,9 @@
 export {PlaygroundInputsBody} from "./PlaygroundInputsBody"
 export type {PlaygroundInputsBodyProps, PlaygroundInputsBodyVariable} from "./PlaygroundInputsBody"
 
+export {PlaygroundInputsBodyHost} from "./PlaygroundInputsBodyHost"
+export type {PlaygroundInputsBodyHostProps} from "./PlaygroundInputsBodyHost"
+
 export {VariableCard} from "./VariableCard"
 export {UnreferencedColumnsFooter} from "./UnreferencedColumnsFooter"
 
