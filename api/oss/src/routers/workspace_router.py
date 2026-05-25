@@ -10,12 +10,14 @@ from oss.src.models.api.workspace_models import Workspace
 
 if is_ee():
     from ee.src.utils.permissions import check_rbac_permission
-    from ee.src.models.api.workspace_models import WorkspaceRole
+    from ee.src.models.shared_models import WorkspaceRole
     from ee.src.services.selectors import get_user_org_and_workspace_id
     from ee.src.services import db_manager_ee, workspace_manager
+    from ee.src.core.entitlements.controls import get_roles
 
     from ee.src.utils.entitlements import (
         check_entitlements,
+        scope_from,
         Gauge,
     )
 
@@ -69,15 +71,14 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
     """
 
     if is_ee():
-        workspace_roles_with_description = []
-        workspace_roles = await workspace_manager.get_all_workspace_roles()
-        for role in workspace_roles:
-            workspace_roles_with_description.append(
-                {
-                    "role_name": role,
-                    "role_description": WorkspaceRole.get_description(role),
-                }
-            )
+        # Resolve via access-controls (env-overridable via AGENTA_ACCESS_ROLES).
+        workspace_roles_with_description = [
+            {
+                "role_name": role["role"],
+                "role_description": role.get("description") or "",
+            }
+            for role in get_roles("workspace")
+        ]
 
     else:
         workspace_roles_with_description = [
@@ -126,21 +127,39 @@ async def remove_user_from_workspace(
                 },
             )
 
-        owner = await db_manager.get_organization_owner(request.state.organization_id)
+        # Load the owner of the *target* workspace's org (not the caller's
+        # ambient org) so the agenta.ai skip-meter exemption and the meter
+        # decrement below agree on which organization is being acted on.
+        owner = await db_manager.get_organization_owner(str(project.organization_id))
         owner_domain = owner.email.split("@")[-1].lower() if owner else ""
         user_domain = email.split("@")[-1].lower()
         skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
         if not skip_meter:
-            await check_entitlements(
-                organization_id=request.state.organization_id,
-                key=Gauge.USERS,
+            # Decrement the user gauge in the *target* workspace's owning
+            # org (loaded via the path-param `{workspace_id}`), not the
+            # caller's ambient org — cross-org admin actions otherwise
+            # land the `-1` in the wrong meter.
+            await check_entitlements(  # type: ignore
+                key=Gauge.USERS,  # type: ignore
                 delta=-1,
+                scope=scope_from(organization_id=project.organization_id),  # type: ignore
             )
 
-        delete_user_from_workspace = await workspace_manager.remove_user_from_workspace(
-            workspace_id, email
-        )
+        try:
+            delete_user_from_workspace = (
+                await workspace_manager.remove_user_from_workspace(workspace_id, email)
+            )
+        except Exception:
+            log.error(
+                "Failed to remove user from EE workspace",
+                workspace_id=workspace_id,
+                project_id=str(project.id),
+                organization_id=str(project.organization_id),
+                email=email,
+                exc_info=True,
+            )
+            raise
 
     else:
         delete_user_from_workspace = await db_manager.remove_user_from_workspace(

@@ -49,7 +49,7 @@ You can add custom models to any of the providers already listed in the playgrou
 You can add multiple models to the same provider. This allows you to organize related models under a single provider configuration.
 :::
 
-## Configuring Vertex AI
+## Configuring Vertex AI {#configuring-vertex-ai}
 
 To add Vertex AI models, please provide:
 
@@ -107,7 +107,7 @@ See the LiteLLM docs for an up-to-date list of models:
 **Do not include** the `vertex_ai/` prefix in the **model name**. Use the bare model string (e.g., `gemini-2.5-pro`, `claude-3-5-sonnet@20240620`).
 :::
 
-## Configuring Azure OpenAI
+## Configuring Azure OpenAI {#configuring-azure-openai}
 
 To add Azure OpenAI models, you'll need the following information:
 
@@ -142,7 +142,7 @@ API base url: Use here your endpoint URL (e.g., https://accountnameinstance.open
 Deployment Name: Use here the deployment name in Azure (e.g., gpt-4-turbo)
 ```
 
-## Configuring AWS Bedrock
+## Configuring AWS Bedrock {#configuring-aws-bedrock}
 
 To add AWS Bedrock models, you'll need:
 
@@ -185,7 +185,7 @@ To fix it:
 If you see a Bedrock error about a malformed request and an extraneous key (for example, `textGenerationConfig`), verify that you selected the right model identifier. The inference profile ID is often the correct choice for cross region inference models.
 
 
-## Configuring OpenAI-Compatible Endpoints (e.g., Ollama)
+## Configuring OpenAI-Compatible Endpoints (e.g., Ollama) {#configuring-openai-compatible-endpoints-eg-ollama}
 
 For any OpenAI-compatible API, including self-hosted models:
 
@@ -213,7 +213,7 @@ Make sure to include `/v1` at the end of the Base URL.
 If you're running both Ollama and self-hosting Agenta on your local machine, set the Base URL to http://host.docker.internal:11434/v1 to allow Agenta's completion service (running behind Docker) to access Ollama.
 :::
 
-## Adding Models to a Provider (e.g. OpenRouter)
+## Adding Models to a Provider (e.g. OpenRouter) {#adding-models-to-a-provider-eg-openrouter}
 
 For some providers like OpenRouter, Agenta does not include all available models due to their high number. To add models to an existing provider:
 

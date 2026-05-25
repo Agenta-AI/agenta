@@ -1,12 +1,12 @@
 import {useMemo, useState} from "react"
 
+import {useVaultSecret} from "@agenta/entities/secret"
 import {Anthropic, Gemini, Mistral, OpenAi, Together} from "@agenta/ui"
 import type {ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
 
 import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {capitalize} from "@/oss/lib/helpers/utils"
 
 const icons = [OpenAi, Gemini, Anthropic, Mistral, Together]

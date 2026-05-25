@@ -397,12 +397,14 @@ const AnnotationColumnHeader = memo(function AnnotationColumnHeader({
 }: {
     def: AnnotationColumnDef
 }) {
-    const name = useAtomValue(workflowMolecule.selectors.name(def.evaluatorId ?? ""))
-    const slug = useAtomValue(workflowMolecule.selectors.slug(def.evaluatorId ?? ""))
-    const displayName = name || slug || def.evaluatorSlug || def.columnName || def.stepKey
+    const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId ?? ""
+    const name = useAtomValue(workflowMolecule.selectors.name(evaluatorLookupId))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(evaluatorLookupId))
+    const displaySlug = def.evaluatorSlug || slug
+    const displayName = name || displaySlug || def.columnName || def.stepKey
 
     return (
-        <Tooltip title={slug ? `${displayName} (${slug})` : displayName}>
+        <Tooltip title={displaySlug ? `${displayName} (${displaySlug})` : displayName}>
             <span className="truncate">{displayName}</span>
         </Tooltip>
     )
@@ -423,9 +425,11 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
     isCollapsed: boolean
     onToggle: () => void
 }) {
-    const name = useAtomValue(workflowMolecule.selectors.name(def.evaluatorId ?? ""))
-    const slug = useAtomValue(workflowMolecule.selectors.slug(def.evaluatorId ?? ""))
-    const displayName = name || slug || def.evaluatorSlug || def.columnName || def.stepKey
+    const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId ?? ""
+    const name = useAtomValue(workflowMolecule.selectors.name(evaluatorLookupId))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(evaluatorLookupId))
+    const displaySlug = def.evaluatorSlug || slug
+    const displayName = name || displaySlug || def.columnName || def.stepKey
 
     const handleClick = useCallback(
         (e: React.MouseEvent) => {
@@ -436,7 +440,7 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
     )
 
     return (
-        <Tooltip title={slug ? `${displayName} (${slug})` : displayName}>
+        <Tooltip title={displaySlug ? `${displayName} (${displaySlug})` : displayName}>
             <span
                 className="inline-flex items-center gap-1 cursor-pointer select-none truncate"
                 onClick={handleClick}
@@ -1166,16 +1170,17 @@ function resolveExportColumnLabel(
     if (def) {
         if (def.columnType === "annotation") {
             const annotationDef = def.annotationDef
-            const name = annotationDef.evaluatorId
-                ? store.get(workflowMolecule.selectors.name(annotationDef.evaluatorId))
+            const evaluatorLookupId = annotationDef.evaluatorRevisionId ?? annotationDef.evaluatorId
+            const name = evaluatorLookupId
+                ? store.get(workflowMolecule.selectors.name(evaluatorLookupId))
                 : null
-            const slug = annotationDef.evaluatorId
-                ? store.get(workflowMolecule.selectors.slug(annotationDef.evaluatorId))
+            const slug = evaluatorLookupId
+                ? store.get(workflowMolecule.selectors.slug(evaluatorLookupId))
                 : null
             return (
                 name ||
-                slug ||
                 annotationDef.evaluatorSlug ||
+                slug ||
                 annotationDef.columnName ||
                 annotationDef.stepKey
             )

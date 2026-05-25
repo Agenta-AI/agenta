@@ -683,7 +683,7 @@ function normalizeResolvedEvaluator(ref: EvaluatorStepRef, evaluator: Workflow):
     const variantId = evaluator.workflow_variant_id ?? evaluator.variant_id ?? ref.variantId ?? null
     return {
         ...evaluator,
-        slug: evaluator.slug ?? ref.slug ?? null,
+        slug: ref.slug ?? evaluator.slug ?? null,
         workflow_id: evaluator.workflow_id ?? ref.workflowId ?? null,
         workflow_variant_id: variantId,
         variant_id: variantId,

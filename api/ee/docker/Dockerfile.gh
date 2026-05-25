@@ -99,6 +99,8 @@ COPY --chmod=755 ./api/ee/src/crons/meters.sh /meters.sh
 COPY --chmod=644 ./api/ee/src/crons/meters.txt /etc/cron.d/meters-cron
 COPY --chmod=755 ./api/ee/src/crons/spans.sh /spans.sh
 COPY --chmod=644 ./api/ee/src/crons/spans.txt /etc/cron.d/spans-cron
+COPY --chmod=755 ./api/ee/src/crons/events.sh /events.sh
+COPY --chmod=644 ./api/ee/src/crons/events.txt /etc/cron.d/events-cron
 
 # Copy dependencies from builder
 COPY --from=builder /opt/venv /opt/venv
@@ -112,10 +114,10 @@ COPY --chown=agenta:agenta --from=builder /clients/python /clients/python
 
 # Generate supercronic-compatible crontab (strip user field and /proc redirects)
 RUN set -eux; \
-    for cron_file in /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron; do \
+    for cron_file in /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron; do \
         sed -i -e '$a\' "${cron_file}"; \
     done; \
-    cat /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron \
+    cat /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron \
         | sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' \
         | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab && \
     chown agenta:agenta /app/crontab

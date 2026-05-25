@@ -161,12 +161,15 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
 
             {exception && (
                 <Space orientation="vertical" className="w-full" size={24}>
-                    <AccordionTreePanel
-                        label={"Exception"}
-                        value={exception}
-                        enableFormatSwitcher
-                        bgColor="#FBE7E7"
-                    />
+                    {spanEntityId ? (
+                        <TraceSpanDrillInView
+                            spanId={spanEntityId}
+                            title="Exception"
+                            editable={false}
+                            rootScope="span"
+                            spanDataOverride={exception}
+                        />
+                    ) : null}
                 </Space>
             )}
         </div>
