@@ -43,6 +43,7 @@
         "./runnable/bridge": "./src/runnable/bridge.ts",
         "./runnable/deploy": "./src/runnable/deploy.ts",
         "./trace": "./src/trace/index.ts",
+        "./trace/etl": "./src/trace/etl/index.ts",
         "./testset": "./src/testset/index.ts",
         "./testcase": "./src/testcase/index.ts",
         "./event": "./src/event/index.ts",
