@@ -413,7 +413,7 @@ services:
 
     postgres:
         # === IMAGE ================================================ #
-        image: postgres:17
+        image: postgres:18
         # === STORAGE ============================================== #
         volumes:
             - postgres-data:/var/lib/postgresql/data/
@@ -526,7 +526,7 @@ services:
 
     supertokens:
         # === IMAGE ================================================ #
-        image: registry.supertokens.io/supertokens/supertokens-postgresql
+        image: supertokens/supertokens-postgresql:11
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -552,7 +552,7 @@ services:
 
     stripe:
         # === IMAGE ================================================ #
-        image: stripe/stripe-cli:latest
+        image: stripe/stripe-cli:v1
         # === EXECUTION ============================================ #
         command:
             [

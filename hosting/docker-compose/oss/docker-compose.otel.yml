@@ -1,7 +1,7 @@
 services:
     otel-collector:
         # === IMAGE ================================================ #
-        image: otel/opentelemetry-collector-contrib
+        image: otel/opentelemetry-collector-contrib:0
         # === STORAGE ============================================== #
         volumes:
             - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
