@@ -66,10 +66,6 @@ class WorkflowRevisionData(BaseWorkflowRevisionData):
 WorkflowRevisionCommitData = WorkflowRevisionData
 
 
-class WorkflowRevisionCommitData(BaseWorkflowRevisionData):
-    model_config = ConfigDict(extra="forbid")
-
-
 # aliases ----------------------------------------------------------------------
 
 
