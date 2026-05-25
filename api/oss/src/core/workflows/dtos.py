@@ -58,6 +58,8 @@ from agenta.sdk.models.workflows import (
     WorkflowRevisionData as BaseWorkflowRevisionData,
 )
 
+class WorkflowRevisionData(BaseWorkflowRevisionData):
+    pass
 
 class WorkflowRevisionCommitData(BaseWorkflowRevisionData):
     model_config = ConfigDict(extra="forbid")
@@ -261,7 +263,7 @@ class WorkflowRevision(
 ):
     flags: Optional[WorkflowRevisionFlags] = None
 
-    data: Optional[BaseWorkflowRevisionData] = None
+    data: Optional[WorkflowRevisionData] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
@@ -322,7 +324,7 @@ class WorkflowRevisionsLog(
 class WorkflowRevisionFork(RevisionFork):
     flags: Optional[WorkflowRevisionFlags] = None
 
-    data: Optional[BaseWorkflowRevisionData] = None
+    data: Optional[WorkflowRevisionData] = None
 
 
 class WorkflowRevisionForkAlias(AliasConfig):
@@ -376,7 +378,7 @@ class SimpleWorkflowQueryFlags(WorkflowRevisionQueryFlags):
     pass
 
 
-class SimpleWorkflowData(BaseWorkflowRevisionData):
+class SimpleWorkflowData(WorkflowRevisionData):
     pass
 
 
@@ -446,7 +448,7 @@ class WorkflowCatalogTemplate(WorkflowCatalogMappingMixin, Header):
     categories: Optional[list[str]] = None
 
     flags: Optional[WorkflowCatalogFlags] = None
-    data: Optional[BaseWorkflowRevisionData] = None
+    data: Optional[WorkflowRevisionData] = None
 
 
 class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
@@ -455,7 +457,7 @@ class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
     categories: Optional[list[str]] = None
 
     flags: Optional[WorkflowCatalogFlags] = None
-    data: Optional[BaseWorkflowRevisionData] = None
+    data: Optional[WorkflowRevisionData] = None
 
 
 # ------------------------------------------------------------------------------
