@@ -1,23 +1,21 @@
 /**
- * `@agenta/entity-ui/template-format` — picker + options helper for the
- * prompt template_format choice (Mustache / Jinja2 / [Curly] / [F-string]).
+ * `@agenta/entity-ui/template-format` — picker component for the prompt
+ * template_format choice (Mustache / Jinja2 / [Curly] / [F-string]).
  *
- *   import {TemplateFormatPicker, buildTemplateFormatOptions} from "@agenta/entity-ui/template-format"
+ *   import {TemplateFormatPicker} from "@agenta/entity-ui/template-format"
  *
- * Vendored from #4393 (WP-B3 frontend slice) for this branch. See
- * `templateFormatOptions.ts` for the vendoring note: when #4393 merges,
- * this whole subpath gets diffed against its version and one of them gets
- * deleted.
+ * The options + labels live in WP-B3's
+ * `agenta-entity-ui/src/DrillInView/SchemaControls/templateFormatOptions.ts`
+ * (the same helper the drawer's PromptSchemaControl consumes). This subpath
+ * exists as a clean home for the picker component used outside the drawer
+ * (e.g. the playground); re-exports the helper for convenience.
  */
 
 export {TemplateFormatPicker, type TemplateFormatPickerProps} from "./TemplateFormatPicker"
 
 export {
     buildTemplateFormatOptions,
-    DEFAULT_TEMPLATE_FORMAT,
     OFFERED_TEMPLATE_FORMATS,
-    LEGACY_TEMPLATE_FORMATS,
-    ALL_TEMPLATE_FORMATS,
-    type TemplateFormatOption,
-    type TemplateFormatValue,
-} from "./templateFormatOptions"
+    TEMPLATE_FORMAT_LABELS,
+    type TemplateFormat,
+} from "../DrillInView/SchemaControls/templateFormatOptions"

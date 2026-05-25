@@ -1,12 +1,8 @@
 /**
  * Unit tests for the pure formatters in @agenta/entity-ui/view-types.
  *
- * Same stopgap-location reasoning as `view-types.test.ts`: vitest runner
- * lives in agenta-entities; the formatters live in @agenta/entity-ui.
- * Cross-package relative import below is a test-time dep only.
- *
- * TODO(follow-up): Move these into agenta-entity-ui/tests/unit/ once that
- * package gets its own vitest runner.
+ * Runs under @agenta/entity-ui's own vitest runner (added by #4393's
+ * vitest.config.ts).
  */
 import {describe, expect, it} from "vitest"
 
@@ -15,7 +11,7 @@ import {
     parseJsonEdit,
     parseYamlEdit,
     valueToDisplay,
-} from "../../../agenta-entity-ui/src/view-types/formatters"
+} from "../../src/view-types/formatters"
 
 describe("formatters: valueToDisplay", () => {
     describe("nullish handling", () => {
