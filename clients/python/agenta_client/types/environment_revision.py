@@ -11,6 +11,10 @@ from .environment_revision_data import EnvironmentRevisionData
 
 
 class EnvironmentRevision(UniversalBaseModel):
+    environment_variant_slug: typing.Optional[str] = None
+    variant_slug: typing.Optional[str] = None
+    environment_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     environment_variant_id: typing.Optional[str] = None
     variant_id: typing.Optional[str] = None
     environment_id: typing.Optional[str] = None

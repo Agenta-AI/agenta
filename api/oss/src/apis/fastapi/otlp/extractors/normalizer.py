@@ -61,8 +61,9 @@ class Normalizer:
                     )
                 )
 
-        links_data: List[LinkData] = []
-        if otel_span_dto.links:
+        links_data: Optional[List[LinkData]] = None
+        if otel_span_dto.links is not None:
+            links_data = []
             for link_dto in otel_span_dto.links:
                 links_data.append(
                     LinkData(
@@ -95,7 +96,7 @@ class Normalizer:
             status_message=otel_span_dto.status_message,
             span_attributes=copy(otel_span_dto.attributes),
             events=copy(events_data),
-            links=copy(links_data),
+            links=copy(links_data) if links_data is not None else None,
         )
 
         return attributes

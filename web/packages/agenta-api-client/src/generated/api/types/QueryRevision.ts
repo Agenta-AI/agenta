@@ -3,6 +3,10 @@
 import type * as AgentaApi from "../index.js";
 
 export interface QueryRevision {
+    query_variant_slug?: (string | null) | undefined;
+    variant_slug?: (string | null) | undefined;
+    query_slug?: (string | null) | undefined;
+    artifact_slug?: (string | null) | undefined;
     query_variant_id?: (string | null) | undefined;
     variant_id?: (string | null) | undefined;
     query_id?: (string | null) | undefined;
