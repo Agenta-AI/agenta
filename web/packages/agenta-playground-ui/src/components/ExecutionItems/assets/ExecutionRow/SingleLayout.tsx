@@ -26,9 +26,6 @@ import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
-import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
-
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import {getShortTestcaseId} from "../../../../utils/testcaseLabel"
@@ -49,6 +46,13 @@ import {
 } from "../../../shared/NodeResultCard"
 
 import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
+
+import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
+import {PlaygroundInputsBodyHost} from "@agenta/playground-ui/playground-inputs-body"
+import {
+    openPlaygroundFocusDrawerAtom,
+    useNewPlaygroundInputsBodyAtom,
+} from "@agenta/playground-ui/state"
 
 // Dismissable callout that explains what the two evaluator playground
 // variables represent (the application being evaluated's inputs and output).
@@ -676,6 +680,11 @@ const SingleView = ({
     const isExecutionExpanded = inputOnly || !isCollapsed
     const isWaitingForVariableControls =
         variableIds.length === 0 && (schemaInputKeys.length > 0 || Boolean(runnableQuery.isPending))
+
+    // Feature flag — when true, the non-grouped (flat) variable list renders
+    // through `PlaygroundInputsBodyHost` (V2-aligned bordered cards with
+    // type chips + "View as ▾" dropdown). Off by default; OSS opts in.
+    const useNewInputsBody = useAtomValue(useNewPlaygroundInputsBodyAtom)
     const collapseDurationMs = hasInteractedWithCollapse ? 300 : 0
 
     useEffect(() => {
@@ -871,6 +880,23 @@ const SingleView = ({
                                 // Flat layout — apps, and evaluators with no
                                 // extracted field ports (default template).
                                 if (!useGroupedLayout) {
+                                    // New playground inputs body — V2-aligned
+                                    // bordered cards with type chips + "View
+                                    // as ▾" dropdowns. Behind a feature flag
+                                    // so the existing per-variable layout
+                                    // stays default until the new UX is
+                                    // signed off. See approved design doc,
+                                    // Step 6 deferred follow-ups for
+                                    // ComparisonLayout + picker placement.
+                                    if (useNewInputsBody) {
+                                        return (
+                                            <PlaygroundInputsBodyHost
+                                                rowId={rowId}
+                                                downstreamKey={downstreamKey}
+                                                editable={!isWaitingForVariableControls}
+                                            />
+                                        )
+                                    }
                                     return variableIds.map((id) => renderVariable(id))
                                 }
 
