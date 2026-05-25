@@ -157,7 +157,7 @@ if ((${#VALUES_FILES[@]})); then
     done
 fi
 
-HELM_CMD+=(--set "global.agentaLicense=$LICENSE")
+HELM_CMD+=(--set "agenta.license=$LICENSE")
 
 if ((${#EXTRA_SET_ARGS[@]})); then
     HELM_CMD+=("${EXTRA_SET_ARGS[@]}")

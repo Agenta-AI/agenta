@@ -682,6 +682,8 @@ imagePullSecrets:
 {{- $cf := default dict (default dict .Values.cloudflare).turnstile -}}
 {{- $nr := default dict .Values.newrelic -}}
 {{- $secrets := default dict .Values.secrets -}}
+{{- $identity := default dict .Values.identity -}}
+{{- $llm := default dict .Values.llm -}}
 - name: AGENTA_LICENSE
   value: {{ include "agenta.edition" . | quote }}
 - name: POSTGRES_PASSWORD
@@ -806,6 +808,52 @@ imagePullSecrets:
       key: {{ $key }}
       optional: true
 {{- end }}
+{{- end }}
+{{- /* identity.<provider> — structured OAuth/OIDC (v0.100.2+) */}}
+{{- $identityEnvVars := list }}
+{{- with $identity.apple }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "APPLE_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "APPLE_OAUTH_CLIENT_SECRET" }}{{- end }}{{- if .keyId }}{{- $identityEnvVars = append $identityEnvVars "APPLE_KEY_ID" }}{{- end }}{{- if .privateKey }}{{- $identityEnvVars = append $identityEnvVars "APPLE_PRIVATE_KEY" }}{{- end }}{{- if .teamId }}{{- $identityEnvVars = append $identityEnvVars "APPLE_TEAM_ID" }}{{- end }}{{- end }}
+{{- with $identity.azureAd }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "AZURE_AD_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "AZURE_AD_OAUTH_CLIENT_SECRET" }}{{- end }}{{- if .directoryId }}{{- $identityEnvVars = append $identityEnvVars "AZURE_AD_DIRECTORY_ID" }}{{- end }}{{- end }}
+{{- with $identity.bitbucket }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "BITBUCKET_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "BITBUCKET_OAUTH_CLIENT_SECRET" }}{{- end }}{{- end }}
+{{- with $identity.boxySaml }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "BOXY_SAML_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "BOXY_SAML_OAUTH_CLIENT_SECRET" }}{{- end }}{{- if .url }}{{- $identityEnvVars = append $identityEnvVars "BOXY_SAML_URL" }}{{- end }}{{- end }}
+{{- with $identity.discord }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "DISCORD_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "DISCORD_OAUTH_CLIENT_SECRET" }}{{- end }}{{- end }}
+{{- with $identity.facebook }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "FACEBOOK_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "FACEBOOK_OAUTH_CLIENT_SECRET" }}{{- end }}{{- end }}
+{{- with $identity.github }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "GITHUB_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "GITHUB_OAUTH_CLIENT_SECRET" }}{{- end }}{{- end }}
+{{- with $identity.gitlab }}{{- if .baseUrl }}{{- $identityEnvVars = append $identityEnvVars "GITLAB_BASE_URL" }}{{- end }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "GITLAB_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "GITLAB_OAUTH_CLIENT_SECRET" }}{{- end }}{{- end }}
+{{- with $identity.google }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "GOOGLE_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "GOOGLE_OAUTH_CLIENT_SECRET" }}{{- end }}{{- end }}
+{{- with $identity.googleWorkspaces }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "GOOGLE_WORKSPACES_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET" }}{{- end }}{{- if .hd }}{{- $identityEnvVars = append $identityEnvVars "GOOGLE_WORKSPACES_HD" }}{{- end }}{{- end }}
+{{- with $identity.linkedin }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "LINKEDIN_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "LINKEDIN_OAUTH_CLIENT_SECRET" }}{{- end }}{{- end }}
+{{- with $identity.okta }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "OKTA_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "OKTA_OAUTH_CLIENT_SECRET" }}{{- end }}{{- if .domain }}{{- $identityEnvVars = append $identityEnvVars "OKTA_DOMAIN" }}{{- end }}{{- end }}
+{{- with $identity.twitter }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "TWITTER_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "TWITTER_OAUTH_CLIENT_SECRET" }}{{- end }}{{- end }}
+{{- range $envName := $identityEnvVars }}
+- name: {{ $envName }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $envName }}
+      optional: true
+{{- end }}
+{{- /* llm.<provider> — structured LLM API keys (v0.100.2+) */}}
+{{- $llmEnvVars := list }}
+{{- if $llm.alephalpha }}{{- $llmEnvVars = append $llmEnvVars "ALEPHALPHA_API_KEY" }}{{- end }}
+{{- if $llm.anthropic }}{{- $llmEnvVars = append $llmEnvVars "ANTHROPIC_API_KEY" }}{{- end }}
+{{- if $llm.anyscale }}{{- $llmEnvVars = append $llmEnvVars "ANYSCALE_API_KEY" }}{{- end }}
+{{- if $llm.cohere }}{{- $llmEnvVars = append $llmEnvVars "COHERE_API_KEY" }}{{- end }}
+{{- if $llm.deepinfra }}{{- $llmEnvVars = append $llmEnvVars "DEEPINFRA_API_KEY" }}{{- end }}
+{{- if $llm.gemini }}{{- $llmEnvVars = append $llmEnvVars "GEMINI_API_KEY" }}{{- end }}
+{{- if $llm.groq }}{{- $llmEnvVars = append $llmEnvVars "GROQ_API_KEY" }}{{- end }}
+{{- if $llm.minimax }}{{- $llmEnvVars = append $llmEnvVars "MINIMAX_API_KEY" }}{{- end }}
+{{- if $llm.mistral }}{{- $llmEnvVars = append $llmEnvVars "MISTRAL_API_KEY" }}{{- end }}
+{{- if $llm.openai }}{{- $llmEnvVars = append $llmEnvVars "OPENAI_API_KEY" }}{{- end }}
+{{- if $llm.openrouter }}{{- $llmEnvVars = append $llmEnvVars "OPENROUTER_API_KEY" }}{{- end }}
+{{- if $llm.perplexityai }}{{- $llmEnvVars = append $llmEnvVars "PERPLEXITYAI_API_KEY" }}{{- end }}
+{{- if $llm.togetherai }}{{- $llmEnvVars = append $llmEnvVars "TOGETHERAI_API_KEY" }}{{- end }}
+{{- range $envName := $llmEnvVars }}
+- name: {{ $envName }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $envName }}
+      optional: true
 {{- end }}
 {{- if $sendgrid.apiKey }}
 - name: SENDGRID_API_KEY

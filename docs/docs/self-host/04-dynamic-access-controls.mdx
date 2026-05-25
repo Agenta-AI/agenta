@@ -25,16 +25,16 @@ memory and will otherwise enforce different limits.
 :::tip Docker Compose vs Kubernetes
 Docker Compose users set these as environment variables in the env file passed
 with `--env-file`. Kubernetes users should set the matching Helm values under
-`accessControl` in `values.yaml`; the chart renders them into backend
+`agenta.access` in `values.yaml`; the chart renders them into backend
 environment variables for the API, workers, cron, and Alembic job.
 
 | Helm value | Environment variable |
 |------------|----------------------|
-| `accessControl.plans` | `AGENTA_ACCESS_PLANS` |
-| `accessControl.roles` | `AGENTA_ACCESS_ROLES` |
-| `accessControl.rolesOverlay` | `AGENTA_ACCESS_ROLES_OVERLAY` |
-| `accessControl.defaultPlan` | `AGENTA_ACCESS_DEFAULT_PLAN` |
-| `accessControl.defaultPlanOverlay` | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` |
+| `agenta.access.plans` | `AGENTA_ACCESS_PLANS` |
+| `agenta.access.roles` | `AGENTA_ACCESS_ROLES` |
+| `agenta.access.rolesOverlay` | `AGENTA_ACCESS_ROLES_OVERLAY` |
+| `agenta.access.defaultPlan` | `AGENTA_ACCESS_DEFAULT_PLAN` |
+| `agenta.access.defaultPlanOverlay` | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` |
 :::
 
 :::tip Validation is strict

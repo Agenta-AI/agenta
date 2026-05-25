@@ -124,6 +124,12 @@ jobs:
           sed -i.bak -E "s/^appVersion: .*/appVersion: \"v$new_chart_version\"/" "$CHART_FILE"
           rm -f "$CHART_FILE.bak"
           HELM_VERSION=$new_chart_version
+          # NOTE: this only bumps the chart version on the release branch.
+          # The actual `helm package` / `helm push` happens in the platform
+          # repo's `41-release-to-public.yml` workflow, which fires off this
+          # same release branch alongside the PyPI/GHCR publishes. See the
+          # platform repo for that workflow; no chart-publish step lives in
+          # this application repo.
 
           WEB_VERSION=$(echo "$WEB_VERSION" | tr -d '[:space:]')
           EE_VERSION=$(echo "$EE_VERSION" | tr -d '[:space:]')
