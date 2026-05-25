@@ -1,6 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
+import {
+    computeAdaptivePageDelayMs,
+    DEFAULT_BATCH_SIZE as DEFAULT_EXPORT_PAGE_SIZE,
+    exportMatchingTraces,
+} from "@agenta/entities/trace/etl"
 import {message, modal} from "@agenta/ui/app-message"
 import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
@@ -8,6 +13,7 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
+import Papa from "papaparse"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
@@ -22,9 +28,11 @@ import {getAppValues} from "@/oss/state/app"
 import {useObservability} from "@/oss/state/newObservability"
 import {
     buildTraceQueryParams,
-    fetchAllTracesForExport,
+    executeTraceQuery,
 } from "@/oss/state/newObservability/atoms/queryHelpers"
+import {adaptiveSleep} from "@/oss/state/newObservability/etl/adaptiveExportPacing"
 import {createObservabilityTraceFetchPage} from "@/oss/state/newObservability/etl/observabilityTraceFetchPage"
+import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimitRetry"
 import {getAgData} from "@/oss/state/newObservability/selectors/tracing"
 
 import {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "../../assets/exportUtils"
@@ -313,18 +321,96 @@ const ObservabilityHeader = ({
                 duration: 0,
             })
 
-            const {csvParts, rowCount, limitReached} = await fetchAllTracesForExport({
-                params,
-                appId,
-                isHasAnnotationSelected,
-                hasAnnotationConditions,
-                hasAnnotationOperator,
-                formatRow: createTraceObject,
-                headers: headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS,
+            // Both the batch-add-to-queue scan and this export now share
+            // `executeTraceQuery` as the only transport. `size` is set per
+            // page so the API returns the same chunk the CSV flushes.
+            const scanParams: Record<string, any> = {...params, size: DEFAULT_EXPORT_PAGE_SIZE}
+            if (!scanParams.newest) {
+                scanParams.newest = new Date().toISOString()
+            }
+
+            const csvHeaders = headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS
+            const csvParts: BlobPart[] = [Papa.unparse({fields: csvHeaders, data: []})]
+
+            // Last reported row count — kept so a rate-limit pause can keep
+            // showing progress while the scan is paused for backoff.
+            let lastRowCount = 0
+            // Latest server-reported throttle bucket state. Drives the
+            // adaptive pre-fetch sleep: free-tier (small burst capacity)
+            // ramps the delay up as the bucket drains; business-tier (large
+            // capacity) stays at the floor delay throughout.
+            let lastRateLimit: {remaining: number | null; limit: number | null} = {
+                remaining: null,
+                limit: null,
+            }
+            // First call has no prior bucket reading — skip the adaptive
+            // sleep and let `withRateLimitRetry` handle any 429 that comes
+            // back. Subsequent calls pace based on the previous response.
+            let isFirstFetch = true
+
+            const {rowCount, limitReached} = await exportMatchingTraces({
+                // Wrap `executeTraceQuery` in the shared 429-retry wrapper —
+                // a 429 (despite proactive pacing) pauses the scan instead
+                // of killing it. Non-429 errors pass straight through.
+                fetchPage: async (cursor, signal) => {
+                    // Adaptive sleep BEFORE the request so the bucket has
+                    // time to refill. Sleep duration is bucket-aware (see
+                    // `computeAdaptivePageDelayMs`).
+                    if (!isFirstFetch) {
+                        const delayMs = computeAdaptivePageDelayMs(lastRateLimit)
+                        await adaptiveSleep(delayMs, controller.signal)
+                    }
+                    isFirstFetch = false
+
+                    return withRateLimitRetry(
+                        async () => {
+                            const result = await executeTraceQuery({
+                                params: scanParams,
+                                pageParam: cursor ? {newest: cursor} : undefined,
+                                appId,
+                                isHasAnnotationSelected,
+                                hasAnnotationConditions,
+                                hasAnnotationOperator,
+                                signal,
+                            })
+                            lastRateLimit = result.rateLimit
+                            return {
+                                rows: result.traces,
+                                nextCursor: result.nextCursor ?? null,
+                            }
+                        },
+                        {
+                            signal: controller.signal,
+                            onRetry: (delayMs) => {
+                                message.loading({
+                                    content:
+                                        `Rate limited — pausing for ${Math.ceil(delayMs / 1000)}s` +
+                                        ` (exported ${lastRowCount.toLocaleString()} rows so far)`,
+                                    key: exportKey,
+                                    duration: 0,
+                                })
+                            },
+                        },
+                    )
+                },
+                flushBatch: async (batch) => {
+                    const rows = batch.map(createTraceObject)
+                    csvParts.push(
+                        "\r\n",
+                        Papa.unparse(
+                            {fields: csvHeaders, data: rows},
+                            {header: false, escapeFormulae: true},
+                        ),
+                    )
+                },
                 signal: controller.signal,
-                onProgress: (count) => {
+                // All pacing is done inside `fetchPage` based on the live
+                // bucket state — disable the source-level fixed delay.
+                pageDelayMs: 0,
+                onProgress: ({rows}) => {
+                    lastRowCount = rows
                     message.loading({
-                        content: `Exporting ${count.toLocaleString()} rows`,
+                        content: `Exporting ${rows.toLocaleString()} rows`,
                         key: exportKey,
                         duration: 0,
                     })
