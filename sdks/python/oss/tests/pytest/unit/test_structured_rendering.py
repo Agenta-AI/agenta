@@ -202,3 +202,91 @@ def test_render_json_like_error_path_identifies_nested_value():
         )
 
     assert "json_schema.schema.properties.score" in str(exc_info.value)
+
+
+# =============================================================================
+# Mustache mode coverage
+# =============================================================================
+
+
+def test_render_messages_mustache_string_content():
+    messages = [Message(role="user", content="Hello {{name}}")]
+
+    rendered = render_messages(
+        messages=messages,
+        mode="mustache",
+        context={"name": "Ada"},
+    )
+
+    assert rendered[0].content == "Hello Ada"
+
+
+def test_render_messages_mustache_text_parts_preserve_non_text():
+    image_part = {
+        "type": "image_url",
+        "image_url": {"url": "https://example.com/image.png"},
+    }
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Hi {{name}}"},
+                image_part,
+            ],
+        }
+    ]
+
+    rendered = render_messages(
+        messages=messages,
+        mode="mustache",
+        context={"name": "Ada"},
+    )
+
+    assert rendered[0]["content"][0] == {"type": "text", "text": "Hi Ada"}
+    assert rendered[0]["content"][1] == image_part
+
+
+def test_render_json_like_mustache_renders_values():
+    schema = {
+        "type": "object",
+        "properties": {
+            "score": {"description": "Rate {{topic}} from 1-5"},
+        },
+    }
+
+    rendered = render_json_like(
+        json_like=schema,
+        mode="mustache",
+        context={"topic": "clarity"},
+    )
+
+    assert rendered["properties"]["score"]["description"] == "Rate clarity from 1-5"
+
+
+def test_render_json_like_mustache_renders_keys_when_enabled():
+    rendered = render_json_like(
+        json_like={"{{k}}": "v"},
+        mode="mustache",
+        context={"k": "rendered_key"},
+        render_keys=True,
+    )
+
+    assert rendered == {"rendered_key": "v"}
+
+
+def test_render_json_like_mustache_preserves_keys_when_disabled():
+    rendered = render_json_like(
+        json_like={"{{k}}": "{{v}}"},
+        mode="mustache",
+        context={"k": "rendered_key", "v": "rendered_value"},
+        render_keys=False,
+    )
+
+    assert rendered == {"{{k}}": "rendered_value"}
+
+
+def test_render_messages_mustache_partial_raises_structured_error():
+    messages = [Message(role="user", content="hi {{> p}}")]
+
+    with pytest.raises(StructuredRenderingError):
+        render_messages(messages=messages, mode="mustache", context={})

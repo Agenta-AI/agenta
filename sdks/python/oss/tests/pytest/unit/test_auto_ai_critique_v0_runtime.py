@@ -429,3 +429,272 @@ async def test_non_json_text_output_raises_invalid_outputs(
             inputs={"question": "q", "expected": "e"},
             outputs="o",
         )
+
+
+# =============================================================================
+# Mustache template format
+# =============================================================================
+
+
+async def test_judge_renders_messages_with_mustache(mocked_secrets, mocked_llm_call):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    await _auto_ai_critique_v0(
+        parameters=_base_parameters(template_format="mustache"),
+        inputs={"question": "What is 2+2?", "expected": "4"},
+        outputs="4",
+        trace=None,
+    )
+
+    user_message = mocked_llm_call.captured["kwargs"]["messages"][1]["content"]
+    assert "question=What is 2+2?" in user_message
+    assert "prediction=4" in user_message
+    assert "ground_truth=4" in user_message
+    assert "params_threshold=0.5" in user_message
+
+
+async def test_judge_renders_json_schema_with_mustache(mocked_secrets, mocked_llm_call):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    schema = {
+        "name": "verdict",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "number",
+                    "description": "Score for {{question}}",
+                }
+            },
+        },
+    }
+
+    await _auto_ai_critique_v0(
+        parameters=_base_parameters(
+            template_format="mustache",
+            response_type="json_schema",
+            json_schema=schema,
+        ),
+        inputs={"question": "is it correct", "expected": "e"},
+        outputs="o",
+    )
+
+    response_format = mocked_llm_call.captured["kwargs"]["response_format"]
+    rendered_desc = response_format["json_schema"]["schema"]["properties"]["score"][
+        "description"
+    ]
+    assert rendered_desc == "Score for is it correct"
+
+
+async def test_judge_mustache_partial_raises_before_llm_call(
+    mocked_secrets, mocked_llm_call
+):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    params = _base_parameters(
+        template_format="mustache",
+        prompt_template=[
+            {"role": "user", "content": "hi {{> partial}}"},
+        ],
+    )
+
+    with pytest.raises(PromptFormattingV0Error):
+        await _auto_ai_critique_v0(
+            parameters=params,
+            inputs={"question": "q"},
+            outputs="o",
+        )
+
+    mocked_llm_call.acompletion.assert_not_called()
+
+
+async def test_version_5_defaults_to_mustache(mocked_secrets, mocked_llm_call):
+    """A v5 judge with no explicit template_format renders via mustache.
+
+    Mustache is permissive for missing variables (renders empty), so a template
+    referencing an undeclared variable still produces a completion call rather
+    than raising — the opposite of the curly default used by v3/v4.
+    """
+
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    params = _base_parameters(version="5")
+    params.pop("template_format", None)
+    params["prompt_template"] = [
+        {"role": "user", "content": "value={{undeclared_variable}}"},
+    ]
+
+    await _auto_ai_critique_v0(
+        parameters=params,
+        inputs={"question": "q", "expected": "e"},
+        outputs="o",
+    )
+
+    user_message = mocked_llm_call.captured["kwargs"]["messages"][0]["content"]
+    assert user_message == "value="
+
+
+async def test_version_3_and_4_default_to_curly(mocked_secrets, mocked_llm_call):
+    """v3 and v4 keep the legacy curly default, which raises on missing vars.
+
+    This pins that bumping the new judge to v5 does not change v3/v4 behavior.
+    """
+
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    for version in ("3", "4"):
+        params = _base_parameters(version=version)
+        params.pop("template_format", None)
+        params["prompt_template"] = [
+            {"role": "user", "content": "value={{undeclared_variable}}"},
+        ]
+
+        with pytest.raises(PromptFormattingV0Error):
+            await _auto_ai_critique_v0(
+                parameters=params,
+                inputs={"question": "q", "expected": "e"},
+                outputs="o",
+            )
+
+
+async def test_version_2_defaults_to_fstring(mocked_secrets, mocked_llm_call):
+    """A v2 judge with no explicit template_format renders via fstring.
+
+    Happy-path pin for the oldest version: fstring uses single-brace
+    ``{name}`` placeholders, so a ``{{name}}`` template emits a literal
+    ``{name}`` (the doubled braces escape to a single pair) rather than being
+    substituted. This proves v2 still routes to fstring after the v5 bump.
+    """
+
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    params = _base_parameters(version="2")
+    params.pop("template_format", None)
+    params["prompt_template"] = [
+        {"role": "user", "content": "q={question} lit={{question}}"},
+    ]
+
+    await _auto_ai_critique_v0(
+        parameters=params,
+        inputs={"question": "q", "expected": "e"},
+        outputs="o",
+    )
+
+    user_message = mocked_llm_call.captured["kwargs"]["messages"][0]["content"]
+    # fstring substitutes {question}; {{question}} is an escaped literal brace pair.
+    assert user_message == "q=q lit={question}"
+
+
+async def test_version_4_defaults_response_type_to_json_schema(
+    mocked_secrets, mocked_llm_call
+):
+    """v4 with no explicit response_type defaults to ``json_schema``.
+
+    The version default only fills in when ``response_type`` is absent; this
+    pins the v4-specific branch (every other version defaults to ``text``).
+    A schema must be attached for the default to surface in ``response_format``.
+    """
+
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    schema = {
+        "name": "verdict",
+        "schema": {
+            "type": "object",
+            "properties": {"score": {"type": "number"}},
+            "required": ["score"],
+        },
+    }
+
+    params = _base_parameters(version="4", json_schema=schema)
+    params.pop("response_type", None)  # rely on the v4 default
+
+    await _auto_ai_critique_v0(
+        parameters=params,
+        inputs={"question": "q", "expected": "e"},
+        outputs="o",
+    )
+
+    kwargs = mocked_llm_call.captured["kwargs"]
+    assert kwargs["response_format"] == {
+        "type": "json_schema",
+        "json_schema": schema,
+    }
+
+
+# Every known auto_ai_critique version. ``None`` is the absent/null case, which
+# the handler coerces to "3" (``parameters.get("version") or "3"``) — there is no
+# version 1 in this handler.
+_ALL_VERSIONS = [None, "2", "3", "4", "5"]
+
+# Each mode rendered against a single mode-agnostic template. ``{{question}}`` is
+# a variable in mustache/curly/jinja2; fstring uses single braces, so it treats
+# ``{{question}}`` as an escaped literal ``{question}`` and substitutes ``{question}``.
+# The expected output below is the rendered USER message for the given template.
+_MODE_TEMPLATE = "q={question} braces={{question}}"
+_MODE_EXPECTED = {
+    "mustache": "q={question} braces=Q",
+    "curly": "q={question} braces=Q",
+    "jinja2": "q={question} braces=Q",
+    # fstring substitutes {question} and unescapes {{question}} -> {question}
+    "fstring": "q=Q braces={question}",
+}
+
+
+@pytest.mark.parametrize("version", _ALL_VERSIONS)
+@pytest.mark.parametrize("mode", ["mustache", "curly", "fstring", "jinja2"])
+async def test_each_version_renders_with_each_explicit_mode(
+    mocked_secrets, mocked_llm_call, version, mode
+):
+    """Happy path: every version accepts every explicit template_format.
+
+    The handler applies no per-version restriction on ``template_format`` — an
+    explicit format always wins over the version default and routes through that
+    renderer regardless of version. This matrix pins all 5 versions x 4 modes so
+    a future per-version gate cannot silently change behavior, and so the v5
+    mustache default never overrides an explicitly chosen mode.
+    """
+
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk",
+    }
+
+    params = _base_parameters(template_format=mode)
+    if version is None:
+        params.pop("version", None)
+    else:
+        params["version"] = version
+    params["prompt_template"] = [
+        {"role": "user", "content": _MODE_TEMPLATE},
+    ]
+
+    await _auto_ai_critique_v0(
+        parameters=params,
+        inputs={"question": "Q", "expected": "e"},
+        outputs="o",
+    )
+
+    user_message = mocked_llm_call.captured["kwargs"]["messages"][0]["content"]
+    assert user_message == _MODE_EXPECTED[mode]

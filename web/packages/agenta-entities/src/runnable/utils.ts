@@ -446,13 +446,14 @@ export function autoMapInputs(
 // TEMPLATE VARIABLE EXTRACTION
 // ============================================================================
 
-type TemplateFormat = "curly" | "fstring" | "jinja2"
+type TemplateFormat = "mustache" | "curly" | "fstring" | "jinja2"
 
 /** Normalize a raw template_format string to a known TemplateFormat, or null if unrecognized. */
-function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat | null {
+export function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat | null {
     if (raw === "fstring") return "fstring"
     if (raw === "jinja2" || raw === "jinja") return "jinja2"
     if (raw === "curly") return "curly"
+    if (raw === "mustache") return "mustache"
     return null
 }
 
@@ -461,6 +462,7 @@ function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat |
  *
  * Supports multiple template formats:
  * - "curly" (default): {{variableName}}
+ * - "mustache": {{variableName}} (shares the {{...}} extraction path with curly)
  * - "jinja2": {{variableName}} (blocks {% %} and comments {# #} are ignored — they are not variables)
  * - "fstring": {variableName} (single braces; literal braces escaped as {{ / }})
  *
@@ -503,7 +505,7 @@ export function extractTemplateVariables(
         return variables
     }
 
-    // curly and jinja2 both use {{variableName}} for variable substitution
+    // curly, jinja2, and mustache all use {{variableName}} for variable substitution
     // Linear scan: find '{{', then find '}}', extract the content between them
     let i = 0
     while (i < input.length - 1) {

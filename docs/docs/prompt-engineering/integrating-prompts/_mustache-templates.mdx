@@ -1,0 +1,113 @@
+---
+title: "Mustache Prompt Templates"
+sidebar_position: 9
+sidebar_label: "Mustache Templates"
+description: "How to write prompts with the mustache template format, including JSONPath variables and value coercion."
+---
+
+:::caution Draft
+This page is a draft (`_`-prefixed) and is not yet published in the sidebar.
+:::
+
+`mustache` is one of the prompt `template_format` options, alongside `curly`, `fstring`, and `jinja2`. It is the default for newly created prompts. The format is stored on the prompt configuration and applied automatically whenever Agenta renders the prompt.
+
+```json
+{
+  "prompt": {
+    "messages": [
+      {"role": "user", "content": "Summarize this: {{document}}"}
+    ],
+    "template_format": "mustache"
+  }
+}
+```
+
+## Variables
+
+Use `{{name}}` to insert a variable. Whitespace inside the delimiters is ignored, so `{{ name }}` and `{{name}}` are equivalent.
+
+```text
+Hello {{name}}, welcome to {{product}}.
+```
+
+Dotted names traverse nested objects:
+
+```text
+Hello {{profile.name}}.
+```
+
+Sections iterate over lists and render conditionally:
+
+```text
+{{#items}}- {{title}}\n{{/items}}
+{{^items}}No items.{{/items}}
+```
+
+Mustache is **permissive**: a variable with no matching value renders as empty text rather than raising an error.
+
+## JSONPath variables (`{{$...}}`)
+
+A tag whose expression starts with `$` is resolved as a [JSONPath](https://goessner.net/articles/JsonPath/) expression against the render context. This is the one Agenta-specific extension on top of standard Mustache, and it behaves identically across `mustache`, `curly`, and `jinja2`.
+
+```text
+{{$.profile.name}}        whole field by path
+{{$.tags[0]}}             list index
+{{$}}                     the whole context as compact JSON
+{{$.profile}}             a nested object as compact JSON
+```
+
+The resolved value is inserted as **inert data** — it is never re-parsed as a template. A value that itself contains `{{...}}` is emitted literally:
+
+```text
+Context: {"note": "see {{other}}"}
+Template: {{$.note}}
+Output:   see {{other}}          (the inner {{other}} is NOT expanded)
+```
+
+A `{{$...}}` tag that fails to resolve — whether the path is malformed or matches nothing — is reported as an unresolved-variable error, the same as an unresolved `curly` placeholder.
+
+## Value coercion
+
+Values are stringified at the substitution boundary, matching `curly`:
+
+| Value type | Rendered as |
+| --- | --- |
+| string | unchanged |
+| number / boolean | `str(value)` |
+| `null` / missing | empty text |
+| dict / list | JSON via `json.dumps` (unicode preserved), e.g. `{"x": 1, "y": 2}` |
+
+HTML is **not** escaped — prompt text is not HTML, so `{{var}}` and `{{{var}}}` both emit the raw value. (`{{{var}}}` and `{{&var}}` are the standard Mustache "unescaped" forms; here they behave the same as `{{var}}`.)
+
+## What is not supported
+
+- **Partials** (`{{> name}}`) — there is no partial registry or template loader. A partial tag raises a clear formatting error instead of being silently ignored.
+- **Empty placeholders** (`{{}}`, `{{   }}`) — raise a formatting error.
+- **JSON Pointer** (`{{/a/b}}`) — not supported; use a `{{$...}}` JSONPath tag instead.
+
+## Emitting literal `{{ }}` (escaping)
+
+There is no backslash escape — `\{{name}}` renders a literal backslash and still expands the tag. To output a literal `{{...}}` that is **not** treated as a variable, use the standard Mustache delimiter swap: change the delimiters, write the literal text, then change them back.
+
+```text
+{{=<% %>=}}This {{is}} literal.<%={{ }}=%> And this {{renders}}.
+```
+
+`{{=<% %>=}}` switches the delimiters to `<%` / `%>`, so the `{{is}}` in between is emitted verbatim; `<%={{ }}=%>` switches back so `{{renders}}` is a normal variable again.
+
+Per format:
+
+- **mustache**: delimiter swap, as above.
+- **jinja2**: use a raw block — `{% raw %}{{not_a_variable}}{% endraw %}`.
+- **curly**: no escape mechanism; if a prompt must contain literal `{{...}}`, author it in `mustache` or `jinja2`.
+
+## Choosing a format
+
+| Format | Use it when |
+| --- | --- |
+| `mustache` | Default for new prompts. Real Mustache semantics plus `{{$...}}` JSONPath. |
+| `curly` | Existing prompts created before `mustache`. Same `{{var}}` / `{{$...}}` surface. |
+| `fstring` | Python `str.format` semantics (`{name}`). |
+| `jinja2` | Full Jinja2 (filters, loops, conditionals) plus `{{$...}}` JSONPath. |
+
+See the [LangChain prompt-template-format guide](https://docs.langchain.com/langsmith/prompt-template-format) for a broader walkthrough of mustache-style templating concepts.

@@ -20,6 +20,7 @@ from agenta.sdk.utils.types import (
     PromptTemplate,
     RetryConfig,
     RetryPolicy,
+    TemplateFormatError,
 )
 
 
@@ -635,3 +636,87 @@ def test_retry_config_default_not_serialized():
     assert prompt.retry_config is None
     dumped = prompt.model_dump(exclude_none=True)
     assert "retry_config" not in dumped
+
+
+# =============================================================================
+# Mustache template format
+# =============================================================================
+
+
+def test_prompt_template_default_format_is_curly_for_legacy_compat():
+    # Pydantic model default stays ``curly`` so legacy configs that omit the
+    # field keep the compatibility fallback. New-app defaults are set by the
+    # creation paths (builtin / interface schemas), not by this model default.
+    assert PromptTemplate().template_format == "curly"
+
+
+def test_prompt_template_accepts_mustache_format():
+    prompt = PromptTemplate(
+        template_format="mustache",
+        messages=[{"role": "user", "content": "Hello {{name}}"}],
+    )
+    formatted = prompt.format(name="Ada")
+    assert formatted.messages[0].content == "Hello Ada"
+    assert formatted.template_format == "mustache"
+
+
+def test_mustache_response_format_is_template_formatted():
+    prompt = PromptTemplate(
+        template_format="mustache",
+        messages=[{"role": "user", "content": "Hello {{name}}"}],
+        llm_config=ModelConfig(
+            model="gpt-4o-mini",
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "{{schema_name}}",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "{{field_name}}": {
+                                "type": "string",
+                                "description": "Answer for {{name}}",
+                            }
+                        },
+                    },
+                },
+            },
+        ),
+    )
+
+    formatted = prompt.format(
+        name="Ada",
+        schema_name="answer_schema",
+        field_name="answer",
+    )
+
+    response_format = formatted.llm_config.response_format.model_dump(by_alias=True)
+    assert response_format["json_schema"]["name"] == "answer_schema"
+    assert response_format["json_schema"]["schema"]["properties"] == {
+        "answer": {
+            "type": "string",
+            "description": "Answer for Ada",
+        }
+    }
+
+
+def test_mustache_partial_in_prompt_raises_template_format_error():
+    prompt = PromptTemplate(
+        template_format="mustache",
+        messages=[{"role": "user", "content": "hi {{> partial}}"}],
+    )
+    with pytest.raises(TemplateFormatError):
+        prompt.format()
+
+
+def test_mustache_unresolved_jsonpath_error_names_mustache_not_curly():
+    # An unresolved {{$...}} now raises UnresolvedVariablesError for mustache too;
+    # the surfaced message must name the actual format, not "curly".
+    prompt = PromptTemplate(
+        template_format="mustache",
+        messages=[{"role": "user", "content": "{{$.missing}}"}],
+    )
+    with pytest.raises(TemplateFormatError) as exc:
+        prompt.format()
+    assert "mustache template" in str(exc.value)
+    assert "curly template" not in str(exc.value)
