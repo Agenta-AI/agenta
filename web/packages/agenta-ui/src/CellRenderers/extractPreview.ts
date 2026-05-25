@@ -17,54 +17,46 @@ interface RuleContext {
     side?: ChatExtractionPreference
 }
 
-interface ChatRule {
-    kind: "chat"
+interface Rule {
     name: string
-    extract: (value: unknown, ctx: RuleContext) => unknown[] | null
+    extract: (value: unknown, ctx: RuleContext) => Preview | null
 }
-
-interface BeautifiedRule {
-    kind: "beautified"
-    name: string
-    extract: (value: unknown, ctx: RuleContext) => Record<string, unknown> | null
-}
-
-type Rule = ChatRule | BeautifiedRule
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
 const isDefined = (value: unknown): boolean => value !== undefined && value !== null
 
-const chatRule: ChatRule = {
-    kind: "chat",
+const chatRule: Rule = {
     name: "chat",
-    extract: (value, ctx) => extractChatMessages(value, {prefer: ctx.side}),
+    extract: (value, ctx) => {
+        const messages = extractChatMessages(value, {prefer: ctx.side})
+        if (!messages) return null
+        return {renderer: "chat", data: messages, source: "chat"}
+    },
 }
 
 // Matches `{input: <defined>}` shapes (e.g. agenta input payloads) and
 // surfaces only that key.
-const inputKeyRule: BeautifiedRule = {
-    kind: "beautified",
+const inputKeyRule: Rule = {
     name: "input-key",
     extract: (value) => {
         if (!isPlainObject(value)) return null
         if (!isDefined(value.input)) return null
-        return {input: value.input}
+        return {renderer: "beautified", data: {input: value.input}, source: "input-key"}
     },
 }
 
 // Matches `{returnValues: {output: <defined>}}` shapes and surfaces only the
 // nested `output` field.
-const outputKeyRule: BeautifiedRule = {
-    kind: "beautified",
+const outputKeyRule: Rule = {
     name: "output-key",
     extract: (value) => {
         if (!isPlainObject(value)) return null
         const rv = value.returnValues
         if (!isPlainObject(rv)) return null
         if (!isDefined(rv.output)) return null
-        return {output: rv.output}
+        return {renderer: "beautified", data: {output: rv.output}, source: "output-key"}
     },
 }
 
@@ -73,8 +65,7 @@ const outputKeyRule: BeautifiedRule = {
 // The outer list is per-prompt, the inner list is per-choice. Flattens both
 // and surfaces the non-empty text values. Collapses to {output: "..."} when
 // there is exactly one text, otherwise returns {outputs: [...]}.
-const generationsOutputRule: BeautifiedRule = {
-    kind: "beautified",
+const generationsOutputRule: Rule = {
     name: "generations-output",
     extract: (value) => {
         if (!isPlainObject(value)) return null
@@ -92,8 +83,10 @@ const generationsOutputRule: BeautifiedRule = {
         }
 
         if (texts.length === 0) return null
-        if (texts.length === 1) return {output: texts[0]}
-        return {outputs: texts}
+        if (texts.length === 1) {
+            return {renderer: "beautified", data: {output: texts[0]}, source: "generations-output"}
+        }
+        return {renderer: "beautified", data: {outputs: texts}, source: "generations-output"}
     },
 }
 
@@ -105,13 +98,8 @@ export const extractPreview = (value: unknown, side?: ChatExtractionPreference):
     const ctx: RuleContext = {side}
 
     for (const rule of RULES) {
-        if (rule.kind === "chat") {
-            const result = rule.extract(candidate, ctx)
-            if (result) return {renderer: "chat", data: result, source: rule.name}
-            continue
-        }
         const result = rule.extract(candidate, ctx)
-        if (result) return {renderer: "beautified", data: result, source: rule.name}
+        if (result) return result
     }
 
     return {renderer: "json", data: candidate, source: "fallback"}

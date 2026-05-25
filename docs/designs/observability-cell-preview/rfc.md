@@ -2,7 +2,9 @@
 
 ## Status
 
-Draft. No code yet.
+Implemented. See PR #4410. Three rules shipped: `input-key`, `output-key`,
+`generations-output`. The `side` hint was kept on the chat rule for mixed
+payloads (see decision below).
 
 ## Summary
 
@@ -44,9 +46,12 @@ both the data to render and the renderer to use.
 type Preview =
   | { renderer: "chat";       data: unknown[];                  source: string }
   | { renderer: "beautified"; data: Record<string, unknown>;    source: string }
-  | { renderer: "json";       data: unknown;                    source: "fallback" }
+  | { renderer: "json";       data: unknown;                    source: string }
 
-export function extractPreview(value: unknown): Preview
+export function extractPreview(
+  value: unknown,
+  side?: "input" | "output",
+): Preview
 ```
 
 The cell becomes a single switch.
@@ -68,29 +73,27 @@ rule at the end of the registry, not a special case in the dispatcher.
 ### Internal rules
 
 The dispatcher walks an ordered list of rules. The first rule that matches
-wins. Each rule has a name, a `matches` predicate, and an `extract` function
-that returns the value to pass to the renderer.
+wins. Each rule has a name and an `extract` function that returns the value
+to pass to the renderer (or `null` if it does not match).
 
 ```ts
 type Rule =
   | {
       kind: "chat"
       name: string
-      matches: (v: unknown) => boolean
-      extract: (v: unknown) => unknown[] | null
+      extract: (v: unknown, ctx: { side?: "input" | "output" }) => unknown[] | null
     }
   | {
       kind: "beautified"
       name: string
-      matches: (v: unknown) => boolean
-      extract: (v: unknown) => Record<string, unknown> | null
+      extract: (v: unknown, ctx: { side?: "input" | "output" }) => Record<string, unknown> | null
     }
 
 const RULES: Rule[] = [
-  chatRule,             // wraps the existing extractChatMessages
-  toolCallInputRule,    // matches {tool_name, arguments}
-  retrieverOutputRule,  // matches {documents: [...]}
-  httpResponseRule,     // matches {status_code, body}
+  chatRule,                // wraps the existing extractChatMessages
+  inputKeyRule,            // matches {input: ...}
+  outputKeyRule,           // matches {returnValues: {output: ...}}
+  generationsOutputRule,   // matches LangChain {generations: [[{text}]]}
   // ...
 ]
 ```
@@ -99,31 +102,39 @@ The dispatcher tries rules in order. If one matches and extracts a non-null
 value, it returns the matching `renderer` with the extracted data. If none
 match, it returns `{renderer: "json", data: value, source: "fallback"}`.
 
-Rules are shape-based. They look only at the value. No span context, no path,
-no side hint.
+Rules are shape-based. They look only at the value. No span context, no path.
+The chat rule reads the optional `side` hint to disambiguate mixed payloads
+(see decision below).
 
-### Drop the side hint
+### Keep the `side` hint
 
-`prefer` / `side` is dead weight today. The column already slices
-`ag.data.inputs` or `ag.data.outputs` before calling the dispatcher, so the
-hint has nothing to disambiguate. Drop it from the new signature.
+The original draft proposed dropping `prefer`/`side` because the column
+already slices to one side. Review caught a regression: some spans carry both
+input-side and output-side chat keys in a single blob. The original chat
+extractor was designed for this case (see
+`docs/design/view-improvements/chat-extraction-algorithm.md`, edge case 2).
+Without the hint, the Output cell can surface input chat.
 
-If a future rule legitimately needs both sides (a diff renderer), we widen
-the signature for that rule then. Not now.
+Decision: keep `side` as an optional hint on `extractPreview`. The chat rule
+passes it through as `prefer` to `extractChatMessages`. Other rules ignore
+it. Callers that previously passed `chatPreference="input"` /
+`chatPreference="output"` continue to work.
 
-### First rules to ship
+### Rules that shipped
 
-Three concrete extractors cover the common non-chat cases. Exact field shapes
-will be confirmed against real traces during implementation.
+Three concrete extractors are in the initial set:
 
-- `tool-call-input`: matches values with `tool_name` and `arguments`. Renders
-  the tool name and the arguments.
-- `retriever-output`: matches values with a `documents` array. Renders the
-  query and a document count.
-- `http-response`: matches values with `status_code` and a body or response
-  field. Renders the status, latency if present, and the body summary.
+- `input-key`: matches `{input: <defined>}`, surfaces `{input: <value.input>}`.
+  Common in agenta input payloads under `ag.data.inputs`.
+- `output-key`: matches `{returnValues: {output: <defined>}}`, surfaces
+  `{output: <value.returnValues.output>}`. Common in agent output payloads
+  under `ag.data.outputs`.
+- `generations-output`: matches LangChain-style `LLMResult` shapes
+  `{generations: [[{text: "..."}, ...], ...]}`. Flattens the 2D array, filters
+  empty strings, surfaces `{output: text}` for a single text or
+  `{outputs: [...]}` for many.
 
-We ship more rules as we identify common shapes in production traces.
+More rules ship as we identify common shapes in production traces.
 
 ### Popover behavior
 
@@ -145,17 +156,16 @@ behavior automatically because they go through `SmartCellContent`.
 ## Migration
 
 `extractChatMessages` stays as an internal helper that the chat rule wraps.
-External callers that import it (if any outside `SmartCellContent` and
-`LastInputMessageCell`) keep working unchanged.
+External callers that import it directly keep working unchanged.
 
-`JsonCellContent.beautified` and `SmartCellContent.beautifyJson` already
-exist. The dispatcher uses them as the "beautified" renderer. No new
-renderer components needed.
+`JsonCellContent.beautified` already exists. The dispatcher uses it as the
+"beautified" renderer. The `SmartCellContent.beautifyJson` prop remains as a
+caller opt-in for the JSON fallback path (used by `ScenarioListView` to force
+beautified rendering on the raw-JSON branch).
 
-`LastInputMessageCell` is a special case: it shows only the last message and
-expects chat data. It continues to use `extractChatMessages` directly, or it
-gets retired in favor of a chat rule + cell variant. Decide during
-implementation.
+`LastInputMessageCell` uses the dispatcher and renders only the last message
+when the chat rule matches. For non-chat values it delegates to
+`SmartCellContent`.
 
 ## Out of scope
 
@@ -169,14 +179,12 @@ implementation.
 - Sharing rules with the drawer. The drawer has its own structure today. If
   the rule set proves valuable, we lift it out and reuse it.
 
-## Open questions
+## Follow-ups
 
-1. Does the chat rule still need a `prefer` parameter for the rare
-   both-sides-in-one-blob case? Default position: no, drop it. Add it back if
-   we hit real data that needs it.
-2. Should `LastInputMessageCell` be folded into the new dispatcher with a
-   "last message only" variant of the chat renderer, or kept as a separate
-   component the Inputs column calls? Lean toward folding it in for
-   consistency.
-3. What is the source of truth for the list of recognized shapes? Define it
-   in `web/packages/agenta-ui/src/CellRenderers/rules/` as one file per rule.
+- A test file mirroring
+  `web/oss/tests/manual/cell-renderers/test-extract-chat-messages.ts` for the
+  new rules, covering rule order and the JSON-string parse path.
+- Reuse of `isPlainObject` from `@agenta/shared/utils` instead of the local
+  copy in `extractPreview.ts`.
+- Decide whether `LastInputMessageCell` should be folded into the dispatcher
+  with a "last message only" chat-renderer variant.

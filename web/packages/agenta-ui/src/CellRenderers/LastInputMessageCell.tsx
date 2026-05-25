@@ -30,7 +30,7 @@ const LastInputMessageCell = ({
 }: LastInputMessageCellProps) => {
     const preview = useMemo(() => extractPreview(value, "input"), [value])
 
-    if (preview.renderer !== "chat") {
+    if (preview.renderer !== "chat" || preview.data.length === 0) {
         return (
             <SmartCellContent
                 value={value}

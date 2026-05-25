@@ -42,8 +42,10 @@ interface SmartCellContentProps {
     /** Strategy for selecting chat messages in the truncated cell preview */
     chatPreviewStrategy?: ChatPreviewStrategy
     /**
-     * @deprecated beautified rendering is now driven by the dispatcher
-     * (extractPreview). Retained for backwards compatibility.
+     * Force the JSON fallback path to use the beautified key/value renderer
+     * instead of raw JSON text. The dispatcher's beautified renderer is
+     * separate and is driven by rule matches; this prop only affects the
+     * fallback when no rule matches.
      */
     beautifyJson?: boolean
 }
@@ -70,6 +72,7 @@ const SmartCellContent = memo(
         showPopover = true,
         chatPreference,
         chatPreviewStrategy,
+        beautifyJson = false,
     }: SmartCellContentProps) => {
         const rowHeightContext = useRowHeightContext()
         const maxLines = maxLinesProp ?? rowHeightContext.maxLines
@@ -154,7 +157,12 @@ const SmartCellContent = memo(
         if (isObjectLike) {
             const cellContent = (
                 <div className={`cursor-pointer ${className}`}>
-                    <JsonCellContent value={jsonCandidate} maxLines={maxLines} truncate />
+                    <JsonCellContent
+                        value={jsonCandidate}
+                        maxLines={maxLines}
+                        truncate
+                        beautified={beautifyJson}
+                    />
                 </div>
             )
 
@@ -162,7 +170,13 @@ const SmartCellContent = memo(
 
             return (
                 <CellContentPopover
-                    fullContent={<JsonCellContent value={jsonCandidate} truncate={false} />}
+                    fullContent={
+                        <JsonCellContent
+                            value={jsonCandidate}
+                            truncate={false}
+                            beautified={beautifyJson}
+                        />
+                    }
                     copyText={copyText}
                 >
                     {cellContent}
