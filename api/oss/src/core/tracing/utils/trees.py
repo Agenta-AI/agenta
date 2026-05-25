@@ -95,8 +95,9 @@ def infer_and_propagate_trace_type_by_trace(
     """
     Infer trace type once per trace from span links and propagate it to every span.
 
-    A trace is an annotation iff any span in that trace contains one or more links.
-    Otherwise the trace is an invocation.
+    A trace is an annotation iff any span in that trace explicitly sets links, even
+    an empty list (e.g. a queue annotation on a testcase, which has no link target).
+    Only missing links (None on every span) means the trace is an invocation.
     """
     if not span_dtos:
         return span_dtos
@@ -110,10 +111,27 @@ def infer_and_propagate_trace_type_by_trace(
 
     for trace_spans in spans_by_trace.values():
         trace_key = str(trace_spans[0].trace_id)
-        trace_types_by_trace[trace_key] = (
+        inferred_trace_type = (
             TraceType.ANNOTATION
-            if any(span.links for span in trace_spans)
+            if any(span.links is not None for span in trace_spans)
             else TraceType.INVOCATION
+        )
+        trace_types_by_trace[trace_key] = inferred_trace_type
+
+        log.warning(
+            "[TRACE_TYPE] inferred",
+            trace_id=trace_key,
+            inferred=inferred_trace_type.value,
+            spans=[
+                {
+                    "span_id": str(span.span_id),
+                    "span_name": span.span_name,
+                    "links_type": type(span.links).__name__,
+                    "links_count": len(span.links) if span.links is not None else None,
+                    "links": span.links,
+                }
+                for span in trace_spans
+            ],
         )
 
     for span in span_dtos:

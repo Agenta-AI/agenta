@@ -57,7 +57,7 @@ Agenta sends a JSON body with three top-level objects:
 
 For `environments.revisions.committed`, the deployment details live in `event.attributes`.
 
-`references` identifies the environment revision that was just committed.
+`references` identifies the environment revision that was just committed, plus the environment and variant it belongs to. Each one includes an `id` and, when available, a readable `slug`.
 
 `state` is the current value of `data.references` in that environment revision.
 
@@ -94,7 +94,8 @@ Here are two concrete `event.attributes` examples.
   "user_id": "019315dc-a332-7ba5-a426-d079c43ab776",
   "references": {
     "environment": {
-      "id": "019c2b74-d84f-7cf2-aff0-e45e116e26cb"
+      "id": "019c2b74-d84f-7cf2-aff0-e45e116e26cb",
+      "slug": "production"
     },
     "environment_revision": {
       "id": "019cd9b8-e21c-7c73-82a2-099cb1352f19",
@@ -102,7 +103,8 @@ Here are two concrete `event.attributes` examples.
       "version": "1"
     },
     "environment_variant": {
-      "id": "019c2b74-d85c-7803-8a55-f12f2fc8f461"
+      "id": "019c2b74-d85c-7803-8a55-f12f2fc8f461",
+      "slug": "production"
     }
   },
   "state": {
@@ -157,7 +159,8 @@ Here are two concrete `event.attributes` examples.
   "user_id": "019315dc-a332-7ba5-a426-d079c43ab776",
   "references": {
     "environment": {
-      "id": "019c2b74-d84f-7cf2-aff0-e45e116e26cb"
+      "id": "019c2b74-d84f-7cf2-aff0-e45e116e26cb",
+      "slug": "production"
     },
     "environment_revision": {
       "id": "019cd9c9-a742-78e0-9c0d-a08da7df88a1",
@@ -165,7 +168,8 @@ Here are two concrete `event.attributes` examples.
       "version": "8"
     },
     "environment_variant": {
-      "id": "019c2b74-d85c-7803-8a55-f12f2fc8f461"
+      "id": "019c2b74-d85c-7803-8a55-f12f2fc8f461",
+      "slug": "production"
     }
   },
   "state": {
@@ -238,6 +242,47 @@ X-Agenta-Delivery-Id: <delivery_id>
 X-Agenta-Event-Id: <event_id>
 Idempotency-Key: <delivery_id>
 ```
+
+## Available event types
+
+Agenta emits events for both read access and Git-style revision lifecycle changes. You can subscribe to any subset of the events below.
+
+### Revision lifecycle events
+
+Each major entity that has revision history exposes the same five action events:
+
+| Action | Emitted when |
+|---|---|
+| `retrieved` | A revision is retrieved by reference (slug or id) |
+| `fetched` | A revision is fetched by id (`GET /<domain>/revisions/{id}`) |
+| `queried` | A list of revisions is returned from `POST /<domain>/revisions/query` |
+| `logged` | A revision history log is returned from `POST /<domain>/revisions/log` |
+| `committed` | A new revision is committed (direct commit, simple-service create/edit, deploy, fork, etc.) |
+
+The supported domains and event names are:
+
+- `applications.revisions.{retrieved,fetched,queried,logged,committed}`
+- `queries.revisions.{retrieved,fetched,queried,logged,committed}`
+- `testsets.revisions.{retrieved,fetched,queried,logged,committed}`
+- `evaluators.revisions.{retrieved,fetched,queried,logged,committed}`
+- `environments.revisions.{retrieved,fetched,queried,logged,committed}`
+
+Revision read events (`retrieved`, `fetched`, `queried`, and `logged`) carry `references` (the artifact, variant, and revision — each with an `id` and, when available, a `slug`), `count`, and `user_id`. Commit events carry `references`, `user_id`, and optional `message`, but do not include `count`. The `environments.revisions.committed` event additionally carries `state` and `diff` describing the committed configuration, as shown in the examples above.
+
+For list events (`queried`, `logged`), `references` is an array capped at 1000 entries while `count` reflects the uncapped total.
+
+### Read events for traces and testcases
+
+- `traces.fetched` — fired by `GET /traces/{trace_id}` (carries `trace_id`) and `GET /traces/` (carries capped `trace_ids`)
+- `traces.queried` — fired by `POST /traces/query` (carries capped `trace_ids`)
+- `testcases.fetched` — fired by `GET /testcases/{testcase_id}` (carries `testcase_id`) and `GET /testcases/` (carries capped `testcase_ids`)
+- `testcases.queried` — fired by `POST /testcases/query` (carries capped `testcase_ids`)
+
+Read events always carry `user_id` and `count`. They are only emitted when `count > 0`.
+
+### System events
+
+- `webhooks.subscriptions.tested` — fired when you click `Send test` on a webhook subscription
 
 ## Authentication modes
 

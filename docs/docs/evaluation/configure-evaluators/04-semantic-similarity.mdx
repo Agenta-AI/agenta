@@ -11,7 +11,7 @@ Text similarity evaluators compare the text output of an LLM application to a re
 2. [Semantic Similarity](#semantic-similarity-match): For tasks where understanding and meaning are crucial, like summarization or question-answering.
 3. [Levenshtein Distance](#levenshtein-distance): When you need to measure exact textual differences, useful for tasks requiring precision in wording.
 
-## Similarity Match
+## Similarity Match {#similarity-match}
 
 The Similarity Match evaluator uses the `Jaccard similarity` method to compare the generated answer with the expected answer. It takes a `similarity_threshold` in its configuration and returns a `boolean` if the `Jaccard distance` exceeds this threshold.
 
@@ -31,7 +31,7 @@ The Similarity Match evaluator uses the `Jaccard similarity` method to compare t
 
 Ideal for the use cases where not only the meaning but also the wording of the answer is very important.
 
-## Semantic Similarity Match
+## Semantic Similarity Match {#semantic-similarity-match}
 
 This evaluator measures the semantic similarity between the generated output and the correct answer using embeddings.
 
@@ -53,7 +53,7 @@ No additional configuration required. However, please ensure your OpenAI API key
 
 Excellent for evaluating responses where the meaning is more important than exact wording, such as in summarization or paraphrasing tasks.
 
-## Levenshtein Distance
+## Levenshtein Distance {#levenshtein-distance}
 
 This evaluator calculates the minimum number of single-character edits required to change the generated output into the correct answer.
 

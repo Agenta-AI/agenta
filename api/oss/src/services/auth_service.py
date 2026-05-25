@@ -16,6 +16,13 @@ from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.context import (
+    AuthContext,
+    AuthScope,
+    parse_credentials,
+    set_auth_context,
+    reset_auth_context,
+)
 
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
@@ -140,10 +147,15 @@ async def authentication_middleware(request: Request, call_next):
         Exception: If any other error occurs.
     """
 
+    auth_token = None
     try:
         await _check_authentication_token(request)
 
         await _check_organization_policy(request)
+
+        auth_ctx = _build_auth_context_from_state(request)
+        if auth_ctx is not None:
+            auth_token = set_auth_context(auth_ctx)
 
         response = await call_next(request)
 
@@ -189,6 +201,56 @@ async def authentication_middleware(request: Request, call_next):
             status_code=status_code,
             content={"detail": "An internal error has occurred."},
         )
+
+    finally:
+        if auth_token is not None:
+            reset_auth_context(auth_token)
+
+
+def _build_auth_context_from_state(request: Request) -> Optional[AuthContext]:
+    """Assemble an `AuthContext` from `request.state.*` after the verify_*
+    helpers populated it.
+
+    Returns `None` for paths that did not authenticate (public endpoints,
+    early auth failures, admin/Access endpoints).
+
+    Admin/Access requests intentionally do NOT produce an `AuthContext` —
+    they have no tenant scope and don't call into entitlements. They're
+    gated by `request.state.admin` checks at the endpoint instead.
+
+    For ApiKey / Secret / Bearer paths, all four scope fields plus
+    `request.state.credentials` (`"<Scheme> <token>"`) are populated.
+    Partial state is treated as "not authenticated" — we return `None`
+    rather than half-populate the context.
+    """
+    state = request.state
+
+    if getattr(state, "admin", False):
+        return None
+
+    organization_id = getattr(state, "organization_id", None)
+    workspace_id = getattr(state, "workspace_id", None)
+    project_id = getattr(state, "project_id", None)
+    user_id = getattr(state, "user_id", None)
+    credentials_str = getattr(state, "credentials", None)
+    if not (
+        organization_id and workspace_id and project_id and user_id and credentials_str
+    ):
+        return None
+
+    try:
+        return AuthContext(
+            credentials=parse_credentials(credentials_str),
+            scope=AuthScope(
+                organization_id=UUID(organization_id),
+                workspace_id=UUID(workspace_id),
+                project_id=UUID(project_id),
+                user_id=UUID(user_id),
+            ),
+        )
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning("Failed to build AuthContext from request.state", exc_info=True)
+        return None
 
 
 async def _check_authentication_token(request: Request):

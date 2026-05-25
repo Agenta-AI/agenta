@@ -4,6 +4,7 @@ from collections import defaultdict
 
 from oss.src.utils.logging import get_module_logger
 
+from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing, Trace, Traces
 from oss.src.core.tracing.dtos import (
@@ -872,6 +873,20 @@ class QueriesService:
 
         _query_revision = QueryRevision(
             **revision.model_dump(mode="json"),
+        )
+
+        # Write-action emission lives in the SERVICE layer (read actions live
+        # in the router). Every caller of commit_query_revision — direct
+        # commit route, simple-service create/edit, etc. — therefore emits
+        # exactly one `queries.revisions.committed` event. See
+        # core/events/utils.py for the read-vs-write split rationale.
+        await publish_revision_event(
+            domain="query",
+            action="commit",
+            project_id=project_id,
+            user_id=user_id,
+            revision=_query_revision,
+            message=query_revision_commit.message,
         )
 
         return _query_revision

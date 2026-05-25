@@ -30,14 +30,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
+          persist-credentials: false
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          package_json_file: web/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -61,45 +62,55 @@ jobs:
 
           npm install semver -g
 
+          echo "Bumping web"
           cd web
-          pnpm version $BUMP_TYPE
-          WEB_VERSION=$(pnpm pkg get version | tr -d '"')
-
-          cd ee
-          current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
+          current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
-          pnpm pkg set version="$new_version"
+          npm pkg set version="$new_version"
+          WEB_VERSION=$new_version
+
+          echo "Bumping web/ee"
+          cd ee
+          current_version=$(node -p "require('./package.json').version")
+          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          npm pkg set version="$new_version"
           EE_VERSION=$new_version
           cd ..
 
+          echo "Bumping web/oss"
           cd oss
-          current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
+          current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
-          pnpm pkg set version="$new_version"
+          npm pkg set version="$new_version"
           OSS_VERSION=$new_version
           cd ..
 
+          echo "Bumping web/packages/agenta-api-client"
           cd packages/agenta-api-client
-          current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
+          current_version=$(node -p "require('./package.json').version")
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
-          pnpm pkg set version="$new_version"
+          npm pkg set version="$new_version"
           TS_CLIENT_VERSION=$new_version
           cd ../..
 
           cd ..
 
+          echo "Bumping clients/python"
           cd clients/python
           PY_CLIENT_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
           cd ../..
 
+          echo "Bumping sdks/python"
           cd sdks/python
           PY_SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
           cd ../..
 
+          echo "Bumping api"
           cd api
           API_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
           cd ..
 
+          echo "Bumping services"
           cd services
           SERVICES_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
           cd ..

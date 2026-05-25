@@ -11,6 +11,10 @@ from .query_revision_data_output import QueryRevisionDataOutput
 
 
 class QueryRevision(UniversalBaseModel):
+    query_variant_slug: typing.Optional[str] = None
+    variant_slug: typing.Optional[str] = None
+    query_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     query_variant_id: typing.Optional[str] = None
     variant_id: typing.Optional[str] = None
     query_id: typing.Optional[str] = None

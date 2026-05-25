@@ -11,8 +11,11 @@ from .application_variant_flags import ApplicationVariantFlags
 
 
 class ApplicationVariant(UniversalBaseModel):
+    application_slug: typing.Optional[str] = None
+    workflow_slug: typing.Optional[str] = None
     application_id: typing.Optional[str] = None
     workflow_id: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     artifact_id: typing.Optional[str] = None
     flags: typing.Optional[ApplicationVariantFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None

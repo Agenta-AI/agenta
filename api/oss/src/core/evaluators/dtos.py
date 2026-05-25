@@ -81,6 +81,24 @@ class EvaluatorRevisionIdAlias(AliasConfig):
     )
 
 
+class EvaluatorSlugAlias(AliasConfig):
+    evaluator_slug: Optional[str] = None
+    workflow_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="evaluator_slug",
+    )
+
+
+class EvaluatorVariantSlugAlias(AliasConfig):
+    evaluator_variant_slug: Optional[str] = None
+    workflow_variant_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="evaluator_variant_slug",
+    )
+
+
 # globals ----------------------------------------------------------------------
 
 
@@ -159,11 +177,13 @@ class EvaluatorQuery(WorkflowQuery):
 class EvaluatorVariant(
     WorkflowVariant,
     EvaluatorIdAlias,
+    EvaluatorSlugAlias,
 ):
     flags: Optional[EvaluatorVariantFlags] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("evaluator_id", "workflow_id", self)
+        sync_alias("evaluator_slug", "workflow_slug", self)
 
 
 class EvaluatorVariantCreate(
@@ -196,6 +216,8 @@ class EvaluatorRevision(
     WorkflowRevision,
     EvaluatorIdAlias,
     EvaluatorVariantIdAlias,
+    EvaluatorSlugAlias,
+    EvaluatorVariantSlugAlias,
 ):
     flags: Optional[EvaluatorRevisionFlags] = None
 
@@ -204,6 +226,8 @@ class EvaluatorRevision(
     def model_post_init(self, __context) -> None:
         sync_alias("evaluator_id", "workflow_id", self)
         sync_alias("evaluator_variant_id", "workflow_variant_id", self)
+        sync_alias("evaluator_slug", "workflow_slug", self)
+        sync_alias("evaluator_variant_slug", "workflow_variant_slug", self)
 
 
 class EvaluatorRevisionCreate(

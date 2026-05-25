@@ -94,6 +94,87 @@ def test_chat_template_kwargs_is_not_template_formatted():
     }
 
 
+def test_response_format_is_template_formatted():
+    prompt = PromptTemplate(
+        messages=[{"role": "user", "content": "Hello {{name}}"}],
+        llm_config=ModelConfig(
+            model="gpt-4o-mini",
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "{{schema_name}}",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "{{field_name}}": {
+                                "type": "string",
+                                "description": "Answer for {{name}}",
+                            }
+                        },
+                    },
+                },
+            },
+        ),
+    )
+
+    formatted = prompt.format(
+        name="Ada",
+        schema_name="answer_schema",
+        field_name="answer",
+    )
+
+    response_format = formatted.llm_config.response_format.model_dump(by_alias=True)
+    assert response_format == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "answer_schema",
+            "description": None,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "answer": {
+                        "type": "string",
+                        "description": "Answer for Ada",
+                    }
+                },
+            },
+            "strict": None,
+        },
+    }
+
+
+def test_fallback_response_format_is_template_formatted():
+    prompt = PromptTemplate(
+        messages=[{"role": "user", "content": "Hello {{name}}"}],
+        fallback_configs=[
+            {
+                "model": "fallback",
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "fallback_schema",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "{{field_name}}": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+            }
+        ],
+    )
+
+    formatted = prompt.format(name="Ada", field_name="answer")
+
+    response_format = formatted.fallback_configs[0].response_format.model_dump(
+        by_alias=True
+    )
+    assert response_format["json_schema"]["schema"]["properties"] == {
+        "answer": {"type": "string"}
+    }
+
+
 def test_null_chat_template_kwargs_is_omitted_from_provider_kwargs():
     prompt = PromptTemplate(llm_config=ModelConfig(model="gpt-4o-mini"))
 

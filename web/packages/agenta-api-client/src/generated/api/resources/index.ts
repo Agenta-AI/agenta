@@ -15,6 +15,8 @@ export * as evaluations from "./evaluations/index.js";
 export * from "./evaluators/client/requests/index.js";
 export * as evaluators from "./evaluators/index.js";
 export * from "./evaluators/types/index.js";
+export * from "./events/client/requests/index.js";
+export * as events from "./events/index.js";
 export * from "./folders/client/requests/index.js";
 export * as folders from "./folders/index.js";
 export * from "./invocations/client/requests/index.js";

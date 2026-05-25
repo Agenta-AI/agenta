@@ -12,7 +12,6 @@ from oss.src.models.api.api_models import (
     EnvironmentRevision,
     EnvironmentOutputExtended,
 )
-from ee.src.models.shared_models import WorkspaceRole
 
 
 class TimestampModel(BaseModel):
@@ -22,7 +21,10 @@ class TimestampModel(BaseModel):
 
 class InviteRequest(BaseModel):
     email: str
-    roles: List[WorkspaceRole]
+    # Role slugs are dynamic (env-overridable via AGENTA_ACCESS_ROLES); the
+    # workspace-router validates against the effective workspace catalog
+    # before assignment.
+    roles: List[str]
 
 
 class ReseendInviteRequest(BaseModel):

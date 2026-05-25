@@ -62,6 +62,27 @@ def _assert_base_response(payload: dict) -> None:
     assert "data" in payload, f"Missing 'data' in response: {payload}"
 
 
+def _maybe_xfail_for_daytona_error(resp, *, case_id: str) -> None:
+    """xfail when custom-code execution can't provision a Daytona sandbox.
+
+    code_v0 runs user code in a Daytona sandbox. When the test environment
+    lacks a usable snapshot/region (e.g. snapshot not published to the targeted
+    region), provisioning fails with a 500 before the code can run. That's an
+    infra gap, not a regression — so xfail rather than fail. Where Daytona is
+    properly provisioned the error never appears and the test runs normally
+    (no XPASS).
+    """
+    text = (getattr(resp, "text", "") or "")[:2000]
+    markers = (
+        "Failed to create sandbox",
+        "is not available in region",
+        "No Daytona snapshot configured",
+        "custom-code-server-error",
+    )
+    if resp.status_code == 500 and any(marker in text for marker in markers):
+        pytest.xfail(f"[{case_id}] Daytona sandbox unavailable in this environment")
+
+
 def _inspect_body(body: dict) -> dict:
     inspect: dict = {}
 
@@ -159,6 +180,7 @@ class TestCustomCodeV0:
             "/code/v0/invoke",
             body=body,
         )
+        _maybe_xfail_for_daytona_error(resp, case_id="code_v0:perfect_score")
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
@@ -182,6 +204,7 @@ class TestCustomCodeV0:
             "/code/v0/invoke",
             body=body,
         )
+        _maybe_xfail_for_daytona_error(resp, case_id="code_v0:exact_match_success")
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
@@ -204,6 +227,7 @@ class TestCustomCodeV0:
             "/code/v0/invoke",
             body=body,
         )
+        _maybe_xfail_for_daytona_error(resp, case_id="code_v0:exact_match_failure")
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
@@ -240,6 +264,7 @@ class TestCustomCodeV0:
             "/code/v0/invoke",
             body=body,
         )
+        _maybe_xfail_for_daytona_error(resp, case_id="code_v0:custom_threshold")
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
@@ -260,6 +285,7 @@ class TestCustomCodeV0:
             "/code/v0/invoke",
             body=body,
         )
+        _maybe_xfail_for_daytona_error(resp, case_id="code_v0:base_response_version")
         assert resp.status_code == 200, resp.text
         assert "version" in resp.json()
 

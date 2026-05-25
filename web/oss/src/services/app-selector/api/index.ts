@@ -4,13 +4,13 @@ import {
     type CreateAppFromTemplateResult,
     seedCreatedWorkflowCache,
 } from "@agenta/entities/workflow"
+import type {LlmProvider} from "@agenta/shared/types"
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {fetchJson} from "@/oss/lib/api/assets/fetchClient"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {recentAppIdAtom} from "@/oss/state/app"
 import {getOrgValues} from "@/oss/state/org"

@@ -81,6 +81,24 @@ class ApplicationRevisionIdAlias(AliasConfig):
     )
 
 
+class ApplicationSlugAlias(AliasConfig):
+    application_slug: Optional[str] = None
+    workflow_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="application_slug",
+    )
+
+
+class ApplicationVariantSlugAlias(AliasConfig):
+    application_variant_slug: Optional[str] = None
+    workflow_variant_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="application_variant_slug",
+    )
+
+
 # globals ----------------------------------------------------------------------
 
 
@@ -163,11 +181,13 @@ class ApplicationQuery(WorkflowQuery):
 class ApplicationVariant(
     WorkflowVariant,
     ApplicationIdAlias,
+    ApplicationSlugAlias,
 ):
     flags: Optional[ApplicationVariantFlags] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("application_id", "workflow_id", self)
+        sync_alias("application_slug", "workflow_slug", self)
 
 
 class ApplicationVariantCreate(
@@ -200,6 +220,8 @@ class ApplicationRevision(
     WorkflowRevision,
     ApplicationIdAlias,
     ApplicationVariantIdAlias,
+    ApplicationSlugAlias,
+    ApplicationVariantSlugAlias,
 ):
     flags: Optional[ApplicationRevisionFlags] = None
 
@@ -208,6 +230,8 @@ class ApplicationRevision(
     def model_post_init(self, __context) -> None:
         sync_alias("application_id", "workflow_id", self)
         sync_alias("application_variant_id", "workflow_variant_id", self)
+        sync_alias("application_slug", "workflow_slug", self)
+        sync_alias("application_variant_slug", "workflow_variant_slug", self)
 
 
 class ApplicationRevisionCreate(

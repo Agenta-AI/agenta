@@ -1,6 +1,6 @@
 [project]
 name = "agenta"
-version = "0.99.7"
+version = "0.100.1"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -33,7 +33,7 @@ dependencies = [
     "jinja2>=3,<4",
     "orjson>=3,<4",
     "python-jsonpath>=2,<3",
-    "daytona>=0.175,<0.176",
+    "daytona>=0.176,<0.177",
 ]
 
 [project.urls]

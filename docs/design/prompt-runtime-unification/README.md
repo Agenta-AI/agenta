@@ -427,6 +427,7 @@ Notes:
 Each work package gets its own subfolder with research, plan, implementation notes, QA, and status:
 
 - [`wp-b1-runtime-foundation/`](wp-b1-runtime-foundation/README.md) — judge backend patch (provider/secret resolution + temperature removal) and the low-level rendering helper extraction.
+- [`wp-b2-rendering-unification/`](wp-b2-rendering-unification/README.md) - shared message rendering, JSON-return rendering, judge `json_schema` rendering, and Jinja error alignment.
 
 Subfolders for the remaining work packages will be added as each is picked up.
 

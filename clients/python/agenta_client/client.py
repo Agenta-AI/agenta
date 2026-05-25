@@ -16,6 +16,7 @@ if typing.TYPE_CHECKING:
     from .environments.client import AsyncEnvironmentsClient, EnvironmentsClient
     from .evaluations.client import AsyncEvaluationsClient, EvaluationsClient
     from .evaluators.client import AsyncEvaluatorsClient, EvaluatorsClient
+    from .events.client import AsyncEventsClient, EventsClient
     from .folders.client import AsyncFoldersClient, FoldersClient
     from .invocations.client import AsyncInvocationsClient, InvocationsClient
     from .keys.client import AsyncKeysClient, KeysClient
@@ -77,14 +78,15 @@ class AgentaApi:
         _defaulted_timeout = timeout if timeout is not None else 60 if httpx_client is None else httpx_client.timeout.read
         self._client_wrapper = SyncClientWrapper(base_url=_get_base_url(base_url=base_url, environment=environment), api_key=api_key, headers=headers, httpx_client=httpx_client if httpx_client is not None else httpx.Client(timeout=_defaulted_timeout, follow_redirects=follow_redirects) if follow_redirects is not None else httpx.Client(timeout=_defaulted_timeout)
         , timeout=_defaulted_timeout)
+        self._access: typing.Optional[AccessClient] = None
         self._billing: typing.Optional[BillingClient] = None
         self._organizations: typing.Optional[OrganizationsClient] = None
         self._workspaces: typing.Optional[WorkspacesClient] = None
         self._secrets: typing.Optional[SecretsClient] = None
         self._webhooks: typing.Optional[WebhooksClient] = None
-        self._access: typing.Optional[AccessClient] = None
         self._legacy: typing.Optional[LegacyClient] = None
         self._traces: typing.Optional[TracesClient] = None
+        self._events: typing.Optional[EventsClient] = None
         self._invocations: typing.Optional[InvocationsClient] = None
         self._annotations: typing.Optional[AnnotationsClient] = None
         self._testcases: typing.Optional[TestcasesClient] = None
@@ -101,6 +103,13 @@ class AgentaApi:
         self._projects: typing.Optional[ProjectsClient] = None
         self._users: typing.Optional[UsersClient] = None
         self._keys: typing.Optional[KeysClient] = None
+    
+    @property
+    def access(self):
+        if self._access is None:
+            from .access.client import AccessClient  # noqa: E402
+            self._access = AccessClient(client_wrapper=self._client_wrapper)
+        return self._access
     
     @property
     def billing(self):
@@ -138,13 +147,6 @@ class AgentaApi:
         return self._webhooks
     
     @property
-    def access(self):
-        if self._access is None:
-            from .access.client import AccessClient  # noqa: E402
-            self._access = AccessClient(client_wrapper=self._client_wrapper)
-        return self._access
-    
-    @property
     def legacy(self):
         if self._legacy is None:
             from .legacy.client import LegacyClient  # noqa: E402
@@ -157,6 +159,13 @@ class AgentaApi:
             from .traces.client import TracesClient  # noqa: E402
             self._traces = TracesClient(client_wrapper=self._client_wrapper)
         return self._traces
+    
+    @property
+    def events(self):
+        if self._events is None:
+            from .events.client import EventsClient  # noqa: E402
+            self._events = EventsClient(client_wrapper=self._client_wrapper)
+        return self._events
     
     @property
     def invocations(self):
@@ -313,14 +322,15 @@ class AsyncAgentaApi:
         _defaulted_timeout = timeout if timeout is not None else 60 if httpx_client is None else httpx_client.timeout.read
         self._client_wrapper = AsyncClientWrapper(base_url=_get_base_url(base_url=base_url, environment=environment), api_key=api_key, headers=headers, httpx_client=httpx_client if httpx_client is not None else httpx.AsyncClient(timeout=_defaulted_timeout, follow_redirects=follow_redirects) if follow_redirects is not None else httpx.AsyncClient(timeout=_defaulted_timeout)
         , timeout=_defaulted_timeout)
+        self._access: typing.Optional[AsyncAccessClient] = None
         self._billing: typing.Optional[AsyncBillingClient] = None
         self._organizations: typing.Optional[AsyncOrganizationsClient] = None
         self._workspaces: typing.Optional[AsyncWorkspacesClient] = None
         self._secrets: typing.Optional[AsyncSecretsClient] = None
         self._webhooks: typing.Optional[AsyncWebhooksClient] = None
-        self._access: typing.Optional[AsyncAccessClient] = None
         self._legacy: typing.Optional[AsyncLegacyClient] = None
         self._traces: typing.Optional[AsyncTracesClient] = None
+        self._events: typing.Optional[AsyncEventsClient] = None
         self._invocations: typing.Optional[AsyncInvocationsClient] = None
         self._annotations: typing.Optional[AsyncAnnotationsClient] = None
         self._testcases: typing.Optional[AsyncTestcasesClient] = None
@@ -337,6 +347,13 @@ class AsyncAgentaApi:
         self._projects: typing.Optional[AsyncProjectsClient] = None
         self._users: typing.Optional[AsyncUsersClient] = None
         self._keys: typing.Optional[AsyncKeysClient] = None
+    
+    @property
+    def access(self):
+        if self._access is None:
+            from .access.client import AsyncAccessClient  # noqa: E402
+            self._access = AsyncAccessClient(client_wrapper=self._client_wrapper)
+        return self._access
     
     @property
     def billing(self):
@@ -374,13 +391,6 @@ class AsyncAgentaApi:
         return self._webhooks
     
     @property
-    def access(self):
-        if self._access is None:
-            from .access.client import AsyncAccessClient  # noqa: E402
-            self._access = AsyncAccessClient(client_wrapper=self._client_wrapper)
-        return self._access
-    
-    @property
     def legacy(self):
         if self._legacy is None:
             from .legacy.client import AsyncLegacyClient  # noqa: E402
@@ -393,6 +403,13 @@ class AsyncAgentaApi:
             from .traces.client import AsyncTracesClient  # noqa: E402
             self._traces = AsyncTracesClient(client_wrapper=self._client_wrapper)
         return self._traces
+    
+    @property
+    def events(self):
+        if self._events is None:
+            from .events.client import AsyncEventsClient  # noqa: E402
+            self._events = AsyncEventsClient(client_wrapper=self._client_wrapper)
+        return self._events
     
     @property
     def invocations(self):

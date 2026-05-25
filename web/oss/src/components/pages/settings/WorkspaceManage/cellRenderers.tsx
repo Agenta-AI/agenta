@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import type {User} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
@@ -10,7 +11,6 @@ import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
-import {User} from "@/oss/lib/Types"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {updateUsername} from "@/oss/services/profile"
 import {

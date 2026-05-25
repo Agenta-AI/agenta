@@ -2,6 +2,7 @@ from typing import Dict, Optional, List, Any
 from uuid import UUID, uuid4
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -918,6 +919,21 @@ class TestsetsService:
             project_id=project_id,
             testset_revision=testset_revision,
             include_testcases=include_testcases,
+        )
+
+        # Write-action emission lives in the SERVICE layer (read actions live
+        # in the router). Every caller of commit_testset_revision — direct
+        # commit route, simple-service create/edit, delta commits that re-enter
+        # this method, etc. — therefore emits exactly one
+        # `testsets.revisions.committed` event. See core/events/utils.py for
+        # the read-vs-write split rationale.
+        await publish_revision_event(
+            domain="testset",
+            action="commit",
+            project_id=project_id,
+            user_id=user_id,
+            revision=testset_revision,
+            message=testset_revision_commit.message,
         )
 
         return testset_revision
