@@ -18,6 +18,10 @@ from agenta.sdk.models.workflows import (
 from agenta.sdk.engines.running.errors import ErrorStatus
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.contexts.tracing import TracingContext
+from agenta.sdk.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
 
 
 class NormalizerMiddleware:
@@ -72,6 +76,9 @@ class NormalizerMiddleware:
         Returns:
             Dictionary mapping parameter names to values for calling the handler
         """
+        if request.data and request.data.parameters is None:
+            request.data.parameters = {}
+
         sig = inspect.signature(handler)
         params = sig.parameters
         normalized: Dict[str, Any] = {}
@@ -250,6 +257,15 @@ class NormalizerMiddleware:
 
         error_response = WorkflowServiceBatchResponse(
             status=error_status,
+            trace_id=trace_id,
+            span_id=span_id,
+        )
+
+        log.warning(
+            "Workflow handler invocation failed",
+            status_code=error_status.code if error_status else None,
+            status_type=error_status.type if error_status else None,
+            message=error_status.message if error_status else None,
             trace_id=trace_id,
             span_id=span_id,
         )

@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface QueryVariant {
+    query_slug?: (string | null) | undefined;
+    artifact_slug?: (string | null) | undefined;
     query_id?: (string | null) | undefined;
     artifact_id?: (string | null) | undefined;
     flags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;

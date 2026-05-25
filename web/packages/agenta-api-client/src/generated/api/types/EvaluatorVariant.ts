@@ -3,8 +3,11 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EvaluatorVariant {
+    evaluator_slug?: (string | null) | undefined;
+    workflow_slug?: (string | null) | undefined;
     evaluator_id?: (string | null) | undefined;
     workflow_id?: (string | null) | undefined;
+    artifact_slug?: (string | null) | undefined;
     artifact_id?: (string | null) | undefined;
     flags?: (AgentaApi.EvaluatorVariantFlags | null) | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;
