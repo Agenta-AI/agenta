@@ -807,7 +807,10 @@ const TESTCASE_OBJECT_KEYS = new Set(["inputs"])
 export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Record<string, unknown> {
     const {testcaseData, upstreamOutput, settings, inputSchema} = ctx
 
-    const prediction = normalizeCompact(upstreamOutput)
+    // RFC invariant: native JSON stays native until template rendering.
+    // We pass `upstreamOutput` through as-is (object, array, string, primitive)
+    // and expose it under both `prediction` and `outputs` keys downstream —
+    // they are the same value, not a stringified copy and a native copy.
 
     const schemaProperties =
         inputSchema?.properties && typeof inputSchema.properties === "object"
@@ -820,13 +823,12 @@ export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Recor
             inputSchema: inputSchema!,
             testcaseData,
             upstreamOutput,
-            prediction,
             settings,
         })
     }
 
     // Legacy fallback — no schema available
-    return buildLegacy({testcaseData, prediction, settings})
+    return buildLegacy({testcaseData, upstreamOutput, settings})
 }
 
 /**
@@ -838,10 +840,9 @@ function buildFromSchema(ctx: {
     inputSchema: Record<string, unknown>
     testcaseData: Record<string, unknown>
     upstreamOutput: unknown
-    prediction: string
     settings: Record<string, unknown>
 }): Record<string, unknown> {
-    const {schemaProperties, inputSchema, testcaseData, upstreamOutput, prediction, settings} = ctx
+    const {schemaProperties, inputSchema, testcaseData, upstreamOutput, settings} = ctx
     const inputs: Record<string, unknown> = {}
 
     for (const key of Object.keys(schemaProperties)) {
@@ -854,13 +855,15 @@ function buildFromSchema(ctx: {
             const columnName = keySettingValue.startsWith("testcase.")
                 ? keySettingValue.split(".")[1]
                 : keySettingValue
-            inputs[key] = normalizeCompact(testcaseData[columnName])
+            // RFC invariant: native value passes through, not stringified.
+            inputs[key] = testcaseData[columnName]
             continue
         }
 
-        // 2. Known upstream output keys
+        // 2. Known upstream output keys — both `prediction` and `outputs`
+        //    expose the SAME native upstream value; do not stringify either one.
         if (UPSTREAM_OUTPUT_KEYS.has(key)) {
-            inputs[key] = key === "prediction" ? prediction : normalizeCompact(upstreamOutput)
+            inputs[key] = upstreamOutput
             continue
         }
 
@@ -887,9 +890,9 @@ function buildFromSchema(ctx: {
         }
     }
 
-    // Ensure upstream output is always present in some form
+    // Ensure upstream output is always present in some form (native, both keys).
     if (!("prediction" in inputs) && !("outputs" in inputs)) {
-        inputs.prediction = prediction
+        inputs.prediction = upstreamOutput
         inputs.outputs = upstreamOutput
     }
 
@@ -902,10 +905,10 @@ function buildFromSchema(ctx: {
  */
 function buildLegacy(ctx: {
     testcaseData: Record<string, unknown>
-    prediction: string
+    upstreamOutput: unknown
     settings: Record<string, unknown>
 }): Record<string, unknown> {
-    const {testcaseData, prediction, settings} = ctx
+    const {testcaseData, upstreamOutput, settings} = ctx
 
     const correctAnswerKey = settings.correct_answer_key
     const groundTruthKey =
@@ -915,12 +918,12 @@ function buildLegacy(ctx: {
               ? correctAnswerKey
               : undefined
 
-    const rawGT = groundTruthKey ? testcaseData[groundTruthKey] : undefined
-    const ground_truth = normalizeCompact(rawGT)
+    // RFC invariant: native ground-truth value passes through, not stringified.
+    const ground_truth = groundTruthKey ? testcaseData[groundTruthKey] : undefined
 
     const inputs: Record<string, unknown> = {
         ...testcaseData,
-        prediction,
+        prediction: upstreamOutput,
     }
 
     if (groundTruthKey) {
@@ -1025,24 +1028,6 @@ export function validateEvaluatorInputs(ctx: EvaluatorInputContext): EvaluatorIn
     }
 
     return {valid: true, missingInputs: []}
-}
-
-/**
- * Normalize a value to a compact string representation.
- * Mirrors DebugSection's `normalizeCompact` helper.
- */
-function normalizeCompact(val: unknown): string {
-    if (val === undefined || val === null) return ""
-    const str = typeof val === "string" ? val : JSON.stringify(val)
-    try {
-        const parsed = JSON.parse(str)
-        if (parsed && typeof parsed === "object") {
-            return JSON.stringify(parsed)
-        }
-        return str
-    } catch {
-        return str
-    }
 }
 
 /**

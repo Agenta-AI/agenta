@@ -37,6 +37,22 @@ import {displayedEntityIdsAtom} from "./displayedEntities"
 import {createExecutionItemHandle, type ExecutionItemLifecycleSnapshot} from "./executionItems"
 import type {RunStatus} from "./types"
 
+/**
+ * UI-display helper. Converts a cell value to a string for rendering inside
+ * a text-mode editor.
+ *
+ * ⚠️ MUST NOT be used to build invocation payloads. Native JSON must reach
+ * the runtime as native JSON (RFC: "native JSON stays native until template
+ * rendering"). The invocation path reads testcase data directly from
+ * `loadableController.selectors.row(...).data` — preserves native types.
+ *
+ * This helper feeds only the controller-surface atoms
+ * (`rowVariableValueAtomFamily`, `testcaseCellValueAtomFamily`) that hand
+ * string output to React components for the text-mode SharedEditor. When the
+ * V2 input UX adds Form / JSON / YAML modes (Step 3), those modes consume
+ * the native value directly via `testcaseMolecule.atoms.cell(...)` — they
+ * do not route through this helper.
+ */
 const toDisplayString = (value: unknown): string => {
     if (value === undefined || value === null) return ""
     if (typeof value === "string") return value
