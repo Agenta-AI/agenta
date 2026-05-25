@@ -453,7 +453,13 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                     )
                 }
                 // Fallback for rows without id
-                return <TestcaseCellContent value={value} maxLines={maxLinesForRowHeight} />
+                return (
+                    <TestcaseCellContent
+                        value={value}
+                        columnKey={col.key}
+                        maxLines={maxLinesForRowHeight}
+                    />
+                )
             },
         })
 
