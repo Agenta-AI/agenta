@@ -7,14 +7,14 @@ description: Audit and update the supported LLM model list in assets.py against 
 
 ## Overview
 
-The canonical model list lives in `sdk/agenta/sdk/assets.py` → `supported_llm_models`.
+The canonical model list lives in `sdks/python/agenta/sdk/utils/assets.py` → `supported_llm_models`.
 It drives the model dropdown in the playground, cost metadata, and the `model_to_provider_mapping`.
 
 The authoritative external source is **`litellm.model_cost`** (2 600+ entries), which mirrors
 <https://models.litellm.ai/>.
 
 A pytest guard lives at:
-`sdk/oss/tests/pytest/unit/test_supported_llm_models.py`
+`sdks/python/oss/tests/pytest/unit/test_supported_llm_models.py`
 
 ---
 
@@ -43,7 +43,7 @@ cat > /tmp/check_agenta_models.py << 'SCRIPT'
 import litellm, sys
 
 # paste supported_llm_models here or import it
-from agenta.sdk.assets import supported_llm_models
+from agenta.sdk.utils.assets import supported_llm_models
 
 mc = set(litellm.model_cost.keys())
 
@@ -73,7 +73,7 @@ uvx --with litellm python /tmp/check_agenta_models.py 2>/dev/null
 Alternatively, run the pytest unit test directly (requires agenta installed):
 
 ```bash
-pytest sdk/oss/tests/pytest/unit/test_supported_llm_models.py -v
+pytest sdks/python/oss/tests/pytest/unit/test_supported_llm_models.py -v
 ```
 
 ---
@@ -144,7 +144,7 @@ uvx --with litellm python /tmp/find_missing.py 2>/dev/null
 
 ## Step 3 — Edit `assets.py`
 
-File: `sdk/agenta/sdk/assets.py`
+File: `sdks/python/agenta/sdk/utils/assets.py`
 
 - Add models inside the correct provider list, newest first.
 - For **Gemini 1.5** models (still widely used): add under `"gemini"`.
@@ -173,8 +173,8 @@ File: `sdk/agenta/sdk/assets.py`
 
 ```bash
 # Format + lint
-uvx --from ruff==0.14.0 ruff format sdk/agenta/sdk/assets.py
-uvx --from ruff==0.14.0 ruff check --fix sdk/agenta/sdk/assets.py
+uvx --from ruff==0.14.0 ruff format sdks/python/agenta/sdk/utils/assets.py
+uvx --from ruff==0.14.0 ruff check --fix sdks/python/agenta/sdk/utils/assets.py
 
 # Validate all models against litellm (no agenta install needed)
 uvx --with litellm python /tmp/check_agenta_models.py 2>/dev/null
@@ -188,7 +188,7 @@ All checks must pass before committing.
 
 | File | Purpose |
 |---|---|
-| `sdk/agenta/sdk/assets.py` | Canonical model list + cost metadata builder |
-| `sdk/oss/tests/pytest/unit/test_supported_llm_models.py` | Pytest guard (parametrized per model) |
+| `sdks/python/agenta/sdk/utils/assets.py` | Canonical model list + cost metadata builder |
+| `sdks/python/oss/tests/pytest/unit/test_supported_llm_models.py` | Pytest guard (parametrized per model) |
 | `api/oss/src/core/secrets/enums.py` | Provider keys — must stay in sync |
 | `api/oss/src/resources/evaluators/evaluators.py` | Separate (shorter) model list for evaluator dropdown |

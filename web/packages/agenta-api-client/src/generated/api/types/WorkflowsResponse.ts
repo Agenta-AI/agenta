@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface WorkflowsResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     /** Number of workflows in this page. */
     count?: number | undefined;
     /** Workflow artifacts matching the query. */

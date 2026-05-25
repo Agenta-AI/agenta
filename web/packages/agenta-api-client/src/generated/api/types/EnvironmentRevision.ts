@@ -3,6 +3,10 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EnvironmentRevision {
+    environment_variant_slug?: (string | null) | undefined;
+    variant_slug?: (string | null) | undefined;
+    environment_slug?: (string | null) | undefined;
+    artifact_slug?: (string | null) | undefined;
     environment_variant_id?: (string | null) | undefined;
     variant_id?: (string | null) | undefined;
     environment_id?: (string | null) | undefined;

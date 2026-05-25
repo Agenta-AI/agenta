@@ -3,6 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface WorkflowVariant {
+    workflow_slug?: (string | null) | undefined;
+    artifact_slug?: (string | null) | undefined;
     workflow_id?: (string | null) | undefined;
     artifact_id?: (string | null) | undefined;
     flags?: (AgentaApi.WorkflowVariantFlags | null) | undefined;

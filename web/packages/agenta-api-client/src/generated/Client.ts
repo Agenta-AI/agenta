@@ -7,6 +7,7 @@ import { BillingClient } from "./api/resources/billing/client/Client.js";
 import { EnvironmentsClient } from "./api/resources/environments/client/Client.js";
 import { EvaluationsClient } from "./api/resources/evaluations/client/Client.js";
 import { EvaluatorsClient } from "./api/resources/evaluators/client/Client.js";
+import { EventsClient } from "./api/resources/events/client/Client.js";
 import { FoldersClient } from "./api/resources/folders/client/Client.js";
 import { InvocationsClient } from "./api/resources/invocations/client/Client.js";
 import { KeysClient } from "./api/resources/keys/client/Client.js";
@@ -36,14 +37,15 @@ export declare namespace AgentaApiClient {
 
 export class AgentaApiClient {
     protected readonly _options: NormalizedClientOptionsWithAuth<AgentaApiClient.Options>;
+    protected _access: AccessClient | undefined;
     protected _billing: BillingClient | undefined;
     protected _organizations: OrganizationsClient | undefined;
     protected _workspaces: WorkspacesClient | undefined;
     protected _secrets: SecretsClient | undefined;
     protected _webhooks: WebhooksClient | undefined;
-    protected _access: AccessClient | undefined;
     protected _legacy: LegacyClient | undefined;
     protected _traces: TracesClient | undefined;
+    protected _events: EventsClient | undefined;
     protected _invocations: InvocationsClient | undefined;
     protected _annotations: AnnotationsClient | undefined;
     protected _testcases: TestcasesClient | undefined;
@@ -63,6 +65,10 @@ export class AgentaApiClient {
 
     constructor(options: AgentaApiClient.Options) {
         this._options = normalizeClientOptionsWithAuth(options);
+    }
+
+    public get access(): AccessClient {
+        return (this._access ??= new AccessClient(this._options));
     }
 
     public get billing(): BillingClient {
@@ -85,16 +91,16 @@ export class AgentaApiClient {
         return (this._webhooks ??= new WebhooksClient(this._options));
     }
 
-    public get access(): AccessClient {
-        return (this._access ??= new AccessClient(this._options));
-    }
-
     public get legacy(): LegacyClient {
         return (this._legacy ??= new LegacyClient(this._options));
     }
 
     public get traces(): TracesClient {
         return (this._traces ??= new TracesClient(this._options));
+    }
+
+    public get events(): EventsClient {
+        return (this._events ??= new EventsClient(this._options));
     }
 
     public get invocations(): InvocationsClient {

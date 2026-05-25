@@ -2,8 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
-from oss.src.utils.exceptions import Support
-
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
@@ -31,7 +29,6 @@ from oss.src.core.testsets.dtos import (
     SimpleTestsetEdit,
     SimpleTestsetQuery,
 )
-
 
 # TESTSETS ---------------------------------------------------------------------
 
@@ -70,7 +67,7 @@ class TestsetQueryRequest(BaseModel):
     )
 
 
-class TestsetResponse(Support):
+class TestsetResponse(BaseModel):
     count: int = Field(
         default=0,
         description="1 if a testset was returned, 0 otherwise.",
@@ -81,7 +78,7 @@ class TestsetResponse(Support):
     )
 
 
-class TestsetsResponse(Support):
+class TestsetsResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of testsets returned on this page.",
@@ -137,7 +134,7 @@ class TestsetVariantQueryRequest(BaseModel):
     )
 
 
-class TestsetVariantResponse(Support):
+class TestsetVariantResponse(BaseModel):
     count: int = Field(
         default=0,
         description="1 if a variant was returned, 0 otherwise.",
@@ -148,7 +145,7 @@ class TestsetVariantResponse(Support):
     )
 
 
-class TestsetVariantsResponse(Support):
+class TestsetVariantsResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of variants returned.",
@@ -265,7 +262,7 @@ class TestsetRevisionsLogRequest(BaseModel):
     )
 
 
-class TestsetRevisionResponse(Support):
+class TestsetRevisionResponse(BaseModel):
     count: int = Field(
         default=0,
         description="1 if a revision was returned, 0 otherwise.",
@@ -276,7 +273,7 @@ class TestsetRevisionResponse(Support):
     )
 
 
-class TestsetRevisionsResponse(Support):
+class TestsetRevisionsResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of revisions returned.",
@@ -324,7 +321,7 @@ class SimpleTestsetQueryRequest(BaseModel):
     )
 
 
-class SimpleTestsetResponse(Support):
+class SimpleTestsetResponse(BaseModel):
     count: int = Field(
         default=0,
         description="1 if a testset was returned, 0 otherwise.",
@@ -335,7 +332,7 @@ class SimpleTestsetResponse(Support):
     )
 
 
-class SimpleTestsetsResponse(Support):
+class SimpleTestsetsResponse(BaseModel):
     count: int = Field(
         default=0,
         description="Number of simple testsets returned.",

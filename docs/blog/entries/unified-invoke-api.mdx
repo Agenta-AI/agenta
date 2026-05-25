@@ -29,7 +29,7 @@ The release also restructures the rest of the REST CRUD surface (apps, variants,
 If you only call Agenta through the Python SDK (`agenta.ConfigManager`, `agenta.VariantManager`, `agenta.DeploymentManager`), you don't need to change anything. The SDK absorbs every change in this release.
 :::
 
-## Invoking a deployed prompt
+## Invoking a deployed prompt {#invoking-a-deployed-prompt}
 
 All invocations now go through one endpoint:
 
@@ -257,7 +257,7 @@ response = requests.post(
 
 </details>
 
-## Fetching a prompt configuration
+## Fetching a prompt configuration {#fetching-a-prompt-configuration}
 
 `POST /variants/configs/fetch` is deprecated and superseded by `POST /applications/revisions/retrieve`. The new endpoint mirrors the shape of the invocation endpoint: you pass structured references to identify the variant or environment you want to fetch, and the response carries the configuration parameters together with metadata about the revision.
 
@@ -401,7 +401,7 @@ config = ag.ConfigManager.get_from_registry(
 
 The SDK calls the new endpoint internally and returns the same shape it always has.
 
-## All affected endpoints
+## All affected endpoints {#all-affected-endpoints}
 
 Below is the complete list of REST endpoints moved in v0.96.0, grouped by domain.
 

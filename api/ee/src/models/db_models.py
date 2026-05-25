@@ -31,7 +31,7 @@ class OrganizationMemberDB(Base):
     role = Column(
         String,
         nullable=False,
-        server_default="member",
+        server_default="viewer",
     )
 
     user = relationship(

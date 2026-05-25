@@ -1,0 +1,63 @@
+---
+id: fetch-access-plans
+title: "Fetch Plans"
+description: "Return the effective plan catalog: slug -> entitlement controls."
+sidebar_label: "Fetch Plans"
+hide_title: true
+hide_table_of_contents: true
+api: eJztU9tu2zAM/RWBz2rS7dEPw4yh64oORdB0T23QsDJjqZMlT6K7ZUb+faCc9BL0E+YXS7yIPIeHIzC2GapbqI2hnGGloaFskuvZxQAVXBMPKSi2pGizIcPuiVTvMSiDjD62lcp+aNXJJ0WBHXvqKLAyMXCKPs/uwl24saSyxZ5U51KKKavfFlmt6/Ozq5v6vv7y5Wy5vF98r6+Wa4XGUM9Zq4eB1Wbwfqt6TJmau4ChUU/oXYNMzUzJs5sUA1NoVCJsslpvPLZ5rdXaxCEwpXJucWhJThiau7BmmyKzp7yW9E5ZSqQSsqWk2GIogE46ZGNdaBW26EIukDJj4DwDDbGnhELRRQMVbIiNvcdC4b2Qk0FDotzHkClDNcLH01P5veV2OZSMzeDV9T4YNJiCiCUc+947U+rMH7PkjJCNpQ6Lt2mcuNAvkvTDbqr1vp3TQBp42xNUEB8eyTDsjg0aygjL3KeG1FfBpiZ5qEXBtpNPQ0dso8BvSTJ7ZAsVzCca5gcaMqUnSqKxEYbkS0TvYKcPV8vc52o+p2FmfByaGbYUGGfopsCVvGGG5HhbHqkXF5e0/UbYUILqdvU6YCnkTCy8DRsPQLF3l7QFDQE7udcD25jc30IyaHAyGDtlCUgXNrGk73mpS3OqXlzA8aq8cckU0ZQpHioVN+gj2C9oQQN16MTJhN3nZ4/MSTicypzOPsxOxdTHzB2GVyWmWS32zL/pbnzR1f+dfn+n9wph+sOiXheE5DKscS/uW5jELWovJK802JhZPOP4gJl+JL/bifnXQEn0utLwhMnhg6jndrXTB3GJlH/SVoRR2AEJ9MOk0aO1F4k/b9v52Q3sdv8AMTIAJQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Plans"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/access/plans"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return the effective plan catalog: slug -&gt; entitlement controls.
+
+The shape mirrors what `AGENTA_ACCESS_PLANS` accepts, but fully parsed
+and validated. The frontend reads `flags`, `counters`, `gauges`, and
+`throttles` from here rather than slug-matching against constants.
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-access-plans.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-access-plans.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -12,6 +12,10 @@ from .testset_revision_data_output import TestsetRevisionDataOutput
 
 
 class TestsetRevision(UniversalBaseModel):
+    testset_variant_slug: typing.Optional[str] = None
+    variant_slug: typing.Optional[str] = None
+    testset_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     testset_variant_id: typing.Optional[str] = None
     variant_id: typing.Optional[str] = None
     testset_id: typing.Optional[str] = None
