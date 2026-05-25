@@ -140,7 +140,10 @@ function TextEditor({
                 editorProps={
                     markdown
                         ? {
-                              showMarkdownToggleButton: true,
+                              // viewMode dropdown in the field header is now the
+                              // canonical way to toggle markdown — keep the
+                              // inline button hidden to avoid duplication.
+                              showMarkdownToggleButton: false,
                               showToolbar: false,
                               showLineNumbers: false,
                           }

@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {
@@ -10,19 +10,53 @@ import {
     removeAttachmentFromContent,
     getAttachments,
 } from "@agenta/shared/utils"
+import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
+import {useAtomValue} from "jotai"
 
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
+import {ViewModeDropdown} from "../../drill-in/core/ViewModeDropdown"
+import {SET_MARKDOWN_VIEW} from "../../Editor/plugins/markdown/commands"
+import {markdownViewAtom} from "../../Editor/state/assets/atoms"
 import {message, modal} from "../../utils/appMessageContext"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 import {createSnippetPdfAttachment} from "../utils/snippetAttachment"
 
 import AttachmentButton from "./AttachmentButton"
 import ChatMessageEditor from "./ChatMessageEditor"
-import MarkdownToggleButton from "./MarkdownToggleButton"
 import MessageAttachments from "./MessageAttachments"
 import ToolMessageHeader from "./ToolMessageHeader"
+
+type ChatViewMode = "text" | "markdown"
+
+const CHAT_VIEW_OPTIONS: {value: ChatViewMode; label: string}[] = [
+    {value: "text", label: "Text"},
+    {value: "markdown", label: "Markdown"},
+]
+
+// Reuses the shared ViewModeDropdown — placed inside ChatMessageEditor's
+// Lexical context so it can read markdownViewAtom and dispatch the
+// SET_MARKDOWN_VIEW command. Replaces the legacy inline markdown toggle so
+// switching views matches the testcase-drawer affordance.
+const ViewModeButton = memo(({id}: {id: string}) => {
+    const [editor] = useLexicalComposerContext()
+    const markdownView = useAtomValue(markdownViewAtom(id))
+    const onChange = useCallback(
+        (mode: ChatViewMode) => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, mode === "markdown")
+        },
+        [editor],
+    )
+    return (
+        <ViewModeDropdown<ChatViewMode>
+            value={markdownView ? "markdown" : "text"}
+            options={CHAT_VIEW_OPTIONS}
+            onChange={onChange}
+        />
+    )
+})
+ViewModeButton.displayName = "ChatMessageViewModeButton"
 
 const ChatMessageItem: React.FC<{
     msg: SimpleChatMessage
@@ -173,7 +207,7 @@ const ChatMessageItem: React.FC<{
                             "invisible group-hover/item:visible",
                         )}
                     >
-                        <MarkdownToggleButton id={editorId} />
+                        <ViewModeButton id={editorId} />
                         {allowFileUpload && !disabled && (
                             <AttachmentButton
                                 onAddImage={(url) => onAddImage(index, url)}

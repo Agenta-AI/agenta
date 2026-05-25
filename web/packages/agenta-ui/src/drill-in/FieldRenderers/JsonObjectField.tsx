@@ -5,13 +5,51 @@
  * with ChatMessageEditor from @agenta/ui, otherwise uses JSON editor.
  */
 
-import {ChatMessageEditor, MarkdownToggleButton} from "@agenta/ui/chat-message"
+import {memo, useCallback} from "react"
 
+import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
+import {useAtomValue} from "jotai"
+
+import {ChatMessageEditor} from "@agenta/ui/chat-message"
+
+import {SET_MARKDOWN_VIEW} from "../../Editor/plugins/markdown/commands"
+import {markdownViewAtom} from "../../Editor/state/assets/atoms"
 import {useDrillInUI} from "../context/DrillInUIContext"
+import {ViewModeDropdown} from "../core/ViewModeDropdown"
 
 import {isChatMessageObject} from "./fieldUtils"
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
 import type {JsonObjectFieldProps} from "./types"
+
+type ChatViewMode = "text" | "markdown"
+
+const CHAT_VIEW_OPTIONS: {value: ChatViewMode; label: string}[] = [
+    {value: "text", label: "Text"},
+    {value: "markdown", label: "Markdown"},
+]
+
+// Inline sub-component: runs inside ChatMessageEditor's Lexical context so it
+// can read markdownViewAtom and dispatch SET_MARKDOWN_VIEW. Reuses the shared
+// ViewModeDropdown so chat-shaped JSON objects use the same affordance as the
+// testcase drawer.
+const ViewModeButton = memo(({id}: {id: string}) => {
+    const [editor] = useLexicalComposerContext()
+    const markdownView = useAtomValue(markdownViewAtom(id))
+    const onChange = useCallback(
+        (mode: ChatViewMode) => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, mode === "markdown")
+        },
+        [editor],
+    )
+    return (
+        <ViewModeDropdown<ChatViewMode>
+            value={markdownView ? "markdown" : "text"}
+            options={CHAT_VIEW_OPTIONS}
+            onChange={onChange}
+        />
+    )
+})
+ViewModeButton.displayName = "JsonObjectFieldViewModeButton"
 
 export function JsonObjectField({
     item,
@@ -74,7 +112,7 @@ export function JsonObjectField({
                 }}
                 headerRight={
                     <div className="flex items-center gap-1">
-                        <MarkdownToggleButton id={messageEditorId} />
+                        <ViewModeButton id={messageEditorId} />
                     </div>
                 }
             />

@@ -859,11 +859,9 @@ export function DrillInContent({
                             fieldViewModeOptions.find((opt) => opt.value === viewModes[fieldKey])
                                 ?.value ?? defaultViewMode
 
-                        // Determine if markdown toggle should be shown (only for string fields)
-                        const showMarkdownToggle =
-                            !enableFieldViewModes &&
-                            !expandable &&
-                            (dataType === "string" || dataType === "null")
+                        // Markdown switching has moved to the shared viewMode
+                        // dropdown — keep the inline icon hidden everywhere.
+                        const showMarkdownToggle = false
                         const showFieldHeader =
                             !hideFieldHeaders &&
                             !(hideSingleFieldHeader && filteredLevelItems.length === 1)
