@@ -57,6 +57,12 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isTestsets = pathname.includes("/testsets") || pathname.includes("/prompts")
     const isAnnotations = pathname.includes("/annotations")
     const isRegistry = pathname.includes("/variants")
+    const isObservability = pathname.includes("/observability") || pathname.includes("/traces")
+    // The Audit Log settings tab hosts a full-height InfiniteVirtualTable.
+    // Scoped to the `tab` query param so other settings tabs keep the default
+    // (content-flow) layout.
+    const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab
+    const isAuditLog = pathname.includes("/settings") && tab === "audit-log"
 
     return {
         isAuthRoute:
@@ -68,7 +74,14 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
         isPlayground: pathname.includes("/playground"),
         isHumanEval,
         isEvaluator,
-        isFullHeight: isHumanEval || isEvaluator || isTestsets || isAnnotations || isRegistry,
+        isFullHeight:
+            isHumanEval ||
+            isEvaluator ||
+            isTestsets ||
+            isAnnotations ||
+            isRegistry ||
+            isObservability ||
+            isAuditLog,
     }
 })
 

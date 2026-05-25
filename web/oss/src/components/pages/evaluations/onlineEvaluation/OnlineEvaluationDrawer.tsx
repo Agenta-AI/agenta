@@ -6,6 +6,7 @@ import {
     evaluatorConfigRevisionsQueryStateAtom,
     evaluatorTemplatesDataAtom,
     evaluatorTemplatesQueryAtom,
+    isOnlineCapableEvaluator,
 } from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
@@ -70,12 +71,13 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const evaluators = useAtomValue(evaluatorConfigRevisionsListDataAtom)
     const evaluatorRevisionsQuery = useAtomValue(evaluatorConfigRevisionsQueryStateAtom)
     // Subject of a live eval is the trace, but the evaluator picked here must
-    // still be auto-invokable: skip human evaluators (`is_feedback`) and
-    // anything without a runnable URL — same rule as the new evaluation modal.
+    // still be auto-invokable: skip human evaluators (`is_feedback`) and use
+    // the canonical online-capable predicate so code/LLM/handler-backed
+    // evaluators aren't excluded just because `has_url` isn't set.
     const previewEvaluators = useMemo(
         () =>
             (evaluators || []).filter(
-                (e) => e.flags?.is_feedback !== true && e.flags?.has_url === true,
+                (e) => e.flags?.is_feedback !== true && isOnlineCapableEvaluator(e),
             ),
         [evaluators],
     )

@@ -50,6 +50,10 @@ const Automations = dynamic(
     },
 )
 
+const AuditLog = dynamic(() => import("@/oss/components/pages/settings/AuditLog/AuditLog"), {
+    ssr: false,
+})
+
 const Settings: React.FC = () => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
@@ -59,7 +63,8 @@ const Settings: React.FC = () => {
     const {user} = useProfileData()
     const {selectedOrg} = useOrgData()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
-    const canShowBilling = isEE() && isBillingEnabled() && isOwner
+    const canShowBilling = isEE() && isOwner
+    const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
@@ -115,15 +120,17 @@ const Settings: React.FC = () => {
                             return "API Keys"
                         case "automations":
                             return "Automations"
+                        case "audit-log":
+                            return "Audit Log"
                         case "billing":
-                            return "Usage & Billing"
+                            return billingEnabled ? "Usage & Billing" : "Usage"
                         default:
                             return resolvedTab
                     }
                 })(),
             },
         }
-    }, [canViewApiKeys, resolvedTab])
+    }, [canViewApiKeys, resolvedTab, billingEnabled])
 
     useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab, resolvedTab])
 
@@ -160,9 +167,14 @@ const Settings: React.FC = () => {
             case "apiKeys":
                 return {content: <APIKeys />, title: "API Keys"}
             case "billing":
-                return {content: <Billing />, title: "Usage & Billing"}
+                return {
+                    content: <Billing />,
+                    title: billingEnabled ? "Usage & Billing" : "Usage",
+                }
             case "automations":
                 return {content: <Automations />, title: "Automations"}
+            case "audit-log":
+                return {content: <AuditLog />, title: "Audit Log"}
             case "projects":
                 return {content: <ProjectsSettings />, title: "Projects"}
             default:
@@ -179,10 +191,18 @@ const Settings: React.FC = () => {
         handleCopyProjectId,
         isDemoOrg,
         isOwner,
+        billingEnabled,
     ])
 
     return (
-        <PageLayout key={settingsKey} title={title}>
+        <PageLayout
+            key={settingsKey}
+            title={title}
+            // The Audit Log tab hosts a full-height InfiniteVirtualTable, which
+            // needs a bounded parent so it scrolls internally instead of growing
+            // the page. Other tabs keep PageLayout's default `min-h-full` flow.
+            className={resolvedTab === "audit-log" ? "h-full min-h-0" : undefined}
+        >
             {content}
         </PageLayout>
     )

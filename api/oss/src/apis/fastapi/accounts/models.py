@@ -2,74 +2,127 @@
 HTTP-facing request/response models for the platform admin accounts surface.
 
 These models are used by FastAPI for validation, OpenAPI schema generation,
-and serialization.  They mirror the core DTOs closely; the router converts
-between the two layers.
+and serialization. Each model subclasses its corresponding core DTO and
+provides ``to_dto()`` / ``from_dto()`` to convert at the router boundary.
 """
 
-# Re-export the core DTOs as HTTP models.
-# Names follow the route contract defined in contracts.md.
+from typing import Type
 
-from oss.src.core.accounts.dtos import (
-    # Shared types
-    EntityRef as EntityRef,
-    AdminAccountCreateOptionsDTO as AdminAccountCreateOptions,
-    AdminStructuredErrorDTO as AdminStructuredError,
-    AdminDeletedEntityDTO as AdminDeletedEntity,
-    AdminDeletedEntitiesDTO as AdminDeletedEntities,
-    # Entity read models
-    AdminUserReadDTO as AdminUserRead,
-    AdminUserIdentityReadDTO as AdminUserIdentityRead,
-    AdminSubscriptionCreateDTO as AdminSubscriptionCreate,
-    AdminSubscriptionReadDTO as AdminSubscriptionRead,
-    AdminOrganizationReadDTO as AdminOrganizationRead,
-    AdminWorkspaceReadDTO as AdminWorkspaceRead,
-    AdminProjectReadDTO as AdminProjectRead,
-    AdminOrganizationMembershipReadDTO as AdminOrganizationMembershipRead,
-    AdminWorkspaceMembershipReadDTO as AdminWorkspaceMembershipRead,
-    AdminProjectMembershipReadDTO as AdminProjectMembershipRead,
-    AdminApiKeyReadDTO as AdminApiKeyRead,
-    AdminApiKeyResponseDTO as AdminApiKeyResponse,
-    AdminAccountReadDTO as AdminAccountRead,
-    AdminSimpleAccountReadDTO as AdminSimpleAccountRead,
-    # Entity create models
-    AdminUserCreateDTO as AdminUserCreate,
-    AdminUserIdentityCreateDTO as AdminUserIdentityCreate,
-    AdminOrganizationCreateDTO as AdminOrganizationCreate,
-    AdminWorkspaceCreateDTO as AdminWorkspaceCreate,
-    AdminProjectCreateDTO as AdminProjectCreate,
-    AdminOrganizationMembershipCreateDTO as AdminOrganizationMembershipCreate,
-    AdminWorkspaceMembershipCreateDTO as AdminWorkspaceMembershipCreate,
-    AdminProjectMembershipCreateDTO as AdminProjectMembershipCreate,
-    AdminApiKeyCreateDTO as AdminApiKeyCreate,
-    # Account graph create / response
-    AdminAccountsCreateDTO as AdminAccountsCreate,
-    AdminAccountsResponseDTO as AdminAccountsResponse,
-    # Account graph delete
-    AdminAccountsDeleteTargetDTO as AdminAccountsDeleteTarget,
-    AdminAccountsDeleteDTO as AdminAccountsDelete,
-    AdminDeleteResponseDTO as AdminDeleteResponse,
-    # Simple account create / response
-    AdminSimpleAccountCreateDTO as AdminSimpleAccountCreate,
-    AdminSimpleAccountsCreateDTO as AdminSimpleAccountsCreate,
-    AdminSimpleAccountsResponseDTO as AdminSimpleAccountsResponse,
-    # Simple account delete
-    AdminSimpleAccountDeleteEntryDTO as AdminSimpleAccountDeleteEntry,
-    AdminSimpleAccountsDeleteDTO as AdminSimpleAccountsDelete,
-    # Simple entity creates
-    AdminSimpleAccountsUsersCreateDTO as AdminSimpleAccountsUsersCreate,
-    AdminSimpleAccountsUsersIdentitiesCreateDTO as AdminSimpleAccountsUsersIdentitiesCreate,
-    AdminSimpleAccountsOrganizationsCreateDTO as AdminSimpleAccountsOrganizationsCreate,
-    AdminSimpleAccountsOrganizationsMembershipsCreateDTO as AdminSimpleAccountsOrganizationsMembershipsCreate,
-    AdminSimpleAccountsWorkspacesCreateDTO as AdminSimpleAccountsWorkspacesCreate,
-    AdminSimpleAccountsWorkspacesMembershipsCreateDTO as AdminSimpleAccountsWorkspacesMembershipsCreate,
-    AdminSimpleAccountsProjectsCreateDTO as AdminSimpleAccountsProjectsCreate,
-    AdminSimpleAccountsProjectsMembershipsCreateDTO as AdminSimpleAccountsProjectsMembershipsCreate,
-    AdminSimpleAccountsApiKeysCreateDTO as AdminSimpleAccountsApiKeysCreate,
-    # Actions
-    AdminSimpleAccountsUsersResetPasswordDTO as AdminSimpleAccountsUsersResetPassword,
-    AdminSimpleAccountsOrganizationsTransferOwnershipDTO as AdminSimpleAccountsOrganizationsTransferOwnership,
-    AdminSimpleAccountsOrganizationsTransferOwnershipResponseDTO as AdminSimpleAccountsOrganizationsTransferOwnershipResponse,
+from pydantic import BaseModel
+
+from oss.src.core.accounts import dtos as _dtos
+
+
+def _bind(dto_cls: Type[BaseModel]) -> Type[BaseModel]:
+    """Build an HTTP model subclassing ``dto_cls`` with to_dto/from_dto wired up."""
+
+    def to_dto(self, _cls=dto_cls):
+        return _cls(**self.model_dump())
+
+    @classmethod
+    def from_dto(cls, dto):
+        return cls(**dto.model_dump())
+
+    return type(
+        dto_cls.__name__,
+        (dto_cls,),
+        {"to_dto": to_dto, "from_dto": from_dto},
+    )
+
+
+# Shared types -----------------------------------------------------------------
+
+EntityRef = _dtos.EntityRef
+AdminAccountCreateOptions = _bind(_dtos.AdminAccountCreateOptions)
+AdminStructuredError = _bind(_dtos.AdminStructuredError)
+AdminDeletedEntity = _bind(_dtos.AdminDeletedEntity)
+AdminDeletedEntities = _bind(_dtos.AdminDeletedEntities)
+
+# Entity read models -----------------------------------------------------------
+
+AdminUserRead = _bind(_dtos.AdminUserRead)
+AdminUserIdentityRead = _bind(_dtos.AdminUserIdentityRead)
+AdminSubscriptionCreate = _bind(_dtos.AdminSubscriptionCreate)
+AdminSubscriptionRead = _bind(_dtos.AdminSubscriptionRead)
+AdminOrganizationRead = _bind(_dtos.AdminOrganizationRead)
+AdminWorkspaceRead = _bind(_dtos.AdminWorkspaceRead)
+AdminProjectRead = _bind(_dtos.AdminProjectRead)
+AdminOrganizationMembershipRead = _bind(_dtos.AdminOrganizationMembershipRead)
+AdminWorkspaceMembershipRead = _bind(_dtos.AdminWorkspaceMembershipRead)
+AdminProjectMembershipRead = _bind(_dtos.AdminProjectMembershipRead)
+AdminApiKeyRead = _bind(_dtos.AdminApiKeyRead)
+AdminApiKeyResponse = _bind(_dtos.AdminApiKeyResponse)
+AdminAccountRead = _bind(_dtos.AdminAccountRead)
+AdminSimpleAccountRead = _bind(_dtos.AdminSimpleAccountRead)
+
+# Entity create models ---------------------------------------------------------
+
+AdminUserCreate = _bind(_dtos.AdminUserCreate)
+AdminUserIdentityCreate = _bind(_dtos.AdminUserIdentityCreate)
+AdminOrganizationCreate = _bind(_dtos.AdminOrganizationCreate)
+AdminWorkspaceCreate = _bind(_dtos.AdminWorkspaceCreate)
+AdminProjectCreate = _bind(_dtos.AdminProjectCreate)
+AdminOrganizationMembershipCreate = _bind(_dtos.AdminOrganizationMembershipCreate)
+AdminWorkspaceMembershipCreate = _bind(_dtos.AdminWorkspaceMembershipCreate)
+AdminProjectMembershipCreate = _bind(_dtos.AdminProjectMembershipCreate)
+AdminApiKeyCreate = _bind(_dtos.AdminApiKeyCreate)
+
+# Account graph create / response ---------------------------------------------
+
+AdminAccountsCreate = _bind(_dtos.AdminAccountsCreate)
+AdminAccountsResponse = _bind(_dtos.AdminAccountsResponse)
+
+# Account graph delete --------------------------------------------------------
+
+AdminAccountsDeleteTarget = _bind(_dtos.AdminAccountsDeleteTarget)
+AdminAccountsDelete = _bind(_dtos.AdminAccountsDelete)
+AdminDeleteResponse = _bind(_dtos.AdminDeleteResponse)
+
+# Simple account create / response --------------------------------------------
+
+AdminSimpleAccountCreate = _bind(_dtos.AdminSimpleAccountCreate)
+AdminSimpleAccountsCreate = _bind(_dtos.AdminSimpleAccountsCreate)
+AdminSimpleAccountsResponse = _bind(_dtos.AdminSimpleAccountsResponse)
+
+# Simple account delete -------------------------------------------------------
+
+AdminSimpleAccountDeleteEntry = _bind(_dtos.AdminSimpleAccountDeleteEntry)
+AdminSimpleAccountsDelete = _bind(_dtos.AdminSimpleAccountsDelete)
+
+# Simple entity creates -------------------------------------------------------
+
+AdminSimpleAccountsUsersCreate = _bind(_dtos.AdminSimpleAccountsUsersCreate)
+AdminSimpleAccountsUsersIdentitiesCreate = _bind(
+    _dtos.AdminSimpleAccountsUsersIdentitiesCreate
 )
+AdminSimpleAccountsOrganizationsCreate = _bind(
+    _dtos.AdminSimpleAccountsOrganizationsCreate
+)
+AdminSimpleAccountsOrganizationsMembershipsCreate = _bind(
+    _dtos.AdminSimpleAccountsOrganizationsMembershipsCreate
+)
+AdminSimpleAccountsWorkspacesCreate = _bind(_dtos.AdminSimpleAccountsWorkspacesCreate)
+AdminSimpleAccountsWorkspacesMembershipsCreate = _bind(
+    _dtos.AdminSimpleAccountsWorkspacesMembershipsCreate
+)
+AdminSimpleAccountsProjectsCreate = _bind(_dtos.AdminSimpleAccountsProjectsCreate)
+AdminSimpleAccountsProjectsMembershipsCreate = _bind(
+    _dtos.AdminSimpleAccountsProjectsMembershipsCreate
+)
+AdminSimpleAccountsApiKeysCreate = _bind(_dtos.AdminSimpleAccountsApiKeysCreate)
+
+# Actions ---------------------------------------------------------------------
+
+AdminSimpleAccountsUsersResetPassword = _bind(
+    _dtos.AdminSimpleAccountsUsersResetPassword
+)
+AdminSimpleAccountsOrganizationsTransferOwnership = _bind(
+    _dtos.AdminSimpleAccountsOrganizationsTransferOwnership
+)
+AdminSimpleAccountsOrganizationsTransferOwnershipResponse = _bind(
+    _dtos.AdminSimpleAccountsOrganizationsTransferOwnershipResponse
+)
+
 
 __all__ = [
     "EntityRef",

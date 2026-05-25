@@ -1,0 +1,1 @@
+{"parameters":[{"name":"api_key_id","in":"path","required":true,"schema":{"type":"string","title":"Api Key Id"}}]}

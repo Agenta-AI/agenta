@@ -72,7 +72,9 @@ export interface AnnotationColumnDef {
     path: string | null
     /** Evaluator workflow ID from the annotation step's references */
     evaluatorId: string | null
-    /** Evaluator slug from the annotation step's references */
+    /** Evaluator revision ID from the annotation step's references */
+    evaluatorRevisionId: string | null
+    /** Evaluator slug from step refs, step key, or mapping column fallback */
     evaluatorSlug: string | null
 }
 
@@ -130,8 +132,19 @@ export interface AnnotationDataColumnDef extends BaseColumnDef {
     annotationDef: AnnotationColumnDef
     /** Output keys from the evaluator's output schema (used for sub-columns). */
     outputKeys: string[]
+    /** Concrete child columns under the evaluator parent. */
+    outputColumns?: AnnotationOutputColumnDef[]
     /** Testcase data key to fall back to when the same logical column exists in synced testcase data. */
     fallbackDataKey?: string | null
+}
+
+export interface AnnotationOutputColumnDef {
+    /** Stable child column key, unique within the table. */
+    key: string
+    /** Child column label shown under the evaluator parent. */
+    title: string
+    /** Mapping definition used to resolve this child cell value. */
+    annotationDef: AnnotationColumnDef
 }
 
 export interface StatusColumnDef extends BaseColumnDef {

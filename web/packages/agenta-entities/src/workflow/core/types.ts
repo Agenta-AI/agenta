@@ -23,6 +23,7 @@ export interface WorkflowListParams {
     projectId: string
     name?: string
     flags?: WorkflowQueryFlags
+    workflowRefs?: WorkflowReference[]
     /**
      * Filter by folder.
      * - `undefined` (omitted): no folder filter — returns all workflows

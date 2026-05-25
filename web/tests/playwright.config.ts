@@ -7,9 +7,11 @@ import dotenv from "dotenv"
 
 import {
     getChromiumLaunchOptions,
+    getJunitPath,
     getOutputDir,
     getReportDir,
     getStorageStatePath,
+    getTestDir,
 } from "./playwright/config/runtime.ts"
 
 // Get current directory in ESM
@@ -28,12 +30,16 @@ dotenv.config({path: resolve(__dirname, ".env")})
  */
 const require = createRequire(import.meta.url)
 export default defineConfig({
-    testDir: `../${process.env.AGENTA_LICENSE || "oss"}/tests/playwright/acceptance`,
+    testDir: getTestDir(),
     fullyParallel: false, // Temporarily disabled parallel worker
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,
     workers: 1, // Temporarily disabled parallel worker
-    reporter: [["html", {outputFolder: getReportDir()}]],
+    reporter: [
+        ["html", {outputFolder: getReportDir()}],
+        ["junit", {outputFile: getJunitPath()}],
+        [require.resolve("./playwright/live-reporter.ts")],
+    ],
     outputDir: getOutputDir(),
     globalSetup: require.resolve("./playwright/global-setup"),
     globalTeardown: require.resolve("./playwright/global-teardown"),

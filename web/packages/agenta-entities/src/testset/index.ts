@@ -113,10 +113,12 @@ export {
     // Fetch
     fetchRevision,
     fetchRevisionWithTestcases,
+    fetchLatestRevisionWithTestcases,
     fetchRevisionsList,
     fetchLatestRevision,
     fetchLatestRevisionsBatch,
     fetchRevisionsBatch,
+    fetchTestsetsBatch,
     fetchTestsetsList,
     fetchTestsetDetail,
     fetchVariantDetail,
@@ -125,6 +127,7 @@ export {
     updateTestsetMetadata,
     cloneTestset,
     archiveTestsets,
+    unarchiveTestset,
     // Revision mutations
     patchRevision,
     commitRevision,

@@ -1,5 +1,6 @@
 import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
+import {ColumnVisibilityMenuTrigger} from "@agenta/ui/table"
 import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
@@ -23,6 +24,26 @@ import UsageCell from "../components/UsageCell"
 
 interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]
+}
+
+const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnsType<T>): string[] => {
+    const hiddenKeys = new Set<string>()
+
+    const visit = (cols: ColumnsType<T>) => {
+        cols.forEach((column) => {
+            const key = column.key != null ? String(column.key) : null
+            if (key && (column as {defaultHidden?: boolean}).defaultHidden) {
+                hiddenKeys.add(key)
+            }
+
+            if ("children" in column && Array.isArray(column.children)) {
+                visit(column.children)
+            }
+        })
+    }
+
+    visit(columns)
+    return Array.from(hiddenKeys)
 }
 
 export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsProps) => {
@@ -81,7 +102,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Inputs",
             key: "inputs",
             width: 400,
-            className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
+            maxWidth: 400,
             render: (_, record) => {
                 const inputs = getTraceInputs(record)
                 const {data: sanitizedInputs} = sanitizeDataWithBlobUrls(inputs)
@@ -98,7 +119,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Outputs",
             key: "outputs",
             width: 400,
-            className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
+            maxWidth: 400,
             render: (_, record) => {
                 const outputs = getTraceOutputs(record)
                 const {data: sanitizedOutputs} = sanitizeDataWithBlobUrls(outputs)
@@ -113,31 +134,33 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 )
             },
         },
-        {
-            title: "Evaluators",
-            key: "evaluators",
-            align: "start",
-            children: evaluatorSlugs.map((evaluatorSlug) => ({
-                title: "",
-                key: evaluatorSlug,
-                onHeaderCell: () => ({
-                    style: {display: "none"},
-                }),
-                render: (_, record) => (
-                    <EvaluatorMetricsCell
-                        invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
-                        evaluatorSlug={evaluatorSlug}
-                    />
-                ),
-            })),
-        },
+        ...(evaluatorSlugs.length > 0
+            ? [
+                  {
+                      title: "Evaluators",
+                      key: "evaluators",
+                      align: "start" as const,
+                      children: evaluatorSlugs.map((evaluatorSlug) => ({
+                          title: null,
+                          key: evaluatorSlug,
+                          onHeaderCell: () => ({style: {display: "none"}}),
+                          render: (_: unknown, record: TraceSpanNode) => (
+                              <EvaluatorMetricsCell
+                                  invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
+                                  evaluatorSlug={evaluatorSlug}
+                              />
+                          ),
+                      })),
+                  },
+              ]
+            : []),
         {
             title: "Duration",
             key: "duration",
             dataIndex: ["time", "span"],
-            width: 90,
+            width: 150,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 150},
             }),
             render: (_, record) => {
                 const duration = getLatency(record)
@@ -148,9 +171,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Cost",
             key: "cost",
             dataIndex: ["attributes", "ag", "metrics", "costs", "cumulative", "total"],
-            width: 90,
+            width: 150,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 150},
             }),
             render: (_, record) => {
                 const cost = getCost(record)
@@ -161,9 +184,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Usage",
             key: "usage",
             dataIndex: ["attributes", "ag", "metrics", "tokens", "cumulative", "total"],
-            width: 90,
+            width: 150,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 150},
             }),
             render: (_, record) => {
                 const tokens = getTokens(record)
@@ -195,7 +218,25 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                     showMore: true,
                 }),
         },
+        {
+            title: <ColumnVisibilityMenuTrigger variant="icon" label="Edit columns" />,
+            key: "actions",
+            width: 61,
+            fixed: "right",
+            align: "center",
+            columnVisibilityLocked: true,
+            exportEnabled: false,
+            onHeaderCell: () => ({
+                style: {minWidth: 56},
+            }),
+            render: () => null,
+        },
     ]
 
     return columns
 }
+
+export const getDefaultHiddenObservabilityColumnKeys = ({
+    evaluatorSlugs,
+}: ObservabilityColumnsProps) =>
+    collectDefaultHiddenColumnKeys(getObservabilityColumns({evaluatorSlugs}))

@@ -3,11 +3,7 @@ import type {MouseEvent} from "react"
 import {Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {
-    testsetsDateCreatedFilterAtom,
-    testsetsDateModifiedFilterAtom,
-    testsetsFiltersSummaryAtom,
-} from "../atoms/filters"
+import {getTestsetTableState, type TestsetTableMode} from "@/oss/state/entities/testset"
 
 const formatDateLabel = (value?: string | null) => {
     if (!value) return null
@@ -22,10 +18,21 @@ const formatDateLabel = (value?: string | null) => {
     }
 }
 
-const TestsetsFiltersSummary = () => {
-    const summary = useAtomValue(testsetsFiltersSummaryAtom)
-    const setDateCreatedFilter = useSetAtom(testsetsDateCreatedFilterAtom)
-    const setDateModifiedFilter = useSetAtom(testsetsDateModifiedFilterAtom)
+interface TestsetsFiltersSummaryProps {
+    tableMode?: TestsetTableMode
+}
+
+const TestsetsFiltersSummary = ({tableMode = "active"}: TestsetsFiltersSummaryProps) => {
+    const tableState = getTestsetTableState(tableMode)
+    const dateCreated = useAtomValue(tableState.dateCreatedFilterAtom)
+    const dateModified = useAtomValue(tableState.dateModifiedFilterAtom)
+    const setDateCreatedFilter = useSetAtom(tableState.dateCreatedFilterAtom)
+    const setDateModifiedFilter = useSetAtom(tableState.dateModifiedFilterAtom)
+    const summary = {
+        dateCreated,
+        dateModified,
+        hasFilters: Boolean(dateCreated || dateModified),
+    }
 
     const handleRemoveDateCreated = (event: MouseEvent) => {
         event.preventDefault()

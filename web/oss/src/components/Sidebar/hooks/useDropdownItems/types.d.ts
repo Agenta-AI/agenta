@@ -1,4 +1,6 @@
-import {Org, OrgDetails, User} from "@/oss/lib/Types"
+import type {User} from "@agenta/shared/types"
+
+import {Org, OrgDetails} from "@/oss/lib/Types"
 import {ProjectsResponse} from "@/oss/services/project/types"
 
 export interface UseDropdownItemsProps {

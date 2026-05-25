@@ -49,7 +49,7 @@ const EVALUATOR_RESULT_CARD_SELECTOR = ".node-result-card"
 // Row context menu
 const EVALUATOR_ROW_MENU_TRIGGER_ARIA = "more"
 const EVALUATOR_EDIT_MENU_ITEM = "Configure"
-const EVALUATOR_DELETE_MENU_ITEM = "Delete"
+const EVALUATOR_DELETE_MENU_ITEM = "Archive"
 
 // Edit flow (commit changes)
 const EVALUATOR_COMMIT_CHANGES_BUTTON_LABEL = "Commit"
@@ -57,8 +57,8 @@ const EVALUATOR_COMMIT_MESSAGE_PLACEHOLDER = "Describe your changes..."
 const EVALUATOR_COMMIT_SUCCESS_MESSAGE = "Changes committed successfully"
 
 // Delete flow
-const EVALUATOR_DELETE_MODAL_TITLE = "Delete evaluator"
-const EVALUATOR_DELETE_SUCCESS_MESSAGE = "Evaluator deleted"
+const EVALUATOR_DELETE_MODAL_TITLE = "Archive evaluator"
+const EVALUATOR_DELETE_SUCCESS_MESSAGE = "Evaluator archived"
 
 // Human evaluator drawer (create)
 const HUMAN_EVALUATOR_DRAWER_TITLE = "Create new evaluator"
@@ -495,8 +495,8 @@ const editEvaluatorAndSaveNewVersion = async (page: Page, evaluatorName: string)
 }
 
 /**
- * Opens the row menu for an evaluator, clicks "Delete", confirms in the
- * DeleteEvaluatorsModal, and verifies the row disappears.
+ * Opens the row menu for an evaluator, clicks "Archive", confirms in the
+ * archive modal, and verifies the row disappears from the active table.
  */
 const deleteEvaluator = async (page: Page, evaluatorName: string) => {
     await openEvaluatorRowMenu(page, evaluatorName)

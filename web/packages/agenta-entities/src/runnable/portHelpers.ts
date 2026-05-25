@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import {isValidTemplateVariable} from "@agenta/shared/utils"
+import {isValidTemplateVariable, KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 
 import type {RunnablePort} from "../shared"
 
@@ -109,13 +109,17 @@ export function extractLastPathSegment(key: string): string {
 /**
  * Format a key as a human-readable name.
  * Strips path syntax (JSONPath / JSON Pointer / dot notation) to the last
- * segment, then converts snake_case and camelCase to Title Case.
+ * segment, then splits snake_case and camelCase into spaces.
+ *
+ * Does NOT auto-capitalize the first letter — user-authored keys preserve
+ * their original casing. `outputs` stays `outputs`; the only mechanical
+ * transformations applied are path stripping and word splitting.
  */
 export function formatKeyAsName(key: string): string {
-    return extractLastPathSegment(key)
+    const label = extractLastPathSegment(key)
         .replace(/_/g, " ")
         .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/^./, (str) => str.toUpperCase())
+    return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 // ============================================================================
@@ -176,6 +180,7 @@ interface ParsedTemplateExpression {
  *   `/outputs/score`            → {envelope: "outputs",   key: "score"}
  *   `country`                   → {envelope: "inputs",    key: "country"}   (default slot)
  *   `inputs.country`            → {envelope: "inputs",    key: "country"}
+ *   `user.name`                 → {envelope: "inputs",    key: "user",    subPath: "name"}
  *
  * Validation is performed upstream in `groupTemplateVariables` via
  * `isValidTemplateVariable`, so this parser can assume the envelope
@@ -214,14 +219,23 @@ function parseTemplateExpression(expr: string): ParsedTemplateExpression {
         }
     }
 
-    // Dot notation (no $/) — also envelope-scoped if the first segment
-    // happens to name a known slot. Otherwise single-segment name →
-    // defaults to the `inputs` slot (most common author intent).
+    // Dot notation (no $/) — envelope-scoped only when the first segment
+    // names a known slot (e.g. `inputs.country`). Plain dotted names like
+    // `user.name` would otherwise be misclassified as `{envelope: "user",
+    // key: "name"}` and get dropped by consumers that materialize only
+    // `envelope === "inputs"`. Treat them as inputs-scoped sub-path
+    // references (`{envelope: "inputs", key: "user", subPath: "name"}`),
+    // matching how `$.inputs.user.name` parses.
     if (expr.includes(".")) {
         const tokens = expr.split(".").filter(Boolean)
         if (tokens.length === 0) return {envelope: "inputs", key: ""}
         if (tokens.length === 1) return {envelope: "inputs", key: tokens[0]}
-        return parseSegments(tokens)
+        if (KNOWN_ENVELOPE_SLOTS.has(tokens[0])) return parseSegments(tokens)
+        return {
+            envelope: "inputs",
+            key: tokens[0],
+            subPath: tokens.slice(1).join("."),
+        }
     }
 
     // Plain name — inputs slot, single field.
@@ -360,7 +374,7 @@ export function extractOutputPortsFromSchema(schema: unknown): RunnablePort[] {
         return [
             {
                 key: "output",
-                name: "Output",
+                name: "output",
                 type: s.type as string,
                 schema,
             },
@@ -373,7 +387,7 @@ export function extractOutputPortsFromSchema(schema: unknown): RunnablePort[] {
         return [
             {
                 key: "output",
-                name: "Output",
+                name: "output",
                 type: "unknown",
                 schema,
             },

@@ -1,0 +1,1 @@
+{"parameters":[{"name":"ag_type","in":"path","required":true,"schema":{"type":"string","title":"Ag Type"}}]}

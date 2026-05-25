@@ -1,6 +1,7 @@
 import {useCallback} from "react"
 
-import {archiveWorkflow, invalidateWorkflowsListCache} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {message} from "@agenta/ui/app-message"
 import {Modal} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -19,7 +20,7 @@ import {
 
 const DeleteAppModal = (props = {}) => {
     const router = useRouter()
-    const {open, appDetails, confirmLoading} = useAtomValue(deleteAppModalAtom)
+    const {open, appDetails, confirmLoading, onArchived} = useAtomValue(deleteAppModalAtom)
     const closeModal = useSetAtom(closeDeleteAppModalAtom)
     const setLoading = useSetAtom(setDeleteAppModalLoadingAtom)
     const {mutate: mutateApps} = useAppsData()
@@ -31,10 +32,11 @@ const DeleteAppModal = (props = {}) => {
         setLoading(true)
         try {
             const {projectId} = getProjectValues()
-            await archiveWorkflow(projectId, appDetails.id)
-            invalidateWorkflowsListCache()
-            await mutateApps()
+            await workflowMolecule.lifecycle.archive(appDetails.id, {projectId})
+            await mutateApps?.()
             await invalidateAppManagementWorkflowQueries()
+            await onArchived?.(appDetails)
+            message.success("App archived")
             closeModal()
             if (router.pathname.includes("/apps/")) {
                 await router.push(baseAppURL)
@@ -44,23 +46,23 @@ const DeleteAppModal = (props = {}) => {
         } finally {
             setLoading(false)
         }
-    }, [appDetails, setLoading, mutateApps, closeModal, router])
+    }, [appDetails, setLoading, mutateApps, onArchived, closeModal, router, baseAppURL])
 
     return (
         <Modal
-            title="Are you sure?"
+            title="Archive prompt?"
             confirmLoading={confirmLoading}
-            okText="Yes"
+            okText="Archive"
             okButtonProps={{disabled: !appDetails}}
             onCancel={closeModal}
-            cancelText="No"
+            cancelText="Cancel"
             onOk={handleDeleteOk}
             destroyOnHidden
             centered
             {...props}
             open={open}
         >
-            <p>Are you sure you want to archive {appDetails?.name}?</p>
+            <p>{appDetails?.name} will move to archived prompts.</p>
         </Modal>
     )
 }

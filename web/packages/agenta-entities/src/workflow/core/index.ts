@@ -50,6 +50,7 @@ export {
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
     isOnlineCapableEvaluator,
+    hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
     // Output schema utilities
     resolveInputSchema,

@@ -1,0 +1,1 @@
+{"parameters":[{"name":"template_key","in":"path","required":true,"schema":{"type":"string","title":"Template Key"}},{"name":"include_archived","in":"query","required":false,"schema":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Include Archived"}}]}

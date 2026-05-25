@@ -1,7 +1,8 @@
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {workflowAppTypeAtomFamily} from "@agenta/entities/workflow"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {createStandardColumns} from "@agenta/ui/table"
-import {Note, Rocket, Trash} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, Note, Rocket, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -44,9 +45,19 @@ export interface AppWorkflowColumnActions {
     onOpen: (record: AppWorkflowRow) => void
     onOpenPlayground: (record: AppWorkflowRow) => void
     onDelete: (record: AppWorkflowRow) => void
+    onRestore?: (record: AppWorkflowRow) => void
 }
 
-export function createAppWorkflowColumns(actions: AppWorkflowColumnActions) {
+export interface AppWorkflowColumnOptions {
+    mode?: "active" | "archived"
+}
+
+export function createAppWorkflowColumns(
+    actions: AppWorkflowColumnActions,
+    {mode = "active"}: AppWorkflowColumnOptions = {},
+) {
+    const isArchived = mode === "archived"
+
     return createStandardColumns<AppWorkflowRow>([
         {
             type: "text",
@@ -71,30 +82,70 @@ export function createAppWorkflowColumns(actions: AppWorkflowColumnActions) {
                 </div>
             ),
         },
+        ...(isArchived
+            ? [
+                  {
+                      type: "date" as const,
+                      key: "deletedAt",
+                      title: "Archived At",
+                  },
+                  {
+                      type: "text" as const,
+                      key: "deletedById",
+                      title: "Archived By",
+                      render: (_: unknown, record: AppWorkflowRow) => (
+                          <div className="h-full flex items-center">
+                              <UserAuthorLabel
+                                  userId={record.deletedById}
+                                  showPrefix={false}
+                                  showAvatar
+                                  showYouLabel
+                              />
+                          </div>
+                      ),
+                  },
+              ]
+            : []),
         {
             type: "actions",
-            items: [
-                {
-                    key: "open_app",
-                    label: "Open overview",
-                    icon: <Note size={16} />,
-                    onClick: (record) => actions.onOpen(record),
-                },
-                {
-                    key: "open_playground",
-                    label: "Open in playground",
-                    icon: <Rocket size={16} />,
-                    onClick: (record) => actions.onOpenPlayground(record),
-                },
-                {type: "divider"},
-                {
-                    key: "delete_app",
-                    label: "Archive",
-                    icon: <Trash size={16} />,
-                    danger: true,
-                    onClick: (record) => actions.onDelete(record),
-                },
-            ],
+            items: isArchived
+                ? [
+                      {
+                          key: "open_app",
+                          label: "Open overview",
+                          icon: <Note size={16} />,
+                          onClick: (record) => actions.onOpen(record),
+                      },
+                      {type: "divider"},
+                      {
+                          key: "restore_app",
+                          label: "Restore",
+                          icon: <ArrowCounterClockwise size={16} />,
+                          onClick: (record) => actions.onRestore?.(record),
+                      },
+                  ]
+                : [
+                      {
+                          key: "open_app",
+                          label: "Open overview",
+                          icon: <Note size={16} />,
+                          onClick: (record) => actions.onOpen(record),
+                      },
+                      {
+                          key: "open_playground",
+                          label: "Open in playground",
+                          icon: <Rocket size={16} />,
+                          onClick: (record) => actions.onOpenPlayground(record),
+                      },
+                      {type: "divider"},
+                      {
+                          key: "delete_app",
+                          label: "Archive",
+                          icon: <Trash size={16} />,
+                          danger: true,
+                          onClick: (record) => actions.onDelete(record),
+                      },
+                  ],
             showCopyId: false,
         },
     ])

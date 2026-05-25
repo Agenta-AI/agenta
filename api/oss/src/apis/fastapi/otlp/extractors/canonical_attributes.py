@@ -17,7 +17,7 @@ class SpanFeatures(BaseModel):
     references: Dict[str, Any] = Field(
         default_factory=dict
     )  # references, to be used with tracing
-    links: List[Any] = Field(default_factory=list)
+    links: Optional[List[Any]] = None
     exception: Dict[str, Any] = Field(default_factory=dict)
     type: Dict[str, Any] = Field(default_factory=dict)
     flags: Dict[str, Any] = Field(default_factory=dict)
@@ -63,7 +63,7 @@ class CanonicalAttributes(BaseModel):
 
     # Structured events and links
     events: List[EventData] = Field(default_factory=list)
-    links: List[LinkData] = Field(default_factory=list)
+    links: Optional[List[LinkData]] = None
 
     # Helper methods (can be added if common access patterns emerge for adapters)
     # For example, a method to get all 'ag.*' prefixed attributes from span_attributes

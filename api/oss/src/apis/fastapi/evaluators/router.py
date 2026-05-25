@@ -8,6 +8,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
 
+from oss.src.core.events.utils import publish_revision_event
+
 from oss.src.core.git.types import VariantForkError
 from oss.src.core.shared.dtos import (
     Reference,
@@ -121,6 +123,12 @@ def _registry_entry_to_catalog_template(
 
 
 class EvaluatorsRouter:
+    # `evaluators.revisions.{retrieved,fetched,queried,logged}` READ events
+    # are emitted from this router after each handler materializes its
+    # response. `evaluators.revisions.committed` is a WRITE event and is
+    # emitted from `EvaluatorsService.commit_evaluator_revision`, not from
+    # this router. See core/events/utils.py module docstring for the
+    # read-vs-write split rationale.
     def __init__(
         self,
         *,
@@ -437,6 +445,13 @@ class EvaluatorsRouter:
     async def list_evaluator_catalog_types(
         self,
     ) -> EvaluatorCatalogTypesResponse:
+        """List the JSON schema types the evaluator catalog understands.
+
+        Types are static metadata shipped with the product. Use this when
+        rendering a catalog UI or validating that a template's schema is
+        supported. See the Evaluators guide for how the catalog relates
+        to user-owned evaluator artifacts.
+        """
         types = [
             EvaluatorCatalogType(**type_data.model_dump())
             for type_data in get_workflow_catalog_types()
@@ -456,6 +471,14 @@ class EvaluatorsRouter:
         *,
         include_archived: Optional[bool] = None,
     ) -> EvaluatorCatalogTemplatesResponse:
+        """List evaluator templates from the catalog.
+
+        Templates are blueprints that describe an evaluator's handler
+        URI, JSON schemas, and default configuration. Pass
+        `include_archived=true` to include deprecated templates. Use the
+        returned `key` with `/catalog/templates/{template_key}/presets/`
+        to list its presets.
+        """
         templates = [
             _registry_entry_to_catalog_template(entry)
             for entry in get_filtered_workflow_catalog_templates(is_evaluator=True)
@@ -476,6 +499,12 @@ class EvaluatorsRouter:
         *,
         template_key: str,
     ) -> EvaluatorCatalogTemplateResponse:
+        """Fetch one evaluator template by key.
+
+        Returns an empty envelope (`count: 0`) when no template matches
+        the key. Template keys come from
+        `GET /catalog/templates/`.
+        """
         entry = get_workflow_catalog_template(
             template_key=template_key,
             is_evaluator=True,
@@ -497,6 +526,12 @@ class EvaluatorsRouter:
         template_key: str,
         include_archived: Optional[bool] = None,
     ) -> EvaluatorCatalogPresetsResponse:
+        """List presets defined against one evaluator template.
+
+        A preset is a named set of parameter values pre-filled against
+        the template. Use the returned `key` to fetch a specific preset
+        via `GET /catalog/templates/{template_key}/presets/{preset_key}`.
+        """
         presets = [
             EvaluatorCatalogPreset(**preset.model_dump())
             for preset in get_filtered_workflow_catalog_presets(
@@ -521,6 +556,12 @@ class EvaluatorsRouter:
         template_key: str,
         preset_key: str,
     ) -> EvaluatorCatalogPresetResponse:
+        """Fetch one evaluator preset by template and preset key.
+
+        Presets are not separate entities; they are metadata. Use the
+        returned preset payload as the starting point when creating a
+        new evaluator from a template. See the Evaluators guide.
+        """
         preset_data = get_workflow_catalog_preset(
             template_key=template_key,
             preset_key=preset_key,
@@ -546,6 +587,14 @@ class EvaluatorsRouter:
         #
         evaluator_create_request: EvaluatorCreateRequest,
     ) -> EvaluatorResponse:
+        """Create an evaluator artifact, its first variant, and its initial revision.
+
+        Use this endpoint when you already know you want to manage the
+        artifact / variant / revision layers independently. For a
+        one-shot "create and forget" call that returns a flat record,
+        see `POST /simple/evaluators/`. See the Versioning guide for
+        commit semantics.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -576,6 +625,12 @@ class EvaluatorsRouter:
         *,
         evaluator_id: UUID,
     ) -> EvaluatorResponse:
+        """Fetch an evaluator artifact by id.
+
+        Returns the artifact-level record (slug, name, flags, lifecycle)
+        without variant or revision data. Use the variant and revision
+        endpoints to retrieve those layers.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -604,6 +659,13 @@ class EvaluatorsRouter:
         #
         evaluator_edit_request: EvaluatorEditRequest,
     ) -> EvaluatorResponse:
+        """Edit an evaluator artifact's metadata.
+
+        Edits are limited to metadata fields (description, tags, meta).
+        Renaming is temporarily disabled and returns 400. To change
+        evaluator behavior, commit a new revision on the variant — see
+        `/evaluators/revisions/commit`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -655,6 +717,12 @@ class EvaluatorsRouter:
         *,
         evaluator_id: UUID,
     ) -> EvaluatorResponse:
+        """Soft-delete an evaluator artifact.
+
+        Sets `deleted_at` on the evaluator and hides it from subsequent
+        `/query` responses unless `include_archived=true`. Revision IDs
+        remain resolvable so historical traces stay intact.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -682,6 +750,11 @@ class EvaluatorsRouter:
         *,
         evaluator_id: UUID,
     ) -> EvaluatorResponse:
+        """Restore a soft-deleted evaluator artifact.
+
+        Clears `deleted_at` on the evaluator so it re-appears in `/query`
+        responses.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -710,6 +783,13 @@ class EvaluatorsRouter:
         *,
         evaluator_query_request: EvaluatorQueryRequest,
     ) -> EvaluatorsResponse:
+        """Query evaluator artifacts with filters and pagination.
+
+        Returns artifact-level records only. The request body follows
+        the shared query pattern (filter + refs + windowing). Send `{}`
+        to list all evaluators in the project. See the Query Pattern
+        guide.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -746,6 +826,12 @@ class EvaluatorsRouter:
         *,
         evaluator_variant_create_request: EvaluatorVariantCreateRequest,
     ) -> EvaluatorVariantResponse:
+        """Create a new variant on an existing evaluator.
+
+        A variant is a named branch of the evaluator's history. New
+        revisions committed to this variant do not touch other variants.
+        See the Versioning guide.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -775,6 +861,12 @@ class EvaluatorsRouter:
         *,
         evaluator_variant_id: UUID,
     ) -> EvaluatorVariantResponse:
+        """Fetch an evaluator variant by id.
+
+        Returns the variant record (slug, flags, lifecycle) without the
+        committed revisions. Use `/evaluators/revisions/retrieve` to
+        read the variant's current revision payload.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -805,6 +897,12 @@ class EvaluatorsRouter:
         #
         evaluator_variant_edit_request: EvaluatorVariantEditRequest,
     ) -> EvaluatorVariantResponse:
+        """Edit a variant's metadata.
+
+        Edits only touch variant-level metadata. To change evaluator
+        behavior commit a new revision via
+        `/evaluators/revisions/commit`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -839,6 +937,12 @@ class EvaluatorsRouter:
         *,
         evaluator_variant_id: UUID,
     ) -> EvaluatorVariantResponse:
+        """Soft-delete an evaluator variant.
+
+        Sets `deleted_at` on the variant. Its revisions stay resolvable
+        by id; they are hidden from `/query` unless the caller sets
+        `include_archived=true`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -868,6 +972,7 @@ class EvaluatorsRouter:
         *,
         evaluator_variant_id: UUID,
     ) -> EvaluatorVariantResponse:
+        """Restore a soft-deleted evaluator variant."""
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -899,6 +1004,12 @@ class EvaluatorsRouter:
             parse_evaluator_variant_query_request_from_params
         ),
     ) -> EvaluatorVariantsResponse:
+        """Query evaluator variants with filters, reference scoping, and pagination.
+
+        Accepts parameters from both the query string and a JSON body;
+        the two are merged. Use `evaluator_refs` to scope to one or more
+        evaluators, or `evaluator_variant_refs` for specific variants.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -955,6 +1066,13 @@ class EvaluatorsRouter:
         #
         evaluator_variant_fork_request: EvaluatorForkRequest,
     ):
+        """Fork an evaluator variant into a new variant.
+
+        Creates a new branch whose initial revision is copied from the
+        source. Use this to experiment without touching the original.
+        The returned variant has a fresh id and slug but inherits
+        lineage metadata from its source.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1004,6 +1122,15 @@ class EvaluatorsRouter:
         *,
         evaluator_deploy_request: EvaluatorRevisionDeployRequest,
     ) -> EvaluatorRevisionResponse:
+        """Pin an evaluator revision into an environment revision under a key.
+
+        Requires an evaluator ref (`evaluator_ref`,
+        `evaluator_variant_ref`, or `evaluator_revision_ref`) and an
+        environment ref. When `key` is omitted it defaults to
+        `<evaluator_slug>.revision`. The deployment is recorded as a
+        new commit on the environment revision. See the Evaluators
+        guide for the deployment model.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1156,6 +1283,16 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_retrieve_request: EvaluatorRevisionRetrieveRequest,
     ) -> EvaluatorRevisionResponse:
+        """Retrieve one evaluator revision, either directly or via an environment key.
+
+        Provide one of:
+        an evaluator / variant / revision reference (returns that
+        revision, or the latest revision on the variant or evaluator),
+        or an environment reference plus `key` (returns the revision
+        currently pinned to that key). Supplying both forms returns 400.
+        Pass `resolve=true` to expand embedded references on the
+        returned payload.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1256,6 +1393,14 @@ class EvaluatorsRouter:
             resolution_info=resolution_info,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="evaluator",
+            action="retrieve",
+            revision=evaluator_revision_response.evaluator_revision,
+            count=evaluator_revision_response.count,
+        )
+
         return evaluator_revision_response
 
     @intercept_exceptions()
@@ -1265,6 +1410,12 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_create_request: EvaluatorRevisionCreateRequest,
     ) -> EvaluatorRevisionResponse:
+        """Create a new revision on an evaluator variant.
+
+        Prefer `/evaluators/revisions/commit` for the standard commit
+        flow. This endpoint exists for internal create paths that need
+        to insert a revision without the commit semantics.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1293,6 +1444,13 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_id: UUID,
     ) -> EvaluatorRevisionResponse:
+        """Fetch a specific evaluator revision by id.
+
+        Returns the full revision including `data` (handler uri,
+        schemas, and parameters). To pick the latest revision on a
+        variant without knowing its id, use
+        `/evaluators/revisions/retrieve`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1307,10 +1465,20 @@ class EvaluatorsRouter:
             evaluator_revision_ref=Reference(id=evaluator_revision_id),
         )
 
-        return EvaluatorRevisionResponse(
+        response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
             evaluator_revision=evaluator_revision,
         )
+
+        await publish_revision_event(
+            request=request,
+            domain="evaluator",
+            action="fetch",
+            revision=response.evaluator_revision,
+            count=response.count,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def edit_evaluator_revision(
@@ -1321,6 +1489,12 @@ class EvaluatorsRouter:
         #
         evaluator_revision_edit_request: EvaluatorRevisionEditRequest,
     ) -> EvaluatorRevisionResponse:
+        """Edit a revision's metadata.
+
+        Revision `data` is immutable once committed. This endpoint is
+        for metadata fields only (description, tags, meta). To change
+        evaluator behavior, commit a new revision instead.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1353,6 +1527,11 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_id: UUID,
     ) -> EvaluatorRevisionResponse:
+        """Soft-delete an evaluator revision.
+
+        Archived revisions remain resolvable by id but are excluded from
+        revision logs and queries unless `include_archived=true`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1380,6 +1559,7 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_id: UUID,
     ) -> EvaluatorRevisionResponse:
+        """Restore a soft-deleted evaluator revision."""
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1408,6 +1588,13 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_query_request: EvaluatorRevisionQueryRequest,
     ) -> EvaluatorRevisionsResponse:
+        """Query evaluator revisions with filters, reference scoping, and pagination.
+
+        Returns revision payloads. Use `evaluator_refs`,
+        `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
+        the query. Pass `resolve=true` to expand embedded references on
+        each revision's `data`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1447,10 +1634,20 @@ class EvaluatorsRouter:
                             f"Failed to resolve embeds for revision {revision.id}: {e}"
                         )
 
-        return EvaluatorRevisionsResponse(
+        response = EvaluatorRevisionsResponse(
             count=len(evaluator_revisions),
             evaluator_revisions=evaluator_revisions,
         )
+
+        await publish_revision_event(
+            request=request,
+            domain="evaluator",
+            action="query",
+            revisions=response.evaluator_revisions or [],
+            count=response.count,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def commit_evaluator_revision(
@@ -1459,6 +1656,12 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_commit_request: EvaluatorRevisionCommitRequest,
     ) -> EvaluatorRevisionResponse:
+        """Commit a new revision on an evaluator variant.
+
+        The commit body carries the target `evaluator_variant_id`, an
+        optional `message`, and the revision `data` (handler uri,
+        schemas, parameters). A committed revision is immutable.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1474,10 +1677,14 @@ class EvaluatorsRouter:
             evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision_commit,
         )
 
-        return EvaluatorRevisionResponse(
+        response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
             evaluator_revision=evaluator_revision,
         )
+
+        # commit emission lives in EvaluatorsService.commit_evaluator_revision
+
+        return response
 
     @intercept_exceptions()
     async def log_evaluator_revisions(
@@ -1486,6 +1693,12 @@ class EvaluatorsRouter:
         *,
         evaluator_revisions_log_request: EvaluatorRevisionsLogRequest,
     ):
+        """List the revision log of an evaluator variant.
+
+        Returns revisions in commit order. Scope the log by supplying
+        an evaluator, variant, or revision reference. Use the retrieve
+        endpoint to fetch a specific revision's full payload.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1505,6 +1718,14 @@ class EvaluatorsRouter:
             evaluator_revisions=evaluator_revisions,
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="evaluator",
+            action="log",
+            revisions=revisions_response.evaluator_revisions or [],
+            count=revisions_response.count,
+        )
+
         return revisions_response
 
     @intercept_exceptions()
@@ -1514,6 +1735,13 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_resolve_request: EvaluatorRevisionResolveRequest,
     ) -> EvaluatorRevisionResolveResponse:
+        """Resolve embedded references on an evaluator revision's `data`.
+
+        Walks embedded references (for example, references to other
+        revisions or to secrets) up to `max_depth` and `max_embeds`.
+        The response includes a `resolution_info` block with counts,
+        depth reached, and errors according to `error_policy`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1646,6 +1874,13 @@ class SimpleEvaluatorsRouter:
         #
         simple_evaluator_create_request: SimpleEvaluatorCreateRequest,
     ) -> SimpleEvaluatorResponse:
+        """Create an evaluator via the simple surface.
+
+        Creates the artifact, its first variant, and its initial
+        revision in one call. Returns the flat evaluator record
+        (latest revision merged into `data`). Use this when you do not
+        need to manage variants or revisions directly.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1678,6 +1913,11 @@ class SimpleEvaluatorsRouter:
         *,
         evaluator_id: UUID,
     ) -> SimpleEvaluatorResponse:
+        """Fetch one evaluator via the simple surface.
+
+        Returns the flat evaluator record including its current variant
+        and revision ids and the merged `data` payload.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1708,6 +1948,12 @@ class SimpleEvaluatorsRouter:
         #
         simple_evaluator_edit_request: SimpleEvaluatorEditRequest,
     ) -> SimpleEvaluatorResponse:
+        """Edit an evaluator via the simple surface.
+
+        Touches metadata and (when `data` is supplied) commits a new
+        revision on the evaluator's variant. Renaming is temporarily
+        disabled and returns 400.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1761,6 +2007,11 @@ class SimpleEvaluatorsRouter:
         *,
         evaluator_id: UUID,
     ) -> SimpleEvaluatorResponse:
+        """Soft-delete an evaluator via the simple surface.
+
+        Archives the underlying artifact. Historical traces that
+        reference specific revision ids remain resolvable.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1790,6 +2041,7 @@ class SimpleEvaluatorsRouter:
         request: Request,
         evaluator_id: UUID,
     ) -> SimpleEvaluatorResponse:
+        """Restore a soft-deleted evaluator via the simple surface."""
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1818,6 +2070,12 @@ class SimpleEvaluatorsRouter:
         self,
         request: Request,
     ) -> SimpleEvaluatorsResponse:
+        """List evaluators via the simple surface.
+
+        Convenience wrapper that calls `query_simple_evaluators` with
+        the default evaluator flag filter. Prefer the query endpoint for
+        pagination and filtering.
+        """
         simple_evaluator_query_request = SimpleEvaluatorQueryRequest(
             evaluator=SimpleEvaluatorQuery(
                 flags=SimpleEvaluatorQueryFlags(
@@ -1840,6 +2098,13 @@ class SimpleEvaluatorsRouter:
         *,
         simple_evaluator_query_request: SimpleEvaluatorQueryRequest,
     ) -> SimpleEvaluatorsResponse:
+        """Query evaluators via the simple surface with filters and pagination.
+
+        Returns flat evaluator records (one per artifact with its
+        latest variant and revision merged into `data`). Send `{}` to
+        list all evaluators in the project. See the Query Pattern
+        guide.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1875,10 +2140,12 @@ class SimpleEvaluatorsRouter:
         *,
         include_archived: bool = False,
     ) -> EvaluatorTemplatesResponse:
-        """
-        Returns the list of built-in evaluator templates.
+        """List the legacy built-in evaluator templates.
 
-        These are static evaluator type definitions (not user-created configs).
+        Returns static evaluator-type definitions shipped with the
+        product. Prefer the `/evaluators/catalog/*` endpoints for new
+        integrations; this endpoint is kept for older clients. Pass
+        `include_archived=true` to include deprecated templates.
         """
         from oss.src.resources.evaluators.evaluators import get_all_evaluators
 

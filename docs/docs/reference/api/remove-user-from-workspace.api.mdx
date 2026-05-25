@@ -5,7 +5,7 @@ description: "Remove a user from a workspace."
 sidebar_label: "Remove User From Workspace"
 hide_title: true
 hide_table_of_contents: true
-api: eJzNVUGP0zwQ/SvWnECy2mXFKSeqb4uoALFaysdht1p5k2ljSGJjTxZK5P+Oxk7SdAsrgThwqmq/eTN+M2/SAamdh+waPhr32VuVI2wkFOhzpy1p00AGV1ibexRKtB6d2DpTCyW+DvjZTXPTLNzOZzeNEEJgrXQlnnhyTzOxLrE/UEXh0HthtoJKTFRkxB0KF+mLFD3S3upiSrK6GCIPiUGCsegUl7kqIIPEdMvct1zm7YgFCVY5VSOh4+d20KgaIYNpPpCg+b1WUQkSHH5ptcMCMnItSvB5ibWCrAPaW4715HSzAwmkqeKDUUOxKiAEOWaJEgz0X1p0+z/iX0aaEDYc7K1pPHrGn5+d8c9x1963eY7eb9tKXPVgkJCbhrAhhitrK51H9eafPMd0hxpCCEHC8/PzU+L/VaWLGCaWzhn3G6xgHXeMdKq7QOIHZR1owtqfAiqTH92qZv9uG9t3LBFL3Z/ohnCHDsImyOFMOaf2Ex3fmFQgBAm13z0m+Vv0Xu0QRrJHusNiiDXfBm61baMgw/UqHgQJOX2b0Ji7T5jThOY/1vIb8fycYA4jcx21SeX3uM2B49Ci1KFfS3GRWvCzZAPk1Xp9eUKY5qNGKg07r8AKKbmMSshgPvrKz7upx8Kc3elBgkd3P5ixdRUHKatjK9Pfksj6bD7HdpZXpi1maocNqZnSCbhhjrx1mvaRZHG5eo37V6gKdJBdb6aA9zyBaaaOYWMflNWvkZXpLbtoqTROf0+D0lu3TFEh9ndrpu1dxOLE4nIFEvhhySxns2ezM3i4UY/AbB6Vx1kZcsdrkA+EGN8Pst8oGRCq+sXhgiuzxlOtmglfv8A/8M59yev742QvHlXWHaz8L6/9vmfsk7mtlI5OjmJ1/QReHzY7D1v2YM+nIdxIKI0nRnfdnfL4wVUh8HHa0TxVhfbqrmLLbVXl8RG9nlz17nwqflXiZ9xPvgb3qmoZE0f5XjnNif5+0mHAm/0051DMkTBxaZaDg7oesshztDQJPtnx/IBxF1ws3yzXSwjhB5uu2Q0=
+api: eJzNVUGP0zwQ/SvWnECy2mXFKSeqb4uoALFaysdht1p5k2ljSGJjTxZK5P+Oxk7SdAsrgThwqmq/eTN+M2/SAamdh+waPhr32VuVo4eNhAJ97rQlbRrI4Aprc49CidajE1tnaqHE1yFgdtPcNAu389lNI4QQWCtdiSee3NNMrEvsD1RROPRemK2gEhMVGXGHwkX6IkWPtLe6mJKsLobIQ2KQYCw6xWWuCsggMd0y9y2XeTtiQYJVTtVI6Pi9HTSqRshgmg8kaH6vVVSCBIdfWu2wgIxcixJ8XmKtIOuA9pZjPTnd7EACaar4YBRRrAoIQY5ZogQD/ZcW3f6P+JeRJoQNB3trGo+e8ednZ/xz3LX3bZ6j99u2Elc9GCTkpiFsiOHK2krnUb35J88x3aGGEEKQ8Pz8/JT4f1XpIoaJpXPG/QYrWMcdI53qLpD4QVkHmrD2p4DK5Ee3qtm/28b2HUvEUvcnuiHcoYOwCXI4U86p/UTHNyYVCEFC7XePSf4WvVc7hJHske6wGGLNt4FbbdsoyHC9igdBQk7fJjTm7hPmNKH5j7X8Rjw/J5jDyFxHbVL5PW5z4Di0KHXo11JcpBb8LNkAebVeX54QpvmokUrDziuwQkouoxIymI++8vNu6rEwZ3d6kODR3Q9mbF3FQcrq2Mr0tySyPpvPsZ3llWmLmdphQ2qmdAJumCNvnaZ9JFlcrl7j/hWqAh1k15sp4D1PYJqpY9jYB2X1a2RlessuWiqN09/ToPTWLVNUiP3dmml7F7E4sbhcwcP9eXTFVlF5nIwhU7wG+eDZh9eC7BdIBoSqfjHecF9Zw5TmbPZsdsZH1niqVTNJ0W/wD7x0X/L+/jhZjEfFdgcv/8t7v28aG2VuK6WjlaN+XT+C14fVztOWPVj0aQo3EkrjidFdd6c8fnBVCHycljSPVaG9uqvYc1tVeXxErydXvT2fil+V+Bn3k8/BvapaxsRZvldOc6K/n3SY8GY/zTkUcyRM3JrlYKGuhyzyHC1Ngk+WPD9gXAYXyzfL9RJC+AE5Admv
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -46,27 +47,24 @@ Args:
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
-  children={"Request"}
 >
+  <Translate id="theme.openapi.request.title">Request</Translate>
 </Heading>
 
 <ParamsDetails
-  parameters={[{"name":"workspace_id","in":"path","required":true,"schema":{"type":"string","title":"Workspace Id"}},{"name":"email","in":"query","required":true,"schema":{"type":"string","title":"Email"}}]}
+  {...require("./remove-user-from-workspace.ParamsDetails.json")}
 >
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./remove-user-from-workspace.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  {...require("./remove-user-from-workspace.StatusCodes.json")}
 >
   
 </StatusCodes>

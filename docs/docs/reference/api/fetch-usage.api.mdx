@@ -5,7 +5,7 @@ description: "Fetch Usage User Route"
 sidebar_label: "Fetch Usage User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJx1Uk2P2jAQ/SvonS1Ce8ypVOoH2stqt5xQVA1mSNwmsWuPUWmU/15NAnRBai6RPW/G72MGCNUJ5Q4fXdu6vkZl4ANHEuf7zQEljiy2+Z4T1QyDyCn4PnFCOeD9aqW/AycbXdAOlHjN1nJKx9wuXi5gGFjfC/eicAqhdXZ6oPiRtGdAsg13hHIY9TMPIz8rhcVWKSy2iePixWfRqR1L45VkzQKDQNKgRLGftRRX0onjiaPKHJBjqxAKDqO5HhuRkMqi4Ly0rc+HJdXcCy3JzcBKZ9gcnZynIevnzROfvzIdOKLcVW8Brypl9uceNkDOgVGCgnviMwx66vS8ztL46P5MlsDAqeZm7lIzXH/0U7uTdsJP5Bbr5w0MVNjs0mr5brnCo3d3YE2B7JTC9e2pDPNgxE0/DLgjpzVh6j78Kyiz4JN01L+Z99+o7ljdrBD+LUVoyfUYLxyGS4w7XGJUclOQlUHjk2hpGPaUeBvbcdTrX5mjJlMZnCg62qtPu2o0Vxs1tJ98VsHWctBlOVGb5zQe1lHDvC3Wl0/fMI5/ASezENQ=
+api: eJx1Uk2P2jAQ/SvonS1Ce8ypVOoH2stqt5xQVA1mSNwmsWuPUWmU/15NAnRBai6RPW9m3ocHCNUJ5Q4fXdu6vkZl4ANHEuf7zQEljiy2+Z4T1QyDyCn4PnFCOeD9aqW/AycbXdAOlHjN1nJKx9wuXi5gGFjfC/eicAqhdXZaUPxI2jMg2YY7QjmM+pmHkZ+VwmKrFBbbxHHx4rPo1I6l8UqyZoFBIGlQotjPWoor6cTxxFFlDsixVQgFh9Fcj41ISGVRcF7a1ufDkmruhZbkZmClM2yOTs7TkPXz5onPX5kOHFHuqreAV5Uy+3MPGyDnwChBwT3xGQY9dXpeZ2l8dH8mS2DgVHMzd6kZrj/6qd1JO+Encov18waPTt2V1HOyk+fXTVMZ5kH2P7Uw4I6cFoWp+3CrYDRQD+c1q+W75Uqvgk/SUf9mxX+zuiN680L4txShJdfruInWcMlxh0uOyndKsjJofBItDcOeEm9jO456/Stz1GgqgxNFR3s1aleN5uqjpvaTz+qBtRz0tZyozXMcD+9R07y9rC+fvmEc/wJ8ohED
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -38,23 +39,18 @@ import Heading from "@theme/Heading";
 
 Fetch Usage User Route
 
-<ParamsDetails
-  parameters={undefined}
->
+<ParamsDetails>
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./fetch-usage.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+  {...require("./fetch-usage.StatusCodes.json")}
 >
   
 </StatusCodes>

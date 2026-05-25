@@ -14,7 +14,9 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import acquire_lock, release_lock, renew_lock
 from oss.src.utils.env import env
 
-from ee.src.utils.billing import compute_billing_period
+from ee.src.utils.entitlements import period_from, scope_from
+from ee.src.core.meters.types import Meters, MeterPeriod
+from oss.src.utils.context import get_auth_scope
 
 from oss.src.services.db_manager import (
     get_user_with_id,
@@ -24,10 +26,17 @@ from oss.src.services.db_manager import (
 from ee.src.services import db_manager_ee
 from ee.src.utils.permissions import check_action_access
 from ee.src.models.shared_models import Permission
-from ee.src.core.entitlements.types import ENTITLEMENTS, CATALOG, Tracker, Quota
-from ee.src.core.subscriptions.types import Event, Plan
+from ee.src.core.entitlements.types import Tracker, Quota, Period, Scope
+from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
+from ee.src.core.subscriptions.settings import (
+    get_catalog,
+    get_pricing,
+    get_pricing_plan,
+    get_stripe_line_items,
+    get_free_plan,
+)
+from ee.src.core.subscriptions.types import Event
 from ee.src.core.meters.service import MetersService
-from ee.src.core.tracing.service import TracingService
 from ee.src.core.subscriptions.service import (
     SubscriptionsService,
     SwitchException,
@@ -92,11 +101,9 @@ class BillingRouter:
         self,
         subscription_service: SubscriptionsService,
         meters_service: MetersService,
-        tracing_service: TracingService,
     ):
         self.subscription_service = subscription_service
         self.meters_service = meters_service
-        self.tracing_service = tracing_service
 
         # ROUTER
         self.router = APIRouter()
@@ -158,6 +165,20 @@ class BillingRouter:
             operation_id="fetch_usage",
         )
 
+        self.router.add_api_route(
+            "/catalog",
+            self.fetch_catalog,
+            methods=["GET"],
+            operation_id="fetch_billing_catalog",
+        )
+
+        self.router.add_api_route(
+            "/pricing",
+            self.fetch_pricing,
+            methods=["GET"],
+            operation_id="fetch_billing_pricing",
+        )
+
         # ADMIN ROUTER
         self.admin_router = APIRouter()
 
@@ -165,28 +186,24 @@ class BillingRouter:
             "/stripe/portals/",
             self.create_portal_admin_route,
             methods=["POST"],
-            operation_id="admin_create_portal",
         )
 
         self.admin_router.add_api_route(
             "/stripe/checkouts/",
             self.create_checkout_admin_route,
             methods=["POST"],
-            operation_id="admin_create_checkout",
         )
 
         self.admin_router.add_api_route(
             "/plans/switch",
             self.switch_plans_admin_route,
             methods=["POST"],
-            operation_id="admin_switch_plans",
         )
 
         self.admin_router.add_api_route(
             "/subscription/cancel",
             self.cancel_subscription_admin_route,
             methods=["POST"],
-            operation_id="admin_cancel_subscription",
         )
 
         # DOESN'T REQUIRE 'organization_id'
@@ -194,21 +211,12 @@ class BillingRouter:
             "/usage/report",
             self.report_usage,
             methods=["POST"],
-            operation_id="admin_report_usage",
         )
 
         self.admin_router.add_api_route(
             "/usage/report/unlock",
             self.unlock_report_usage,
             methods=["POST"],
-            operation_id="admin_unlock_report_usage",
-        )
-
-        self.admin_router.add_api_route(
-            "/usage/flush",
-            self.flush_usage,
-            methods=["POST"],
-            operation_id="admin_flush_usage",
         )
 
     async def _reset_organization_flags(self, organization_id: str) -> None:
@@ -385,7 +393,32 @@ class BillingRouter:
                         },
                     )
 
-                plan = Plan(_stripe_get(metadata, "plan"))
+                plan = _stripe_get(metadata, "plan")
+                if not plan:
+                    log.warn(
+                        "Skipping stripe event: %s (missing plan metadata)",
+                        stripe_event.type,
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "status": "error",
+                            "message": "Missing plan metadata on Stripe event",
+                        },
+                    )
+                if plan not in get_plans():
+                    log.warn(
+                        "Skipping stripe event: %s (unknown plan %s)",
+                        stripe_event.type,
+                        plan,
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "status": "error",
+                            "message": f"Unknown plan '{plan}'",
+                        },
+                    )
 
                 if not _stripe_has(stripe_event.data.object, "billing_cycle_anchor"):
                     log.warn("Skipping stripe event: %s (no anchor)", stripe_event.type)
@@ -478,7 +511,7 @@ class BillingRouter:
     async def create_checkout(
         self,
         organization_id: str,
-        plan: Plan,
+        plan: str,
         success_url: str,
     ):
         # No-op if Stripe is disabled
@@ -488,10 +521,17 @@ class BillingRouter:
                 content={"status": "ok", "message": "Stripe not configured"},
             )
 
-        if plan.name not in Plan.__members__.keys():
+        if plan not in get_plans():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid plan",
+            )
+
+        line_items = get_stripe_line_items(plan)
+        if not line_items:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Plan '{plan}' is not available for purchase (no Stripe line items configured).",
             )
 
         subscription = await self.subscription_service.read(
@@ -565,13 +605,13 @@ class BillingRouter:
             tax_id_collection={"enabled": True},
             #
             customer=subscription.customer_id,
-            line_items=list(env.stripe.pricing[plan].values()),
+            line_items=line_items,
             #
             subscription_data={
                 # "billing_cycle_anchor": anchor,
                 "metadata": {
                     "organization_id": organization_id,
-                    "plan": plan.value,
+                    "plan": plan,
                     "target": env.stripe.webhook_target,
                 },
             },
@@ -595,12 +635,12 @@ class BillingRouter:
         if not subscription:
             key = None
         else:
-            key = subscription.plan.value
+            key = subscription.plan
 
-        for plan in CATALOG:
-            if plan["type"] == "standard":
+        for plan in get_catalog():
+            if plan.get("type") == "standard":
                 plans.append(plan)
-            elif plan["type"] == "custom" and plan["plan"] == key:
+            elif plan.get("type") == "custom" and plan.get("plan") == key:
                 plans.append(plan)
 
         return plans
@@ -608,10 +648,10 @@ class BillingRouter:
     async def switch_plans(
         self,
         organization_id: str,
-        plan: Plan,
+        plan: str,
         # force: bool,
     ):
-        if plan.name not in Plan.__members__.keys():
+        if plan not in get_plans():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid plan",
@@ -621,7 +661,7 @@ class BillingRouter:
             subscription = await self.subscription_service.process_event(
                 organization_id=organization_id,
                 event=Event.SUBSCRIPTION_SWITCHED,
-                plan=plan.value,
+                plan=plan,
                 # force=force,
             )
 
@@ -674,11 +714,11 @@ class BillingRouter:
         anchor = subscription.anchor
 
         _status: Dict[str, Any] = dict(
-            plan=plan.value,
+            plan=plan,
             type="standard",
         )
 
-        if plan == Plan.CLOUD_V0_HOBBY:
+        if plan == get_free_plan():
             return _status
 
         # Self-hosted / non-Stripe plans still need a subscription status shape
@@ -856,11 +896,12 @@ class BillingRouter:
             content={"status": "success"},
         )
 
-    async def fetch_usage(
-        self,
-        organization_id: str,
-    ):
-        now = datetime.now(timezone.utc)
+    async def fetch_usage(self):
+        # Identity comes from the ambient AuthScope (set by the auth
+        # middleware). The route wrapper has already done permission
+        # checks; no path/query params for tenant identity — that would
+        # introduce a path-param-vs-ambient mismatch surface.
+        organization_id = str(get_auth_scope().organization_id)
 
         subscription = await self.subscription_service.read(
             organization_id=organization_id,
@@ -873,46 +914,105 @@ class BillingRouter:
             )
 
         plan = subscription.plan
-        anchor_day = subscription.anchor
-        anchor_year, anchor_month = compute_billing_period(now=now, anchor=anchor_day)
 
-        entitlements = ENTITLEMENTS.get(plan)
-
-        if not entitlements:
+        if not plan:
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
                 content={"status": "error", "message": "Plan not found"},
             )
 
-        meters = await self.meters_service.fetch(
-            organization_id=organization_id,
-        )
+        entitlements = get_plan_entitlements(plan)
+
+        # `None` means the plan is unknown — 404 the request. `{}` means the
+        # plan exists but defines no enforced trackers (description-only,
+        # display-only plan). In that case we return an empty usage map.
+        if entitlements is None:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"status": "error", "message": "Entitlements not found"},
+            )
 
         usage = {}
 
+        # Per-caller usage: read the single meter row matching the
+        # caller's ambient scope projected to the granularity each quota
+        # declares (`scope_from(scope=quota.scope)` mirrors the helper
+        # `check_entitlements` uses, so numerator and denominator stay
+        # at the same scope). Avoids the previous bug where a per-user
+        # DAILY counter was summed across users but reported against a
+        # per-user `limit`.
         for tracker in [Tracker.COUNTERS, Tracker.GAUGES]:
-            for key in list(entitlements[tracker].keys()):
-                quota: Quota = entitlements[tracker][key]
-                value = 0
+            tracker_entries = entitlements.get(tracker) or {}
+            for key in list(tracker_entries.keys()):
+                quota: Quota = tracker_entries[key]
 
-                for meter in meters:
-                    if meter.key == key:
-                        # Gauges use month=0 (non-periodic), always match
-                        if meter.month == 0:
-                            value = meter.value
-                        # Counters: match both year and month for the current billing period
-                        elif meter.year == anchor_year and meter.month == anchor_month:
-                            value = meter.value
+                _scope = scope_from(scope=quota.scope)
+
+                if quota.period is None:
+                    _period = MeterPeriod()
+                elif quota.period == Period.MONTHLY:
+                    _period = period_from(
+                        period=Period.MONTHLY,
+                        anchor=subscription.anchor,
+                    )
+                else:
+                    _period = period_from(period=quota.period)
+
+                # Some entitlement counters are retention-only and have no
+                # corresponding `Meters` row (e.g. `Counter.EVENTS_INGESTED`
+                # exists for retention enforcement but is never written as a
+                # meter). Treat those as zero-usage rather than crashing.
+                try:
+                    meter_key = Meters[key.name]
+                except KeyError:
+                    rows = []
+                else:
+                    rows = await self.meters_service.fetch(
+                        scope=_scope,
+                        key=meter_key,
+                        period=_period,
+                    )
+                value = (rows[0].value if rows else 0) or 0
 
                 usage[key] = {
                     "value": value,
                     "limit": quota.limit,
                     "free": quota.free,
-                    "monthly": quota.monthly is True,
+                    "period": quota.period.value if quota.period else None,
+                    "scope": (
+                        quota.scope.value
+                        if quota.scope is not None
+                        else Scope.ORGANIZATION.value
+                    ),
                     "strict": quota.strict is True,
                 }
 
         return usage
+
+    async def fetch_catalog(self) -> list[Dict[str, Any]]:
+        """Return the effective billing catalog with pricing merged in.
+
+        Each entry carries `title`, `description`, `plan`, `type`, `features`,
+        and (when configured) a `price` block sourced from the matching
+        `AGENTA_BILLING_PRICING` entry. Pre-joining avoids a client-side
+        catalog × pricing merge by slug.
+        """
+        merged: list[Dict[str, Any]] = []
+        for entry in get_catalog():
+            item = dict(entry)
+            price = get_pricing_plan(entry.get("plan"))
+            if price is not None:
+                item["price"] = price
+            merged.append(item)
+        return merged
+
+    async def fetch_pricing(self) -> Dict[str, Dict[str, Any]]:
+        """Return the effective pricing map: plan slug -> normalized pricing.
+
+        Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
+        (see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+        """
+        return get_pricing()
 
     @intercept_exceptions()
     async def report_usage(
@@ -1021,70 +1121,6 @@ class BillingRouter:
             content={"status": "noop", "released": False},
         )
 
-    @intercept_exceptions()
-    async def flush_usage(
-        self,
-    ):
-        log.info("[flush] [endpoint] Trigger")
-
-        try:
-            lock_owner = await acquire_lock(
-                namespace="spans:flush",
-                key={},
-                ttl=3600,  # 1 hour
-                strict=True,
-            )
-
-            if not lock_owner:
-                log.info("[flush] [endpoint] Skipped (ongoing)")
-                return JSONResponse(
-                    status_code=status.HTTP_200_OK,
-                    content={"status": "skipped"},
-                )
-
-            log.info("[flush] [endpoint] Lock acquired")
-
-            try:
-                log.info("[flush] [endpoint] Retention started")
-                await self.tracing_service.flush_spans()
-                log.info("[flush] [endpoint] Retention completed")
-
-                return JSONResponse(
-                    status_code=status.HTTP_200_OK,
-                    content={"status": "success"},
-                )
-
-            except Exception:
-                log.error(
-                    "[flush] [endpoint] Retention failed:",
-                    exc_info=True,
-                )
-                return JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    content={"status": "error", "message": "Retention failed"},
-                )
-
-            finally:
-                released = await release_lock(
-                    namespace="spans:flush",
-                    key={},
-                    owner=lock_owner,
-                )
-                if released:
-                    log.info("[flush] [endpoint] Lock released")
-                else:
-                    log.warn("[flush] [endpoint] Lock release skipped (expired/lost)")
-
-        except Exception:
-            log.error(
-                "[flush] [endpoint] Fatal error:",
-                exc_info=True,
-            )
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"status": "error", "message": "Fatal error"},
-            )
-
     # ROUTES
 
     @intercept_exceptions()
@@ -1117,7 +1153,7 @@ class BillingRouter:
     async def create_checkout_user_route(
         self,
         request: Request,
-        plan: Plan = Query(...),
+        plan: str = Query(...),
         success_url: str = Query(...),  # find a way to make this optional or moot
     ):
         if is_ee():
@@ -1138,7 +1174,7 @@ class BillingRouter:
     async def create_checkout_admin_route(
         self,
         organization_id: str = Query(...),
-        plan: Plan = Query(...),
+        plan: str = Query(...),
         success_url: str = Query(...),  # find a way to make this optional or moot
     ):
         return await self.create_checkout(
@@ -1168,7 +1204,7 @@ class BillingRouter:
     async def switch_plans_user_route(
         self,
         request: Request,
-        plan: Plan = Query(...),
+        plan: str = Query(...),
     ):
         if is_ee():
             if not await check_action_access(
@@ -1187,7 +1223,7 @@ class BillingRouter:
     async def switch_plans_admin_route(
         self,
         organization_id: str = Query(...),
-        plan: Plan = Query(...),
+        plan: str = Query(...),
     ):
         return await self.switch_plans(
             organization_id=organization_id,
@@ -1250,6 +1286,4 @@ class BillingRouter:
             ):
                 return FORBIDDEN_RESPONSE
 
-        return await self.fetch_usage(
-            organization_id=request.state.organization_id,
-        )
+        return await self.fetch_usage()

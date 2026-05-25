@@ -44,7 +44,15 @@ export function useParametersSource(): EnvelopeSource {
                 // usually a no-op, but e.g. `llm_config` has structure.
                 if (afterSlot.length === 1) {
                     const [root] = afterSlot
-                    const nested = (schema.properties as Record<string, unknown>)[root]
+                    const props =
+                        schema &&
+                        typeof schema === "object" &&
+                        "properties" in schema &&
+                        schema.properties &&
+                        typeof schema.properties === "object"
+                            ? (schema.properties as Record<string, unknown>)
+                            : undefined
+                    const nested = props ? props[root] : undefined
                     const out: TokenPathSuggestion[] = []
                     for (const key of getSubPathsFromSchema(nested)) {
                         if (!queryMatches(key, query)) continue

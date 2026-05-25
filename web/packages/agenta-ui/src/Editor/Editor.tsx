@@ -841,6 +841,7 @@ export const EditorProvider = ({
     disableLongText = false,
     disableCodeFoldingPlugin = false,
     disableIndentationPlugin = false,
+    skipScroll = false,
     useNativeCodeNodes = false,
 }: EditorProps & {children: ReactNode}) => {
     // Stabilize id across renders — `uuidv4()` as a default parameter would
@@ -908,6 +909,7 @@ export const EditorProvider = ({
                 extensionDependencies.push(
                     configExtension(CodeBehaviorCommandsExtension, {
                         disableIndentation: disableIndentationPlugin,
+                        skipScroll,
                     }),
                     CodeVirtualizationExtension,
                     configExtension(HighlightCoreExtension, {
@@ -1004,6 +1006,7 @@ export const EditorProvider = ({
         disableLongText,
         disableCodeFoldingPlugin,
         disableIndentationPlugin,
+        skipScroll,
         enableTokens,
         id,
         language,
@@ -1094,6 +1097,7 @@ const Editor = ({
     loadingFallback = "skeleton",
     disableCodeFoldingPlugin = false,
     disableIndentationPlugin = false,
+    skipScroll = false,
     useNativeCodeNodes = false,
     ...rest
 }: EditorProps) => {
@@ -1139,6 +1143,7 @@ const Editor = ({
                     disableLongText={disableLongText}
                     disableCodeFoldingPlugin={disableCodeFoldingPlugin}
                     disableIndentationPlugin={disableIndentationPlugin}
+                    skipScroll={skipScroll}
                     useNativeCodeNodes={useNativeCodeNodes}
                 />
             ) : (
@@ -1178,6 +1183,7 @@ const Editor = ({
                     disableLongText={disableLongText}
                     disableCodeFoldingPlugin={disableCodeFoldingPlugin}
                     disableIndentationPlugin={disableIndentationPlugin}
+                    skipScroll={skipScroll}
                     useNativeCodeNodes={useNativeCodeNodes}
                 >
                     <EditorInner
@@ -1215,6 +1221,7 @@ const Editor = ({
                         disableLongText={disableLongText}
                         disableCodeFoldingPlugin={disableCodeFoldingPlugin}
                         disableIndentationPlugin={disableIndentationPlugin}
+                        skipScroll={skipScroll}
                         useNativeCodeNodes={useNativeCodeNodes}
                     />
                 </EditorProvider>

@@ -1,0 +1,323 @@
+/**
+ * Unit tests for port extraction helpers
+ *
+ * These are pure functions — no Jotai, no API. They transform JSON schemas
+ * and template placeholder strings into RunnablePort arrays and grouped
+ * variable lists. Correctness here directly affects which input fields the
+ * playground renders for a given workflow.
+ */
+
+import {describe, it, expect} from "vitest"
+
+import {
+    resolveSchemaRef,
+    resolveSchemaType,
+    extractLastPathSegment,
+    formatKeyAsName,
+    groupTemplateVariables,
+    extractInputPortsFromSchema,
+    extractOutputPortsFromSchema,
+    extractSystemFieldNames,
+} from "../../src/runnable/portHelpers"
+
+// ── resolveSchemaRef ──────────────────────────────────────────────────────────
+
+describe("resolveSchemaRef", () => {
+    it("returns the node unchanged when there is no $ref", () => {
+        const node = {type: "string", title: "Name"}
+        expect(resolveSchemaRef(node)).toEqual(node)
+    })
+
+    it("resolves a $defs reference", () => {
+        const defs = {MyType: {type: "integer", title: "Count"}}
+        const node = {$ref: "#/$defs/MyType"}
+        expect(resolveSchemaRef(node, defs)).toEqual({type: "integer", title: "Count"})
+    })
+
+    it("resolves a #/definitions reference", () => {
+        const defs = {Score: {type: "number"}}
+        const node = {$ref: "#/definitions/Score"}
+        expect(resolveSchemaRef(node, defs)).toEqual({type: "number"})
+    })
+
+    it("returns the node as-is when the ref target is missing", () => {
+        const node = {$ref: "#/$defs/Missing"}
+        expect(resolveSchemaRef(node, {})).toEqual(node)
+    })
+
+    it("returns empty object for non-object input", () => {
+        expect(resolveSchemaRef(null)).toEqual({})
+        expect(resolveSchemaRef("string")).toEqual({})
+    })
+})
+
+// ── resolveSchemaType ─────────────────────────────────────────────────────────
+
+describe("resolveSchemaType", () => {
+    it("returns the type from a plain schema node", () => {
+        expect(resolveSchemaType({type: "integer"})).toBe("integer")
+    })
+
+    it("resolves the type through a $ref", () => {
+        const defs = {Score: {type: "number"}}
+        expect(resolveSchemaType({$ref: "#/$defs/Score"}, defs)).toBe("number")
+    })
+
+    it("defaults to 'string' when type is not present", () => {
+        expect(resolveSchemaType({})).toBe("string")
+        expect(resolveSchemaType(null)).toBe("string")
+    })
+})
+
+// ── extractLastPathSegment ────────────────────────────────────────────────────
+
+describe("extractLastPathSegment", () => {
+    it("returns a plain name unchanged", () => {
+        expect(extractLastPathSegment("country")).toBe("country")
+    })
+
+    it("extracts the last segment from a JSONPath expression", () => {
+        expect(extractLastPathSegment("$.inputs.country")).toBe("country")
+        expect(extractLastPathSegment("$.outputs.score")).toBe("score")
+    })
+
+    it("handles JSONPath with array brackets", () => {
+        expect(extractLastPathSegment("$.inputs['key']")).toBe("key")
+    })
+
+    it("extracts the last segment from a JSON Pointer", () => {
+        expect(extractLastPathSegment("/inputs/country")).toBe("country")
+    })
+
+    it("extracts the last segment from dot notation", () => {
+        expect(extractLastPathSegment("inputs.country")).toBe("country")
+        expect(extractLastPathSegment("a.b.c")).toBe("c")
+    })
+
+    it("returns the key unchanged when there is no path syntax", () => {
+        expect(extractLastPathSegment("myField")).toBe("myField")
+    })
+
+    it("returns the input unchanged for an empty string", () => {
+        expect(extractLastPathSegment("")).toBe("")
+    })
+})
+
+// ── formatKeyAsName ───────────────────────────────────────────────────────────
+
+describe("formatKeyAsName", () => {
+    it("converts snake_case to Title Case", () => {
+        expect(formatKeyAsName("user_name")).toBe("User name")
+    })
+
+    it("splits camelCase on word boundaries", () => {
+        expect(formatKeyAsName("firstName")).toBe("First Name")
+    })
+
+    it("capitalises the first letter", () => {
+        expect(formatKeyAsName("country")).toBe("Country")
+    })
+
+    it("strips JSONPath prefix before formatting", () => {
+        expect(formatKeyAsName("$.inputs.user_name")).toBe("User name")
+    })
+
+    it("strips JSON Pointer prefix before formatting", () => {
+        expect(formatKeyAsName("/inputs/score")).toBe("Score")
+    })
+})
+
+// ── groupTemplateVariables ────────────────────────────────────────────────────
+
+describe("groupTemplateVariables", () => {
+    it("returns an empty array for empty input", () => {
+        expect(groupTemplateVariables([])).toEqual([])
+    })
+
+    it("groups a plain variable into the inputs envelope", () => {
+        const result = groupTemplateVariables(["country"])
+        expect(result).toHaveLength(1)
+        expect(result[0]).toMatchObject({envelope: "inputs", key: "country", type: "string"})
+    })
+
+    it("groups a JSONPath variable into the correct envelope", () => {
+        const result = groupTemplateVariables(["$.inputs.city"])
+        expect(result[0]).toMatchObject({envelope: "inputs", key: "city", type: "string"})
+    })
+
+    it("groups an output-envelope variable separately", () => {
+        const result = groupTemplateVariables(["$.outputs.score"])
+        expect(result[0]).toMatchObject({envelope: "outputs", key: "score"})
+    })
+
+    it("collapses sub-path references into an object-typed group", () => {
+        const result = groupTemplateVariables(["$.inputs.address.city", "$.inputs.address.country"])
+        expect(result).toHaveLength(1)
+        expect(result[0]).toMatchObject({
+            envelope: "inputs",
+            key: "address",
+            type: "object",
+        })
+        expect(result[0].subPaths).toContain("city")
+        expect(result[0].subPaths).toContain("country")
+    })
+
+    it("mixes simple and object variables without merging them", () => {
+        const result = groupTemplateVariables(["name", "$.inputs.address.city"])
+        const keys = result.map((r) => r.key)
+        expect(keys).toContain("name")
+        expect(keys).toContain("address")
+    })
+
+    it("deduplicates identical variables", () => {
+        const result = groupTemplateVariables(["country", "country"])
+        expect(result).toHaveLength(1)
+    })
+
+    it("ignores invalid template variables", () => {
+        // '$.invalid.x' is not a known envelope slot, so it should be skipped
+        const result = groupTemplateVariables(["$.invalid.x"])
+        expect(result).toHaveLength(0)
+    })
+})
+
+// ── extractInputPortsFromSchema ───────────────────────────────────────────────
+
+describe("extractInputPortsFromSchema", () => {
+    it("returns empty array for null or empty schema", () => {
+        expect(extractInputPortsFromSchema(null)).toEqual([])
+        expect(extractInputPortsFromSchema({})).toEqual([])
+    })
+
+    it("maps each schema property to a port", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                country: {type: "string"},
+                score: {type: "number"},
+            },
+        }
+        const ports = extractInputPortsFromSchema(schema)
+        expect(ports).toHaveLength(2)
+        expect(ports.map((p) => p.key)).toEqual(expect.arrayContaining(["country", "score"]))
+    })
+
+    it("marks required fields", () => {
+        const schema = {
+            type: "object",
+            properties: {country: {type: "string"}},
+            required: ["country"],
+        }
+        const ports = extractInputPortsFromSchema(schema)
+        expect(ports[0].required).toBe(true)
+    })
+
+    it("uses the schema title as the port name when present", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                q: {type: "string", title: "Question"},
+            },
+        }
+        const ports = extractInputPortsFromSchema(schema)
+        expect(ports[0].name).toBe("Question")
+    })
+
+    it("falls back to formatKeyAsName when title is absent", () => {
+        const schema = {
+            type: "object",
+            properties: {user_name: {type: "string"}},
+        }
+        const ports = extractInputPortsFromSchema(schema)
+        expect(ports[0].name).toBe("User name")
+    })
+
+    it("filters out system fields annotated with x-ag-* markers", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                country: {type: "string"},
+                _context: {"x-ag-context": true, type: "string"},
+            },
+        }
+        const ports = extractInputPortsFromSchema(schema)
+        expect(ports).toHaveLength(1)
+        expect(ports[0].key).toBe("country")
+    })
+
+    it("resolves $ref properties", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                score: {$ref: "#/$defs/Score"},
+            },
+            $defs: {Score: {type: "integer"}},
+        }
+        const ports = extractInputPortsFromSchema(schema)
+        expect(ports[0].type).toBe("integer")
+    })
+})
+
+// ── extractOutputPortsFromSchema ──────────────────────────────────────────────
+
+describe("extractOutputPortsFromSchema", () => {
+    it("returns empty array for null input", () => {
+        expect(extractOutputPortsFromSchema(null)).toEqual([])
+    })
+
+    it("returns a single 'output' port for a simple type schema", () => {
+        const schema = {type: "string"}
+        const ports = extractOutputPortsFromSchema(schema)
+        expect(ports).toHaveLength(1)
+        expect(ports[0]).toMatchObject({key: "output", type: "string"})
+    })
+
+    it("maps object schema properties to individual ports", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                result: {type: "string"},
+                confidence: {type: "number"},
+            },
+        }
+        const ports = extractOutputPortsFromSchema(schema)
+        expect(ports).toHaveLength(2)
+        expect(ports.map((p) => p.key)).toEqual(expect.arrayContaining(["result", "confidence"]))
+    })
+
+    it("returns a single unknown port for an object schema without properties", () => {
+        const schema = {type: "object"}
+        const ports = extractOutputPortsFromSchema(schema)
+        expect(ports).toHaveLength(1)
+        expect(ports[0]).toMatchObject({key: "output", type: "unknown"})
+    })
+})
+
+// ── extractSystemFieldNames ───────────────────────────────────────────────────
+
+describe("extractSystemFieldNames", () => {
+    it("returns an empty set for null input", () => {
+        expect(extractSystemFieldNames(null).size).toBe(0)
+    })
+
+    it("returns an empty set when no properties are system fields", () => {
+        const schema = {
+            properties: {country: {type: "string"}},
+        }
+        expect(extractSystemFieldNames(schema).size).toBe(0)
+    })
+
+    it("identifies fields annotated with x-ag-* markers", () => {
+        const schema = {
+            properties: {
+                country: {type: "string"},
+                _ctx: {"x-ag-context": true},
+                _consent: {"x-ag-consent": true},
+            },
+        }
+        const names = extractSystemFieldNames(schema)
+        expect(names.has("_ctx")).toBe(true)
+        expect(names.has("_consent")).toBe(true)
+        expect(names.has("country")).toBe(false)
+    })
+})

@@ -56,7 +56,9 @@ export {
     PropertyClickPlugin,
 } from "./plugins/code"
 export {$getEditorCodeAsString, constructJsonFromSchema} from "./plugins/code/utils/editorCodeUtils"
-export {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
+export {$isCodeBlockNode, $createCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
+export {$createCodeLineNode} from "./plugins/code/nodes/CodeLineNode"
+export {$wrapLinesInSegments} from "./plugins/code/utils/segmentUtils"
 export {DrillInProvider} from "./plugins/code/context/DrillInContext"
 
 // JSON parsing utilities - Re-exported from @agenta/shared
@@ -89,6 +91,12 @@ export {useEditorResize} from "./hooks/useEditorResize"
 // Commands
 export {INITIAL_CONTENT_COMMAND} from "./commands/InitialContentCommand"
 export type {InitialContentPayload} from "./commands/InitialContentCommand"
+
+// Lexical primitives re-exported for downstream packages that need to read
+// or mutate the editor state directly (e.g. seeding an empty CodeBlockNode
+// on mount in playground-ui's JSON variable editor). Re-exporting here
+// avoids forcing every consumer to add `lexical` as a direct dependency.
+export {$getRoot, $createTextNode} from "lexical"
 
 // Token typeahead — path-aware suggestion context (playground providers
 // feed port schemas / observed keys into this).

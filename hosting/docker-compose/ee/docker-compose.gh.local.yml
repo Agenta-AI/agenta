@@ -28,18 +28,21 @@ services:
     api:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
+            --worker-connections 1000
+            --backlog 2048
+            --keep-alive 5
             --max-requests 10000
             --max-requests-jitter 1000
             --timeout 60
-            --graceful-timeout 60
+            --graceful-timeout 30
             --log-level info
             --access-logfile -
             --error-logfile -
@@ -80,8 +83,8 @@ services:
     worker-evaluations:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -115,8 +118,8 @@ services:
     worker-tracing:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -150,8 +153,8 @@ services:
     worker-webhooks:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -191,8 +194,8 @@ services:
     worker-events:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -232,8 +235,8 @@ services:
     cron:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         init: true
         command: supercronic /app/crontab
@@ -255,8 +258,8 @@ services:
     alembic:
         # === IMAGE ================================================ #
         build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command: sh -c "python -m ee.databases.postgres.migrations.runner"
         # === CONFIGURATION ======================================== #
@@ -273,14 +276,17 @@ services:
     services:
         # === IMAGE ================================================ #
         build:
-            context: ../../../services
-            dockerfile: ee/docker/Dockerfile.gh
+            context: ../../..
+            dockerfile: services/ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn entrypoints.main:app
             --bind 0.0.0.0:8080
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
+            --worker-connections 1000
+            --backlog 2048
+            --keep-alive 5
             --max-requests 10000
             --max-requests-jitter 1000
             --timeout 60

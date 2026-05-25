@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -11,16 +12,21 @@ from ee.src.routers import (
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.tracing.dao import TracingDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
+from ee.src.dbs.postgres.events.dao import EventsDAO
 
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingService
 from ee.src.core.subscriptions.service import SubscriptionsService
+from ee.src.core.events.service import EventsService
 
+from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
+from ee.src.apis.fastapi.spans.router import SpansRouter
+from ee.src.apis.fastapi.events.router import EventsRouter
 from ee.src.apis.fastapi.organizations.router import (
     router as organization_router,
 )
-from oss.src.apis.fastapi.auth.router import auth_router
+from ee.src.utils.entitlements import bootstrap_entitlements_services
 
 # DBS --------------------------------------------------------------------------
 
@@ -29,6 +35,8 @@ meters_dao = MetersDAO()
 tracing_dao = TracingDAO()
 
 subscriptions_dao = SubscriptionsDAO()
+
+events_dao = EventsDAO()
 
 # CORE -------------------------------------------------------------------------
 
@@ -40,17 +48,37 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
+events_service = EventsService(
+    events_dao=events_dao,
+)
+
 subscription_service = SubscriptionsService(
     subscriptions_dao=subscriptions_dao,
     meters_service=meters_service,
 )
 
+# Wire entitlements module against the freshly-built services so the
+# `BillingRouter` and the entitlements helper share one instance each.
+bootstrap_entitlements_services(
+    meters_service=meters_service,
+    subscriptions_service=subscription_service,
+)
+
 # APIS -------------------------------------------------------------------------
+
+access_router = AccessRouter()
 
 billing_router = BillingRouter(
     subscription_service=subscription_service,
     meters_service=meters_service,
+)
+
+spans_router = SpansRouter(
     tracing_service=tracing_service,
+)
+
+events_router = EventsRouter(
+    events_service=events_service,
 )
 
 
@@ -61,6 +89,12 @@ def extend_main(app: FastAPI):
     # ROUTES -------------------------------------------------------------------
 
     app.include_router(
+        router=access_router.router,
+        prefix="/access",
+        tags=["Access"],
+    )
+
+    app.include_router(
         router=billing_router.router,
         prefix="/billing",
         tags=["Billing"],
@@ -69,7 +103,22 @@ def extend_main(app: FastAPI):
     app.include_router(
         router=billing_router.admin_router,
         prefix="/admin/billing",
-        tags=["Admin", "Billing"],
+        tags=["Admin"],
+        include_in_schema=False,
+    )
+
+    app.include_router(
+        router=spans_router.admin_router,
+        prefix="/admin/spans",
+        tags=["Admin"],
+        include_in_schema=False,
+    )
+
+    app.include_router(
+        router=events_router.admin_router,
+        prefix="/admin/events",
+        tags=["Admin"],
+        include_in_schema=False,
     )
 
     # ROUTES (more) ------------------------------------------------------------
@@ -83,19 +132,13 @@ def extend_main(app: FastAPI):
     app.include_router(
         _organization_router.router,
         prefix="/organizations",
+        tags=["Organizations"],
     )
 
     app.include_router(
         workspace_router.router,
         prefix="/workspaces",
-    )
-
-    # Auth router at root level (no /api prefix) for OAuth callbacks
-    app.include_router(
-        auth_router,
-        prefix="/auth",
-        tags=["Auth"],
-        include_in_schema=False,
+        tags=["Workspaces"],
     )
 
     # --------------------------------------------------------------------------
@@ -104,29 +147,66 @@ def extend_main(app: FastAPI):
 
 
 def extend_app_schema(app: FastAPI):
-    app.openapi()["info"]["title"] = "Agenta API"
-    app.openapi()["info"]["description"] = "Agenta API"
-    app.openapi()["info"]["contact"] = {
-        "name": "Agenta",
-        "url": "https://agenta.ai",
-        "email": "team@agenta.ai",
-    }
-    app.openapi()["components"]["securitySchemes"] = {
-        "APIKeyHeader": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header",
-        }
-    }
-    app.openapi()["security"] = [
-        {
-            "APIKeyHeader": [],
-        },
-    ]
-    app.openapi()["servers"] = [
-        {
-            "url": env.agenta.api_url,
-        },
-    ]
+    def custom_openapi():
+        """
+        EE-aware OpenAPI schema generator, replaces FastAPI's default.
 
+        Extends the OSS schema with:
+        - APIKeyHeader security scheme and global security requirement
+        - Server URL pinned from config
+
+        Result is cached on app.openapi_schema and built only once per lifetime.
+        """
+        if app.openapi_schema:
+            return app.openapi_schema
+
+        oss_tags = list(app.openapi_tags or [])
+        # Insert Access then Billing right before the Admin tag so the final
+        # order is: ...domain tags..., Access, Billing, Admin, Deprecated.
+        admin_idx = next(
+            (i for i, t in enumerate(oss_tags) if t.get("name") == "Admin"),
+            len(oss_tags),
+        )
+        oss_tags.insert(
+            admin_idx,
+            {
+                "name": "Access",
+                "description": "Authentication discovery, organization access checks, and SSO callback endpoints.",
+            },
+        )
+        oss_tags.insert(
+            admin_idx + 1,
+            {
+                "name": "Billing",
+                "description": "Subscription, plan, and usage endpoints for workspace billing.",
+            },
+        )
+
+        schema = get_openapi(
+            title="Agenta API",
+            version=app.version,
+            description="Agenta API",
+            contact={
+                "name": "Agenta",
+                "url": "https://agenta.ai",
+                "email": "team@agenta.ai",
+            },
+            routes=app.routes,
+            tags=oss_tags,
+        )
+        schema.setdefault("components", {})
+        schema["components"]["securitySchemes"] = {
+            "APIKeyHeader": {
+                "type": "apiKey",
+                "name": "Authorization",
+                "in": "header",
+            }
+        }
+        schema["security"] = [{"APIKeyHeader": []}]
+        schema["servers"] = [{"url": env.agenta.api_url}]
+
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi  # type: ignore
     return app

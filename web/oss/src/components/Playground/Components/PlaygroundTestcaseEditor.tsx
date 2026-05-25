@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {executionItemController} from "@agenta/playground"
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
+import {getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
 import {HeightCollapse, SyncStateTag, type SyncState} from "@agenta/ui"
 import {RightOutlined} from "@ant-design/icons"
 import {Code, ListBullets, Plus, Trash, TreeStructure} from "@phosphor-icons/react"
@@ -82,19 +83,25 @@ function NestedFieldEditor({testcaseId, parentKey, subPath, label}: NestedFieldE
     ) as string
     const setCellValue = useSetAtom(executionItemController.actions.setTestcaseCellValue)
 
+    // `subPath` may be multi-segment (e.g. "a.b.c") — `getPortSubPaths()`
+    // intentionally surfaces full path hints so the flat editor can address
+    // arbitrarily deep leaves. Walk it segment-by-segment instead of
+    // indexing literally, otherwise reads/writes target the wrong key.
+    const segments = useMemo(() => subPath.split(".").filter(Boolean), [subPath])
+
     const {value, isParsable} = useMemo(() => {
         if (!parentRaw) return {value: "", isParsable: true}
         try {
             const parsed = JSON.parse(parentRaw) as unknown
             if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                const raw = (parsed as Record<string, unknown>)[subPath]
+                const raw = getValueAtPath(parsed, segments)
                 return {value: raw == null ? "" : String(raw), isParsable: true}
             }
             return {value: "", isParsable: false}
         } catch {
             return {value: "", isParsable: false}
         }
-    }, [parentRaw, subPath])
+    }, [parentRaw, segments])
 
     const handleChange = useCallback(
         (nextVal: string) => {
@@ -103,20 +110,20 @@ function NestedFieldEditor({testcaseId, parentKey, subPath, label}: NestedFieldE
                 try {
                     const p = JSON.parse(parentRaw) as unknown
                     if (p && typeof p === "object" && !Array.isArray(p)) {
-                        parsed = {...(p as Record<string, unknown>)}
+                        parsed = p as Record<string, unknown>
                     }
                 } catch {
                     // non-JSON parent — start fresh; overwrite handled by isParsable gate
                 }
             }
-            parsed[subPath] = nextVal
+            const updated = setValueAtPath(parsed, segments, nextVal) as Record<string, unknown>
             setCellValue({
                 testcaseId,
                 column: parentKey,
-                value: JSON.stringify(parsed),
+                value: JSON.stringify(updated),
             })
         },
-        [parentRaw, parentKey, subPath, setCellValue, testcaseId],
+        [parentRaw, parentKey, segments, setCellValue, testcaseId],
     )
 
     return (

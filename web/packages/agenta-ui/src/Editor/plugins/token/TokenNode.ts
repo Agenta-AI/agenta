@@ -86,14 +86,16 @@ export class TokenNode extends TextNode {
 
     updateDOM(_prevNode: TokenNode, dom: HTMLElement): boolean {
         const text = this.getTextContent()
-        const textChanged = text !== dom.textContent
-        if (textChanged) dom.textContent = text
+        if (text !== dom.textContent) dom.textContent = text
         // Re-apply styles even when text didn't change at this exact node —
         // edits to a nearby path segment can change validity without
         // changing this node's own text, but when it DOES change we also
         // need to re-evaluate because the new text may be valid/invalid.
         applyTokenStyles(dom, text)
-        return textChanged
+        // The DOM is mutated in place; returning false tells Lexical the node
+        // doesn't need to be re-created, which preserves selection and avoids
+        // unnecessary churn.
+        return false
     }
 
     exportJSON(): SerializedTokenNode {

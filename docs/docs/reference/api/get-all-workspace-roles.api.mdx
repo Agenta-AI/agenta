@@ -5,7 +5,7 @@ description: "Get all workspace roles."
 sidebar_label: "Get All Workspace Roles"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVE1v2zAM/SsCz0KS7ejTcijaoDsEaYcd0qBgFSZWK0ueRKfNDP/3gUrsfABb/8B8sSU9kXyPj26BcZugWMLPEN9SjYZgpWFNyURbsw0eCrglVuiceu8hKgZHafTkn/yCuIk+KVTOJlZhk5G4Q+vwxdG/7hRPXimlvtvEyyH7IjhaUKqDT7Qq1HQIe4FQ4eWVDCcVqY6UyLP1W8UlfZYZbaI+8d3j4/zmw1CmWajZRqFXFGOIKhjTxKTeS+tIReJoaddnuI4LGkJNESXKbA0FbImf0bnnAficgaAhHoklKFr4OpnI61Lqh8YYSmnTONWrABpM8EyeBY517azJycavSe60kExJFcqXZapycFyvrWDQzaNUx/aQlPc1QQGJo/Vb6HS/cdDzbANjxD1oYMtO1n01Sswwde7UD7XI7Dp5NFTEZTiqABpq5BIKGA9apHEvRqK4oyjea6GJTlBYW+h0vyyZ61SMx9SMjAvNeoRb8owjtAfgSmKYJlre5yDT+eye9neEa4pQLFfngAeR6CDBJWyQBGt7T8LYYyXracNliPZ3lho0WGlPebglRK3fhHz9KNA0F6em8xloEGKHhk5GX0YTuJ6oC7B0F03ubp87H4O+EmLgDxqoQitnTFh9Ox1IZXVIXKE/i/e3nl2V1Z6M9n/mP5v5o22YPnhcO7Rehif3qz26fgkn18vwZ8lXGsqQWE7b9gUT/Yiu62T7V0NRjLzSsMNohU92se5dJx5/o734wwgD8Rm65mDeq7+CeH8YxdubR+i6P1O9FCA=
+api: eJztVE1v2zAM/SsCz0KS7ejTcijaoDsEaYcd0qBgFSZWK0ueRKfNDP/3gUrsfABb/8B8sSU+8YmPj26BcZugWMLPEN9SjYYSrDSsKZloa7bBQwG3xAqdU+89RsXgKI2e/JNfEDfRJ4XK2cQqbDISd2gdvjj615niySul1HebeDnQL4KjBaU6+ESrQk2HtBcIFV5eyXBSkepIiTxbv1Vc0mfMaBP1xHePj/ObD0O5zELNNgq9ohhDVMGYJib1XlpHKhJHS7ue4TovaAg1RZQsszUUsCV+RueeB+BzBoKGeCwsQdHC18lEXpdSPzTGUEqbxqleBdBggmfyLHCsa2dNJhu/JjnTQjIlVShflqnKyXG9toJBN49yO7YHUt7XBAUkjtZvodP9xkHPsw2MEfeggS07Wfe3UWKGqXOnfqhFrq6TR0NFXIajCqChRi6hgPGgRRr3YiSKO4pivhaa6ASFtYVO98uSuU7FeEzNyLjQrEe4Jc84QnsAriSHaaLlfU4ync/uaX9HuKYIxXJ1DngQiQ4SXMIGSbC29yQVe6xkPW24DNH+zlKDBivtKQ+npFDrNyEfPwo0zZdT0/kMrufnIiS9RJN72TPlMOirsk/Vggaq0EqQCatvQ0T6JRoeaCajL6OJbNUhcYX+jOJvTbu6aXty2v+h/2zoj75h+uBx7dB6kT63sD3afgkn28v0Z8lXGsqQWKJt+4KJfkTXdbL9q6EoTl5p2GG0Uk+2se5tJyZ/o71YxkgFIEDXHNx79VsQ8w+zeHvzCF33BxxlFMI=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -46,23 +47,18 @@ Returns:
 Raises:
     HTTPException: If an error occurs while retrieving the workspace roles.
 
-<ParamsDetails
-  parameters={undefined}
->
+<ParamsDetails>
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./get-all-workspace-roles.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Response Get All Workspace Roles"}}}}}}
+  {...require("./get-all-workspace-roles.StatusCodes.json")}
 >
   
 </StatusCodes>

@@ -45,6 +45,10 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
     const closeDrawer = useSetAtom(closeWorkflowRevisionDrawerAtom)
     const [shouldRender, setShouldRender] = useState(!!isOpen)
     const isEvaluatorDrawer = context === "evaluator-view" || context === "evaluator-create"
+    // Create-style flows (evaluator + app create) and the evaluator viewer use a
+    // blurred backdrop. antd's built-in `maskClosable` (default true) drives
+    // close-on-outside-click for these — see `onClose` below.
+    const showBlurredMask = isEvaluatorDrawer || isStacked || context === "app-create"
 
     useEffect(() => {
         if (isOpen) {
@@ -94,6 +98,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
             setShouldRender(false)
         }
     }, [])
+    const handleClose = useCallback(() => closeDrawer(), [closeDrawer])
 
     if (!shouldRender) return null
 
@@ -101,7 +106,8 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
         <Drawer
             open={isOpen}
             closable={false}
-            mask={isEvaluatorDrawer || isStacked ? {blur: true} : false}
+            mask={showBlurredMask ? {blur: true} : false}
+            onClose={handleClose}
             destroyOnHidden
             afterOpenChange={handleAfterOpenChange}
             styles={{

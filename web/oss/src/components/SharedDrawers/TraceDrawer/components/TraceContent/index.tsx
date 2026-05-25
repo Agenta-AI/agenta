@@ -53,7 +53,7 @@ const TraceContent = ({
         if (!activeTrace) {
             const errorPayload = error
             const rawPayload =
-                traceResponse?.response || (errorPayload ? {error: errorPayload} : {})
+                traceResponse?.response ?? (errorPayload ? {error: errorPayload} : {})
             return [
                 {
                     key: "raw_data",
@@ -94,7 +94,7 @@ const TraceContent = ({
                         ) : (
                             <AccordionTreePanel
                                 label={"Raw Data"}
-                                value={activeTrace || {}}
+                                value={activeTrace ?? {}}
                                 enableFormatSwitcher
                                 fullEditorHeight
                                 enableSearch

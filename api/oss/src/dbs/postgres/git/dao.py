@@ -3,6 +3,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from sqlalchemy import or_, select, func, update
+from sqlalchemy.orm import selectinload
 
 from oss.src.utils.logging import get_module_logger
 
@@ -486,8 +487,14 @@ class GitDAO(GitDAOInterface):
             return None
 
         async with engine.core_session() as session:
-            stmt = select(self.VariantDBE).filter(
-                self.VariantDBE.project_id == project_id,  # type: ignore
+            stmt = (
+                select(self.VariantDBE)
+                .options(
+                    selectinload(self.VariantDBE.artifact),  # type: ignore
+                )
+                .filter(
+                    self.VariantDBE.project_id == project_id,  # type: ignore
+                )
             )
 
             if variant_ref:
@@ -514,6 +521,10 @@ class GitDAO(GitDAOInterface):
             variant = map_dbe_to_dto(
                 DTO=Variant,
                 dbe=variant_dbe,  # type: ignore
+            )
+
+            variant.artifact_slug = (
+                variant_dbe.artifact.slug if variant_dbe.artifact else None
             )
 
             return variant
@@ -698,8 +709,14 @@ class GitDAO(GitDAOInterface):
         windowing: Optional[Windowing] = None,
     ) -> List[Variant]:
         async with engine.core_session() as session:
-            stmt = select(self.VariantDBE).filter(
-                self.VariantDBE.project_id == project_id,  # type: ignore
+            stmt = (
+                select(self.VariantDBE)
+                .options(
+                    selectinload(self.VariantDBE.artifact),  # type: ignore
+                )
+                .filter(
+                    self.VariantDBE.project_id == project_id,  # type: ignore
+                )
             )
 
             if artifact_refs:
@@ -805,13 +822,16 @@ class GitDAO(GitDAOInterface):
 
             variant_dbes = result.scalars().all()
 
-            variants = [
-                map_dbe_to_dto(
+            variants = []
+            for variant_dbe in variant_dbes:
+                variant = map_dbe_to_dto(
                     DTO=Variant,
                     dbe=variant_dbe,
                 )
-                for variant_dbe in variant_dbes
-            ]
+                variant.artifact_slug = (
+                    variant_dbe.artifact.slug if variant_dbe.artifact else None
+                )
+                variants.append(variant)
 
             return variants
 
@@ -1030,8 +1050,15 @@ class GitDAO(GitDAOInterface):
             return None
 
         async with engine.core_session() as session:
-            stmt = select(self.RevisionDBE).filter(
-                self.RevisionDBE.project_id == project_id,  # type: ignore
+            stmt = (
+                select(self.RevisionDBE)
+                .options(
+                    selectinload(self.RevisionDBE.artifact),  # type: ignore
+                    selectinload(self.RevisionDBE.variant),  # type: ignore
+                )
+                .filter(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                )
             )
 
             if revision_ref and (revision_ref.id or revision_ref.slug):
@@ -1071,6 +1098,13 @@ class GitDAO(GitDAOInterface):
             revision = map_dbe_to_dto(
                 DTO=Revision,
                 dbe=revision_dbe,  # type: ignore
+            )
+
+            revision.artifact_slug = (
+                revision_dbe.artifact.slug if revision_dbe.artifact else None
+            )
+            revision.variant_slug = (
+                revision_dbe.variant.slug if revision_dbe.variant else None
             )
 
             return revision
@@ -1225,8 +1259,15 @@ class GitDAO(GitDAOInterface):
         windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
         async with engine.core_session() as session:
-            stmt = select(self.RevisionDBE).filter(
-                self.RevisionDBE.project_id == project_id,  # type: ignore
+            stmt = (
+                select(self.RevisionDBE)
+                .options(
+                    selectinload(self.RevisionDBE.artifact),  # type: ignore
+                    selectinload(self.RevisionDBE.variant),  # type: ignore
+                )
+                .filter(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                )
             )
 
             if artifact_refs:
@@ -1444,13 +1485,19 @@ class GitDAO(GitDAOInterface):
             # longer needs application-grouped diff history. Do not migrate this
             # behavior deeper into the persistence layer.
 
-            revisions = [
-                map_dbe_to_dto(
+            revisions = []
+            for revision_dbe in revision_dbes:
+                revision = map_dbe_to_dto(
                     DTO=Revision,
                     dbe=revision_dbe,  # type: ignore
                 )
-                for revision_dbe in revision_dbes
-            ]
+                revision.artifact_slug = (
+                    revision_dbe.artifact.slug if revision_dbe.artifact else None
+                )
+                revision.variant_slug = (
+                    revision_dbe.variant.slug if revision_dbe.variant else None
+                )
+                revisions.append(revision)
 
             return revisions
 
@@ -1502,7 +1549,10 @@ class GitDAO(GitDAOInterface):
 
                 await session.commit()
 
-                await session.refresh(revision_dbe)
+                await session.refresh(
+                    revision_dbe,
+                    attribute_names=["artifact", "variant"],
+                )
 
                 if not revision_dbe:
                     return None
@@ -1510,6 +1560,13 @@ class GitDAO(GitDAOInterface):
                 revision = map_dbe_to_dto(
                     DTO=Revision,
                     dbe=revision_dbe,  # type: ignore
+                )
+
+                revision.artifact_slug = (
+                    revision_dbe.artifact.slug if revision_dbe.artifact else None
+                )
+                revision.variant_slug = (
+                    revision_dbe.variant.slug if revision_dbe.variant else None
                 )
 
                 revision.version = await self._get_version(
@@ -1586,7 +1643,6 @@ class GitDAO(GitDAOInterface):
             return []
 
         depth = revisions_log.depth
-        version = int(revision.version) if revision.version else 0
 
         if depth is not None:
             if not isinstance(depth, int):
@@ -1595,40 +1651,51 @@ class GitDAO(GitDAOInterface):
             if depth < 1:
                 return []
 
-        offset = None
-        limit = None
-        order_by = self.RevisionDBE.id.desc()  # type: ignore
-
-        if depth is None:
-            offset = 0
-            limit = version + 1
-            order_by = self.RevisionDBE.id.asc()  # type: ignore
-        elif depth is not None:
-            offset = max(version - depth + 1, 0)
-            limit = min(depth, version + 1)
-            order_by = self.RevisionDBE.id.asc()  # type: ignore
-
+        # Window is "the target revision and the `depth - 1` rows preceding it
+        # within the variant," counted over the visibility set selected by
+        # `include_archived`. ROW_NUMBER() over that set gives us each row's
+        # 1-indexed position; we then keep rows up to the target's position
+        # and limit to `depth` from the tail.
         async with engine.core_session() as session:
-            stmt = select(self.RevisionDBE).filter(
-                self.RevisionDBE.project_id == project_id,  # type: ignore
+            visibility_filter = (
+                (self.RevisionDBE.deleted_at.is_(None),)  # type: ignore
+                if not include_archived
+                else ()
             )
-
-            stmt = stmt.filter(
-                self.RevisionDBE.variant_id == revision.variant_id,  # type: ignore
-            )
-
-            # Filter out archived/deleted revisions unless explicitly requested
-            if not include_archived:
-                stmt = stmt.filter(
-                    self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+            positions = (
+                select(
+                    self.RevisionDBE.id.label("id"),  # type: ignore
+                    func.row_number()
+                    .over(
+                        partition_by=self.RevisionDBE.variant_id,  # type: ignore
+                        order_by=self.RevisionDBE.id.asc(),  # type: ignore
+                    )
+                    .label("pos"),
                 )
+                .where(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.variant_id == revision.variant_id,  # type: ignore
+                    *visibility_filter,
+                )
+                .subquery()
+            )
 
-            stmt = stmt.order_by(order_by)
-            stmt = stmt.offset(offset)
-            stmt = stmt.limit(limit)
+            target_pos = (
+                select(positions.c.pos)
+                .where(positions.c.id == revision.id)
+                .scalar_subquery()
+            )
+
+            stmt = (
+                select(self.RevisionDBE)  # type: ignore
+                .join(positions, positions.c.id == self.RevisionDBE.id)  # type: ignore
+                .where(positions.c.pos <= target_pos)
+                .order_by(self.RevisionDBE.id.desc())  # type: ignore
+            )
+            if depth is not None:
+                stmt = stmt.limit(depth)
 
             result = await session.execute(stmt)
-
             revision_dbes = result.scalars().all()
 
             if not revision_dbes:
@@ -1641,9 +1708,6 @@ class GitDAO(GitDAOInterface):
                 )
                 for revision_dbe in revision_dbes
             ]
-
-            if order_by == self.RevisionDBE.id.asc():  # type: ignore
-                revisions.reverse()
 
             return revisions
 

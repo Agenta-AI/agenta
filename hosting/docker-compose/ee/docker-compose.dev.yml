@@ -5,8 +5,8 @@ services:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
         build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.dev
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -26,8 +26,8 @@ services:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-services:latest
         build:
-            context: ../../../services
-            dockerfile: ee/docker/Dockerfile.dev
+            context: ../../..
+            dockerfile: services/ee/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -77,16 +77,33 @@ services:
                 "8000",
                 "--reload",
                 "--reload-dir",
-                "/sdk",
+                "/app/ee/src",
+                "--reload-dir",
+                "/app/oss/src",
+                "--reload-dir",
+                "/app/entrypoints",
+                "--reload-dir",
+                "/sdks/python/agenta",
+                "--reload-dir",
+                "/clients/python/agenta_client",
+                "--reload-exclude",
+                "*.pyc",
+                "--reload-exclude",
+                "__pycache__",
                 "--root-path",
                 "/api",
+                "--loop",
+                "uvloop",
+                "--http",
+                "httptools",
             ]
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -133,7 +150,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -169,7 +187,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -205,7 +224,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -247,7 +267,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -288,6 +309,7 @@ services:
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
             - ../../../api/ee/src/crons/meters.sh:/meters.sh
             - ../../../api/ee/src/crons/spans.sh:/spans.sh
+            - ../../../api/ee/src/crons/events.sh:/events.sh
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -315,7 +337,8 @@ services:
             - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -343,14 +366,29 @@ services:
                 "8080",
                 "--reload",
                 "--reload-dir",
-                "/sdk",
+                "/app/oss/src",
+                "--reload-dir",
+                "/app/entrypoints",
+                "--reload-dir",
+                "/sdks/python/agenta",
+                "--reload-dir",
+                "/clients/python/agenta_client",
+                "--reload-exclude",
+                "*.pyc",
+                "--reload-exclude",
+                "__pycache__",
                 "--root-path",
                 "/services",
+                "--loop",
+                "uvloop",
+                "--http",
+                "httptools",
             ]
         # === STORAGE ============================================== #
         volumes:
             - ../../../services:/app
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}

@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"token":{"type":"string","title":"Token"},"email":{"type":"string","title":"Email"}},"type":"object","required":["token","email"],"title":"InviteToken"}}}}}

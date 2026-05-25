@@ -7,7 +7,6 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
-import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
 import {getProjectValues} from "@/oss/state/project"
@@ -91,11 +90,6 @@ const EditAppModal = () => {
                 />
                 {appNameExist && (
                     <div className={clsx("text-red", "ml-2")}>App name already exists</div>
-                )}
-                {appNameInput?.length > 0 && !isAppNameInputValid(appNameInput) && (
-                    <div className={clsx("text-red", "ml-2")}>
-                        App name must contain only letters, numbers, underscore, or dash
-                    </div>
                 )}
             </div>
         </Modal>

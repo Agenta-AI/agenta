@@ -416,12 +416,35 @@ def _maybe_xfail_for_llm_provider_error(
         "Incorrect API key provided",
         "api_key client option must be set",
         "OPENAI_API_KEY environment variable",
+        "OPENAI_API_KEY",
+        "Missing credentials",
         "invalid_api_key",
     )
     if resp.status_code in {400, 401, 424, 429, 500} and any(
         marker in text for marker in markers
     ):
         pytest.xfail(f"[{case_id}] live LLM provider unavailable or quota exhausted")
+
+
+def _maybe_xfail_for_daytona_error(resp, *, case_id: str) -> None:
+    """xfail when custom-code execution can't provision a Daytona sandbox.
+
+    Custom-code workflows run user code in a Daytona sandbox. When the test
+    environment lacks a usable snapshot/region (e.g. snapshot not published to
+    the targeted region), provisioning fails with a 500 before the workflow can
+    run. That's an infra gap, not a regression — so xfail rather than fail.
+    Where Daytona is properly provisioned the error never appears and the test
+    runs normally (no XPASS).
+    """
+    text = (getattr(resp, "text", "") or "")[:2000]
+    markers = (
+        "Failed to create sandbox",
+        "is not available in region",
+        "No Daytona snapshot configured",
+        "custom-code-server-error",
+    )
+    if resp.status_code == 500 and any(marker in text for marker in markers):
+        pytest.xfail(f"[{case_id}] Daytona sandbox unavailable in this environment")
 
 
 def _build_data_payload(case: Dict[str, Any]) -> dict:
@@ -671,6 +694,20 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
 # ---------------------------------------------------------------------------
 
 
+# Parallel list with the webhook xfail mark stripped, used to override
+# parametrization on tests that don't actually call the webhook (e.g.
+# inspect-only). Keeps the param-level xfail correct for invoke tests
+# while letting webhook-independent tests pass cleanly without XPASS.
+_CASES_WITHOUT_WEBHOOK_XFAIL = [
+    pytest.param(
+        p.values[0],
+        id=p.id,
+        marks=[m for m in p.marks if m.name != "xfail"],
+    )
+    for p in MANAGED_WORKFLOW_CASES
+]
+
+
 @pytest.mark.parametrize("case", MANAGED_WORKFLOW_CASES)
 class TestManagedWorkflowLifecycle:
     """Full lifecycle for each managed workflow: catalog → create → deploy → invoke×3."""
@@ -705,19 +742,8 @@ class TestManagedWorkflowLifecycle:
             case_id=ctx["template_key"],
             allow_llm_failure=ctx.get("requires_llm", False),
         )
+        _maybe_xfail_for_daytona_error(resp, case_id=ctx["template_key"])
         _assert_invoke_response(resp, case_id=ctx["template_key"])
-
-    def test_inspect_direct_returns_canonical_revision(self):
-        """POST {services}/{service_path}/inspect — direct mount returns canonical URI."""
-        ctx = self._ctx
-        resp = self._mod_services_api(
-            "POST",
-            f"{ctx['service_path']}/inspect",
-            json={},
-        )
-        assert resp.status_code == 200, resp.text
-        payload = resp.json()
-        assert payload["data"]["revision"]["data"]["uri"] == ctx["uri"]
 
     def test_invoke_inline(self):
         """POST /invoke with URI + parameters inline — dispatcher routes by URI, no DB lookup."""
@@ -735,6 +761,7 @@ class TestManagedWorkflowLifecycle:
             case_id=ctx["template_key"],
             allow_llm_failure=ctx.get("requires_llm", False),
         )
+        _maybe_xfail_for_daytona_error(resp, case_id=ctx["template_key"])
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     def test_invoke_by_env(self):
@@ -763,6 +790,7 @@ class TestManagedWorkflowLifecycle:
             case_id=ctx["template_key"],
             allow_llm_failure=ctx.get("requires_llm", False),
         )
+        _maybe_xfail_for_daytona_error(resp, case_id=ctx["template_key"])
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     def test_output_matches_expected_shape(self):
@@ -786,8 +814,34 @@ class TestManagedWorkflowLifecycle:
             case_id=ctx["template_key"],
             allow_llm_failure=ctx.get("requires_llm", False),
         )
+        _maybe_xfail_for_daytona_error(resp, case_id=ctx["template_key"])
         payload = _assert_invoke_response(resp, case_id=ctx["template_key"])
         _assert_case_outputs(payload, case=ctx)
+
+
+# ---------------------------------------------------------------------------
+# Inspect coverage for the parametrized lifecycle cases.
+# Lives outside the class so we can use the case list with the webhook xfail
+# stripped — inspect doesn't call the webhook, so it should pass cleanly for
+# every template_key (no XPASS).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("case", _CASES_WITHOUT_WEBHOOK_XFAIL)
+def test_inspect_direct_returns_canonical_revision(case, mod_api, mod_services_api):
+    """POST {services}/{service_path}/inspect — direct mount returns canonical URI."""
+    key = case["template_key"]
+    if key not in _LIFECYCLE_CACHE:
+        _LIFECYCLE_CACHE[key] = _lifecycle_setup(case, mod_api, mod_services_api)
+    ctx = _LIFECYCLE_CACHE[key]
+    resp = mod_services_api(
+        "POST",
+        f"{ctx['service_path']}/inspect",
+        json={},
+    )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["data"]["revision"]["data"]["uri"] == ctx["uri"]
 
 
 # ---------------------------------------------------------------------------

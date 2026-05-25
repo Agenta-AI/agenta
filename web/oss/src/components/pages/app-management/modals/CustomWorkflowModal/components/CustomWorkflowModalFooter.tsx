@@ -3,8 +3,6 @@ import {memo} from "react"
 import {CheckCircleOutlined, ExclamationCircleOutlined, LinkOutlined} from "@ant-design/icons"
 import {Button, notification, Space, Tooltip, Typography} from "antd"
 
-import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-
 const CustomWorkflowModalFooter = ({
     handleEditCustomUrl,
     testConnectionStatus,
@@ -121,7 +119,6 @@ const CustomWorkflowModalFooter = ({
                             !customWorkflowAppValues.appUrl ||
                             (typeof isUrlValid === "boolean" && !isUrlValid) ||
                             appNameExist ||
-                            !isAppNameInputValid(customWorkflowAppValues.appName) ||
                             !testConnectionStatus.success
                         }
                         onClick={() => {
@@ -130,12 +127,6 @@ const CustomWorkflowModalFooter = ({
                                     message: "Custom Workflow",
                                     description:
                                         "App name already exists. Please choose a different name.",
-                                    duration: 3,
-                                })
-                            } else if (!isAppNameInputValid(customWorkflowAppValues.appName)) {
-                                notification.warning({
-                                    message: "Custom Workflow",
-                                    description: "Please provide a valid app name.",
                                     duration: 3,
                                 })
                             } else {

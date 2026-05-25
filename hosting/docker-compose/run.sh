@@ -305,18 +305,6 @@ else
     COMPOSE_CMD+=" --profile with-traefik"
 fi
 
-# For gh.local builds, always copy the local SDK into api/ and services/ build contexts
-# so that Dockerfile.gh can COPY it (Docker BuildKit doesn't follow symlinks outside context)
-# This is necessary even without --build because docker compose up will auto-build missing images
-if [[ "$STAGE" == "gh.local" ]]; then
-    echo "Copying local SDK into build contexts..."
-    rm -rf api/sdk services/sdk
-    cp -r sdk api/sdk
-    cp -r sdk services/sdk
-    cleanup_sdk_copies() { rm -rf api/sdk services/sdk; }
-    trap cleanup_sdk_copies EXIT
-fi
-
 if $NO_CACHE; then
     echo "Building containers with no cache..."
     $COMPOSE_CMD build --parallel --no-cache || error_exit "Build failed"

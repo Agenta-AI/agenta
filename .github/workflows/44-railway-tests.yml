@@ -160,6 +160,9 @@ concurrency:
   group: railway-preview-tests-${{ inputs.agenta_web_url }}-${{ inputs.packages }}
   cancel-in-progress: true
 
+env:
+  UV_VERSION: "0.11.14"
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -271,20 +274,20 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: steps.auth_bootstrap.outputs.enabled == 'true'
 
       - name: Setup Node.js
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pnpm
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          package_json_file: web/package.json
 
       - name: Install auth bootstrap dependencies
         if: steps.auth_bootstrap.outputs.enabled == 'true'
@@ -331,55 +334,33 @@ jobs:
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Cache Python dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-railway-api-pip-${{ hashFiles('api/pyproject.toml', 'api/poetry.lock', 'api/*/tests/requirements.txt', 'sdk/pyproject.toml', 'sdk/poetry.lock') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-railway-api-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-railway-api-pip-
+            ${{ runner.os }}-railway-api-uv-
 
       - name: Install API dependencies
         run: |
-          pip install "poetry==2.3.1" "poetry-plugin-export"
+          pip install "uv==${UV_VERSION}"
           cd api
-          poetry export --without-hashes --format requirements.txt --output /tmp/api-requirements.txt
-          pip install -r /tmp/api-requirements.txt
-          pip install -r oss/tests/requirements.txt
-          pip install -e ../sdk/
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
 
       - name: Run API tests
         run: |
           cd api
 
-          case "${{ matrix.layer }}" in
-            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
-            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
-            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
-            *)
-              echo "Unsupported API test layer: ${{ matrix.layer }}"
-              exit 1
-              ;;
-          esac
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing API layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty API layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(python run-tests.py)
+          CMD=(uv run --no-sync python run-tests.py --layer "${{ matrix.layer }}")
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -391,7 +372,6 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
 
       - name: Publish API test results
@@ -417,7 +397,7 @@ jobs:
     needs: [prepare, wait-for-readiness]
     if: >-
       ${{
-        contains(fromJSON('["all","all-but-web","sdk-only"]'), inputs.packages) &&
+        contains(fromJSON('["all","all-but-web","api-only","sdk-only","services-only"]'), inputs.packages) &&
         (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
       }}
     runs-on: ubuntu-latest
@@ -434,51 +414,32 @@ jobs:
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Cache Python dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-railway-sdk-pip-${{ hashFiles('sdk/pyproject.toml', 'sdk/poetry.lock', 'sdk/*/tests/requirements.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-railway-sdk-uv-${{ hashFiles('sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-railway-sdk-pip-
+            ${{ runner.os }}-railway-sdk-uv-
 
       - name: Install SDK dependencies
         run: |
-          pip install -r sdk/oss/tests/requirements.txt
-          pip install -e sdk/
+          pip install "uv==${UV_VERSION}"
+          cd sdks/python
+          uv sync --locked --python 3.13
 
       - name: Run SDK tests
         run: |
-          cd sdk
+          cd sdks/python
 
-          case "${{ matrix.layer }}" in
-            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
-            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
-            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
-            *)
-              echo "Unsupported SDK test layer: ${{ matrix.layer }}"
-              exit 1
-              ;;
-          esac
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing SDK layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty SDK layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(python run-tests.py)
+          CMD=(uv run --no-sync python run-tests.py --layer "${{ matrix.layer }}")
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -490,14 +451,13 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
 
       - name: Publish SDK test results
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: sdk/oss/tests/results/junit.xml
+          files: sdks/python/oss/tests/results/junit.xml
           check_name: Railway SDK Test Results
           comment_mode: off
 
@@ -507,8 +467,8 @@ jobs:
         with:
           name: railway-sdk-test-results-${{ matrix.layer }}
           path: |
-            sdk/oss/tests/results/
-            sdk/pytest*.log
+            sdks/python/oss/tests/results/
+            sdks/python/pytest*.log
           retention-days: 14
 
   run-services-tests:
@@ -520,67 +480,77 @@ jobs:
         (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
       }}
     runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
     env:
+      AGENTA_LICENSE: oss
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_SERVICES_URL: ${{ needs.prepare.outputs.agenta_services_url }}
+      AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
-      - name: Install services test dependencies
-        run: pip install click python-dotenv
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-railway-services-uv-${{ hashFiles('services/pyproject.toml', 'services/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock', 'clients/python/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-railway-services-uv-
 
-      - name: Run services smoke checks
+      - name: Install services dependencies
         run: |
-          if [ "${{ matrix.layer }}" != "acceptance" ]; then
-            if [ ! -d "services/oss/tests/pytest/${{ matrix.layer }}" ]; then
-              echo "Skipping services layer ${{ matrix.layer }}: no path"
-              exit 0
-            fi
+          pip install "uv==${UV_VERSION}"
+          cd services
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
 
-            if ! find "services/oss/tests/pytest/${{ matrix.layer }}" -type f ! -name '.gitkeep' | grep -q .; then
-              echo "Skipping services layer ${{ matrix.layer }}: no tests"
-              exit 0
-            fi
+      - name: Run services tests
+        run: |
+          cd services
 
-            echo "Services ${{
-              matrix.layer
-            }} tests exist but no dedicated runner is wired yet."
-            exit 1
-          fi
+          CMD=(uv run --no-sync python run-tests.py --layer "${{ matrix.layer }}")
 
-          if [ ! -d "services/oss/tests/pytest/acceptance" ]; then
-            echo "Skipping services acceptance layer: no path"
-            exit 0
-          fi
+          if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
+          if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
+          if [ -n "${{ inputs.path }}" ]; then CMD+=(--path "${{ inputs.path }}"); fi
+          if [ -n "${{ inputs.case }}" ]; then CMD+=(--case "${{ inputs.case }}"); fi
+          if [ -n "${{ inputs.scope }}" ]; then CMD+=(--scope "${{ inputs.scope }}"); fi
+          if [ -n "${{ inputs.speed }}" ]; then CMD+=(--speed "${{ inputs.speed }}"); fi
+          if [ -n "${{ inputs.cost }}" ]; then CMD+=(--cost "${{ inputs.cost }}"); fi
+          if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
+          if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          if ! find "services/oss/tests/pytest/acceptance" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping services acceptance layer: no tests"
-            exit 0
-          fi
+          "${CMD[@]}"
 
-          echo "Services acceptance tests exist but no dedicated runner is wired yet."
-          exit 1
-
-      - name: Write services summary
+      - name: Publish services test results
         if: always()
-        run: |
-          {
-            echo "## Railway Services Smoke Summary"
-            echo
-            echo "| Item | Value |"
-            echo "| --- | --- |"
-            echo "| AGENTA_SERVICES_URL | \`${{ env.AGENTA_SERVICES_URL }}\` |"
-            echo "| Status | \`${{ job.status }}\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: services/oss/tests/results/junit.xml
+          check_name: Railway Services Test Results
+          comment_mode: off
+
+      - name: Upload services test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: railway-services-test-results-${{ matrix.layer }}
+          path: |
+            services/oss/tests/results/
+            services/pytest*.log
+          retention-days: 14
 
   run-web-tests:
     name: run-web-tests (${{ matrix.layer }})
@@ -612,21 +582,23 @@ jobs:
       TESTMAIL_API_KEY: ${{ secrets.TESTMAIL_API_KEY }}
       TESTMAIL_NAMESPACE: ${{ secrets.TESTMAIL_NAMESPACE }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          package_json_file: web/package.json
 
       - name: Install dependencies
         working-directory: web
-        run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
+        # Full install (not scoped): the layer runs package vitest suites whose
+        # devDeps (e.g. vitest) aren't pulled by a dependency-only filter.
+        run: pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         working-directory: web/tests
@@ -635,19 +607,10 @@ jobs:
       - name: Run web tests
         working-directory: web/tests
         run: |
-          TARGET_PATH="../oss/tests/playwright/${{ matrix.layer }}"
-
-          if [ ! -d "$TARGET_PATH" ]; then
-            echo "Skipping missing web layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
-            echo "Skipping empty web layer path: $TARGET_PATH"
-            exit 0
-          fi
-
-          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --reporter=html,github)
+          # run-tests.ts runs every source for the layer (package vitest, then
+          # playwright) and resolves the playwright dir from --layer itself,
+          # skipping internally when that dir is empty. No pre-guard needed.
+          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --layer "${{ matrix.layer }}" --reporter=html,github)
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -659,8 +622,19 @@ jobs:
           if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
           if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
 
-          CMD+=(-- "$TARGET_PATH")
           "${CMD[@]}"
+
+      - name: Publish web test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          # playwright layer junit + per-package vitest junit (unit: junit.xml,
+          # integration: integration-junit.xml) — the layer runs both sources.
+          files: |
+            web/tests/results/oss/junit.xml
+            web/packages/*/test-results/*junit.xml
+          check_name: Railway Web Test Results (${{ matrix.layer }})
+          comment_mode: off
 
       - name: Upload test report
         id: upload_report
@@ -668,7 +642,10 @@ jobs:
         if: always()
         with:
           name: playwright-report-${{ matrix.layer }}
-          path: web/tests/reports/oss/
+          # playwright html report + per-package vitest junit (the layer runs both)
+          path: |
+            web/tests/reports/oss/
+            web/packages/*/test-results/
           retention-days: 14
 
       - name: Upload test results
@@ -677,7 +654,9 @@ jobs:
         if: failure()
         with:
           name: playwright-results-${{ matrix.layer }}
-          path: web/tests/results/oss/
+          path: |
+            web/tests/results/oss/
+            web/packages/*/test-results/
           retention-days: 7
 
       - name: Write job summary

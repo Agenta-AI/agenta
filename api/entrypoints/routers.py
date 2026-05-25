@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+
 from supertokens_python import get_all_cors_headers as get_all_supertokens_cors_headers
 from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
@@ -10,8 +12,6 @@ from supertokens_python.framework.fastapi import (
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
-
-from oss.src.open_api import open_api_tags_metadata
 
 from oss.databases.postgres.migrations.core.utils import (
     check_for_new_migrations as check_for_new_core_migrations,
@@ -113,6 +113,10 @@ from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
+from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
+from oss.src.apis.fastapi.invocations.router import InvocationsRouter
+from oss.src.core.annotations.service import AnnotationsService
+from oss.src.core.invocations.service import InvocationsService
 
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
@@ -124,10 +128,10 @@ from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 
 from oss.src.routers import (
-    admin_router,
     user_profile,
     health_router,
     permissions_router,
@@ -181,13 +185,146 @@ async def lifespan(*args, **kwargs):
         await adapter.close()
 
 
+_OPENAPI_TAGS = [
+    {
+        "name": "Status",
+        "description": "API server liveness and readiness status.",
+    },
+    # --
+    {
+        "name": "Organizations",
+        "description": "Manage organizations, workspaces, SSO domains, and identity providers.",
+    },
+    {
+        "name": "Workspaces",
+        "description": "Manage workspaces within an organization and their members.",
+    },
+    {
+        "name": "Projects",
+        "description": "Manage projects within a workspace.",
+    },
+    # --
+    {
+        "name": "Users",
+        "description": "User profile and account management — view profile, update username, reset password.",
+    },
+    # --
+    {
+        "name": "Keys",
+        "description": "Create and revoke API keys used to authenticate programmatic requests.",
+    },
+    # --
+    {
+        "name": "Workflows",
+        "description": "Workflow definitions — the runnable pipelines that back an application.",
+    },
+    {
+        "name": "Applications",
+        "description": "LLM applications — create, update, list, and delete apps.",
+    },
+    {
+        "name": "Evaluators",
+        "description": "Evaluator definitions — the metrics and judges used in evaluation runs.",
+    },
+    # --
+    {
+        "name": "Testsets",
+        "description": "Test datasets — collections of input/output pairs used in evaluations.",
+    },
+    {
+        "name": "Testcases",
+        "description": "Individual test cases within a testset.",
+    },
+    # --
+    {
+        "name": "Queries",
+        "description": "Saved query definitions used to filter and retrieve trace data.",
+    },
+    {
+        "name": "Traces",
+        "description": "Ingest and query traces, spans, and metrics from running applications.",
+    },
+    {
+        "name": "Invocations",
+        "description": "Run an application against a payload and capture the resulting trace.",
+    },
+    {
+        "name": "Annotations",
+        "description": "Attach evaluator-style feedback to existing traces and spans.",
+    },
+    # --
+    {
+        "name": "Evaluations",
+        "description": "Evaluation runs — execute evaluators against variants and testsets.",
+    },
+    # --
+    {
+        "name": "Environments",
+        "description": "Deployment environments (e.g. production, staging) and their active variants.",
+    },
+    # --
+    {
+        "name": "Secrets",
+        "description": "Manage provider credentials and secret values stored in the vault.",
+    },
+    # --
+    {
+        "name": "Tools",
+        "description": "External tool connections and OAuth integrations available to applications.",
+    },
+    # --
+    {
+        "name": "Folders",
+        "description": "Organize applications and other resources into folder hierarchies.",
+    },
+    # --
+    # {
+    #     "name": "Events",
+    #     "description": "Structured event ingestion for analytics and audit purposes.",
+    # },
+    {
+        "name": "Webhooks",
+        "description": "Register and manage webhooks that fire on platform events.",
+    },
+    # --
+    {
+        "name": "OpenTelemetry",
+        "description": "OTLP-compatible endpoints for ingesting traces directly from OpenTelemetry-instrumented services.",
+    },
+    # --
+    # Billing inserted here by EE (extend_app_schema)
+    # --
+    {
+        "name": "Admin",
+        "description": "Internal administration endpoints — restricted to platform operators.",
+    },
+    # --
+    {
+        "name": "Legacy",
+        "description": "Stable legacy endpoints retained for existing integrations — not deprecated, but new integrations should prefer the canonical surface.",
+    },
+    # --
+    {
+        "name": "Deprecated",
+        "description": "Deprecated endpoints kept for backwards compatibility — avoid in new integrations.",
+    },
+]
+
 app = FastAPI(
     lifespan=lifespan,
-    openapi_tags=open_api_tags_metadata,
+    openapi_tags=_OPENAPI_TAGS,
     root_path="/api",
 )
 # MIDDLEWARE -------------------------------------------------------------------
 
+
+# Register SupportHeadersMiddleware first so it ends up *innermost* —
+# closest to the route handler, beneath all BaseHTTPMiddleware-style
+# middlewares (auth, analytics, throttling). BaseHTTPMiddleware runs
+# the downstream app in a child anyio task and does not propagate
+# ContextVar mutations back to the outer task, so a support middleware
+# placed above them would never see the handler's `support_ctx.set(...)`.
+app.add_middleware(SupportHeadersMiddleware)
 
 if is_ee():
     from ee.src.services.throttling_service import throttling_middleware
@@ -197,9 +334,9 @@ if is_ee():
 app.middleware("http")(authentication_middleware)
 app.middleware("http")(analytics_middleware)
 
-app.add_middleware(
-    get_supertokens_middleware(),
-)
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
+
+app.add_middleware(get_supertokens_middleware())
 
 app.add_middleware(
     CORSMiddleware,
@@ -522,6 +659,24 @@ simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
 )
 
+annotations_service = AnnotationsService(
+    evaluators_service=evaluators_service,
+    simple_evaluators_service=simple_evaluators_service,
+    tracing_service=tracing_service,
+)
+annotations = AnnotationsRouter(
+    annotations_service=annotations_service,
+)
+
+invocations_service = InvocationsService(
+    applications_service=applications_service,
+    simple_applications_service=simple_applications_service,
+    tracing_service=tracing_service,
+)
+invocations = InvocationsRouter(
+    invocations_service=invocations_service,
+)
+
 # AI SERVICES ------------------------------------------------------------------
 
 ai_services_service = AIServicesService.from_env()
@@ -540,9 +695,16 @@ platform_admin_accounts = PlatformAdminAccountsRouter(
 
 app.include_router(
     router=secrets.router,
-    prefix="/vault/v1",
     tags=["Secrets"],
 )
+
+## DEPRECATED
+app.include_router(
+    router=secrets.router,
+    prefix="/vault/v1",
+    include_in_schema=False,
+)
+## DEPRECATED
 
 app.include_router(
     router=webhooks.router,
@@ -553,13 +715,13 @@ app.include_router(
 app.include_router(
     router=otlp.router,
     prefix="/otlp/v1",
-    tags=["Observability"],
+    tags=["OpenTelemetry"],
 )
 
 app.include_router(
     router=auth_router,
     prefix="/auth",
-    tags=["Auth"],
+    tags=["Access"],
 )
 
 ## DEPRECATED
@@ -567,6 +729,7 @@ app.include_router(
     router=tracing.router,
     prefix="/preview/tracing",
     tags=["Deprecated"],
+    deprecated=True,
     include_in_schema=False,
 )
 ## DEPRECATED
@@ -574,32 +737,47 @@ app.include_router(
 app.include_router(
     router=tracing.router,
     prefix="/tracing",
-    tags=["Observability"],
+    tags=["Deprecated"],
+    deprecated=True,
+)
+
+app.include_router(
+    router=tracing.legacy_router,
+    prefix="/tracing",
+    tags=["Legacy"],
 )
 
 app.include_router(
     router=traces.router,
     prefix="/traces",
-    tags=["Observability"],
+    tags=["Traces"],
+)
+
+app.include_router(
+    router=traces.deprecated_router,
+    prefix="/traces",
+    tags=["Deprecated"],
 )
 
 app.include_router(
     router=traces.router,
     prefix="/preview/traces",
-    tags=["Observability"],
+    tags=["Deprecated"],
+    deprecated=True,
     include_in_schema=False,
 )
 
 app.include_router(
     router=spans.router,
     prefix="/spans",
-    tags=["Observability"],
+    tags=["Traces"],
 )
 
 app.include_router(
     router=spans.router,
     prefix="/preview/spans",
-    tags=["Observability"],
+    tags=["Deprecated"],
+    deprecated=True,
     include_in_schema=False,
 )
 
@@ -612,13 +790,39 @@ app.include_router(
 app.include_router(
     router=simple_traces.router,
     prefix="/simple/traces",
-    tags=["Simple Traces"],
+    tags=["Traces"],
 )
 
 app.include_router(
     router=simple_traces.router,
     prefix="/preview/simple/traces",
-    tags=["Simple Traces"],
+    tags=["Traces"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=invocations.router,
+    prefix="/invocations",
+    tags=["Invocations"],
+)
+
+app.include_router(
+    router=invocations.router,
+    prefix="/preview/invocations",
+    tags=["Invocations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=annotations.router,
+    prefix="/annotations",
+    tags=["Annotations"],
+)
+
+app.include_router(
+    router=annotations.router,
+    prefix="/preview/annotations",
+    tags=["Annotations"],
     include_in_schema=False,
 )
 
@@ -748,7 +952,7 @@ app.include_router(
 app.include_router(
     router=ai_services.router,
     prefix="/ai/services",
-    tags=["AI Services"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -806,7 +1010,7 @@ app.include_router(
 app.include_router(
     router=legacy_variants.router,
     prefix="/variants",
-    tags=["Variants"],
+    tags=["Deprecated"],
 )
 
 app.include_router(
@@ -826,6 +1030,7 @@ app.include_router(
     router=evaluations.admin_router,
     prefix="/admin/evaluations",
     tags=["Evaluations", "Admin"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -868,12 +1073,6 @@ app.include_router(
 )
 
 app.include_router(
-    admin_router.router,
-    prefix="/admin",
-    tags=["Admin"],
-)
-
-app.include_router(
     router=platform_admin_accounts.router,
     prefix="/admin",
     tags=["Admin"],
@@ -882,41 +1081,42 @@ app.include_router(
 app.include_router(
     health_router.router,
     prefix="/health",
+    tags=["Status"],
 )
 
 app.include_router(
     permissions_router.router,
     prefix="/permissions",
-    tags=["Access Control"],
+    tags=["Access"],
 )
 
 app.include_router(
     projects_router.router,
     prefix="/projects",
-    tags=["Scopes"],
+    tags=["Projects"],
 )
 
 app.include_router(
     user_profile.router,
     prefix="/profile",
+    tags=["Users"],
 )
 
 app.include_router(
     api_key_router.router,
-    prefix="/keys",
-    tags=["Api Keys"],
+    tags=["Keys"],
 )
 
 app.include_router(
     organization_router.router,
     prefix="/organizations",
-    tags=["Organization"],
+    tags=["Organizations"],
 )
 
 app.include_router(
     workspace_router.router,
     prefix="/workspaces",
-    tags=["Workspace"],
+    tags=["Workspaces"],
 )
 
 # ------------------------------------------------------------------------------

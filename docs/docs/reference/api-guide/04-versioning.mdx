@@ -1,0 +1,103 @@
+---
+title: "Versioning"
+description: "How applications, workflows, evaluators, and testsets are versioned with artifacts, variants, and revisions."
+sidebar_position: 4
+---
+
+Applications, workflows, evaluators, testsets, and environments share a single versioning model. Each resource is stored as an **artifact** with one or more **variants**, and each variant accumulates **revisions**. The model is modelled on git: an artifact is a repository, a variant is a branch, a revision is a commit. The payload you care about (the prompt, the workflow configuration, the testset rows, the evaluator settings, the environment pointer) lives on the revision.
+
+This page documents the pattern. The per-resource pages ([applications](/reference/api-guide/applications), [workflows](/reference/api-guide/workflows), [evaluators](/reference/api-guide/evaluators), [testsets](/reference/api-guide/testsets)) describe the payloads that differ per domain. For a higher-level overview that ties versioning to environments and deployment, see [Core Concepts](/concepts/concepts).
+
+## The three entities
+
+| Entity | What it is | Identity |
+|--------|------------|----------|
+| **Artifact** | The top-level resource (one application, workflow, evaluator, or testset). Has a slug and a lifecycle. You don't edit an artifact; you edit its variants. | `id`, `slug` |
+| **Variant** | A named branch of the artifact's history. Most resources start with a single variant. Use `POST /variants/fork` to create a new variant from an existing revision and experiment without touching the original. | `id`, `slug`, `artifact_id` |
+| **Revision** | An immutable snapshot committed to a variant. Carries the resource's payload (prompts, parameters, rows, configuration) along with author, timestamp, and commit message. | `id`, `slug`, `version`, `variant_id` |
+
+IDs are stable across the entire lifecycle. A deployment or trace that references a revision ID continues to resolve to the same snapshot forever.
+
+Environments sit alongside this model. An environment (`development`, `staging`, `production`) is a named pointer to a specific revision. Deploying updates the pointer; it does not modify the revision. See [Core Concepts](/concepts/concepts#environments) for the full picture.
+
+## Committing a revision
+
+Revisions are created by committing new payload to a variant. The shape is identical across resources; only the wrapper key changes (`application_revision_commit`, `workflow_revision_commit`, and so on).
+
+```bash
+curl -X POST "$AGENTA_HOST/api/applications/revisions/commit" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "application_revision_commit": {
+      "application_variant_id": "019d9530-1a88-7c3a-b8cb-d6d8e675c18d",
+      "message": "Tighten the refusal policy",
+      "data": {
+        "parameters": {
+          "prompt": {
+            "messages": [
+              {"role": "system", "content": "You are a careful support agent. Refuse anything outside the documented product."},
+              {"role": "user", "content": "{{question}}"}
+            ],
+            "llm_config": {
+              "model": "gpt-4o-mini",
+              "temperature": 0.2,
+              "max_tokens": 512,
+              "top_p": 1.0
+            },
+            "template_format": "curly"
+          }
+        }
+      }
+    }
+  }'
+```
+
+The response contains the new revision with its `id`, `version`, `author`, `date`, and the committed `data`. A committed revision cannot be edited. To change the payload, commit a new revision on the same variant.
+
+## Retrieving a revision
+
+References are how you point at something in the versioning tree. Each reference is a small object that identifies an artifact, variant, or revision.
+
+:::info
+A reference can be supplied as an `id`, a `slug`, or (for revisions) a `slug` plus `version`. For example:
+
+```json
+{"application_revision_ref": {"id": "019d9531-2e44-7c3a-b8cb-d6d8e675c18d"}}
+{"application_variant_ref": {"slug": "production"}}
+{"application_revision_ref": {"slug": "production", "version": 3}}
+{"environment_ref": {"slug": "production"}}
+```
+:::
+
+```bash
+curl -X POST "$AGENTA_HOST/api/applications/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"application_variant_ref": {"slug": "production"}}'
+```
+
+The retrieve endpoint accepts any of:
+
+- `application_revision_ref`: a specific revision by `id` or by `slug` + `version`.
+- `application_variant_ref`: the latest revision on that variant.
+- `environment_ref`: the revision currently deployed to that environment.
+
+Only one reference is needed. If several are supplied, the most specific one wins: a revision reference is used over a variant reference, and a variant reference is used over an environment reference.
+
+## Listing revision history
+
+```bash
+curl -X POST "$AGENTA_HOST/api/applications/revisions/log" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"application": {"application_variant_id": "019d9530-1a88-7c3a-b8cb-d6d8e675c18d"}}'
+```
+
+Returns the ordered list of revisions committed to a variant. Each entry includes the commit metadata but omits the full payload; fetch a specific revision via `/revisions/retrieve` when you need the data.
+
+## Archive and unarchive
+
+Artifacts and variants are soft-deleted. `POST /{resource}/{id}/archive` sets `deleted_at`; `POST /{resource}/{id}/unarchive` clears it. Archived items are hidden from `/query` responses unless the request body sets `include_archived: true`. See [Query Pattern](/reference/api-guide/query-pattern#archive-and-unarchive).
+
+Archiving an artifact hides its variants and revisions. Revision IDs remain resolvable so historical traces stay intact.

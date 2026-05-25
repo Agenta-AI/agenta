@@ -689,6 +689,71 @@ export function isOnlineCapableEvaluator(evaluator: {
 }
 
 // ============================================================================
+// FULL-PAGE PLAYGROUND CAPABILITY
+// ============================================================================
+
+/**
+ * Legacy evaluator keys whose configuration benefits from a full-page
+ * playground (prompt editor, code editor, model picker, etc.).
+ *
+ * The runtime handlers split into two shapes:
+ * - **Prompt / code based** (`auto_ai_critique`, `llm`, `auto_custom_code_run`,
+ *   `code`): the user authors a prompt template or evaluator code, both of
+ *   which want the full-screen editing surface.
+ * - **Declarative classifiers** (`auto_exact_match`, `auto_contains_*`,
+ *   `auto_regex_test`, `match`, `json_multi_field_match`, …): a handful of
+ *   form fields. The drawer is the right UX; the playground page wastes
+ *   space and presents misleading envelope inputs.
+ *
+ * Only the former list lives here. Anything not matched falls back to the
+ * drawer-only flow (see `Evaluators/index.tsx`).
+ */
+const FULL_PAGE_PLAYGROUND_KEYS = new Set([
+    // Legacy keys
+    "auto_ai_critique",
+    "auto_custom_code_run",
+    // Bare keys (auto_ prefix stripped)
+    "ai_critique",
+    "custom_code_run",
+    // Canonical family keys (post-consolidation)
+    "llm",
+    "code",
+])
+
+/**
+ * Determine whether an evaluator workflow has a full-page playground UX.
+ *
+ * Used to gate the post-create / row-click navigation in `Evaluators/index.tsx`
+ * — declarative classifiers stay in the drawer-only flow because the playground
+ * page can't offer them anything the drawer can't (no prompt, no code, no
+ * model picker — just a few form fields the drawer already renders).
+ *
+ * Mirrors `isOnlineCapableEvaluator`: flag-first, then URI/metadata fallback.
+ *
+ * @param evaluator - Any object with optional `flags` and `data.uri` / `meta`
+ * @returns `true` if the evaluator should open in the full-page playground
+ */
+export function hasFullPagePlaygroundUX(evaluator: {
+    flags?: Record<string, unknown> | null
+    data?: {uri?: string | null} | null
+    meta?: Record<string, unknown> | null
+    slug?: string | null
+}): boolean {
+    const flags = evaluator.flags
+    if (flags?.is_llm || flags?.is_code) {
+        return true
+    }
+
+    const uri = evaluator.data?.uri
+    const keyFromUri = typeof uri === "string" ? parseWorkflowKeyFromUri(uri) : null
+    const keyFromMeta =
+        (evaluator.meta?.evaluator_key as string) ?? (evaluator.meta?.key as string) ?? null
+
+    const candidates = collectEvaluatorCandidates(keyFromUri, keyFromMeta, evaluator.slug)
+    return candidates.some((c) => FULL_PAGE_PLAYGROUND_KEYS.has(c))
+}
+
+// ============================================================================
 // SLUG UTILITIES
 // ============================================================================
 

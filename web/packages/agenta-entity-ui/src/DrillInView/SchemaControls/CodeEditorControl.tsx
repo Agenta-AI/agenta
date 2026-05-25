@@ -76,8 +76,12 @@ export const CodeEditorControl = memo(function CodeEditorControl({
     // heuristic on `runtime` sibling → "python" fallback.
     const language = useMemo(() => {
         const xParams = schema?.["x-parameters"] as Record<string, unknown> | undefined
-        const explicit = xParams?.language as string | undefined
-        if (explicit) return explicit
+        // Normalize + validate the explicit hint so a typo or unexpected
+        // casing falls through to the heuristic / "python" fallback rather
+        // than being passed straight to the editor with undefined behavior.
+        const explicit =
+            typeof xParams?.language === "string" ? xParams.language.toLowerCase() : undefined
+        if (explicit && isSupportedLanguage(explicit)) return explicit
 
         const fromFieldName = xParams?.languageFromField as string | undefined
         if (fromFieldName && rootData && typeof rootData[fromFieldName] === "string") {

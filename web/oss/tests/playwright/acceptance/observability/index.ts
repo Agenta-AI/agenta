@@ -43,6 +43,15 @@ const lightSlowTags = buildAcceptanceTags({
     speed: TestSpeedType.SLOW,
 })
 
+const getFirstTraceRow = (page: any) => page.locator('[data-tour="trace-row"]').first()
+
+const clickFirstTraceRow = async (page: any) => {
+    const firstDataRow = getFirstTraceRow(page)
+    await expect(firstDataRow).toBeVisible({timeout: 10000})
+    await firstDataRow.scrollIntoViewIfNeeded()
+    await firstDataRow.click({position: {x: 80, y: 12}})
+}
+
 /**
  * Runs a completion variant in the Playground to generate a trace, then navigates
  * to the Observability page and waits for the trace row to appear.
@@ -61,17 +70,15 @@ const runPlaygroundAndGoToObservability = async (
     // Ensure the test LLM provider (mock) is configured
     await testProviderHelpers.ensureTestProvider()
 
-    const app = await apiHelpers.getApp("completion")
+    const app = await apiHelpers.createApp("completion")
     const appId = app.id
     const basePath = apiHelpers.getProjectScopedBasePath()
 
-    // Navigate to the app overview then follow the Playground sidebar link.
-    // Direct /playground URL entry is unreliable per existing playground test notes.
-    await page.goto(`${basePath}/apps/${appId}/overview`, {waitUntil: "domcontentloaded"})
-    const playgroundLink = page.getByRole("link", {name: "Playground"}).first()
-    await expect(playgroundLink).toBeVisible({timeout: 10000})
-    await playgroundLink.click()
+    await page.goto(`${basePath}/apps/${appId}/playground`, {waitUntil: "domcontentloaded"})
     await uiHelpers.expectPath(`/apps/${appId}/playground`)
+    await expect(page.getByRole("button", {name: "Refine prompt with AI"}).first()).toBeVisible({
+        timeout: 30000,
+    })
 
     // Select the mock test model
     await testProviderHelpers.selectTestModel()
@@ -120,7 +127,7 @@ const runPlaygroundAndGoToObservability = async (
     // because the <Table> element is removed from the DOM when EmptyObservability
     // renders (traces.length === 0 && !isLoading), making table-based locators
     // find the wrong element or nothing at all.
-    const firstDataRow = page.locator('[data-tour="trace-row"]')
+    const firstDataRow = getFirstTraceRow(page)
 
     // Wait up to 150 s for the trace to appear. With auto-refresh at 15 s intervals,
     // the trace should appear within ~15 s of backend indexing completing.
@@ -169,9 +176,9 @@ const observabilityTests = () => {
 
             await scenarios.when("the user opens the traces table", async () => {
                 // runPlaygroundAndGoToObservability already confirmed this row is visible;
-                // use the same data-tour locator to click directly without re-waiting.
-                const firstDataRow = page.locator('[data-tour="trace-row"]')
-                await firstDataRow.getByRole("cell").nth(2).click()
+                // click the row itself because virtualized Ant tables do not guarantee
+                // stable cell tags or ARIA roles in the body.
+                await clickFirstTraceRow(page)
             })
 
             await scenarios.then("the trace detail drawer opens", async () => {
@@ -194,8 +201,6 @@ const observabilityTests = () => {
                 testProviderHelpers,
             )
 
-            const tracesTable = page.getByRole("table").last()
-
             // Apply a date range filter via the Sort popover.
             // The Sort button shows the current range label (default "24 hours").
             const sortButton = page
@@ -213,8 +218,11 @@ const observabilityTests = () => {
                 timeout: 10000,
             })
 
-            // The traces table is still visible (filter applied successfully)
-            await expect(tracesTable).toBeVisible({timeout: 10000})
+            // The virtual table row is still visible (filter applied successfully).
+            // getByRole("table") is unreliable with rc-virtual-list; use data-tour attribute.
+            await expect(page.locator('[data-tour="trace-row"]').first()).toBeVisible({
+                timeout: 10000,
+            })
         },
     )
 
@@ -231,8 +239,6 @@ const observabilityTests = () => {
                 testProviderHelpers,
             )
 
-            const tracesTable = page.getByRole("table").last()
-
             // Use the search input to filter by content
             const searchInput = page.getByRole("searchbox").first()
             await expect(searchInput).toBeVisible({timeout: 10000})
@@ -241,12 +247,22 @@ const observabilityTests = () => {
             await searchInput.fill("agenta")
             await searchInput.press("Enter")
 
-            // The table remains visible (filter did not crash the UI)
-            await expect(tracesTable).toBeVisible({timeout: 10000})
+            await expect(searchInput).toHaveValue("agenta")
+
+            // The filter may legitimately narrow the table to zero traces depending on
+            // what the generated trace contains. Wait for either a filtered row or the
+            // filtered empty state so the assertion checks that filtering completed.
+            await expect(
+                getFirstTraceRow(page).or(page.getByText("No traces found")).first(),
+            ).toBeVisible({timeout: 10000})
+            await expect(page.getByRole("button", {name: "Refresh data"})).toBeVisible({
+                timeout: 10000,
+            })
 
             // Clear the filter to restore the full list
             await searchInput.clear()
             await searchInput.press("Enter")
+            await expect(getFirstTraceRow(page)).toBeVisible({timeout: 20000})
         },
     )
 
@@ -263,12 +279,10 @@ const observabilityTests = () => {
                 testProviderHelpers,
             )
 
-            const tracesTable = page.getByRole("table").last()
-
-            // Click the third cell of the first data row to open the trace drawer
-            const firstDataRow = tracesTable.getByRole("row").nth(1)
-            await expect(firstDataRow).toBeVisible({timeout: 10000})
-            await firstDataRow.getByRole("cell").nth(2).click()
+            // Click the first data row to open the trace drawer. The virtual table body
+            // does not expose stable cell tags, but the row click handler is the behavior
+            // users rely on.
+            await clickFirstTraceRow(page)
 
             const drawer = page.locator(".ant-drawer-content-wrapper")
             await expect(drawer).toBeVisible({timeout: 10000})
@@ -344,10 +358,10 @@ const observabilityTests = () => {
                 testProviderHelpers,
             )
 
-            // Verify the trace created by the playground run is visible
-            const tracesTable = page.getByRole("table").last()
-            const firstDataRow = tracesTable.getByRole("row").nth(1)
-            await expect(firstDataRow).toBeVisible({timeout: 10000})
+            // Verify the trace created by the playground run is visible.
+            // The virtual table uses rc-virtual-list, so getByRole("table/row") is
+            // unreliable. Use the data-tour attribute set on the first row instead.
+            await expect(page.locator('[data-tour="trace-row"]')).toBeVisible({timeout: 10000})
         },
     )
 }

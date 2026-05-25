@@ -19,8 +19,6 @@
  * ```
  */
 
-import React from "react"
-
 import {InitialsAvatar} from "@agenta/ui"
 
 import {useUserDisplayName, useIsCurrentUser} from "./atoms"

@@ -1,44 +1,37 @@
-[tool.poetry]
+[project]
 name = "services"
-version = "0.96.10"
+version = "0.100.1"
 description = "Agenta Services (Chat & Completion)"
+requires-python = ">=3.11,<3.14"
 authors = [
-    "Mahmoud Mabrouk <mahmoud@agenta.ai>",
-    "Juan Vega <jp@agenta.ai>"
+    { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
+    { name = "Juan Vega", email = "jp@agenta.ai" },
 ]
-package-mode = false
+dependencies = [
+    "agenta",
+    "uvicorn[standard]>=0.47,<0.48",
+    "gunicorn>=26,<27",
+    "structlog>=25,<26",
+    "newrelic>=13,<14",
+    "boto3>=1,<2",
+    "google-cloud-aiplatform>=1,<2",
+    "orjson>=3,<4",
+]
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[dependency-groups]
+dev = [
+    "watchdog[watchmedo]>=3,<4",
+    "requests>=2,<3",
+    "click>=8,<9",
+    "pytest>=9,<10",
+    "pytest-asyncio>=1,<2",
+    "pytest-xdist>=3,<4",
+    "pytest-mock>=3,<4",
+    "pytest-html>=4,<5",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
+[tool.uv]
+package = false
 
-# Agenta SDK
-agenta = ">=0.96.7"
-
-# Server
-uvicorn = "^0.45"
-gunicorn = "^25"
-
-# Traces, Metrics, Logs
-structlog = "^25"
-newrelic = "^12"
-
-# LiteLLM providers
-boto3 = "^1"
-google-cloud-aiplatform = "^1"
-
-# Serialization (required by litellm for OpenAI responses)
-orjson = "^3"
-
-[tool.poetry.group.dev.dependencies]
-watchdog = { extras = ["watchmedo"], version = "^3" }
-requests = "^2"
-click = "^8"
-pytest = "^8"
-pytest-asyncio = "^0.21"
-pytest-xdist = "^3"
-pytest-mock = "^3"
-pytest-html = "^4"
+[tool.uv.sources]
+agenta = { path = "../sdks/python", editable = true }

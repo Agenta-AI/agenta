@@ -69,7 +69,7 @@ jobs:
       environment_name: ${{ steps.deploy.outputs.environment_name }}
       railway_logs_url: ${{ steps.deploy.outputs.railway_logs_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Railway CLI
         run: |

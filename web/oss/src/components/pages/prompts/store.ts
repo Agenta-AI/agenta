@@ -10,7 +10,7 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {queryWorkflows} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {queryFolders} from "@/oss/services/folders"
 import type {Folder} from "@/oss/services/folders/types"
@@ -157,11 +157,14 @@ const workflowsQueryAtom = atomWithQuery((get) => {
             const response = await queryWorkflows({
                 projectId,
                 flags: {is_evaluator: false},
+                includeArchived: false,
                 // undefined = no filter (search), null = root, string = specific folder
                 folderId: isSearching ? undefined : (currentFolderId ?? null),
                 windowing: {order: "descending"},
             })
-            return response.workflows.map(mapWorkflowToRow)
+            return response.workflows
+                .filter((workflow) => !workflow.deleted_at)
+                .map(mapWorkflowToRow)
         },
         enabled: !!projectId,
         staleTime: 30_000,
@@ -183,6 +186,9 @@ export const workflowsLoadingAtom = atom((get) => {
 
 /** Action atom to refetch workflows */
 export const refetchWorkflowsAtom = atom(null, (_get) => {
+    const queryClient = _get(queryClientAtom)
+    queryClient.invalidateQueries({queryKey: ["prompts-workflows"], exact: false})
+
     const query = _get(workflowsQueryAtom)
     query.refetch()
 })

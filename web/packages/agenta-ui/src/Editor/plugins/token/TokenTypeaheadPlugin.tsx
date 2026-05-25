@@ -282,7 +282,13 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
                     const match = text.match(/^\{\{(.*?)\}\}$/)
                     const offsetPos = selection.anchor.offset
 
-                    if (match && offsetPos >= 2 && offsetPos <= text.length - 2) {
+                    // Anchor only when the caret sits at the end of the
+                    // editable region (just before `}}`). Selecting a
+                    // suggestion replaces the entire token text, so opening
+                    // the menu mid-token would silently drop the suffix
+                    // after the caret. Restrict to end-of-token until the
+                    // replacement logic becomes caret-aware.
+                    if (match && offsetPos === text.length - 2) {
                         setInputQuery(match[1])
                         const dom = editor.getElementByKey(node.getKey())
                         if (dom) {

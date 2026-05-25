@@ -1,4 +1,5 @@
 export {
+    getAppWorkflowTableState,
     appWorkflowPaginatedStore,
     workflowPaginatedStore,
     appWorkflowCountAtom,

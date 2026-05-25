@@ -412,7 +412,7 @@ export function TestsetDropdown() {
                 }
                 setLoadableName(loadableId, trimmedName)
                 const result = await saveAsNewTestset(loadableId, {
-                    commitMessage: message,
+                    commitMessage: message ?? undefined,
                     slug: entitySlug,
                 })
                 const errorStatus = (result.error as {response?: {status?: number}} | undefined)
@@ -427,7 +427,7 @@ export function TestsetDropdown() {
             }
 
             try {
-                await commitChanges(loadableId, message)
+                await commitChanges(loadableId, message ?? undefined)
                 return {success: true}
             } catch (err) {
                 return {success: false, error: err instanceof Error ? err.message : String(err)}

@@ -26,7 +26,7 @@ export const fetchPreviewTestsets = async (payload: PreviewTestsetsQueryPayload 
 export async function createNewTestset(
     testsetName: string,
     testsetData?: any,
-    commitMessage?: string,
+    commitMessage?: string | null,
 ) {
     const {projectId} = getProjectValues()
 
@@ -266,6 +266,18 @@ export const deleteTestsets = async (ids: string[]) => {
         ),
     )
     return results.map((r) => r.data)
+}
+
+export const unarchiveTestset = async (id: string) => {
+    const {projectId} = getProjectValues()
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/simple/testsets/${id}/unarchive`,
+        {},
+        {params: {project_id: projectId}},
+    )
+
+    return response.data
 }
 
 /**

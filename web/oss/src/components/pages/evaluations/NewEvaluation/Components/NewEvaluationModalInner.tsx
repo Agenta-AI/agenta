@@ -1,5 +1,6 @@
 import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
+import {useVaultSecret} from "@agenta/entities/secret"
 import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/entities/shared"
 import {
     workflowMolecule,
@@ -29,7 +30,6 @@ import {
 import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
 import {registryWorkflowIdOverrideAtom} from "@/oss/components/VariantsComponents/store/registryStore"
 import useURL from "@/oss/hooks/useURL"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
 import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
@@ -74,8 +74,28 @@ const NewEvaluationModalInner = ({
 }: NewEvaluationModalInnerProps) => {
     // Use appIdentifiersAtom directly to get the URL-derived appId without fallback to stale values
     const {appId} = useAtomValue(appIdentifiersAtom)
+    // Phase 6.1.3 defensive guard: if a preselect ID matches an evaluator
+    // workflow, ignore it. Belt-and-suspenders with the Phase 6.1.2 fix that
+    // hides RunEvaluationButton for evaluators — but covers any other call site
+    // (e.g., a stale cache or programmatic open) that might still pass an
+    // evaluator ID. Without this, the modal silently defaults to "no app
+    // selected" which is confusing.
+    const evaluatorWorkflows = useAtomValue(evaluatorsListDataAtom)
+    const sanitizedPreSelectedAppId = useMemo(() => {
+        if (!preSelectedAppId) return undefined
+        const isEvaluator = evaluatorWorkflows.some((e) => e.id === preSelectedAppId)
+        if (isEvaluator) {
+            if (process.env.NODE_ENV !== "production") {
+                console.warn(
+                    `[NewEvaluationModal] preSelectedAppId resolves to an evaluator workflow (${preSelectedAppId}) — ignoring.`,
+                )
+            }
+            return undefined
+        }
+        return preSelectedAppId
+    }, [preSelectedAppId, evaluatorWorkflows])
     // Consider pre-selected app ID from playground, fallback to URL-derived appId
-    const effectiveAppId = preSelectedAppId || appId || ""
+    const effectiveAppId = sanitizedPreSelectedAppId || appId || ""
     const isAppScoped = Boolean(effectiveAppId)
     const {apps: availableApps = []} = useAppsData()
     const [selectedAppId, setSelectedAppId] = useState<string>(effectiveAppId)
@@ -260,7 +280,13 @@ const NewEvaluationModalInner = ({
 
     const handleAppSelection = useCallback(
         (value: string, meta?: {label?: string; isEvaluator?: boolean}) => {
-            if (value === selectedAppId) return
+            if (value === selectedAppId) {
+                // Same workflow re-selected — refresh the meta so label/kind
+                // fallbacks stay current without resetting the rest of the
+                // wizard state.
+                if (value && meta) setSelectedWorkflowMeta(meta)
+                return
+            }
             setSelectedAppId(value)
             setSelectedWorkflowMeta(value ? (meta ?? null) : null)
             setSelectedTestsetId("")

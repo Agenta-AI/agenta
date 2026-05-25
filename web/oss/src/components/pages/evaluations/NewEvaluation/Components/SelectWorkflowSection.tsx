@@ -174,7 +174,7 @@ const SelectWorkflowSection = ({
     const onSelectRow = useCallback(
         (selectedRowKeys: React.Key[]) => {
             if (disabled) return
-            const selectedId = selectedRowKeys[0] as string | undefined
+            const selectedId = selectedRowKeys.at(-1) as string | undefined
             if (!selectedId) {
                 onSelectWorkflow("")
                 return
@@ -190,7 +190,7 @@ const SelectWorkflowSection = ({
 
     const rowSelection = useMemo(
         () => ({
-            type: "checkbox" as const,
+            type: "radio" as const,
             selectedRowKeys: selectedWorkflowId ? [selectedWorkflowId] : [],
             onChange: (keys: React.Key[]) => onSelectRow(keys),
             getCheckboxProps: () => ({disabled}),

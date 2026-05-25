@@ -1,11 +1,11 @@
 ---
 id: delete-organization-domain
-title: "Delete Organization Domain"
-description: "Delete a domain from an organization."
-sidebar_label: "Delete Organization Domain"
+title: "Delete Domain"
+description: "Delete a domain."
+sidebar_label: "Delete Domain"
 hide_title: true
 hide_table_of_contents: true
-api: eJy9VVFr2zAQ/ivmnjYQcVb25KeFJdDQjpY220swRbUvsTrbUiW5NDP67+MkO7abtmww9hRL9+nT6bv7Li3kaDItlBWyhgSWWKLFiEe5rLioo52WVcTrSOo9r8UvTrAZMJAKtV+sc0gg96fuxqC7QAAMFNe8QovaQLJtoeYVQgITrMiBgaD7FbcFMND42AiNOSRWN8jAZAVWHJIW7EHRcWO1qPfAwApb0sbViC9a5+AcO94VUvkXtyyDKp4/JQKjZG3Q0Jmz+Zx+pnreNlmGxuyaMrrpwMAgk7XF2hKcK1WKzKcdPxg60w55OOccg89nZ6fEP3gp8vDaldZS/wUrKE3lsyLknaPloqQvYbEyp4BSZpMorw9XO1/LqUykeLcjaot71OBSx/o9rjU/jLS8lCFBcAwqs39P9m9oDN8jHMnehnoxog1FHVVbNV6QPrz2G45BZp9HNPL+ATM7ovlKWj5baqMTzNA2W69NSL/DpQPHUKJQobelWIYSvHZZDznfbK5PCEN/VGgLOdjQW84WkEA8NpmJ2xeec3Ewhonbo0McMDCon3q3NrokIq6EL29YFtYqk8QxNrOslE0+43usLZ9xEYApcWSNFvbgSRbX6ws8nCPPUUOyTceAW+rK0GdT2LE2XIkLJLU6Ny8aW0jdPaN3dBFOOV/znRyXfOGTixbXa2BADwsGms8+zebAXthqAiZD8cz3T3+3DwN7IcTx/cAAK+8msMirL0OAMlPS2IrXI75u3E6G17IfnJPM2sHefzykOwGpkWNVEqnrMm+7FtlO5rABBsnpYO66hILDJE0ZFNJYomjbe27wuy6do+3HBjXVPWXwxLXg91SFbQu5MPSdQ7LjpcF33vfhpnPYx+itV/S9UVNjPPGyoRUw+ImHV/5cqHX/4/WDSn7+FX3jt118kWWo7OjkybgmhxxtvVxdrjYrcO43fLSgPQ==
+api: eJx9VFFP4zAM/iuVn+6kaAPEU59uuk1ighMIdvcyVci03hqubUKSInZV/vvJabu2DNjLmvizY3+f7QYc7i3EW7g1e6zkP3RSVRYSARnZ1EjNZ4hhSQU5ijDKVImymoEApckE+DqDGLIAeFSjMI8tFgRoNFiSI8NPNVBhSewSzI8yAwGSH9HochBg6KWWhjKInalJgE1zKhHiBtxBs6N1RlZ7EOCkK/hiGSJF6wy8TziA1aqyZNnn4uyS/6blPNRpStbu6iK678DgBVxeXJxi/2Ahs1BQtDJGGRCQqspR5RiLWhcyDeb5s2WHZpSwNsySk20qGTmUBX9JR6U9BRQqnVixOtzuAmXTyr043sjK0Z4M+MSL/g6NwcOInhvVJsgllnb/FZO/yFrcBzJayOfQQEa0YatnAXUdCOnN63DhBaTubRRGPT1T6kZhfjKXbw78kP8RM3TCNnDTpt/hkiHGIFGr0OdULFsJPnqsh1xtNncnAfknoCSXq6HbQ2e7HGKYj/veztvOtvPm2OIeBFgyr/0I1KZgN9QyiNkec+e0jedzqmdpoepshnuqHM5QtsCEY6S1ke4Qgizu1td0uCLMyEC8TcaAB+7BtqumsKMSqOU1MTfdOC5qlyvT1dCPZN56+aDwTo0FXoTkosXdGt5vi4mJhwXT0Bv9S8EM4l3ZQ7UggMowKuAIyx9HCyvLHLbPnM3OZ2d8pZV1JVajJ7p9tew30CS/ZhjgjxZbxw935VwX7O+7VJtO7y1M9Ob4reIgIB7WWiIgV9Yxvmme0NJvU3jP1y81GdYwEfCKRuITM7ptIJOWvzOId1hY+iLvb/fdbHyPPku517likV+xqPkEAv7SYbJ9w+rI+y5qOvsiTUm7kefJpuN2O07EcnWz2qzA+/80TSWM
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,17 +18,18 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"Delete Organization Domain"}
+  children={"Delete Domain"}
 >
 </Heading>
 
 <MethodEndpoint
   method={"delete"}
-  path={"/organizations/{organization_id}/domains/{domain_id}"}
+  path={"/organizations/domains/{domain_id}"}
   context={"endpoint"}
 >
   
@@ -36,33 +37,30 @@ import Heading from "@theme/Heading";
 
 
 
-Delete a domain from an organization.
+Delete a domain.
 
 <Heading
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
-  children={"Request"}
 >
+  <Translate id="theme.openapi.request.title">Request</Translate>
 </Heading>
 
 <ParamsDetails
-  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}},{"name":"domain_id","in":"path","required":true,"schema":{"type":"string","title":"Domain Id"}}]}
+  {...require("./delete-organization-domain.ParamsDetails.json")}
 >
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./delete-organization-domain.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  {...require("./delete-organization-domain.StatusCodes.json")}
 >
   
 </StatusCodes>

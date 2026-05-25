@@ -11,6 +11,7 @@ import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import type {Filter} from "@/oss/lib/Types"
 
 import {routerAppIdAtom} from "../../app"
+import {SESSIONS_PAGE_SIZE, TRACES_PAGE_SIZE} from "../constants"
 
 export type TraceTabTypes = "trace" | "span" | "chat"
 export type ObservabilityTabInfo = "traces" | "sessions"
@@ -70,7 +71,7 @@ export const traceTabsAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
     atom<TraceTabTypes>("trace"),
 )
 export const limitAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
-    atom<number>(tab === "sessions" ? 20 : 50),
+    atom<number>(tab === "sessions" ? SESSIONS_PAGE_SIZE : TRACES_PAGE_SIZE),
 )
 export const sortAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
     atom<SortResult>(DEFAULT_SORT as SortResult),
@@ -120,6 +121,17 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
 
             const hasUserTraceType = userFilters.some(isTraceType)
 
+            // The soft default for the trace_type filter is always
+            // `"invocation"`. Earlier we flipped to `"annotation"` when the
+            // current workflow context was an evaluator, because standalone
+            // evaluator runs at the time only emitted annotation traces.
+            // That's no longer true — standalone evaluator runs in the
+            // playground now emit invocation traces with `references.
+            // application` set (see `runnableSetup.ts`, evaluator branch),
+            // so the app-scoped `/apps/{evaluatorId}/observability` page
+            // should show those by default rather than the more rare
+            // annotation flow. Users who want annotations can still pick
+            // the filter manually.
             const softDefaults: Filter[] = []
             if (defaultEnabled && !hasUserTraceType && tab === "traces") {
                 softDefaults.push({
@@ -182,13 +194,6 @@ export const filtersAtom = atom(
 // Table/UI controls -----------------------------------------------------------
 export const selectedTraceIdAtom = atom<string>("")
 export const selectedNodeAtom = atom<string>("")
-export const editColumnsAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
-    atom<string[]>(["span_type", "key", "usage", "tag"]),
-)
-export const editColumnsAtom = atom(
-    (get) => get(editColumnsAtomFamily(get(observabilityTabAtom))),
-    (get, set, value: string[]) => set(editColumnsAtomFamily(get(observabilityTabAtom)), value),
-)
 export const selectedRowKeysAtom = atom<Key[]>([])
 export const testsetDrawerDataAtom = atom<TestsetTraceData[]>([])
 export const isAnnotationsSectionOpenAtom = atom<boolean>(true)

@@ -1,20 +1,21 @@
 import {useMemo} from "react"
 
-import {Play, Plus} from "@phosphor-icons/react"
-import {Button, Collapse, Empty, Spin, Tag, Tooltip, Typography} from "antd"
-import {useSetAtom} from "jotai"
-import Image from "next/image"
-
-import ConnectionStatusBadge from "@/oss/components/pages/settings/Tools/components/ConnectionStatusBadge"
 import {
     useConnectionsQuery,
     catalogDrawerOpenAtom,
     executionDrawerAtom,
     useIntegrationDetail,
-} from "@/oss/features/gateway-tools"
-import CatalogDrawer from "@/oss/features/gateway-tools/drawers/CatalogDrawer"
-import ToolExecutionDrawer from "@/oss/features/gateway-tools/drawers/ToolExecutionDrawer"
-import type {ConnectionItem} from "@/oss/services/tools/api/types"
+    type ToolConnection,
+} from "@agenta/entities/gatewayTool"
+import {
+    CatalogDrawer,
+    ConnectionStatusBadge,
+    ToolExecutionDrawer,
+} from "@agenta/entity-ui/gatewayTool"
+import {Play, Plus} from "@phosphor-icons/react"
+import {Button, Collapse, Empty, Spin, Tag, Tooltip, Typography} from "antd"
+import {useSetAtom} from "jotai"
+import Image from "next/image"
 
 interface GatewayToolsPanelProps {
     mountDrawers?: boolean
@@ -27,7 +28,7 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
 
     // Group connections by integration
     const grouped = useMemo(() => {
-        const map: Record<string, ConnectionItem[]> = {}
+        const map: Record<string, ToolConnection[]> = {}
         for (const conn of connections) {
             const key = conn.integration_key
             if (!map[key]) map[key] = []
@@ -80,17 +81,18 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
                         extra: <Tag className="text-xs">{grouped[integrationKey].length}</Tag>,
                         children: (
                             <div className="flex flex-col gap-1">
-                                {grouped[integrationKey].map((conn) => (
+                                {grouped[integrationKey].map((conn, index) => (
                                     <ConnectionRow
-                                        key={conn.id}
+                                        key={conn.id ?? conn.slug ?? `${integrationKey}-${index}`}
                                         connection={conn}
-                                        onTest={() =>
+                                        onTest={() => {
+                                            if (!conn.id || !conn.slug) return
                                             setExecutionDrawer({
                                                 connectionId: conn.id,
                                                 connectionSlug: conn.slug,
                                                 integrationKey: conn.integration_key,
                                             })
-                                        }
+                                        }}
                                     />
                                 ))}
                             </div>
@@ -132,7 +134,7 @@ function IntegrationSectionLabel({integrationKey}: {integrationKey: string}) {
     )
 }
 
-function ConnectionRow({connection, onTest}: {connection: ConnectionItem; onTest: () => void}) {
+function ConnectionRow({connection, onTest}: {connection: ToolConnection; onTest: () => void}) {
     const isReady = connection.flags?.is_active && connection.flags?.is_valid
     const {integration} = useIntegrationDetail(connection.integration_key)
     const label = integration?.name || connection.integration_key.replace(/_/g, " ")
