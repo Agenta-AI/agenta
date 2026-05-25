@@ -2,38 +2,41 @@
  * TemplateFormatPicker — small dropdown for choosing how a prompt template
  * renders (Mustache / Jinja2 / [Curly] / [F-string]).
  *
- * Used by the playground prompt-config surface (Step 5/6 of the playground
- * mustache + input UX branch). The picker is *presentational*: it doesn't
- * know about variant entities or molecules. The wiring layer (Step 6, in
- * OSS) wires it up to the active prompt's `template_format` field.
+ * Used by the playground prompt-config surface to let the user switch
+ * `template_format`. Presentational only — the wiring layer feeds in the
+ * current value and the change handler.
  *
- * Value handling:
- *   - `value` is a free string so prompts storing legacy formats (`curly`,
- *     `fstring`) keep their selection visible; never silently coerced.
- *   - Options are computed by `buildTemplateFormatOptions(value)` — the
- *     vendored helper alongside this file. See `templateFormatOptions.ts`
- *     for the contract and the vendoring note.
+ * Options + labels come from `buildTemplateFormatOptions` shipped by
+ * WP-B3 (#4393) in `agenta-entity-ui/src/DrillInView/SchemaControls/`.
+ * Contract:
+ *   - New / mustache / jinja2 prompts → ["mustache", "jinja2"]
+ *   - Prompts on curly → ["mustache", "jinja2", "curly"]
+ *   - Prompts on fstring → ["mustache", "jinja2", "fstring"]
+ *   - Labels: "Prompt Syntax: Mustache" / "Jinja2" / "Curly" / "F-string"
+ *   - Never coerce: legacy formats stay selectable on prompts that already
+ *     use them; never offered to other prompts.
  *
- * Visual style:
- *   - Compact antd `Select`, sized to fit alongside a label.
- *   - "default" / "legacy" hints render as a small right-aligned chip.
+ * The drawer's `PromptSchemaControl` already consumes the same helper for
+ * its inline picker — drawer and playground now share both options and
+ * labels, so users get a consistent vocabulary across surfaces.
  */
 
 import {useMemo} from "react"
 
-import {Select, Tag} from "antd"
+import {Select} from "antd"
 
 import {
     buildTemplateFormatOptions,
-    DEFAULT_TEMPLATE_FORMAT,
-    type TemplateFormatOption,
-} from "./templateFormatOptions"
+    type TemplateFormat,
+} from "../DrillInView/SchemaControls/templateFormatOptions"
+
+const DEFAULT_TEMPLATE_FORMAT: TemplateFormat = "mustache"
 
 export interface TemplateFormatPickerProps {
     /** Current template_format from the prompt config. `null` / `undefined`
-     *  → falls back to `DEFAULT_TEMPLATE_FORMAT` (mustache). */
-    value?: string | null
-    onChange: (next: string) => void
+     *  → falls back to mustache (the WP-B3 default for new prompts). */
+    value?: TemplateFormat | string | null
+    onChange: (next: TemplateFormat) => void
     disabled?: boolean
     /** Optional className for layout overrides. */
     className?: string
@@ -45,53 +48,19 @@ export function TemplateFormatPicker({
     disabled,
     className,
 }: TemplateFormatPickerProps) {
-    const options = useMemo(() => buildTemplateFormatOptions(value), [value])
-    const resolvedValue = value ?? DEFAULT_TEMPLATE_FORMAT
+    const resolvedValue = (value as TemplateFormat | null | undefined) ?? DEFAULT_TEMPLATE_FORMAT
+    const options = useMemo(() => buildTemplateFormatOptions(resolvedValue), [resolvedValue])
 
     return (
-        <Select<string>
+        <Select<TemplateFormat>
             size="small"
-            value={resolvedValue}
+            value={resolvedValue as TemplateFormat}
             disabled={disabled}
             onChange={onChange}
             className={className}
-            style={{minWidth: 120}}
+            style={{minWidth: 180}}
             popupMatchSelectWidth={false}
-            optionLabelProp="label"
-            options={options.map((opt) => ({
-                value: opt.value,
-                label: opt.label,
-            }))}
-            optionRender={(option) => {
-                const opt = options.find((o) => o.value === option.value) as
-                    | TemplateFormatOption
-                    | undefined
-                return (
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: 12,
-                        }}
-                    >
-                        <span>{opt?.label ?? String(option.label)}</span>
-                        {opt?.hint ? (
-                            <Tag
-                                color={opt.hint === "legacy" ? "default" : "blue"}
-                                style={{
-                                    fontSize: 10,
-                                    marginInlineEnd: 0,
-                                    fontFamily:
-                                        "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                                }}
-                            >
-                                {opt.hint}
-                            </Tag>
-                        ) : null}
-                    </div>
-                )
-            }}
+            options={options}
         />
     )
 }

@@ -1,18 +1,10 @@
 /**
  * Unit tests for the view-types primitives in @agenta/entity-ui/view-types.
  *
- * NOTE: This test file lives in @agenta/entities because that package already
- * has a vitest runner wired up. The agenta-entity-ui package does not yet
- * ship its own test runner. The relative import below crosses the package
- * boundary deliberately to avoid:
- *   - Adding @agenta/entity-ui as a (test-time) dep of @agenta/entities,
- *     which would create a dependency cycle since entity-ui depends on
- *     entities at runtime.
- *   - Standing up a full vitest + stubs setup in agenta-entity-ui as part
- *     of this branch.
- *
- * TODO(follow-up): Move these tests into agenta-entity-ui/tests/unit/ once
- * that package gets its own vitest runner. Tracked separately from this PR.
+ * Runs under @agenta/entity-ui's own vitest runner (added by #4393's
+ * vitest.config.ts). Previously these tests lived as a stopgap in
+ * @agenta/entities/tests/unit/ because entity-ui had no runner — that
+ * limitation was lifted by #4393, so the tests moved to their natural home.
  */
 import {describe, expect, it} from "vitest"
 
@@ -22,7 +14,7 @@ import {
     getDefaultViewForValue,
     getViewOptions,
     isChatMessagesArray,
-} from "../../../agenta-entity-ui/src/view-types/viewTypes"
+} from "../../src/view-types/viewTypes"
 
 describe("view-types: isChatMessagesArray", () => {
     it("detects a basic role-tagged messages array", () => {
