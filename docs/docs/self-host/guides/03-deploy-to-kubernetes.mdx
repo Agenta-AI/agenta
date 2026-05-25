@@ -17,7 +17,26 @@ Database migrations run automatically as a post-install or post-upgrade hook.
 - A running Kubernetes cluster (v1.24+)
 - `kubectl` configured to access your cluster
 - `helm` CLI (v3.10+) installed
-- An ingress controller if you want to expose Agenta with a public hostname
+- **An ingress controller** running on the cluster. Web, API, and services must be served from the same origin via path-based routing (`/`, `/api`, `/services`); a port-forward to a single Service won't work because the browser issues cross-path requests that fail without an ingress. The chart's defaults assume Traefik (see [Set Up Ingress and TLS](#set-up-ingress-and-tls)).
+
+:::tip Local testing with Traefik
+For local clusters (kind / minikube / Docker Desktop), install Traefik v3 and bind a hostname through `/etc/hosts`:
+
+```bash
+helm repo add traefik https://traefik.github.io/charts
+helm install traefik traefik/traefik \
+  --namespace traefik --create-namespace \
+  --set ingressClass.name=traefik
+
+echo "127.0.0.1 agenta.example.com" | sudo tee -a /etc/hosts
+
+# kind/minikube/Docker Desktop don't give the LoadBalancer Service an
+# external IP, so bridge localhost:80 to the Traefik Service:
+sudo kubectl -n traefik port-forward svc/traefik 80:80 &
+```
+
+Then set `agenta.webUrl: http://agenta.example.com` (and matching `apiUrl`/`servicesUrl`) in your values file. See [Path Prefix Stripping](#path-prefix-stripping) for the StripPrefix middleware Traefik needs.
+:::
 
 ## Quick Start
 
@@ -43,20 +62,31 @@ For Enterprise Edition:
 cp hosting/kubernetes/ee/values.ee.example.yaml hosting/kubernetes/ee/.values.ee.yaml
 ```
 
-Open the copy and fill in the values you need — at minimum `secrets.agentaAuthKey`, `secrets.agentaCryptKey`, and `secrets.postgresPassword`, plus the public URLs under `global` if you are not using the default local URLs:
+Open the copy and fill in the values you need — at minimum `agenta.authKey`, `agenta.cryptKey`, and `postgres.password`, plus the public URLs under `agenta.*` if you are not using the default local URLs:
+
+```bash
+openssl rand -hex 32   # use for agenta.authKey
+openssl rand -hex 32   # use for agenta.cryptKey
+openssl rand -hex 16   # use for postgres.password
+```
 
 :::warning
-Save these secret values in a secure secret manager. You will need them for future upgrades, and there is no way to recover encrypted data if `agentaCryptKey` is lost.
+Save these secret values in a secure secret manager. You will need them for future upgrades, and there is no way to recover encrypted data if `agenta.cryptKey` is lost.
 :::
 
 ```yaml
-global:
+agenta:
   webUrl: "https://agenta.example.com"
   apiUrl: "https://agenta.example.com/api"
   servicesUrl: "https://agenta.example.com/services"
+  authKey: "<openssl rand -hex 32>"
+  cryptKey: "<openssl rand -hex 32>"
+
+postgres:
+  password: "<openssl rand -hex 16>"
 ```
 
-For Enterprise Edition, keep `global.agentaLicense: ee`, configure `global.imagePullSecrets`, and review `hosting/kubernetes/helm/LICENSE.ee`.
+For Enterprise Edition, keep `agenta.license: ee`, configure `global.imagePullSecrets`, and review `hosting/kubernetes/helm/LICENSE.ee`.
 
 ### 3. Install
 
@@ -99,7 +129,7 @@ helm install agenta hosting/kubernetes/helm \
 If you change the Secret name, update `global.imagePullSecrets[0].name` in your values file to match.
 
 :::info
-The chart automatically wires `secrets.postgresPassword` to both the application pods and the Bitnami PostgreSQL subchart (via a shared Kubernetes Secret). You only need to set it once.
+The chart automatically wires `postgres.password` to both the application pods and the Bitnami PostgreSQL subchart (via a shared Kubernetes Secret). You only need to set it once.
 :::
 
 :::warning
@@ -568,7 +598,7 @@ kubectl -n agenta describe pod <pod-name>
 ```
 
 Common causes:
-- Missing secrets: ensure `secrets.agentaAuthKey`, `secrets.agentaCryptKey`, and `secrets.postgresPassword` are set
+- Missing secrets: ensure `agenta.authKey`, `agenta.cryptKey`, and `postgres.password` are set
 - Image pull errors: verify image names and that `imagePullSecrets` are configured if using a private registry
 
 ### Migration job fails

@@ -55,3 +55,12 @@ postgres:
 # ================================================================== #
 posthog:
   apiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+
+# ================================================================== #
+# postgresql (Bitnami subchart) — pin PVC size so it never floats
+# with subchart defaults; immutable field on StatefulSet.
+# ================================================================== #
+postgresql:
+  primary:
+    persistence:
+      size: "10Gi"

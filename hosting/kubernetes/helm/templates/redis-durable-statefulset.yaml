@@ -1,6 +1,7 @@
 {{- $values := default dict .Values -}}
 {{- $redisDurable := default dict $values.redisDurable -}}
 {{- $persistence := default dict $redisDurable.persistence -}}
+{{- $persistenceEnabled := default true $persistence.enabled -}}
 {{- if eq (include "agenta.redisDurable.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -54,7 +55,7 @@ spec:
             - name: redis
               containerPort: {{ include "agenta.redisDurable.port" . }}
               protocol: TCP
-          {{- if $persistence.enabled }}
+          {{- if $persistenceEnabled }}
           volumeMounts:
             - name: redis-data
               mountPath: /data
@@ -102,7 +103,7 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-  {{- if $persistence.enabled }}
+  {{- if $persistenceEnabled }}
   volumeClaimTemplates:
     - metadata:
         name: redis-data

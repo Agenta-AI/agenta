@@ -2,7 +2,14 @@
 
 Goal: install Agenta on Kubernetes by following the **pre-v0.100.2 install docs verbatim**, then follow the **v0.100.2 migration docs verbatim**, and confirm the deployment still works.
 
-You will need an EE image tag that exists on `ghcr.io/agenta-ai/internal-ee-*`. Substitute `<EE_TAG>` everywhere it appears below. You will also need a GitHub PAT with `read:packages` on the EE org.
+You clone the repo once, deploy from `main`, then `git checkout` the v0.100.2 branch in the same checkout and run the upgrade — exactly what a real operator does. All paths below are relative to the clone root (`agenta/`); the snapshot file is written one level up so it survives the `git checkout`.
+
+You will need two EE image tags that exist on `ghcr.io/agenta-ai/internal-ee-*`:
+
+- `OLD_EE_TAG` — any **pre-v0.100.2** EE tag (this is the "already running" deployment).
+- `NEW_EE_TAG` — the **v0.100.2** EE tag being validated.
+
+You will also need a GitHub PAT with `read:packages` on the EE org.
 
 > Everything in this plan comes from the published docs. Lines marked **[QA-only]** are testing-harness additions (e.g. picking which tag to use); lines marked **[doc-gap]** are places where I had to fill in a step that the public docs do not actually tell the user, and the doc should be fixed.
 
@@ -10,19 +17,20 @@ You will need an EE image tag that exists on `ghcr.io/agenta-ai/internal-ee-*`. 
 
 ## Phase 0 — Pick a clean starting state
 
+From the directory you want to keep the clone in:
+
 ```bash
-# [QA-only] Use a scratch worktree of main so the test isn't polluted by this branch
-cd /Users/junaway/Agenta/github/application
-git fetch origin main
-git worktree add /tmp/agenta-main origin/main
-cd /tmp/agenta-main
+git clone https://github.com/Agenta-AI/agenta
+cd agenta
+git checkout main
 ```
 
-Pick a tag to test with (any existing EE tag works):
+Pick the tags and credentials to test with:
 
 ```bash
-export EE_TAG=<EE_TAG>           # [QA-only]
-export GH_USER=<your-gh-user>    # [QA-only]
+export OLD_EE_TAG=<pre-v0.100.2 tag>    # [QA-only] used in Phase 1
+export NEW_EE_TAG=<v0.100.2 tag>        # [QA-only] used in Phase 3
+export GH_USER=<your-gh-user>           # [QA-only]
 export GH_PAT=<your-read-packages-pat>  # [QA-only]
 ```
 
@@ -32,7 +40,33 @@ export GH_PAT=<your-read-packages-pat>  # [QA-only]
 
 **Source:** `docs/docs/self-host/guides/03-deploy-to-kubernetes.mdx` on `main`, section _Deploy Enterprise Edition_.
 
-The docs say, verbatim:
+### 1.0 Install a Traefik ingress controller (local, no DNS)
+
+The chart creates an `Ingress` with path routing (`/`, `/api`, `/services`) and defaults `ingress.className: traefik`. The docs reference `apiVersion: traefik.io/v1alpha1` for the StripPrefix middleware, which is the **Traefik v3** CRD group — that's what the current `traefik/traefik` Helm chart installs by default.
+
+Install Traefik v3 once per cluster:
+
+```bash
+helm repo add traefik https://traefik.github.io/charts
+helm repo update
+helm install traefik traefik/traefik \
+  --namespace traefik --create-namespace \
+  --set ingressClass.name=traefik
+```
+
+Since this is a local cluster with no DNS, use `/etc/hosts` to point the example hostname at localhost:
+
+```bash
+echo "127.0.0.1 agenta.example.com" | sudo tee -a /etc/hosts
+```
+
+Then bridge port 80 on localhost to Traefik's Service (kind / minikube / Docker Desktop don't give the `LoadBalancer` Service an external IP):
+
+```bash
+sudo kubectl -n traefik port-forward svc/traefik 80:80 &
+```
+
+> **[doc-gap]** The pre-v0.100.2 install guide does not include any "install an ingress controller first" step. The Ingress + path-prefix section explains the configuration, but a newcomer following the Quick Start with EE values has no working browser path until they figure this out themselves. **Fix the new install guide** so the prerequisites step explicitly says "you must have an ingress controller running and pointing your `ingress.host` at it," and add a local-testing recipe (Traefik v3 + `/etc/hosts` + port-forward).
 
 ### 1.1 Create the namespace and image pull secret
 
@@ -50,18 +84,21 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 ### 1.2 Copy the EE example values file and edit it
 
+Make a sibling of the example so the original stays untouched:
+
 ```bash
-cp hosting/helm/agenta-oss/values-ee.example.yaml values-ee.yaml
+cp hosting/helm/agenta-oss/values-ee.example.yaml \
+   hosting/helm/agenta-oss/values-ee.yaml
 ```
 
-Open `values-ee.yaml` and replace the placeholder values. Minimum changes:
+Open `hosting/helm/agenta-oss/values-ee.yaml` and replace the placeholder values. Minimum changes:
 
 ```yaml
 global:
   agentaLicense: ee
-  webUrl: "http://localhost"
-  apiUrl: "http://localhost/api"
-  servicesUrl: "http://localhost/services"
+  webUrl: "http://agenta.example.com"
+  apiUrl: "http://agenta.example.com/api"
+  servicesUrl: "http://agenta.example.com/services"
   imagePullSecrets:
     - name: ghcr-pull-secret
 
@@ -70,15 +107,43 @@ secrets:
   agentaCryptKey: "<openssl rand -hex 32>"
   postgresPassword: "<openssl rand -hex 16>"
 
+ingress:
+  enabled: true
+  className: "traefik"
+  host: "agenta.example.com"
+
 api:
   image:
-    tag: "<EE_TAG>"
+    tag: "<OLD_EE_TAG>"
 web:
   image:
-    tag: "<EE_TAG>"
+    tag: "<OLD_EE_TAG>"
 services:
   image:
-    tag: "<EE_TAG>"
+    tag: "<OLD_EE_TAG>"
+```
+
+Traefik needs a `StripPrefix` middleware so `/api` and `/services` are stripped before forwarding to the backends (the install guide's "Path Prefix Stripping" section). Add this to your values too:
+
+```yaml
+ingress:
+  enabled: true
+  className: "traefik"
+  host: "agenta.example.com"
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: agenta-strip-prefixes@kubernetescrd
+
+extraObjects:
+  - apiVersion: traefik.io/v1alpha1
+    kind: Middleware
+    metadata:
+      name: strip-prefixes
+      namespace: "{{ .Release.Namespace }}"
+    spec:
+      stripPrefix:
+        prefixes:
+          - /api
+          - /services
 ```
 
 > **[doc-gap]** The pre-v0.100.2 EE section says "replace the placeholder secrets and URLs" but never tells the EE reader to actually generate secrets the way the OSS section does. Save the three values now — you need them in Phase 3.
@@ -88,7 +153,7 @@ services:
 ```bash
 helm install agenta hosting/helm/agenta-oss \
   --namespace agenta \
-  -f values-ee.yaml
+  -f hosting/helm/agenta-oss/values-ee.yaml
 ```
 
 ### 1.4 Verify ("Verify" step from the same docs)
@@ -98,13 +163,7 @@ kubectl -n agenta get pods -w
 kubectl -n agenta get jobs
 ```
 
-Once everything is `Running`:
-
-```bash
-kubectl port-forward svc/agenta-agenta-oss-web 3000:3000 -n agenta
-```
-
-Open `http://localhost:3000`, sign up a test user, create one project (so you have data to verify after the migration). Stop the port-forward.
+Once everything is `Running` and the Alembic Job shows `Complete`, open `http://agenta.example.com` in your browser. Sign up a test user and create one project (so you have data to verify after the migration).
 
 ---
 
@@ -113,8 +172,8 @@ Open `http://localhost:3000`, sign up a test user, create one project (so you ha
 **Source:** `docs/docs/self-host/upgrades/v0.100.2-migration.mdx`, step 1.
 
 ```bash
-helm -n agenta get values agenta -o yaml > /tmp/pre-v0.100.2-values.yaml
-cat /tmp/pre-v0.100.2-values.yaml
+helm -n agenta get values agenta -o yaml > ../pre-v0.100.2-values.yaml
+cat ../pre-v0.100.2-values.yaml
 ```
 
 The migration guide also gives the `kubectl`-only fallback for unwrapping the release Secret if `helm` isn't available. Skip it for QA unless `helm get values` returns nothing.
@@ -123,7 +182,7 @@ The migration guide also gives the `kubectl`-only fallback for unwrapping the re
 
 ## Phase 3 — Migrate to v0.100.2
 
-### 3.1 Switch to the new chart layout
+### 3.1 Switch the checkout to the new chart layout
 
 The migration guide says:
 
@@ -132,15 +191,14 @@ git fetch
 git checkout release/v0.100.2
 ```
 
-For QA we test the branch instead of a tag:
+For QA, check out the unmerged branch instead:
 
 ```bash
-# [QA-only] testing against the unmerged branch
-cd /Users/junaway/Agenta/github/application
-git checkout chore/update-deployment-artifacts
+git fetch
+git checkout chore/update-deployment-artifacts   # [QA-only]
 ```
 
-> **[doc-gap]** The migration guide assumes the user already has a checkout sitting on the same working directory. It does **not** explain that the chart path moved from `hosting/helm/agenta-oss/` (gone on this branch) to `hosting/kubernetes/helm/`. The "Chart folder relocation" table at the top mentions it; step 2 should remind the reader.
+> **[doc-gap]** The migration guide assumes the user already has a checkout sitting on the same working directory. It does **not** explain that the chart path moved from `hosting/helm/agenta-oss/` (gone after this checkout) to `hosting/kubernetes/helm/`. The "Chart folder relocation" table at the top mentions it; step 2 should remind the reader.
 
 ### 3.2 Create the edition-specific values file (step 3 of the guide)
 
@@ -151,7 +209,7 @@ cp hosting/kubernetes/ee/values.ee.example.yaml \
 
 ### 3.3 Translate the old values into the new shape (step 4 of the guide)
 
-Open `/tmp/pre-v0.100.2-values.yaml` (from Phase 2) next to `hosting/kubernetes/ee/.values.ee.yaml`. Walk through and rewrite using the reshape table at the top of the migration guide. For the test deployment, the relevant moves are:
+Open `../pre-v0.100.2-values.yaml` (from Phase 2) next to `hosting/kubernetes/ee/.values.ee.yaml`. Walk through and rewrite using the reshape table at the top of the migration guide. For the test deployment, the relevant moves are:
 
 | from `pre-v0.100.2-values.yaml` | to `.values.ee.yaml` |
 | --- | --- |
@@ -161,9 +219,34 @@ Open `/tmp/pre-v0.100.2-values.yaml` (from Phase 2) next to `hosting/kubernetes/
 | `secrets.agentaAuthKey` | `agenta.authKey` |
 | `secrets.agentaCryptKey` | `agenta.cryptKey` |
 | `secrets.postgresPassword` | `postgres.password` |
-| `api.image.tag` / `web.image.tag` / `services.image.tag` | same paths (unchanged) |
+| `api.image.tag` / `web.image.tag` / `services.image.tag` | same paths — but bump the value from `$OLD_EE_TAG` to `$NEW_EE_TAG` |
 
 The auth key, crypt key, and postgres password **must match what was deployed in Phase 1** — the encrypted data in the DB cannot be read with a different crypt key, and the bundled Postgres PVC still uses the old password.
+
+The image tag is the one thing that **must change**: bump `api.image.tag`, `web.image.tag`, and `services.image.tag` to `$NEW_EE_TAG`. That's the point of the upgrade.
+
+Also exercise the new `agenta.access.defaultPlanOverlay` knob that v0.100.2 introduces (called out as a `:::tip` in the migration guide). Add this block to `.values.ee.yaml` to validate it ships into the API pod env:
+
+```yaml
+agenta:
+  access:
+    defaultPlanOverlay:
+      counters:
+        traces_retrieved:
+          limit: 1000
+          strict: true
+          period: daily
+          scope: user
+```
+
+After the upgrade you can confirm it took effect with:
+
+```bash
+kubectl -n agenta exec deploy/agenta-agenta-oss-api -- \
+  printenv AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY
+```
+
+The value should be the JSON form of the overlay block above.
 
 ### 3.4 Run the upgrade (step 5 of the guide)
 
@@ -185,25 +268,36 @@ kubectl -n agenta get pods -w
 ## Phase 4 — Verify (step 6 of the guide)
 
 ```bash
-# All pods Running
+# All pods Running. Note: agenta-postgresql-0 and agenta-agenta-oss-redis-durable-0
+# will have AGE matching the upgrade time (not Phase 1), because their StatefulSets
+# were force-rolled by helm. PVCs survive — verify with the PVC check below.
 kubectl -n agenta get pods
 
-# Migration job completed
-kubectl -n agenta logs job/agenta-alembic | tail
+# PVCs preserved from Phase 1 (this proves your data survived)
+kubectl -n agenta get pvc
+# Both should show AGE from Phase 1, BOUND, sizes 10Gi (postgres) and 5Gi (redis-durable).
 ```
 
-> **[doc-gap]** The migration guide says `kubectl -n agenta logs job/agenta-alembic`, but the install docs (and the chart's resource naming on `main`) actually produce `agenta-agenta-oss-alembic`. Confirm which name the v0.100.2 chart emits and either fix the chart or fix the guide. Run `kubectl -n agenta get jobs` to see the real name in your environment.
-
-API health check (verbatim from the guide):
+Migration Job:
 
 ```bash
-kubectl -n agenta port-forward svc/agenta-api 8000:8000 &
-curl -s http://localhost:8000/health
+kubectl -n agenta get jobs
+kubectl -n agenta logs job/agenta-agenta-oss-alembic -c alembic --tail=20
 ```
 
-> **[doc-gap]** The pre-v0.100.2 docs port-forward `svc/agenta-agenta-oss-web`. The migration guide port-forwards `svc/agenta-api`. Confirm the post-upgrade Service name and update whichever document is wrong. Run `kubectl -n agenta get svc` to see the actual names.
+> **[doc-gap CONFIRMED]** The migration guide says `kubectl -n agenta logs job/agenta-alembic`, but the v0.100.2 chart emits `agenta-agenta-oss-alembic` (the `include "agenta.fullname"` helper produces `<release>-<chart>` = `agenta-agenta-oss`). Same naming as v0.100.1. **Fix the new migration guide** to use `agenta-agenta-oss-alembic`.
+>
+> **[QA note]** The Alembic Job may show 2-3 pods, some in `Error` and one in `Completed`. That's expected: when Helm re-rolls the Postgres StatefulSet, the first alembic attempts hit `CannotConnectNowError: the database system is shutting down`. The Job retries (backoffLimit=3) and the final pod succeeds. As long as `kubectl get jobs` shows `Complete 1/1`, you're fine. If `kubectl logs job/...` picks an Errored pod, run `kubectl logs <completed-pod-name> -c alembic` directly.
 
-Then open the web UI on the same port-forward you used in Phase 1.4 (substitute the new Service name if it changed) and confirm:
+API health check (via the ingress):
+
+```bash
+curl -fsS http://agenta.example.com/api/health
+```
+
+> **[doc-gap CONFIRMED]** The migration guide tells the reader to port-forward `svc/agenta-api`, but the v0.100.2 chart creates `svc/agenta-agenta-oss-api` (same naming as v0.100.1). **Fix the new migration guide** — or do the verify step via the ingress URL like above, which is naming-agnostic.
+
+Then open `http://agenta.example.com` and confirm:
 
 - The test user from Phase 1 can still log in (same auth key, same DB).
 - The project from Phase 1 is still listed.
@@ -226,24 +320,37 @@ Then open the web UI on the same port-forward you used in Phase 1.4 (substitute 
 - `kubectl -n agenta get events --sort-by=.lastTimestamp | tail -30`
 - `kubectl -n agenta describe pod <failing-pod>`
 - `kubectl -n agenta logs <failing-pod> --previous`
-- `/tmp/pre-v0.100.2-values.yaml` and `hosting/kubernetes/ee/.values.ee.yaml`
+- `../pre-v0.100.2-values.yaml` and `hosting/kubernetes/ee/.values.ee.yaml`
 
 ---
 
 ## Phase 6 — Cleanup
 
 ```bash
+# Stop the Traefik port-forward from Phase 1.0
+kill %1 2>/dev/null || true
+
 helm -n agenta uninstall agenta
-kubectl -n agenta delete pvc -l app.kubernetes.io/instance=agenta   # see Uninstall section of install docs
-kubectl delete namespace agenta
-git worktree remove /tmp/agenta-main
-rm -f /tmp/pre-v0.100.2-values.yaml
+kubectl delete namespace agenta   # cascades to PVCs and everything else
+
+helm -n traefik uninstall traefik
+kubectl delete namespace traefik
+
+sudo sed -i.bak '/agenta\.example\.com/d' /etc/hosts
+
+cd ..
+rm -rf agenta
+rm -f pre-v0.100.2-values.yaml
 ```
 
 ---
 
-## Doc-gaps found during this QA plan (to fix before release)
+## Doc-gaps found during this QA plan
 
-1. **Pre-v0.100.2 install guide, EE section** — uses `<ee-server>` instead of `ghcr.io`, and does not tell EE readers to generate `agentaAuthKey`/`agentaCryptKey`/`postgresPassword` (the OSS section does). **Pre-merge, not blocking** — the pre-v0.100.2 doc is frozen on `main`. Document this for users who hit it; no fix expected on the old docs.
-2. **v0.100.2 migration guide, step 2** — does not call out that the chart path moved from `hosting/helm/agenta-oss/` to `hosting/kubernetes/helm/` at the same point the user `git checkout`s. The relocation table is at the top of the page, but the step itself reads as if nothing changed on disk. **Fix the new migration guide.**
-3. **v0.100.2 verify step** — the Job and Service names referenced (`agenta-alembic`, `svc/agenta-api`) may not match what the chart actually emits (pre-v0.100.2 chart produced `agenta-agenta-oss-alembic` and `agenta-agenta-oss-web`). Confirm against `helm template hosting/kubernetes/helm` and either rename the resources to the shorter form or fix the guide to use the actual names. **Fix the new migration guide and/or the chart resource naming.**
+1. **Pre-v0.100.2 install guide, EE section** — (a) uses `<ee-server>` instead of `ghcr.io`; (b) does not tell EE readers to generate `agentaAuthKey`/`agentaCryptKey`/`postgresPassword` (the OSS section does); (c) `cp hosting/helm/agenta-oss/values-ee.example.yaml` snippet writes to bare `values-ee.yaml`, which is ambiguous about cwd, and the matching `helm install -f values-ee.yaml` fails if you guessed wrong. **Status: NOT FIXED** — the pre-v0.100.2 doc is frozen on `main` and won't be revised; left here so future readers of this QA plan know to watch for it.
+2. **v0.100.2 install guide didn't tell users to install an ingress controller** before deploying. Without one, the chart installs but the browser can't reach `/api` and `/services`. **Status: FIXED** in `docs/docs/self-host/guides/03-deploy-to-kubernetes.mdx` — added an ingress prerequisite and a "Local testing with Traefik" recipe (Traefik v3 + `/etc/hosts` + port-forward).
+3. **v0.100.2 install guide referenced pre-v0.100.2 values paths** (`secrets.agentaAuthKey`, `global.webUrl`, `global.agentaLicense`) — wrong for the new chart shape. **Status: FIXED** — rewritten to use `agenta.authKey` / `agenta.webUrl` / `agenta.license` and `postgres.password`. Troubleshooting section also updated.
+4. **v0.100.2 install guide had no "generate secrets" snippet for EE** even though OSS did. **Status: FIXED** — `openssl rand -hex 32/16` snippet added next to the values block.
+5. **v0.100.2 migration guide step 6 used wrong resource names** — `kubectl logs job/agenta-alembic` and `port-forward svc/agenta-api` don't exist. The chart actually emits `agenta-agenta-oss-alembic` and `agenta-agenta-oss-api` (via the `agenta.fullname` helper = `<release>-<chart>`). **Status: FIXED** — `docs/docs/self-host/upgrades/v0.100.2-migration.mdx` now uses the real names and switches the health check to `curl http://<ingress-host>/api/health` so the snippet is naming-agnostic.
+6. **v0.100.2 migration guide didn't warn about Alembic Job retries** during the upgrade — Helm re-rolls Postgres, the first one or two alembic pods fail with `CannotConnectNowError`, and the Job retries to success. Confusing if you don't expect it. **Status: FIXED** — added a `:::note Alembic job retries` callout to the verify step explaining the expected behavior and how to find the successful pod's logs.
+7. **Chart regression: v0.100.2 `helm/values.yaml` didn't pin `postgresql.primary.persistence.size`, and dropped `redisDurable.persistence.enabled: true`**. Both caused `helm upgrade` to fail on v0.100.1→v0.100.2 with `StatefulSet spec is invalid: spec: Forbidden` (Bitnami subchart picked a different PVC size; redis StatefulSet lost its volumeClaimTemplates). **Status: FIXED** — `hosting/kubernetes/helm/values.yaml` pins postgres PVC to `10Gi`; `hosting/kubernetes/helm/templates/redis-durable-statefulset.yaml` defaults persistence to `true` via `default true $persistence.enabled`. Example files (`values.{oss,ee}.example.yaml`) also show both knobs and the Traefik StripPrefix middleware (commented out) so future readers find them.

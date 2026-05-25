@@ -450,11 +450,16 @@ posthog:
 
 # ================================================================== #
 # === ingress ===
+# Path routing: / → web, /api → api (prefix-stripped), /services → services
+# (prefix-stripped).  When running behind Traefik, attach the StripPrefix
+# Middleware defined under extraObjects below.
 # ================================================================== #
 # ingress:
 #   enabled: true
 #   className: traefik
 #   host: agenta.example.com
+#   annotations:
+#     traefik.ingress.kubernetes.io/router.middlewares: agenta-strip-prefixes@kubernetescrd
 #   paths:
 #     api:
 #       path: /api
@@ -468,9 +473,18 @@ posthog:
 
 # ================================================================== #
 # === extraObjects — arbitrary Kubernetes resources ===
+# Includes the Traefik v3 StripPrefix Middleware referenced from the
+# ingress.annotations above.  Required so /api and /services backends
+# receive requests without the prefix.
 # ================================================================== #
 # extraObjects:
-#   - apiVersion: v1
-#     kind: ConfigMap
+#   - apiVersion: traefik.io/v1alpha1
+#     kind: Middleware
 #     metadata:
-#       name: extra
+#       name: strip-prefixes
+#       namespace: "{{ .Release.Namespace }}"
+#     spec:
+#       stripPrefix:
+#         prefixes:
+#           - /api
+#           - /services
