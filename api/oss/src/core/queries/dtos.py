@@ -1,7 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 from oss.src.core.tracing.dtos import Filtering, Formatting
@@ -119,6 +119,7 @@ class QueryVariantQuery(VariantQuery):
 
 
 class QueryRevisionData(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     formatting: Optional[Formatting] = None
     filtering: Optional[Filtering] = None
     windowing: Optional[Windowing] = None

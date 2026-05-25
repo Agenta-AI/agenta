@@ -119,6 +119,7 @@ class WorkflowQueryFlags(BaseModel):
 
 
 class WorkflowRevisionData(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     uri: Optional[str] = None
 
     url: Optional[str] = None
@@ -562,6 +563,7 @@ class EvaluatorVariantIdAlias(AliasConfig):
 
 
 class EvaluatorRevisionData(WorkflowRevisionData):
+    model_config = ConfigDict(extra="forbid")
     pass
 
 
@@ -712,6 +714,7 @@ class ApplicationVariantEdit(WorkflowVariantEdit):
 
 
 class ApplicationRevisionData(WorkflowRevisionData):
+    model_config = ConfigDict(extra="forbid")
     pass
 
 

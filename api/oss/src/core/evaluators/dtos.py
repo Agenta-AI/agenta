@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
 from oss.src.core.shared.dtos import (
@@ -188,6 +188,7 @@ class EvaluatorVariantQuery(WorkflowVariantQuery):
 
 
 class EvaluatorRevisionData(WorkflowRevisionData):
+    model_config = ConfigDict(extra="forbid")
     pass
 
 
