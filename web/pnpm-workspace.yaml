@@ -4,3 +4,9 @@ packages:
   - 'tests'
   - 'packages/*'
   - 'apps/*'
+onlyBuiltDependencies:
+  - '@swc/core'
+  - core-js
+  - esbuild
+  - sharp
+  - unrs-resolver
