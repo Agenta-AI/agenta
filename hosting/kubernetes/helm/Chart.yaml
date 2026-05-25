@@ -1,0 +1,24 @@
+apiVersion: v2
+name: agenta-oss
+description: A Helm chart for deploying Agenta OSS on Kubernetes
+type: application
+version: 0.100.1
+appVersion: "v0.100.1"
+keywords:
+  - agenta
+  - llm
+  - ai
+  - observability
+  - prompt-management
+home: https://agenta.ai
+icon: https://raw.githubusercontent.com/Agenta-AI/agenta/main/docs/static/images/favicon.ico
+sources:
+  - https://github.com/Agenta-AI/agenta
+maintainers:
+  - name: Agenta
+    url: https://github.com/Agenta-AI
+dependencies:
+  - name: postgresql
+    version: "~18.5"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled

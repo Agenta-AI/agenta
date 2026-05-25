@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "Agenta Helm values. Only the compose env surface is validated here; all Kubernetes plumbing (image, port, replicas, resources, security contexts, ingress, postgresql/redis subchart wiring) is optional and validated loosely.",
+  "additionalProperties": true,
+  "properties": {
+    "agenta": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "license": { "type": "string", "enum": ["oss", "ee"] },
+        "webUrl": { "type": "string" },
+        "servicesUrl": { "type": "string" },
+        "apiUrl": { "type": "string" },
+        "apiInternalUrl": { "type": "string" },
+        "authKey": { "type": "string" },
+        "cryptKey": { "type": "string" }
+      }
+    }
+  }
+}

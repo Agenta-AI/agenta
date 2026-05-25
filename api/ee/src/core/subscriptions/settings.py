@@ -1,6 +1,6 @@
 """Billing settings: effective catalog, Stripe pricing, free/trial plan accessors.
 
-Reads `env.billing.catalog` and `env.billing.pricing` at import time and
+Reads `env.agenta.billing.catalog` and `env.agenta.billing.pricing` at import time and
 falls back to code defaults. The free-plan marker and trial duration live
 per-entry inside `AGENTA_BILLING_PRICING` (`{"free": true}` /
 `{"trial": N}`); there is no separate `_FREE_PLAN` / `_TRIAL_PLAN` /
@@ -267,7 +267,7 @@ def _build_settings() -> tuple[
 ]:
     plans = set(get_plans().keys())
 
-    catalog_payload = env.billing.catalog
+    catalog_payload = env.agenta.billing.catalog
     if catalog_payload is not None:
         catalog = _parse_catalog_override(catalog_payload)
         catalog_source = "env"
@@ -282,7 +282,7 @@ def _build_settings() -> tuple[
                 f"AGENTA_BILLING_CATALOG references plan '{slug}' not in effective plans"
             )
 
-    pricing_payload = env.billing.pricing
+    pricing_payload = env.agenta.billing.pricing
     if pricing_payload is not None:
         pricing = _parse_pricing_override(pricing_payload)
         pricing_source = "env"
@@ -338,7 +338,7 @@ def _build_settings() -> tuple[
     # AGENTA_DEFAULT_PLAN), it must reference an effective plan slug.
     # Without this guard, signup onboards orgs onto a plan that never
     # resolves at runtime and every entitlement check 404s.
-    default_plan_raw = env.access_controls.default_plan
+    default_plan_raw = env.agenta.access.default_plan
     if default_plan_raw and default_plan_raw not in plans:
         raise ValueError(
             f"AGENTA_ACCESS_DEFAULT_PLAN '{default_plan_raw}' is not in the "

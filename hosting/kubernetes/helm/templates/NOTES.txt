@@ -1,0 +1,78 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named: {{ .Release.Name }}
+
+{{- $ingress := default dict .Values.ingress }}
+{{- $secrets := default dict .Values.secrets }}
+{{- if eq (include "agenta.ingress.enabled" .) "true" }}
+
+Agenta is accessible via Ingress:
+{{- if $ingress.host }}
+  Web UI:   http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/
+  API:      http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/api/
+  Services: http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/services/
+{{- else }}
+  Determine the ingress IP:
+    kubectl get ingress {{ include "agenta.fullname" . }} -n {{ .Release.Namespace }}
+
+  Then access:
+    Web UI:   http://<INGRESS_IP>/
+    API:      http://<INGRESS_IP>/api/
+    Services: http://<INGRESS_IP>/services/
+{{- end }}
+{{- else }}
+
+Agenta services are available via ClusterIP. Use port-forward to access them:
+
+  # Web UI
+  kubectl port-forward svc/{{ include "agenta.fullname" . }}-web {{ include "agenta.web.port" . }}:{{ include "agenta.web.port" . }} -n {{ .Release.Namespace }}
+
+  # API
+  kubectl port-forward svc/{{ include "agenta.fullname" . }}-api {{ include "agenta.api.port" . }}:{{ include "agenta.api.port" . }} -n {{ .Release.Namespace }}
+{{- end }}
+
+To check the status of all pods:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- if eq (include "agenta.alembic.enabled" .) "true" }}
+
+Database migrations run as a post-install/post-upgrade hook. Check the migration job:
+  kubectl get jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=alembic
+  kubectl logs job/{{ include "agenta.fullname" . }}-alembic -n {{ .Release.Namespace }}
+{{- end }}
+
+{{- if $secrets.existingSecret }}
+
+You are using a pre-created Secret: {{ $secrets.existingSecret }}
+Ensure it contains the following keys:
+  - AGENTA_AUTH_KEY
+  - AGENTA_CRYPT_KEY
+  - POSTGRES_PASSWORD
+  - SUPERTOKENS_API_KEY  (optional)
+{{- if eq (include "agenta.postgresql.enabled" .) "true" }}
+
+Bundled PostgreSQL is enabled. Bitnami is configured to read the password from:
+  global.postgresql.auth.existingSecret: {{ include "agenta.pgauthSecretName" . }}
+{{- if ne (include "agenta.pgauthSecretName" .) $secrets.existingSecret }}
+
+WARNING: global.postgresql.auth.existingSecret resolves to "{{ include "agenta.pgauthSecretName" . }}"
+but secrets.existingSecret is "{{ $secrets.existingSecret }}".
+The Bitnami PostgreSQL subchart may fail to find the password.
+Set: --set global.postgresql.auth.existingSecret={{ $secrets.existingSecret }}
+{{- end }}
+{{- end }}
+{{- else }}
+
+IMPORTANT: Three secrets are REQUIRED. Set them in your values file:
+
+  agenta:
+    authKey: "<your-auth-key>"
+    cryptKey: "<your-crypt-key>"
+  postgres:
+    password: "<your-postgres-password>"
+
+Then install with:
+
+  helm install agenta hosting/kubernetes/helm \
+    -f hosting/kubernetes/oss/values.oss.example.yaml
+{{- end }}

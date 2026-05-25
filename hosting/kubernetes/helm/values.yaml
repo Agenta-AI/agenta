@@ -1,0 +1,57 @@
+# ================================================================== #
+# Agenta — minimal values.yaml
+#
+# This file mirrors the docker-compose env surface defined in
+#   hosting/docker-compose/oss/env.oss.gh.example
+#   hosting/docker-compose/ee/env.ee.gh.example
+#
+# Variables that are uncommented in the compose example are uncommented
+# here with the same default value.  Variables that are commented-out
+# in compose are omitted entirely — templates supply sensible defaults
+# via helm's `default` function and helpers in _helpers.tpl.
+#
+# All Kubernetes plumbing (image repositories, tags, ports, replicas,
+# resources, security contexts, ingress wiring, postgresql/redis bundled
+# deployment knobs) lives in the templates, not here.  Override only
+# what you need.
+# ================================================================== #
+
+# ================================================================== #
+# Agenta — License (https://agenta.ai/pricing)
+# ================================================================== #
+agenta:
+  license: oss
+
+  # ================================================================ #
+  # Agenta — Core endpoints
+  # ================================================================ #
+  webUrl: "http://localhost"
+  servicesUrl: "http://localhost/services"
+  apiUrl: "http://localhost/api"
+
+  # ================================================================ #
+  # Agenta — Secrets (REPLACE in production!)
+  # ================================================================ #
+  authKey: "replace-me"
+  cryptKey: "replace-me"
+
+# ================================================================== #
+# docker (compose-only, kept here so the helm surface mirrors compose)
+# ================================================================== #
+docker:
+  networkMode: "bridge"
+
+# ================================================================== #
+# postgres — connection settings.
+# The compose example ships POSTGRES_PASSWORD=password as the default
+# for the bundled postgres deployment.  Mirror that here so the chart
+# renders out-of-the-box; production users must override.
+# ================================================================== #
+postgres:
+  password: "password"
+
+# ================================================================== #
+# posthog
+# ================================================================== #
+posthog:
+  apiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"

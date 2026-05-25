@@ -6,7 +6,9 @@ import socket
 from urllib.parse import urlparse
 
 _WEBHOOK_ALLOW_INSECURE = (
-    os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
+    os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
+    or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
+    or "true"
 ).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 
 

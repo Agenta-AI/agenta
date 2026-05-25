@@ -1,0 +1,476 @@
+# ================================================================== #
+# Agenta — License, Endpoints, Secrets
+# (https://agenta.ai/pricing)
+# ================================================================== #
+agenta:
+  # --- License ---
+  license: ee
+
+  # --- Core endpoints ---
+  webUrl: "http://localhost"
+  servicesUrl: "http://localhost/services"
+  apiUrl: "http://localhost/api"
+  # apiInternalUrl:
+
+  # --- Secrets (REPLACE in production!) ---
+  authKey: "replace-me"
+  cryptKey: "replace-me"
+
+# ================================================================== #
+# Global (Bitnami subchart conventions, image pull secrets)
+# ================================================================== #
+global:
+  imagePullSecrets:
+    - name: ghcr-pull-secret
+
+# ================================================================== #
+# === Images ===
+# Image repository is supplied by the chart's edition-aware helper.
+# Override tag/pullPolicy here if you need to pin a specific build.
+# ================================================================== #
+# api:
+#   image:
+#     tag: v0.100.1
+#     pullPolicy: IfNotPresent
+# web:
+#   image:
+#     tag: v0.100.1
+#     pullPolicy: IfNotPresent
+# services:
+#   image:
+#     tag: v0.100.1
+#     pullPolicy: IfNotPresent
+
+# ================================================================== #
+# === agenta.access ===
+# ================================================================== #
+# agenta:
+#   access:
+#     allowedDomains:
+#     allowedOwnerEmails:
+#     blockedDomains:
+#     blockedEmails:
+#     defaultPlan:
+#     defaultPlanOverlay:
+#     emailDisabled: false
+#     plans:
+#     roles:
+#     rolesOverlay:
+
+# ================================================================== #
+# === agenta.aiServices ===
+# ================================================================== #
+# agenta:
+#   aiServices:
+#     apiKey:
+#     apiUrl:
+#     environmentSlug:
+#     refinePromptKey:
+
+# ================================================================== #
+# === agenta.api ===
+# ================================================================== #
+# agenta:
+#   api:
+#     caching:
+#       enabled: true
+
+# ================================================================== #
+# === agenta.billing ===
+# ================================================================== #
+# agenta:
+#   billing:
+#     catalog:
+#     pricing:
+
+# ================================================================== #
+# === agenta.extras ===
+# ================================================================== #
+# agenta:
+#   extras:
+#     demos:
+
+# ================================================================== #
+# === agenta.logging ===
+# ================================================================== #
+# agenta:
+#   logging:
+#     consoleEnabled: true
+#     consoleLevel: TRACE
+#     fileEnabled: true
+#     fileLevel: WARNING
+#     filePath: error
+#     otlpEnabled: false
+#     otlpLevel: INFO
+
+# ================================================================== #
+# === agenta.otlp ===
+# ================================================================== #
+# agenta:
+#   otlp:
+#     maxBatchBytes: 10485760
+
+# ================================================================== #
+# === agenta.services ===
+# ================================================================== #
+# agenta:
+#   services:
+#     code:
+#       sandboxRunner: local
+#     hook:
+#       allowInsecure: false
+#     middleware:
+#       cachingEnabled: true
+
+# ================================================================== #
+# === agenta.webhooks ===
+# ================================================================== #
+# agenta:
+#   webhooks:
+#     allowInsecure: false
+
+# ================================================================== #
+# === alembic ===
+# ================================================================== #
+# alembic:
+#   autoMigrations: true
+#   cfgPathCore: /app/ee/databases/postgres/migrations/core/alembic.ini
+#   cfgPathTracing: /app/ee/databases/postgres/migrations/tracing/alembic.ini
+#   # --- k8s-only job knobs ---
+#   activeDeadlineSeconds: 600
+#   backoffLimit: 3
+#   ttlSecondsAfterFinished: 300
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 256Mi
+#     limits:
+#       memory: 512Mi
+
+# ================================================================== #
+# === cloudflare ===
+# ================================================================== #
+# cloudflare:
+#   turnstile:
+#     allowedHostnames:
+#     secretKey:
+#     siteKey:
+
+# ================================================================== #
+# === composio ===
+# ================================================================== #
+# composio:
+#   apiKey:
+#   apiUrl: https://backend.composio.dev/api/v3
+
+# ================================================================== #
+# === crisp ===
+# ================================================================== #
+# crisp:
+#   websiteId:
+
+# ================================================================== #
+# === daytona ===
+# ================================================================== #
+# daytona:
+#   apiKey:
+#   apiUrl: https://app.daytona.io/api
+#   snapshot: daytona-small
+#   target: eu
+
+# ================================================================== #
+# docker
+# ================================================================== #
+docker:
+  networkMode: "bridge"
+
+# ================================================================== #
+# === identity — OIDC providers ===
+# ================================================================== #
+# identity:
+#   apple:
+#     clientId:
+#     clientSecret:
+#     keyId:
+#     privateKey:
+#     teamId:
+#   azureAd:
+#     clientId:
+#     clientSecret:
+#     directoryId:
+#   bitbucket:
+#     clientId:
+#     clientSecret:
+#   boxySaml:
+#     clientId:
+#     clientSecret:
+#     url:
+#   discord:
+#     clientId:
+#     clientSecret:
+#   facebook:
+#     clientId:
+#     clientSecret:
+#   github:
+#     clientId:
+#     clientSecret:
+#   gitlab:
+#     baseUrl:
+#     clientId:
+#     clientSecret:
+#   google:
+#     clientId:
+#     clientSecret:
+#   googleWorkspaces:
+#     clientId:
+#     clientSecret:
+#     hd:
+#   linkedin:
+#     clientId:
+#     clientSecret:
+#   okta:
+#     clientId:
+#     clientSecret:
+#     domain:
+#   twitter:
+#     clientId:
+#     clientSecret:
+
+# ================================================================== #
+# === llm — provider API keys ===
+# ================================================================== #
+# llm:
+#   alephalpha:
+#   anthropic:
+#   anyscale:
+#   cohere:
+#   deepinfra:
+#   gemini:
+#   groq:
+#   minimax:
+#   mistral:
+#   openai:
+#   openrouter:
+#   perplexityai:
+#   togetherai:
+
+# ================================================================== #
+# === loops ===
+# ================================================================== #
+# loops:
+#   apiKey:
+
+# ================================================================== #
+# === newrelic ===
+# ================================================================== #
+# newrelic:
+#   licenseKey:
+
+# ================================================================== #
+# postgres — Agenta-managed connection settings
+# ================================================================== #
+postgres:
+  password: "password"
+  # user: username
+  # port: 5432
+  # uriCore: postgresql+asyncpg://username:password@postgres:5432/agenta_ee_core
+  # uriSupertokens: postgresql://username:password@postgres:5432/agenta_ee_supertokens
+  # uriTracing: postgresql+asyncpg://username:password@postgres:5432/agenta_ee_tracing
+
+# ================================================================== #
+# posthog — analytics
+# ================================================================== #
+posthog:
+  apiKey: "phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp"
+  # apiUrl:
+
+# ================================================================== #
+# === redis — Agenta connection settings ===
+# ================================================================== #
+# redis:
+#   uri: redis://redis:6379/0
+#   uriDurable: redis://redis-durable:6381/0
+#   uriVolatile: redis://redis-volatile:6379/0
+
+# ================================================================== #
+# === sendgrid ===
+# ================================================================== #
+# sendgrid:
+#   apiKey:
+#   fromAddress:
+
+# ================================================================== #
+# === stripe ===
+# ================================================================== #
+# stripe:
+#   apiKey:
+#   webhookSecret:
+#   webhookTarget:
+
+# ================================================================== #
+# === supertokens ===
+# ================================================================== #
+# supertokens:
+#   apiKey:
+#   application: default
+#   passwordMaxLength:
+#   passwordMinLength: 8
+#   passwordPolicy: strong
+#   passwordRegex:
+#   tenant: tenant
+#   uriCore: http://supertokens:3567
+#   # --- k8s-only bundled deployment knobs ---
+#   enabled: true
+#   image:
+#     tag: latest
+#     pullPolicy: IfNotPresent
+#   replicas: 1
+#   port: 3567
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 256Mi
+#     limits:
+#       memory: 512Mi
+
+# ================================================================== #
+# === serviceAccount ===
+# ================================================================== #
+# serviceAccount:
+#   create: false
+#   name: agenta
+
+# ================================================================== #
+# === postgresql — Bitnami subchart (bundled deployment) ===
+# ================================================================== #
+# postgresql:
+#   enabled: true
+#   auth:
+#     username: agenta
+#   primary:
+#     persistence:
+#       size: 10Gi
+#   external:
+#     host:
+#     port: 5432
+#     username: agenta
+#     sslmode: prefer
+
+# ================================================================== #
+# === redisVolatile — bundled Redis (cache, pub/sub) ===
+# ================================================================== #
+# redisVolatile:
+#   enabled: true
+#   image:
+#     repository: redis
+#     tag: "8"
+#     pullPolicy: IfNotPresent
+#   port: 6379
+#   maxmemory: 512mb
+#   maxmemoryPolicy: volatile-lru
+#   resources:
+#     requests:
+#       cpu: 50m
+#       memory: 128Mi
+#     limits:
+#       memory: 512Mi
+
+# ================================================================== #
+# === redisDurable — bundled Redis (queues, persistent state) ===
+# ================================================================== #
+# redisDurable:
+#   enabled: true
+#   image:
+#     repository: redis
+#     tag: "8"
+#     pullPolicy: IfNotPresent
+#   port: 6381
+#   maxmemory: 512mb
+#   maxmemoryPolicy: noeviction
+#   persistence:
+#     enabled: true
+#     size: 5Gi
+#   resources:
+#     requests:
+#       cpu: 50m
+#       memory: 128Mi
+#     limits:
+#       memory: 512Mi
+
+# ================================================================== #
+# === api / web / services / workers / cron — deployment knobs ===
+# ================================================================== #
+# api:
+#   enabled: true
+#   replicas: 1
+#   port: 8000
+#   workers: 2
+#   resources:
+#     requests:
+#       cpu: 250m
+#       memory: 512Mi
+#     limits:
+#       memory: 1Gi
+# web:
+#   enabled: true
+#   replicas: 1
+#   port: 3000
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 256Mi
+#     limits:
+#       memory: 512Mi
+# services:
+#   enabled: true
+#   replicas: 1
+#   port: 80
+#   workers: 2
+#   resources:
+#     requests:
+#       cpu: 250m
+#       memory: 512Mi
+#     limits:
+#       memory: 1Gi
+# workerEvaluations:
+#   enabled: true
+#   replicas: 1
+# workerTracing:
+#   enabled: true
+#   replicas: 1
+# workerWebhooks:
+#   enabled: true
+#   replicas: 1
+# workerEvents:
+#   enabled: true
+#   replicas: 1
+# cron:
+#   enabled: true
+#   replicas: 1
+
+# ================================================================== #
+# === ingress ===
+# ================================================================== #
+# ingress:
+#   enabled: true
+#   className: traefik
+#   host: agenta.example.com
+#   paths:
+#     api:
+#       path: /api
+#       pathType: Prefix
+#     services:
+#       path: /services
+#       pathType: Prefix
+#     web:
+#       path: /
+#       pathType: Prefix
+
+# ================================================================== #
+# === extraObjects — arbitrary Kubernetes resources ===
+# ================================================================== #
+# extraObjects:
+#   - apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: extra

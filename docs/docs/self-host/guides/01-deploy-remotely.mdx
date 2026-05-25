@@ -33,7 +33,9 @@ Choose Traefik unless you have specific requirements for Nginx.
 Clone the Agenta repository to your server:
 
 ```bash
-git clone --depth 1 https://github.com/Agenta-AI/agenta && cd agenta
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Agenta-AI/agenta
+cd agenta
+git sparse-checkout set hosting/docker-compose
 ```
 
 ## Step 2: Configure Your Deployment
