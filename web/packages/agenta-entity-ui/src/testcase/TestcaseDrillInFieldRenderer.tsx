@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {
     JsonEditorWithLocalState,
@@ -6,7 +6,7 @@ import {
     type CoreFieldRendererProps,
     type ViewMode,
 } from "@agenta/ui/drill-in"
-import {EditorProvider} from "@agenta/ui/editor"
+import {EditorProvider, SET_MARKDOWN_VIEW, useLexicalComposerContext} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 // import {InputNumber, Switch} from "antd"
 
@@ -78,6 +78,25 @@ function CodeEditor({
     )
 }
 
+/**
+ * Drives Lexical's markdown view to match the parent's intent. The dropdown
+ * only changes which TextEditor branch is rendered — without this, the editor
+ * keeps whatever markdown state it had (default rich text), so picking
+ * "Markdown" looked indistinguishable from "Text".
+ *
+ * Must be rendered inside the EditorProvider's Lexical context so the SET
+ * command is delivered to MarkdownPlugin's registered handler.
+ */
+function MarkdownViewSync({active}: {active: boolean}) {
+    const [editor] = useLexicalComposerContext()
+
+    useEffect(() => {
+        editor.dispatchCommand(SET_MARKDOWN_VIEW, active)
+    }, [editor, active])
+
+    return null
+}
+
 function TextEditor({
     editorId,
     value: _value,
@@ -108,6 +127,7 @@ function TextEditor({
             showToolbar={false}
             enableTokens
         >
+            <MarkdownViewSync active={!!markdown} />
             <SharedEditor
                 id={editorId}
                 initialValue={displayValue}
@@ -169,9 +189,10 @@ export function TestcaseDrillInFieldRenderer({
         )
     }
 
-    // Schema-aware renderers should win over the default text view. The root
-    // toolbar defaults fields to "text", so putting these after the text branch
-    // would make them unreachable until a user manually changes view mode.
+    // Messages render as a schema-aware form for every non-code view (form /
+    // text / markdown / unset). Text and markdown are filtered out of the
+    // dropdown for messages (see getTestcaseViewOptions), so users only land
+    // here via "form" or the default unset state — both should show the form.
     if (dataType === "messages") {
         const originalWasString = typeof value === "string"
         return (

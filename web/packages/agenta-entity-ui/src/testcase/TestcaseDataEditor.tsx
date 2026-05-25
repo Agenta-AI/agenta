@@ -5,6 +5,7 @@ import {
     DrillInContent,
     DrillInRootToolbar,
     JsonEditorWithLocalState,
+    type DataType,
     type FieldViewModeOption,
     type PropertyType,
     type RootViewMode,
@@ -41,7 +42,16 @@ const TESTCASE_VIEW_OPTIONS: FieldViewModeOption[] = [
     {value: "yaml", label: "YAML"},
 ]
 
-const getTestcaseViewOptions = (): FieldViewModeOption[] => TESTCASE_VIEW_OPTIONS
+// Messages render as a schema-aware form, so Text/Markdown collapse to the
+// same view and are misleading. Surface only Form / JSON / YAML.
+const MESSAGES_VIEW_OPTIONS: FieldViewModeOption[] = [
+    {value: "form", label: "Form"},
+    {value: "json", label: "JSON"},
+    {value: "yaml", label: "YAML"},
+]
+
+const getTestcaseViewOptions = ({dataType}: {dataType: DataType}): FieldViewModeOption[] =>
+    dataType === "messages" ? MESSAGES_VIEW_OPTIONS : TESTCASE_VIEW_OPTIONS
 const renderTestcaseTypeChip = (value: unknown) => <TypeChip value={value} />
 
 function FullPayloadCodeEditor({
