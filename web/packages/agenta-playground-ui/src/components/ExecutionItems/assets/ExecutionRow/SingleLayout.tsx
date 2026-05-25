@@ -26,6 +26,13 @@ import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
+import {PlaygroundInputsBodyHost} from "@agenta/playground-ui/playground-inputs-body"
+import {
+    openPlaygroundFocusDrawerAtom,
+    useNewPlaygroundInputsBodyAtom,
+} from "@agenta/playground-ui/state"
+
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import {getShortTestcaseId} from "../../../../utils/testcaseLabel"
@@ -46,13 +53,6 @@ import {
 } from "../../../shared/NodeResultCard"
 
 import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
-
-import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-import {PlaygroundInputsBodyHost} from "@agenta/playground-ui/playground-inputs-body"
-import {
-    openPlaygroundFocusDrawerAtom,
-    useNewPlaygroundInputsBodyAtom,
-} from "@agenta/playground-ui/state"
 
 // Dismissable callout that explains what the two evaluator playground
 // variables represent (the application being evaluated's inputs and output).
