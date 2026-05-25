@@ -8,7 +8,7 @@ import {
 } from "@agenta/ui/drill-in"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {InputNumber, Switch} from "antd"
+// import {InputNumber, Switch} from "antd"
 
 import {parseCodeString, toCodeString} from "./codeFormat"
 import {inferPrimitiveFromText} from "./TestcasePrimitiveValue.utils"
@@ -185,20 +185,25 @@ export function TestcaseDrillInFieldRenderer({
         )
     }
 
-    if (dataType === "number") {
-        return (
-            <InputNumber
-                className="w-full"
-                size="middle"
-                value={typeof value === "number" ? value : Number(value)}
-                onChange={(nextValue) => onChange(nextValue ?? 0)}
-            />
-        )
-    }
-
-    if (dataType === "boolean") {
-        return <Switch checked={Boolean(value)} onChange={onChange} size="small" />
-    }
+    // Schema-aware primitive widgets — disabled in favour of routing all
+    // primitive values through TextEditor so the editor doesn't swap mid-typing.
+    // The native type is still preserved via inferPrimitiveFromText in
+    // TextEditor.handleChange, so the type chip stays accurate. Uncomment the
+    // block below if dedicated number/boolean widgets are wanted again.
+    // if (dataType === "number") {
+    //     return (
+    //         <InputNumber
+    //             className="w-full"
+    //             size="middle"
+    //             value={typeof value === "number" ? value : Number(value)}
+    //             onChange={(nextValue) => onChange(nextValue ?? 0)}
+    //         />
+    //     )
+    // }
+    //
+    // if (dataType === "boolean") {
+    //     return <Switch checked={Boolean(value)} onChange={onChange} size="small" />
+    // }
 
     if (viewMode === "markdown") {
         return (
