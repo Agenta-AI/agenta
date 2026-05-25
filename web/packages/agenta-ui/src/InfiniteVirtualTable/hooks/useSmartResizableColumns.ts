@@ -318,13 +318,12 @@ export const useSmartResizableColumns = <RowType>({
             groupWidth: number,
             children: {key: string; width: number; minWidth: number}[],
         ): ResizableTitleProps => {
-            // Use the smallest child minWidth as the floor for the parent th —
-            // any child can shrink to its own floor independently of the others.
+            // Group floor is the sum of child minimums — the group can't shrink
+            // smaller than every child being at its own minimum simultaneously.
             const minValue =
-                children.reduce(
-                    (acc, c) => (acc === null ? c.minWidth : Math.min(acc, c.minWidth)),
-                    null as number | null,
-                ) ?? DEFAULT_MIN_WIDTH
+                children.length > 0
+                    ? children.reduce((sum, c) => sum + c.minWidth, 0)
+                    : DEFAULT_MIN_WIDTH
 
             return {
                 width: groupWidth,
