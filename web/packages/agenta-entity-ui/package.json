@@ -17,6 +17,7 @@
         "./gatewayTool": "./src/gatewayTool/index.ts",
         "./modals": "./src/modals/index.ts",
         "./selection": "./src/selection/index.ts",
+        "./template-format": "./src/template-format/index.ts",
         "./testcase": "./src/testcase/index.ts",
         "./variant": "./src/variant/index.ts",
         "./view-types": "./src/view-types/index.ts",
