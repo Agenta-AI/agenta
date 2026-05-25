@@ -42,6 +42,7 @@ class ArtifactQuery(Header, Metadata, FolderScope):
 
 class Variant(Identifier, Slug, Lifecycle, Header, Metadata):
     artifact_id: Optional[UUID] = None
+    artifact_slug: Optional[str] = None
 
 
 class VariantCreate(Slug, Header, Metadata):
@@ -64,7 +65,9 @@ class Revision(Identifier, Slug, Version, Lifecycle, Header, Metadata, Commit):
     data: Optional[Data] = None
 
     artifact_id: Optional[UUID] = None
+    artifact_slug: Optional[str] = None
     variant_id: Optional[UUID] = None
+    variant_slug: Optional[str] = None
 
 
 class RevisionCreate(Slug, Header, Metadata):

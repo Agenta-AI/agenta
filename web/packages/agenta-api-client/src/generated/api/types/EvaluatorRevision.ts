@@ -3,10 +3,16 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EvaluatorRevision {
+    evaluator_variant_slug?: (string | null) | undefined;
+    workflow_variant_slug?: (string | null) | undefined;
+    evaluator_slug?: (string | null) | undefined;
+    workflow_slug?: (string | null) | undefined;
     evaluator_variant_id?: (string | null) | undefined;
     workflow_variant_id?: (string | null) | undefined;
     evaluator_id?: (string | null) | undefined;
     workflow_id?: (string | null) | undefined;
+    variant_slug?: (string | null) | undefined;
+    artifact_slug?: (string | null) | undefined;
     variant_id?: (string | null) | undefined;
     artifact_id?: (string | null) | undefined;
     author?: (string | null) | undefined;

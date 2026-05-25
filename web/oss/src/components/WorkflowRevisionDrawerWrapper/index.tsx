@@ -77,6 +77,7 @@ import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResult
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {useQueryParamState} from "@/oss/state/appState"
+import {EVALUATOR_FULL_PAGE_NAV_ENABLED} from "@/oss/state/workflow"
 
 const PlaygroundMainView = dynamic(
     () => import("@/oss/components/Playground/Components/MainLayout"),
@@ -482,8 +483,16 @@ const useDrawerCreateCommitCallback = () => {
                     // (`Router.pathname` only flips on `routeChangeComplete`,
                     // so a synchronous close after `router.push` would patch
                     // the still-current `/evaluators` URL and push back to it.)
+                    // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the
+                    // flag is off, post-create stays in the drawer flow even
+                    // for evaluators whose classifier supports full-page UX.
                     let eligibleForPlayground = false
-                    if (newAppId && newRevisionId && newWorkflow) {
+                    if (
+                        EVALUATOR_FULL_PAGE_NAV_ENABLED &&
+                        newAppId &&
+                        newRevisionId &&
+                        newWorkflow
+                    ) {
                         eligibleForPlayground = hasFullPagePlaygroundUX({
                             flags: newWorkflow.flags ?? null,
                             data: newWorkflow.data ?? null,
