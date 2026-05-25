@@ -18,11 +18,7 @@ import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {createEntityDraftState} from "../shared/createEntityDraftState"
 
 import {atomFamilyRegistry} from "./atomCleanup"
-import {
-    pendingAddedColumnsAtom,
-    pendingColumnRenamesAtom,
-    pendingDeletedColumnsAtom,
-} from "./columnState"
+import {pendingColumnRenamesAtom, pendingDeletedColumnsAtom} from "./columnState"
 import {currentRevisionIdAtom} from "./queries"
 import {
     applyTestcaseUserDataUpdates,
@@ -650,9 +646,8 @@ const applyPendingColumnChanges = (
     data: FlattenedTestcase,
     renames: Map<string, string>,
     deletedColumns: Set<string>,
-    addedColumns: Set<string>,
 ): FlattenedTestcase => {
-    if (renames.size === 0 && deletedColumns.size === 0 && addedColumns.size === 0) {
+    if (renames.size === 0 && deletedColumns.size === 0) {
         return data
     }
 
@@ -675,16 +670,6 @@ const applyPendingColumnChanges = (
         const deleteUpdates = userData ? buildDeleteUpdates(userData, columnKey) : null
         if (deleteUpdates) {
             result = applyUserDataUpdates(result, deleteUpdates)
-            hasChanges = true
-        }
-    }
-
-    // Apply additions (add empty column)
-    for (const columnKey of addedColumns) {
-        const userData = extractTestcaseUserData(result)
-        const addUpdates = userData ? buildAddUpdates(userData, columnKey) : null
-        if (addUpdates) {
-            result = applyUserDataUpdates(result, addUpdates)
             hasChanges = true
         }
     }
@@ -713,9 +698,8 @@ export const testcaseEntityAtomFamily = atomFamily((testcaseId: string) =>
         if (data) {
             const pendingRenames = get(pendingColumnRenamesAtom)
             const pendingDeleted = get(pendingDeletedColumnsAtom)
-            const pendingAdded = get(pendingAddedColumnsAtom)
-            if (pendingRenames.size > 0 || pendingDeleted.size > 0 || pendingAdded.size > 0) {
-                return applyPendingColumnChanges(data, pendingRenames, pendingDeleted, pendingAdded)
+            if (pendingRenames.size > 0 || pendingDeleted.size > 0) {
+                return applyPendingColumnChanges(data, pendingRenames, pendingDeleted)
             }
         }
 

@@ -11,6 +11,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Switch} from "antd"
 
 import {parseCodeString, toCodeString} from "./codeFormat"
+import {inferPrimitiveFromText} from "./TestcasePrimitiveValue.utils"
 
 function toDisplayString(value: unknown, viewMode?: ViewMode): string {
     if (viewMode === "yaml") return toCodeString(value, "yaml")
@@ -79,7 +80,7 @@ function CodeEditor({
 
 function TextEditor({
     editorId,
-    value,
+    value: _value,
     displayValue,
     markdown,
     onChange,
@@ -90,24 +91,14 @@ function TextEditor({
     markdown?: boolean
     onChange: (value: unknown) => void
 }) {
-    /**
-     * Coerce string edits back to the original primitive type where possible
-     * (boolean / number). Object and array originals become strings on edit —
-     * a deliberate one-way switch when the user picks text mode.
-     */
-    const handleChange = (next: string) => {
-        if (typeof value === "boolean") {
-            if (next === "true") return onChange(true)
-            if (next === "false") return onChange(false)
-            return onChange(next)
-        }
-        if (typeof value === "number") {
-            const n = Number(next)
-            if (!Number.isNaN(n) && next.trim() !== "") return onChange(n)
-            return onChange(next)
-        }
-        onChange(next)
-    }
+    // Auto-infer native types from typed text so number / boolean values
+    // stop getting stored as strings. Anything that doesn't look exactly
+    // like a clean number or boolean literal stays a string — see
+    // inferPrimitiveFromText for the precise rules.
+    const handleChange = useCallback(
+        (next: string) => onChange(inferPrimitiveFromText(next)),
+        [onChange],
+    )
 
     return (
         <EditorProvider

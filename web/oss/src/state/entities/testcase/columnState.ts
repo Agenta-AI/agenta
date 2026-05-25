@@ -4,7 +4,6 @@ import {atomFamily} from "jotai/utils"
 import {currentRevisionIdAtom} from "./queries"
 import {extractTestcaseUserData} from "./schema"
 import {
-    addColumnToTestcasesAtom,
     deleteColumnFromTestcasesAtom,
     deletedEntityIdsAtom,
     newEntityIdsAtom,
@@ -548,7 +547,7 @@ export const expandedColumnsAtom = atom((get) => {
 
 /**
  * Write-only atom: add a new column
- * Adds column metadata and initializes all entities with empty value
+ * Adds column metadata without writing placeholder values into testcase data.
  * Returns true if successful, false if column already exists
  */
 export const addColumnAtom = atom(null, (get, set, name: string): boolean => {
@@ -562,11 +561,7 @@ export const addColumnAtom = atom(null, (get, set, name: string): boolean => {
     const currentCols = get(currentColumnsAtom)
     if (currentCols.some((c) => c.key === trimmedName)) return false
 
-    // Initialize all entities with empty value for this column (batch update)
-    // Do this BEFORE adding to pending so entity atom doesn't apply pending changes
-    set(addColumnToTestcasesAtom, {columnKey: trimmedName, defaultValue: ""})
-
-    // Track pending addition for newly loaded pages
+    // Track pending addition for the commit payload.
     set(addPendingAddedColumnAtom, trimmedName)
 
     // Add to local columns

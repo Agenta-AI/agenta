@@ -61,21 +61,20 @@ export interface AddTestcaseResult {
 
 /**
  * Write-only atom to add a new testcase
- * Creates a row with all current columns initialized to empty strings
+ * Creates a row without placeholder column values; columns are rendered from
+ * column metadata and values are written only after user edits.
  */
 export const addTestcaseAtom = atom(null, (get, set): AddTestcaseResult => {
     const testsetId = get(testsetIdAtom) || ""
-    const columns = get(currentColumnsAtom)
 
     const newRowId = `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-    const rowData = Object.fromEntries(columns.map((col) => [col.key, ""]))
     const flattenedRow = applyTestcaseUserDataUpdates(
         {
             id: newRowId,
             testset_id: testsetId,
             data: {},
         },
-        rowData,
+        {},
     )
 
     // Add to new entity IDs
