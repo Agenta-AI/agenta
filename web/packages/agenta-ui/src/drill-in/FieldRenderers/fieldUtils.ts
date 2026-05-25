@@ -141,7 +141,13 @@ function detectParsedDataType(parsed: unknown): DataType {
         return "json-array"
     }
     if (parsed === null) return "null"
-    if (typeof parsed === "object") return "json-object"
+    if (typeof parsed === "object") {
+        // Single chat message objects (e.g. an LLM `outputs` field with one
+        // assistant reply) should render through the messages widget too —
+        // parseMessages already wraps them into a one-item array.
+        if (isChatMessageObject(parsed)) return "messages"
+        return "json-object"
+    }
     return "string"
 }
 
@@ -164,7 +170,10 @@ export function detectDataType(
 
     if (value === null) return "null"
     if (Array.isArray(value)) return detectParsedDataType(value)
-    if (typeof value === "object") return "json-object"
+    if (typeof value === "object") {
+        if (isChatMessageObject(value)) return "messages"
+        return "json-object"
+    }
     if (typeof value === "boolean") return "boolean"
     if (typeof value === "number") return "number"
     return "string"

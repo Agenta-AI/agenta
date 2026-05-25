@@ -4,6 +4,8 @@
  * Pure functions with no external dependencies - safe to use in both package and OSS.
  */
 
+import {isChatMessageObject} from "@agenta/shared/utils"
+
 import type {DataType, PropertyType} from "../coreTypes"
 
 /**
@@ -165,21 +167,18 @@ export function canToggleRawMode(dataType: DataType): boolean {
 function detectParsedDataType(parsed: unknown): DataType {
     if (parsed === null) return "null"
     if (Array.isArray(parsed)) {
-        if (
-            parsed.length > 0 &&
-            parsed.every(
-                (item) =>
-                    typeof item === "object" &&
-                    item !== null &&
-                    "role" in item &&
-                    "content" in item,
-            )
-        ) {
+        if (parsed.length > 0 && parsed.every(isChatMessageObject)) {
             return "messages"
         }
         return "json-array"
     }
-    if (typeof parsed === "object") return "json-object"
+    if (typeof parsed === "object") {
+        // Detect a single chat message object (e.g. an LLM `outputs` field
+        // with one assistant reply) so it renders through the messages widget
+        // instead of as raw JSON. parseMessages already wraps single objects.
+        if (isChatMessageObject(parsed)) return "messages"
+        return "json-object"
+    }
     if (typeof parsed === "boolean") return "boolean"
     if (typeof parsed === "number") return "number"
     return "string"
@@ -204,7 +203,10 @@ export function detectDataType(
 
     if (value === null) return "null"
     if (Array.isArray(value)) return detectParsedDataType(value)
-    if (typeof value === "object") return "json-object"
+    if (typeof value === "object") {
+        if (isChatMessageObject(value)) return "messages"
+        return "json-object"
+    }
     if (typeof value === "boolean") return "boolean"
     if (typeof value === "number") return "number"
     return "string"
