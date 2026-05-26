@@ -274,10 +274,6 @@ def create_universal_resolver(
         revision_ref: Optional[Reference] = parsed.get("revision")
         artifact_ref: Optional[Reference] = parsed.get("artifact")
 
-        # Prefer variant for scoping; fall back to artifact.
-        # Both carry whatever identifying fields the caller provided (id, slug, version).
-        scoping_ref: Optional[Reference] = variant_ref or artifact_ref
-
         # Route to appropriate service
         if category == "workflow":
             if not workflows_service:
@@ -291,8 +287,8 @@ def create_universal_resolver(
                     fetch_revision_by_refs=lambda aref, vref, rref: (
                         workflows_service.fetch_workflow_revision(
                             project_id=project_id,
-                            workflow_ref=aref,
-                            workflow_variant_ref=vref or scoping_ref,
+                            workflow_ref=aref or artifact_ref,
+                            workflow_variant_ref=vref or variant_ref,
                             workflow_revision_ref=rref,
                             include_archived=include_archived,
                         )
@@ -345,8 +341,8 @@ def create_universal_resolver(
                     fetch_revision_by_refs=lambda aref, vref, rref: (
                         environments_service.fetch_environment_revision(
                             project_id=project_id,
-                            environment_ref=aref,
-                            environment_variant_ref=vref or scoping_ref,
+                            environment_ref=aref or artifact_ref,
+                            environment_variant_ref=vref or variant_ref,
                             environment_revision_ref=rref,
                             include_archived=include_archived,
                         )
@@ -399,8 +395,8 @@ def create_universal_resolver(
                     fetch_revision_by_refs=lambda aref, vref, rref: (
                         applications_service.fetch_application_revision(
                             project_id=project_id,
-                            application_ref=aref,
-                            application_variant_ref=vref or scoping_ref,
+                            application_ref=aref or artifact_ref,
+                            application_variant_ref=vref or variant_ref,
                             application_revision_ref=rref,
                             include_archived=include_archived,
                         )
@@ -453,8 +449,8 @@ def create_universal_resolver(
                     fetch_revision_by_refs=lambda aref, vref, rref: (
                         evaluators_service.fetch_evaluator_revision(
                             project_id=project_id,
-                            evaluator_ref=aref,
-                            evaluator_variant_ref=vref or scoping_ref,
+                            evaluator_ref=aref or artifact_ref,
+                            evaluator_variant_ref=vref or variant_ref,
                             evaluator_revision_ref=rref,
                             include_archived=include_archived,
                         )
