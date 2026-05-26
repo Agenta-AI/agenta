@@ -453,7 +453,7 @@ services:
 
     stripe:
         # === IMAGE ================================================ #
-        image: stripe/stripe-cli:v1
+        image: stripe/stripe-cli:latest
         # === EXECUTION ============================================ #
         command:
             [
