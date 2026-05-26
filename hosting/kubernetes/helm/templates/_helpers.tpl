@@ -71,7 +71,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.supertokens.enabled" -}}
-{{- $v := (default dict .Values.supertokens).enabled -}}
+{{- $v := (default dict (include "agenta.values" . | fromYaml).supertokens).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.cron.enabled" -}}
@@ -121,7 +121,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.replicas" -}}{{ default 1 (default dict .Values.api).replicas }}{{- end }}
 {{- define "agenta.web.replicas" -}}{{ default 1 (default dict .Values.web).replicas }}{{- end }}
 {{- define "agenta.services.replicas" -}}{{ default 1 (default dict .Values.services).replicas }}{{- end }}
-{{- define "agenta.supertokens.replicas" -}}{{ default 1 (default dict .Values.supertokens).replicas }}{{- end }}
+{{- define "agenta.supertokens.replicas" -}}{{ default 1 (default dict (include "agenta.values" . | fromYaml).supertokens).replicas }}{{- end }}
 {{- define "agenta.cron.replicas" -}}{{ default 1 (default dict .Values.cron).replicas }}{{- end }}
 {{- define "agenta.workerEvaluations.replicas" -}}{{ default 1 (default dict .Values.workerEvaluations).replicas }}{{- end }}
 {{- define "agenta.workerTracing.replicas" -}}{{ default 1 (default dict .Values.workerTracing).replicas }}{{- end }}
@@ -140,7 +140,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.port" -}}{{ default 8000 (default dict .Values.api).port }}{{- end }}
 {{- define "agenta.web.port" -}}{{ default 3000 (default dict .Values.web).port }}{{- end }}
 {{- define "agenta.services.port" -}}{{ default 80 (default dict .Values.services).port }}{{- end }}
-{{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict .Values.supertokens).port }}{{- end }}
+{{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict (include "agenta.values" . | fromYaml).supertokens).port }}{{- end }}
 {{- define "agenta.redisVolatile.port" -}}{{ default 6379 (default dict .Values.redisVolatile).port }}{{- end }}
 {{- define "agenta.redisDurable.port" -}}{{ default 6381 (default dict .Values.redisDurable).port }}{{- end }}
 
@@ -150,26 +150,25 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.api).image).pullPolicy }}{{- end }}
 {{- define "agenta.web.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.web).image).pullPolicy }}{{- end }}
 {{- define "agenta.services.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.services).image).pullPolicy }}{{- end }}
-{{- define "agenta.supertokens.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.supertokens).image).pullPolicy }}{{- end }}
+{{- define "agenta.supertokens.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (include "agenta.values" . | fromYaml).supertokens).image).pullPolicy }}{{- end }}
 {{- define "agenta.redisVolatile.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.redisVolatile).image).pullPolicy }}{{- end }}
 {{- define "agenta.redisDurable.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.redisDurable).image).pullPolicy }}{{- end }}
 
 {{/* ================================================================
-   Section accessors (return the section dict or an empty dict).
+   Renamed-section reads go through the v0.100.2 compat layer
+   (see _compat.tpl, helper `agenta.values`). Helpers/templates
+   that touch renamed paths (`agenta.*`, `posthog.*`, `postgres.*`,
+   `supertokens.apiKey`, `sendgrid.*`, `composio.*`, `newrelic.*`,
+   `cloudflare.*`) bind a local at the top of the helper:
+
+       {{- $values := include "agenta.values" . | fromYaml -}}
+
+   and read from `$values.X` instead of `.Values.X`. Per-component
+   infra keys (`api.*`, `web.*`, `services.*`, `redisVolatile.*`,
+   `redisDurable.*`, `ingress.*`, `workerX.*`, `cron.*`, `alembic.*`,
+   `postgresql.*`, `identity.*`, `llm.*`, `secrets.*`, `global.*`)
+   never had legacy forms and stay on direct `.Values.X` reads.
    ================================================================ */}}
-{{- define "agenta.agentaSection" -}}{{ default dict .Values.agenta }}{{- end }}
-{{- define "agenta.accessSection" -}}{{ default dict (default dict .Values.agenta).access }}{{- end }}
-{{- define "agenta.alembicSection" -}}{{ default dict .Values.alembic }}{{- end }}
-{{- define "agenta.cloudflareTurnstileSection" -}}{{ default dict (default dict .Values.cloudflare).turnstile }}{{- end }}
-{{- define "agenta.composioSection" -}}{{ default dict .Values.composio }}{{- end }}
-{{- define "agenta.newrelicSection" -}}{{ default dict .Values.newrelic }}{{- end }}
-{{- define "agenta.postgresSection" -}}{{ default dict .Values.postgres }}{{- end }}
-{{- define "agenta.posthogSection" -}}{{ default dict .Values.posthog }}{{- end }}
-{{- define "agenta.sendgridSection" -}}{{ default dict .Values.sendgrid }}{{- end }}
-{{- define "agenta.supertokensSection" -}}{{ default dict .Values.supertokens }}{{- end }}
-{{- define "agenta.secretsSection" -}}{{ default dict .Values.secrets }}{{- end }}
-{{- define "agenta.redisVolatileSection" -}}{{ default dict .Values.redisVolatile }}{{- end }}
-{{- define "agenta.redisDurableSection" -}}{{ default dict .Values.redisDurable }}{{- end }}
 
 {{/* ================================================================
    Secret name — either user-provided or chart-managed
@@ -215,7 +214,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    Agenta edition
    ================================================================ */}}
 {{- define "agenta.edition" -}}
-{{- $agenta := default dict .Values.agenta -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $agenta := default dict $values.agenta -}}
 {{- default "oss" $agenta.license -}}
 {{- end }}
 
@@ -274,7 +274,8 @@ ghcr.io/agenta-ai/agenta-services
    Supertokens image (default repo and tag).
    ================================================================ */}}
 {{- define "agenta.supertokensImage" -}}
-{{- $img := default dict (default dict .Values.supertokens).image -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $img := default dict (default dict $values.supertokens).image -}}
 {{- $repo := default "registry.supertokens.io/supertokens/supertokens-postgresql" $img.repository -}}
 {{- $tag := default "11" $img.tag -}}
 {{ $repo }}:{{ $tag }}
@@ -488,9 +489,10 @@ imagePullSecrets:
    Uses $(POSTGRES_PASSWORD) for K8s env var substitution at runtime
    ================================================================ */}}
 {{- define "agenta.postgresUriCore" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
 {{- $pg := default dict .Values.postgresql -}}
 {{- $ext := default dict $pg.external -}}
-{{- $top := default dict .Values.postgres -}}
+{{- $top := default dict $values.postgres -}}
 {{- if and (ne (include "agenta.postgresql.enabled" .) "true") $ext.uriCore }}
 {{- $ext.uriCore }}
 {{- else if and (ne (include "agenta.postgresql.enabled" .) "true") $top.uriCore }}
@@ -511,9 +513,10 @@ imagePullSecrets:
    PostgreSQL URI — Tracing (asyncpg)
    ================================================================ */}}
 {{- define "agenta.postgresUriTracing" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
 {{- $pg := default dict .Values.postgresql -}}
 {{- $ext := default dict $pg.external -}}
-{{- $top := default dict .Values.postgres -}}
+{{- $top := default dict $values.postgres -}}
 {{- if and (ne (include "agenta.postgresql.enabled" .) "true") $ext.uriTracing }}
 {{- $ext.uriTracing }}
 {{- else if $top.uriTracing }}
@@ -532,9 +535,10 @@ imagePullSecrets:
    PostgreSQL URI — SuperTokens (sync driver, no +asyncpg)
    ================================================================ */}}
 {{- define "agenta.postgresUriSupertokens" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
 {{- $pg := default dict .Values.postgresql -}}
 {{- $ext := default dict $pg.external -}}
-{{- $top := default dict .Values.postgres -}}
+{{- $top := default dict $values.postgres -}}
 {{- if and (ne (include "agenta.postgresql.enabled" .) "true") $ext.uriSupertokens }}
 {{- $ext.uriSupertokens }}
 {{- else if $top.uriSupertokens }}
@@ -603,7 +607,8 @@ imagePullSecrets:
    SuperTokens connection URI
    ================================================================ */}}
 {{- define "agenta.supertokensUri" -}}
-{{- $st := default dict .Values.supertokens -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $st := default dict $values.supertokens -}}
 {{- $ext := default dict $st.external -}}
 {{- if eq (include "agenta.supertokens.enabled" .) "true" }}
 {{- printf "http://%s-supertokens:%d" (include "agenta.fullname" .) (include "agenta.supertokens.port" . | int) }}
@@ -620,10 +625,11 @@ imagePullSecrets:
    Shared web env vars (public-facing / derived flags)
    ================================================================ */}}
 {{- define "agenta.webOptionalEnv" -}}
-{{- $posthog := default dict .Values.posthog -}}
-{{- $sendgrid := default dict .Values.sendgrid -}}
-{{- $composio := default dict .Values.composio -}}
-{{- $cf := default dict (default dict .Values.cloudflare).turnstile -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $posthog := default dict $values.posthog -}}
+{{- $sendgrid := default dict $values.sendgrid -}}
+{{- $composio := default dict $values.composio -}}
+{{- $cf := default dict (default dict $values.cloudflare).turnstile -}}
 {{- $secrets := default dict .Values.secrets -}}
 - name: POSTHOG_API_KEY
   value: {{ $posthog.apiKey | default "" | quote }}
@@ -672,7 +678,8 @@ imagePullSecrets:
    Inlines the legacy `backendOptionalEnv` block.
    ================================================================ */}}
 {{- define "agenta.commonEnv" -}}
-{{- $agenta := default dict .Values.agenta -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $agenta := default dict $values.agenta -}}
 {{- $access := default dict $agenta.access -}}
 {{- $aiServices := default dict $agenta.aiServices -}}
 {{- $agentaApi := default dict $agenta.api -}}
@@ -687,18 +694,18 @@ imagePullSecrets:
 {{- $webhooksCfg := default dict $agenta.webhooks -}}
 {{- $rv := default dict .Values.redisVolatile -}}
 {{- $rd := default dict .Values.redisDurable -}}
-{{- $posthog := default dict .Values.posthog -}}
-{{- $sendgrid := default dict .Values.sendgrid -}}
-{{- $composio := default dict .Values.composio -}}
-{{- $cf := default dict (default dict .Values.cloudflare).turnstile -}}
-{{- $nr := default dict .Values.newrelic -}}
+{{- $posthog := default dict $values.posthog -}}
+{{- $sendgrid := default dict $values.sendgrid -}}
+{{- $composio := default dict $values.composio -}}
+{{- $cf := default dict (default dict $values.cloudflare).turnstile -}}
+{{- $nr := default dict $values.newrelic -}}
 {{- $loops := default dict .Values.loops -}}
 {{- $crisp := default dict .Values.crisp -}}
 {{- $daytona := default dict .Values.daytona -}}
 {{- $secrets := default dict .Values.secrets -}}
 {{- $identity := default dict .Values.identity -}}
 {{- $llm := default dict .Values.llm -}}
-{{- $supertokensCfg := default dict .Values.supertokens -}}
+{{- $supertokensCfg := default dict $values.supertokens -}}
 - name: AGENTA_LICENSE
   value: {{ include "agenta.edition" . | quote }}
 - name: POSTGRES_PASSWORD

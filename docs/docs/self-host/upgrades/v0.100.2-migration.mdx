@@ -5,9 +5,13 @@ description: 'Step-by-step migration for self-hosted Agenta Helm deployments goi
 ---
 
 :::info When you need this guide
-You're on this page if your existing deployment uses the **pre-v0.100.2** Helm chart at `hosting/helm/agenta-oss/` and you want to move to v0.100.2 (or any v0.100.x ≥ .2). v0.100.2 relocates the chart, restructures `values.yaml`, and renames many environment variables. **Every renamed env var keeps its old name as a legacy alias**, so encrypted data and existing pods stay readable — but the Helm chart path and the `values.yaml` keys are not aliased and require explicit migration.
+You're on this page if your existing deployment uses the **pre-v0.100.2** Helm chart at `hosting/helm/agenta-oss/` and you want to move to v0.100.2 (or any v0.100.x ≥ .2). v0.100.2 relocates the chart, restructures `values.yaml`, and renames many environment variables. **Every renamed env var keeps its old name as a legacy alias**, so encrypted data and existing pods stay readable. The Helm `values.yaml` key reshape is also backwards-compatible: the chart ships a compat layer that accepts your pre-v0.100.2 file as-is, folds it into the canonical v0.100.2 shape at render time, and warns once at `helm install`. You can upgrade today with no values rewrite, then migrate to the new shape at your own pace.
 
 If you're already on v0.100.2+, this guide does not apply. Use [Helm Chart Upgrade](/self-host/upgrading#helm-chart-upgrade) instead.
+:::
+
+:::caution Compat layer is transitional
+The compat layer is a migration aid, not a permanent API. It's planned for removal one minor release after v0.100.2 (target: v0.102). Run `helm install` once with your pre-v0.100.2 file to confirm the chart renders cleanly, then move to the canonical shape using the rewrite tables below.
 :::
 
 ## What changed in v0.100.2
@@ -142,6 +146,18 @@ git checkout release/v0.100.2   # or any v0.100.x tag ≥ .2
 ```
 
 The chart now lives at `hosting/kubernetes/helm/`. The old path `hosting/helm/agenta-oss/` no longer exists on this branch.
+
+### Two paths from here
+
+You have two options for how the rest of this migration goes. Pick whichever fits your appetite for a one-shot rewrite vs. an incremental cleanup.
+
+**Path A — Reuse your pre-v0.100.2 values file as-is (recommended for a fast upgrade).** The chart accepts the old shape via a built-in compat layer. Use your `pre-v0.100.2-values.yaml` from step 1 as the `-f` argument to `helm upgrade` in step 5 (skip steps 3 and 4 entirely). `helm install` will print a one-line `NOTE:` confirming the compat layer fired; the chart will warn but install cleanly. You can move to the canonical shape later by re-running steps 3 and 4 at any time.
+
+**Path B — Rewrite the values file into the canonical v0.100.2 shape.** Slower but produces a clean file you can keep long-term. The compat layer is transitional and is planned for removal one minor release after v0.100.2; doing the rewrite now means you don't have to do it under deadline later.
+
+If you pick Path A, jump to [Step 5 (Run the upgrade)](#5-run-the-upgrade) — reuse your `pre-v0.100.2-values.yaml` as the `-f` argument.
+
+If you pick Path B, continue with step 3 below.
 
 ### 3. Create your edition-specific values file
 

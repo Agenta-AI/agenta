@@ -4,12 +4,10 @@
   "description": "Schema for all values consumed by the Agenta chart and the env vars it emits into pods. Sections that map to env vars are listed leaf-by-leaf so misspelled keys fail at `helm install` instead of silently being ignored. `additionalProperties` stays open on most objects so Bitnami subchart wiring (postgresql.*), per-component knobs (resources, securityContext, nodeSelector, …) and arbitrary annotations/labels continue to pass through.",
   "type": "object",
   "additionalProperties": true,
-  "required": ["agenta"],
   "properties": {
     "agenta": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["license", "authKey", "cryptKey"],
       "properties": {
         "license": { "type": "string", "enum": ["oss", "ee"], "description": "Edition. Emitted as AGENTA_LICENSE." },
         "webUrl": { "type": "string", "description": "Public web URL. Emitted as AGENTA_WEB_URL." },
@@ -165,7 +163,7 @@
     },
     "secrets": {
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
         "existingSecret": { "type": "string", "description": "Name of a pre-created Secret to use instead of the chart-managed one. If using bundled PostgreSQL, also set global.postgresql.auth.existingSecret to the same name." },
         "oauth":        { "type": "object", "additionalProperties": { "type": "string" }, "description": "Extra OAuth/OIDC secret keys to surface from the Secret as env vars on the web container." },

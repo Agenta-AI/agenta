@@ -200,14 +200,24 @@ git checkout chore/update-deployment-artifacts   # [QA-only]
 
 > **[doc-gap]** The migration guide assumes the user already has a checkout sitting on the same working directory. It does **not** explain that the chart path moved from `hosting/helm/agenta-oss/` (gone after this checkout) to `hosting/kubernetes/helm/`. The "Chart folder relocation" table at the top mentions it; step 2 should remind the reader.
 
-### 3.2 Create the edition-specific values file (step 3 of the guide)
+### 3.2 Pick a values path (Path A or Path B)
+
+The chart accepts both the pre-v0.100.2 values shape (via the compat layer in `_compat.tpl`) and the canonical v0.100.2 shape. Test both so we know both work.
+
+**Path A — reuse the legacy file as-is.** Use `../pre-v0.100.2-values.yaml` from Phase 2 directly as the `-f` argument to `helm upgrade` in §3.4. Skip §3.3 entirely. Expected: `helm install` prints a one-line `NOTE: pre-v0.100.2 values keys detected …` callout, and all pods come up with the same env-var values as Path B. Confirms compat layer is wired.
+
+**Path B — rewrite into the canonical shape.** Section 3.3 below. Confirms the canonical shape works in isolation and gives us a clean values file to keep.
+
+For the full QA pass, do **Path B first** (it exercises every rename), then re-run §3.4–§3.6 with `-f ../pre-v0.100.2-values.yaml` (Path A) to confirm both shapes produce equivalent installs against the same cluster. Tear down between the two runs using `--nuke` from `hosting/kubernetes/run.sh` so PVCs don't carry state across.
+
+### 3.2.1 Create the edition-specific values file (step 3 of the guide)
 
 ```bash
 cp hosting/kubernetes/ee/values.ee.example.yaml \
    hosting/kubernetes/ee/.values.ee.yaml
 ```
 
-### 3.3 Translate the old values into the new shape (step 4 of the guide)
+### 3.3 Translate the old values into the new shape (step 4 of the guide — Path B only)
 
 Open `../pre-v0.100.2-values.yaml` (from Phase 2) next to `hosting/kubernetes/ee/.values.ee.yaml`. Walk through and rewrite using the reshape table at the top of the migration guide. For the test deployment, the relevant moves are:
 
