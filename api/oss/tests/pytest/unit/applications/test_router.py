@@ -5,10 +5,13 @@ from uuid import uuid4
 import pytest
 
 from oss.src.apis.fastapi.applications import router as applications_router_module
-from oss.src.apis.fastapi.applications.models import ApplicationRevisionDeployRequest
+from oss.src.apis.fastapi.applications.models import (
+    ApplicationRevisionDeployRequest,
+    ApplicationRevisionRetrieveRequest,
+)
 from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.core.applications.dtos import ApplicationRevision
-from oss.src.core.environments.dtos import EnvironmentRevision
+from oss.src.core.environments.dtos import EnvironmentRevision, EnvironmentRevisionData
 from oss.src.core.shared.dtos import Reference
 
 
@@ -110,3 +113,87 @@ async def test_deploy_application_revision_uses_environment_retrieve(monkeypatch
     assert len(environments_service.retrieve_calls) == 1
     assert environments_service.fetch_called is False
     assert len(environments_service.commit_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_retrieve_application_revision_returns_environment_retrieval_info(
+    monkeypatch,
+):
+    project_id = uuid4()
+    application_id = uuid4()
+    application_variant_id = uuid4()
+    application_revision_id = uuid4()
+    environment_id = uuid4()
+    environment_variant_id = uuid4()
+    environment_revision_id = uuid4()
+
+    application_revision = ApplicationRevision(
+        id=application_revision_id,
+        slug="app-rev",
+        version="3",
+        application_id=application_id,
+        application_variant_id=application_variant_id,
+    )
+    selected_references = {
+        "application": Reference(id=application_id, slug="demo-app"),
+        "application_variant": Reference(id=application_variant_id, slug="main"),
+        "application_revision": Reference(
+            id=application_revision_id,
+            slug="app-rev",
+            version="3",
+        ),
+    }
+    environment_revision = EnvironmentRevision(
+        id=environment_revision_id,
+        slug="env-rev",
+        version="7",
+        environment_id=environment_id,
+        environment_variant_id=environment_variant_id,
+        data=EnvironmentRevisionData(
+            references={"demo-app.revision": selected_references},
+        ),
+    )
+
+    applications_service = AsyncMock()
+    applications_service.retrieve_application_revision.return_value = (
+        application_revision,
+        None,
+    )
+    environments_service = AsyncMock()
+    environments_service.retrieve_environment_revision.return_value = (
+        environment_revision,
+        None,
+    )
+
+    router = ApplicationsRouter(
+        applications_service=applications_service,
+        environments_service=environments_service,
+    )
+    monkeypatch.setattr(
+        applications_router_module,
+        "check_action_access",
+        AsyncMock(return_value=True),
+        raising=False,
+    )
+
+    response = await router.retrieve_application_revision(
+        SimpleNamespace(
+            state=SimpleNamespace(
+                project_id=str(project_id),
+                user_id=str(uuid4()),
+            )
+        ),
+        application_revision_retrieve_request=ApplicationRevisionRetrieveRequest(
+            application_ref=Reference(slug="demo-app"),
+            environment_ref=Reference(slug="production"),
+        ),
+    )
+
+    assert response.retrieval_info is not None
+    assert response.retrieval_info.key == "demo-app.revision"
+    assert response.retrieval_info.references["environment"].id == environment_id
+    assert response.retrieval_info.references["environment_revision"].version == "7"
+    assert (
+        response.retrieval_info.references["application_revision"].id
+        == application_revision_id
+    )

@@ -12,6 +12,7 @@ from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.apis.fastapi.git.utils import retrieval_info_for_revision
 from oss.src.core.environments.dtos import (
     EnvironmentFlags,
     EnvironmentEdit,
@@ -772,6 +773,10 @@ class EnvironmentsRouter:
             count=1 if environment_revision else 0,
             environment_revision=environment_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info_for_revision(
+                environment_revision,
+                kind="environment",
+            ),
         )
 
         await publish_revision_event(

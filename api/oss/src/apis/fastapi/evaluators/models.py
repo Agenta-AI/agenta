@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
+from oss.src.apis.fastapi.git.models import RetrievalInfo
 from oss.src.core.evaluators.dtos import (
     Evaluator,
     EvaluatorCreate,
@@ -372,6 +373,10 @@ class EvaluatorRevisionResponse(BaseModel):
     resolution_info: Optional[ResolutionInfo] = Field(
         default=None,
         description="Embed-resolution metadata. Populated when `resolve=true` was requested.",
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References used to retrieve the top-level revision.",
     )
 
 

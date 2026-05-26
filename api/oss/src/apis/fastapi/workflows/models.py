@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
+from oss.src.apis.fastapi.git.models import RetrievalInfo
 from oss.src.core.workflows.dtos import (
     #
     WorkflowCatalogType,
@@ -354,6 +355,10 @@ class WorkflowRevisionResponse(BaseModel):
     resolution_info: Optional[ResolutionInfo] = Field(
         default=None,
         description="Reference-resolution metadata; populated when `resolve=true` on retrieve.",
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References used to retrieve the top-level revision.",
     )
 
 

@@ -32,6 +32,7 @@ from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.apis.fastapi.git.utils import retrieval_info_for_revision
 from oss.src.core.testcases.dtos import (
     Testcase,
 )
@@ -999,6 +1000,10 @@ class TestsetsRouter:
         testset_revision_response = TestsetRevisionResponse(
             count=1 if testset_revision else 0,
             testset_revision=testset_revision,
+            retrieval_info=retrieval_info_for_revision(
+                testset_revision,
+                kind="testset",
+            ),
         )
 
         return testset_revision_response
@@ -1033,6 +1038,10 @@ class TestsetsRouter:
         testset_revision_response = TestsetRevisionResponse(
             count=1 if testset_revision else 0,
             testset_revision=testset_revision,
+            retrieval_info=retrieval_info_for_revision(
+                testset_revision,
+                kind="testset",
+            ),
         )
 
         await publish_revision_event(

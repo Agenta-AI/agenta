@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
 )
+from oss.src.apis.fastapi.git.models import RetrievalInfo
 from oss.src.core.applications.dtos import (
     Application,
     ApplicationCatalogType,
@@ -485,6 +486,10 @@ class ApplicationRevisionResponse(BaseModel):
             "Present only when the request set `resolve: true`. Describes which "
             "embedded references were resolved and any errors that occurred."
         ),
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References used to retrieve the top-level revision.",
     )
 
 

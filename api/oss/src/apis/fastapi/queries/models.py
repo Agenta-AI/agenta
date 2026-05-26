@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
 )
+from oss.src.apis.fastapi.git.models import RetrievalInfo
 from oss.src.core.queries.dtos import (
     Query,
     QueryCreate,
@@ -148,6 +149,7 @@ class QueryRevisionRetrieveRequest(BaseModel):
 class QueryRevisionResponse(BaseModel):
     count: int = 0
     query_revision: Optional[QueryRevision] = None
+    retrieval_info: Optional[RetrievalInfo] = None
 
 
 class QueryRevisionsResponse(BaseModel):

@@ -13,6 +13,7 @@ from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.apis.fastapi.git.utils import retrieval_info_for_revision
 from oss.src.core.queries.dtos import QueryRevision
 from oss.src.core.queries.service import (
     QueriesService,
@@ -710,6 +711,10 @@ class QueriesRouter:
         query_revision_response = QueryRevisionResponse(
             count=1 if query_revision else 0,
             query_revision=query_revision,
+            retrieval_info=retrieval_info_for_revision(
+                query_revision,
+                kind="query",
+            ),
         )
 
         return query_revision_response
@@ -739,6 +744,10 @@ class QueriesRouter:
         query_revision_response = QueryRevisionResponse(
             count=1 if query_revision else 0,
             query_revision=query_revision,
+            retrieval_info=retrieval_info_for_revision(
+                query_revision,
+                kind="query",
+            ),
         )
 
         await publish_revision_event(

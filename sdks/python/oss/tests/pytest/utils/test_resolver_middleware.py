@@ -284,3 +284,49 @@ class TestResolverMiddlewareEmbedGate:
             await mw(request, call_next)
 
         mock_resolve_embeds.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_stores_retrieval_references_on_tracing_context(self):
+        from agenta.sdk.contexts.tracing import TracingContext
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRevisionData,
+        )
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            references={"environment": {"slug": "production"}},
+        )
+        retrieval_references = {
+            "environment": {"id": "env-id", "slug": "production"},
+            "environment_revision": {"id": "env-rev-id", "version": "7"},
+            "application_revision": {"id": "app-rev-id", "version": "3"},
+        }
+        revision = WorkflowRevisionData(
+            uri="test://uri",
+            parameters={"model": "gpt-4"},
+        )
+
+        token = TracingContext.set(TracingContext())
+        try:
+            with (
+                patch(
+                    "agenta.sdk.middlewares.running.resolver.resolve_handler",
+                    new_callable=AsyncMock,
+                    return_value=MagicMock(),
+                ),
+                patch(
+                    "agenta.sdk.middlewares.running.resolver."
+                    "resolve_references_with_info",
+                    new_callable=AsyncMock,
+                    return_value=(revision, retrieval_references),
+                ),
+            ):
+                mw = ResolverMiddleware()
+                call_next = AsyncMock(return_value="result")
+                await mw(request, call_next)
+
+            assert TracingContext.get().references == retrieval_references
+        finally:
+            TracingContext.reset(token)

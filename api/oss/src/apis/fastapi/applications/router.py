@@ -14,6 +14,10 @@ from oss.src.core.git.types import VariantForkError
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.apis.fastapi.git.utils import (
+    retrieval_info_for_environment_request,
+    retrieval_info_for_revision,
+)
 from oss.src.core.applications.service import (
     ApplicationsService,
     SimpleApplicationsService,
@@ -1408,10 +1412,24 @@ class ApplicationsRouter:
                 detail="Environment revision does not contain application references for the requested key.",
             )
 
+        retrieval_info = (
+            await retrieval_info_for_environment_request(
+                environments_service=self.environments_service,
+                project_id=UUID(request.state.project_id),
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+                key=key,
+            )
+            if environment_lookup_requested
+            else retrieval_info_for_revision(application_revision, kind="application")
+        )
+
         application_revision_response = ApplicationRevisionResponse(
             count=1 if application_revision else 0,
             application_revision=application_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(
