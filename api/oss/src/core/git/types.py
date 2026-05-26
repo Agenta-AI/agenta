@@ -220,21 +220,25 @@ def validate_variant_refs_sufficient(
 
     Variants carry `id` and `slug` but no `version` field — version is a
     per-variant counter living on revisions. A `variant_ref` populated with
-    only `version`, or an empty `variant_ref` (e.g. `{}` from JSON), is
-    nonsense the DAO would silently drop, so reject it at the boundary.
+    only `version` is nonsense the DAO would silently drop, so reject it at
+    the boundary.
 
     Identifying `variant_ref` (id/slug, optionally with redundant version
     that the DAO ignores) is left alone — C3's consistency check covers the
-    "redundant but wrong" case.
+    "redundant but wrong" case. An empty `variant_ref` (no fields set) is
+    also left alone — services treat it as "no variant ref" and the DAO
+    handles it correctly via `is_identifying`.
     """
     if variant_ref is None:
         return
     if is_identifying(variant_ref):
         return
+    if variant_ref.version is None:
+        return
     raise RetrieveRefsInsufficient(
-        f"{entity_type}_variant_ref does not identify a variant. Identify "
-        f"the variant by {entity_type}_variant_ref.id or "
-        f"{entity_type}_variant_ref.slug."
+        f"{entity_type}_variant_ref carries only `version`, but variants "
+        f"have no `version` field. Identify the variant by "
+        f"{entity_type}_variant_ref.id or {entity_type}_variant_ref.slug."
     )
 
 
