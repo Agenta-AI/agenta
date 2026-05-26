@@ -1,11 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
-import {
-    computeAdaptivePageDelayMs,
-    DEFAULT_BATCH_SIZE as DEFAULT_EXPORT_PAGE_SIZE,
-    exportMatchingTraces,
-} from "@agenta/entities/trace/etl"
+import {exportMatchingTraces} from "@agenta/entities/trace/etl"
 import {message, modal} from "@agenta/ui/app-message"
 import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
@@ -25,14 +21,9 @@ import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
 import {useObservability} from "@/oss/state/newObservability"
-import {
-    buildTraceQueryParams,
-    executeTraceQuery,
-} from "@/oss/state/newObservability/atoms/queryHelpers"
-import {adaptiveSleep} from "@/oss/state/newObservability/etl/adaptiveExportPacing"
+import {buildTraceQueryParams} from "@/oss/state/newObservability/atoms/queryHelpers"
+import {createAdaptiveTracePageFetcher} from "@/oss/state/newObservability/etl/adaptiveTracePageFetcher"
 import {createExportWriter, PICKER_CANCELLED} from "@/oss/state/newObservability/etl/exportWriter"
-import {createObservabilityTraceFetchPage} from "@/oss/state/newObservability/etl/observabilityTraceFetchPage"
-import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimitRetry"
 import {getAgData} from "@/oss/state/newObservability/selectors/tracing"
 
 import {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "../../assets/exportUtils"
@@ -324,76 +315,35 @@ const ObservabilityHeader = ({
             duration: 0,
         })
 
-        // Both the batch-add-to-queue scan and this export now share
-        // `executeTraceQuery` as the only transport. `size` is set per
-        // page so the API returns the same chunk the CSV flushes.
-        const scanParams: Record<string, any> = {...params, size: DEFAULT_EXPORT_PAGE_SIZE}
-        if (!scanParams.newest) {
-            scanParams.newest = new Date().toISOString()
-        }
-
         // Last reported row count — kept so a rate-limit pause can keep
         // showing progress while the scan is paused for backoff.
         let lastRowCount = 0
-        // Latest server-reported throttle bucket state. Drives the
-        // adaptive pre-fetch sleep: free-tier (small burst capacity)
-        // ramps the delay up as the bucket drains; business-tier (large
-        // capacity) stays at the floor delay throughout.
-        let lastRateLimit: {remaining: number | null; limit: number | null} = {
-            remaining: null,
-            limit: null,
-        }
-        // First call has no prior bucket reading — skip the adaptive
-        // sleep and let `withRateLimitRetry` handle any 429 that comes
-        // back. Subsequent calls pace based on the previous response.
-        let isFirstFetch = true
+
+        // Shared adaptive fetcher: bucket-aware proactive pacing + 429
+        // retry as the safety net. The queue scan uses the same helper —
+        // both pipelines now pace from the live bucket signal instead of
+        // an arbitrary constant.
+        const fetchPage = createAdaptiveTracePageFetcher({
+            params,
+            appId,
+            isHasAnnotationSelected,
+            hasAnnotationConditions,
+            hasAnnotationOperator,
+            signal: controller.signal,
+            onRateLimitPause: (delayMs) => {
+                message.loading({
+                    content:
+                        `Rate limited — pausing for ${Math.ceil(delayMs / 1000)}s` +
+                        ` (exported ${lastRowCount.toLocaleString()} rows so far)`,
+                    key: exportKey,
+                    duration: 0,
+                })
+            },
+        })
 
         try {
             const {rowCount, limitReached} = await exportMatchingTraces({
-                // Wrap `executeTraceQuery` in the shared 429-retry wrapper —
-                // a 429 (despite proactive pacing) pauses the scan instead
-                // of killing it. Non-429 errors pass straight through.
-                fetchPage: async (cursor, signal) => {
-                    // Adaptive sleep BEFORE the request so the bucket has
-                    // time to refill. Sleep duration is bucket-aware (see
-                    // `computeAdaptivePageDelayMs`).
-                    if (!isFirstFetch) {
-                        const delayMs = computeAdaptivePageDelayMs(lastRateLimit)
-                        await adaptiveSleep(delayMs, controller.signal)
-                    }
-                    isFirstFetch = false
-
-                    return withRateLimitRetry(
-                        async () => {
-                            const result = await executeTraceQuery({
-                                params: scanParams,
-                                pageParam: cursor ? {newest: cursor} : undefined,
-                                appId,
-                                isHasAnnotationSelected,
-                                hasAnnotationConditions,
-                                hasAnnotationOperator,
-                                signal,
-                            })
-                            lastRateLimit = result.rateLimit
-                            return {
-                                rows: result.traces,
-                                nextCursor: result.nextCursor ?? null,
-                            }
-                        },
-                        {
-                            signal: controller.signal,
-                            onRetry: (delayMs) => {
-                                message.loading({
-                                    content:
-                                        `Rate limited — pausing for ${Math.ceil(delayMs / 1000)}s` +
-                                        ` (exported ${lastRowCount.toLocaleString()} rows so far)`,
-                                    key: exportKey,
-                                    duration: 0,
-                                })
-                            },
-                        },
-                    )
-                },
+                fetchPage,
                 flushBatch: async (batch) => {
                     const rows = batch.map(createTraceObject)
                     // The writer streams to disk on Chromium and buffers in
@@ -521,7 +471,9 @@ const ObservabilityHeader = ({
     }, [filters])
 
     // Filter-scoped queue add — the picked queue runs a background scan of
-    // every trace matching the current observability filter.
+    // every trace matching the current observability filter. The hook owns
+    // its own rate-limit toast UI, so we hand it the raw scan params and
+    // let it build the adaptive fetcher itself.
     const onAddAllMatchingQueueSelected = useCallback(
         (queue: SimpleQueue) => {
             const {currentApp} = getAppValues()
@@ -532,17 +484,16 @@ const ObservabilityHeader = ({
                 hasAnnotationOperator,
                 isHasAnnotationSelected,
             } = buildTraceQueryParams(filters, sort, traceTabs, undefined)
-            const fetchPage = createObservabilityTraceFetchPage({
-                params,
-                appId,
-                isHasAnnotationSelected,
-                hasAnnotationConditions,
-                hasAnnotationOperator,
-            })
             const projectURL = window.location.pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
             runBatchAdd({
                 queue,
-                fetchPage,
+                scanConfig: {
+                    params,
+                    appId,
+                    isHasAnnotationSelected,
+                    hasAnnotationConditions,
+                    hasAnnotationOperator,
+                },
                 viewQueueUrl: projectURL ? `${projectURL}/annotations/${queue.id}` : undefined,
             })
         },

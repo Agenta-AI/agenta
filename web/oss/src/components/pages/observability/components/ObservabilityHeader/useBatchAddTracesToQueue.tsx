@@ -8,6 +8,11 @@
  * throttling pauses the scan (`withRateLimitRetry`) rather than killing it —
  * the notification shows a "rate limited" state during the wait.
  *
+ * The page-scan fetcher is built via `createAdaptiveTracePageFetcher`, so
+ * outbound request pacing tracks the live `X-RateLimit-Remaining` /
+ * `X-RateLimit-Limit` headers (bucket-aware, not tier-aware — the same
+ * code is the right pace on every plan).
+ *
  * Copy says "queued", never "added" — `evaluate_batch_traces` is
  * fire-and-forget, so the counter reflects IDs submitted, not scenarios
  * materialized.
@@ -20,25 +25,35 @@ import {
     addAllMatchingTracesToQueue,
     BatchFlushError,
     DEFAULT_MAX_ITEMS,
-    type TracePageFetcher,
 } from "@agenta/entities/simpleQueue/etl"
 import {notification} from "@agenta/ui/app-message"
 import {Button} from "antd"
 
+import type {Condition} from "@/oss/state/newObservability/atoms/queryHelpers"
+import {createAdaptiveTracePageFetcher} from "@/oss/state/newObservability/etl/adaptiveTracePageFetcher"
 import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimitRetry"
-
-/** Page throttle — paced below EE's request limit to reduce 429s. */
-const SCAN_PAGE_DELAY_MS = 300
 
 /** Per-run cap on queued trace ids — mirrors the pipeline default. */
 const MAX_ITEMS = DEFAULT_MAX_ITEMS
 /** Pre-formatted cap for toast copy (e.g. "1,000"). */
 const MAX_LABEL = MAX_ITEMS.toLocaleString()
 
+/** Trace-scan params the hook needs to build the adaptive page fetcher. */
+export interface BatchAddScanConfig {
+    params: Record<string, any>
+    appId: string
+    isHasAnnotationSelected: number
+    hasAnnotationConditions: Condition[]
+    hasAnnotationOperator?: string
+}
+
 export interface BatchAddRunInput {
     queue: SimpleQueue
-    /** Fetches one page of traces matching the live observability filter. */
-    fetchPage: TracePageFetcher
+    /**
+     * Trace-query params describing the live observability filter — the
+     * hook builds an adaptive (bucket-aware) page fetcher from it.
+     */
+    scanConfig: BatchAddScanConfig
     /** Link target for the "View queue" action in the success notification. */
     viewQueueUrl?: string
 }
@@ -53,7 +68,7 @@ export const useBatchAddTracesToQueue = () => {
     useEffect(() => () => abortRef.current?.abort(), [])
 
     const run = useCallback((input: BatchAddRunInput) => {
-        const {queue, fetchPage, viewQueueUrl} = input
+        const {queue, scanConfig, viewQueueUrl} = input
         const queueName = queue.name || "queue"
         const key = `batch-add-queue-${queue.id}`
 
@@ -103,14 +118,19 @@ export const useBatchAddTracesToQueue = () => {
 
         showRunning(0)
 
-        // Wrap both transports so a 429 pauses-and-resumes instead of killing
-        // the run. Non-429 errors pass straight through.
-        const fetchPageWithRetry: TracePageFetcher = (cursor, signal) =>
-            withRateLimitRetry(() => fetchPage(cursor, signal), {
-                signal: controller.signal,
-                onRetry: (delayMs) => showRateLimited(delayMs),
-            })
+        // Shared adaptive fetcher: bucket-aware proactive pacing + 429 retry.
+        // Same helper the bulk CSV export uses — pacing is driven by the live
+        // `X-RateLimit-Remaining` / `X-RateLimit-Limit` headers from EE
+        // throttling, not by an arbitrary constant.
+        const fetchPage = createAdaptiveTracePageFetcher({
+            ...scanConfig,
+            signal: controller.signal,
+            onRateLimitPause: (delayMs) => showRateLimited(delayMs),
+        })
 
+        // `addTraces` hits a different throttle bucket than the trace query,
+        // so bucket-aware pacing for it would need its own readings. The 429
+        // retry remains as the per-call safety net.
         const addTracesWithRetry = (queueId: string, traceIds: string[]) =>
             withRateLimitRetry(() => simpleQueueMolecule.set.addTraces(queueId, traceIds), {
                 signal: controller.signal,
@@ -120,11 +140,13 @@ export const useBatchAddTracesToQueue = () => {
         void (async () => {
             try {
                 const result = await addAllMatchingTracesToQueue({
-                    fetchPage: fetchPageWithRetry,
+                    fetchPage,
                     addTraces: addTracesWithRetry,
                     queueId: queue.id,
                     signal: controller.signal,
-                    pageDelayMs: SCAN_PAGE_DELAY_MS,
+                    // Pacing happens inside `fetchPage` based on live bucket
+                    // state — disable the source-level fixed delay.
+                    pageDelayMs: 0,
                     onProgress: ({queued}) => {
                         if (!controller.signal.aborted) showRunning(queued)
                     },
