@@ -84,6 +84,11 @@ const PlaygroundMainView = dynamic(
     {ssr: false},
 )
 
+const TestsetDropdown = dynamic(
+    () => import("@/oss/components/Playground/Components/TestsetDropdown"),
+    {ssr: false},
+)
+
 const HumanEvaluatorDrawer = dynamic(
     () => import("@/oss/components/Evaluators/Drawers/HumanEvaluatorDrawer"),
     {ssr: false},
@@ -159,6 +164,8 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
         [],
     )
 
+    const renderTestsetActions = useCallback(() => <TestsetDropdown />, [])
+
     return (
         <OSSPlaygroundShell providers={providers}>
             <PlaygroundMainView
@@ -167,6 +174,7 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
                 embedded
                 configViewMode={configViewMode}
                 onConfigViewModeChange={setConfigViewMode}
+                renderTestsetActions={renderTestsetActions}
             />
         </OSSPlaygroundShell>
     )
