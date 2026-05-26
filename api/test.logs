@@ -1,4 +1,0 @@
-AGENTA_API_URL=http://localhost/api
-AGENTA_AUTH_KEY=re......me
-AGENTA_LICENSE=ee
-Executing: pytest oss/tests/pytest ee/tests/pytest --junit-xml=ee/tests/results/junit.xml --html=ee/tests/results/report.html

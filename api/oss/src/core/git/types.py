@@ -133,7 +133,7 @@ class RetrieveRefsInconsistent(GitError):
     """
 
 
-def _is_identifying(ref: Optional[Reference]) -> bool:
+def is_identifying(ref: Optional[Reference]) -> bool:
     """A `Reference` is "identifying" only if it carries an `id` or `slug`.
 
     An empty `Reference(id=None, slug=None, version=None)` is a truthy
@@ -158,11 +158,11 @@ def needs_default_variant_resolution(
     and `{artifact_ref + version}` (specific-version-on-default) — need the
     same artifact→variant resolution to give the DAO a usable variant scope.
     """
-    if not _is_identifying(artifact_ref):
+    if not is_identifying(artifact_ref):
         return False
-    if _is_identifying(variant_ref):
+    if is_identifying(variant_ref):
         return False
-    if _is_identifying(revision_ref):
+    if is_identifying(revision_ref):
         return False
     return True
 
@@ -199,7 +199,7 @@ def validate_revision_refs_sufficient(
     if not revision_version_only:
         return
 
-    if _is_identifying(variant_ref) or _is_identifying(artifact_ref):
+    if is_identifying(variant_ref) or is_identifying(artifact_ref):
         return
 
     raise RetrieveRefsInsufficient(
@@ -220,8 +220,8 @@ def validate_variant_refs_sufficient(
 
     Variants carry `id` and `slug` but no `version` field — version is a
     per-variant counter living on revisions. A `variant_ref` populated with
-    only `version` is nonsense the DAO would silently drop, so reject it at
-    the boundary.
+    only `version`, or an empty `variant_ref` (e.g. `{}` from JSON), is
+    nonsense the DAO would silently drop, so reject it at the boundary.
 
     Identifying `variant_ref` (id/slug, optionally with redundant version
     that the DAO ignores) is left alone — C3's consistency check covers the
@@ -229,14 +229,12 @@ def validate_variant_refs_sufficient(
     """
     if variant_ref is None:
         return
-    if _is_identifying(variant_ref):
-        return
-    if variant_ref.version is None:
+    if is_identifying(variant_ref):
         return
     raise RetrieveRefsInsufficient(
-        f"{entity_type}_variant_ref carries only `version`, but variants "
-        f"have no `version` field. Identify the variant by "
-        f"{entity_type}_variant_ref.id or {entity_type}_variant_ref.slug."
+        f"{entity_type}_variant_ref does not identify a variant. Identify "
+        f"the variant by {entity_type}_variant_ref.id or "
+        f"{entity_type}_variant_ref.slug."
     )
 
 
