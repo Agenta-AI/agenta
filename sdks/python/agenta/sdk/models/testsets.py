@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from agenta.sdk.models.shared import (
     Identifier,
@@ -53,6 +53,8 @@ class TestsetFlags(BaseModel):
 
 
 class TestsetRevisionData(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     testcase_ids: Optional[List[UUID]] = None
     testcases: Optional[List[Testcase]] = None
 
