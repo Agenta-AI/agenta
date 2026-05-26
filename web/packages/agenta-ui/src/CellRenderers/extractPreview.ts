@@ -37,26 +37,39 @@ const chatRule: Rule = {
 }
 
 // Matches `{input: <defined>}` shapes (e.g. agenta input payloads) and
-// surfaces only that key.
+// surfaces only that key. Gated on `ctx.side` so an output-side cell receiving
+// `{input, output}` doesn't short-circuit to the input field.
 const inputKeyRule: Rule = {
     name: "input-key",
-    extract: (value) => {
+    extract: (value, ctx) => {
+        if (ctx.side === "output") return null
         if (!isPlainObject(value)) return null
         if (!isDefined(value.input)) return null
         return {renderer: "beautified", data: {input: value.input}, source: "input-key"}
     },
 }
 
-// Matches `{returnValues: {output: <defined>}}` shapes and surfaces only the
-// nested `output` field.
+// Matches output-shaped payloads and surfaces only the output field:
+//   - `{returnValues: {output: <defined>}}` (LangChain AgentExecutor)
+//   - bare `{output: <defined>}`
+// Gated on `ctx.side` so an input-side cell doesn't accidentally surface the
+// output field when both keys are present.
 const outputKeyRule: Rule = {
     name: "output-key",
-    extract: (value) => {
+    extract: (value, ctx) => {
+        if (ctx.side === "input") return null
         if (!isPlainObject(value)) return null
+
         const rv = value.returnValues
-        if (!isPlainObject(rv)) return null
-        if (!isDefined(rv.output)) return null
-        return {renderer: "beautified", data: {output: rv.output}, source: "output-key"}
+        if (isPlainObject(rv) && isDefined(rv.output)) {
+            return {renderer: "beautified", data: {output: rv.output}, source: "output-key"}
+        }
+
+        if (isDefined(value.output)) {
+            return {renderer: "beautified", data: {output: value.output}, source: "output-key"}
+        }
+
+        return null
     },
 }
 
@@ -64,10 +77,12 @@ const outputKeyRule: Rule = {
 //   {generations: [[{text: "...", generationInfo: {...}}, ...], ...], ...}
 // The outer list is per-prompt, the inner list is per-choice. Flattens both
 // and surfaces the non-empty text values. Collapses to {output: "..."} when
-// there is exactly one text, otherwise returns {outputs: [...]}.
+// there is exactly one text, otherwise returns {outputs: [...]}. Gated on
+// `ctx.side` because the result is always output-shaped.
 const generationsOutputRule: Rule = {
     name: "generations-output",
-    extract: (value) => {
+    extract: (value, ctx) => {
+        if (ctx.side === "input") return null
         if (!isPlainObject(value)) return null
         const generations = value.generations
         if (!Array.isArray(generations)) return null
