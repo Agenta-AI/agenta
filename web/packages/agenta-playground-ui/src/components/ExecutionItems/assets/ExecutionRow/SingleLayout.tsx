@@ -877,44 +877,67 @@ const SingleView = ({
                                     )
                                 }
 
-                                // Flat layout — apps, and evaluators with no
-                                // extracted field ports (default template).
-                                if (!useGroupedLayout) {
-                                    // New playground inputs body — V2-aligned
-                                    // bordered cards with type chips + "View
-                                    // as ▾" dropdowns. Behind a feature flag
-                                    // so the existing per-variable layout
-                                    // stays default until the new UX is
-                                    // signed off. See approved design doc,
-                                    // Step 6 deferred follow-ups for
-                                    // ComparisonLayout + picker placement.
-                                    if (useNewInputsBody) {
+                                // New playground inputs body — V2-aligned
+                                // bordered cards with type chips + "View
+                                // as ▾" dropdowns. Behind a feature flag
+                                // so the existing per-variable layout stays
+                                // default until the new UX is signed off.
+                                if (useNewInputsBody) {
+                                    // Grouped layout — evaluators with
+                                    // extracted field ports. Field ports +
+                                    // the `inputs` envelope catch-all share
+                                    // `data.inputs` at runtime; the new
+                                    // inputs body renders both inside the
+                                    // same left-border "inputs" section,
+                                    // and the `outputs` envelope in its
+                                    // own section. The section blocks come
+                                    // through the host's `sections` prop.
+                                    if (useGroupedLayout) {
+                                        const groupedSections = [
+                                            {
+                                                ariaLabel: "inputs",
+                                                variableNames: [
+                                                    ...fieldPortIds,
+                                                    ...(hasInputsEnvelope ? ["inputs"] : []),
+                                                ],
+                                            },
+                                            ...(hasOutputsEnvelope
+                                                ? [
+                                                      {
+                                                          ariaLabel: "outputs",
+                                                          variableNames: ["outputs"],
+                                                      },
+                                                  ]
+                                                : []),
+                                        ]
                                         return (
                                             <PlaygroundInputsBodyHost
                                                 rowId={rowId}
                                                 downstreamKey={downstreamKey}
                                                 editable={!isWaitingForVariableControls}
+                                                sections={groupedSections}
                                             />
                                         )
                                     }
-                                    return variableIds.map((id) => renderVariable(id))
+                                    return (
+                                        <PlaygroundInputsBodyHost
+                                            rowId={rowId}
+                                            downstreamKey={downstreamKey}
+                                            editable={!isWaitingForVariableControls}
+                                        />
+                                    )
                                 }
 
-                                // Grouped layout — evaluators with field
-                                // ports. Field ports + the envelope catch-all
-                                // share `data.inputs` at runtime, so we wrap
-                                // them in one left-border block to surface
-                                // that relationship visually. Each port
-                                // renders with its full header (label + ⓘ
-                                // tooltip + hover-revealed action cluster:
-                                // JSON/text toggle, markdown, copy, collapse)
-                                // and the editor's own border, so envelope
-                                // and field rows look identical and the
-                                // hover affordances stay intact. The group
-                                // identity comes from the container; we
-                                // intentionally don't add a separate header
-                                // label to avoid colliding with the envelope
-                                // port's own header.
+                                // Legacy path (flag off) — flat layout for
+                                // apps and evaluators-with-no-fields, grouped
+                                // legacy SectionBlock layout for evaluators
+                                // with extracted field ports. Each port renders
+                                // through the per-variable
+                                // `VariableControlAdapter` with its full header
+                                // (label + ⓘ tooltip + hover-revealed actions).
+                                if (!useGroupedLayout) {
+                                    return variableIds.map((id) => renderVariable(id))
+                                }
                                 return (
                                     <>
                                         <SectionBlock ariaLabel="inputs">
