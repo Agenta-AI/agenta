@@ -108,10 +108,6 @@ interface PricingEntry {
 
 export type PricingMap = Record<string, PricingEntry>
 
-const DEFAULT_FREE_PLAN = "cloud_v0_hobby"
-const DEFAULT_TRIAL_PLAN = "cloud_v0_pro"
-const DEFAULT_TRIAL_DAYS = 14
-
 export interface CatalogEntry {
     title: string
     description?: string
@@ -165,57 +161,21 @@ export const pricingQueryAtom = atomWithQuery((get) => {
     }
 })
 
-const planSlugExists = (
-    slug: string,
-    plans?: PlansCatalog,
-    pricing?: PricingMap,
-    catalog?: CatalogEntry[],
-) => {
-    return Boolean(
-        plans?.[slug] || pricing?.[slug] || catalog?.some((entry) => entry.plan === slug),
-    )
-}
-
-// Derived: the slug of the deployment's free plan (the one with
-// `{"free": true}` in AGENTA_BILLING_PRICING). Used by UI gates like the
-// upgrade banner. Mirrors the backend fallback to `cloud_v0_hobby` when
-// no plan is explicitly marked free and `cloud_v0_hobby` exists.
 export const freePlanSlugAtom = atom((get): string | null => {
     const pricing = get(pricingQueryAtom).data
-    const plans = get(plansQueryAtom).data
-    const catalog = get(catalogQueryAtom).data
-
-    if (pricing) {
-        for (const [slug, entry] of Object.entries(pricing)) {
-            if (entry?.free) return slug
-        }
+    if (!pricing) return null
+    for (const [slug, entry] of Object.entries(pricing)) {
+        if (entry?.free) return slug
     }
-
-    if (planSlugExists(DEFAULT_FREE_PLAN, plans, pricing, catalog)) {
-        return DEFAULT_FREE_PLAN
-    }
-
     return null
 })
 
-// Derived: trial plan and duration. Mirrors the backend fallback to
-// `cloud_v0_pro` / 14 days when no plan is explicitly marked trial and
-// `cloud_v0_pro` exists.
 export const trialPlanAtom = atom((get): {plan: string; days: number} | null => {
     const pricing = get(pricingQueryAtom).data
-    const plans = get(plansQueryAtom).data
-    const catalog = get(catalogQueryAtom).data
-
-    if (pricing) {
-        for (const [slug, entry] of Object.entries(pricing)) {
-            if (typeof entry?.trial === "number") return {plan: slug, days: entry.trial}
-        }
+    if (!pricing) return null
+    for (const [slug, entry] of Object.entries(pricing)) {
+        if (typeof entry?.trial === "number") return {plan: slug, days: entry.trial}
     }
-
-    if (planSlugExists(DEFAULT_TRIAL_PLAN, plans, pricing, catalog)) {
-        return {plan: DEFAULT_TRIAL_PLAN, days: DEFAULT_TRIAL_DAYS}
-    }
-
     return null
 })
 
