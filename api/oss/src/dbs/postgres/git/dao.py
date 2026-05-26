@@ -499,6 +499,8 @@ class GitDAO(GitDAOInterface):
                 )
             )
 
+            pick_default_variant = False
+
             if variant_ref:
                 if variant_ref.id:
                     stmt = stmt.filter(self.VariantDBE.id == variant_ref.id)  # type: ignore
@@ -510,6 +512,7 @@ class GitDAO(GitDAOInterface):
                 if artifact_ref.id:
                     stmt = stmt.filter(self.VariantDBE.artifact_id == artifact_ref.id)  # type: ignore
                     applied_identifying_filter = True
+                    pick_default_variant = True
                 elif artifact_ref.slug:
                     stmt = stmt.join(
                         self.ArtifactDBE,
@@ -518,9 +521,16 @@ class GitDAO(GitDAOInterface):
                         self.ArtifactDBE.slug == artifact_ref.slug,  # type: ignore
                     )
                     applied_identifying_filter = True
+                    pick_default_variant = True
 
             if not applied_identifying_filter:
                 return None
+
+            if pick_default_variant:
+                stmt = stmt.order_by(
+                    self.VariantDBE.created_at.asc(),  # type: ignore
+                    self.VariantDBE.id.asc(),  # type: ignore
+                )
 
             if include_archived is not True:
                 stmt = stmt.filter(self.VariantDBE.deleted_at.is_(None))  # type: ignore

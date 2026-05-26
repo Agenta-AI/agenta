@@ -21,7 +21,10 @@ from oss.src.core.workflows.dtos import (
     #
 )
 from oss.src.core.shared.dtos import Windowing, Reference
-from oss.src.core.git.types import validate_revision_ref_unambiguous
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+)
 from oss.src.core.workflows.service import WorkflowsService
 
 # Resolution is now handled by EmbedsService
@@ -550,7 +553,11 @@ class ApplicationsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[ApplicationRevision]:
-        validate_revision_ref_unambiguous(
+        validate_variant_refs_sufficient(
+            variant_ref=application_variant_ref,
+            entity_type="application",
+        )
+        validate_revision_refs_sufficient(
             artifact_ref=application_ref,
             variant_ref=application_variant_ref,
             revision_ref=application_revision_ref,

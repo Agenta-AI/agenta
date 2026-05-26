@@ -1,25 +1,18 @@
-"""Acceptance: ambiguous revision-retrieve requests return HTTP 400.
+"""Acceptance: inconsistent revision-retrieve requests return HTTP 400.
 
-The shared `validate_revision_refs_sufficient` helper protects every
-git-backed entity's retrieve endpoint against the version-only-no-variant
-trap. These tests assert the 400 surfaces correctly across all six
-endpoints — applications, evaluators, queries, testsets, environments,
-workflows — and that legitimate `{variant_ref + revision_ref:{version}}`
-requests in the same neighborhood still succeed.
+The shared `validate_retrieve_refs_consistent` helper rejects requests where
+caller-supplied artifact/variant/revision refs disagree with the resolved
+revision's identity. These tests assert the 400 surfaces correctly across
+all six entities — applications, evaluators, queries, testsets,
+environments, workflows.
 
 For each entity:
 
   * A `_create_*_stack` helper provisions a real artifact + variant +
-    revision so the positive control has something to find. The negative
-    tests reuse the artifact slug; the variant and revision exist to
-    satisfy the positive control fixture.
-
-  * Two negative tests: `{revision_ref:{version}}` alone and
-    `{artifact_ref + revision_ref:{version}}`. Both must return 400 with
-    `version` and `variant_ref` in the error detail.
-
-  * One positive test: `{variant_ref:{slug} + revision_ref:{version}}`
-    must return 200 and resolve to the revision created in the fixture.
+    revision so consistency can be evaluated against a real row.
+  * One negative test: pass a `revision_ref.id` together with an
+    `artifact_ref.slug` that does NOT belong to that revision. Must return
+    400 with the offending field mentioned in the detail.
 
 Each test creates its own fixture so the tests don't share global state.
 """
@@ -27,20 +20,11 @@ Each test creates its own fixture so the tests don't share global state.
 from uuid import uuid4
 
 
-# helpers ----------------------------------------------------------------------
-
-
-def _assert_ambiguous_400(response):
+def _assert_inconsistent_400(response):
     assert response.status_code == 400, response.text
-    # The error message should mention the version field and the variant ref
-    # so the caller can see why their request was rejected.
     body = response.json()
     detail = body.get("detail", "")
-    assert "version" in detail, body
-    assert "variant_ref" in detail, body
-
-
-# workflows --------------------------------------------------------------------
+    assert "does not match" in detail or "_ref" in detail, body
 
 
 def _create_workflow_stack(authed_api):
@@ -82,30 +66,19 @@ def _create_workflow_stack(authed_api):
     return workflow, variant, revision
 
 
-def test_workflows_retrieve_version_only_returns_400(authed_api):
-    response = authed_api(
-        "POST",
-        "/workflows/revisions/retrieve",
-        json={"workflow_revision_ref": {"version": "1"}},
-    )
-    _assert_ambiguous_400(response)
-
-
-def test_workflows_retrieve_variant_plus_version_succeeds(authed_api):
-    _, variant, revision = _create_workflow_stack(authed_api)
+def test_workflows_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
+    authed_api,
+):
+    _, _, revision = _create_workflow_stack(authed_api)
     response = authed_api(
         "POST",
         "/workflows/revisions/retrieve",
         json={
-            "workflow_variant_ref": {"slug": variant["slug"]},
-            "workflow_revision_ref": {"version": revision["version"]},
+            "workflow_ref": {"slug": f"unrelated-{uuid4().hex[:8]}"},
+            "workflow_revision_ref": {"id": revision["id"]},
         },
     )
-    assert response.status_code == 200, response.text
-    assert response.json()["workflow_revision"]["id"] == revision["id"]
-
-
-# applications -----------------------------------------------------------------
+    _assert_inconsistent_400(response)
 
 
 def _create_application_stack(authed_api):
@@ -149,30 +122,19 @@ def _create_application_stack(authed_api):
     return app, variant, revision
 
 
-def test_applications_retrieve_version_only_returns_400(authed_api):
-    response = authed_api(
-        "POST",
-        "/applications/revisions/retrieve",
-        json={"application_revision_ref": {"version": "1"}},
-    )
-    _assert_ambiguous_400(response)
-
-
-def test_applications_retrieve_variant_plus_version_succeeds(authed_api):
-    _, variant, revision = _create_application_stack(authed_api)
+def test_applications_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
+    authed_api,
+):
+    _, _, revision = _create_application_stack(authed_api)
     response = authed_api(
         "POST",
         "/applications/revisions/retrieve",
         json={
-            "application_variant_ref": {"slug": variant["slug"]},
-            "application_revision_ref": {"version": revision["version"]},
+            "application_ref": {"slug": f"unrelated-{uuid4().hex[:8]}"},
+            "application_revision_ref": {"id": revision["id"]},
         },
     )
-    assert response.status_code == 200, response.text
-    assert response.json()["application_revision"]["id"] == revision["id"]
-
-
-# evaluators -------------------------------------------------------------------
+    _assert_inconsistent_400(response)
 
 
 def _create_evaluator_stack(authed_api):
@@ -216,30 +178,19 @@ def _create_evaluator_stack(authed_api):
     return evaluator, variant, revision
 
 
-def test_evaluators_retrieve_version_only_returns_400(authed_api):
-    response = authed_api(
-        "POST",
-        "/evaluators/revisions/retrieve",
-        json={"evaluator_revision_ref": {"version": "1"}},
-    )
-    _assert_ambiguous_400(response)
-
-
-def test_evaluators_retrieve_variant_plus_version_succeeds(authed_api):
-    _, variant, revision = _create_evaluator_stack(authed_api)
+def test_evaluators_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
+    authed_api,
+):
+    _, _, revision = _create_evaluator_stack(authed_api)
     response = authed_api(
         "POST",
         "/evaluators/revisions/retrieve",
         json={
-            "evaluator_variant_ref": {"slug": variant["slug"]},
-            "evaluator_revision_ref": {"version": revision["version"]},
+            "evaluator_ref": {"slug": f"unrelated-{uuid4().hex[:8]}"},
+            "evaluator_revision_ref": {"id": revision["id"]},
         },
     )
-    assert response.status_code == 200, response.text
-    assert response.json()["evaluator_revision"]["id"] == revision["id"]
-
-
-# testsets ---------------------------------------------------------------------
+    _assert_inconsistent_400(response)
 
 
 def _create_testset_stack(authed_api):
@@ -281,30 +232,19 @@ def _create_testset_stack(authed_api):
     return testset, variant, revision
 
 
-def test_testsets_retrieve_version_only_returns_400(authed_api):
-    response = authed_api(
-        "POST",
-        "/testsets/revisions/retrieve",
-        json={"testset_revision_ref": {"version": "1"}},
-    )
-    _assert_ambiguous_400(response)
-
-
-def test_testsets_retrieve_variant_plus_version_succeeds(authed_api):
-    _, variant, revision = _create_testset_stack(authed_api)
+def test_testsets_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
+    authed_api,
+):
+    _, _, revision = _create_testset_stack(authed_api)
     response = authed_api(
         "POST",
         "/testsets/revisions/retrieve",
         json={
-            "testset_variant_ref": {"slug": variant["slug"]},
-            "testset_revision_ref": {"version": revision["version"]},
+            "testset_ref": {"slug": f"unrelated-{uuid4().hex[:8]}"},
+            "testset_revision_ref": {"id": revision["id"]},
         },
     )
-    assert response.status_code == 200, response.text
-    assert response.json()["testset_revision"]["id"] == revision["id"]
-
-
-# queries ----------------------------------------------------------------------
+    _assert_inconsistent_400(response)
 
 
 def _create_query_stack(authed_api):
@@ -339,31 +279,19 @@ def _create_query_stack(authed_api):
     return query, revision
 
 
-def test_queries_retrieve_version_only_returns_400(authed_api):
-    response = authed_api(
-        "POST",
-        "/queries/revisions/retrieve",
-        json={"query_revision_ref": {"version": "1"}},
-    )
-    _assert_ambiguous_400(response)
-
-
-def test_queries_retrieve_variant_plus_version_succeeds(authed_api):
-    query, revision = _create_query_stack(authed_api)
-    # Queries use a single auto-created variant per query; identify it by id.
+def test_queries_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
+    authed_api,
+):
+    _, revision = _create_query_stack(authed_api)
     response = authed_api(
         "POST",
         "/queries/revisions/retrieve",
         json={
-            "query_variant_ref": {"id": query["variant_id"]},
-            "query_revision_ref": {"version": revision["version"]},
+            "query_ref": {"slug": f"unrelated-{uuid4().hex[:8]}"},
+            "query_revision_ref": {"id": revision["id"]},
         },
     )
-    assert response.status_code == 200, response.text
-    assert response.json()["query_revision"]["id"] == revision["id"]
-
-
-# environments -----------------------------------------------------------------
+    _assert_inconsistent_400(response)
 
 
 def _create_environment_stack(authed_api):
@@ -405,24 +333,16 @@ def _create_environment_stack(authed_api):
     return environment, variant, revision
 
 
-def test_environments_retrieve_version_only_returns_400(authed_api):
-    response = authed_api(
-        "POST",
-        "/environments/revisions/retrieve",
-        json={"environment_revision_ref": {"version": "1"}},
-    )
-    _assert_ambiguous_400(response)
-
-
-def test_environments_retrieve_variant_plus_version_succeeds(authed_api):
-    _, variant, revision = _create_environment_stack(authed_api)
+def test_environments_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
+    authed_api,
+):
+    _, _, revision = _create_environment_stack(authed_api)
     response = authed_api(
         "POST",
         "/environments/revisions/retrieve",
         json={
-            "environment_variant_ref": {"slug": variant["slug"]},
-            "environment_revision_ref": {"version": revision["version"]},
+            "environment_ref": {"slug": f"unrelated-{uuid4().hex[:8]}"},
+            "environment_revision_ref": {"id": revision["id"]},
         },
     )
-    assert response.status_code == 200, response.text
-    assert response.json()["environment_revision"]["id"] == revision["id"]
+    _assert_inconsistent_400(response)

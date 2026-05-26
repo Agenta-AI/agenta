@@ -28,7 +28,7 @@ from oss.src.utils.caching import set_cache, get_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 from oss.src.core.events.utils import publish_revision_event
-from oss.src.core.git.types import RevisionRefInvalid
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -1444,6 +1444,7 @@ class TestsetsRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=TestsetRevisionResponse(), exclude=[HTTPException])
+    @handle_git_exceptions()
     async def retrieve_testset_revision(
         self,
         request: Request,
@@ -1498,24 +1499,18 @@ class TestsetsRouter:
         )
 
         if not testset_revision:
-            try:
-                testset_revision = await self.testsets_service.fetch_testset_revision(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    testset_ref=testset_revision_retrieve_request.testset_ref,
-                    testset_variant_ref=testset_revision_retrieve_request.testset_variant_ref,
-                    testset_revision_ref=testset_revision_retrieve_request.testset_revision_ref,
-                    #
-                    include_testcase_ids=testset_revision_retrieve_request.include_testcase_ids,
-                    include_testcases=testset_revision_retrieve_request.include_testcases,
-                    #
-                    windowing=testset_revision_retrieve_request.windowing,
-                )
-            except RevisionRefInvalid as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=e.message,
-                ) from e
+            testset_revision = await self.testsets_service.fetch_testset_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                testset_ref=testset_revision_retrieve_request.testset_ref,
+                testset_variant_ref=testset_revision_retrieve_request.testset_variant_ref,
+                testset_revision_ref=testset_revision_retrieve_request.testset_revision_ref,
+                #
+                include_testcase_ids=testset_revision_retrieve_request.include_testcase_ids,
+                include_testcases=testset_revision_retrieve_request.include_testcases,
+                #
+                windowing=testset_revision_retrieve_request.windowing,
+            )
 
             if should_cache:
                 await set_cache(
