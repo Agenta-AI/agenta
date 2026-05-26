@@ -33,3 +33,14 @@ export interface EvaluationResultsQueryParams {
     scenarioIds?: string[]
     stepKeys?: string[]
 }
+
+/**
+ * Params for querying evaluation metrics.
+ * Metrics are joined to runs (run-level aggregates) or scenarios (per-scenario).
+ */
+export interface EvaluationMetricsQueryParams {
+    projectId: string
+    runId: string
+    /** Restrict to per-scenario metrics for these scenarios. Omit for all run metrics. */
+    scenarioIds?: string[]
+}

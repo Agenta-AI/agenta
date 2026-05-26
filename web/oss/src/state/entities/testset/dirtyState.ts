@@ -8,6 +8,7 @@ import {
 } from "../testcase/columnState"
 import {testcase} from "../testcase/controller"
 import {currentRevisionIdAtom} from "../testcase/queries"
+import {filterTestcaseUserDataToColumns} from "../testcase/schema"
 import {
     deletedEntityIdsAtom,
     newEntityIdsAtom,
@@ -128,31 +129,7 @@ function extractUserFields(
     currentColumnKeys: Set<string>,
     useCurrentColumns = true,
 ): Record<string, unknown> {
-    if (!data) return {}
-    const metadataFields = new Set([
-        "id",
-        "key",
-        "testset_id",
-        "set_id",
-        "created_at",
-        "updated_at",
-        "deleted_at",
-        "created_by_id",
-        "updated_by_id",
-        "deleted_by_id",
-        "flags",
-        "tags",
-        "meta",
-        "__isSkeleton",
-        "testcase_dedup_id",
-    ])
-    const result: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(data)) {
-        if (metadataFields.has(key)) continue
-        if (useCurrentColumns && !currentColumnKeys.has(key)) continue
-        result[key] = value
-    }
-    return result
+    return filterTestcaseUserDataToColumns(data, currentColumnKeys, useCurrentColumns)
 }
 
 /**

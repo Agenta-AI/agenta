@@ -42,6 +42,7 @@ export interface StepError {
     type?: string
     message: string
     stacktrace?: string
+    raw?: unknown
 }
 
 export type {StepError as EvaluatorStepError}
@@ -307,15 +308,22 @@ const extractStepError = (step: IStepResponse | undefined): StepError | null => 
     if (!step) return null
     const status = (step as any)?.status
     const error = (step as any)?.error
-    if (status === "failure" && error && typeof error === "object") {
+    if (status !== "failure" || error === undefined || error === null) return null
+
+    if (typeof error === "object") {
         return {
             code: error.code,
             type: error.type,
             message: error.message ?? "Unknown error",
             stacktrace: error.stacktrace,
+            raw: error,
         }
     }
-    return null
+
+    return {
+        message: String(error),
+        raw: error,
+    }
 }
 
 /**

@@ -140,7 +140,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
             headerClassName="px-4 pt-2"
         >
             <div className="flex h-full min-h-0 flex-col gap-2 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full">
-                <PreviewEvalRunMeta runId={runId} projectId={projectId} />
+                <PreviewEvalRunMeta runId={runId} projectId={projectId} activeView={activeView} />
                 <Tabs
                     className="flex-1 min-h-0 overflow-hidden"
                     activeKey={activeView}
