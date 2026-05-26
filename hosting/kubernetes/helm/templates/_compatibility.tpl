@@ -37,7 +37,7 @@ NOT translated (already accepted as-is by the new chart):
   secrets.llmProviders     (flat map; templates still read this)
 
 Removing this layer in a future release:
-  1. Delete this file (`templates/_compat.tpl`).
+  1. Delete this file (`templates/_compatibility.tpl`).
   2. In _helpers.tpl, change the `agenta.values` body to
      `{{- .Values | toYaml -}}` (one line). All consumers stay
      unchanged because they call `include "agenta.values" .`.

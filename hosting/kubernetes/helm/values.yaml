@@ -25,9 +25,12 @@ agenta:
   # ================================================================ #
   # Agenta — Core endpoints
   # ================================================================ #
-  webUrl: "http://localhost"
-  servicesUrl: "http://localhost/services"
-  apiUrl: "http://localhost/api"
+  # webUrl/apiUrl/servicesUrl are intentionally unset here. The chart derives
+  # them from ingress.host when ingress.enabled=true, and the example values
+  # in hosting/kubernetes/{oss,ee}/values.*.example.yaml set them explicitly
+  # for the port-forward (no-ingress) path. A validation in _validations.tpl
+  # fails the install if all three resolve to empty — that catches the
+  # common "ingress disabled, URLs not set" misconfiguration.
 
   # ================================================================ #
   # Agenta — Secrets (REPLACE in production!)

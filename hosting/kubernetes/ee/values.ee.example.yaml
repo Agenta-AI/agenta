@@ -361,9 +361,15 @@ posthog:
 # ================================================================== #
 # === redisVolatile — bundled Redis (cache, pub/sub) ===
 # ================================================================== #
+# The bundled Redis runs ClusterIP-only and ships without a password by
+# default — Redis itself has no AUTH unless we set one. That's fine for
+# local/dev clusters where pod-to-pod traffic is trusted. For shared or
+# production clusters, set `password` (and optionally add a NetworkPolicy
+# limiting access to the agenta pods) — the password is read from the
+# chart-managed Secret and surfaced into REDIS_URI_VOLATILE.
 # redisVolatile:
 #   enabled: true
-#   password: ""            # optional; rendered into REDIS_URI_VOLATILE
+#   password: ""            # default: no auth; set to enable AUTH
 #   image:
 #     repository: redis
 #     tag: "8"
@@ -381,9 +387,17 @@ posthog:
 # ================================================================== #
 # === redisDurable — bundled Redis (queues, persistent state) ===
 # ================================================================== #
+# Same security note as redisVolatile above: ClusterIP-only, no AUTH by
+# default. Set `password` for shared/production clusters.
+#
+# Note: persistence.enabled writes a StatefulSet `volumeClaimTemplates`,
+# which is immutable post-create. Once installed, toggling this flag on
+# an upgrade is rejected by the API server — the chart catches this in
+# _validations.tpl with a fail-fast error explaining the manual VCT
+# recreation steps. Pick a value at install time and stick with it.
 # redisDurable:
 #   enabled: true
-#   password: ""            # optional; rendered into REDIS_URI_DURABLE
+#   password: ""            # default: no auth; set to enable AUTH
 #   image:
 #     repository: redis
 #     tag: "8"

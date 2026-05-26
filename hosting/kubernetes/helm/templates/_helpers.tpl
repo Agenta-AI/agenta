@@ -122,7 +122,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.web.replicas" -}}{{ default 1 (default dict .Values.web).replicas }}{{- end }}
 {{- define "agenta.services.replicas" -}}{{ default 1 (default dict .Values.services).replicas }}{{- end }}
 {{- define "agenta.supertokens.replicas" -}}{{ default 1 (default dict (include "agenta.values" . | fromYaml).supertokens).replicas }}{{- end }}
-{{- define "agenta.cron.replicas" -}}{{ default 1 (default dict .Values.cron).replicas }}{{- end }}
+{{- /* cron runs supercronic, which doesn't coordinate across replicas:
+       N replicas = every scheduled job fires N times. Hard-set to 1.
+       The values key is kept as documentation; we ignore user overrides. */ -}}
+{{- define "agenta.cron.replicas" -}}1{{- end }}
 {{- define "agenta.workerEvaluations.replicas" -}}{{ default 1 (default dict .Values.workerEvaluations).replicas }}{{- end }}
 {{- define "agenta.workerTracing.replicas" -}}{{ default 1 (default dict .Values.workerTracing).replicas }}{{- end }}
 {{- define "agenta.workerWebhooks.replicas" -}}{{ default 1 (default dict .Values.workerWebhooks).replicas }}{{- end }}
@@ -168,9 +171,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    `postgresql.*`, `identity.*`, `llm.*`, `secrets.*`, `global.*`)
    never had legacy forms and stay on direct `.Values.X` reads.
 
-   `agenta.values` delegates to `agenta.deprecated` (in _compat.tpl)
+   `agenta.values` delegates to `agenta.deprecated` (in _compatibility.tpl)
    which folds pre-v0.100.2 keys into canonical positions. To remove
-   compat: delete _compat.tpl and change the body below to
+   compat: delete _compatibility.tpl and change the body below to
    `{{- .Values | toYaml -}}`.
    ================================================================ */}}
 {{- define "agenta.values" -}}
@@ -500,11 +503,13 @@ imagePullSecrets:
 {{- $pg := default dict .Values.postgresql -}}
 {{- $ext := default dict $pg.external -}}
 {{- $top := default dict $values.postgres -}}
+{{- /* Override URIs are only honored when bundled PG is OFF.
+       With bundled PG enabled, the in-cluster service URI always wins
+       so a stale postgres.uriCore in values can't silently redirect
+       traffic away from the StatefulSet we just deployed. */ -}}
 {{- if and (ne (include "agenta.postgresql.enabled" .) "true") $ext.uriCore }}
 {{- $ext.uriCore }}
 {{- else if and (ne (include "agenta.postgresql.enabled" .) "true") $top.uriCore }}
-{{- $top.uriCore }}
-{{- else if $top.uriCore }}
 {{- $top.uriCore }}
 {{- else }}
 {{- $base := printf "postgresql+asyncpg://%s:$(POSTGRES_PASSWORD)@%s:%s/%s" (include "agenta.postgresUsername" .) (include "agenta.postgresHost" .) (include "agenta.postgresPort" . | toString) (include "agenta.postgresDbCore" .) }}
@@ -524,9 +529,10 @@ imagePullSecrets:
 {{- $pg := default dict .Values.postgresql -}}
 {{- $ext := default dict $pg.external -}}
 {{- $top := default dict $values.postgres -}}
+{{- /* Override URIs honored only when bundled PG is OFF (see uriCore). */ -}}
 {{- if and (ne (include "agenta.postgresql.enabled" .) "true") $ext.uriTracing }}
 {{- $ext.uriTracing }}
-{{- else if $top.uriTracing }}
+{{- else if and (ne (include "agenta.postgresql.enabled" .) "true") $top.uriTracing }}
 {{- $top.uriTracing }}
 {{- else }}
 {{- $base := printf "postgresql+asyncpg://%s:$(POSTGRES_PASSWORD)@%s:%s/%s" (include "agenta.postgresUsername" .) (include "agenta.postgresHost" .) (include "agenta.postgresPort" . | toString) (include "agenta.postgresDbTracing" .) }}
@@ -546,9 +552,10 @@ imagePullSecrets:
 {{- $pg := default dict .Values.postgresql -}}
 {{- $ext := default dict $pg.external -}}
 {{- $top := default dict $values.postgres -}}
+{{- /* Override URIs honored only when bundled PG is OFF (see uriCore). */ -}}
 {{- if and (ne (include "agenta.postgresql.enabled" .) "true") $ext.uriSupertokens }}
 {{- $ext.uriSupertokens }}
-{{- else if $top.uriSupertokens }}
+{{- else if and (ne (include "agenta.postgresql.enabled" .) "true") $top.uriSupertokens }}
 {{- $top.uriSupertokens }}
 {{- else }}
 {{- $base := printf "postgresql://%s:$(POSTGRES_PASSWORD)@%s:%s/%s" (include "agenta.postgresUsername" .) (include "agenta.postgresHost" .) (include "agenta.postgresPort" . | toString) (include "agenta.postgresDbSupertokens" .) }}
@@ -605,8 +612,10 @@ imagePullSecrets:
 {{- $ext.uri }}
 {{- else if $topRedis.uriDurable }}
 {{- $topRedis.uriDurable }}
+{{- else if $topRedis.uri }}
+{{- $topRedis.uri }}
 {{- else }}
-{{- required "redisDurable.external.uri or redis.uriDurable is required when redisDurable.enabled=false" $ext.uri }}
+{{- required "redisDurable.external.uri or redis.uriDurable (or legacy redis.uri) is required when redisDurable.enabled=false" $ext.uri }}
 {{- end }}
 {{- end }}
 
@@ -626,6 +635,56 @@ imagePullSecrets:
 {{- else }}
 {{- required "supertokens.external.uri or supertokens.uriCore is required when supertokens.enabled=false" $ext.uri }}
 {{- end }}
+{{- end }}
+
+{{/* ================================================================
+   Public URLs — derived from ingress.host when ingress is enabled.
+
+   Resolution order (per URL):
+     1. agenta.webUrl / apiUrl / servicesUrl explicitly set in values.
+     2. Derived from ingress.host (+ scheme from ingress.tls) when
+        ingress.enabled is true.
+     3. Empty string (caller is responsible — validatePublicUrls
+        below fails the install rather than letting empty URLs reach
+        the runtime, which would silently break OAuth redirects,
+        email links, CORS, and absolute-URL builders).
+   ================================================================ */}}
+{{- define "agenta.ingressScheme" -}}
+{{- $ingress := default dict .Values.ingress -}}
+{{- if $ingress.tls }}https{{ else }}http{{ end }}
+{{- end }}
+
+{{- define "agenta.webUrlEffective" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $agenta := default dict $values.agenta -}}
+{{- $ingress := default dict .Values.ingress -}}
+{{- if $agenta.webUrl -}}
+{{- $agenta.webUrl -}}
+{{- else if and (eq (include "agenta.ingress.enabled" .) "true") $ingress.host -}}
+{{- printf "%s://%s" (include "agenta.ingressScheme" .) $ingress.host -}}
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.apiUrlEffective" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $agenta := default dict $values.agenta -}}
+{{- $ingress := default dict .Values.ingress -}}
+{{- if $agenta.apiUrl -}}
+{{- $agenta.apiUrl -}}
+{{- else if and (eq (include "agenta.ingress.enabled" .) "true") $ingress.host -}}
+{{- printf "%s://%s/api" (include "agenta.ingressScheme" .) $ingress.host -}}
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.servicesUrlEffective" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $agenta := default dict $values.agenta -}}
+{{- $ingress := default dict .Values.ingress -}}
+{{- if $agenta.servicesUrl -}}
+{{- $agenta.servicesUrl -}}
+{{- else if and (eq (include "agenta.ingress.enabled" .) "true") $ingress.host -}}
+{{- printf "%s://%s/services" (include "agenta.ingressScheme" .) $ingress.host -}}
+{{- end -}}
 {{- end }}
 
 {{/* ================================================================
@@ -745,11 +804,11 @@ imagePullSecrets:
       key: REDIS_DURABLE_PASSWORD
 {{- end }}
 - name: AGENTA_WEB_URL
-  value: {{ $agenta.webUrl | default "" | quote }}
+  value: {{ include "agenta.webUrlEffective" . | quote }}
 - name: AGENTA_SERVICES_URL
-  value: {{ $agenta.servicesUrl | default "" | quote }}
+  value: {{ include "agenta.servicesUrlEffective" . | quote }}
 - name: AGENTA_API_URL
-  value: {{ $agenta.apiUrl | default "" | quote }}
+  value: {{ include "agenta.apiUrlEffective" . | quote }}
 {{- if $agenta.apiInternalUrl }}
 - name: AGENTA_API_INTERNAL_URL
   value: {{ $agenta.apiInternalUrl | quote }}

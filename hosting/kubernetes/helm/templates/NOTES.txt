@@ -7,6 +7,8 @@ Your release is named: {{ .Release.Name }}
 {{- $secrets := default dict .Values.secrets }}
 {{- $agenta := default dict $values.agenta }}
 {{- $postgres := default dict $values.postgres }}
+{{- $redisVolatile := default dict $values.redisVolatile }}
+{{- $redisDurable := default dict $values.redisDurable }}
 
 {{- /* Detect pre-v0.100.2 legacy keys still present in the user's values.
        Uses hasKey so explicit `false`/`""`/`0` legacy values still trigger
@@ -58,6 +60,16 @@ https://docs.agenta.ai/self-host/upgrades/v0.100.2-migration
 ║    postgres:                                                         ║
 ║      password: "$(openssl rand -hex 24)"                             ║
 ╚══════════════════════════════════════════════════════════════════════╝
+{{- end }}
+
+{{- if or (and (eq (include "agenta.redisVolatile.enabled" .) "true") (not $redisVolatile.password)) (and (eq (include "agenta.redisDurable.enabled" .) "true") (not $redisDurable.password)) }}
+
+NOTE: bundled Redis is running without a password (the default). This is
+fine for local/dev clusters where pod-to-pod traffic is trusted (Redis
+is ClusterIP-only), but exposes the cache/queue to any pod in the cluster.
+For shared or production clusters, set `redisVolatile.password` and
+`redisDurable.password` in your values file, and consider adding a
+NetworkPolicy restricting access to the agenta pods.
 {{- end }}
 
 {{- if eq (include "agenta.ingress.enabled" .) "true" }}

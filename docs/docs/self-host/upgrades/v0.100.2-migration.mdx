@@ -43,10 +43,10 @@ Before, settings were bucketed under `global.*`, `secrets.*`, `accessControl.*`,
 | `secrets.agentaCryptKey` | `agenta.cryptKey` |
 | `secrets.postgresPassword` | `postgres.password` |
 | `secrets.supertokensApiKey` | `supertokens.apiKey` |
-| `secrets.oauth.GOOGLE_OAUTH_CLIENT_ID` | `identity.google.clientId` |
-| `secrets.oauth.GITHUB_OAUTH_CLIENT_ID` | `identity.github.clientId` |
-| `secrets.llmProviders.OPENAI_API_KEY` | `llm.openai` |
-| `secrets.llmProviders.ANTHROPIC_API_KEY` | `llm.anthropic` |
+| `secrets.oauth.GOOGLE_OAUTH_CLIENT_ID` | `identity.google.clientId` *(rewrite optional — see note below)* |
+| `secrets.oauth.GITHUB_OAUTH_CLIENT_ID` | `identity.github.clientId` *(rewrite optional — see note below)* |
+| `secrets.llmProviders.OPENAI_API_KEY` | `llm.openai` *(rewrite optional — see note below)* |
+| `secrets.llmProviders.ANTHROPIC_API_KEY` | `llm.anthropic` *(rewrite optional — see note below)* |
 | `accessControl.plans` | `agenta.access.plans` |
 | `accessControl.roles` | `agenta.access.roles` |
 | `accessControl.rolesOverlay` | `agenta.access.rolesOverlay` |
@@ -66,6 +66,12 @@ Before, settings were bucketed under `global.*`, `secrets.*`, `accessControl.*`,
 | `captcha.turnstile.secretKey` | `cloudflare.turnstile.secretKey` |
 
 Full mapping: [Environment configuration reference](/self-host/configuration).
+
+:::note `secrets.oauth.*` and `secrets.llmProviders.*` — rewrite is optional
+The v0.100.2 chart still reads the legacy `secrets.oauth.*` and `secrets.llmProviders.*` flat maps as-is. You can leave them in place and the chart will produce the same Kubernetes Secret keys as before — the new `identity.<provider>.*` and `llm.<provider>` shapes are presentational improvements, not breaking renames.
+
+Plan to rewrite them when you have time, but it's safe to defer: these will be removed in a future major release alongside the rest of the compat layer (track the deprecation timeline in [Deprecated environment variables](/self-host/configuration#deprecated-environment-variables)).
+:::
 
 The `secrets.existingSecret` Helm-only escape hatch (point a pre-created Kubernetes Secret at the chart) is unchanged. If you used it pre-v0.100.2, keep using it — just make sure the Secret carries the v0.100.2 env-var key names (e.g. `GOOGLE_OAUTH_CLIENT_SECRET` and `OPENAI_API_KEY`, not the legacy nested-map keys).
 

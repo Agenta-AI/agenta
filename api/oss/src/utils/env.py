@@ -1079,9 +1079,10 @@ class EnvironSettings(BaseModel):
     """
     Main environment settings container with nested Pydantic models.
 
-    The shape mirrors the canonical mapping in
-    `hosting/kubernetes/CONFIG_MAPPING.md` — env var name, env.py attribute
-    path, and helm values.yaml path all encode the same nesting.
+    The shape mirrors the canonical mapping documented at
+    https://docs.agenta.ai/self-host/configuration — env var name,
+    env.py attribute path, and helm values.yaml path all encode the
+    same nesting.
     """
 
     agenta: AgentaConfig = AgentaConfig()

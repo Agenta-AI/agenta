@@ -148,10 +148,19 @@ else
     HELM_CMD=(helm upgrade "$RELEASE" "$CHART" --install --namespace "$NAMESPACE" --create-namespace)
     if helm status "$RELEASE" --namespace "$NAMESPACE" >/dev/null 2>&1; then
         # Detect existing license to prevent silent OSS<->EE flip on re-install.
-        # Use `helm get values -o yaml` + grep so the script doesn't depend on python3 or jq.
-        EXISTING_LICENSE=$(helm get values "$RELEASE" --namespace "$NAMESPACE" -o yaml 2>/dev/null \
+        # Use `helm get values -o yaml` + awk so the script doesn't depend on python3 or jq.
+        # Reads two shapes:
+        #   v0.100.2+   agenta.license: oss|ee
+        #   pre-v0.100.2 (compat layer)  global.agentaLicense: oss|ee
+        EXISTING_VALUES=$(helm get values "$RELEASE" --namespace "$NAMESPACE" -o yaml 2>/dev/null || true)
+        EXISTING_LICENSE=$(printf '%s\n' "$EXISTING_VALUES" \
             | awk '/^agenta:/{a=1; next} a && /^[^[:space:]]/{a=0} a && /^[[:space:]]+license:/{print $2; exit}' \
             | tr -d '"'"'"'')
+        if [[ -z "$EXISTING_LICENSE" ]]; then
+            EXISTING_LICENSE=$(printf '%s\n' "$EXISTING_VALUES" \
+                | awk '/^global:/{a=1; next} a && /^[^[:space:]]/{a=0} a && /^[[:space:]]+agentaLicense:/{print $2; exit}' \
+                | tr -d '"'"'"'')
+        fi
         if [[ -n "$EXISTING_LICENSE" && "$EXISTING_LICENSE" != "$LICENSE" ]]; then
             error_exit "Release '$RELEASE' was installed as '$EXISTING_LICENSE'; refusing to switch to '$LICENSE'. Use --nuke to reinstall or pass --license $EXISTING_LICENSE."
         fi
