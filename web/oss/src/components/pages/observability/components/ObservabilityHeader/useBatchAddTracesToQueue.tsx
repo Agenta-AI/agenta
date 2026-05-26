@@ -23,7 +23,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {simpleQueueMolecule, type SimpleQueue} from "@agenta/entities/simpleQueue"
 import {addAllMatchingTracesToQueue, BatchFlushError} from "@agenta/entities/simpleQueue/etl"
 import {notification} from "@agenta/ui/app-message"
-import {Button, Progress} from "antd"
+import {Button} from "antd"
 import {useAtomValue} from "jotai"
 
 import {queueMaxItemsAtom} from "@/oss/state/access/atoms"
@@ -33,12 +33,18 @@ import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimit
 /** Auto-dismiss window for the success toast; rendered as a visible progress bar. */
 const SUCCESS_DISMISS_MS = 5_000
 
+/** Brand primary used for the auto-dismiss countdown bar (matches antd's `colorPrimary`). */
+const PRIMARY_COLOR = "#1c2c3d"
+
 /**
  * Description wrapper that drives the success toast's own auto-dismiss timer:
- * counts down from `durationMs` to 0 (UI mirrored via a Progress bar), then
- * fires `onComplete` once. Antd's `duration` is set to 0 so this component is
- * the sole owner of the timing — keeps the visible countdown and the actual
- * dismissal in lockstep.
+ * a CSS-transitioned bar shrinks to zero over `durationMs`, a single
+ * `setTimeout` fires `onComplete` at the same instant. Driving the bar via
+ * CSS (not React state) keeps the visible end-of-countdown and the toast
+ * dismissal in perfect sync — no "bar already at 0% but the toast still
+ * sitting there" gap, and no "toast already fading but the bar mid-animation"
+ * either. A short countdown label ("Dismissing in Ns") tells the user what's
+ * about to happen.
  */
 const AutoDismissDescription = ({
     text,
@@ -49,33 +55,52 @@ const AutoDismissDescription = ({
     durationMs: number
     onComplete: () => void
 }) => {
-    const [percent, setPercent] = useState(100)
-    const completedRef = useRef(false)
+    const totalSeconds = Math.max(1, Math.ceil(durationMs / 1000))
+    const [secondsLeft, setSecondsLeft] = useState(totalSeconds)
+    // CSS transitions only animate when the value CHANGES post-mount, so
+    // we start at 100% and flip to 0% on the first commit. The flip has to
+    // wait one frame so the browser registers the initial 100% layout.
+    const [barWidth, setBarWidth] = useState("100%")
+    // Pin the latest onComplete so the dismiss timeout never fires a stale
+    // closure (e.g. when a parent re-renders with a new handler).
+    const onCompleteRef = useRef(onComplete)
+    onCompleteRef.current = onComplete
 
     useEffect(() => {
+        const raf = window.requestAnimationFrame(() => setBarWidth("0%"))
         const startedAt = Date.now()
-        const id = window.setInterval(() => {
-            const remaining = Math.max(0, durationMs - (Date.now() - startedAt))
-            setPercent((remaining / durationMs) * 100)
-            if (remaining <= 0 && !completedRef.current) {
-                completedRef.current = true
-                window.clearInterval(id)
-                onComplete()
-            }
-        }, 50)
-        return () => window.clearInterval(id)
-    }, [durationMs, onComplete])
+        const tick = window.setInterval(() => {
+            const remainingMs = Math.max(0, durationMs - (Date.now() - startedAt))
+            // Never display "0s" — the dismissal fires when we'd reach it,
+            // and showing "Dismissing in 0s" reads awkwardly.
+            setSecondsLeft(remainingMs > 0 ? Math.max(1, Math.ceil(remainingMs / 1000)) : 0)
+        }, 250)
+        const dismiss = window.setTimeout(() => onCompleteRef.current(), durationMs)
+        return () => {
+            window.cancelAnimationFrame(raf)
+            window.clearInterval(tick)
+            window.clearTimeout(dismiss)
+        }
+    }, [durationMs])
 
     return (
         <div>
             <div>{text}</div>
-            <Progress
-                percent={percent}
-                showInfo={false}
-                strokeColor="#52c41a"
-                size="small"
-                className="!mt-2 !mb-0"
-            />
+            <div className="mt-2 flex items-center gap-2">
+                <div className="relative flex-1 h-1 bg-gray-200 rounded overflow-hidden">
+                    <div
+                        className="absolute inset-y-0 left-0 rounded"
+                        style={{
+                            width: barWidth,
+                            backgroundColor: PRIMARY_COLOR,
+                            transition: `width ${durationMs}ms linear`,
+                        }}
+                    />
+                </div>
+                <span className="text-xs text-gray-500 whitespace-nowrap">
+                    {secondsLeft > 0 ? `Dismissing in ${secondsLeft}s` : "Dismissing…"}
+                </span>
+            </div>
         </div>
     )
 }
