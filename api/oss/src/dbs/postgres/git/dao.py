@@ -1091,7 +1091,10 @@ class GitDAO(GitDAOInterface):
                 if revision_ref and revision_ref.version:
                     stmt = stmt.filter(self.RevisionDBE.version == revision_ref.version)  # type: ignore
                 else:
-                    stmt = stmt.order_by(self.RevisionDBE.created_at.desc())  # type: ignore
+                    stmt = stmt.order_by(
+                        self.RevisionDBE.created_at.desc(),  # type: ignore
+                        self.RevisionDBE.id.desc(),  # type: ignore
+                    )
                     stmt = stmt.offset(0)
 
             if not applied_identifying_filter:
