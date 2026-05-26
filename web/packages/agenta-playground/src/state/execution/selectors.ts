@@ -416,9 +416,14 @@ export const playgroundInputsAtomFamily = atomFamily(
     ({testcaseId, downstreamKey = ""}: PlaygroundInputsAtomKey) =>
         atom((get) => {
             const referencedKeys = get(referencedVariableKeysAtomFamily(downstreamKey))
-            const raw =
-                (get(testcaseMolecule.atoms.data(testcaseId)) as Record<string, unknown> | null) ??
-                {}
+            // `testcaseMolecule.data(id)` returns the testcase ENTITY
+            // (`{id, data, flags, tags, meta, ...}`), not the row data
+            // dict. The actual column values live at `entity.data` — see
+            // `testcaseDataAtomFamily` below for the canonical pattern.
+            const entity = get(testcaseMolecule.data(testcaseId)) as {
+                data?: Record<string, unknown>
+            } | null
+            const raw = entity?.data ?? {}
 
             // Strip system fields up-front so the unused-columns footer
             // doesn't expose `__id__` and friends to the user.
