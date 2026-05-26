@@ -352,7 +352,7 @@ def is_identifying(ref: Optional[Reference]) -> bool:
 
 `bool(ref)` alone is not enough — `Reference(id=None, slug=None,
 version=None)` is truthy but unidentifying. This is the implementation of
-`_has_id_or_slug` in `core/git/types.py` and is the formal definition the
+`_is_identifying` in `core/git/types.py` and is the formal definition the
 rules above depend on.
 
 ---

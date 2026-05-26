@@ -59,18 +59,6 @@ class TestVersionOnlyRejection:
                 revision_ref=_ref(version="1"),
             )
 
-    def test_version_only_with_artifact_ref_still_raises(self):
-        # artifact_ref alone is not enough to scope a version today (the
-        # service would have to resolve artifact → default variant first,
-        # which is non-deterministic for multi-variant artifacts). Helper
-        # is conservative until that resolution is fixed.
-        with pytest.raises(RevisionRefInvalid):
-            validate_revision_ref_unambiguous(
-                artifact_ref=_ref(slug="my-workflow"),
-                variant_ref=None,
-                revision_ref=_ref(version="1"),
-            )
-
     def test_entity_type_appears_in_message(self):
         with pytest.raises(RevisionRefInvalid) as exc:
             validate_revision_ref_unambiguous(
@@ -95,7 +83,11 @@ class TestVersionOnlyRejection:
 # version-only with sufficient variant scope ---------------------------------
 
 
-class TestVersionOnlyWithVariantPasses:
+class TestVersionOnlyWithScopePasses:
+    """Either a variant_ref or an artifact_ref is sufficient scope for the
+    version filter — variant directly, artifact via the deterministic
+    default-variant fallback."""
+
     def test_variant_id_scopes_version(self):
         validate_revision_ref_unambiguous(
             artifact_ref=None,
@@ -107,6 +99,20 @@ class TestVersionOnlyWithVariantPasses:
         validate_revision_ref_unambiguous(
             artifact_ref=None,
             variant_ref=_ref(slug="my-variant"),
+            revision_ref=_ref(version="1"),
+        )
+
+    def test_artifact_id_scopes_version(self):
+        validate_revision_ref_unambiguous(
+            artifact_ref=_ref(id=uuid4()),
+            variant_ref=None,
+            revision_ref=_ref(version="1"),
+        )
+
+    def test_artifact_slug_scopes_version(self):
+        validate_revision_ref_unambiguous(
+            artifact_ref=_ref(slug="my-workflow"),
+            variant_ref=None,
             revision_ref=_ref(version="1"),
         )
 

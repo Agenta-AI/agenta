@@ -6,7 +6,10 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.git.types import validate_revision_ref_unambiguous
+from oss.src.core.git.types import (
+    validate_revision_ref_unambiguous,
+    needs_default_variant_resolution,
+)
 from oss.src.core.shared.dtos import Reference, Windowing, Trace, Traces
 from oss.src.core.tracing.dtos import (
     TracingQuery,
@@ -654,7 +657,11 @@ class QueriesService:
             entity_type="query",
         )
 
-        if query_ref and not query_variant_ref and not query_revision_ref:
+        if needs_default_variant_resolution(
+            artifact_ref=query_ref,
+            variant_ref=query_variant_ref,
+            revision_ref=query_revision_ref,
+        ):
             query = await self.fetch_query(
                 project_id=project_id,
                 #
