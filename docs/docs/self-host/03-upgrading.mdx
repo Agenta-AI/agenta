@@ -138,7 +138,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 Create a logical backup and confirm the file is not empty:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh exec postgres \
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh exec -T postgres \
   pg_dumpall -U username > agenta-postgres-17-backup.sql
 ls -lh agenta-postgres-17-backup.sql
 ```

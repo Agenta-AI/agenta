@@ -106,7 +106,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 require_command helm
-if [[ "$DRY_RUN" == "false" || "$NUKE" == "true" ]]; then
+if [[ "$NUKE" == "true" ]]; then
     require_command kubectl
 fi
 
