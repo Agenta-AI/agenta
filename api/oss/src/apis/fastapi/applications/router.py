@@ -10,7 +10,7 @@ from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.events.utils import publish_revision_event
 
-from oss.src.core.git.types import VariantForkError, RevisionRefInvalid
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -1062,6 +1062,7 @@ class ApplicationsRouter:
         return application_variants_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def fork_application_variant(
         self,
         request: Request,
@@ -1101,20 +1102,12 @@ class ApplicationsRouter:
             if not fork_request.application_variant_id:
                 fork_request.application_variant_id = application_variant_id
 
-        try:
-            application_variant = (
-                await self.applications_service.fork_application_variant(
-                    project_id=UUID(request.state.project_id),
-                    user_id=UUID(request.state.user_id),
-                    #
-                    application_fork=fork_request,
-                )
-            )
-        except VariantForkError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        application_variant = await self.applications_service.fork_application_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            application_fork=fork_request,
+        )
 
         application_variant_response = ApplicationVariantResponse(
             count=1 if application_variant else 0,
@@ -1126,6 +1119,7 @@ class ApplicationsRouter:
     # APPLICATION REVISIONS ----------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def deploy_application_revision(
         self,
         request: Request,
@@ -1178,19 +1172,13 @@ class ApplicationsRouter:
                 detail="Application deploy requires environment refs.",
             )
 
-        try:
-            application_revision = await self.applications_service.fetch_application_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                application_ref=application_deploy_request.application_ref,
-                application_variant_ref=application_deploy_request.application_variant_ref,
-                application_revision_ref=application_deploy_request.application_revision_ref,
-            )
-        except RevisionRefInvalid as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        application_revision = await self.applications_service.fetch_application_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            application_ref=application_deploy_request.application_ref,
+            application_variant_ref=application_deploy_request.application_variant_ref,
+            application_revision_ref=application_deploy_request.application_revision_ref,
+        )
 
         if not application_revision:
             raise HTTPException(
@@ -1299,6 +1287,7 @@ class ApplicationsRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=ApplicationRevisionResponse(), exclude=[HTTPException])
+    @handle_git_exceptions()
     async def retrieve_application_revision(
         self,
         request: Request,
@@ -1390,29 +1379,23 @@ class ApplicationsRouter:
                         detail="Environment-backed application retrieve requires key.",
                     )
 
-        try:
-            (
-                application_revision,
-                resolution_info,
-            ) = await self.applications_service.retrieve_application_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                environment_ref=environment_ref,
-                environment_variant_ref=environment_variant_ref,
-                environment_revision_ref=environment_revision_ref,
-                key=key,
-                #
-                application_ref=application_ref,
-                application_variant_ref=application_variant_ref,
-                application_revision_ref=application_revision_ref,
-                #
-                resolve=application_revision_retrieve_request.resolve or False,
-            )
-        except RevisionRefInvalid as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        (
+            application_revision,
+            resolution_info,
+        ) = await self.applications_service.retrieve_application_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
+            key=key,
+            #
+            application_ref=application_ref,
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_revision_ref,
+            #
+            resolve=application_revision_retrieve_request.resolve or False,
+        )
 
         if environment_lookup_requested and not application_revision:
             raise HTTPException(

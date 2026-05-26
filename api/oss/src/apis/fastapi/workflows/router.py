@@ -11,7 +11,7 @@ from oss.src.utils.caching import invalidate_cache
 from oss.src.core.shared.dtos import (
     Reference,
 )
-from oss.src.core.git.types import VariantForkError, RevisionRefInvalid
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.workflows.service import (
     WorkflowsService,
     SimpleWorkflowsService,
@@ -1145,6 +1145,7 @@ class WorkflowsRouter:
         return workflow_variants_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def fork_workflow_variant(
         self,
         request: Request,
@@ -1159,18 +1160,12 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        try:
-            workflow_variant = await self.workflows_service.fork_workflow_variant(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                workflow_fork=workflow_fork_request.workflow,
-            )
-        except VariantForkError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        workflow_variant = await self.workflows_service.fork_workflow_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            workflow_fork=workflow_fork_request.workflow,
+        )
 
         # Invalidate legacy caches so the registry page reflects the forked variant
         await invalidate_cache(project_id=request.state.project_id)
@@ -1232,12 +1227,6 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        # This route only accepts `workflow_revision_id` as a path param and
-        # constructs `Reference(id=workflow_revision_id)`. That shape always
-        # satisfies the service's ambiguity validation, so no try/except for
-        # `RevisionRefInvalid` is needed here. The other two call sites
-        # (`deploy_workflow_revision` and `retrieve_workflow_revision`) pass
-        # through caller-supplied refs and do wrap this call.
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1484,6 +1473,7 @@ class WorkflowsRouter:
         return workflow_revisions_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def deploy_workflow_revision(
         self,
         request: Request,
@@ -1528,19 +1518,13 @@ class WorkflowsRouter:
                 detail="Workflow deploy requires environment refs.",
             )
 
-        try:
-            workflow_revision = await self.workflows_service.fetch_workflow_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                workflow_ref=workflow_deploy_request.workflow_ref,
-                workflow_variant_ref=workflow_deploy_request.workflow_variant_ref,
-                workflow_revision_ref=workflow_deploy_request.workflow_revision_ref,
-            )
-        except RevisionRefInvalid as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        workflow_revision = await self.workflows_service.fetch_workflow_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            workflow_ref=workflow_deploy_request.workflow_ref,
+            workflow_variant_ref=workflow_deploy_request.workflow_variant_ref,
+            workflow_revision_ref=workflow_deploy_request.workflow_revision_ref,
+        )
 
         if not workflow_revision:
             raise HTTPException(
@@ -1643,6 +1627,7 @@ class WorkflowsRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionResponse(), exclude=[HTTPException])
+    @handle_git_exceptions()
     async def retrieve_workflow_revision(
         self,
         request: Request,
@@ -1686,14 +1671,6 @@ class WorkflowsRouter:
         )
         environment_lookup_requested = environment_refs_requested or key is not None
 
-        if workflow_lookup_requested and environment_lookup_requested:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Provide either workflow refs or environment refs with key, not both."
-                ),
-            )
-
         if not workflow_lookup_requested and not environment_lookup_requested:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1710,34 +1687,42 @@ class WorkflowsRouter:
                 )
 
             if not key:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment-backed workflow retrieve requires key.",
-                )
+                if workflow_ref and workflow_ref.slug:
+                    key = f"{workflow_ref.slug}.revision"
+                elif workflow_ref and workflow_ref.id:
+                    workflow = await self.workflows_service.fetch_workflow(
+                        project_id=UUID(request.state.project_id),
+                        workflow_ref=workflow_ref,
+                    )
+                    if not workflow or not workflow.slug:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Environment-backed workflow retrieve could not derive key from workflow slug.",
+                        )
+                    key = f"{workflow.slug}.revision"
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Environment-backed workflow retrieve requires key.",
+                    )
 
-        try:
-            (
-                workflow_revision,
-                resolution_info,
-            ) = await self.workflows_service.retrieve_workflow_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                environment_ref=environment_ref,
-                environment_variant_ref=environment_variant_ref,
-                environment_revision_ref=environment_revision_ref,
-                key=key,
-                #
-                workflow_ref=workflow_ref,
-                workflow_variant_ref=workflow_variant_ref,
-                workflow_revision_ref=workflow_revision_ref,
-                #
-                resolve=workflow_revision_retrieve_request.resolve or False,
-            )
-        except RevisionRefInvalid as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        (
+            workflow_revision,
+            resolution_info,
+        ) = await self.workflows_service.retrieve_workflow_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
+            key=key,
+            #
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+            #
+            resolve=workflow_revision_retrieve_request.resolve or False,
+        )
 
         if environment_lookup_requested and not workflow_revision:
             raise HTTPException(
