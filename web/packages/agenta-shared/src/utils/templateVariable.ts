@@ -128,6 +128,22 @@ export function validateTemplateVariable(expr: string): TemplateVariableValidati
     }
 
     if (expr.startsWith("/")) {
+        // Mustache section close tags look like `{{/identifier}}` —
+        // single-segment, identifier-shaped, with no further `/`. JSON
+        // Pointer paths to envelope slots are also single-segment (e.g.
+        // `/inputs`), and we can't tell mustache vs JSON Pointer without
+        // format context here. Pragmatic disambiguation: single-segment
+        // identifier-shaped paths are accepted unconditionally (the runtime
+        // is the source of truth — if the close tag has no matching open,
+        // the mustache renderer surfaces a clear error at render time; if
+        // the user meant a legacy JSON Pointer to `/input`, the typo
+        // detection was already a "best effort" hint). Multi-segment JSON
+        // Pointers (`/inputs/foo/bar`) still get the envelope-slot check.
+        const isSingleSegmentIdentifier = /^\/[a-zA-Z_][\w.]*$/.test(expr)
+        if (isSingleSegmentIdentifier) {
+            return {valid: true}
+        }
+
         const tokens = expr.split("/").filter(Boolean)
         if (tokens.length === 0) {
             return {
