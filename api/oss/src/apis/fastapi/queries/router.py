@@ -9,6 +9,7 @@ from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.core.events.utils import publish_revision_event
+from oss.src.core.git.types import RevisionRefInvalid
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -1019,18 +1020,24 @@ class QueriesRouter:
         )
 
         if not query_revision:
-            query_revision = await self.queries_service.fetch_query_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                query_ref=query_revision_retrieve_request.query_ref,
-                query_variant_ref=query_revision_retrieve_request.query_variant_ref,
-                query_revision_ref=query_revision_retrieve_request.query_revision_ref,
-                #
-                include_trace_ids=query_revision_retrieve_request.include_trace_ids,
-                include_traces=query_revision_retrieve_request.include_traces,
-                #
-                windowing=query_revision_retrieve_request.windowing,
-            )
+            try:
+                query_revision = await self.queries_service.fetch_query_revision(
+                    project_id=UUID(request.state.project_id),
+                    #
+                    query_ref=query_revision_retrieve_request.query_ref,
+                    query_variant_ref=query_revision_retrieve_request.query_variant_ref,
+                    query_revision_ref=query_revision_retrieve_request.query_revision_ref,
+                    #
+                    include_trace_ids=query_revision_retrieve_request.include_trace_ids,
+                    include_traces=query_revision_retrieve_request.include_traces,
+                    #
+                    windowing=query_revision_retrieve_request.windowing,
+                )
+            except RevisionRefInvalid as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=e.message,
+                ) from e
 
             if should_cache:
                 await set_cache(

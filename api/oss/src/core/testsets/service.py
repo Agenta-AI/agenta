@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.types import validate_revision_ref_unambiguous
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.dtos import (
@@ -635,6 +636,13 @@ class TestsetsService:
     ) -> Optional[TestsetRevision]:
         if not testset_ref and not testset_variant_ref and not testset_revision_ref:
             return None
+
+        validate_revision_ref_unambiguous(
+            artifact_ref=testset_ref,
+            variant_ref=testset_variant_ref,
+            revision_ref=testset_revision_ref,
+            artifact_kind="testset",
+        )
 
         if testset_ref and not testset_variant_ref and not testset_revision_ref:
             testset = await self.fetch_testset(

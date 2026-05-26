@@ -78,9 +78,8 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
-    #
-    WorkflowRefInvalid,
 )
+from oss.src.core.git.types import validate_revision_ref_unambiguous
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import (
@@ -1081,38 +1080,12 @@ class WorkflowsService:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
 
-        # Reject ambiguous requests early.
-        #
-        # A revision `version` is a per-variant sequence number ("1", "2", ...).
-        # Without a variant context, the same version exists across many variants
-        # and cannot identify a single revision. The DAO would otherwise silently
-        # drop the version filter and return an arbitrary project-wide row.
-        #
-        # `workflow_revision_ref.id` and `workflow_revision_ref.slug` are both
-        # project-unique and remain valid on their own — only the version-only
-        # case is rejected here.
-        #
-        # Check the variant_ref for a populated identifier rather than just
-        # truthiness: an empty `Reference(id=None, slug=None, version=None)`
-        # is a truthy Python object but does not actually scope the lookup.
-        variant_identified = bool(
-            workflow_variant_ref
-            and (workflow_variant_ref.id or workflow_variant_ref.slug)
+        validate_revision_ref_unambiguous(
+            artifact_ref=workflow_ref,
+            variant_ref=workflow_variant_ref,
+            revision_ref=workflow_revision_ref,
+            artifact_kind="workflow",
         )
-        if (
-            workflow_revision_ref
-            and workflow_revision_ref.version
-            and not workflow_revision_ref.id
-            and not workflow_revision_ref.slug
-            and not variant_identified
-        ):
-            raise WorkflowRefInvalid(
-                "workflow_revision_ref.version is a per-variant sequence number "
-                "and requires a workflow_variant_ref to be unambiguous. "
-                "Provide a workflow_variant_ref, or identify the revision by "
-                "workflow_revision_ref.id or workflow_revision_ref.slug "
-                "(both are project-unique)."
-            )
 
         if workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             workflow = await self.fetch_workflow(

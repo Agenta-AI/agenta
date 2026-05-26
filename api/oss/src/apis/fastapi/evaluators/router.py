@@ -10,7 +10,7 @@ from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.events.utils import publish_revision_event
 
-from oss.src.core.git.types import VariantForkError
+from oss.src.core.git.types import VariantForkError, RevisionRefInvalid
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -1169,13 +1169,19 @@ class EvaluatorsRouter:
                 detail="Evaluator deploy requires environment refs.",
             )
 
-        evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-            project_id=UUID(request.state.project_id),
-            #
-            evaluator_ref=evaluator_deploy_request.evaluator_ref,
-            evaluator_variant_ref=evaluator_deploy_request.evaluator_variant_ref,
-            evaluator_revision_ref=evaluator_deploy_request.evaluator_revision_ref,
-        )
+        try:
+            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                evaluator_ref=evaluator_deploy_request.evaluator_ref,
+                evaluator_variant_ref=evaluator_deploy_request.evaluator_variant_ref,
+                evaluator_revision_ref=evaluator_deploy_request.evaluator_revision_ref,
+            )
+        except RevisionRefInvalid as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.message,
+            ) from e
 
         if not evaluator_revision:
             raise HTTPException(
@@ -1363,23 +1369,29 @@ class EvaluatorsRouter:
                     detail="Environment-backed evaluator retrieve requires key.",
                 )
 
-        (
-            evaluator_revision,
-            resolution_info,
-        ) = await self.evaluators_service.retrieve_evaluator_revision(
-            project_id=UUID(request.state.project_id),
-            #
-            environment_ref=environment_ref,
-            environment_variant_ref=environment_variant_ref,
-            environment_revision_ref=environment_revision_ref,
-            key=key,
-            #
-            evaluator_ref=evaluator_ref,
-            evaluator_variant_ref=evaluator_variant_ref,
-            evaluator_revision_ref=evaluator_revision_ref,
-            #
-            resolve=evaluator_revision_retrieve_request.resolve or False,
-        )
+        try:
+            (
+                evaluator_revision,
+                resolution_info,
+            ) = await self.evaluators_service.retrieve_evaluator_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+                key=key,
+                #
+                evaluator_ref=evaluator_ref,
+                evaluator_variant_ref=evaluator_variant_ref,
+                evaluator_revision_ref=evaluator_revision_ref,
+                #
+                resolve=evaluator_revision_retrieve_request.resolve or False,
+            )
+        except RevisionRefInvalid as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.message,
+            ) from e
 
         if environment_lookup_requested and not evaluator_revision:
             raise HTTPException(

@@ -290,15 +290,32 @@ class EvaluatorRevisionRetrieveRequest(BaseModel):
 
     evaluator_ref: Optional[Reference] = Field(
         default=None,
-        description="Retrieve the latest revision of this evaluator.",
+        description=(
+            "Evaluator artifact to look up. Identifies the artifact by `id` "
+            "or `slug` (both project-unique). When no variant_ref or "
+            "revision_ref is provided, returns the latest revision of an "
+            "arbitrary variant of this evaluator."
+        ),
     )
     evaluator_variant_ref: Optional[Reference] = Field(
         default=None,
-        description="Retrieve the latest revision on this variant.",
+        description=(
+            "Evaluator variant to look up. Identifies the variant by `id` or "
+            "`slug` (both project-unique). When no revision_ref is provided, "
+            "returns the latest revision of this variant."
+        ),
     )
     evaluator_revision_ref: Optional[Reference] = Field(
         default=None,
-        description="Retrieve this specific revision.",
+        description=(
+            "Evaluator revision to look up. "
+            "`id` alone identifies a revision (project-unique). "
+            "`slug` alone identifies a revision (project-unique). "
+            "`version` alone is a per-variant sequence number and is **not** "
+            "sufficient on its own; it must be combined with an "
+            "`evaluator_variant_ref`. Sending only `version` without a "
+            "variant ref returns HTTP 400."
+        ),
     )
     environment_ref: Optional[Reference] = Field(
         default=None,
