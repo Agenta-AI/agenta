@@ -11,8 +11,9 @@ import type {Key} from "react"
 
 import type {Atom, PrimitiveAtom} from "jotai"
 import {atom, useAtom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai-family"
 
+// Use the instrumented wrapper so each store can be `dispose()`-d.
+import {instrumentedAtomFamily} from "../molecule/instrumentedAtomFamily"
 import type {InfiniteTableFetchResult, InfiniteTableRowBase, WindowingState} from "../tableTypes"
 
 import {createInfiniteTableStore} from "./createInfiniteTableStore"
@@ -84,13 +85,48 @@ export interface InfiniteDatasetStore<Row extends InfiniteTableRowBase, ApiRow, 
             params: ScopeParams,
         ) => [Key[], (next: Key[] | ((prev: Key[]) => Key[])) => void]
     }
+    /**
+     * Release every atomFamily entry this store owns and cascade into the
+     * inner table store. Returns the total number of entries removed.
+     */
+    dispose: () => number
+    /** Diagnostic — names + sizes for every owned family (and inner store). */
+    familySizes: () => {name: string; size: number}[]
 }
 
 export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, ApiRow, Meta>(
     config: InfiniteDatasetStoreConfig<Row, ApiRow, Meta>,
 ): InfiniteDatasetStore<Row, ApiRow, Meta> => {
-    const selectionAtomFamily = atomFamily(
+    // Per-store family registry for dispose() / familySizes(). See
+    // createInfiniteTableStore.ts for the same pattern.
+    interface ManagedFamily {
+        clear: () => void
+        size: () => number
+        readonly name: string
+    }
+    const ownedFamilies: ManagedFamily[] = []
+    // Constrain `A extends Atom<unknown>` to match `instrumentedAtomFamily`'s
+    // signature so the atom-type generic survives the wrapper. Returning the
+    // erased `…<P, never>` shape (as the earlier version did) collapsed every
+    // `get(family(params))` call to `unknown` — that's the leak the `as never`
+    // casts were papering over.
+    const trackFamily = <P, A extends Atom<unknown>>(
+        create: (p: P) => A,
+        name: string,
+        areEqual?: (a: P, b: P) => boolean,
+    ) => {
+        const fam = instrumentedAtomFamily<P, A>(create, {
+            name,
+            skipRegistry: true,
+            areEqual,
+        })
+        ownedFamilies.push(fam as unknown as ManagedFamily)
+        return fam
+    }
+
+    const selectionAtomFamily = trackFamily(
         ({scopeId}: ScopeParams) => atom<Key[]>([]),
+        "infiniteDataset.selectionAtomFamily",
         (a, b) => a.scopeId === b.scopeId,
     )
 
@@ -190,7 +226,7 @@ export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, Api
 
     // Create wrapper atoms that merge client rows if clientRowsAtom is provided
     // Use atomFamily to cache derived atoms by params
-    const rowsWithClientAtomFamily = atomFamily(
+    const rowsWithClientAtomFamily = trackFamily(
         (params: TablePagesParams) => {
             const baseRowsAtom = tableStore.atoms.combinedRowsAtomFamily(params)
 
@@ -247,10 +283,11 @@ export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, Api
                 return cachedResult
             })
         },
+        "infiniteDataset.rowsWithClientAtomFamily",
         (a, b) => a.scopeId === b.scopeId && a.pageSize === b.pageSize,
     )
 
-    const paginationWithClientAtomFamily = atomFamily(
+    const paginationWithClientAtomFamily = trackFamily(
         (params: TablePagesParams) => {
             const basePaginationAtom = tableStore.atoms.paginationInfoAtomFamily(params)
             const baseRowsAtom = tableStore.atoms.combinedRowsAtomFamily(params)
@@ -288,6 +325,7 @@ export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, Api
                 }
             })
         },
+        "infiniteDataset.paginationWithClientAtomFamily",
         (a, b) => a.scopeId === b.scopeId && a.pageSize === b.pageSize,
     )
 
@@ -316,6 +354,29 @@ export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, Api
         hooks: {
             usePagination,
             useRowSelection,
+        },
+        // Release every atomFamily entry this store owns AND cascade into
+        // the inner table store. Returns total count removed.
+        dispose() {
+            let total = 0
+            for (const f of ownedFamilies) {
+                total += f.size()
+                f.clear()
+            }
+            if (typeof (tableStore as {dispose?: () => number}).dispose === "function") {
+                total += (tableStore as unknown as {dispose: () => number}).dispose()
+            }
+            return total
+        },
+        // Diagnostic — own + inner table store
+        familySizes() {
+            const own = ownedFamilies.map((f) => ({name: f.name, size: f.size()}))
+            const innerFn = (
+                tableStore as unknown as {
+                    familySizes?: () => {name: string; size: number}[]
+                }
+            ).familySizes
+            return typeof innerFn === "function" ? [...own, ...innerFn.call(tableStore)] : own
         },
     }
 }

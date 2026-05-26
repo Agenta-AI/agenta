@@ -8,6 +8,10 @@
 
 import type {ComponentType, ReactNode} from "react"
 
+import type {ViewMode} from "./utils/getViewOptions"
+
+export type {ViewMode} from "./utils/getViewOptions"
+
 // ============================================================================
 // DATA TYPES
 // ============================================================================
@@ -38,9 +42,16 @@ export type ValueMode = "string" | "native"
  * Field content view mode label/value pair for header dropdowns
  */
 export interface FieldViewModeOption {
-    value: string
+    value: ViewMode
     label: string
 }
+
+/**
+ * Visual variant for field headers in DrillInContent.
+ * - "card": legacy grey card with full control set.
+ * - "flat": Proposal V2 flat row with bottom divider, name + chip + view-mode only.
+ */
+export type FieldHeaderVariant = "card" | "flat"
 
 // ============================================================================
 // PATH & SCHEMA TYPES
@@ -106,7 +117,7 @@ export interface FieldRendererProps {
     /** Callback to lock field type */
     onLockType?: (type: DataType) => void
     /** Current selected field view mode, if enabled */
-    viewMode?: string
+    viewMode?: ViewMode
 }
 
 /**
@@ -207,9 +218,9 @@ export interface FieldHeaderProps {
     /** Available content view modes for this field */
     viewModeOptions?: FieldViewModeOption[]
     /** Current content view mode */
-    viewMode?: string
+    viewMode?: ViewMode
     /** Callback when content view mode changes */
-    onViewModeChange?: (mode: string) => void
+    onViewModeChange?: (mode: ViewMode) => void
     /** Show collapse toggle in the header (default: true) */
     showCollapseToggle?: boolean
     /** Show drill-in action button in the header (default: true) */
@@ -272,6 +283,8 @@ export interface DrillInContentProps {
     getSchemaAtPath?: (path: (string | number)[]) => SchemaInfo | null
     /** Whether to show collapse toggle for fields (default: true) */
     showCollapse?: boolean
+    /** Whether to show object/array property counts in field headers (default: false) */
+    showProperties?: boolean
     /** Enables explicit view mode selector for field content */
     enableFieldViewModes?: boolean
     /** Hide all field headers and render only editor/content blocks */
@@ -305,8 +318,27 @@ export interface DrillInContentProps {
         item: PathItem
         fieldKey: string
         fullPath: string[]
-        options: string[]
-    }) => string
+        options: ViewMode[]
+    }) => ViewMode
+    /**
+     * Optional callback to render a TypeChip for each field header.
+     * Return undefined to skip the chip for a field.
+     */
+    getFieldTypeChip?: (value: unknown) => ReactNode
+    /**
+     * Increment this value to collapse all visible fields in the current drill-in level.
+     */
+    collapseSignal?: number
+    /**
+     * Change this value to clear field-level view mode overrides without remounting the view.
+     */
+    viewModeResetSignal?: string | number
+    /**
+     * Visual variant for field headers.
+     * - "card" (default): grey background, rounded border, full control set.
+     * - "flat": white background with bottom border, minimal controls (Proposal V2).
+     */
+    fieldHeaderVariant?: FieldHeaderVariant
 
     // ========== RENDERER INJECTION ==========
 

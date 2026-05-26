@@ -104,6 +104,8 @@ export type {
 } from "./hooks/useRowHeight"
 export {useRowHeightFeature} from "./hooks/useRowHeightFeature"
 export type {RowHeightFeatureConfig, UseRowHeightFeatureResult} from "./hooks/useRowHeightFeature"
+export {useTypeChipFeature} from "./hooks/useTypeChipFeature"
+export type {UseTypeChipFeatureResult} from "./hooks/useTypeChipFeature"
 export {RowHeightContext, useRowHeightContext} from "./context/RowHeightContext"
 export type {RowHeightContextValue} from "./context/RowHeightContext"
 export * from "./types"
@@ -175,3 +177,10 @@ export type {
     GroupExpandState,
     GroupedTreeDataResult,
 } from "./hooks/useGroupedTreeData"
+
+// ============================================================================
+// TYPE CHIP UTILITIES
+// ============================================================================
+
+export {defaultHeaderVariant, detectColumnTypes} from "./utils/detectColumnTypes"
+export type {ColumnTypeInfo, ColumnTypePrimitive, ColumnRenderHint} from "./utils/detectColumnTypes"

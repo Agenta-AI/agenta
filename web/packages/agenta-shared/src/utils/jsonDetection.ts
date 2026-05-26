@@ -172,6 +172,35 @@ export function canExpandAsJson(value: unknown): boolean {
 }
 
 /**
+ * Native logical type of a value. This intentionally reflects the runtime value
+ * as received by the UI and does not parse string values.
+ */
+export type LogicalType = "string" | "number" | "boolean" | "null" | "json-object" | "json-array"
+
+/**
+ * Infer the native logical type of any value without parsing or transforming it.
+ * Strings remain strings even if they contain JSON, numbers, booleans, or null.
+ *
+ * @example
+ * inferLogicalType(42)         // "number"
+ * inferLogicalType("42")       // "string"
+ * inferLogicalType("true")     // "string"
+ * inferLogicalType("null")     // "string"
+ * inferLogicalType("hello")    // "string"
+ * inferLogicalType({a: 1})     // "json-object"
+ * inferLogicalType("{\"a\":1}") // "string"
+ * inferLogicalType([1, 2])     // "json-array"
+ */
+export function inferLogicalType(value: unknown): LogicalType {
+    if (value === null) return "null"
+    if (Array.isArray(value)) return "json-array"
+    if (typeof value === "object") return "json-object"
+    if (typeof value === "boolean") return "boolean"
+    if (typeof value === "number") return "number"
+    return "string"
+}
+
+/**
  * Result type for tryParseJsonValue
  */
 export interface JsonParseResult {
@@ -182,15 +211,15 @@ export interface JsonParseResult {
 }
 
 /**
- * Try to parse any value as JSON, returning both the result and whether it's JSON.
- * Handles objects, arrays, and JSON strings uniformly.
+ * Identify native JSON values, returning both the original value and whether it
+ * is a native object/array. This does not parse strings.
  *
  * @param value - Any value to check/parse
  * @returns Object with parsed value and isJson flag
  *
  * @example
  * tryParseJsonValue({a: 1}) // { parsed: {a: 1}, isJson: true }
- * tryParseJsonValue('{"a": 1}') // { parsed: {a: 1}, isJson: true }
+ * tryParseJsonValue('{"a": 1}') // { parsed: '{"a": 1}', isJson: false }
  * tryParseJsonValue('hello') // { parsed: 'hello', isJson: false }
  * tryParseJsonValue(null) // { parsed: null, isJson: false }
  */
@@ -201,13 +230,6 @@ export function tryParseJsonValue(value: unknown): JsonParseResult {
     // Already an object/array
     if (typeof value === "object") {
         return {parsed: value, isJson: true}
-    }
-    // Try to parse string as JSON
-    if (typeof value === "string" && isJsonString(value)) {
-        const parsed = tryParseJson(value)
-        if (parsed !== null) {
-            return {parsed, isJson: true}
-        }
     }
     return {parsed: value, isJson: false}
 }

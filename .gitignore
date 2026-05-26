@@ -86,3 +86,4 @@ hosting/kubernetes/**/values.*.yaml
 
 # IDE/LSP config (local tooling)
 pyrightconfig.json
+.gstack/
