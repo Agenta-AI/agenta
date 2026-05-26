@@ -50,7 +50,12 @@ from oss.src.core.git.dtos import (
     VariantQuery,
 )
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.git.types import validate_revision_ref_unambiguous
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+    needs_default_variant_resolution,
+    validate_retrieve_refs_consistent,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 
 from oss.src.utils.logging import get_module_logger
@@ -410,6 +415,10 @@ class EnvironmentsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[EnvironmentVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=environment_variant_ref,
+            entity_type="environment",
+        )
         variant = await self.environments_dao.fetch_variant(
             project_id=project_id,
             #
@@ -614,17 +623,20 @@ class EnvironmentsService:
         ):
             return None
 
-        validate_revision_ref_unambiguous(
+        validate_revision_refs_sufficient(
             artifact_ref=environment_ref,
             variant_ref=environment_variant_ref,
             revision_ref=environment_revision_ref,
             entity_type="environment",
         )
 
-        if (
-            environment_ref
-            and not environment_variant_ref
-            and not environment_revision_ref
+        _original_environment_ref = environment_ref
+        _original_environment_variant_ref = environment_variant_ref
+
+        if needs_default_variant_resolution(
+            artifact_ref=environment_ref,
+            variant_ref=environment_variant_ref,
+            revision_ref=environment_revision_ref,
         ):
             environment = await self.fetch_environment(
                 project_id=project_id,
@@ -669,6 +681,26 @@ class EnvironmentsService:
 
         if not revision:
             return None
+
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_environment_ref,
+            variant_ref=_original_environment_variant_ref,
+            revision_ref=environment_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="environment",
+        )
 
         environment_revision = EnvironmentRevision(
             **revision.model_dump(
