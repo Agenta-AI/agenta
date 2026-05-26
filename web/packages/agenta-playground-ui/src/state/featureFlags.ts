@@ -18,13 +18,14 @@ import {atom} from "jotai"
  * `PlaygroundInputsBody` component (bordered card per variable, type
  * chip + "View as ▾" dropdown, native JSON edits).
  *
- * Default `false` — existing rendering is preserved. The consumer (OSS
- * playground entry, an `init()` effect, a dev toggle) flips this on once
- * the new UX is signed off. When the new path is the default for everyone,
- * delete this flag and the conditional in `SingleLayout`.
+ * Default `true` — the new UX is now the playground default. Existing
+ * `VariableControlAdapter` is still used for grouped evaluator layouts
+ * (`useGroupedLayout === true`) and ComparisonLayout per the design doc's
+ * deferred follow-ups. When ComparisonLayout is swapped too, the flag +
+ * conditional in `SingleLayout` can be removed entirely.
  *
- * Wired only for SingleLayout's flat (non-grouped) path in the initial
- * cut. Grouped evaluator layouts and ComparisonLayout still use the
- * adapter — see the deferred follow-ups in the approved design doc.
+ * Wired only for SingleLayout's flat (non-grouped) path. Grouped evaluator
+ * layouts and ComparisonLayout still use the adapter — see the deferred
+ * follow-ups in the approved design doc.
  */
-export const useNewPlaygroundInputsBodyAtom = atom<boolean>(false)
+export const useNewPlaygroundInputsBodyAtom = atom<boolean>(true)
