@@ -107,11 +107,22 @@ absolute-URL builder in the app.
 {{- $secrets := default dict .Values.secrets -}}
 {{- $agenta := default dict $values.agenta -}}
 {{- $postgres := default dict $values.postgres -}}
+{{- $postgresql := default dict $values.postgresql -}}
+{{- $postgresqlExternal := default dict $postgresql.external -}}
 {{- if not $secrets.existingSecret -}}
 {{- $missing := list -}}
 {{- if not $agenta.authKey -}}{{- $missing = append $missing "agenta.authKey" -}}{{- end -}}
 {{- if not $agenta.cryptKey -}}{{- $missing = append $missing "agenta.cryptKey" -}}{{- end -}}
-{{- if and (eq (include "agenta.postgresql.enabled" .) "true") (not $postgres.password) -}}
+{{- /* postgres.password is required unless the operator supplied full
+       external URIs for all three databases (core, tracing, supertokens),
+       in which case credentials live inside the URIs themselves and
+       POSTGRES_PASSWORD is never substituted. */ -}}
+{{- $uriCore := or $postgresqlExternal.uriCore $postgres.uriCore -}}
+{{- $uriTracing := or $postgresqlExternal.uriTracing $postgres.uriTracing -}}
+{{- $uriSupertokens := or $postgresqlExternal.uriSupertokens $postgres.uriSupertokens -}}
+{{- $allUrisProvided := and $uriCore $uriTracing $uriSupertokens -}}
+{{- $postgresPasswordRequired := or (eq (include "agenta.postgresql.enabled" .) "true") (not $allUrisProvided) -}}
+{{- if and $postgresPasswordRequired (not $postgres.password) -}}
 {{- $missing = append $missing "postgres.password" -}}
 {{- end -}}
 {{- if $missing -}}
