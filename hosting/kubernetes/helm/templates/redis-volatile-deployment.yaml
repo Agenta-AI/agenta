@@ -1,4 +1,4 @@
-{{- $values := default dict .Values -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
 {{- $redisVolatile := default dict $values.redisVolatile -}}
 {{- if eq (include "agenta.redisVolatile.enabled" .) "true" }}
 apiVersion: apps/v1

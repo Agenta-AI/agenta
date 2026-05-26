@@ -1,4 +1,4 @@
-{{- $values := default dict .Values -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
 {{- $redisDurable := default dict $values.redisDurable -}}
 {{- $persistence := default dict $redisDurable.persistence -}}
 {{- $persistenceEnabled := default true $persistence.enabled -}}

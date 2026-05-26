@@ -1,4 +1,4 @@
-{{- $values := default dict .Values -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
 {{- $cron := default dict $values.cron -}}
 {{- if eq (include "agenta.cron.enabled" .) "true" }}
 apiVersion: apps/v1

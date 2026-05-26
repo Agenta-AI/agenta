@@ -1,4 +1,4 @@
-{{- $values := default dict .Values -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
 {{- $alembic := default dict $values.alembic -}}
 {{- if eq (include "agenta.alembic.enabled" .) "true" }}
 apiVersion: batch/v1

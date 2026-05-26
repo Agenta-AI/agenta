@@ -1,4 +1,4 @@
-{{- $values := default dict .Values -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
 {{- $api := default dict $values.api -}}
 {{- $newrelic := default dict $values.newrelic -}}
 {{- if eq (include "agenta.api.enabled" .) "true" }}

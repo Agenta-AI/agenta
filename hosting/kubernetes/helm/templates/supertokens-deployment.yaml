@@ -1,4 +1,4 @@
-{{- $values := default dict .Values -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
 {{- $supertokens := default dict $values.supertokens -}}
 {{- if eq (include "agenta.supertokens.enabled" .) "true" }}
 apiVersion: apps/v1
