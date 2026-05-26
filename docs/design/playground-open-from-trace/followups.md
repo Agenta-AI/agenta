@@ -3,7 +3,7 @@
 Companion to [`retrieve-endpoint-audit.md`](./retrieve-endpoint-audit.md). The audit doc describes the
 original bug, the data model, and PR #4418's guardrails. PR #4422 extended those
 guardrails to every git-backed entity by factoring the version-only check into
-`core/git/types.py::validate_revision_ref_unambiguous`.
+`core/git/types.py::validate_revision_refs_sufficient`.
 
 This document captures what is **still wrong or incomplete** about reference
 resolution at the retrieve surface, evaluated against the five rules below. The
@@ -442,7 +442,7 @@ D10–D13 are unobservable.
 
 ### D9. The five rules are not codified anywhere in the codebase
 
-`validate_revision_ref_unambiguous` enforces a fragment of 2.e. There is no
+`validate_revision_refs_sufficient` enforces a fragment of 2.e. There is no
 constant, comment block, or single doc string that lists the five rules,
 the precedence orders, or the default rules so future maintainers can match
 new validation to the right rule. This document is the first attempt at
@@ -655,7 +655,7 @@ On mismatch, raise a new `RetrieveRefsInconsistent(GitError)` and surface as
 
 ### C4. Catch variant-by-version analog — fixes D4 + D13
 
-Extend the helper (or add a sibling `validate_variant_ref_unambiguous`) to
+Extend the helper (or add a sibling `validate_variant_refs_sufficient`) to
 reject `{variant_ref:{version}}` without an `artifact_ref` (`id` or `slug`).
 Same shape, same reasoning. Call it from `fetch_*_variant` paths. Mirror the
 same check for the env-side: reject `{environment_revision_ref:{version}}`

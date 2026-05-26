@@ -5,7 +5,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import (
-    validate_revision_ref_unambiguous,
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
     needs_default_variant_resolution,
     validate_retrieve_refs_consistent,
 )
@@ -428,6 +429,10 @@ class TestsetsService:
         testset_ref: Optional[Reference] = None,
         testset_variant_ref: Optional[Reference] = None,
     ) -> Optional[TestsetVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=testset_variant_ref,
+            entity_type="testset",
+        )
         variant = await self.testsets_dao.fetch_variant(
             project_id=project_id,
             #
@@ -641,7 +646,11 @@ class TestsetsService:
         if not testset_ref and not testset_variant_ref and not testset_revision_ref:
             return None
 
-        validate_revision_ref_unambiguous(
+        validate_variant_refs_sufficient(
+            variant_ref=testset_variant_ref,
+            entity_type="testset",
+        )
+        validate_revision_refs_sufficient(
             artifact_ref=testset_ref,
             variant_ref=testset_variant_ref,
             revision_ref=testset_revision_ref,

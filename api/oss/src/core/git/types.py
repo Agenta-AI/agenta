@@ -77,7 +77,7 @@ def needs_default_variant_resolution(
     return True
 
 
-def validate_revision_ref_unambiguous(
+def validate_revision_refs_sufficient(
     *,
     artifact_ref: Optional[Reference],
     variant_ref: Optional[Reference],
@@ -118,6 +118,35 @@ def validate_revision_ref_unambiguous(
         f"scope it. Provide either, or identify the revision by "
         f"{entity_type}_revision_ref.id or {entity_type}_revision_ref.slug "
         f"(both are project-unique)."
+    )
+
+
+def validate_variant_refs_sufficient(
+    *,
+    variant_ref: Optional[Reference],
+    entity_type: str = "artifact",
+) -> None:
+    """Reject `variant_ref` shapes that can never identify a variant.
+
+    Variants carry `id` and `slug` but no `version` field — version is a
+    per-variant counter living on revisions. A `variant_ref` populated with
+    only `version` is nonsense the DAO would silently drop, so reject it at
+    the boundary.
+
+    Identifying `variant_ref` (id/slug, optionally with redundant version
+    that the DAO ignores) is left alone — C3's consistency check covers the
+    "redundant but wrong" case.
+    """
+    if variant_ref is None:
+        return
+    if _is_identifying(variant_ref):
+        return
+    if variant_ref.version is None:
+        return
+    raise RetrieveRefsInsufficient(
+        f"{entity_type}_variant_ref carries only `version`, but variants "
+        f"have no `version` field. Identify the variant by "
+        f"{entity_type}_variant_ref.id or {entity_type}_variant_ref.slug."
     )
 
 
