@@ -8,7 +8,9 @@ import type {IStepResponse} from "@/oss/lib/evaluations"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {getProjectValues} from "@/oss/state/project"
 
+import {isTerminalStatus} from "./compare"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
+import {evaluationRunQueryAtomFamily} from "./table/run"
 import type {ScenarioStepsBatchResult} from "./types"
 
 const scenarioStepsBatcherCache = new Map<string, BatchFetcher<string, ScenarioStepsBatchResult>>()
@@ -128,11 +130,21 @@ export const scenarioStepsQueryFamily = atomFamily(
             const effectiveRunId = resolveEffectiveRunId(get, runId)
             const batcher = get(scenarioStepsBatcherFamily({runId: effectiveRunId}))
 
+            // While the run is still executing, poll so the focus drawer /
+            // scenario viewer pick up a scenario's results as it completes.
+            // Stops once the run is terminal.
+            const runQuery = effectiveRunId
+                ? get(evaluationRunQueryAtomFamily(effectiveRunId))
+                : undefined
+            const runStatus = runQuery?.data?.rawRun?.status ?? runQuery?.data?.camelRun?.status
+            const runTerminal = isTerminalStatus(runStatus)
+
             return {
                 queryKey: ["preview", "scenario-steps", effectiveRunId, scenarioId],
                 enabled: Boolean(effectiveRunId && batcher && scenarioId),
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: false,
+                refetchInterval: runTerminal ? false : 5000,
                 staleTime: 30_000,
                 gcTime: 5 * 60 * 1000,
                 // Enable structural sharing to prevent unnecessary re-renders when data hasn't changed
