@@ -204,7 +204,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    ================================================================ */}}
 {{- define "agenta.serviceAccountName" -}}
 {{- $sa := default dict .Values.serviceAccount -}}
-{{- if $sa.create }}
+{{- $create := default true $sa.create -}}
+{{- if $create }}
 {{- default (include "agenta.fullname" .) $sa.name }}
 {{- else }}
 {{- default "default" $sa.name }}
