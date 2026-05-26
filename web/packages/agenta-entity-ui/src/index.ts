@@ -383,7 +383,16 @@ export {
 // TESTCASE UI COMPONENTS
 // ============================================================================
 
-export {TestcaseTable, type TestcaseTableProps} from "./testcase"
+export {
+    TestcaseDataEditor,
+    TestcaseTable,
+    type TestcaseDataEditorColumn,
+    type TestcaseDataEditorFeatures,
+    type TestcaseDataEditorMode,
+    type TestcaseDataEditorProps,
+    type TestcaseDataEditorSurface,
+    type TestcaseTableProps,
+} from "./testcase"
 
 // ============================================================================
 // ENTITY SELECTION

@@ -22,7 +22,7 @@
  * ```
  */
 
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import {
     testcaseMolecule as testcase,
@@ -31,7 +31,7 @@ import {
     type TestcaseDataConfig,
     type TestcaseTableRow,
 } from "@agenta/entities/testcase"
-import type {RowHeightFeatureConfig} from "@agenta/ui/table"
+import type {RowHeightFeatureConfig, TypeChipConfig} from "@agenta/ui/table"
 
 import {EntityTable} from "../shared"
 
@@ -102,6 +102,18 @@ export function TestcaseTable({
         return testcase.get.cell(record.id, columnKey)
     }, [])
 
+    // Share chip visibility pref with OSS TestcasesTableShell so toggling
+    // chips off in one surface (eg. main testsets page) hides them in all
+    // testcase tables consistently.
+    const typeChips = useMemo<TypeChipConfig<TestcaseTableRow>>(
+        () => ({
+            defaultEnabled: true,
+            storageKey: "agenta:testcase-table:type-chips-enabled",
+            getRowValue: getCellValue,
+        }),
+        [getCellValue],
+    )
+
     return (
         <EntityTable<TestcaseTableRow, TestcaseDataConfig, Column>
             controller={testcaseDataController}
@@ -117,6 +129,7 @@ export function TestcaseTable({
             rowHeightConfig={rowHeightConfig}
             showSettings={showSettings}
             enableExport={canExportData}
+            typeChips={typeChips}
             emptyMessage="No testcases found"
         />
     )

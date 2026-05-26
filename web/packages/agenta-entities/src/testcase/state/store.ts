@@ -25,7 +25,11 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 import get from "lodash/get"
 
-import {createEntityDraftState, normalizeValueForComparison} from "../../shared"
+// Deep-import — shared/index barrel pulls in @agenta/ui CSS modules.
+import {
+    createEntityDraftState,
+    normalizeValueForComparison,
+} from "../../shared/molecule/createEntityDraftState"
 import {pendingColumnOpsAtomFamily} from "../../testset/state/revisionTableState"
 import {testcaseSchema, SYSTEM_FIELDS, type Testcase} from "../core"
 

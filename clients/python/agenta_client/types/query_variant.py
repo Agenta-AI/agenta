@@ -10,6 +10,8 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update
 
 
 class QueryVariant(UniversalBaseModel):
+    query_slug: typing.Optional[str] = None
+    artifact_slug: typing.Optional[str] = None
     query_id: typing.Optional[str] = None
     artifact_id: typing.Optional[str] = None
     flags: typing.Optional[typing.Dict[str, typing.Any]] = None
