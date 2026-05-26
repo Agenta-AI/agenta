@@ -79,10 +79,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
 )
-from oss.src.core.git.types import (
-    validate_revision_ref_unambiguous,
-    needs_default_variant_resolution,
-)
+from oss.src.core.git.types import validate_revision_ref_unambiguous
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import (
@@ -1090,11 +1087,7 @@ class WorkflowsService:
             entity_type="workflow",
         )
 
-        if needs_default_variant_resolution(
-            artifact_ref=workflow_ref,
-            variant_ref=workflow_variant_ref,
-            revision_ref=workflow_revision_ref,
-        ):
+        if workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             workflow = await self.fetch_workflow(
                 project_id=project_id,
                 #

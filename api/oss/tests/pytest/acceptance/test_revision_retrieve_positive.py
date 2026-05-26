@@ -124,22 +124,6 @@ def test_workflows_retrieve_by_artifact_slug_picks_default_variant_latest(authed
     assert response.json()["workflow_revision"]["id"] == revision["id"]
 
 
-def test_workflows_retrieve_by_artifact_slug_and_version_resolves_default_variant(
-    authed_api,
-):
-    workflow, _, revision = _create_workflow_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/workflows/revisions/retrieve",
-        json={
-            "workflow_ref": {"slug": workflow["slug"]},
-            "workflow_revision_ref": {"version": revision["version"]},
-        },
-    )
-    assert response.status_code == 200, response.text
-    assert response.json()["workflow_revision"]["id"] == revision["id"]
-
-
 def test_workflows_retrieve_with_redundant_consistent_refs(authed_api):
     workflow, variant, revision = _create_workflow_stack(authed_api)
     response = authed_api(
@@ -254,22 +238,6 @@ def test_applications_retrieve_by_artifact_slug_picks_default_variant_latest(
         "POST",
         "/applications/revisions/retrieve",
         json={"application_ref": {"slug": app["slug"]}},
-    )
-    assert response.status_code == 200, response.text
-    assert response.json()["application_revision"]["id"] == revision["id"]
-
-
-def test_applications_retrieve_by_artifact_slug_and_version_resolves_default_variant(
-    authed_api,
-):
-    app, _, revision = _create_application_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/applications/revisions/retrieve",
-        json={
-            "application_ref": {"slug": app["slug"]},
-            "application_revision_ref": {"version": revision["version"]},
-        },
     )
     assert response.status_code == 200, response.text
     assert response.json()["application_revision"]["id"] == revision["id"]
@@ -394,22 +362,6 @@ def test_evaluators_retrieve_by_artifact_slug_picks_default_variant_latest(
     assert response.json()["evaluator_revision"]["id"] == revision["id"]
 
 
-def test_evaluators_retrieve_by_artifact_slug_and_version_resolves_default_variant(
-    authed_api,
-):
-    evaluator, _, revision = _create_evaluator_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/evaluators/revisions/retrieve",
-        json={
-            "evaluator_ref": {"slug": evaluator["slug"]},
-            "evaluator_revision_ref": {"version": revision["version"]},
-        },
-    )
-    assert response.status_code == 200, response.text
-    assert response.json()["evaluator_revision"]["id"] == revision["id"]
-
-
 def test_evaluators_retrieve_with_redundant_consistent_refs(authed_api):
     evaluator, variant, revision = _create_evaluator_stack(authed_api)
     response = authed_api(
@@ -525,22 +477,6 @@ def test_testsets_retrieve_by_artifact_slug_picks_default_variant_latest(authed_
     assert response.json()["testset_revision"]["id"] == revision["id"]
 
 
-def test_testsets_retrieve_by_artifact_slug_and_version_resolves_default_variant(
-    authed_api,
-):
-    testset, _, revision = _create_testset_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/testsets/revisions/retrieve",
-        json={
-            "testset_ref": {"slug": testset["slug"]},
-            "testset_revision_ref": {"version": revision["version"]},
-        },
-    )
-    assert response.status_code == 200, response.text
-    assert response.json()["testset_revision"]["id"] == revision["id"]
-
-
 def test_testsets_retrieve_with_redundant_consistent_refs(authed_api):
     testset, variant, revision = _create_testset_stack(authed_api)
     response = authed_api(
@@ -644,22 +580,6 @@ def test_queries_retrieve_by_artifact_slug_picks_default_variant_latest(authed_a
         "POST",
         "/queries/revisions/retrieve",
         json={"query_ref": {"slug": query["slug"]}},
-    )
-    assert response.status_code == 200, response.text
-    assert response.json()["query_revision"]["id"] == revision["id"]
-
-
-def test_queries_retrieve_by_artifact_slug_and_version_resolves_default_variant(
-    authed_api,
-):
-    query, revision = _create_query_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/queries/revisions/retrieve",
-        json={
-            "query_ref": {"slug": query["slug"]},
-            "query_revision_ref": {"version": revision["version"]},
-        },
     )
     assert response.status_code == 200, response.text
     assert response.json()["query_revision"]["id"] == revision["id"]
@@ -777,22 +697,6 @@ def test_environments_retrieve_by_artifact_slug_picks_default_variant_latest(
         "POST",
         "/environments/revisions/retrieve",
         json={"environment_ref": {"slug": environment["slug"]}},
-    )
-    assert response.status_code == 200, response.text
-    assert response.json()["environment_revision"]["id"] == revision["id"]
-
-
-def test_environments_retrieve_by_artifact_slug_and_version_resolves_default_variant(
-    authed_api,
-):
-    environment, _, revision = _create_environment_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/environments/revisions/retrieve",
-        json={
-            "environment_ref": {"slug": environment["slug"]},
-            "environment_revision_ref": {"version": revision["version"]},
-        },
     )
     assert response.status_code == 200, response.text
     assert response.json()["environment_revision"]["id"] == revision["id"]

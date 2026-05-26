@@ -50,10 +50,7 @@ from oss.src.core.git.dtos import (
     VariantQuery,
 )
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.git.types import (
-    validate_revision_ref_unambiguous,
-    needs_default_variant_resolution,
-)
+from oss.src.core.git.types import validate_revision_ref_unambiguous
 from oss.src.core.shared.dtos import Reference, Windowing
 
 from oss.src.utils.logging import get_module_logger
@@ -624,10 +621,10 @@ class EnvironmentsService:
             entity_type="environment",
         )
 
-        if needs_default_variant_resolution(
-            artifact_ref=environment_ref,
-            variant_ref=environment_variant_ref,
-            revision_ref=environment_revision_ref,
+        if (
+            environment_ref
+            and not environment_variant_ref
+            and not environment_revision_ref
         ):
             environment = await self.fetch_environment(
                 project_id=project_id,
