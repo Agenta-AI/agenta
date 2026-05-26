@@ -109,8 +109,14 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # Google OAuth
     if env.identity.google.enabled:
-        assert env.identity.google.client_id is not None
-        assert env.identity.google.client_secret is not None
+        if env.identity.google.client_id is None:
+            raise RuntimeError(
+                "google identity provider enabled but client_id is missing"
+            )
+        if env.identity.google.client_secret is None:
+            raise RuntimeError(
+                "google identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="google",
             client_id=env.identity.google.client_id,
@@ -119,8 +125,14 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # Google Workspaces OAuth
     if env.identity.google_workspaces.enabled:
-        assert env.identity.google_workspaces.client_id is not None
-        assert env.identity.google_workspaces.client_secret is not None
+        if env.identity.google_workspaces.client_id is None:
+            raise RuntimeError(
+                "google_workspaces identity provider enabled but client_id is missing"
+            )
+        if env.identity.google_workspaces.client_secret is None:
+            raise RuntimeError(
+                "google_workspaces identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="google-workspaces",
             client_id=env.identity.google_workspaces.client_id,
@@ -134,8 +146,14 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # GitHub OAuth
     if env.identity.github.enabled:
-        assert env.identity.github.client_id is not None
-        assert env.identity.github.client_secret is not None
+        if env.identity.github.client_id is None:
+            raise RuntimeError(
+                "github identity provider enabled but client_id is missing"
+            )
+        if env.identity.github.client_secret is None:
+            raise RuntimeError(
+                "github identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="github",
             client_id=env.identity.github.client_id,
@@ -145,8 +163,14 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # Facebook OAuth
     if env.identity.facebook.enabled:
-        assert env.identity.facebook.client_id is not None
-        assert env.identity.facebook.client_secret is not None
+        if env.identity.facebook.client_id is None:
+            raise RuntimeError(
+                "facebook identity provider enabled but client_id is missing"
+            )
+        if env.identity.facebook.client_secret is None:
+            raise RuntimeError(
+                "facebook identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="facebook",
             client_id=env.identity.facebook.client_id,
@@ -155,7 +179,10 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # Apple OAuth
     if env.identity.apple.enabled:
-        assert env.identity.apple.client_id is not None
+        if env.identity.apple.client_id is None:
+            raise RuntimeError(
+                "apple identity provider enabled but client_id is missing"
+            )
         additional_config = None
         if (
             env.identity.apple.key_id
@@ -176,8 +203,14 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # Discord OAuth
     if env.identity.discord.enabled:
-        assert env.identity.discord.client_id is not None
-        assert env.identity.discord.client_secret is not None
+        if env.identity.discord.client_id is None:
+            raise RuntimeError(
+                "discord identity provider enabled but client_id is missing"
+            )
+        if env.identity.discord.client_secret is None:
+            raise RuntimeError(
+                "discord identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="discord",
             client_id=env.identity.discord.client_id,
@@ -186,8 +219,14 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # Twitter OAuth
     if env.identity.twitter.enabled:
-        assert env.identity.twitter.client_id is not None
-        assert env.identity.twitter.client_secret is not None
+        if env.identity.twitter.client_id is None:
+            raise RuntimeError(
+                "twitter identity provider enabled but client_id is missing"
+            )
+        if env.identity.twitter.client_secret is None:
+            raise RuntimeError(
+                "twitter identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="twitter",
             client_id=env.identity.twitter.client_id,
@@ -196,8 +235,14 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # GitLab OAuth
     if env.identity.gitlab.enabled:
-        assert env.identity.gitlab.client_id is not None
-        assert env.identity.gitlab.client_secret is not None
+        if env.identity.gitlab.client_id is None:
+            raise RuntimeError(
+                "gitlab identity provider enabled but client_id is missing"
+            )
+        if env.identity.gitlab.client_secret is None:
+            raise RuntimeError(
+                "gitlab identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="gitlab",
             client_id=env.identity.gitlab.client_id,
@@ -211,8 +256,14 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # Bitbucket OAuth
     if env.identity.bitbucket.enabled:
-        assert env.identity.bitbucket.client_id is not None
-        assert env.identity.bitbucket.client_secret is not None
+        if env.identity.bitbucket.client_id is None:
+            raise RuntimeError(
+                "bitbucket identity provider enabled but client_id is missing"
+            )
+        if env.identity.bitbucket.client_secret is None:
+            raise RuntimeError(
+                "bitbucket identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="bitbucket",
             client_id=env.identity.bitbucket.client_id,
@@ -221,8 +272,14 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # LinkedIn OAuth
     if env.identity.linkedin.enabled:
-        assert env.identity.linkedin.client_id is not None
-        assert env.identity.linkedin.client_secret is not None
+        if env.identity.linkedin.client_id is None:
+            raise RuntimeError(
+                "linkedin identity provider enabled but client_id is missing"
+            )
+        if env.identity.linkedin.client_secret is None:
+            raise RuntimeError(
+                "linkedin identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="linkedin",
             client_id=env.identity.linkedin.client_id,
@@ -231,9 +288,16 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # Okta OAuth
     if env.identity.okta.enabled:
-        assert env.identity.okta.client_id is not None
-        assert env.identity.okta.client_secret is not None
-        assert env.identity.okta.domain is not None
+        if env.identity.okta.client_id is None:
+            raise RuntimeError(
+                "okta identity provider enabled but client_id is missing"
+            )
+        if env.identity.okta.client_secret is None:
+            raise RuntimeError(
+                "okta identity provider enabled but client_secret is missing"
+            )
+        if env.identity.okta.domain is None:
+            raise RuntimeError("okta identity provider enabled but domain is missing")
         add_provider(
             provider_id="okta",
             client_id=env.identity.okta.client_id,
@@ -245,9 +309,18 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # Azure AD OAuth
     if env.identity.azure_ad.enabled:
-        assert env.identity.azure_ad.client_id is not None
-        assert env.identity.azure_ad.client_secret is not None
-        assert env.identity.azure_ad.directory_id is not None
+        if env.identity.azure_ad.client_id is None:
+            raise RuntimeError(
+                "azure_ad identity provider enabled but client_id is missing"
+            )
+        if env.identity.azure_ad.client_secret is None:
+            raise RuntimeError(
+                "azure_ad identity provider enabled but client_secret is missing"
+            )
+        if env.identity.azure_ad.directory_id is None:
+            raise RuntimeError(
+                "azure_ad identity provider enabled but directory_id is missing"
+            )
         add_provider(
             provider_id="azure-ad",
             client_id=env.identity.azure_ad.client_id,
@@ -259,9 +332,16 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
     # BoxySAML OAuth
     if env.identity.boxy_saml.enabled:
-        assert env.identity.boxy_saml.client_id is not None
-        assert env.identity.boxy_saml.client_secret is not None
-        assert env.identity.boxy_saml.url is not None
+        if env.identity.boxy_saml.client_id is None:
+            raise RuntimeError(
+                "boxy_saml identity provider enabled but client_id is missing"
+            )
+        if env.identity.boxy_saml.client_secret is None:
+            raise RuntimeError(
+                "boxy_saml identity provider enabled but client_secret is missing"
+            )
+        if env.identity.boxy_saml.url is None:
+            raise RuntimeError("boxy_saml identity provider enabled but url is missing")
         add_provider(
             provider_id="boxy-saml",
             client_id=env.identity.boxy_saml.client_id,

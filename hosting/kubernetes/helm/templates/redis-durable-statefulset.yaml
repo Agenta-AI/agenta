@@ -112,7 +112,7 @@ spec:
         name: redis-data
       spec:
         accessModes: ["ReadWriteOnce"]
-        {{- if $persistence.storageClass }}
+        {{- if hasKey $persistence "storageClass" }}
         storageClassName: {{ $persistence.storageClass | quote }}
         {{- end }}
         resources:

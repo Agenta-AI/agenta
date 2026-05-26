@@ -69,6 +69,7 @@ log = get_module_logger(__name__)
 _WEBHOOK_RESPONSE_MAX_BYTES = 1 * 1024 * 1024.0  # 1 MB
 _HOOK_ALLOW_INSECURE = (
     os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
+    or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
     or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
     or "true"
 ).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}

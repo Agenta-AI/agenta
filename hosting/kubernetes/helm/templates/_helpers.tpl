@@ -1161,6 +1161,18 @@ imagePullSecrets:
 {{/* ================================================================
    Wait-for-redis init containers (volatile + durable)
    ================================================================ */}}
+{{/* ================================================================
+   Combined wait-for init containers. Callers must check truthiness
+   of the result before rendering `initContainers:`, since k8s rejects
+   an empty list.
+   ================================================================ */}}
+{{- define "agenta.initContainers" -}}
+{{- if eq (include "agenta.postgresql.enabled" .) "true" }}
+{{- include "agenta.waitForPostgres" . }}
+{{- end }}
+{{- include "agenta.waitForRedis" . }}
+{{- end }}
+
 {{- define "agenta.waitForRedis" -}}
 {{- if eq (include "agenta.redisVolatile.enabled" .) "true" }}
 - name: wait-for-redis-volatile

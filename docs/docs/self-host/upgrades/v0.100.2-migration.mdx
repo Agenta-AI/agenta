@@ -159,7 +159,7 @@ The chart now lives at `hosting/kubernetes/helm/`. The old path `hosting/helm/ag
 
 You have two options for how the rest of this migration goes. Pick whichever fits your appetite for a one-shot rewrite vs. an incremental cleanup.
 
-**Path A — Reuse your pre-v0.100.2 values file as-is (recommended for a fast upgrade).** The chart accepts the old shape via a built-in compat layer. Use your `pre-v0.100.2-values.yaml` from step 1 as the `-f` argument to `helm upgrade` in step 5 (skip steps 3 and 4 entirely). `helm install` will print a one-line `NOTE:` confirming the compat layer fired; the chart will warn but install cleanly. You can move to the canonical shape later by re-running steps 3 and 4 at any time.
+**Path A — Reuse your pre-v0.100.2 values file as-is (recommended for a fast upgrade).** The chart accepts the old shape via a built-in compat layer. Use your `pre-v0.100.2-values.yaml` from step 1 as the `-f` argument to `helm upgrade` in step 5 (skip steps 3 and 4 entirely). `helm upgrade` will print a one-line `NOTE:` confirming the compat layer fired; the chart will warn but install cleanly. You can move to the canonical shape later by re-running steps 3 and 4 at any time.
 
 **Path B — Rewrite the values file into the canonical v0.100.2 shape.** Slower but produces a clean file you can keep long-term. The compat layer is transitional and is planned for removal one minor release after v0.100.2; doing the rewrite now means you don't have to do it under deadline later.
 

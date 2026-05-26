@@ -27,11 +27,11 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- $init := include "agenta.initContainers" . }}
+      {{- if $init }}
       initContainers:
-        {{- if eq (include "agenta.postgresql.enabled" .) "true" }}
-        {{- include "agenta.waitForPostgres" . | nindent 8 }}
-        {{- end }}
-        {{- include "agenta.waitForRedis" . | nindent 8 }}
+        {{- $init | nindent 8 }}
+      {{- end }}
       containers:
         - name: worker-evaluations
           image: {{ include "agenta.apiImage" . }}

@@ -652,7 +652,7 @@ kubectl -n agenta logs -l app.kubernetes.io/component=api --prefix
 ```
 
 Common causes:
-- Database URIs incorrect: check `agenta.webUrl`, `agenta.apiUrl`, and `agenta.servicesUrl`
+- Public URLs incorrect: check `agenta.webUrl`, `agenta.apiUrl`, and `agenta.servicesUrl`
 - Redis not ready: check Redis pod status
 
 ### The API URL must include `/api`

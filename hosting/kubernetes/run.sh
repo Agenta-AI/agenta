@@ -184,7 +184,7 @@ if ((${#EXTRA_SET_ARGS[@]})); then
     HELM_CMD+=("${EXTRA_SET_ARGS[@]}")
 fi
 
-if [[ "$WAIT" == "true" ]]; then
+if [[ "$WAIT" == "true" && "$DRY_RUN" == "false" ]]; then
     HELM_CMD+=(--wait --timeout "$TIMEOUT")
 fi
 

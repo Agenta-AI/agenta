@@ -1,6 +1,9 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $ingress := default dict $values.ingress -}}
-{{- if eq (include "agenta.ingress.enabled" .) "true" }}
+{{- $apiEnabled := eq (include "agenta.api.enabled" .) "true" -}}
+{{- $servicesEnabled := eq (include "agenta.services.enabled" .) "true" -}}
+{{- $webEnabled := eq (include "agenta.web.enabled" .) "true" -}}
+{{- if and (eq (include "agenta.ingress.enabled" .) "true") (or $apiEnabled $servicesEnabled $webEnabled) }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
