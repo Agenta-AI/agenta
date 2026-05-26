@@ -722,6 +722,69 @@ that states the five rules, the precedence orders, the default rules, and
 the identifying-ref test. Links to this document for the discrepancies and
 change plan.
 
+### C10. Unify git-domain exception → HTTP translation — refactor
+
+Today every router that calls a git-pattern service catches the domain
+exception inline and translates to `HTTPException(400, detail=e.message)`.
+Inventory at this commit:
+
+- **12 inline `except` blocks** across 6 routers (workflows, applications,
+  evaluators, testsets, queries, environments).
+- **2 domain exceptions** today: `VariantForkError`, `RevisionRefInvalid`.
+- **+1 from C3:** `RevisionRefInconsistent`.
+- **+1 possibly from C4:** a variant-ref-version helper exception.
+
+Each new git-domain exception multiplies the boilerplate by the number of
+call sites. The codebase already has a cleaner pattern in `folders/`:
+
+- Typed `*Exception(HTTPException)` classes in
+  `apis/fastapi/folders/models.py`.
+- A domain decorator `@handle_folder_exceptions()` in
+  `apis/fastapi/folders/router.py:41` that maps core exceptions to typed
+  HTTP exceptions in one place.
+
+Apply the same shape to the git domain:
+
+1. Define typed exceptions in `apis/fastapi/shared/git_exceptions.py` (or
+   similar): `VariantForkErrorException`, `RevisionRefInvalidException`,
+   `RevisionRefInconsistentException`. All inherit from
+   `BadRequestException` (from `utils/exceptions.py:226`) which already
+   carries the 400 status.
+2. Define `@handle_git_exceptions()` decorator in the same module that
+   wraps a route function and maps each core exception to its typed
+   counterpart. Mirror `handle_folder_exceptions` at
+   `apis/fastapi/folders/router.py:41`.
+3. Apply the decorator to every retrieve/deploy/fork route across all six
+   routers. Remove the 12 inline `except` blocks. Net delta: -50 lines or
+   so across the routers, +30 lines in the shared module.
+4. Document in the module docstring that any new git-domain exception
+   added to `core/git/types.py` must also be registered in the decorator
+   and given a typed counterpart. Add a comment at the top of
+   `core/git/types.py` pointing at the registration site.
+
+Trade-offs against the current inline pattern:
+
+- **Pro:** new domain exceptions need updates in one place (the decorator
+  and typed-exception module), not N call sites.
+- **Pro:** typed exceptions can carry structured detail (`field`, `path`)
+  on top of the message, matching how `FolderNameInvalidException` is
+  shaped today. Useful for C3 where the error message names a specific
+  field — clients can parse it programmatically.
+- **Con:** indirection — reading a router no longer shows which
+  exceptions become which HTTP responses; you have to look at the
+  decorator. Mitigated by keeping the decorator small and naming each
+  mapping clearly.
+- **Con:** decorator placement matters with the existing
+  `@intercept_exceptions()` and `@suppress_exceptions()` stack. Need to
+  insert `@handle_git_exceptions()` between the route body and any
+  `suppress_exceptions(exclude=[HTTPException])` so the typed exception
+  is in the exclude list and gets re-raised. Same pattern as today's
+  inline `HTTPException` raise — no behavior change.
+
+Lands as a refactor, not a behavior change. No new tests beyond
+re-running the existing 400-assertions, which will continue to pass
+since the status code and message text are preserved.
+
 ---
 
 ## Suggested landing order
@@ -753,17 +816,22 @@ across all six entity tables.
    evaluators all call the same helper afterward.
 9. **C8 (second pass)** — extend coverage to 2.c, env-path cases, and
    path-mixed cases now that the C3/C4/C5 behavior is stable.
-10. **C7** — user-facing docs sweep. Can run in parallel with C5/C8.
-11. **C9** — codify the five rules, precedence orders, and defaults in
+10. **C10** — unify git-domain exception → HTTP translation. Replace the
+    12 inline `except` blocks with a `@handle_git_exceptions()` decorator
+    and typed `*Exception(BadRequestException)` classes. Lands after C3
+    and C4 so the new exceptions get migrated in one sweep. Pure
+    refactor; no behavior change.
+11. **C7** — user-facing docs sweep. Can run in parallel with C5/C8/C10.
+12. **C9** — codify the five rules, precedence orders, and defaults in
     `core/git/types.py` (or a dedicated `core/git/README.md`). Can run
     in parallel with C7.
-12. **C1b** — `is_default` flag in `variant.flags` JSONB, backfill,
+13. **C1b** — `is_default` flag in `variant.flags` JSONB, backfill,
     partial-unique index, set-default mutation, DAO read. Penultimate
     because it touches every entity's variant data; safe to land after
     the behavior-changing items because C1a holds the line in the
     meantime. After C1b ships, C1a's `ORDER BY` becomes dead code and
     can be removed in the same PR (or a follow-up).
-13. **C1.1b** — denormalize parent slugs onto variant and revision rows
+14. **C1.1b** — denormalize parent slugs onto variant and revision rows
     (`artifact_slug` on variants; `artifact_slug` + `variant_slug` on
     revisions). Backfill, write-path maintenance, DAO simplification.
     Last because it's the largest migration in scope (two tables, six
