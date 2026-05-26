@@ -361,9 +361,9 @@ class ApplicationRevisionCommitRequest(BaseModel):
 class ApplicationRevisionRetrieveRequest(BaseModel):
     """Request body for `POST /applications/revisions/retrieve`.
 
-    Resolves to a single revision by one of several reference types. Exactly one
-    reference path is needed; the most specific wins when several are provided.
-    See the [Applications guide](/reference/api-guide/applications#invocation).
+    Resolves to a single revision by one or more reference types. Every
+    reference supplied must agree with the resolved revision; contradictions
+    return HTTP 400. See the [Applications guide](/reference/api-guide/applications#invocation).
     """
 
     application_ref: Optional[Reference] = Field(
@@ -371,8 +371,8 @@ class ApplicationRevisionRetrieveRequest(BaseModel):
         description=(
             "Application artifact to look up. Identifies the artifact by `id` "
             "or `slug` (both project-unique). When no variant_ref or "
-            "revision_ref is provided, returns the latest revision of an "
-            "arbitrary variant of this application."
+            "revision_ref is provided, returns the latest revision of the "
+            "application's default variant."
         ),
     )
     application_variant_ref: Optional[Reference] = Field(
