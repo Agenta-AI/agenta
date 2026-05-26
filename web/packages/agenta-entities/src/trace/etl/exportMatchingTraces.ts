@@ -55,7 +55,14 @@ export type FlushBatch<T extends ScannedExportRow> = (rows: T[]) => Promise<void
 export interface ExportMatchingTracesProgress {
     /** Root traces yielded by the source so far (counts tree roots, not spans). */
     scanned: number
-    /** Unique rows successfully flushed so far. */
+    /**
+     * Unique rows the pipeline has produced for the sink so far (post-
+     * dedup, post-cap). Reflects the user-visible "rows exported"
+     * regardless of the sink's batching cadence — the buffered batch sink
+     * holds rows until a full batch flushes, so reporting the flushed
+     * count instead leaves the UI stuck at 0 for the first 500 rows of
+     * every run.
+     */
     rows: number
 }
 
@@ -182,7 +189,11 @@ export const exportMatchingTraces = async <T extends ScannedExportRow>({
                 break
             }
             scanned = step.value.scanned
-            onProgress?.({scanned, rows: sinkHandle.getFlushedCount()})
+            // Report `matched` (post-dedup, post-cap) so the UI sees
+            // immediate progress per page — `loaded` lags by the buffered
+            // batch, which makes the toast appear stuck at 0 until the
+            // first full batch flushes.
+            onProgress?.({scanned, rows: step.value.matched})
 
             // Cap on matched (deduplicated) rows, not raw spans. The transform
             // already stops emitting past the cap; this just ends the scan

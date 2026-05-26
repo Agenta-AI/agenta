@@ -271,6 +271,72 @@ describe("exportMatchingTraces", () => {
         expect(firstCallAttempted).toBe(2) // 429 then success
     })
 
+    it("terminates cleanly when the server returns a stuck cursor (regression for the 'Exporting 0 rows' hang)", async () => {
+        // Reproduces the bug QA hit: every fetched page contains the same
+        // rows (cursor never advances). Without the source's stuck-cursor
+        // guard, the dedup transform filters every page to empty, the
+        // empty-page guard never fires (raw rows.length > 0), and the scan
+        // loops forever while the UI shows "Exporting 0 rows".
+        let calls = 0
+        const flushed: FakeSpan[][] = []
+        const result = await exportMatchingTraces<FakeSpan>({
+            fetchPage: async () => {
+                calls++
+                return {
+                    rows: [span("t1", "s1"), span("t1", "s2")],
+                    nextCursor: "stuck-timestamp",
+                }
+            },
+            flushBatch: async (batch) => {
+                flushed.push(batch)
+            },
+            batchSize: 1000,
+            pageDelayMs: 0,
+        })
+
+        // First fetch (cursor=null) reads the page. Second fetch
+        // (cursor="stuck-timestamp") returns the same cursor → source
+        // ends the stream. Pipeline finalizes with whatever made it past
+        // dedup from the first page.
+        expect(calls).toBe(2)
+        expect(result.stoppedBy).toBe("done")
+        expect(result.rowCount).toBe(2) // s1, s2 from first page; second page deduped out
+        expect(flushed.flat().map((r) => r.span_id)).toEqual(["s1", "s2"])
+    })
+
+    it("progress reports matched rows immediately (regression for 'stuck at 0' during scan)", async () => {
+        // The buffered batch sink only flushes when a batch fills (default
+        // 500). Reporting the flushed count makes the toast stay at 0
+        // until the first full batch lands — confusing for users who see
+        // "Exporting 0 rows" while pages are clearly being fetched.
+        const progressRows: number[] = []
+        await exportMatchingTraces<FakeSpan>({
+            fetchPage: pagesFetcher([
+                {
+                    rows: Array.from({length: 50}, (_, i) => span(`t${i}`, `s${i}`)),
+                    nextCursor: "c1",
+                },
+                {
+                    rows: Array.from({length: 50}, (_, i) => span(`t${50 + i}`, `s${50 + i}`)),
+                    nextCursor: null,
+                },
+            ]),
+            flushBatch: async () => {},
+            // Batch size larger than the total — nothing actually flushes
+            // until finalize. Progress must still report per-page rows.
+            batchSize: 1000,
+            pageDelayMs: 0,
+            onProgress: (p) => progressRows.push(p.rows),
+        })
+
+        // Two per-page progress events + one final reconciliation. The
+        // per-page values must be > 0 (post-dedup matched count), not 0.
+        expect(progressRows.length).toBeGreaterThanOrEqual(2)
+        expect(progressRows[0]).toBe(50)
+        expect(progressRows[1]).toBe(100)
+        expect(progressRows[progressRows.length - 1]).toBe(100)
+    })
+
     it("uses a custom selectKey when provided", async () => {
         const flushed: FakeSpan[][] = []
         const result = await exportMatchingTraces<FakeSpan>({

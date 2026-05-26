@@ -62,10 +62,11 @@ describe("makeSourceFromCursorFetch", () => {
         const source = makeSourceFromCursorFetch<string>({
             pageDelayMs: 0,
             maxEmptyPages: 3,
-            // A cursor that never advances past empty pages.
+            // Cursor advances each page (so the stuck-cursor guard doesn't
+            // fire) but rows stay empty — exercises the empty-page guard.
             fetchPage: async () => {
                 calls++
-                return {rows: [], nextCursor: "stuck"}
+                return {rows: [], nextCursor: `c${calls}`}
             },
         })
 
@@ -74,6 +75,34 @@ describe("makeSourceFromCursorFetch", () => {
         expect(calls).toBe(3)
         expect(chunks).toHaveLength(3)
         expect(chunks[2].cursor).toBeNull()
+    })
+
+    it("stops when the server returns the same cursor we just used (stuck-cursor guard)", async () => {
+        // Real-world trigger: every row on the page shares a `start_time`
+        // the backend's strict-less-than filter can't bump past, so each
+        // fetch returns the same rows + same cursor. The empty-page guard
+        // never fires because `rows.length > 0`, but the loop can never
+        // make forward progress — the stuck-cursor check ends it cleanly.
+        let calls = 0
+        const seenCursors: (string | null)[] = []
+        const source = makeSourceFromCursorFetch<string>({
+            pageDelayMs: 0,
+            fetchPage: async (cursor) => {
+                calls++
+                seenCursors.push(cursor)
+                return {rows: ["a", "b"], nextCursor: "stuck-timestamp"}
+            },
+        })
+
+        const chunks = await collectChunks(source, new AbortController().signal)
+
+        // First fetch with cursor=null gets nextCursor="stuck-timestamp"
+        // (no comparison possible). Second fetch with cursor="stuck-timestamp"
+        // gets the SAME nextCursor back → loop ends.
+        expect(calls).toBe(2)
+        expect(seenCursors).toEqual([null, "stuck-timestamp"])
+        expect(chunks).toHaveLength(2)
+        expect(chunks[1].cursor).toBeNull() // last chunk is closed off
     })
 
     it("stops scanning once the signal is aborted", async () => {

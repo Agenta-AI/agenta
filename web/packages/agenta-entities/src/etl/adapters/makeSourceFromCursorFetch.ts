@@ -55,9 +55,18 @@ export function makeSourceFromCursorFetch<T>(
 
                 emptyPageCount = page.rows.length === 0 ? emptyPageCount + 1 : 0
                 const nextCursor = page.nextCursor
-                // Safety: the cursor stopped advancing (pages keep coming back
-                // empty) — treat as end-of-stream so the loop can't spin.
-                const stalled = emptyPageCount >= maxEmptyPages
+                // Safety: the cursor stopped advancing — end the stream so
+                // the loop can't spin forever. Two ways this happens:
+                //   - Pages keep coming back empty (`maxEmptyPages` guard).
+                //   - The server returns the SAME cursor we just used. Real
+                //     example: every row on the page shares a `start_time`
+                //     the backend's strict-less-than filter can't bump past,
+                //     so each fetch returns the same rows + same cursor. The
+                //     page is non-empty so the empty-page guard never fires,
+                //     but downstream dedup filters everything out and the
+                //     run never makes forward progress.
+                const cursorStuck = cursor !== null && nextCursor !== null && nextCursor === cursor
+                const stalled = emptyPageCount >= maxEmptyPages || cursorStuck
                 const lastChunk = nextCursor === null || stalled
 
                 yield {items: page.rows, cursor: lastChunk ? null : nextCursor}
