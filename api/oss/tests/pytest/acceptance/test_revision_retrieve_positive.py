@@ -28,6 +28,13 @@ from uuid import uuid4
 
 
 def _create_workflow_stack(authed_api):
+    """Create a workflow with TWO variants and TWO revisions on the default variant.
+
+    Returns (workflow, default_variant, latest_revision, second_variant,
+    second_variant_revision). The default variant is the first one created
+    (DAO orders by created_at asc, id asc). The latest revision is the
+    second commit on the default variant.
+    """
     slug = uuid4().hex[:12]
     response = authed_api(
         "POST",
@@ -62,12 +69,55 @@ def _create_workflow_stack(authed_api):
         },
     )
     assert response.status_code == 200, response.text
-    revision = response.json()["workflow_revision"]
-    return workflow, variant, revision
+    first_revision = response.json()["workflow_revision"]
+
+    response = authed_api(
+        "POST",
+        "/workflows/revisions/",
+        json={
+            "workflow_revision": {
+                "slug": f"wfr2-{slug}",
+                "workflow_variant_id": variant["id"],
+                "workflow_id": workflow["id"],
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    latest_revision = response.json()["workflow_revision"]
+    assert latest_revision["id"] != first_revision["id"]
+
+    response = authed_api(
+        "POST",
+        "/workflows/variants/",
+        json={
+            "workflow_variant": {
+                "slug": f"wfv2-{slug}",
+                "workflow_id": workflow["id"],
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    second_variant = response.json()["workflow_variant"]
+    assert second_variant["id"] != variant["id"]
+
+    response = authed_api(
+        "POST",
+        "/workflows/revisions/",
+        json={
+            "workflow_revision": {
+                "slug": f"wfr-alt-{slug}",
+                "workflow_variant_id": second_variant["id"],
+                "workflow_id": workflow["id"],
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    second_variant_revision = response.json()["workflow_revision"]
+    return workflow, variant, latest_revision, second_variant, second_variant_revision
 
 
 def test_workflows_retrieve_by_revision_id(authed_api):
-    _, _, revision = _create_workflow_stack(authed_api)
+    _, _, revision, _, _ = _create_workflow_stack(authed_api)
     response = authed_api(
         "POST",
         "/workflows/revisions/retrieve",
@@ -78,7 +128,7 @@ def test_workflows_retrieve_by_revision_id(authed_api):
 
 
 def test_workflows_retrieve_by_revision_slug(authed_api):
-    _, _, revision = _create_workflow_stack(authed_api)
+    _, _, revision, _, _ = _create_workflow_stack(authed_api)
     response = authed_api(
         "POST",
         "/workflows/revisions/retrieve",
@@ -89,7 +139,7 @@ def test_workflows_retrieve_by_revision_slug(authed_api):
 
 
 def test_workflows_retrieve_by_variant_slug_and_version(authed_api):
-    _, variant, revision = _create_workflow_stack(authed_api)
+    _, variant, revision, _, _ = _create_workflow_stack(authed_api)
     response = authed_api(
         "POST",
         "/workflows/revisions/retrieve",
@@ -103,31 +153,39 @@ def test_workflows_retrieve_by_variant_slug_and_version(authed_api):
 
 
 def test_workflows_retrieve_by_variant_slug_picks_latest(authed_api):
-    _, variant, revision = _create_workflow_stack(authed_api)
+    _, variant, latest_revision, _, second_variant_revision = _create_workflow_stack(
+        authed_api
+    )
     response = authed_api(
         "POST",
         "/workflows/revisions/retrieve",
         json={"workflow_variant_ref": {"slug": variant["slug"]}},
     )
     assert response.status_code == 200, response.text
-    assert response.json()["workflow_revision"]["id"] == revision["id"]
+    got = response.json()["workflow_revision"]["id"]
+    assert got == latest_revision["id"]
+    assert got != second_variant_revision["id"]
 
 
 def test_workflows_retrieve_by_artifact_slug_picks_default_variant_latest(authed_api):
-    workflow, _, revision = _create_workflow_stack(authed_api)
+    workflow, _, latest_revision, _, second_variant_revision = _create_workflow_stack(
+        authed_api
+    )
     response = authed_api(
         "POST",
         "/workflows/revisions/retrieve",
         json={"workflow_ref": {"slug": workflow["slug"]}},
     )
     assert response.status_code == 200, response.text
-    assert response.json()["workflow_revision"]["id"] == revision["id"]
+    got = response.json()["workflow_revision"]["id"]
+    assert got == latest_revision["id"]
+    assert got != second_variant_revision["id"]
 
 
 def test_workflows_retrieve_by_artifact_slug_and_version_resolves_default_variant(
     authed_api,
 ):
-    workflow, _, revision = _create_workflow_stack(authed_api)
+    workflow, _, revision, _, _ = _create_workflow_stack(authed_api)
     response = authed_api(
         "POST",
         "/workflows/revisions/retrieve",
@@ -141,7 +199,7 @@ def test_workflows_retrieve_by_artifact_slug_and_version_resolves_default_varian
 
 
 def test_workflows_retrieve_with_redundant_consistent_refs(authed_api):
-    workflow, variant, revision = _create_workflow_stack(authed_api)
+    workflow, variant, revision, _, _ = _create_workflow_stack(authed_api)
     response = authed_api(
         "POST",
         "/workflows/revisions/retrieve",
