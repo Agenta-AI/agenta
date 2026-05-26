@@ -115,6 +115,8 @@ const TESTCASE_ENTITY_MARKER_FIELDS = new Set([
 ])
 
 const TESTCASE_ENTITY_UPDATE_MARKER_FIELDS = new Set([
+    "id",
+    "key",
     "testset_id",
     "set_id",
     "testset_variant_id",
@@ -129,7 +131,8 @@ const TESTCASE_ENTITY_UPDATE_MARKER_FIELDS = new Set([
 
 const isTestcaseEntityUpdate = (updates: Record<string, unknown>): boolean =>
     isRecord(updates.data) ||
-    Object.keys(updates).some((key) => TESTCASE_ENTITY_UPDATE_MARKER_FIELDS.has(key))
+    (Object.prototype.hasOwnProperty.call(updates, "data") &&
+        Object.keys(updates).some((key) => TESTCASE_ENTITY_UPDATE_MARKER_FIELDS.has(key)))
 
 const hasWrappedDataShape = (row: Record<string, unknown>): boolean => {
     if (!isRecord(row.data)) return false

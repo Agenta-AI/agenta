@@ -18,8 +18,10 @@ import deepEqual from "fast-deep-equal"
 import {parseCodeString, toCodeString, type RootDrawerViewMode} from "./codeFormat"
 import type {TestcaseDataEditorColumn, TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
 import {
+    buildTestcaseCodeEditorValue,
     getTestcasePathValue,
     getTestcaseRootItems,
+    mergeTestcaseCodeEditorValue,
     normalizeTestcaseData,
     resolveTestcaseEditorFeatures,
     setTestcasePathValue,
@@ -74,12 +76,7 @@ function FullPayloadCodeEditor({
     // commit then fails zod validation). On change, merge edits back over the
     // original value so system fields survive.
     const editableValue = useMemo(() => {
-        if (!columns?.length) return value
-        const subset: Record<string, unknown> = {}
-        for (const column of columns) {
-            subset[column.key] = value[column.key]
-        }
-        return subset
+        return buildTestcaseCodeEditorValue(value, columns)
     }, [columns, value])
 
     const displayValue = useMemo(() => toCodeString(editableValue, format), [editableValue, format])
@@ -92,7 +89,7 @@ function FullPayloadCodeEditor({
             if (parsed === editableValue) return
             const parsedRecord = normalizeTestcaseData(parsed as Record<string, unknown>)
             if (deepEqual(parsedRecord, editableValue)) return
-            onChange(columns?.length ? {...value, ...parsedRecord} : parsedRecord)
+            onChange(mergeTestcaseCodeEditorValue(value, parsedRecord, columns))
         },
         [columns, editable, editableValue, format, onChange, value],
     )
