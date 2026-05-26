@@ -1,0 +1,83 @@
+[
+    {
+        "country": "Vanuatu",
+        "population_thousands": 320,
+        "is_island_nation": true,
+        "geo": {
+            "region": "Pacific Islands",
+            "subregion": "Western Melanesia",
+            "coordinates": {
+                "lat": -15.376,
+                "lng": 166.959
+            }
+        },
+        "languages": ["en", "bi", "fr"],
+        "metadata": "{\"source\":\"trace\",\"trace_id\":\"vu-001\",\"latency_ms\":520,\"confidence\":\"high\"}",
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a geography research assistant with access to a country lookup tool. Cite ISO codes when available."
+            },
+            {
+                "role": "user",
+                "content": "What is the capital of Vanuatu and its ISO 3166-1 alpha-2 code?"
+            },
+            {
+                "role": "assistant",
+                "content": "Port Vila is the capital of Vanuatu. Its ISO 3166-1 alpha-2 code is VU."
+            }
+        ],
+        "correct_answer": "Port Vila",
+        "notes": "Vanuatu became independent in 1980. Unused-by-default to exercise the unreferenced-columns footer."
+    },
+    {
+        "country": "Kiribati",
+        "population_thousands": 120,
+        "is_island_nation": true,
+        "geo": {
+            "region": "Pacific Islands",
+            "subregion": "Micronesia",
+            "coordinates": {
+                "lat": 1.451,
+                "lng": 172.971
+            }
+        },
+        "languages": ["en", "gil"],
+        "metadata": "{\"source\":\"trace\",\"trace_id\":\"ki-001\",\"latency_ms\":480,\"confidence\":\"high\"}",
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a geography research assistant with access to a country lookup tool. Cite ISO codes when available."
+            },
+            {
+                "role": "user",
+                "content": "What is the capital of Kiribati?"
+            }
+        ],
+        "correct_answer": "South Tarawa",
+        "notes": "Kiribati straddles the equator and the international date line."
+    },
+    {
+        "country": "Switzerland",
+        "population_thousands": 8700,
+        "is_island_nation": false,
+        "geo": {
+            "region": "Europe",
+            "subregion": "Western Europe",
+            "coordinates": {
+                "lat": 46.818,
+                "lng": 8.227
+            }
+        },
+        "languages": ["de", "fr", "it", "rm"],
+        "metadata": "{\"source\":\"trace\",\"trace_id\":\"ch-001\",\"latency_ms\":410,\"confidence\":\"high\"}",
+        "messages": [
+            {
+                "role": "user",
+                "content": "What is the capital of Switzerland?"
+            }
+        ],
+        "correct_answer": "Bern",
+        "notes": "Switzerland is famous for its political neutrality and four national languages."
+    }
+]
