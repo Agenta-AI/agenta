@@ -641,7 +641,7 @@ class TestsetsService:
             artifact_ref=testset_ref,
             variant_ref=testset_variant_ref,
             revision_ref=testset_revision_ref,
-            artifact_kind="testset",
+            entity_type="testset",
         )
 
         if testset_ref and not testset_variant_ref and not testset_revision_ref:

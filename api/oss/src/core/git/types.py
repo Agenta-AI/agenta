@@ -46,7 +46,7 @@ def validate_revision_ref_unambiguous(
     artifact_ref: Optional[Reference],
     variant_ref: Optional[Reference],
     revision_ref: Optional[Reference],
-    artifact_kind: str = "artifact",
+    entity_type: str = "artifact",
 ) -> None:
     """Reject revision-retrieve requests that cannot identify a single revision.
 
@@ -70,7 +70,7 @@ def validate_revision_ref_unambiguous(
     is accepted as a parameter for forward compatibility (future cross-ref
     mismatch validation, rule 2.c) but is not consulted today.
 
-    `artifact_kind` is interpolated into the error message ("workflow",
+    `entity_type` is interpolated into the error message ("workflow",
     "testset", ...) so callers across entities can keep their messages
     accurate without duplicating the logic.
     """
@@ -87,9 +87,9 @@ def validate_revision_ref_unambiguous(
         return
 
     raise RevisionRefInvalid(
-        f"{artifact_kind}_revision_ref.version is a per-variant sequence number "
-        f"and requires a {artifact_kind}_variant_ref to be unambiguous. "
-        f"Provide a {artifact_kind}_variant_ref, or identify the revision by "
-        f"{artifact_kind}_revision_ref.id or {artifact_kind}_revision_ref.slug "
+        f"{entity_type}_revision_ref.version is a per-variant sequence number "
+        f"and requires a {entity_type}_variant_ref to be unambiguous. "
+        f"Provide a {entity_type}_variant_ref, or identify the revision by "
+        f"{entity_type}_revision_ref.id or {entity_type}_revision_ref.slug "
         f"(both are project-unique)."
     )

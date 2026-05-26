@@ -618,7 +618,7 @@ class EnvironmentsService:
             artifact_ref=environment_ref,
             variant_ref=environment_variant_ref,
             revision_ref=environment_revision_ref,
-            artifact_kind="environment",
+            entity_type="environment",
         )
 
         if (

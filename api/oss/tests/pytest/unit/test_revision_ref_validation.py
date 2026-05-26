@@ -71,18 +71,18 @@ class TestVersionOnlyRejection:
                 revision_ref=_ref(version="1"),
             )
 
-    def test_artifact_kind_appears_in_message(self):
+    def test_entity_type_appears_in_message(self):
         with pytest.raises(RevisionRefInvalid) as exc:
             validate_revision_ref_unambiguous(
                 artifact_ref=None,
                 variant_ref=None,
                 revision_ref=_ref(version="1"),
-                artifact_kind="testset",
+                entity_type="testset",
             )
         assert "testset_revision_ref.version" in exc.value.message
         assert "testset_variant_ref" in exc.value.message
 
-    def test_artifact_kind_default_is_artifact(self):
+    def test_entity_type_default_is_artifact(self):
         with pytest.raises(RevisionRefInvalid) as exc:
             validate_revision_ref_unambiguous(
                 artifact_ref=None,

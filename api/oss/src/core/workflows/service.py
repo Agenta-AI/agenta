@@ -1084,7 +1084,7 @@ class WorkflowsService:
             artifact_ref=workflow_ref,
             variant_ref=workflow_variant_ref,
             revision_ref=workflow_revision_ref,
-            artifact_kind="workflow",
+            entity_type="workflow",
         )
 
         if workflow_ref and not workflow_variant_ref and not workflow_revision_ref:

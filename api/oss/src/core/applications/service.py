@@ -554,7 +554,7 @@ class ApplicationsService:
             artifact_ref=application_ref,
             variant_ref=application_variant_ref,
             revision_ref=application_revision_ref,
-            artifact_kind="application",
+            entity_type="application",
         )
 
         workflow_revision = await self.workflows_service.fetch_workflow_revision(

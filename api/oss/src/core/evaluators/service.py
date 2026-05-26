@@ -557,7 +557,7 @@ class EvaluatorsService:
             artifact_ref=evaluator_ref,
             variant_ref=evaluator_variant_ref,
             revision_ref=evaluator_revision_ref,
-            artifact_kind="evaluator",
+            entity_type="evaluator",
         )
 
         workflow_revision = await self.workflows_service.fetch_workflow_revision(

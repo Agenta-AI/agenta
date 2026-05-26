@@ -651,7 +651,7 @@ class QueriesService:
             artifact_ref=query_ref,
             variant_ref=query_variant_ref,
             revision_ref=query_revision_ref,
-            artifact_kind="query",
+            entity_type="query",
         )
 
         if query_ref and not query_variant_ref and not query_revision_ref:
