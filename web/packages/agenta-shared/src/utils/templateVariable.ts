@@ -73,7 +73,13 @@ export interface TemplateVariableValidation {
 /**
  * Validate a template placeholder against the envelope schema.
  *
- * - JSONPath / JSON Pointer: the root segment MUST be a known envelope slot.
+ * - JSONPath (`$.<path>`) / JSON Pointer (`/<path>`): the root segment is
+ *   permissive — it CAN be an envelope slot (`inputs`, `outputs`, ...) or
+ *   a testcase top-level column (which gets spread into the render context
+ *   per the RFC, so `{{$.profile.name}}` resolves against the spread `profile`
+ *   key). The validator flags the root as invalid ONLY when it looks like a
+ *   typo of an envelope slot (e.g. `input` → `inputs`, `out` → `outputs`) —
+ *   that's the typo detection hint we keep around. Otherwise, accept.
  * - Plain names and dot-notation: permissive (no envelope prefix, can't
  *   validate structurally without more context).
  *
@@ -111,19 +117,28 @@ export function validateTemplateVariable(expr: string): TemplateVariableValidati
             .split(/[.[\]'"]/)
             .filter(Boolean)
         if (tokens.length === 0) {
+            // `{{$}}` (whole context as compact JSON) is valid mustache
+            // JSONPath. `{{$.}}` or similar empties are caught by the
+            // hasEmptySegment check above.
+            return {valid: true}
+        }
+        // Per the RFC, the JSONPath root can be either an envelope slot
+        // (`inputs`, `outputs`, ...) OR a testcase column (testcase top-level
+        // keys are spread into the render context, so `{{$.profile.name}}`
+        // resolves against the spread `profile`). The validator only flags
+        // when the root looks like a near-miss TYPO of an envelope slot —
+        // that's the actionable signal the editor can give without context.
+        const first = tokens[0]
+        if (KNOWN_ENVELOPE_SLOTS.has(first)) return {valid: true}
+        const suggestion = suggestEnvelopeSlot(first)
+        if (suggestion) {
             return {
                 valid: false,
-                reason: `JSONPath root has no envelope slot. Expected one of: ${knownList}.`,
+                reason: `\`${first}\` looks like a typo for envelope slot \`${suggestion}\`. (If \`${first}\` is a testcase column, use \`{{${first}.${tokens.slice(1).join(".") || "..."}}}\` or rename to avoid the resemblance.)`,
+                suggestion,
             }
         }
-        if (!KNOWN_ENVELOPE_SLOTS.has(tokens[0])) {
-            const suggestion = suggestEnvelopeSlot(tokens[0])
-            return {
-                valid: false,
-                reason: `Unknown envelope slot \`${tokens[0]}\`. Must root at one of: ${knownList}.`,
-                ...(suggestion ? {suggestion} : {}),
-            }
-        }
+        // Not a slot, not a typo — assume it's a testcase-spread key.
         return {valid: true}
     }
 

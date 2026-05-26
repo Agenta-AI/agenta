@@ -42,16 +42,38 @@ describe("validateTemplateVariable", () => {
             expect(validateTemplateVariable("$.trace.span_id").valid).toBe(true)
         })
 
-        it("rejects when rooted at an unknown segment", () => {
-            const result = validateTemplateVariable("$.geo.region")
-            expect(result.valid).toBe(false)
-            expect(result.reason).toMatch(/Unknown envelope slot/i)
+        it("accepts when rooted at a testcase top-level column (RFC: keys are spread)", () => {
+            // Per RFC: testcase top-level keys are spread into the render
+            // context, so `{{$.profile.name}}` resolves against the spread
+            // `profile` key. The validator must not gate this.
+            expect(validateTemplateVariable("$.geo.region").valid).toBe(true)
+            expect(validateTemplateVariable("$.profile.name").valid).toBe(true)
+            expect(validateTemplateVariable("$.profile.tags[0]").valid).toBe(true)
+            expect(validateTemplateVariable("$.country").valid).toBe(true)
         })
 
-        it("suggests the nearest envelope slot on typos", () => {
+        it("accepts the bare root `$` (whole context as compact JSON)", () => {
+            expect(validateTemplateVariable("$").valid).toBe(true)
+        })
+
+        it("rejects when the root looks like a typo of an envelope slot", () => {
+            // `input` → `inputs`, `out` → `outputs` etc. These are the
+            // actionable typo hints the editor surfaces.
+            const inputTypo = validateTemplateVariable("$.input.country")
+            expect(inputTypo.valid).toBe(false)
+            expect(inputTypo.suggestion).toBe("inputs")
+
+            const outTypo = validateTemplateVariable("$.out.answer")
+            expect(outTypo.valid).toBe(false)
+            expect(outTypo.suggestion).toBe("outputs")
+        })
+
+        it("rejects with a hint that mentions testcase-column escape", () => {
             const result = validateTemplateVariable("$.input.country")
-            expect(result.valid).toBe(false)
-            expect(result.suggestion).toBe("inputs")
+            expect(result.reason).toMatch(/looks like a typo/i)
+            // The reason text should mention the testcase-column form so the
+            // user knows how to express it if `input` is actually their column.
+            expect(result.reason).toMatch(/testcase column/i)
         })
     })
 
