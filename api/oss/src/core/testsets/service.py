@@ -5,8 +5,10 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import (
-    validate_revision_ref_unambiguous,
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
     needs_default_variant_resolution,
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -427,6 +429,10 @@ class TestsetsService:
         testset_ref: Optional[Reference] = None,
         testset_variant_ref: Optional[Reference] = None,
     ) -> Optional[TestsetVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=testset_variant_ref,
+            entity_type="testset",
+        )
         variant = await self.testsets_dao.fetch_variant(
             project_id=project_id,
             #
@@ -640,12 +646,19 @@ class TestsetsService:
         if not testset_ref and not testset_variant_ref and not testset_revision_ref:
             return None
 
-        validate_revision_ref_unambiguous(
+        validate_variant_refs_sufficient(
+            variant_ref=testset_variant_ref,
+            entity_type="testset",
+        )
+        validate_revision_refs_sufficient(
             artifact_ref=testset_ref,
             variant_ref=testset_variant_ref,
             revision_ref=testset_revision_ref,
             entity_type="testset",
         )
+
+        _original_testset_ref = testset_ref
+        _original_testset_variant_ref = testset_variant_ref
 
         if needs_default_variant_resolution(
             artifact_ref=testset_ref,
@@ -689,6 +702,26 @@ class TestsetsService:
 
         if not revision:
             return None
+
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_testset_ref,
+            variant_ref=_original_testset_variant_ref,
+            revision_ref=testset_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="testset",
+        )
 
         testset_revision = TestsetRevision(
             **revision.model_dump(

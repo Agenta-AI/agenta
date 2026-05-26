@@ -80,8 +80,10 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceStreamResponse,
 )
 from oss.src.core.git.types import (
-    validate_revision_ref_unambiguous,
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
     needs_default_variant_resolution,
+    validate_retrieve_refs_consistent,
 )
 
 # Resolution is now handled by EmbedsService
@@ -832,6 +834,10 @@ class WorkflowsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=workflow_variant_ref,
+            entity_type="workflow",
+        )
         variant = await self.workflows_dao.fetch_variant(
             project_id=project_id,
             #
@@ -1083,12 +1089,19 @@ class WorkflowsService:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
 
-        validate_revision_ref_unambiguous(
+        validate_variant_refs_sufficient(
+            variant_ref=workflow_variant_ref,
+            entity_type="workflow",
+        )
+        validate_revision_refs_sufficient(
             artifact_ref=workflow_ref,
             variant_ref=workflow_variant_ref,
             revision_ref=workflow_revision_ref,
             entity_type="workflow",
         )
+
+        _original_workflow_ref = workflow_ref
+        _original_workflow_variant_ref = workflow_variant_ref
 
         if needs_default_variant_resolution(
             artifact_ref=workflow_ref,
@@ -1138,6 +1151,26 @@ class WorkflowsService:
 
         if not revision:
             return None
+
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_workflow_ref,
+            variant_ref=_original_workflow_variant_ref,
+            revision_ref=workflow_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="workflow",
+        )
 
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),

@@ -7,8 +7,10 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import (
-    validate_revision_ref_unambiguous,
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
     needs_default_variant_resolution,
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.shared.dtos import Reference, Windowing, Trace, Traces
 from oss.src.core.tracing.dtos import (
@@ -431,6 +433,10 @@ class QueriesService:
         query_ref: Optional[Reference] = None,
         query_variant_ref: Optional[Reference] = None,
     ) -> Optional[QueryVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=query_variant_ref,
+            entity_type="query",
+        )
         variant = await self.queries_dao.fetch_variant(
             project_id=project_id,
             #
@@ -650,12 +656,19 @@ class QueriesService:
         if not query_ref and not query_variant_ref and not query_revision_ref:
             return None
 
-        validate_revision_ref_unambiguous(
+        validate_variant_refs_sufficient(
+            variant_ref=query_variant_ref,
+            entity_type="query",
+        )
+        validate_revision_refs_sufficient(
             artifact_ref=query_ref,
             variant_ref=query_variant_ref,
             revision_ref=query_revision_ref,
             entity_type="query",
         )
+
+        _original_query_ref = query_ref
+        _original_query_variant_ref = query_variant_ref
 
         if needs_default_variant_resolution(
             artifact_ref=query_ref,
@@ -699,6 +712,26 @@ class QueriesService:
 
         if not revision:
             return None
+
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_query_ref,
+            variant_ref=_original_query_variant_ref,
+            revision_ref=query_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="query",
+        )
 
         _query_revision = QueryRevision(
             **revision.model_dump(mode="json"),
