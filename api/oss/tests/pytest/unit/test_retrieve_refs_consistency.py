@@ -28,13 +28,9 @@ class TestAllRefsAbsent:
             artifact_ref=None,
             variant_ref=None,
             revision_ref=None,
-            resolved_artifact_id=uuid4(),
-            resolved_artifact_slug="my-artifact",
-            resolved_variant_id=uuid4(),
-            resolved_variant_slug="my-variant",
-            resolved_revision_id=uuid4(),
-            resolved_revision_slug="my-revision",
-            resolved_revision_version=1,
+            resolved_artifact_ref=_ref(id=uuid4(), slug="my-artifact"),
+            resolved_variant_ref=_ref(id=uuid4(), slug="my-variant"),
+            resolved_revision_ref=_ref(id=uuid4(), slug="my-revision", version="1"),
         )
 
     def test_no_resolved_fields_passes(self):
@@ -49,9 +45,9 @@ class TestAllRefsAbsent:
             artifact_ref=_ref(),
             variant_ref=_ref(),
             revision_ref=_ref(),
-            resolved_artifact_id=uuid4(),
-            resolved_variant_id=uuid4(),
-            resolved_revision_id=uuid4(),
+            resolved_artifact_ref=_ref(id=uuid4()),
+            resolved_variant_ref=_ref(id=uuid4()),
+            resolved_revision_ref=_ref(id=uuid4()),
         )
 
 
@@ -61,7 +57,7 @@ class TestArtifactConsistency:
             artifact_ref=_ref(slug="my-artifact"),
             variant_ref=None,
             revision_ref=None,
-            resolved_artifact_slug="my-artifact",
+            resolved_artifact_ref=_ref(slug="my-artifact"),
         )
 
     def test_artifact_slug_mismatch_raises(self):
@@ -70,7 +66,7 @@ class TestArtifactConsistency:
                 artifact_ref=_ref(slug="wrong-artifact"),
                 variant_ref=None,
                 revision_ref=None,
-                resolved_artifact_slug="my-artifact",
+                resolved_artifact_ref=_ref(slug="my-artifact"),
             )
         assert "artifact_ref.slug" in exc.value.message
         assert "wrong-artifact" in exc.value.message
@@ -84,7 +80,7 @@ class TestArtifactConsistency:
                 artifact_ref=_ref(id=wrong_id),
                 variant_ref=None,
                 revision_ref=None,
-                resolved_artifact_id=right_id,
+                resolved_artifact_ref=_ref(id=right_id),
             )
         assert "artifact_ref.id" in exc.value.message
 
@@ -94,7 +90,7 @@ class TestArtifactConsistency:
             artifact_ref=_ref(id=same),
             variant_ref=None,
             revision_ref=None,
-            resolved_artifact_id=same,
+            resolved_artifact_ref=_ref(id=same),
         )
 
     def test_entity_type_appears_in_message(self):
@@ -103,7 +99,7 @@ class TestArtifactConsistency:
                 artifact_ref=_ref(slug="wrong"),
                 variant_ref=None,
                 revision_ref=None,
-                resolved_artifact_slug="right",
+                resolved_artifact_ref=_ref(slug="right"),
                 entity_type="testset",
             )
         assert "testset_ref.slug" in exc.value.message
@@ -116,7 +112,7 @@ class TestVariantConsistency:
                 artifact_ref=None,
                 variant_ref=_ref(slug="wrong-variant"),
                 revision_ref=None,
-                resolved_variant_slug="my-variant",
+                resolved_variant_ref=_ref(slug="my-variant"),
             )
         assert "variant_ref.slug" in exc.value.message
 
@@ -126,7 +122,7 @@ class TestVariantConsistency:
             artifact_ref=None,
             variant_ref=_ref(id=same),
             revision_ref=None,
-            resolved_variant_id=same,
+            resolved_variant_ref=_ref(id=same),
         )
 
 
@@ -137,7 +133,7 @@ class TestRevisionConsistency:
                 artifact_ref=None,
                 variant_ref=None,
                 revision_ref=_ref(slug="wrong-rev"),
-                resolved_revision_slug="my-rev",
+                resolved_revision_ref=_ref(slug="my-rev"),
             )
         assert "revision_ref.slug" in exc.value.message
 
@@ -147,7 +143,7 @@ class TestRevisionConsistency:
                 artifact_ref=None,
                 variant_ref=None,
                 revision_ref=_ref(version="2"),
-                resolved_revision_version=1,
+                resolved_revision_ref=_ref(version="1"),
             )
         assert "revision_ref.version" in exc.value.message
 
@@ -156,7 +152,7 @@ class TestRevisionConsistency:
             artifact_ref=None,
             variant_ref=None,
             revision_ref=_ref(version="1"),
-            resolved_revision_version=1,
+            resolved_revision_ref=_ref(version="1"),
         )
 
 
@@ -169,13 +165,9 @@ class TestCrossFieldConsistency:
             artifact_ref=_ref(id=a_id, slug="art"),
             variant_ref=_ref(id=v_id, slug="var"),
             revision_ref=_ref(id=r_id, slug="rev", version="3"),
-            resolved_artifact_id=a_id,
-            resolved_artifact_slug="art",
-            resolved_variant_id=v_id,
-            resolved_variant_slug="var",
-            resolved_revision_id=r_id,
-            resolved_revision_slug="rev",
-            resolved_revision_version=3,
+            resolved_artifact_ref=_ref(id=a_id, slug="art"),
+            resolved_variant_ref=_ref(id=v_id, slug="var"),
+            resolved_revision_ref=_ref(id=r_id, slug="rev", version="3"),
         )
 
     def test_multiple_mismatches_reported_together(self):
@@ -184,8 +176,8 @@ class TestCrossFieldConsistency:
                 artifact_ref=_ref(slug="wrong-art"),
                 variant_ref=_ref(slug="wrong-var"),
                 revision_ref=None,
-                resolved_artifact_slug="art",
-                resolved_variant_slug="var",
+                resolved_artifact_ref=_ref(slug="art"),
+                resolved_variant_ref=_ref(slug="var"),
             )
         assert "artifact_ref.slug" in exc.value.message
         assert "variant_ref.slug" in exc.value.message
@@ -198,7 +190,7 @@ class TestExceptionType:
                 artifact_ref=_ref(slug="wrong"),
                 variant_ref=None,
                 revision_ref=None,
-                resolved_artifact_slug="right",
+                resolved_artifact_ref=_ref(slug="right"),
             )
 
     def test_exception_message_attribute(self):
@@ -207,7 +199,7 @@ class TestExceptionType:
                 artifact_ref=_ref(slug="wrong"),
                 variant_ref=None,
                 revision_ref=None,
-                resolved_artifact_slug="right",
+                resolved_artifact_ref=_ref(slug="right"),
             )
         assert exc.value.message
         assert isinstance(exc.value.message, str)

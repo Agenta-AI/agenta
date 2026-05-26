@@ -1147,13 +1147,19 @@ class WorkflowsService:
             artifact_ref=_original_workflow_ref,
             variant_ref=_original_workflow_variant_ref,
             revision_ref=workflow_revision_ref,
-            resolved_artifact_id=revision.artifact_id,
-            resolved_artifact_slug=revision.artifact_slug,
-            resolved_variant_id=revision.variant_id,
-            resolved_variant_slug=revision.variant_slug,
-            resolved_revision_id=revision.id,
-            resolved_revision_slug=revision.slug,
-            resolved_revision_version=revision.version,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
             entity_type="workflow",
         )
 

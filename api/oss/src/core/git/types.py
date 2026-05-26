@@ -142,13 +142,9 @@ def validate_retrieve_refs_consistent(
     artifact_ref: Optional[Reference],
     variant_ref: Optional[Reference],
     revision_ref: Optional[Reference],
-    resolved_artifact_id=None,
-    resolved_artifact_slug: Optional[str] = None,
-    resolved_variant_id=None,
-    resolved_variant_slug: Optional[str] = None,
-    resolved_revision_id=None,
-    resolved_revision_slug: Optional[str] = None,
-    resolved_revision_version: Optional[int] = None,
+    resolved_artifact_ref: Optional[Reference] = None,
+    resolved_variant_ref: Optional[Reference] = None,
+    resolved_revision_ref: Optional[Reference] = None,
     entity_type: str = "artifact",
 ) -> None:
     """Reject requests where caller-supplied refs contradict the resolved revision (rule 2.d enforcement).
@@ -167,14 +163,14 @@ def validate_retrieve_refs_consistent(
     consistency check the DAO can't service, which is a no-op rather than a
     failure.
     """
-    mismatches: list[str] = []
-    if artifact_ref is not None:
+    mismatches: list[Optional[str]] = []
+    if artifact_ref is not None and resolved_artifact_ref is not None:
         mismatches.append(
             _mismatch(
                 f"{entity_type}_ref.id",
                 artifact_ref.id,
                 "artifact_id",
-                resolved_artifact_id,
+                resolved_artifact_ref.id,
             )
         )
         mismatches.append(
@@ -182,16 +178,16 @@ def validate_retrieve_refs_consistent(
                 f"{entity_type}_ref.slug",
                 artifact_ref.slug,
                 "artifact_slug",
-                resolved_artifact_slug,
+                resolved_artifact_ref.slug,
             )
         )
-    if variant_ref is not None:
+    if variant_ref is not None and resolved_variant_ref is not None:
         mismatches.append(
             _mismatch(
                 f"{entity_type}_variant_ref.id",
                 variant_ref.id,
                 "variant_id",
-                resolved_variant_id,
+                resolved_variant_ref.id,
             )
         )
         mismatches.append(
@@ -199,16 +195,16 @@ def validate_retrieve_refs_consistent(
                 f"{entity_type}_variant_ref.slug",
                 variant_ref.slug,
                 "variant_slug",
-                resolved_variant_slug,
+                resolved_variant_ref.slug,
             )
         )
-    if revision_ref is not None:
+    if revision_ref is not None and resolved_revision_ref is not None:
         mismatches.append(
             _mismatch(
                 f"{entity_type}_revision_ref.id",
                 revision_ref.id,
                 "id",
-                resolved_revision_id,
+                resolved_revision_ref.id,
             )
         )
         mismatches.append(
@@ -216,15 +212,18 @@ def validate_retrieve_refs_consistent(
                 f"{entity_type}_revision_ref.slug",
                 revision_ref.slug,
                 "slug",
-                resolved_revision_slug,
+                resolved_revision_ref.slug,
             )
         )
-        if revision_ref.version is not None and resolved_revision_version is not None:
-            if str(revision_ref.version) != str(resolved_revision_version):
+        if (
+            revision_ref.version is not None
+            and resolved_revision_ref.version is not None
+        ):
+            if str(revision_ref.version) != str(resolved_revision_ref.version):
                 mismatches.append(
                     f"{entity_type}_revision_ref.version="
                     f"{revision_ref.version!r} does not match resolved "
-                    f"revision's version={resolved_revision_version!r}"
+                    f"revision's version={resolved_revision_ref.version!r}"
                 )
 
     errors = [m for m in mismatches if m]
