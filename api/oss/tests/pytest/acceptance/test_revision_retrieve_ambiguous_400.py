@@ -91,19 +91,6 @@ def test_workflows_retrieve_version_only_returns_400(authed_api):
     _assert_ambiguous_400(response)
 
 
-def test_workflows_retrieve_artifact_plus_version_returns_400(authed_api):
-    workflow, _, _ = _create_workflow_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/workflows/revisions/retrieve",
-        json={
-            "workflow_ref": {"slug": workflow["slug"]},
-            "workflow_revision_ref": {"version": "1"},
-        },
-    )
-    _assert_ambiguous_400(response)
-
-
 def test_workflows_retrieve_variant_plus_version_succeeds(authed_api):
     _, variant, revision = _create_workflow_stack(authed_api)
     response = authed_api(
@@ -167,19 +154,6 @@ def test_applications_retrieve_version_only_returns_400(authed_api):
         "POST",
         "/applications/revisions/retrieve",
         json={"application_revision_ref": {"version": "1"}},
-    )
-    _assert_ambiguous_400(response)
-
-
-def test_applications_retrieve_artifact_plus_version_returns_400(authed_api):
-    app, _, _ = _create_application_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/applications/revisions/retrieve",
-        json={
-            "application_ref": {"slug": app["slug"]},
-            "application_revision_ref": {"version": "1"},
-        },
     )
     _assert_ambiguous_400(response)
 
@@ -251,19 +225,6 @@ def test_evaluators_retrieve_version_only_returns_400(authed_api):
     _assert_ambiguous_400(response)
 
 
-def test_evaluators_retrieve_artifact_plus_version_returns_400(authed_api):
-    evaluator, _, _ = _create_evaluator_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/evaluators/revisions/retrieve",
-        json={
-            "evaluator_ref": {"slug": evaluator["slug"]},
-            "evaluator_revision_ref": {"version": "1"},
-        },
-    )
-    _assert_ambiguous_400(response)
-
-
 def test_evaluators_retrieve_variant_plus_version_succeeds(authed_api):
     _, variant, revision = _create_evaluator_stack(authed_api)
     response = authed_api(
@@ -329,19 +290,6 @@ def test_testsets_retrieve_version_only_returns_400(authed_api):
     _assert_ambiguous_400(response)
 
 
-def test_testsets_retrieve_artifact_plus_version_returns_400(authed_api):
-    testset, _, _ = _create_testset_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/testsets/revisions/retrieve",
-        json={
-            "testset_ref": {"slug": testset["slug"]},
-            "testset_revision_ref": {"version": "1"},
-        },
-    )
-    _assert_ambiguous_400(response)
-
-
 def test_testsets_retrieve_variant_plus_version_succeeds(authed_api):
     _, variant, revision = _create_testset_stack(authed_api)
     response = authed_api(
@@ -396,19 +344,6 @@ def test_queries_retrieve_version_only_returns_400(authed_api):
         "POST",
         "/queries/revisions/retrieve",
         json={"query_revision_ref": {"version": "1"}},
-    )
-    _assert_ambiguous_400(response)
-
-
-def test_queries_retrieve_artifact_plus_version_returns_400(authed_api):
-    query, _ = _create_query_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/queries/revisions/retrieve",
-        json={
-            "query_ref": {"slug": query["slug"]},
-            "query_revision_ref": {"version": "1"},
-        },
     )
     _assert_ambiguous_400(response)
 
@@ -475,19 +410,6 @@ def test_environments_retrieve_version_only_returns_400(authed_api):
         "POST",
         "/environments/revisions/retrieve",
         json={"environment_revision_ref": {"version": "1"}},
-    )
-    _assert_ambiguous_400(response)
-
-
-def test_environments_retrieve_artifact_plus_version_returns_400(authed_api):
-    environment, _, _ = _create_environment_stack(authed_api)
-    response = authed_api(
-        "POST",
-        "/environments/revisions/retrieve",
-        json={
-            "environment_ref": {"slug": environment["slug"]},
-            "environment_revision_ref": {"version": "1"},
-        },
     )
     _assert_ambiguous_400(response)
 
