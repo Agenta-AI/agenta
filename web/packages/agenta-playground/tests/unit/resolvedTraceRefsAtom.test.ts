@@ -73,6 +73,29 @@ describe("buildResolvedTraceRefsKey", () => {
         })
         expect(key).toBe(expected)
     })
+
+    it("encodes environment refs alongside application refs", () => {
+        // Env-only traces must produce a non-empty key so the resolver atom
+        // fires (issue #4426 problem 2d).
+        const envOnly = buildResolvedTraceRefsKey({
+            environment: {slug: "production"},
+        })
+        expect(envOnly).not.toBe(EMPTY_TRACE_REFS_KEY)
+
+        // Different env slugs produce different keys.
+        const otherEnv = buildResolvedTraceRefsKey({
+            environment: {slug: "staging"},
+        })
+        expect(envOnly).not.toBe(otherEnv)
+
+        // App and env refs together produce a distinct key from app-only.
+        const appOnly = buildResolvedTraceRefsKey({application: {slug: "demo"}})
+        const both = buildResolvedTraceRefsKey({
+            application: {slug: "demo"},
+            environment: {slug: "production"},
+        })
+        expect(both).not.toBe(appOnly)
+    })
 })
 
 // ── buildResolvedTraceRefsKeyFromSpan ────────────────────────────────────

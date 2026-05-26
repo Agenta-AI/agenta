@@ -67,12 +67,28 @@ const TraceReferences = () => {
         [references],
     )
 
+    const environmentReference = useMemo(
+        () => references.find((ref) => ref?.key === "environment"),
+        [references],
+    )
+
+    const environmentVariantReference = useMemo(
+        () => references.find((ref) => ref?.key === "environment_variant"),
+        [references],
+    )
+
+    const environmentRevisionReference = useMemo(
+        () => references.find((ref) => ref?.key === "environment_revision"),
+        [references],
+    )
+
     // Build the cache key for the trace-ref resolver from whatever
-    // application-side refs the active span carries. The resolver maps
-    // slug-only refs back to concrete `{appId, revisionId}` via the same
-    // backend round-trip the Playground button already uses. When no
-    // identifying ref is present we fall back to `EMPTY_TRACE_REFS_KEY`
-    // so the family entry stays disabled and no request is fired.
+    // application- or environment-side refs the active span carries. The
+    // resolver maps any combination of identifying refs (id/slug at any
+    // level) back to a concrete `{appId, revisionId}` via the same backend
+    // round-trip the Playground button already uses. When no identifying
+    // ref is present we fall back to `EMPTY_TRACE_REFS_KEY` so the family
+    // entry stays disabled and no request is fired.
     const resolverKey = useMemo(() => {
         const buildRef = (ref: any) => {
             const id = asNonEmpty(ref?.id)
@@ -84,15 +100,35 @@ const TraceReferences = () => {
         const application = buildRef(applicationReference)
         const application_variant = buildRef(applicationVariantReference)
         const application_revision = buildRef(applicationRevisionReference)
-        if (!application && !application_variant && !application_revision) {
+        const environment = buildRef(environmentReference)
+        const environment_variant = buildRef(environmentVariantReference)
+        const environment_revision = buildRef(environmentRevisionReference)
+        if (
+            !application &&
+            !application_variant &&
+            !application_revision &&
+            !environment &&
+            !environment_variant &&
+            !environment_revision
+        ) {
             return EMPTY_TRACE_REFS_KEY
         }
         return buildResolvedTraceRefsKey({
             application,
             application_variant,
             application_revision,
+            environment,
+            environment_variant,
+            environment_revision,
         })
-    }, [applicationReference, applicationVariantReference, applicationRevisionReference])
+    }, [
+        applicationReference,
+        applicationVariantReference,
+        applicationRevisionReference,
+        environmentReference,
+        environmentVariantReference,
+        environmentRevisionReference,
+    ])
 
     const resolvedRefsQuery = useAtomValue(resolvedTraceRefsAtomFamily(resolverKey))
     const resolvedAppId = resolvedRefsQuery.data?.appId ?? null

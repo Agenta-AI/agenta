@@ -297,21 +297,40 @@ export async function retrieveWorkflowRevision({
     workflowRef,
     workflowVariantRef,
     workflowRevisionRef,
+    environmentRef,
+    environmentVariantRef,
+    environmentRevisionRef,
 }: {
     projectId: string
     workflowRef?: {id?: string; slug?: string; version?: string}
     workflowVariantRef?: {id?: string; slug?: string; version?: string}
     workflowRevisionRef?: {id?: string; slug?: string; version?: string}
+    environmentRef?: {id?: string; slug?: string; version?: string}
+    environmentVariantRef?: {id?: string; slug?: string; version?: string}
+    environmentRevisionRef?: {id?: string; slug?: string; version?: string}
 }): Promise<Workflow | null> {
     if (!projectId) return null
     // The backend needs at least one identifying ref (id or slug at any
     // level). A bare `version` on the revision ref is not identifying on
     // its own (it's a per-variant sequence number) and the backend rejects
     // that shape with 400, so we skip the call entirely in that case.
+    //
+    // Environment refs are an alternative entry point: the backend can
+    // resolve through a deployment slot to find the workflow revision
+    // currently deployed there.
     const hasWorkflowIdent = !!(workflowRef?.id || workflowRef?.slug)
     const hasVariantIdent = !!(workflowVariantRef?.id || workflowVariantRef?.slug)
     const hasRevisionIdent = !!(workflowRevisionRef?.id || workflowRevisionRef?.slug)
-    const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
+    const hasEnvIdent = !!(environmentRef?.id || environmentRef?.slug)
+    const hasEnvVariantIdent = !!(environmentVariantRef?.id || environmentVariantRef?.slug)
+    const hasEnvRevisionIdent = !!(environmentRevisionRef?.id || environmentRevisionRef?.slug)
+    const hasNoIdentifyingRef =
+        !hasWorkflowIdent &&
+        !hasVariantIdent &&
+        !hasRevisionIdent &&
+        !hasEnvIdent &&
+        !hasEnvVariantIdent &&
+        !hasEnvRevisionIdent
     if (hasNoIdentifyingRef) return null
 
     // Use the Fern-generated client (single source of truth for the
@@ -322,6 +341,9 @@ export async function retrieveWorkflowRevision({
             ...(workflowRef ? {workflow_ref: workflowRef} : {}),
             ...(workflowVariantRef ? {workflow_variant_ref: workflowVariantRef} : {}),
             ...(workflowRevisionRef ? {workflow_revision_ref: workflowRevisionRef} : {}),
+            ...(environmentRef ? {environment_ref: environmentRef} : {}),
+            ...(environmentVariantRef ? {environment_variant_ref: environmentVariantRef} : {}),
+            ...(environmentRevisionRef ? {environment_revision_ref: environmentRevisionRef} : {}),
         },
         {queryParams: {project_id: projectId}},
     )

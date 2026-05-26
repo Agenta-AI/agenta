@@ -41,6 +41,9 @@ export interface TraceReferences {
     evaluator?: TraceReference
     evaluator_variant?: TraceReference
     evaluator_revision?: TraceReference
+    environment?: TraceReference
+    environment_variant?: TraceReference
+    environment_revision?: TraceReference
 }
 
 export interface ResolvedTraceRefs {
@@ -73,7 +76,14 @@ export function buildRefForResolver(ref: TraceReference | undefined): RefShape {
     return undefined
 }
 
-const IDENTIFYING_REF_KEYS = ["application", "application_variant", "application_revision"] as const
+const IDENTIFYING_REF_KEYS = [
+    "application",
+    "application_variant",
+    "application_revision",
+    "environment",
+    "environment_variant",
+    "environment_revision",
+] as const
 
 /**
  * Structural shape of a span as far as `hasAppReference` is concerned. Both
@@ -88,11 +98,15 @@ export interface SpanWithReferences {
 
 /**
  * Check if a span carries any reference the resolver can use to identify a
- * workflow revision. Accepts application, application_variant, or
- * application_revision refs — each by `id` or `slug`. A bare `version`
+ * workflow revision. Accepts application, application_variant,
+ * application_revision, environment, environment_variant, or
+ * environment_revision refs — each by `id` or `slug`. A bare `version`
  * does not satisfy this predicate because the resolver cannot scope it
  * (the backend rejects version-only requests with 400), so enabling the
  * button on those traces would just spin and fall through to ephemeral.
+ *
+ * Environment refs are accepted because the backend retrieve endpoint
+ * can resolve them to the deployed revision (issue #4426 problem 2d).
  */
 export function hasAppReference(span: SpanWithReferences): boolean {
     const hasIdOrSlug = (ref: unknown): boolean => {
@@ -138,6 +152,9 @@ export function extractReferences(span: TraceSpanNode): TraceReferences {
         if (agRefs.evaluator) result.evaluator = agRefs.evaluator
         if (agRefs.evaluator_variant) result.evaluator_variant = agRefs.evaluator_variant
         if (agRefs.evaluator_revision) result.evaluator_revision = agRefs.evaluator_revision
+        if (agRefs.environment) result.environment = agRefs.environment
+        if (agRefs.environment_variant) result.environment_variant = agRefs.environment_variant
+        if (agRefs.environment_revision) result.environment_revision = agRefs.environment_revision
     }
 
     const topRefs = span.references as
@@ -158,10 +175,50 @@ export function extractReferences(span: TraceSpanNode): TraceReferences {
                 result.evaluator_variant = refData
             if (key === "evaluator_revision" && !result.evaluator_revision)
                 result.evaluator_revision = refData
+            if (key === "environment" && !result.environment) result.environment = refData
+            if (key === "environment_variant" && !result.environment_variant)
+                result.environment_variant = refData
+            if (key === "environment_revision" && !result.environment_revision)
+                result.environment_revision = refData
         }
     }
 
     return result
+}
+
+// ── Branch selection ────────────────────────────────────────────────────
+
+/**
+ * Branches the `openFromTraceAtom` can dispatch into when handling a click
+ * on the "Open in Playground" button.
+ *
+ * - `application_revision` — open the linked app's revision directly
+ * - `evaluator_revision`   — open the linked evaluator's revision directly
+ * - `ephemeral`            — fall back to a local-only workflow draft
+ */
+export type OpenFromTraceBranch = "application_revision" | "evaluator_revision" | "ephemeral"
+
+/**
+ * Decide which entity the click handler should open for a given span. Pure
+ * function so the branch-selection bug fixed for evaluator spans (issue
+ * #4426 problem 3) is unit-testable without standing up the full atom.
+ *
+ * Evaluator spans typically carry the graded application's refs alongside
+ * the evaluator's own. Without the `isEvaluatorSpan` guard, the resolver
+ * backfills `application_revision.id` for the graded app and the user is
+ * sent to that app's playground instead of the evaluator's revision.
+ */
+export function selectOpenFromTraceBranch(
+    refs: TraceReferences,
+    isEvaluatorSpan: boolean,
+): OpenFromTraceBranch {
+    if (!isEvaluatorSpan && isNonEmptyString(refs.application_revision?.id)) {
+        return "application_revision"
+    }
+    if (isEvaluatorSpan && isNonEmptyString(refs.evaluator_revision?.id)) {
+        return "evaluator_revision"
+    }
+    return "ephemeral"
 }
 
 // ── Resolver ─────────────────────────────────────────────────────────────
@@ -226,6 +283,12 @@ export async function resolveTraceRefs(
     const workflowRef = buildRefForResolver(refs.application)
     const variantRef = buildRefForResolver(refs.application_variant)
     const revisionRef = buildRefForResolver(refs.application_revision)
+    // Environment refs let the backend resolve through a deployment slot.
+    // The retrieve endpoint accepts any of {env, env_variant, env_revision};
+    // when at least one is present, the backend reads the deployed revision.
+    const envRef = buildRefForResolver(refs.environment)
+    const envVariantRef = buildRefForResolver(refs.environment_variant)
+    const envRevisionRef = buildRefForResolver(refs.environment_revision)
 
     // The backend needs at least one identifying ref (id or slug at any
     // level). A bare `version` on the revision ref alone is rejected — it's
@@ -234,7 +297,17 @@ export async function resolveTraceRefs(
     const hasWorkflowIdent = !!workflowRef && ("id" in workflowRef || "slug" in workflowRef)
     const hasVariantIdent = !!variantRef && ("id" in variantRef || "slug" in variantRef)
     const hasRevisionIdent = !!revisionRef && ("id" in revisionRef || "slug" in revisionRef)
-    const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
+    const hasEnvIdent = !!envRef && ("id" in envRef || "slug" in envRef)
+    const hasEnvVariantIdent = !!envVariantRef && ("id" in envVariantRef || "slug" in envVariantRef)
+    const hasEnvRevisionIdent =
+        !!envRevisionRef && ("id" in envRevisionRef || "slug" in envRevisionRef)
+    const hasNoIdentifyingRef =
+        !hasWorkflowIdent &&
+        !hasVariantIdent &&
+        !hasRevisionIdent &&
+        !hasEnvIdent &&
+        !hasEnvVariantIdent &&
+        !hasEnvRevisionIdent
     if (hasNoIdentifyingRef) return {appId: null, revisionId: null}
 
     const askedAppSlug = workflowRef && "slug" in workflowRef ? workflowRef.slug : undefined
@@ -244,6 +317,9 @@ export async function resolveTraceRefs(
         workflowRef,
         variantRef,
         revisionRef,
+        envRef,
+        envVariantRef,
+        envRevisionRef,
     ]
 
     try {
@@ -255,6 +331,9 @@ export async function resolveTraceRefs(
                     ...(workflowRef ? {workflowRef} : {}),
                     ...(variantRef ? {workflowVariantRef: variantRef} : {}),
                     ...(revisionRef ? {workflowRevisionRef: revisionRef} : {}),
+                    ...(envRef ? {environmentRef: envRef} : {}),
+                    ...(envVariantRef ? {environmentVariantRef: envVariantRef} : {}),
+                    ...(envRevisionRef ? {environmentRevisionRef: envRevisionRef} : {}),
                 })
 
                 if (!revision) {

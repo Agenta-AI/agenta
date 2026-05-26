@@ -58,20 +58,31 @@ const decodeRef = (part: string): TraceReference | undefined => {
 }
 
 const KEY_SEPARATOR = "|"
+// Number of ref slots encoded in the key (application × 3, environment × 3).
+// An empty key is six separators between seven empty slots — keep this in
+// sync with `buildResolvedTraceRefsKey`'s slot list.
+const KEY_SLOT_COUNT = 6
 
 /** Sentinel for "no identifying refs"; family entry kept disabled. */
-export const EMPTY_TRACE_REFS_KEY = `${KEY_SEPARATOR}${KEY_SEPARATOR}`
+export const EMPTY_TRACE_REFS_KEY = KEY_SEPARATOR.repeat(KEY_SLOT_COUNT - 1)
 
 /**
- * Stable cache key built from the application-side identifying refs only.
- * Two spans that carry the same triple share the same atom (and the same
- * underlying query cache entry).
+ * Stable cache key built from the identifying app + environment refs.
+ * Two spans that carry the same combination share the same atom (and the
+ * same underlying query cache entry).
+ *
+ * Environment refs are included because the backend retrieve endpoint can
+ * resolve through a deployment slot to find the revision currently
+ * deployed there (issue #4426 problem 2d).
  */
 export const buildResolvedTraceRefsKey = (refs: TraceReferences): string =>
     [
         encodeRef(refs.application),
         encodeRef(refs.application_variant),
         encodeRef(refs.application_revision),
+        encodeRef(refs.environment),
+        encodeRef(refs.environment_variant),
+        encodeRef(refs.environment_revision),
     ].join(KEY_SEPARATOR)
 
 const parseResolvedTraceRefsKey = (refsKey: string): TraceReferences => {
@@ -80,6 +91,9 @@ const parseResolvedTraceRefsKey = (refsKey: string): TraceReferences => {
         application: decodeRef(parts[0] ?? ""),
         application_variant: decodeRef(parts[1] ?? ""),
         application_revision: decodeRef(parts[2] ?? ""),
+        environment: decodeRef(parts[3] ?? ""),
+        environment_variant: decodeRef(parts[4] ?? ""),
+        environment_revision: decodeRef(parts[5] ?? ""),
     }
 }
 

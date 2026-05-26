@@ -571,6 +571,91 @@ export const createWorkflowFromEphemeralAtom = atom(
             const workflowName = name || entity.name || "Workflow"
             const workflowSlug = slug || generateSlug(workflowName)
 
+            // Check whether this ephemeral was created from an existing
+            // application's trace (`meta.sourceRef.type === "application"`).
+            // If so, "Create" should fork the source app as a new variant
+            // instead of spinning up a disconnected new app — that's the
+            // behavior reported as broken in #4426 problem 2b. Falls back
+            // to the new-workflow path when no sourceRef id is available
+            // (e.g. ephemerals from third-party traces with slug-only refs
+            // that didn't resolve via the resolver).
+            const meta = entity.meta as Record<string, unknown> | null | undefined
+            const sourceRef = meta?.sourceRef as
+                | {type?: string; id?: string; slug?: string}
+                | undefined
+            const forkFromAppId =
+                sourceRef?.type === "application" && sourceRef.id ? sourceRef.id : null
+
+            if (forkFromAppId && entity.data) {
+                // Fork-as-variant path. Mirrors `createWorkflowVariantAtom`
+                // but uses the sourceRef's workflow id (no separate base
+                // revision in the store to read from).
+                const allWorkflows = get(workflowsListDataAtom)
+                const workflowArtifact = allWorkflows.find((w) => w.id === forkFromAppId)
+                const requestedSlug = slug || generateSlug(workflowName)
+                const variantSlug =
+                    workflowArtifact?.slug && !requestedSlug.startsWith(`${workflowArtifact.slug}.`)
+                        ? `${workflowArtifact.slug}.${requestedSlug}`
+                        : requestedSlug
+
+                const newVariant = await createWorkflowVariantApi(projectId, {
+                    workflowId: forkFromAppId,
+                    slug: variantSlug,
+                    name: workflowName,
+                })
+                if (!newVariant?.id) {
+                    throw new Error("Failed to create workflow variant")
+                }
+
+                // Seed (v0) + actual revision (v1) — matches the legacy fork
+                // pattern. The seed keeps v0 reserved so the user-visible
+                // first version is v1, just like `createWorkflowVariantAtom`.
+                await commitWorkflowRevisionApi(projectId, {
+                    workflowId: forkFromAppId,
+                    variantId: newVariant.id,
+                    name: workflowName,
+                    data: {
+                        uri: entity.data.uri,
+                        url: entity.data.url,
+                    },
+                })
+
+                const newRevision = await commitWorkflowRevisionApi(projectId, {
+                    workflowId: forkFromAppId,
+                    variantId: newVariant.id,
+                    name: workflowName,
+                    message: commitMessage,
+                    data: {
+                        uri: entity.data.uri,
+                        url: entity.data.url,
+                        parameters: prepareCommitParameters(entity, flatParams),
+                        schemas: prepareCommitSchemas(entity, flatSchemas),
+                    },
+                })
+
+                const newRevisionId = newRevision.id
+                primeWorkflowRevisionDetailCacheImperative(newRevision)
+
+                const forkResult: WorkflowCommitResult = {
+                    success: true,
+                    revisionId,
+                    newRevisionId,
+                    workflow: newRevision,
+                }
+
+                await invokeWorkflowCommitCallbacks(forkResult, {revisionId, commitMessage})
+                set(discardWorkflowDraftAtom, revisionId)
+                invalidateWorkflowsListCache()
+                invalidateWorkflowVariantsCache(forkFromAppId)
+                invalidateWorkflowRevisionsByWorkflowCache(forkFromAppId)
+                invalidateWorkflowRevisionsByVariantCache(newVariant.id)
+                if (_commitCallbacks.onQueryInvalidate) {
+                    void _commitCallbacks.onQueryInvalidate()
+                }
+
+                return forkResult
+            }
+
             // 3. Create workflow via API
             const newWorkflow = await createWorkflowApi(projectId, {
                 slug: workflowSlug,

@@ -28,6 +28,7 @@ import {
     buildRefForResolver,
     hasAppReference,
     resolveTraceRefs,
+    selectOpenFromTraceBranch,
     TRACE_REF_RESOLUTION_TTL_MS,
     type SpanWithReferences,
     type TraceReference,
@@ -342,5 +343,158 @@ describe("resolveTraceRefs", () => {
         } as never)
         const out = await resolveTraceRefs({application: {slug: "my-app"}}, "proj-1")
         expect(out).toEqual({appId: null, revisionId: null})
+    })
+})
+
+// ── environment refs ────────────────────────────────────────────────────
+
+describe("hasAppReference with environment refs", () => {
+    it("returns true for a span carrying only an environment slug", () => {
+        const span: SpanWithReferences = {
+            attributes: {ag: {references: {environment: {slug: "production"}}}},
+        }
+        expect(hasAppReference(span)).toBe(true)
+    })
+
+    it("returns true for a span carrying environment_variant", () => {
+        const span: SpanWithReferences = {
+            attributes: {ag: {references: {environment_variant: {slug: "default"}}}},
+        }
+        expect(hasAppReference(span)).toBe(true)
+    })
+
+    it("returns true for env refs in the top-level references array", () => {
+        const span: SpanWithReferences = {
+            references: [
+                {id: "env-1", attributes: {key: "environment_revision"}},
+            ],
+        }
+        expect(hasAppReference(span)).toBe(true)
+    })
+})
+
+describe("resolveTraceRefs with environment refs", () => {
+    const fakeRevision = {
+        id: "rev-uuid",
+        workflow_id: "workflow-uuid",
+        artifact_slug: "demo",
+    }
+
+    it("forwards environment refs to the backend", async () => {
+        mockedRetrieve.mockResolvedValueOnce(fakeRevision as never)
+        const result = await resolveTraceRefs(
+            {environment: {slug: "production"}},
+            "proj-1",
+        )
+        expect(result).toEqual({appId: "workflow-uuid", revisionId: "rev-uuid"})
+        expect(mockedRetrieve).toHaveBeenCalledWith({
+            projectId: "proj-1",
+            environmentRef: {slug: "production"},
+        })
+    })
+
+    it("forwards environment_variant and environment_revision refs", async () => {
+        mockedRetrieve.mockResolvedValueOnce(fakeRevision as never)
+        await resolveTraceRefs(
+            {
+                environment_variant: {slug: "default"},
+                environment_revision: {id: "env-rev-1"},
+            },
+            "proj-1",
+        )
+        const call = mockedRetrieve.mock.calls[0]?.[0]
+        expect(call).toMatchObject({
+            environmentVariantRef: {slug: "default"},
+            environmentRevisionRef: {id: "env-rev-1"},
+        })
+    })
+
+    it("sends both application and environment refs in the same request", async () => {
+        mockedRetrieve.mockResolvedValueOnce(fakeRevision as never)
+        await resolveTraceRefs(
+            {
+                application: {slug: "demo"},
+                environment: {slug: "production"},
+            },
+            "proj-1",
+        )
+        const call = mockedRetrieve.mock.calls[0]?.[0]
+        expect(call).toMatchObject({
+            workflowRef: {slug: "demo"},
+            environmentRef: {slug: "production"},
+        })
+    })
+
+    it("skips the call when only a bare version is present (no env, no app)", async () => {
+        const result = await resolveTraceRefs(
+            {application_revision: {version: "1"}},
+            "proj-1",
+        )
+        expect(result).toEqual({appId: null, revisionId: null})
+        expect(mockedRetrieve).not.toHaveBeenCalled()
+    })
+})
+
+// ── selectOpenFromTraceBranch ────────────────────────────────────────────
+
+describe("selectOpenFromTraceBranch", () => {
+    it("opens application_revision for an app span with a resolvable revision id", () => {
+        const branch = selectOpenFromTraceBranch(
+            {application_revision: {id: "rev-1"}},
+            false,
+        )
+        expect(branch).toBe("application_revision")
+    })
+
+    it("falls back to ephemeral when the app span has no revision id", () => {
+        const branch = selectOpenFromTraceBranch(
+            {application: {slug: "demo"}},
+            false,
+        )
+        expect(branch).toBe("ephemeral")
+    })
+
+    it("opens evaluator_revision for an evaluator span with a resolvable revision id", () => {
+        const branch = selectOpenFromTraceBranch(
+            {evaluator_revision: {id: "eval-rev-1"}},
+            true,
+        )
+        expect(branch).toBe("evaluator_revision")
+    })
+
+    // Regression guard for issue #4426 problem 3. Evaluator spans typically
+    // also carry the graded app's refs; the application_revision branch must
+    // not fire for them or the user lands on the wrong entity.
+    it("opens evaluator_revision even when application_revision is also present", () => {
+        const branch = selectOpenFromTraceBranch(
+            {
+                application: {id: "graded-app"},
+                application_revision: {id: "graded-rev"},
+                evaluator: {id: "judge"},
+                evaluator_revision: {id: "judge-rev"},
+            },
+            true,
+        )
+        expect(branch).toBe("evaluator_revision")
+    })
+
+    it("falls back to ephemeral on an evaluator span with no evaluator_revision id", () => {
+        const branch = selectOpenFromTraceBranch(
+            {
+                application: {id: "graded-app"},
+                application_revision: {id: "graded-rev"},
+                evaluator: {slug: "judge"},
+            },
+            true,
+        )
+        expect(branch).toBe("ephemeral")
+    })
+
+    it("treats empty-string revision ids as absent", () => {
+        const branch = selectOpenFromTraceBranch(
+            {application_revision: {id: ""}},
+            false,
+        )
+        expect(branch).toBe("ephemeral")
     })
 })
