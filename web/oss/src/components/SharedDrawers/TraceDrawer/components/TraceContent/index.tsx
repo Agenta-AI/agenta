@@ -71,6 +71,8 @@ const TraceContent = ({
             ]
         }
 
+        const {children: _children, ...activeTraceRaw} = activeTrace
+
         return [
             {
                 key: "overview",
@@ -85,7 +87,7 @@ const TraceContent = ({
                         {spanEntityId ? (
                             <TraceSpanDrillInView
                                 spanId={spanEntityId}
-                                spanDataOverride={activeTrace}
+                                spanDataOverride={activeTraceRaw}
                                 title="Raw Data"
                                 editable={false}
                                 rootScope="span"
@@ -94,7 +96,7 @@ const TraceContent = ({
                         ) : (
                             <AccordionTreePanel
                                 label={"Raw Data"}
-                                value={activeTrace ?? {}}
+                                value={activeTraceRaw ?? {}}
                                 enableFormatSwitcher
                                 fullEditorHeight
                                 enableSearch
