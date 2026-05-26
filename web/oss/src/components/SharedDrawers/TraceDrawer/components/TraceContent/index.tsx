@@ -136,7 +136,7 @@ const TraceContent = ({
                     traces={traces}
                 />
 
-                <Splitter className="h-[87vh] flex">
+                <Splitter className="flex-1 min-h-0">
                     <Splitter.Panel min={400} className="w-full flex-1">
                         <div className="flex-1">
                             <Tabs
