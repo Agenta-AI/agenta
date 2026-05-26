@@ -24,6 +24,7 @@ from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.workflows.service import WorkflowsService
 
@@ -629,11 +630,27 @@ class ApplicationsService:
             if not application_references:
                 return None, None
 
-            application_ref = application_references.get("application")
-            application_variant_ref = application_references.get("application_variant")
-            application_revision_ref = application_references.get(
+            env_application_ref = application_references.get("application")
+            env_application_variant_ref = application_references.get(
+                "application_variant"
+            )
+            env_application_revision_ref = application_references.get(
                 "application_revision"
             )
+
+            validate_retrieve_refs_consistent(
+                artifact_ref=application_ref,
+                variant_ref=application_variant_ref,
+                revision_ref=application_revision_ref,
+                resolved_artifact_ref=env_application_ref,
+                resolved_variant_ref=env_application_variant_ref,
+                resolved_revision_ref=env_application_revision_ref,
+                entity_type="application",
+            )
+
+            application_ref = env_application_ref
+            application_variant_ref = env_application_variant_ref
+            application_revision_ref = env_application_revision_ref
 
         if resolve:
             result = await self.resolve_application_revision(

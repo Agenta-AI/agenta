@@ -1212,11 +1212,6 @@ class WorkflowsService:
                 environment_variant_ref=environment_variant_ref,
                 environment_revision_ref=environment_revision_ref,
             )
-            # log.info(
-            #     "retrieve_workflow_revision: env_revision=%r env_data=%r",
-            #     env_revision and env_revision.id,
-            #     env_revision and env_revision.data,
-            # )
 
             references_by_key = (
                 env_revision.data.references
@@ -1226,19 +1221,29 @@ class WorkflowsService:
             workflow_references = (
                 references_by_key.get(key) if references_by_key and key else None
             )
-            # log.info(
-            #     "retrieve_workflow_revision: key=%r references_by_key keys=%r workflow_references=%r",
-            #     key,
-            #     list(references_by_key.keys()) if references_by_key else None,
-            #     workflow_references,
-            # )
 
             if not workflow_references:
                 return None, None
 
-            workflow_ref = workflow_references.get("workflow")
-            workflow_variant_ref = workflow_references.get("workflow_variant")
-            workflow_revision_ref = workflow_references.get("workflow_revision")
+            env_workflow_ref = workflow_references.get("workflow")
+            env_workflow_variant_ref = workflow_references.get("workflow_variant")
+            env_workflow_revision_ref = workflow_references.get("workflow_revision")
+
+            # Caller-supplied refs must agree with what the env-path
+            # resolved to. Compare each pair before overwriting.
+            validate_retrieve_refs_consistent(
+                artifact_ref=workflow_ref,
+                variant_ref=workflow_variant_ref,
+                revision_ref=workflow_revision_ref,
+                resolved_artifact_ref=env_workflow_ref,
+                resolved_variant_ref=env_workflow_variant_ref,
+                resolved_revision_ref=env_workflow_revision_ref,
+                entity_type="workflow",
+            )
+
+            workflow_ref = env_workflow_ref
+            workflow_variant_ref = env_workflow_variant_ref
+            workflow_revision_ref = env_workflow_revision_ref
 
         if resolve:
             result = await self.resolve_workflow_revision(

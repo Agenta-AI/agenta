@@ -23,6 +23,7 @@ from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.workflows.service import WorkflowsService
 
@@ -632,9 +633,23 @@ class EvaluatorsService:
             if not evaluator_references:
                 return None, None
 
-            evaluator_ref = evaluator_references.get("evaluator")
-            evaluator_variant_ref = evaluator_references.get("evaluator_variant")
-            evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+            env_evaluator_ref = evaluator_references.get("evaluator")
+            env_evaluator_variant_ref = evaluator_references.get("evaluator_variant")
+            env_evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+
+            validate_retrieve_refs_consistent(
+                artifact_ref=evaluator_ref,
+                variant_ref=evaluator_variant_ref,
+                revision_ref=evaluator_revision_ref,
+                resolved_artifact_ref=env_evaluator_ref,
+                resolved_variant_ref=env_evaluator_variant_ref,
+                resolved_revision_ref=env_evaluator_revision_ref,
+                entity_type="evaluator",
+            )
+
+            evaluator_ref = env_evaluator_ref
+            evaluator_variant_ref = env_evaluator_variant_ref
+            evaluator_revision_ref = env_evaluator_revision_ref
 
         if resolve:
             result = await self.resolve_evaluator_revision(

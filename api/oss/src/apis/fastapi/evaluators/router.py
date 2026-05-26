@@ -1732,6 +1732,7 @@ class EvaluatorsRouter:
         return revisions_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def resolve_evaluator_revision(
         self,
         request: Request,
