@@ -38,6 +38,14 @@ const TraceContent = ({
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
 
+    // The `children` field is added by `observabilityTransformer` for UI tree
+    // navigation; it must not appear in the raw span payload.
+    const rawSpanData = useMemo(() => {
+        if (!activeTrace) return activeTrace
+        const {children: _children, ...rest} = activeTrace as unknown as Record<string, unknown>
+        return rest
+    }, [activeTrace])
+
     const items: TabsProps["items"] = useMemo(() => {
         if (isLoading && !activeTrace) {
             return [
@@ -85,7 +93,7 @@ const TraceContent = ({
                         {spanEntityId ? (
                             <TraceSpanDrillInView
                                 spanId={spanEntityId}
-                                spanDataOverride={activeTrace}
+                                spanDataOverride={rawSpanData}
                                 title="Raw Data"
                                 editable={false}
                                 rootScope="span"
@@ -94,7 +102,7 @@ const TraceContent = ({
                         ) : (
                             <AccordionTreePanel
                                 label={"Raw Data"}
-                                value={activeTrace ?? {}}
+                                value={rawSpanData ?? {}}
                                 enableFormatSwitcher
                                 fullEditorHeight
                                 enableSearch
