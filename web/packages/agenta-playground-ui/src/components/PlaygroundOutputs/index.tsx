@@ -6,23 +6,23 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import {Collapse, Tag} from "antd"
-import {atom} from "jotai"
-import {useAtomValue} from "jotai"
+import {Tag} from "antd"
+import {atom, useAtomValue} from "jotai"
 
-import {usePlaygroundUIOptional} from "../../../context/PlaygroundUIContext"
-import {useRepetitionResult} from "../../../hooks/useRepetitionResult"
-import {playgroundFocusDrawerAtom} from "../../../state"
-import ExecutionResultView from "../../ExecutionResultView"
-import {EvaluatorFieldGrid} from "../../shared/EvaluatorFieldGrid"
+import {useRepetitionResult} from "../../hooks/useRepetitionResult"
+import ExecutionResultView from "../ExecutionResultView"
+import {EvaluatorFieldGrid} from "../shared/EvaluatorFieldGrid"
 import {
     extractDisplayEntries,
     buildSchemaMap,
     formatFieldLabel,
     isVerdictFieldKey,
     parseBooleanLikeValue,
-} from "../../shared/EvaluatorFieldGrid/utils"
-import {NodeResultCard, ensureNodeCardKeyframes, type NodeStatus} from "../../shared/NodeResultCard"
+} from "../shared/EvaluatorFieldGrid/utils"
+import {NodeResultCard, ensureNodeCardKeyframes, type NodeStatus} from "../shared/NodeResultCard"
+
+// Inject CSS keyframes for NodeResultCard animations (runs once)
+ensureNodeCardKeyframes()
 
 // ============================================================================
 // SUB-COMPONENT: Primary output for an entity
@@ -64,7 +64,6 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
         result: output,
     })
 
-    // Feedback config for schema-aware result rendering
     const primaryConfiguration = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
@@ -98,9 +97,6 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
     )
 }
 
-// Inject CSS keyframes for NodeResultCard animations (runs once)
-ensureNodeCardKeyframes()
-
 // ============================================================================
 // SUB-COMPONENT: Downstream node card (evaluator)
 // ============================================================================
@@ -117,7 +113,6 @@ function DownstreamNodeCard({
     /** Parent variant's entity ID — scopes the result lookup per-variant */
     rootEntityId: string
 }) {
-    // Session key is scoped per-variant: sess:rootEntityId:nodeEntityId
     const scopedEntityId = `${rootEntityId}:${node.entityId}`
     const fullResult = useAtomValue(
         useMemo(
@@ -185,7 +180,6 @@ function DownstreamNodeCard({
         )
     }
 
-    // Skipped — show explanation message (e.g., missing required inputs)
     if (rawStatus === "skipped") {
         const skipMsg =
             typeof fullResult.error === "object" &&
@@ -253,7 +247,7 @@ function DownstreamNodeCard({
 }
 
 // ============================================================================
-// MAIN COMPONENT
+// SUB-COMPONENT: Variant column (comparison view)
 // ============================================================================
 
 function getNodeDisplayLabel(
@@ -326,21 +320,24 @@ function VariantOutputColumn({
     )
 }
 
-const FocusDrawerContent = () => {
-    const {rowId, entityId} = useAtomValue(playgroundFocusDrawerAtom)
-    const providers = usePlaygroundUIOptional()
-    const TestcaseEditor = providers?.TestcaseEditor
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
-    // Chain nodes for downstream results
+export interface PlaygroundOutputsProps {
+    rowId: string
+    /** The primary variant's entity ID. Required for single-view; ignored when in comparison view. */
+    primaryEntityId: string
+}
+
+const PlaygroundOutputs = ({rowId, primaryEntityId}: PlaygroundOutputsProps) => {
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
         | PlaygroundNode[]
         | null
     const isChain = (nodes?.length ?? 0) > 1
-    const primaryEntityId = entityId || ""
     const rootNodes = useMemo(() => (nodes ? nodes.filter((n) => n.depth === 0) : []), [nodes])
     const isComparisonView = rootNodes.length > 1
 
-    // Resolve human-readable names for downstream nodes
     const nodeNamesAtom = useMemo(
         () =>
             atom((get) => {
@@ -368,78 +365,54 @@ const FocusDrawerContent = () => {
         return nodes.filter((n) => n.depth > 0)
     }, [isChain, nodes])
 
-    if (!rowId) return null
-
     return (
-        <div className="flex flex-col h-full overflow-y-auto">
-            {/* Data Section (testcase editor injected by OSS) */}
-            {TestcaseEditor && <TestcaseEditor testcaseId={rowId} />}
-            {/* Output Section */}
-            <Collapse
-                defaultActiveKey={["output"]}
-                expandIconPlacement="start"
-                bordered={false}
-                style={{background: "transparent", borderRadius: 0}}
-                styles={{
-                    header: {
-                        borderRadius: 6,
-                        userSelect: "none",
-                        padding: "10px 16px",
-                        background: "#FAFAFA",
-                        border: "1px solid rgba(5,23,41,0.06)",
-                    },
-                    body: {borderRadius: 0, padding: "12px 16px"},
-                }}
-                items={[
-                    {
-                        key: "output",
-                        label: "Outputs",
-                        children: isComparisonView ? (
-                            <div className="overflow-x-auto">
-                                <div className="flex gap-4 min-w-fit">
-                                    {rootNodes.map((rootNode) => (
-                                        <VariantOutputColumn
-                                            key={rootNode.entityId}
-                                            rowId={rowId}
-                                            entityId={rootNode.entityId}
-                                            nodeNames={nodeNames}
-                                            downstreamNodes={compareDownstreamNodes}
-                                        />
-                                    ))}
-                                </div>
+        <div className="flex flex-col gap-3">
+            {/* Header styling mirrors DrillInRootToolbar so the Testcase Data and
+                Outputs sections read as a matched pair. */}
+            <div className="flex min-h-9 select-none items-center justify-between gap-2 border-b border-[rgba(5,23,41,0.06)] bg-[#fafafa] px-4 py-1.5">
+                <span className="text-[13px] font-semibold text-[#051729]">Outputs</span>
+            </div>
+            <div className="px-4 pb-3">
+                {isComparisonView ? (
+                    <div className="overflow-x-auto">
+                        <div className="flex gap-4 min-w-fit">
+                            {rootNodes.map((rootNode) => (
+                                <VariantOutputColumn
+                                    key={rootNode.entityId}
+                                    rowId={rowId}
+                                    entityId={rootNode.entityId}
+                                    nodeNames={nodeNames}
+                                    downstreamNodes={compareDownstreamNodes}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        <NodeResultCard
+                            name={getNodeDisplayLabel(
+                                nodes?.find((n) => n.entityId === primaryEntityId),
+                                nodeNames,
+                            )}
+                        >
+                            <div className="min-w-0">
+                                <PrimaryOutput rowId={rowId} entityId={primaryEntityId} />
                             </div>
-                        ) : (
-                            <div className="flex flex-col gap-3">
-                                <NodeResultCard
-                                    name={getNodeDisplayLabel(
-                                        nodes?.find((n) => n.entityId === primaryEntityId),
-                                        nodeNames,
-                                    )}
-                                >
-                                    <div className="min-w-0">
-                                        <PrimaryOutput rowId={rowId} entityId={primaryEntityId} />
-                                    </div>
-                                </NodeResultCard>
-                                {downstreamNodes.map((node) => (
-                                    <DownstreamNodeCard
-                                        key={node.entityId}
-                                        rowId={rowId}
-                                        node={node}
-                                        nodeName={getNodeDisplayLabel(
-                                            node,
-                                            nodeNames,
-                                            node.entityType,
-                                        )}
-                                        rootEntityId={primaryEntityId}
-                                    />
-                                ))}
-                            </div>
-                        ),
-                    },
-                ]}
-            />
+                        </NodeResultCard>
+                        {downstreamNodes.map((node) => (
+                            <DownstreamNodeCard
+                                key={node.entityId}
+                                rowId={rowId}
+                                node={node}
+                                nodeName={getNodeDisplayLabel(node, nodeNames, node.entityType)}
+                                rootEntityId={primaryEntityId}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
 
-export default FocusDrawerContent
+export default PlaygroundOutputs

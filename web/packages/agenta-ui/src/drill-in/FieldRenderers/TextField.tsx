@@ -24,15 +24,15 @@ export function TextField({
     const editorId = `drill-field-${fieldKey}`
     // For null values, use empty string; otherwise get text mode value
     const isNull = dataType === "null" || item.value === null
-    const textValue = isNull ? "" : getTextModeValue(stringValue)
+    const textValue = isNull ? "" : getTextModeValue(stringValue, valueMode)
 
     const handleChange = (newValue: string) => {
         if (isNull) {
             // Transitioning from null - store as string directly
             setValue(fullPath, newValue)
         } else {
-            const storageValue = textModeToStorageValue(newValue, stringValue)
-            setValue(fullPath, valueMode === "string" ? storageValue : storageValue)
+            const storageValue = textModeToStorageValue(newValue, stringValue, valueMode)
+            setValue(fullPath, storageValue)
         }
     }
 

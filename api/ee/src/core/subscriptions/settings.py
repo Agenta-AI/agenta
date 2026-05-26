@@ -383,6 +383,26 @@ def get_pricing() -> Dict[str, Dict[str, Any]]:
     return _PRICING
 
 
+def get_effective_pricing() -> Dict[str, Dict[str, Any]]:
+    """Return pricing with backend-resolved free/trial markers applied.
+
+    This keeps `/billing/pricing` as the frontend source of truth for billing
+    metadata without requiring clients to duplicate backend fallback rules.
+    """
+    pricing = {slug: dict(entry) for slug, entry in _PRICING.items()}
+
+    free_plan = get_free_plan()
+    if free_plan:
+        pricing.setdefault(free_plan, {})["free"] = True
+
+    trial_plan = get_trial_plan()
+    trial_days = get_trial_days()
+    if trial_plan and trial_days is not None:
+        pricing.setdefault(trial_plan, {})["trial"] = trial_days
+
+    return pricing
+
+
 def get_pricing_plan(slug: Optional[str]) -> Optional[Dict[str, Any]]:
     if not slug:
         return None

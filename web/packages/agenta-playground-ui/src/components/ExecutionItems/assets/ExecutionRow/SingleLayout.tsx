@@ -16,7 +16,6 @@ import {
     ExamIcon,
     Info,
     LightningIcon,
-    MarkdownLogoIcon,
     MinusCircleIcon,
     PlayIcon,
     RowsIcon,
@@ -666,10 +665,6 @@ const SingleView = ({
         return variableRefsMap.current.get(id)!
     }, [])
 
-    const [markdownToggles, setMarkdownToggles] = useState<
-        Record<string, (() => void) | undefined>
-    >({})
-
     const toggleVariableInputCollapse = useCallback((id: string) => {
         setCollapsedVariableInputs((prev) => ({...prev, [id]: !prev[id]}))
     }, [])
@@ -848,28 +843,8 @@ const SingleView = ({
                                                 collapsed={isVariableInputCollapsed}
                                                 containerRef={getVariableRef(id)}
                                                 className="*:!border-none overflow-hidden"
-                                                onMarkdownToggleReady={(toggle) => {
-                                                    setMarkdownToggles((prev) => ({
-                                                        ...(prev[id] === (toggle ?? undefined)
-                                                            ? prev
-                                                            : {
-                                                                  ...prev,
-                                                                  [id]: toggle ?? undefined,
-                                                              }),
-                                                    }))
-                                                }}
                                                 headerActions={
                                                     <>
-                                                        <EnhancedButton
-                                                            size="small"
-                                                            type="text"
-                                                            icon={<MarkdownLogoIcon size={14} />}
-                                                            onClick={() => markdownToggles[id]?.()}
-                                                            disabled={!markdownToggles[id]}
-                                                            tooltipProps={{
-                                                                title: "Preview markdown",
-                                                            }}
-                                                        />
                                                         <CopyVariableButton
                                                             rowId={rowId}
                                                             variableKey={id}
