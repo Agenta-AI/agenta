@@ -149,7 +149,7 @@ kubectl -n agenta get jobs
 Once all pods are running, use port-forwarding for a quick local check:
 
 ```bash
-kubectl port-forward svc/agenta-agenta-oss-web 3000:3000 -n agenta
+kubectl port-forward svc/agenta-web 3000:3000 -n agenta
 ```
 
 Then open `http://localhost:3000` in your browser.
@@ -572,7 +572,7 @@ The Alembic migration job runs automatically as a post-upgrade hook. Check its s
 
 ```bash
 kubectl -n agenta get jobs -l app.kubernetes.io/component=alembic
-kubectl -n agenta logs job/agenta-agenta-oss-alembic
+kubectl -n agenta logs job/agenta-alembic
 ```
 
 To pin to a specific version:
@@ -622,7 +622,7 @@ Common causes:
 Check migration logs:
 
 ```bash
-kubectl -n agenta logs job/agenta-agenta-oss-alembic
+kubectl -n agenta logs job/agenta-alembic
 ```
 
 Common causes:
@@ -635,7 +635,7 @@ Verify the Ingress resource:
 
 ```bash
 kubectl -n agenta get ingress
-kubectl -n agenta describe ingress agenta-agenta-oss
+kubectl -n agenta describe ingress agenta
 ```
 
 Common causes:
