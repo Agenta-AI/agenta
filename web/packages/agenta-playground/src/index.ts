@@ -80,6 +80,7 @@ export type {PlaygroundEntityProviders} from "./state"
 export type {PlaygroundTestResult, PlaygroundNode} from "./state"
 export type {ChatMessage, SimpleChatMessage, MessageTarget} from "./state"
 export type {ChainExecutionResult, ChainNodeInfo} from "./state"
+export type {OpenFromTraceResult} from "./state"
 
 // ============================================================================
 // STANDALONE EXECUTION (no React context needed)

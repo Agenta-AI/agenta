@@ -31,6 +31,7 @@ import {
     workflowMolecule,
     createEphemeralWorkflow,
     buildWorkflowUri,
+    retrieveWorkflowRevision,
 } from "@agenta/entities/workflow"
 import {
     commitWorkflowRevisionAtom,
@@ -1106,10 +1107,125 @@ function extractReferences(span: TraceSpanNode): TraceReferences {
 }
 
 /**
+ * Session cache for trace ref → revision lookups. TTL bounds staleness if a
+ * slug starts pointing at a different revision mid-session (rare, but
+ * possible if someone archives + recreates a workflow with the same slug).
+ * Keyed by the JSON of the assembled request. Successful results only —
+ * nulls are not cached so transient failures don't block retries.
+ */
+const TRACE_REF_RESOLUTION_TTL_MS = 5 * 60 * 1000
+const traceRefResolutionCache = new Map<string, {at: number; value: ResolvedTraceRefs}>()
+
+interface ResolvedTraceRefs {
+    appId: string | null
+    revisionId: string | null
+}
+
+type RefShape = {id: string} | {slug: string} | {version: string} | undefined
+
+/**
+ * Build the smallest identifying ref for the resolver. Prefers `id` over
+ * `slug` over `version`. Returns `undefined` when nothing is set, so the
+ * caller can omit the field from the request entirely.
+ */
+function buildRefForResolver(ref: TraceReference | undefined): RefShape {
+    if (!ref) return undefined
+    const id = asString(ref.id)
+    if (id) return {id}
+    const slug = asString(ref.slug)
+    if (slug) return {slug}
+    const version = asString(ref.version)
+    if (version) return {version}
+    return undefined
+}
+
+/**
+ * Resolve any combination of trace refs (app / variant / revision, each by
+ * id, slug, or version) into a concrete `{appId, revisionId}` via
+ * `POST /workflows/revisions/retrieve`.
+ *
+ * Sends every identifier the trace carries — the backend picks the most
+ * specific revision consistent with all of them, falling back to the
+ * default variant's latest when fields are missing.
+ *
+ * Returns `{appId: null, revisionId: null}` when the project is unknown,
+ * when nothing identifying is present, or when the backend has no match.
+ * Callers should fall back to ephemeral on a null result.
+ *
+ * Defensive verification: when we asked by `application.slug`, the response
+ * `artifact_slug` must match — guards against stale data and any backend
+ * regression that returns the wrong workflow.
+ */
+async function resolveTraceRefs(
+    refs: TraceReferences,
+    projectId: string | null | undefined,
+): Promise<ResolvedTraceRefs> {
+    if (!projectId) return {appId: null, revisionId: null}
+
+    const workflowRef = buildRefForResolver(refs.application)
+    const variantRef = buildRefForResolver(refs.application_variant)
+    const revisionRef = buildRefForResolver(refs.application_revision)
+
+    // The backend needs at least one identifying ref. A bare `version` on
+    // the revision ref alone is rejected (it's a per-variant sequence
+    // number with no scope); skip the call entirely in that case.
+    const hasWorkflowIdent = !!workflowRef && ("id" in workflowRef || "slug" in workflowRef)
+    const hasVariantIdent = !!variantRef && ("id" in variantRef || "slug" in variantRef)
+    const hasRevisionIdent = !!revisionRef && ("id" in revisionRef || "slug" in revisionRef)
+    const onlyRevVersion = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
+    if (onlyRevVersion) return {appId: null, revisionId: null}
+
+    const cacheKey = JSON.stringify({projectId, workflowRef, variantRef, revisionRef})
+    const cached = traceRefResolutionCache.get(cacheKey)
+    if (cached && Date.now() - cached.at < TRACE_REF_RESOLUTION_TTL_MS) {
+        return cached.value
+    }
+
+    const askedAppSlug = workflowRef && "slug" in workflowRef ? workflowRef.slug : undefined
+
+    try {
+        const revision = await retrieveWorkflowRevision({
+            projectId,
+            ...(workflowRef ? {workflowRef} : {}),
+            ...(variantRef ? {workflowVariantRef: variantRef} : {}),
+            ...(revisionRef ? {workflowRevisionRef: revisionRef} : {}),
+        })
+
+        if (!revision) return {appId: null, revisionId: null}
+
+        // When we asked by app slug, verify the response actually belongs
+        // to that workflow. We trust id-based requests without further
+        // checking (the backend cannot match the wrong id to a slug).
+        if (askedAppSlug && revision.artifact_slug && revision.artifact_slug !== askedAppSlug) {
+            console.warn(
+                `[openFromTrace] Resolver returned mismatched workflow ` +
+                    `(asked for "${askedAppSlug}", got "${revision.artifact_slug}") — ` +
+                    `falling back to ephemeral.`,
+            )
+            return {appId: null, revisionId: null}
+        }
+
+        const result: ResolvedTraceRefs = {
+            appId: asString(revision.workflow_id) ?? null,
+            revisionId: asString(revision.id) ?? null,
+        }
+        traceRefResolutionCache.set(cacheKey, {at: Date.now(), value: result})
+        return result
+    } catch (error) {
+        console.warn("[openFromTrace] Resolver call failed, falling back to ephemeral.", error)
+        return {appId: null, revisionId: null}
+    }
+}
+
+/**
  * Result from opening a trace in playground.
- * - If `type` is "revision", the trace has a valid application_revision reference
- *   and the playground opened that existing revision.
- * - If `type` is "ephemeral", a new ephemeral workflow was created from the trace data.
+ *
+ * - `type: "revision"` — the trace has (or resolves to) a specific revision
+ *   id; the playground opens that revision directly.
+ * - `type: "ephemeral"` — a local-only workflow was created from the trace
+ *   data; no app or revision linkage. The caller should open it in the
+ *   stacked drawer (no app context) or, if `appId` is set, full-page inside
+ *   that app (legacy evaluator path).
  */
 export interface OpenFromTraceResult {
     type: "revision" | "ephemeral"
@@ -1135,7 +1251,7 @@ export interface OpenFromTraceResult {
  */
 const openFromTraceAtom = atom(
     null,
-    (_get, set, activeSpan: TraceSpanNode): OpenFromTraceResult => {
+    async (get, set, activeSpan: TraceSpanNode): Promise<OpenFromTraceResult> => {
         const spanType = activeSpan.span_type
         const agData = extractAgData(activeSpan)
         const refs = extractReferences(activeSpan)
@@ -1149,6 +1265,35 @@ const openFromTraceAtom = atom(
             asString(agData.variantName) ??
             asString(activeSpan.span_name) ??
             "Trace Replay"
+
+        // Resolve any combination of trace refs to concrete `{appId, revId}`.
+        //
+        // Third-party instrumentations (n8n, LangChain-style adapters) often
+        // emit refs as slugs or versions instead of UUIDs. We fire one
+        // round-trip whenever the trace gives us anything identifying
+        // (app/variant/revision × id/slug — or version when scoped) and
+        // backfill only the ids that aren't already on the refs. The local
+        // ids the trace supplied are authoritative and never overwritten.
+        //
+        // Skipped when we already have both app.id and revision.id (no
+        // network call needed) or when the only identifier is a bare
+        // revision.version (the backend rejects that as ambiguous).
+        const haveBothIds = Boolean(
+            asString(refs.application?.id) && asString(refs.application_revision?.id),
+        )
+        if (!haveBothIds) {
+            const projectId = get(projectIdAtom)
+            const resolved = await resolveTraceRefs(refs, projectId)
+            if (resolved.appId && !asString(refs.application?.id)) {
+                refs.application = {...(refs.application ?? {}), id: resolved.appId}
+            }
+            if (resolved.revisionId && !asString(refs.application_revision?.id)) {
+                refs.application_revision = {
+                    ...(refs.application_revision ?? {}),
+                    id: resolved.revisionId,
+                }
+            }
+        }
 
         // Extract safe reference IDs (origin's asString guards)
         const applicationId = asString(refs.application?.id)
@@ -1286,11 +1431,9 @@ const openFromTraceAtom = atom(
             const testcaseInputs =
                 Object.keys(promotedConfig).length > 0 ? cleanedInputs : actualInputs
 
-            // If there's an app_revision reference with a resolvable UUID,
-            // open that revision directly. A bare `version` (e.g. "1") is
-            // a sequence number — not a revision ID — so we can't target a
-            // specific revision with it and fall through to the ephemeral
-            // path below (which still navigates to the app playground).
+            // If there's an app_revision reference with a resolvable UUID
+            // (either from the trace directly or backfilled by the resolver
+            // above), open that revision directly.
             const revisionId = asString(refs.application_revision?.id)
             if (revisionId) {
                 set(addPrimaryNodeAtom, {
@@ -1363,7 +1506,7 @@ const openFromTraceAtom = atom(
                 }
             }
 
-            // No revision — create ephemeral workflow.
+            // No revision and no app linkage — create ephemeral workflow.
             // Evaluator spans carry is_evaluator + the derived URI so downstream
             // selectors dispatch correctly (schema, ports, request payload).
             const sourceRef = isEvaluatorSpan

@@ -268,6 +268,68 @@ export async function queryWorkflowRevisionsByWorkflows(
 }
 
 /**
+ * Retrieve a single workflow revision by reference.
+ *
+ * Endpoint: `POST /workflows/revisions/retrieve`
+ *
+ * Resolves a workflow + variant + revision reference into a single revision.
+ * The returned revision carries both its own UUID (`id`) and its parent
+ * workflow's UUID (`workflow_id`), which is what callers need to navigate to
+ * an app-scoped playground page.
+ *
+ * Backend validation rules (see `core/workflows/service.py`):
+ *
+ *  - `workflow_revision_ref.id` or `workflow_revision_ref.slug` alone
+ *    identifies a revision (both project-unique).
+ *  - `workflow_revision_ref.version` is a per-variant sequence number; it
+ *    requires `workflow_variant_ref` to be unambiguous. Sending version
+ *    alone (or with only `workflow_ref`) returns HTTP 400.
+ *
+ * When `workflowRevisionRef` is omitted, the backend returns the latest
+ * revision of the resolved variant (or an arbitrary variant of the resolved
+ * workflow if no variant ref is supplied either).
+ *
+ * @returns The resolved revision, or `null` when no match was found.
+ */
+export async function retrieveWorkflowRevision({
+    projectId,
+    workflowRef,
+    workflowVariantRef,
+    workflowRevisionRef,
+}: {
+    projectId: string
+    workflowRef?: {id?: string; slug?: string; version?: string}
+    workflowVariantRef?: {id?: string; slug?: string; version?: string}
+    workflowRevisionRef?: {id?: string; slug?: string; version?: string}
+}): Promise<Workflow | null> {
+    if (!projectId) return null
+    // The backend needs at least one identifying ref. A bare `version` on
+    // the revision ref is not identifying on its own (it is a per-variant
+    // sequence number) and the backend rejects that shape with 400.
+    const hasWorkflowId = !!(workflowRef?.id || workflowRef?.slug)
+    const hasVariantId = !!(workflowVariantRef?.id || workflowVariantRef?.slug)
+    const hasRevisionId = !!(workflowRevisionRef?.id || workflowRevisionRef?.slug)
+    if (!hasWorkflowId && !hasVariantId && !hasRevisionId) return null
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/workflows/revisions/retrieve`,
+        {
+            ...(workflowRef ? {workflow_ref: workflowRef} : {}),
+            ...(workflowVariantRef ? {workflow_variant_ref: workflowVariantRef} : {}),
+            ...(workflowRevisionRef ? {workflow_revision_ref: workflowRevisionRef} : {}),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        workflowRevisionResponseSchema,
+        response.data,
+        "[retrieveWorkflowRevision]",
+    )
+    return validated?.workflow_revision ?? null
+}
+
+/**
  * Query workflow revisions for a given variant.
  *
  * Endpoint: `POST /workflows/revisions/query`
