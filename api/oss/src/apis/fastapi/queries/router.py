@@ -9,7 +9,7 @@ from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.core.events.utils import publish_revision_event
-from oss.src.core.git.types import RetrieveRefsInsufficient, RetrieveRefsInconsistent
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -959,6 +959,7 @@ class QueriesRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=QueryRevisionResponse(), exclude=[HTTPException])
+    @handle_git_exceptions()
     async def retrieve_query_revision(
         self,
         request: Request,
@@ -1020,24 +1021,18 @@ class QueriesRouter:
         )
 
         if not query_revision:
-            try:
-                query_revision = await self.queries_service.fetch_query_revision(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    query_ref=query_revision_retrieve_request.query_ref,
-                    query_variant_ref=query_revision_retrieve_request.query_variant_ref,
-                    query_revision_ref=query_revision_retrieve_request.query_revision_ref,
-                    #
-                    include_trace_ids=query_revision_retrieve_request.include_trace_ids,
-                    include_traces=query_revision_retrieve_request.include_traces,
-                    #
-                    windowing=query_revision_retrieve_request.windowing,
-                )
-            except (RetrieveRefsInsufficient, RetrieveRefsInconsistent) as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=e.message,
-                ) from e
+            query_revision = await self.queries_service.fetch_query_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                query_ref=query_revision_retrieve_request.query_ref,
+                query_variant_ref=query_revision_retrieve_request.query_variant_ref,
+                query_revision_ref=query_revision_retrieve_request.query_revision_ref,
+                #
+                include_trace_ids=query_revision_retrieve_request.include_trace_ids,
+                include_traces=query_revision_retrieve_request.include_traces,
+                #
+                windowing=query_revision_retrieve_request.windowing,
+            )
 
             if should_cache:
                 await set_cache(
