@@ -70,8 +70,10 @@ strike through with ~~old~~ to flag a rename, or write `DROP` to remove entirely
 | ~~`AGENTA_SERVICES_SANDBOX_RUNNER`~~ (legacy alias) | → `agenta.services.code.sandbox_runner` | → `agenta.services.code.sandboxRunner` |
 | `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` (read by SDK workflow-hooks; ships in pod env) | `agenta.services.hook.allow_insecure` | `agenta.services.hook.allowInsecure` |
 | ~~`AGENTA_WEBHOOK_ALLOW_INSECURE`~~ (SDK legacy alias) | → `agenta.services.hook.allow_insecure` | → `agenta.services.hook.allowInsecure` |
+| `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` (read by SDK in services pod) | `agenta.services.middleware.auth_enabled` | `agenta.services.middleware.authEnabled` |
+| ~~`AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED`~~ (legacy alias, singular SERVICE) | → `agenta.services.middleware.auth_enabled` | → `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
-| ~~`AGENTA_SERVICES_MIDDLEWARE_CACHE_ENABLED`~~ (legacy alias) | → `agenta.services.middleware.caching_enabled` | → `agenta.services.middleware.cachingEnabled` |
+| ~~`AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED`~~ (legacy alias, singular SERVICE) | → `agenta.services.middleware.caching_enabled` | → `agenta.services.middleware.cachingEnabled` |
 | | | |
 | `AGENTA_WEBHOOKS_ALLOW_INSECURE` | `agenta.webhooks.allow_insecure` | `agenta.webhooks.allowInsecure` |
 | ~~`AGENTA_WEBHOOK_ALLOW_INSECURE`~~ (legacy alias) | → `agenta.webhooks.allow_insecure` | → `agenta.webhooks.allowInsecure` |

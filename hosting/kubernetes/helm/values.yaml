@@ -75,6 +75,8 @@ postgresql:
   enabled: true
   auth:
     username: "agenta"
+  image:
+    tag: "18"
   primary:
     initdb:
       scriptsConfigMap: '{{ printf "%s-postgresql-initdb" .Release.Name }}'
