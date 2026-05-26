@@ -6,13 +6,11 @@ from urllib.parse import urlparse
 
 from oss.src.utils.env import env
 
-
-def _allow_insecure() -> bool:
-    return env.agenta.webhooks.allow_insecure
+_WEBHOOK_ALLOW_INSECURE = env.agenta.webhooks.allow_insecure
 
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
-    if _allow_insecure():
+    if _WEBHOOK_ALLOW_INSECURE:
         return False
     return (
         ip.is_private
@@ -32,7 +30,7 @@ def validate_webhook_url(url: str) -> None:
     scheme = parsed.scheme.lower()
     if scheme not in {"http", "https"}:
         raise ValueError("Webhook URL must use http or https.")
-    if scheme == "http" and not _allow_insecure():
+    if scheme == "http" and not _WEBHOOK_ALLOW_INSECURE:
         raise ValueError("Webhook URL must use https.")
     if not parsed.netloc:
         raise ValueError("Webhook URL must include a host.")
@@ -42,7 +40,10 @@ def validate_webhook_url(url: str) -> None:
     hostname = (parsed.hostname or "").lower()
     if not hostname:
         raise ValueError("Webhook URL must include a valid hostname.")
-    if hostname in {"localhost", "localhost.localdomain"} and not _allow_insecure():
+    if (
+        hostname in {"localhost", "localhost.localdomain"}
+        and not _WEBHOOK_ALLOW_INSECURE
+    ):
         raise ValueError("Webhook URL hostname is not allowed.")
 
     try:
