@@ -40,6 +40,7 @@ import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 
+import {TemplateFormatPicker, type TemplateFormat} from "../../template-format"
 import {getModelSchema, getLLMConfigValue, getLLMConfigProperties} from "../SchemaControls"
 import {feedbackConfigModeAtomFamily} from "../SchemaControls/FeedbackConfigurationControl"
 import {
@@ -1381,6 +1382,26 @@ function PlaygroundConfigSection({
                             onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-2 flex-shrink-0"
                         >
+                            {/* Prompt template_format picker — let the user
+                             *  switch between Mustache (default), Jinja2, and
+                             *  legacy formats (Curly / F-string offered only
+                             *  when the prompt is already on one). Writes
+                             *  flow through `updatePromptRootField` so the
+                             *  value lives at `prompt.template_format` for
+                             *  legacy shapes and at the root for canonical. */}
+                            <TemplateFormatPicker
+                                value={
+                                    (promptModelInfo.promptValue.template_format as
+                                        | TemplateFormat
+                                        | undefined) ??
+                                    (promptModelInfo.promptValue.templateFormat as
+                                        | TemplateFormat
+                                        | undefined) ??
+                                    null
+                                }
+                                disabled={disabled}
+                                onChange={(next) => updatePromptRootField("template_format", next)}
+                            />
                             {!disabled && onRefinePrompt && hasMessages && (
                                 <Tooltip title="Refine prompt with AI">
                                     <Button
@@ -1446,6 +1467,7 @@ function PlaygroundConfigSection({
             handleConfigureOpenChange,
             configurePopoverContent,
             onRefinePrompt,
+            updatePromptRootField,
         ],
     )
 
