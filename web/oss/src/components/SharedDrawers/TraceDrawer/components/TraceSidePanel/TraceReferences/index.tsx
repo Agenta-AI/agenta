@@ -1,5 +1,10 @@
 import {useMemo} from "react"
 
+import {
+    buildResolvedTraceRefsKey,
+    EMPTY_TRACE_REFS_KEY,
+    resolvedTraceRefsAtomFamily,
+} from "@agenta/playground"
 import {Space, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -24,6 +29,9 @@ const labelMap: Record<string, string> = {
     environment: "Environments",
     testset: "Test sets",
 }
+
+const asNonEmpty = (value: unknown): string | undefined =>
+    typeof value === "string" && value.length > 0 ? value : undefined
 
 const TraceReferences = () => {
     const classes = useStyles()
@@ -54,6 +62,42 @@ const TraceReferences = () => {
         [references],
     )
 
+    const applicationVariantReference = useMemo(
+        () => references.find((ref) => ref?.key === "application_variant"),
+        [references],
+    )
+
+    // Build the cache key for the trace-ref resolver from whatever
+    // application-side refs the active span carries. The resolver maps
+    // slug-only refs back to concrete `{appId, revisionId}` via the same
+    // backend round-trip the Playground button already uses. When no
+    // identifying ref is present we fall back to `EMPTY_TRACE_REFS_KEY`
+    // so the family entry stays disabled and no request is fired.
+    const resolverKey = useMemo(() => {
+        const buildRef = (ref: any) => {
+            const id = asNonEmpty(ref?.id)
+            const slug = asNonEmpty(ref?.slug)
+            const version = asNonEmpty(ref?.version)
+            if (!id && !slug && !version) return undefined
+            return {id, slug, version}
+        }
+        const application = buildRef(applicationReference)
+        const application_variant = buildRef(applicationVariantReference)
+        const application_revision = buildRef(applicationRevisionReference)
+        if (!application && !application_variant && !application_revision) {
+            return EMPTY_TRACE_REFS_KEY
+        }
+        return buildResolvedTraceRefsKey({
+            application,
+            application_variant,
+            application_revision,
+        })
+    }, [applicationReference, applicationVariantReference, applicationRevisionReference])
+
+    const resolvedRefsQuery = useAtomValue(resolvedTraceRefsAtomFamily(resolverKey))
+    const resolvedAppId = resolvedRefsQuery.data?.appId ?? null
+    const resolvedRevisionId = resolvedRefsQuery.data?.revisionId ?? null
+
     const groupedReferences = useMemo(() => {
         const validReferences = references?.filter(
             (reference) => (reference as any)?.id || (reference as any)?.slug,
@@ -69,16 +113,21 @@ const TraceReferences = () => {
 
     const renderReferenceTag = ({key, id, slug}: {key: string; id?: string; slug?: string}) => {
         switch (key) {
-            case "application":
+            case "application": {
+                // Prefer the raw id when the trace already carries one; fall
+                // back to the resolver's `appId` so slug-only traces still
+                // render a clickable Applications tag.
+                const effectiveId = id ?? resolvedAppId ?? null
                 return (
                     <ApplicationReferenceLabel
-                        applicationId={id ?? null}
+                        applicationId={effectiveId}
                         projectId={projectId}
                         projectURL={projectURL}
                         label={slug}
                         openExternally
                     />
                 )
+            }
             case "testset":
                 return (
                     <TestsetTag
@@ -100,23 +149,30 @@ const TraceReferences = () => {
                         openExternally
                     />
                 )
-            case "environment":
+            case "environment": {
+                // Environment tags link to the env-deployments tab inside
+                // the owning app. The link template needs an `applicationId`;
+                // when the trace is slug-only we use the resolver's appId.
+                const effectiveAppId = applicationReference?.id ?? resolvedAppId ?? undefined
                 return (
                     <EnvironmentReferenceLabel
                         environmentId={id}
                         environmentSlug={slug}
-                        applicationId={applicationReference?.id}
+                        applicationId={effectiveAppId}
                         projectId={projectId}
                         projectURL={projectURL}
                         label={slug}
                         openExternally
                     />
                 )
+            }
             case "application_variant": {
-                const applicationId = applicationReference?.id || applicationReference?.slug
-                // Use the revision ID from application_revision reference for molecule lookup.
-                // The variant reference stores a variant ID, but the molecule resolves by revision ID.
-                const revisionId = (applicationRevisionReference as any)?.id || id
+                // Variant tag link is `/apps/{appId}/variants?revisionId={revId}`.
+                // For slug-only traces both pieces come from the resolver.
+                const rawAppId = applicationReference?.id || applicationReference?.slug
+                const applicationId = rawAppId ?? resolvedAppId ?? undefined
+                const rawRevisionId = (applicationRevisionReference as any)?.id || id
+                const revisionId = rawRevisionId ?? resolvedRevisionId ?? undefined
                 const href =
                     projectURL && applicationId && revisionId
                         ? `${projectURL}/apps/${encodeURIComponent(
@@ -126,7 +182,7 @@ const TraceReferences = () => {
 
                 return (
                     <VariantReferenceLabel
-                        revisionId={revisionId}
+                        revisionId={revisionId ?? null}
                         projectId={projectId}
                         showVersionPill
                         href={href || undefined}
