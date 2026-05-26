@@ -14,6 +14,7 @@
  * - Create/Update: workflow + revision commit endpoints
  */
 
+import {getAgentaSdkClient} from "@agenta/sdk"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
 
@@ -313,19 +314,24 @@ export async function retrieveWorkflowRevision({
     const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
     if (hasNoIdentifyingRef) return null
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/workflows/revisions/retrieve`,
+    // Use the Fern-generated client (single source of truth for the
+    // request/response shape, kept in sync with the backend OpenAPI spec).
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    const data = await client.workflows.retrieveWorkflowRevision(
         {
             ...(workflowRef ? {workflow_ref: workflowRef} : {}),
             ...(workflowVariantRef ? {workflow_variant_ref: workflowVariantRef} : {}),
             ...(workflowRevisionRef ? {workflow_revision_ref: workflowRevisionRef} : {}),
         },
-        {params: {project_id: projectId}},
+        {queryParams: {project_id: projectId}},
     )
 
+    // Zod validation stays at the boundary — Fern's compile-time types
+    // under-declare backend `extra="allow"` fields (e.g. `artifact_slug`),
+    // so drift detection via the local schema still has independent value.
     const validated = safeParseWithLogging(
         workflowRevisionResponseSchema,
-        response.data,
+        data,
         "[retrieveWorkflowRevision]",
     )
     return validated?.workflow_revision ?? null

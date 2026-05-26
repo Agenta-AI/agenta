@@ -15,6 +15,7 @@
  */
 import type {TraceSpanNode} from "@agenta/entities/trace"
 import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
+import {queryClient} from "@agenta/shared/api"
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -166,18 +167,32 @@ export function extractReferences(span: TraceSpanNode): TraceReferences {
 // ── Resolver ─────────────────────────────────────────────────────────────
 
 /**
- * Session cache for trace ref → revision lookups. TTL bounds staleness if a
- * slug starts pointing at a different revision mid-session (rare, but
+ * Cache TTL for successful trace ref → revision lookups. Bounds staleness
+ * if a slug starts pointing at a different revision mid-session (rare, but
  * possible if someone archives + recreates a workflow with the same slug).
- * Keyed by the JSON of the assembled request. Successful results only —
- * nulls are not cached so transient failures don't block retries.
+ *
+ * Wired into TanStack Query's `staleTime` so cached entries are served
+ * within the window; `gcTime` drops them from memory at 2× TTL to bound
+ * growth. Failures (mismatch, exception, "no match") are not cached.
  */
 export const TRACE_REF_RESOLUTION_TTL_MS = 5 * 60 * 1000
-const traceRefResolutionCache = new Map<string, {at: number; value: ResolvedTraceRefs}>()
+
+const TRACE_REF_RESOLUTION_QUERY_KEY = "traceRefResolution" as const
+
+/**
+ * Sentinel thrown inside the queryFn to mean "we successfully called the
+ * backend but the result is unusable". The outer catch:
+ *  - swallows it so the resolver still returns `{null, null}`,
+ *  - suppresses the generic "Resolver call failed" warn (since either the
+ *    queryFn already warned with a specific message, or the empty result
+ *    is expected and silent), and
+ *  - removes the entry from the cache so the next call retries.
+ */
+class TraceRefResolverFailure extends Error {}
 
 /** Test-only: drop all cached entries. Not exported from package barrel. */
 export function __resetTraceRefResolutionCache(): void {
-    traceRefResolutionCache.clear()
+    queryClient.removeQueries({queryKey: [TRACE_REF_RESOLUTION_QUERY_KEY]})
 }
 
 /**
@@ -196,6 +211,11 @@ export function __resetTraceRefResolutionCache(): void {
  * Defensive verification: when we asked by `application.slug`, the response
  * `artifact_slug` must match — guards against stale data and any backend
  * regression that returns the wrong workflow.
+ *
+ * Caching is delegated to TanStack Query via `queryClient.fetchQuery` —
+ * successes are cached for `TRACE_REF_RESOLUTION_TTL_MS` and garbage-
+ * collected after `gcTime`. Failures are evicted in the outer catch so
+ * the next call retries instead of returning stale absence.
  */
 export async function resolveTraceRefs(
     refs: TraceReferences,
@@ -217,44 +237,69 @@ export async function resolveTraceRefs(
     const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
     if (hasNoIdentifyingRef) return {appId: null, revisionId: null}
 
-    const cacheKey = JSON.stringify({projectId, workflowRef, variantRef, revisionRef})
-    const cached = traceRefResolutionCache.get(cacheKey)
-    if (cached && Date.now() - cached.at < TRACE_REF_RESOLUTION_TTL_MS) {
-        return cached.value
-    }
-
     const askedAppSlug = workflowRef && "slug" in workflowRef ? workflowRef.slug : undefined
+    const queryKey = [
+        TRACE_REF_RESOLUTION_QUERY_KEY,
+        projectId,
+        workflowRef,
+        variantRef,
+        revisionRef,
+    ]
 
     try {
-        const revision = await retrieveWorkflowRevision({
-            projectId,
-            ...(workflowRef ? {workflowRef} : {}),
-            ...(variantRef ? {workflowVariantRef: variantRef} : {}),
-            ...(revisionRef ? {workflowRevisionRef: revisionRef} : {}),
+        return await queryClient.fetchQuery({
+            queryKey,
+            queryFn: async (): Promise<ResolvedTraceRefs> => {
+                const revision = await retrieveWorkflowRevision({
+                    projectId,
+                    ...(workflowRef ? {workflowRef} : {}),
+                    ...(variantRef ? {workflowVariantRef: variantRef} : {}),
+                    ...(revisionRef ? {workflowRevisionRef: revisionRef} : {}),
+                })
+
+                if (!revision) {
+                    // Silent — backend said "no match". Common for stale
+                    // traces. Don't pollute the console; don't cache.
+                    throw new TraceRefResolverFailure("no-match")
+                }
+
+                // When we asked by app slug, verify the response actually
+                // belongs to that workflow. We trust id-based requests
+                // without further checking (the backend cannot match the
+                // wrong id to a slug).
+                if (
+                    askedAppSlug &&
+                    revision.artifact_slug &&
+                    revision.artifact_slug !== askedAppSlug
+                ) {
+                    console.warn(
+                        `[openFromTrace] Resolver returned mismatched workflow ` +
+                            `(asked for "${askedAppSlug}", got "${revision.artifact_slug}") — ` +
+                            `falling back to ephemeral.`,
+                    )
+                    throw new TraceRefResolverFailure("mismatch")
+                }
+
+                return {
+                    appId: isNonEmptyString(revision.workflow_id) ? revision.workflow_id : null,
+                    revisionId: isNonEmptyString(revision.id) ? revision.id : null,
+                }
+            },
+            staleTime: TRACE_REF_RESOLUTION_TTL_MS,
+            // gcTime extends the in-memory lifetime so refetches after a
+            // brief idle period don't lose the cached value. 2× TTL is a
+            // pragmatic default — long enough to span the bulk of session
+            // activity, short enough to bound memory growth.
+            gcTime: TRACE_REF_RESOLUTION_TTL_MS * 2,
+            retry: false,
         })
-
-        if (!revision) return {appId: null, revisionId: null}
-
-        // When we asked by app slug, verify the response actually belongs
-        // to that workflow. We trust id-based requests without further
-        // checking (the backend cannot match the wrong id to a slug).
-        if (askedAppSlug && revision.artifact_slug && revision.artifact_slug !== askedAppSlug) {
-            console.warn(
-                `[openFromTrace] Resolver returned mismatched workflow ` +
-                    `(asked for "${askedAppSlug}", got "${revision.artifact_slug}") — ` +
-                    `falling back to ephemeral.`,
-            )
-            return {appId: null, revisionId: null}
-        }
-
-        const result: ResolvedTraceRefs = {
-            appId: isNonEmptyString(revision.workflow_id) ? revision.workflow_id : null,
-            revisionId: isNonEmptyString(revision.id) ? revision.id : null,
-        }
-        traceRefResolutionCache.set(cacheKey, {at: Date.now(), value: result})
-        return result
     } catch (error) {
-        console.warn("[openFromTrace] Resolver call failed, falling back to ephemeral.", error)
+        // Evict the errored entry so the next call retries instead of
+        // returning stale absence from the cache.
+        queryClient.removeQueries({queryKey, exact: true})
+        if (!(error instanceof TraceRefResolverFailure)) {
+            console.warn("[openFromTrace] Resolver call failed, falling back to ephemeral.", error)
+        }
         return {appId: null, revisionId: null}
     }
 }
