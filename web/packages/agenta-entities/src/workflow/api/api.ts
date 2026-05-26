@@ -303,13 +303,15 @@ export async function retrieveWorkflowRevision({
     workflowRevisionRef?: {id?: string; slug?: string; version?: string}
 }): Promise<Workflow | null> {
     if (!projectId) return null
-    // The backend needs at least one identifying ref. A bare `version` on
-    // the revision ref is not identifying on its own (it is a per-variant
-    // sequence number) and the backend rejects that shape with 400.
-    const hasWorkflowId = !!(workflowRef?.id || workflowRef?.slug)
-    const hasVariantId = !!(workflowVariantRef?.id || workflowVariantRef?.slug)
-    const hasRevisionId = !!(workflowRevisionRef?.id || workflowRevisionRef?.slug)
-    if (!hasWorkflowId && !hasVariantId && !hasRevisionId) return null
+    // The backend needs at least one identifying ref (id or slug at any
+    // level). A bare `version` on the revision ref is not identifying on
+    // its own (it's a per-variant sequence number) and the backend rejects
+    // that shape with 400, so we skip the call entirely in that case.
+    const hasWorkflowIdent = !!(workflowRef?.id || workflowRef?.slug)
+    const hasVariantIdent = !!(workflowVariantRef?.id || workflowVariantRef?.slug)
+    const hasRevisionIdent = !!(workflowRevisionRef?.id || workflowRevisionRef?.slug)
+    const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
+    if (hasNoIdentifyingRef) return null
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/workflows/revisions/retrieve`,

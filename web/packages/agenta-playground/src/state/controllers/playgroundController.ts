@@ -1166,14 +1166,15 @@ async function resolveTraceRefs(
     const variantRef = buildRefForResolver(refs.application_variant)
     const revisionRef = buildRefForResolver(refs.application_revision)
 
-    // The backend needs at least one identifying ref. A bare `version` on
-    // the revision ref alone is rejected (it's a per-variant sequence
-    // number with no scope); skip the call entirely in that case.
+    // The backend needs at least one identifying ref (id or slug at any
+    // level). A bare `version` on the revision ref alone is rejected — it's
+    // a per-variant sequence number with no scope — and a request with no
+    // refs at all is meaningless. Skip the call in both cases.
     const hasWorkflowIdent = !!workflowRef && ("id" in workflowRef || "slug" in workflowRef)
     const hasVariantIdent = !!variantRef && ("id" in variantRef || "slug" in variantRef)
     const hasRevisionIdent = !!revisionRef && ("id" in revisionRef || "slug" in revisionRef)
-    const onlyRevVersion = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
-    if (onlyRevVersion) return {appId: null, revisionId: null}
+    const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
+    if (hasNoIdentifyingRef) return {appId: null, revisionId: null}
 
     const cacheKey = JSON.stringify({projectId, workflowRef, variantRef, revisionRef})
     const cached = traceRefResolutionCache.get(cacheKey)

@@ -51,10 +51,16 @@ const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
  */
 function hasAppReference(span: TraceSpanNode): boolean {
     const identifyingKeys = ["application", "application_variant", "application_revision"]
+    // Mirrors `asString` in playgroundController.ts: a non-empty string only.
+    // Without the length check, a span carrying `{id: "", slug: ""}` would
+    // pass this predicate but the resolver's own gate would reject it, and
+    // the button would spin then fall through to ephemeral.
+    const isNonEmptyString = (value: unknown): value is string =>
+        typeof value === "string" && value.length > 0
     const hasIdOrSlug = (ref: unknown): boolean => {
         if (!ref || typeof ref !== "object") return false
         const r = ref as {id?: unknown; slug?: unknown}
-        return typeof r.id === "string" || typeof r.slug === "string"
+        return isNonEmptyString(r.id) || isNonEmptyString(r.slug)
     }
 
     const attrs = span.attributes as Record<string, unknown> | undefined
@@ -70,7 +76,7 @@ function hasAppReference(span: TraceSpanNode): boolean {
             (ref) =>
                 ref.attributes?.key &&
                 identifyingKeys.includes(ref.attributes.key) &&
-                (typeof ref.id === "string" || typeof ref.slug === "string"),
+                (isNonEmptyString(ref.id) || isNonEmptyString(ref.slug)),
         )
     }
     return false
