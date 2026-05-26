@@ -18,7 +18,7 @@ def get_runner() -> CodeRunner:
     """
     Registry to get the appropriate code runner based on environment configuration.
 
-    Reads AGENTA_SERVICES_CODE_SANDBOX_RUNNER (canonical, v0.100.2+) with a
+    Reads AGENTA_SERVICES_CODE_SANDBOX_RUNNER (canonical, v0.100.3+) with a
     fallback to the legacy AGENTA_SERVICES_SANDBOX_RUNNER.
     - "local" (default): Uses current container for local execution
     - "daytona": Uses Daytona remote sandbox

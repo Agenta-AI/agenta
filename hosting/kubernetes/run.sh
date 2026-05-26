@@ -154,8 +154,8 @@ else
         # Detect existing license to prevent silent OSS<->EE flip on re-install.
         # Use `helm get values -o yaml` + awk so the script doesn't depend on python3 or jq.
         # Reads two shapes:
-        #   v0.100.2+   agenta.license: oss|ee
-        #   pre-v0.100.2 (compat layer)  global.agentaLicense: oss|ee
+        #   v0.100.3+   agenta.license: oss|ee
+        #   pre-v0.100.3 (compat layer)  global.agentaLicense: oss|ee
         EXISTING_VALUES=$(helm get values "$RELEASE" --namespace "$NAMESPACE" -o yaml 2>/dev/null || true)
         EXISTING_LICENSE=$(printf '%s\n' "$EXISTING_VALUES" \
             | awk '/^agenta:/{a=1; next} a && /^[^[:space:]]/{a=0} a && /^[[:space:]]+license:/{print $2; exit}' \

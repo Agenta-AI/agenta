@@ -10,7 +10,7 @@ Your release is named: {{ .Release.Name }}
 {{- $redisVolatile := default dict $values.redisVolatile }}
 {{- $redisDurable := default dict $values.redisDurable }}
 
-{{- /* Detect pre-v0.100.2 legacy keys still present in the user's values.
+{{- /* Detect pre-v0.100.3 legacy keys still present in the user's values.
        Uses hasKey so explicit `false`/`""`/`0` legacy values still trigger
        the deprecation NOTE, and so newly-covered legacy URL/posthog keys
        under `global.*` are picked up. */ -}}
@@ -28,12 +28,12 @@ Your release is named: {{ .Release.Name }}
 {{- end }}
 {{- if $usingLegacy }}
 
-NOTE: pre-v0.100.2 values keys detected (e.g. `accessControl.*`, `email.*`,
+NOTE: pre-v0.100.3 values keys detected (e.g. `accessControl.*`, `email.*`,
 `global.agentaLicense`, `secrets.agentaAuthKey`, …). The compat layer in the
-chart accepts them and folds them into their v0.100.2 equivalents at render
+chart accepts them and folds them into their v0.100.3 equivalents at render
 time, so this install will work — but the compat layer is transitional and
 will be removed in a later release. Migration guide:
-https://docs.agenta.ai/self-host/upgrades/v0.100.2-migration
+https://docs.agenta.ai/self-host/upgrades/v0.100.3-migration
 {{- end }}
 
 {{- if or (eq ($agenta.authKey | toString) "replace-me") (eq ($agenta.cryptKey | toString) "replace-me") (eq ($postgres.password | toString) "password") }}

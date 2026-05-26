@@ -163,7 +163,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    never had legacy forms and stay on direct `.Values.X` reads.
 
    `agenta.values` delegates to `agenta.deprecated` (in _compatibility.tpl)
-   which folds pre-v0.100.2 keys into canonical positions. To remove
+   which folds pre-v0.100.3 keys into canonical positions. To remove
    compat: delete _compatibility.tpl and change the body below to
    `{{- .Values | toYaml -}}`.
    ================================================================ */}}
@@ -1060,7 +1060,7 @@ imagePullSecrets:
       optional: true
 {{- end }}
 {{- end }}
-{{- /* identity.<provider> — structured OAuth/OIDC (v0.100.2+) */}}
+{{- /* identity.<provider> — structured OAuth/OIDC (v0.100.3+) */}}
 {{- $identityEnvVars := list }}
 {{- with $identity.apple }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "APPLE_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "APPLE_OAUTH_CLIENT_SECRET" }}{{- end }}{{- if .keyId }}{{- $identityEnvVars = append $identityEnvVars "APPLE_KEY_ID" }}{{- end }}{{- if .privateKey }}{{- $identityEnvVars = append $identityEnvVars "APPLE_PRIVATE_KEY" }}{{- end }}{{- if .teamId }}{{- $identityEnvVars = append $identityEnvVars "APPLE_TEAM_ID" }}{{- end }}{{- end }}
 {{- with $identity.azureAd }}{{- if .clientId }}{{- $identityEnvVars = append $identityEnvVars "AZURE_AD_OAUTH_CLIENT_ID" }}{{- end }}{{- if .clientSecret }}{{- $identityEnvVars = append $identityEnvVars "AZURE_AD_OAUTH_CLIENT_SECRET" }}{{- end }}{{- if .directoryId }}{{- $identityEnvVars = append $identityEnvVars "AZURE_AD_DIRECTORY_ID" }}{{- end }}{{- end }}
@@ -1083,7 +1083,7 @@ imagePullSecrets:
       key: {{ $envName }}
       optional: true
 {{- end }}
-{{- /* llm.<provider> — structured LLM API keys (v0.100.2+) */}}
+{{- /* llm.<provider> — structured LLM API keys (v0.100.3+) */}}
 {{- $llmEnvVars := list }}
 {{- if $llm.alephalpha }}{{- $llmEnvVars = append $llmEnvVars "ALEPHALPHA_API_KEY" }}{{- end }}
 {{- if $llm.anthropic }}{{- $llmEnvVars = append $llmEnvVars "ANTHROPIC_API_KEY" }}{{- end }}

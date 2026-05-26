@@ -1,16 +1,16 @@
 {{/*
 ================================================================
-Backward-compatibility layer for pre-v0.100.2 values.yaml shapes.
+Backward-compatibility layer for pre-v0.100.3 values.yaml shapes.
 
-v0.100.2 reshaped the chart's values keys (see
-docs/docs/self-host/upgrades/v0.100.2-migration.mdx). To let
+v0.100.3 reshaped the chart's values keys (see
+docs/docs/self-host/upgrades/v0.100.3-migration.mdx). To let
 operators upgrade without rewriting their values file first, this
 helper accepts the legacy paths and folds them into the canonical
-v0.100.2 positions. The rest of the chart only ever reads the
+v0.100.3 positions. The rest of the chart only ever reads the
 canonical shape via `agenta.values` (defined in _helpers.tpl),
 which delegates to this `agenta.deprecated` helper.
 
-The helper is idempotent: passing a pure-v0.100.2 values dict
+The helper is idempotent: passing a pure-v0.100.3 values dict
 returns it unchanged.
 
 Renames handled here:
