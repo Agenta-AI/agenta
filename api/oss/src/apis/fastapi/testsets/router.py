@@ -338,7 +338,7 @@ class TestsetsRouter:
             self.create_testset_variant,
             methods=["POST"],
             operation_id="create_testset_variant",
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_200_OK,
             response_model=TestsetVariantResponse,
             response_model_exclude_none=True,
         )
