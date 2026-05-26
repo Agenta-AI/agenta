@@ -463,6 +463,18 @@ class GitDAO(GitDAOInterface):
                 if artifact_slug is not None:
                     variant_dbe.artifact_slug = artifact_slug
 
+                existing_default = await session.execute(
+                    select(self.VariantDBE.id)  # type: ignore
+                    .filter(self.VariantDBE.project_id == project_id)  # type: ignore
+                    .filter(self.VariantDBE.artifact_id == variant_create.artifact_id)  # type: ignore
+                    .filter(self.VariantDBE.flags["is_default"].as_boolean().is_(True))  # type: ignore
+                    .limit(1)
+                )
+                if existing_default.first() is None:
+                    flags = dict(variant_dbe.flags or {})
+                    flags["is_default"] = True
+                    variant_dbe.flags = flags
+
                 session.add(variant_dbe)
 
                 await session.commit()
@@ -530,20 +542,26 @@ class GitDAO(GitDAOInterface):
             if not applied_identifying_filter:
                 return None
 
-            if pick_default_variant:
-                stmt = stmt.order_by(
-                    self.VariantDBE.created_at.asc(),  # type: ignore
-                    self.VariantDBE.id.asc(),  # type: ignore
-                )
-
             if include_archived is not True:
                 stmt = stmt.filter(self.VariantDBE.deleted_at.is_(None))  # type: ignore
 
-            stmt = stmt.limit(1)
-
-            result = await session.execute(stmt)
-
-            variant_dbe = result.scalars().first()
+            if pick_default_variant:
+                flagged_stmt = stmt.filter(
+                    self.VariantDBE.flags["is_default"].as_boolean().is_(True),  # type: ignore
+                ).limit(1)
+                result = await session.execute(flagged_stmt)
+                variant_dbe = result.scalars().first()
+                if variant_dbe is None:
+                    fallback_stmt = stmt.order_by(
+                        self.VariantDBE.created_at.asc(),  # type: ignore
+                        self.VariantDBE.id.asc(),  # type: ignore
+                    ).limit(1)
+                    result = await session.execute(fallback_stmt)
+                    variant_dbe = result.scalars().first()
+            else:
+                stmt = stmt.limit(1)
+                result = await session.execute(stmt)
+                variant_dbe = result.scalars().first()
 
             if not variant_dbe:
                 return None
