@@ -7,7 +7,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import (
-    validate_revision_ref_unambiguous,
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
     needs_default_variant_resolution,
     validate_retrieve_refs_consistent,
 )
@@ -432,6 +433,10 @@ class QueriesService:
         query_ref: Optional[Reference] = None,
         query_variant_ref: Optional[Reference] = None,
     ) -> Optional[QueryVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=query_variant_ref,
+            entity_type="query",
+        )
         variant = await self.queries_dao.fetch_variant(
             project_id=project_id,
             #
@@ -651,7 +656,11 @@ class QueriesService:
         if not query_ref and not query_variant_ref and not query_revision_ref:
             return None
 
-        validate_revision_ref_unambiguous(
+        validate_variant_refs_sufficient(
+            variant_ref=query_variant_ref,
+            entity_type="query",
+        )
+        validate_revision_refs_sufficient(
             artifact_ref=query_ref,
             variant_ref=query_variant_ref,
             revision_ref=query_revision_ref,

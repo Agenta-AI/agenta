@@ -80,7 +80,8 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceStreamResponse,
 )
 from oss.src.core.git.types import (
-    validate_revision_ref_unambiguous,
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
     needs_default_variant_resolution,
     validate_retrieve_refs_consistent,
 )
@@ -833,6 +834,10 @@ class WorkflowsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=workflow_variant_ref,
+            entity_type="workflow",
+        )
         variant = await self.workflows_dao.fetch_variant(
             project_id=project_id,
             #
@@ -1084,7 +1089,11 @@ class WorkflowsService:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
 
-        validate_revision_ref_unambiguous(
+        validate_variant_refs_sufficient(
+            variant_ref=workflow_variant_ref,
+            entity_type="workflow",
+        )
+        validate_revision_refs_sufficient(
             artifact_ref=workflow_ref,
             variant_ref=workflow_variant_ref,
             revision_ref=workflow_revision_ref,

@@ -10,11 +10,7 @@ from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.events.utils import publish_revision_event
 
-from oss.src.core.git.types import (
-    VariantForkError,
-    RetrieveRefsInsufficient,
-    RetrieveRefsInconsistent,
-)
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -1062,6 +1058,7 @@ class EvaluatorsRouter:
         return evaluator_variants_response
 
     @intercept_exceptions()  # TODO: FIX ME
+    @handle_git_exceptions()
     async def fork_evaluator_variant(
         self,
         request: Request,
@@ -1097,18 +1094,12 @@ class EvaluatorsRouter:
             if not fork_request.evaluator_variant_id:
                 fork_request.evaluator_variant_id = evaluator_variant_id
 
-        try:
-            evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                evaluator_fork=fork_request,
-            )
-        except VariantForkError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluator_fork=fork_request,
+        )
 
         evaluator_variant_response = EvaluatorVariantResponse(
             count=1 if evaluator_variant else 0,
@@ -1120,6 +1111,7 @@ class EvaluatorsRouter:
     # EVALUATOR REVISIONS ------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def deploy_evaluator_revision(
         self,
         request: Request,
@@ -1173,19 +1165,13 @@ class EvaluatorsRouter:
                 detail="Evaluator deploy requires environment refs.",
             )
 
-        try:
-            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                evaluator_ref=evaluator_deploy_request.evaluator_ref,
-                evaluator_variant_ref=evaluator_deploy_request.evaluator_variant_ref,
-                evaluator_revision_ref=evaluator_deploy_request.evaluator_revision_ref,
-            )
-        except (RetrieveRefsInsufficient, RetrieveRefsInconsistent) as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            evaluator_ref=evaluator_deploy_request.evaluator_ref,
+            evaluator_variant_ref=evaluator_deploy_request.evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_deploy_request.evaluator_revision_ref,
+        )
 
         if not evaluator_revision:
             raise HTTPException(
@@ -1287,6 +1273,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def retrieve_evaluator_revision(
         self,
         request: Request,
@@ -1344,14 +1331,6 @@ class EvaluatorsRouter:
         )
         environment_lookup_requested = environment_refs_requested or key is not None
 
-        if evaluator_lookup_requested and environment_lookup_requested:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Provide either evaluator refs or environment refs with key, not both."
-                ),
-            )
-
         if not evaluator_lookup_requested and not environment_lookup_requested:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1368,34 +1347,42 @@ class EvaluatorsRouter:
                 )
 
             if not key:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment-backed evaluator retrieve requires key.",
-                )
+                if evaluator_ref and evaluator_ref.slug:
+                    key = f"{evaluator_ref.slug}.revision"
+                elif evaluator_ref and evaluator_ref.id:
+                    evaluator = await self.evaluators_service.fetch_evaluator(
+                        project_id=UUID(request.state.project_id),
+                        evaluator_ref=evaluator_ref,
+                    )
+                    if not evaluator or not evaluator.slug:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Environment-backed evaluator retrieve could not derive key from evaluator slug.",
+                        )
+                    key = f"{evaluator.slug}.revision"
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Environment-backed evaluator retrieve requires key.",
+                    )
 
-        try:
-            (
-                evaluator_revision,
-                resolution_info,
-            ) = await self.evaluators_service.retrieve_evaluator_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                environment_ref=environment_ref,
-                environment_variant_ref=environment_variant_ref,
-                environment_revision_ref=environment_revision_ref,
-                key=key,
-                #
-                evaluator_ref=evaluator_ref,
-                evaluator_variant_ref=evaluator_variant_ref,
-                evaluator_revision_ref=evaluator_revision_ref,
-                #
-                resolve=evaluator_revision_retrieve_request.resolve or False,
-            )
-        except (RetrieveRefsInsufficient, RetrieveRefsInconsistent) as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        (
+            evaluator_revision,
+            resolution_info,
+        ) = await self.evaluators_service.retrieve_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
+            key=key,
+            #
+            evaluator_ref=evaluator_ref,
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_revision_ref,
+            #
+            resolve=evaluator_revision_retrieve_request.resolve or False,
+        )
 
         if environment_lookup_requested and not evaluator_revision:
             raise HTTPException(

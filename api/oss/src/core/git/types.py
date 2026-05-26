@@ -1,3 +1,93 @@
+"""Git-pattern domain rules for artifact/variant/revision references.
+
+This module owns the shape of `revisions/retrieve` across every git-backed
+entity (workflows, applications, evaluators, testsets, queries,
+environments). Changes here propagate uniformly. The rules below are the
+contract every entity service implements before delegating to its DAO.
+
+Reference shapes
+================
+
+A `Reference(id, slug, version)` is *identifying* iff it carries an `id`
+or a `slug`. Both are project-unique. A bare `version` (with no `id` or
+`slug`) is a per-variant sequence number on its own — not a project-wide
+identifier — and never identifies a row.
+
+Variants do not have versions: a `variant_ref` carrying only `version`
+is rejected outright by `validate_variant_refs_sufficient`.
+
+A revision can be identified by:
+
+  * `revision_ref.id`                                — project-unique.
+  * `revision_ref.slug`                              — project-unique.
+  * `variant_ref` (id/slug) + `revision_ref.version` — version is scoped
+    to the variant.
+
+Rule 2.a — minimal identifying request
+---------------------------------------
+
+Any single identifying reference resolves a single revision:
+
+  * `{revision_ref.id}` or `{revision_ref.slug}` → that revision.
+  * `{variant_ref}`                              → latest revision on the
+    variant (stable tie-break: `created_at DESC, id DESC`).
+  * `{artifact_ref}`                             → latest revision on the
+    artifact's default variant (default variant picked by
+    `created_at ASC, id ASC LIMIT 1`).
+
+Env-path: `{environment_ref + key}` resolves to the revision currently
+deployed under that key. When `key` is omitted but `artifact_ref` has a
+slug, the key is derived as `{artifact_slug}.revision`.
+
+Rule 2.b — redundant-consistent request
+----------------------------------------
+
+A caller may repeat identifying refs across the
+artifact/variant/revision triple, or mix entity refs with env refs.
+Every redundant identifier must name the same row that the lookup
+resolved. Validated post-resolution by
+`validate_retrieve_refs_consistent`.
+
+Rule 2.c — inconsistent request
+--------------------------------
+
+When any redundant ref contradicts the resolved revision (different
+`id`, different `slug`, or — for revisions inside a variant — different
+`version`), `RetrieveRefsInconsistent` is raised. Routers translate this
+to HTTP 400 with a `*_ref` field name in the message.
+
+Rule 2.d — insufficient request that picks a default
+-----------------------------------------------------
+
+When refs are minimal but unambiguous (single variant, single artifact,
+env-ref + key), the rules above pick deterministically.
+
+Rule 2.e — insufficient request that cannot pick
+-------------------------------------------------
+
+When refs are present but cannot identify a single revision —
+`{revision_ref:{version}}` alone, `{variant_ref:{version}}` alone, or
+env refs without a `key` and without an artifact-ref to derive the key
+from — `RetrieveRefsInsufficient` is raised. Routers translate this to
+HTTP 400.
+
+Empty request (`{}`) resolves to `None` at the service layer; routers
+that require at least one identifying input (env-path-only routers like
+applications) reject it at the boundary.
+
+Exception registry
+==================
+
+`VariantForkError`, `RetrieveRefsInsufficient`, and
+`RetrieveRefsInconsistent` are translated to HTTP responses by
+`@handle_git_exceptions()` in
+`api/oss/src/apis/fastapi/git/exceptions.py`. Any new git-domain
+exception added here must also be registered there.
+
+See `docs/design/playground-open-from-trace/followups.md` for the design
+record that drove these rules.
+"""
+
 from typing import Optional
 
 from oss.src.core.shared.dtos import Reference
@@ -77,7 +167,7 @@ def needs_default_variant_resolution(
     return True
 
 
-def validate_revision_ref_unambiguous(
+def validate_revision_refs_sufficient(
     *,
     artifact_ref: Optional[Reference],
     variant_ref: Optional[Reference],
@@ -118,6 +208,35 @@ def validate_revision_ref_unambiguous(
         f"scope it. Provide either, or identify the revision by "
         f"{entity_type}_revision_ref.id or {entity_type}_revision_ref.slug "
         f"(both are project-unique)."
+    )
+
+
+def validate_variant_refs_sufficient(
+    *,
+    variant_ref: Optional[Reference],
+    entity_type: str = "artifact",
+) -> None:
+    """Reject `variant_ref` shapes that can never identify a variant.
+
+    Variants carry `id` and `slug` but no `version` field — version is a
+    per-variant counter living on revisions. A `variant_ref` populated with
+    only `version` is nonsense the DAO would silently drop, so reject it at
+    the boundary.
+
+    Identifying `variant_ref` (id/slug, optionally with redundant version
+    that the DAO ignores) is left alone — C3's consistency check covers the
+    "redundant but wrong" case.
+    """
+    if variant_ref is None:
+        return
+    if _is_identifying(variant_ref):
+        return
+    if variant_ref.version is None:
+        return
+    raise RetrieveRefsInsufficient(
+        f"{entity_type}_variant_ref carries only `version`, but variants "
+        f"have no `version` field. Identify the variant by "
+        f"{entity_type}_variant_ref.id or {entity_type}_variant_ref.slug."
     )
 
 

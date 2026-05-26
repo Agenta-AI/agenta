@@ -51,7 +51,8 @@ from oss.src.core.git.dtos import (
 )
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import (
-    validate_revision_ref_unambiguous,
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
     needs_default_variant_resolution,
     validate_retrieve_refs_consistent,
 )
@@ -414,6 +415,10 @@ class EnvironmentsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[EnvironmentVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=environment_variant_ref,
+            entity_type="environment",
+        )
         variant = await self.environments_dao.fetch_variant(
             project_id=project_id,
             #
@@ -618,7 +623,7 @@ class EnvironmentsService:
         ):
             return None
 
-        validate_revision_ref_unambiguous(
+        validate_revision_refs_sufficient(
             artifact_ref=environment_ref,
             variant_ref=environment_variant_ref,
             revision_ref=environment_revision_ref,

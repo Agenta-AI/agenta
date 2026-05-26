@@ -1,6 +1,6 @@
 """Acceptance: ambiguous revision-retrieve requests return HTTP 400.
 
-The shared `validate_revision_ref_unambiguous` helper protects every
+The shared `validate_revision_refs_sufficient` helper protects every
 git-backed entity's retrieve endpoint against the version-only-no-variant
 trap. These tests assert the 400 surfaces correctly across all six
 endpoints — applications, evaluators, queries, testsets, environments,
