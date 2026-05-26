@@ -31,7 +31,6 @@ import {
     workflowMolecule,
     createEphemeralWorkflow,
     buildWorkflowUri,
-    retrieveWorkflowRevision,
 } from "@agenta/entities/workflow"
 import {
     commitWorkflowRevisionAtom,
@@ -83,6 +82,7 @@ import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessa
 import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 
+import {extractReferences, resolveTraceRefs} from "./traceRefResolution"
 import {getRunnableTypeResolver} from "./urlSnapshotController"
 
 // Import loadable state from entities (stays there due to entity dependencies)
@@ -1008,30 +1008,6 @@ function extractModelConfig(span: TraceSpanNode): Record<string, unknown> | null
 }
 
 /**
- * Reference structure from backend (SimpleTraceReferences):
- * - application: {id, slug, version}
- * - application_variant: {id, slug, version}
- * - application_revision: {id, slug, version}
- * - evaluator: {id, slug, version}
- * - evaluator_variant: {id, slug, version}
- * - evaluator_revision: {id, slug, version}
- */
-interface TraceReference {
-    id?: string
-    slug?: string
-    version?: string
-}
-
-interface TraceReferences {
-    application?: TraceReference
-    application_variant?: TraceReference
-    application_revision?: TraceReference
-    evaluator?: TraceReference
-    evaluator_variant?: TraceReference
-    evaluator_revision?: TraceReference
-}
-
-/**
  * Extract `ag.flags` from a span's attributes.
  *
  * Flags sit at `attributes.ag.flags` (sibling of `ag.data`), so `extractAgData`
@@ -1061,161 +1037,6 @@ function deriveBuiltinUriFromSpanName(spanName: string | null | undefined): stri
     if (!match) return null
     const [, key, version] = match
     return buildWorkflowUri(key, "agenta", "builtin", `v${version}`)
-}
-
-/**
- * Extract references from ag.references (dict format) or top-level references array
- */
-function extractReferences(span: TraceSpanNode): TraceReferences {
-    const result: TraceReferences = {}
-
-    // Try ag.references first (dict format from backend)
-    const agData = (span.attributes as Record<string, unknown>)?.ag as Record<string, unknown>
-    const agRefs = agData?.references as Record<string, TraceReference> | undefined
-    if (agRefs) {
-        if (agRefs.application) result.application = agRefs.application
-        if (agRefs.application_variant) result.application_variant = agRefs.application_variant
-        if (agRefs.application_revision) result.application_revision = agRefs.application_revision
-        if (agRefs.evaluator) result.evaluator = agRefs.evaluator
-        if (agRefs.evaluator_variant) result.evaluator_variant = agRefs.evaluator_variant
-        if (agRefs.evaluator_revision) result.evaluator_revision = agRefs.evaluator_revision
-    }
-
-    // Also check top-level references array (alternative format)
-    const topRefs = span.references as
-        | {id?: string; slug?: string; version?: string; attributes?: {key?: string}}[]
-        | undefined
-    if (topRefs && Array.isArray(topRefs)) {
-        for (const ref of topRefs) {
-            const key = ref.attributes?.key
-            if (!key) continue
-            const refData: TraceReference = {id: ref.id, slug: ref.slug, version: ref.version}
-            if (key === "application" && !result.application) result.application = refData
-            if (key === "application_variant" && !result.application_variant)
-                result.application_variant = refData
-            if (key === "application_revision" && !result.application_revision)
-                result.application_revision = refData
-            if (key === "evaluator" && !result.evaluator) result.evaluator = refData
-            if (key === "evaluator_variant" && !result.evaluator_variant)
-                result.evaluator_variant = refData
-            if (key === "evaluator_revision" && !result.evaluator_revision)
-                result.evaluator_revision = refData
-        }
-    }
-
-    return result
-}
-
-/**
- * Session cache for trace ref → revision lookups. TTL bounds staleness if a
- * slug starts pointing at a different revision mid-session (rare, but
- * possible if someone archives + recreates a workflow with the same slug).
- * Keyed by the JSON of the assembled request. Successful results only —
- * nulls are not cached so transient failures don't block retries.
- */
-const TRACE_REF_RESOLUTION_TTL_MS = 5 * 60 * 1000
-const traceRefResolutionCache = new Map<string, {at: number; value: ResolvedTraceRefs}>()
-
-interface ResolvedTraceRefs {
-    appId: string | null
-    revisionId: string | null
-}
-
-type RefShape = {id: string} | {slug: string} | {version: string} | undefined
-
-/**
- * Build the smallest identifying ref for the resolver. Prefers `id` over
- * `slug` over `version`. Returns `undefined` when nothing is set, so the
- * caller can omit the field from the request entirely.
- */
-function buildRefForResolver(ref: TraceReference | undefined): RefShape {
-    if (!ref) return undefined
-    const id = asString(ref.id)
-    if (id) return {id}
-    const slug = asString(ref.slug)
-    if (slug) return {slug}
-    const version = asString(ref.version)
-    if (version) return {version}
-    return undefined
-}
-
-/**
- * Resolve any combination of trace refs (app / variant / revision, each by
- * id, slug, or version) into a concrete `{appId, revisionId}` via
- * `POST /workflows/revisions/retrieve`.
- *
- * Sends every identifier the trace carries — the backend picks the most
- * specific revision consistent with all of them, falling back to the
- * default variant's latest when fields are missing.
- *
- * Returns `{appId: null, revisionId: null}` when the project is unknown,
- * when nothing identifying is present, or when the backend has no match.
- * Callers should fall back to ephemeral on a null result.
- *
- * Defensive verification: when we asked by `application.slug`, the response
- * `artifact_slug` must match — guards against stale data and any backend
- * regression that returns the wrong workflow.
- */
-async function resolveTraceRefs(
-    refs: TraceReferences,
-    projectId: string | null | undefined,
-): Promise<ResolvedTraceRefs> {
-    if (!projectId) return {appId: null, revisionId: null}
-
-    const workflowRef = buildRefForResolver(refs.application)
-    const variantRef = buildRefForResolver(refs.application_variant)
-    const revisionRef = buildRefForResolver(refs.application_revision)
-
-    // The backend needs at least one identifying ref (id or slug at any
-    // level). A bare `version` on the revision ref alone is rejected — it's
-    // a per-variant sequence number with no scope — and a request with no
-    // refs at all is meaningless. Skip the call in both cases.
-    const hasWorkflowIdent = !!workflowRef && ("id" in workflowRef || "slug" in workflowRef)
-    const hasVariantIdent = !!variantRef && ("id" in variantRef || "slug" in variantRef)
-    const hasRevisionIdent = !!revisionRef && ("id" in revisionRef || "slug" in revisionRef)
-    const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
-    if (hasNoIdentifyingRef) return {appId: null, revisionId: null}
-
-    const cacheKey = JSON.stringify({projectId, workflowRef, variantRef, revisionRef})
-    const cached = traceRefResolutionCache.get(cacheKey)
-    if (cached && Date.now() - cached.at < TRACE_REF_RESOLUTION_TTL_MS) {
-        return cached.value
-    }
-
-    const askedAppSlug = workflowRef && "slug" in workflowRef ? workflowRef.slug : undefined
-
-    try {
-        const revision = await retrieveWorkflowRevision({
-            projectId,
-            ...(workflowRef ? {workflowRef} : {}),
-            ...(variantRef ? {workflowVariantRef: variantRef} : {}),
-            ...(revisionRef ? {workflowRevisionRef: revisionRef} : {}),
-        })
-
-        if (!revision) return {appId: null, revisionId: null}
-
-        // When we asked by app slug, verify the response actually belongs
-        // to that workflow. We trust id-based requests without further
-        // checking (the backend cannot match the wrong id to a slug).
-        if (askedAppSlug && revision.artifact_slug && revision.artifact_slug !== askedAppSlug) {
-            console.warn(
-                `[openFromTrace] Resolver returned mismatched workflow ` +
-                    `(asked for "${askedAppSlug}", got "${revision.artifact_slug}") — ` +
-                    `falling back to ephemeral.`,
-            )
-            return {appId: null, revisionId: null}
-        }
-
-        const result: ResolvedTraceRefs = {
-            appId: asString(revision.workflow_id) ?? null,
-            revisionId: asString(revision.id) ?? null,
-        }
-        traceRefResolutionCache.set(cacheKey, {at: Date.now(), value: result})
-        return result
-    } catch (error) {
-        console.warn("[openFromTrace] Resolver call failed, falling back to ephemeral.", error)
-        return {appId: null, revisionId: null}
-    }
 }
 
 /**

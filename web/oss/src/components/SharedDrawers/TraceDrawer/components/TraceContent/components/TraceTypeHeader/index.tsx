@@ -1,6 +1,7 @@
 import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
+import {hasAppReference} from "@agenta/playground"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -14,7 +15,6 @@ import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawe
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {openTraceInPlaygroundAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/openInPlayground"
 import {closeTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useAppNavigation} from "@/oss/state/appState"
 import {urlAtom} from "@/oss/state/url"
 import {buildPlaygroundUrl} from "@/oss/state/url/playground"
@@ -40,47 +40,6 @@ const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
  * (re-exported by `api/oss/src/core/tracing/dtos.py:25`).
  */
 const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
-
-/**
- * Check if a span carries any reference the resolver can use to identify a
- * workflow revision. Accepts application, application_variant, or
- * application_revision refs — each by `id` or `slug`. A bare `version`
- * does not satisfy this predicate because the resolver cannot scope it
- * (the backend rejects version-only requests with 400), so enabling the
- * button on those traces would just spin and fall through to ephemeral.
- */
-function hasAppReference(span: TraceSpanNode): boolean {
-    const identifyingKeys = ["application", "application_variant", "application_revision"]
-    // Mirrors `asString` in playgroundController.ts: a non-empty string only.
-    // Without the length check, a span carrying `{id: "", slug: ""}` would
-    // pass this predicate but the resolver's own gate would reject it, and
-    // the button would spin then fall through to ephemeral.
-    const isNonEmptyString = (value: unknown): value is string =>
-        typeof value === "string" && value.length > 0
-    const hasIdOrSlug = (ref: unknown): boolean => {
-        if (!ref || typeof ref !== "object") return false
-        const r = ref as {id?: unknown; slug?: unknown}
-        return isNonEmptyString(r.id) || isNonEmptyString(r.slug)
-    }
-
-    const attrs = span.attributes as Record<string, unknown> | undefined
-    const ag = attrs?.ag as Record<string, unknown> | undefined
-    const agRefs = ag?.references as Record<string, unknown> | undefined
-    if (agRefs && identifyingKeys.some((k) => hasIdOrSlug(agRefs[k]))) return true
-
-    const topRefs = span.references as
-        | {id?: string; slug?: string; attributes?: {key?: string}}[]
-        | undefined
-    if (Array.isArray(topRefs)) {
-        return topRefs.some(
-            (ref) =>
-                ref.attributes?.key &&
-                identifyingKeys.includes(ref.attributes.key) &&
-                (isNonEmptyString(ref.id) || isNonEmptyString(ref.slug)),
-        )
-    }
-    return false
-}
 
 const TraceTypeHeader = ({
     activeTrace,
