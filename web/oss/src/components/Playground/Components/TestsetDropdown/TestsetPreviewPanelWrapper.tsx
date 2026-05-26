@@ -20,7 +20,7 @@ import {PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Typography} from "antd"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
-import TestcaseEditDrawer from "@/oss/components/TestcasesTableNew/components/TestcaseEditDrawer"
+import TestcaseEditDrawer from "@/oss/components/SharedDrawers/TestcaseDrawer"
 import {TestcasesTableShell} from "@/oss/components/TestcasesTableNew/components/TestcasesTableShell"
 import {useTestcasesTable} from "@/oss/components/TestcasesTableNew/hooks/useTestcasesTable"
 import {
