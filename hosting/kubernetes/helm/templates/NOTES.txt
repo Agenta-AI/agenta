@@ -82,10 +82,26 @@ Database migrations run as a post-install/post-upgrade hook. Check the migration
 
 You are using a pre-created Secret: {{ $secrets.existingSecret }}
 Ensure it contains the following keys:
-  - AGENTA_AUTH_KEY
-  - AGENTA_CRYPT_KEY
-  - POSTGRES_PASSWORD
-  - SUPERTOKENS_API_KEY  (optional)
+
+  Required:
+    - AGENTA_AUTH_KEY
+    - AGENTA_CRYPT_KEY
+    - POSTGRES_PASSWORD
+
+  Optional (only if you enabled the corresponding feature):
+    - SUPERTOKENS_API_KEY
+    - REDIS_VOLATILE_PASSWORD       # if bundled redis has a password
+    - REDIS_DURABLE_PASSWORD        # if bundled redis has a password
+    - SENDGRID_API_KEY              # email
+    - COMPOSIO_API_KEY              # composio
+    - CLOUDFLARE_TURNSTILE_SECRET_KEY
+    - NEWRELIC_LICENSE_KEY
+    - LOOPS_API_KEY
+    - DAYTONA_API_KEY
+    - AGENTA_AI_SERVICES_API_KEY
+    - AGENTA_AI_SERVICES_REFINE_PROMPT_KEY
+    - <PROVIDER>_API_KEY            # llm providers (openai, anthropic, …)
+    - <PROVIDER>_OAUTH_CLIENT_SECRET # identity providers (google, github, …)
 {{- if eq (include "agenta.postgresql.enabled" .) "true" }}
 
 Bundled PostgreSQL is enabled. Bitnami is configured to read the password from:

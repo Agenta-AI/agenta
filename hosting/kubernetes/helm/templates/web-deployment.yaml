@@ -62,7 +62,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "agenta.secretName" . }}
                   key: AGENTA_CRYPT_KEY
-            - name: SUPERTOKENS_CONNECTION_URI
+            - name: SUPERTOKENS_URI_CORE
               value: {{ include "agenta.supertokensUri" . | quote }}
             - name: SUPERTOKENS_API_KEY
               valueFrom:

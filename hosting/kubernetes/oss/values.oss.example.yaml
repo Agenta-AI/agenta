@@ -274,6 +274,8 @@ postgres:
 
 # ================================================================== #
 # posthog — analytics
+# OSS and EE use different PostHog project keys so usage telemetry
+# stays in separate streams. Override or unset to disable.
 # ================================================================== #
 posthog:
   apiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
@@ -322,6 +324,9 @@ posthog:
 
 # ================================================================== #
 # === Global (Bitnami subchart conventions, image pull secrets) ===
+# OSS images live on a public registry, so no pull secret is required.
+# If you mirror the images to a private registry, uncomment and set
+# imagePullSecrets to the name of a Secret in this namespace.
 # ================================================================== #
 # global:
 #   imagePullSecrets:
@@ -355,6 +360,7 @@ posthog:
 # ================================================================== #
 # redisVolatile:
 #   enabled: true
+#   password: ""            # optional; rendered into REDIS_URI_VOLATILE
 #   image:
 #     repository: redis
 #     tag: "8"
@@ -374,6 +380,7 @@ posthog:
 # ================================================================== #
 # redisDurable:
 #   enabled: true
+#   password: ""            # optional; rendered into REDIS_URI_DURABLE
 #   image:
 #     repository: redis
 #     tag: "8"

@@ -315,7 +315,7 @@ ghcr.io/agenta-ai/agenta-services
 {{/* ================================================================
    Ingress defaults.
    ================================================================ */}}
-{{- define "agenta.ingress.className" -}}{{ default "nginx" (default dict .Values.ingress).className }}{{- end }}
+{{- define "agenta.ingress.className" -}}{{ default "traefik" (default dict .Values.ingress).className }}{{- end }}
 {{- define "agenta.ingress.host" -}}{{ default "agenta.local" (default dict .Values.ingress).host }}{{- end }}
 {{- define "agenta.ingress.paths.api.path" -}}
 {{- $paths := default dict (default dict .Values.ingress).paths -}}
@@ -698,6 +698,7 @@ imagePullSecrets:
 {{- $secrets := default dict .Values.secrets -}}
 {{- $identity := default dict .Values.identity -}}
 {{- $llm := default dict .Values.llm -}}
+{{- $supertokensCfg := default dict .Values.supertokens -}}
 - name: AGENTA_LICENSE
   value: {{ include "agenta.edition" . | quote }}
 - name: POSTGRES_PASSWORD
@@ -771,6 +772,38 @@ imagePullSecrets:
   value: {{ $composio.apiUrl | default "" | quote }}
 - name: CLOUDFLARE_TURNSTILE_SITE_KEY
   value: {{ $cf.siteKey | default "" | quote }}
+{{- if $cf.allowedHostnames }}
+- name: CLOUDFLARE_TURNSTILE_ALLOWED_HOSTNAMES
+  value: {{ $cf.allowedHostnames | quote }}
+{{- end }}
+{{- if hasKey $access "emailDisabled" }}
+- name: AGENTA_ACCESS_EMAIL_DISABLED
+  value: {{ $access.emailDisabled | quote }}
+{{- end }}
+{{- if $supertokensCfg.application }}
+- name: SUPERTOKENS_APPLICATION
+  value: {{ $supertokensCfg.application | quote }}
+{{- end }}
+{{- if $supertokensCfg.tenant }}
+- name: SUPERTOKENS_TENANT
+  value: {{ $supertokensCfg.tenant | quote }}
+{{- end }}
+{{- if $supertokensCfg.passwordPolicy }}
+- name: SUPERTOKENS_PASSWORD_POLICY
+  value: {{ $supertokensCfg.passwordPolicy | quote }}
+{{- end }}
+{{- if $supertokensCfg.passwordMinLength }}
+- name: SUPERTOKENS_PASSWORD_MIN_LENGTH
+  value: {{ $supertokensCfg.passwordMinLength | quote }}
+{{- end }}
+{{- if $supertokensCfg.passwordMaxLength }}
+- name: SUPERTOKENS_PASSWORD_MAX_LENGTH
+  value: {{ $supertokensCfg.passwordMaxLength | quote }}
+{{- end }}
+{{- if $supertokensCfg.passwordRegex }}
+- name: SUPERTOKENS_PASSWORD_REGEX
+  value: {{ $supertokensCfg.passwordRegex | quote }}
+{{- end }}
 {{- if $access.allowedDomains }}
 - name: AGENTA_ACCESS_ALLOWED_DOMAINS
   value: {{ $access.allowedDomains | quote }}

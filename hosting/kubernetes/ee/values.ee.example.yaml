@@ -18,6 +18,12 @@ agenta:
 
 # ================================================================== #
 # Global (Bitnami subchart conventions, image pull secrets)
+# EE images live on a private registry (ghcr.io/agenta-ai). Create
+# a Secret named `ghcr-pull-secret` in this namespace before install:
+#   kubectl create secret docker-registry ghcr-pull-secret \
+#     --docker-server=ghcr.io \
+#     --docker-username=<gh-user> --docker-password=<gh-token> \
+#     -n <namespace>
 # ================================================================== #
 global:
   imagePullSecrets:
@@ -281,6 +287,8 @@ postgres:
 
 # ================================================================== #
 # posthog — analytics
+# OSS and EE use different PostHog project keys so usage telemetry
+# stays in separate streams. Override or unset to disable.
 # ================================================================== #
 posthog:
   apiKey: "phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp"
@@ -355,6 +363,7 @@ posthog:
 # ================================================================== #
 # redisVolatile:
 #   enabled: true
+#   password: ""            # optional; rendered into REDIS_URI_VOLATILE
 #   image:
 #     repository: redis
 #     tag: "8"
@@ -374,6 +383,7 @@ posthog:
 # ================================================================== #
 # redisDurable:
 #   enabled: true
+#   password: ""            # optional; rendered into REDIS_URI_DURABLE
 #   image:
 #     repository: redis
 #     tag: "8"

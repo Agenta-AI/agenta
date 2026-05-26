@@ -157,7 +157,7 @@ Then open `http://localhost:3000` in your browser.
 If you want to expose Agenta through a public hostname, see [Set Up Ingress and TLS](#set-up-ingress-and-tls).
 
 
-::: info What gets deployed
+:::info What gets deployed
 
 The chart creates the following workloads inside your Kubernetes namespace:
 
@@ -208,6 +208,19 @@ To use an existing Kubernetes Secret instead of having the chart create one, set
 
 If you enable secret-backed settings such as OAuth, LLM provider keys, SendGrid, Composio, New Relic, or Turnstile, add those keys to the same Secret too. When `secrets.existingSecret` is set, the chart does not create or update the Secret for you.
 
+:::caution Bundled PostgreSQL needs a matching subchart setting
+When `secrets.existingSecret` is set **and** the bundled PostgreSQL is enabled (the default), you must also point the Bitnami subchart at the same Secret:
+
+```bash
+helm install agenta hosting/kubernetes/helm \
+  -f hosting/kubernetes/oss/.values.oss.yaml \
+  --set secrets.existingSecret=my-secret \
+  --set global.postgresql.auth.existingSecret=my-secret
+```
+
+The chart aborts with a clear error if you set only one of the two. If you are using an external PostgreSQL (`postgresql.enabled=false`), only `secrets.existingSecret` is required.
+:::
+
 :::caution
 When `supertokens.apiKey` is empty, the SuperTokens instance runs without authentication. Any pod that can reach the SuperTokens service can manage auth data. Set an API key for production deployments.
 :::
@@ -233,8 +246,8 @@ To enable transactional emails (invitations and password resets), configure Send
 
 | Value | Purpose | Default |
 |-------|---------|---------|
-| `email.sendgrid.apiKey` | SendGrid API key | `""` |
-| `email.sendgrid.fromAddress` | Sender email address | `""` |
+| `sendgrid.apiKey` | SendGrid API key | `""` |
+| `sendgrid.fromAddress` | Sender email address | `""` |
 
 ### Configuring Images
 

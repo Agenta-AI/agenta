@@ -275,14 +275,14 @@ kubectl -n agenta get pvc
 
 # Migration job completed
 kubectl -n agenta get jobs
-kubectl -n agenta logs job/agenta-agenta-oss-alembic -c alembic --tail=20
+kubectl -n agenta logs job/agenta-alembic -c alembic --tail=20
 
 # API health — via the ingress so it's naming-agnostic
 curl -fsS http://<your-ingress-host>/api/health
 ```
 
 :::note Alembic job retries
-Helm re-rolls the bundled Postgres StatefulSet on the upgrade, so the first one or two alembic pods may show `Error` with `CannotConnectNowError: the database system is shutting down`. The Job retries (`backoffLimit=3`) and the final pod completes. As long as `kubectl get jobs` shows `agenta-agenta-oss-alembic` as `Complete 1/1`, you're fine. If `kubectl logs job/...` happened to pick an Errored pod, run `kubectl logs <completed-pod-name> -c alembic` directly.
+Helm re-rolls the bundled Postgres StatefulSet on the upgrade, so the first one or two alembic pods may show `Error` with `CannotConnectNowError: the database system is shutting down`. The Job retries (`backoffLimit=3`) and the final pod completes. As long as `kubectl get jobs` shows `agenta-alembic` as `Complete 1/1`, you're fine. If `kubectl logs job/...` happened to pick an Errored pod, run `kubectl logs <completed-pod-name> -c alembic` directly.
 :::
 
 Open the web UI and confirm existing projects, prompts, traces, and evaluations are present before deleting `pre-v0.100.2-values.yaml`.
