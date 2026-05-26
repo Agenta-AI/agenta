@@ -1344,14 +1344,6 @@ class EvaluatorsRouter:
         )
         environment_lookup_requested = environment_refs_requested or key is not None
 
-        if evaluator_lookup_requested and environment_lookup_requested:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Provide either evaluator refs or environment refs with key, not both."
-                ),
-            )
-
         if not evaluator_lookup_requested and not environment_lookup_requested:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1368,10 +1360,24 @@ class EvaluatorsRouter:
                 )
 
             if not key:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment-backed evaluator retrieve requires key.",
-                )
+                if evaluator_ref and evaluator_ref.slug:
+                    key = f"{evaluator_ref.slug}.revision"
+                elif evaluator_ref and evaluator_ref.id:
+                    evaluator = await self.evaluators_service.fetch_evaluator(
+                        project_id=UUID(request.state.project_id),
+                        evaluator_ref=evaluator_ref,
+                    )
+                    if not evaluator or not evaluator.slug:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Environment-backed evaluator retrieve could not derive key from evaluator slug.",
+                        )
+                    key = f"{evaluator.slug}.revision"
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Environment-backed evaluator retrieve requires key.",
+                    )
 
         try:
             (

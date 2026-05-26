@@ -1690,14 +1690,6 @@ class WorkflowsRouter:
         )
         environment_lookup_requested = environment_refs_requested or key is not None
 
-        if workflow_lookup_requested and environment_lookup_requested:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Provide either workflow refs or environment refs with key, not both."
-                ),
-            )
-
         if not workflow_lookup_requested and not environment_lookup_requested:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1714,10 +1706,24 @@ class WorkflowsRouter:
                 )
 
             if not key:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment-backed workflow retrieve requires key.",
-                )
+                if workflow_ref and workflow_ref.slug:
+                    key = f"{workflow_ref.slug}.revision"
+                elif workflow_ref and workflow_ref.id:
+                    workflow = await self.workflows_service.fetch_workflow(
+                        project_id=UUID(request.state.project_id),
+                        workflow_ref=workflow_ref,
+                    )
+                    if not workflow or not workflow.slug:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Environment-backed workflow retrieve could not derive key from workflow slug.",
+                        )
+                    key = f"{workflow.slug}.revision"
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Environment-backed workflow retrieve requires key.",
+                    )
 
         try:
             (
