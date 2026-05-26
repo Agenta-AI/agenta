@@ -51,10 +51,9 @@ def mock_data(authed_api):
                     "meta3": "value3",
                 },
                 "data": {
-                    "service": {
-                        "agenta": "v0.1.0",
-                        "format": _format,
-                    }
+                    "schemas": {
+                        "outputs": _format,
+                    },
                 },
             }
         },
@@ -92,10 +91,9 @@ def mock_data(authed_api):
                     "meta3": "value1",
                 },
                 "data": {
-                    "service": {
-                        "agenta": "v0.1.0",
-                        "format": _format,
-                    }
+                    "schemas": {
+                        "outputs": _format,
+                    },
                 },
             }
         },

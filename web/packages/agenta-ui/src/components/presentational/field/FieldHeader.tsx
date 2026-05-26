@@ -16,36 +16,32 @@
 
 import {memo, useCallback, useState} from "react"
 
-import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
-import {Check, Copy, MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
+import {Check, Copy} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-import {useAtom} from "jotai"
 
-import {TOGGLE_MARKDOWN_VIEW} from "../../../Editor/plugins/markdown/commands"
-import {markdownViewAtom} from "../../../Editor/state/assets/atoms"
 import {copyToClipboard} from "../../../utils/copyToClipboard"
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../../utils/styles"
 
 export interface FieldHeaderProps {
-    /** Unique identifier for the field, used for markdown state tracking */
-    id: string
+    /** Unique identifier for the field. Retained for backwards compatibility. */
+    id?: string
     /** The text value to copy when clicking the copy button */
     value?: string
-    /** Whether to hide the markdown toggle button (default: false) */
+    /**
+     * Deprecated: markdown switching has moved to the shared viewMode dropdown
+     * (ChatMessageViewModeDropdown / DrillInFieldHeader). The inline button is
+     * no longer rendered regardless of this flag — kept to preserve the
+     * existing prop shape for current callers.
+     */
     hideMarkdownToggle?: boolean
 }
 
 /**
- * Field header with copy and markdown toggle buttons.
- *
- * Features:
- * - Copy button with visual feedback
- * - Markdown/text preview toggle (optional)
- * - Integrates with Lexical editor context
+ * Field header with a copy button. The legacy markdown toggle that lived here
+ * has been replaced by the shared viewMode dropdown surfaced by chat messages
+ * and drill-in field headers — see ChatMessageViewModeDropdown.
  */
-const FieldHeader = ({id, value = "", hideMarkdownToggle = false}: FieldHeaderProps) => {
-    const [editor] = useLexicalComposerContext()
-    const [markdownView] = useAtom(markdownViewAtom(id))
+const FieldHeader = ({value = ""}: FieldHeaderProps) => {
     const [isCopied, setIsCopied] = useState(false)
 
     const onCopyText = useCallback(async () => {
@@ -60,10 +56,6 @@ const FieldHeader = ({id, value = "", hideMarkdownToggle = false}: FieldHeaderPr
         }
     }, [value])
 
-    const onToggleMarkdown = useCallback(() => {
-        editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-    }, [editor])
-
     return (
         <div className={cn(flexLayouts.rowCenter, justifyClasses.end, gapClasses.xs, "w-full")}>
             <Tooltip title={isCopied ? "Copied" : "Copy"}>
@@ -75,18 +67,6 @@ const FieldHeader = ({id, value = "", hideMarkdownToggle = false}: FieldHeaderPr
                     className={cn(flexLayouts.rowCenter, justifyClasses.center)}
                 />
             </Tooltip>
-
-            {!hideMarkdownToggle && (
-                <Tooltip title={markdownView ? "Preview text" : "Preview markdown"}>
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
-                        onClick={onToggleMarkdown}
-                        className={cn(flexLayouts.rowCenter, justifyClasses.center)}
-                    />
-                </Tooltip>
-            )}
         </div>
     )
 }

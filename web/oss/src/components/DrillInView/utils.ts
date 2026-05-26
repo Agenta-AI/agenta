@@ -1,4 +1,4 @@
-import type {DataType} from "@/oss/components/TestcasesTableNew/components/TestcaseEditDrawer/fieldUtils"
+import type {DataType} from "@agenta/ui/drill-in"
 
 /**
  * Determines if a data type supports raw mode toggle.

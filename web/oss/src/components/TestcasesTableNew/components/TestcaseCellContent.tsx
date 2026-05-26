@@ -8,16 +8,28 @@ import {
     extractChatMessages,
     normalizeValue,
     safeJsonStringify,
-    tryParseJson,
+    type ChatPreviewStrategy,
 } from "@agenta/ui/cell-renderers"
 import {Typography} from "antd"
 
+import {parseTestcaseCellJson} from "./testcaseCellValueUtils"
+
 const {Text} = Typography
+const LAST_USER_PREVIEW_COLUMNS = new Set(["messages", "prompt", "input_messages"])
 
 interface TestcaseCellContentProps {
     value: unknown
+    /** Column key/path, used for testcase-specific chat preview decisions */
+    columnKey?: string
     /** Max lines to show in cell preview (default: 10) */
     maxLines?: number
+}
+
+export function getTestcaseChatPreviewStrategy(
+    columnKey?: string,
+): ChatPreviewStrategy | undefined {
+    const leafKey = columnKey?.split(".").pop()?.toLowerCase()
+    return leafKey && LAST_USER_PREVIEW_COLUMNS.has(leafKey) ? "last-user" : undefined
 }
 
 /**
@@ -30,10 +42,14 @@ interface TestcaseCellContentProps {
  *
  * Uses shared CellRenderers components for consistency across tables.
  */
-const TestcaseCellContent = memo(({value, maxLines = 10}: TestcaseCellContentProps) => {
+const TestcaseCellContent = memo(({value, columnKey, maxLines = 10}: TestcaseCellContentProps) => {
     const keyPrefix = useId()
-    const {parsed: jsonValue, isJson} = useMemo(() => tryParseJson(value), [value])
+    const {parsed: jsonValue, isJson} = useMemo(() => parseTestcaseCellJson(value), [value])
     const displayValue = useMemo(() => normalizeValue(value), [value])
+    const chatPreviewStrategy = useMemo(
+        () => getTestcaseChatPreviewStrategy(columnKey),
+        [columnKey],
+    )
 
     // Check for chat messages (single message or array)
     const chatMessages = useMemo(() => extractChatMessages(jsonValue), [jsonValue])
@@ -56,7 +72,7 @@ const TestcaseCellContent = memo(({value, maxLines = 10}: TestcaseCellContentPro
         if (isChatMessages) {
             return (
                 <ChatMessagesCellContent
-                    value={value}
+                    value={jsonValue}
                     keyPrefix={`${keyPrefix}-popover`}
                     truncate={false}
                 />
@@ -73,8 +89,9 @@ const TestcaseCellContent = memo(({value, maxLines = 10}: TestcaseCellContentPro
         if (isChatMessages) {
             return (
                 <ChatMessagesCellContent
-                    value={value}
+                    value={jsonValue}
                     keyPrefix={keyPrefix}
+                    previewStrategy={chatPreviewStrategy}
                     maxLines={4}
                     maxTotalLines={maxLines}
                     truncate
@@ -85,7 +102,16 @@ const TestcaseCellContent = memo(({value, maxLines = 10}: TestcaseCellContentPro
             return <JsonCellContent value={jsonValue} maxLines={maxLines} />
         }
         return <TextCellContent value={displayValue} maxLines={maxLines} />
-    }, [isChatMessages, isJson, jsonValue, displayValue, maxLines, value, keyPrefix])
+    }, [
+        isChatMessages,
+        isJson,
+        jsonValue,
+        displayValue,
+        maxLines,
+        value,
+        keyPrefix,
+        chatPreviewStrategy,
+    ])
 
     // Handle empty values (null, undefined, empty string) - render placeholder
     // The testcase-table-cell class ensures proper height from CSS variables

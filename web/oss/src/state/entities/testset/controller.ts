@@ -45,7 +45,6 @@
  * ```
  */
 
-import {SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -75,6 +74,7 @@ import {
     renameColumnAtom,
     resetColumnsAtom,
 } from "../testcase/columnState"
+import {deriveTestcaseColumnKeys} from "../testcase/schema"
 
 import {type ChangesSummary, changesSummaryAtom, hasUnsavedChangesAtom} from "./dirtyState"
 import {
@@ -191,23 +191,7 @@ export const revisionTestcaseColumnsAtomFamily = atomFamily(
             const testcases = revision.data.testcases
             if (!Array.isArray(testcases)) return []
 
-            // Collect unique column keys (case-insensitive dedup, preserve original case)
-            const columnMap = new Map<string, string>()
-
-            testcases.forEach((testcase) => {
-                if (!testcase || typeof testcase !== "object") return
-
-                Object.keys(testcase).forEach((key) => {
-                    if (SYSTEM_FIELDS.has(key)) return
-
-                    const lowerKey = key.toLowerCase()
-                    if (!columnMap.has(lowerKey)) {
-                        columnMap.set(lowerKey, key)
-                    }
-                })
-            })
-
-            return Array.from(columnMap.values())
+            return deriveTestcaseColumnKeys(testcases)
         }),
     (a, b) => a === b,
 )
