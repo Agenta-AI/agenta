@@ -148,8 +148,10 @@ else
     HELM_CMD=(helm upgrade "$RELEASE" "$CHART" --install --namespace "$NAMESPACE" --create-namespace)
     if helm status "$RELEASE" --namespace "$NAMESPACE" >/dev/null 2>&1; then
         # Detect existing license to prevent silent OSS<->EE flip on re-install.
-        EXISTING_LICENSE=$(helm get values "$RELEASE" --namespace "$NAMESPACE" -o json 2>/dev/null \
-            | python3 -c "import sys,json; v=json.load(sys.stdin); print((v.get('agenta') or {}).get('license') or '')" 2>/dev/null || echo "")
+        # Use `helm get values -o yaml` + grep so the script doesn't depend on python3 or jq.
+        EXISTING_LICENSE=$(helm get values "$RELEASE" --namespace "$NAMESPACE" -o yaml 2>/dev/null \
+            | awk '/^agenta:/{a=1; next} a && /^[^[:space:]]/{a=0} a && /^[[:space:]]+license:/{print $2; exit}' \
+            | tr -d '"'"'"'')
         if [[ -n "$EXISTING_LICENSE" && "$EXISTING_LICENSE" != "$LICENSE" ]]; then
             error_exit "Release '$RELEASE' was installed as '$EXISTING_LICENSE'; refusing to switch to '$LICENSE'. Use --nuke to reinstall or pass --license $EXISTING_LICENSE."
         fi

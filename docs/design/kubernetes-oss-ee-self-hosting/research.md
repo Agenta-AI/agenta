@@ -4,7 +4,7 @@
 
 ### Existing Helm chart
 
-- Chart path: `hosting/kubernetes`
+- Chart path: `hosting/kubernetes/helm`
 - Guide path: `docs/docs/self-host/guides/03-deploy-to-kubernetes.mdx`
 - Current chart is OSS-specific
 

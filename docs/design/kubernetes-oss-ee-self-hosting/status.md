@@ -14,7 +14,7 @@ We have aligned on a 3-PR approach.
 
 ### Validation done
 
-- `helm lint hosting/kubernetes`
+- `helm lint hosting/kubernetes/helm`
 - `helm template` confirmed both new worker deployments render
 - isolated OSS install attempted in namespace `agenta-pr1`
 - isolated OSS smoke install succeeded in namespace `agenta-pr1-smoke` with `cron.enabled=false`

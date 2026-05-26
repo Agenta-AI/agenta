@@ -97,7 +97,7 @@ Database migrations run automatically as a post-upgrade hook. Check the migratio
 
 ```bash
 kubectl -n agenta get jobs -l app.kubernetes.io/component=alembic
-kubectl -n agenta logs job/agenta-alembic -n agenta
+kubectl -n agenta logs job/agenta-alembic
 ```
 
 To pin to a specific version, set the image tags in your `values.yaml`:

@@ -133,7 +133,7 @@ The chart automatically wires `postgres.password` to both the application pods a
 :::
 
 :::warning
-Never commit `values.yaml` to version control if it contains secrets. Add it to `.gitignore` and restrict file permissions (`chmod 600 values.yaml`). For fully managed secret lifecycle, use `secrets.existingSecret` to reference a pre-existing Kubernetes Secret or integrate with an external secrets operator.
+Never commit your edition-specific values file (`hosting/kubernetes/oss/.values.oss.yaml` or `hosting/kubernetes/ee/.values.ee.yaml`) to version control if it contains secrets. The repo's `.gitignore` already excludes these `.values.*.yaml` overlays; restrict file permissions too (`chmod 600 hosting/kubernetes/oss/.values.oss.yaml`). For a fully managed secret lifecycle, use `secrets.existingSecret` to reference a pre-existing Kubernetes Secret or integrate with an external secrets operator.
 :::
 
 ### 4. Verify
