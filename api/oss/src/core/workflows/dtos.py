@@ -450,6 +450,3 @@ class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
 
     flags: Optional[WorkflowCatalogFlags] = None
     data: Optional[WorkflowRevisionData] = None
-
-
-# ------------------------------------------------------------------------------

@@ -20,6 +20,10 @@ from oss.src.core.workflows.dtos import (
     #
 )
 from oss.src.core.shared.dtos import Windowing, Reference
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+)
 from oss.src.core.workflows.service import WorkflowsService
 
 # Resolution is now handled by EmbedsService
@@ -552,6 +556,17 @@ class EvaluatorsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[EvaluatorRevision]:
+        validate_variant_refs_sufficient(
+            variant_ref=evaluator_variant_ref,
+            entity_type="evaluator",
+        )
+        validate_revision_refs_sufficient(
+            artifact_ref=evaluator_ref,
+            variant_ref=evaluator_variant_ref,
+            revision_ref=evaluator_revision_ref,
+            entity_type="evaluator",
+        )
+
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=project_id,
             #

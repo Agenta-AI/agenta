@@ -486,6 +486,8 @@ class GitDAO(GitDAOInterface):
         if not artifact_ref and not variant_ref:
             return None
 
+        applied_identifying_filter = False
+
         async with engine.core_session() as session:
             stmt = (
                 select(self.VariantDBE)
@@ -497,14 +499,38 @@ class GitDAO(GitDAOInterface):
                 )
             )
 
+            pick_default_variant = False
+
             if variant_ref:
                 if variant_ref.id:
                     stmt = stmt.filter(self.VariantDBE.id == variant_ref.id)  # type: ignore
+                    applied_identifying_filter = True
                 elif variant_ref.slug:
                     stmt = stmt.filter(self.VariantDBE.slug == variant_ref.slug)  # type: ignore
+                    applied_identifying_filter = True
             elif artifact_ref:
                 if artifact_ref.id:
                     stmt = stmt.filter(self.VariantDBE.artifact_id == artifact_ref.id)  # type: ignore
+                    applied_identifying_filter = True
+                    pick_default_variant = True
+                elif artifact_ref.slug:
+                    stmt = stmt.join(
+                        self.ArtifactDBE,
+                        self.VariantDBE.artifact_id == self.ArtifactDBE.id,  # type: ignore
+                    ).filter(
+                        self.ArtifactDBE.slug == artifact_ref.slug,  # type: ignore
+                    )
+                    applied_identifying_filter = True
+                    pick_default_variant = True
+
+            if not applied_identifying_filter:
+                return None
+
+            if pick_default_variant:
+                stmt = stmt.order_by(
+                    self.VariantDBE.created_at.asc(),  # type: ignore
+                    self.VariantDBE.id.asc(),  # type: ignore
+                )
 
             if include_archived is not True:
                 stmt = stmt.filter(self.VariantDBE.deleted_at.is_(None))  # type: ignore
@@ -1049,6 +1075,14 @@ class GitDAO(GitDAOInterface):
         if not variant_ref and not revision_ref:
             return None
 
+        # Track whether any identifying filter was applied. If we reach the
+        # query without one (e.g. `revision_ref` carries only a `version` and
+        # no `variant_ref` is provided to scope it), bail out instead of
+        # running `WHERE project_id = ... LIMIT 1`, which would return an
+        # arbitrary row. A version is a per-variant sequence number and cannot
+        # identify a revision on its own.
+        applied_identifying_filter = False
+
         async with engine.core_session() as session:
             stmt = (
                 select(self.RevisionDBE)
@@ -1066,9 +1100,11 @@ class GitDAO(GitDAOInterface):
                     stmt = stmt.filter(self.RevisionDBE.id == revision_ref.id)  # type: ignore
                 elif revision_ref.slug:
                     stmt = stmt.filter(self.RevisionDBE.slug == revision_ref.slug)  # type: ignore
+                applied_identifying_filter = True
             elif variant_ref:
                 if variant_ref.id:
                     stmt = stmt.filter(self.RevisionDBE.variant_id == variant_ref.id)  # type: ignore
+                    applied_identifying_filter = True
                 elif variant_ref.slug:
                     stmt = stmt.join(
                         self.VariantDBE,
@@ -1076,12 +1112,19 @@ class GitDAO(GitDAOInterface):
                     ).filter(
                         self.VariantDBE.slug == variant_ref.slug,  # type: ignore
                     )
+                    applied_identifying_filter = True
 
                 if revision_ref and revision_ref.version:
                     stmt = stmt.filter(self.RevisionDBE.version == revision_ref.version)  # type: ignore
                 else:
-                    stmt = stmt.order_by(self.RevisionDBE.created_at.desc())  # type: ignore
+                    stmt = stmt.order_by(
+                        self.RevisionDBE.created_at.desc(),  # type: ignore
+                        self.RevisionDBE.id.desc(),  # type: ignore
+                    )
                     stmt = stmt.offset(0)
+
+            if not applied_identifying_filter:
+                return None
 
             if include_archived is not True:
                 stmt = stmt.filter(self.RevisionDBE.deleted_at.is_(None))  # type: ignore
