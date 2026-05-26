@@ -74,10 +74,10 @@ export {
     EntitySelectorModal,
     // Entity selector
     EntitySelectorProvider,
-    // Focus drawer
     GatewayToolAssistantActions,
     GatewayToolExecuteButton,
-    PlaygroundFocusDrawer,
+    // Playground outputs (used by the focus drawer adapter in OSS)
+    PlaygroundOutputs,
     // Tool call view
     ToolCallView,
     ToolCallViewHeader,

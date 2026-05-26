@@ -81,10 +81,13 @@ export function collectColumnPaths(
             continue
         }
 
-        // Check if value is a JSON string that represents an object
+        // Intentionally exempt from the native-types rule: testset column
+        // discovery must surface paths inside legacy stringified-JSON payloads
+        // so imported CSV/JSONL rows expose the same nested columns as native
+        // objects. The drill-in/cell renderers treat such strings as strings,
+        // but column extraction needs to peek inside.
         const parsedJson = typeof value === "string" ? tryParseAsObject(value) : null
         if (parsedJson && Object.keys(parsedJson).length > 0) {
-            // JSON string containing object - recurse into parsed object
             collectColumnPaths(parsedJson, fullPath, results, depth + 1, maxDepth)
             continue
         }

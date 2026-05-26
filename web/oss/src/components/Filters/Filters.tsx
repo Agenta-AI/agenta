@@ -716,6 +716,11 @@ const Filters: React.FC<Props> = ({
 
     const isApplyDisabled = rowValidations.some(({isValid}) => !isValid)
 
+    const nonPermanentFilterCount = useMemo(
+        () => filter.filter((f) => !f.isPermanent).length,
+        [filter],
+    )
+
     const onDeleteFilter = (index: number) =>
         setFilter((prev) => prev.filter((_, idx) => idx !== index))
     const clearFilter = () => {
@@ -1665,6 +1670,7 @@ const Filters: React.FC<Props> = ({
                                             )}
 
                                             {!item.isPermanent &&
+                                                nonPermanentFilterCount > 1 &&
                                                 !(
                                                     isAnnotationFieldSelected &&
                                                     (isEvaluatorActive || isFeedbackActive)

@@ -12,15 +12,14 @@ def _create_evaluator(authed_api) -> str:
                 "slug": f"evaluator-{slug}",
                 "name": f"Test Evaluator {slug}",
                 "data": {
-                    "service": {
-                        "agenta": "v0.1.0",
-                        "format": {
+                    "schemas": {
+                        "outputs": {
                             "type": "object",
                             "properties": {
                                 "score": {"type": "number"},
                             },
                         },
-                    }
+                    },
                 },
             }
         },

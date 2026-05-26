@@ -10,8 +10,10 @@ import type {Key} from "react"
 import type {Atom, PrimitiveAtom, WritableAtom} from "jotai"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
-import {atomFamily} from "jotai-family"
 
+// Use the instrumented wrapper so each store can be `dispose()`-d.
+// See createInfiniteTableStore.ts for rationale.
+import {instrumentedAtomFamily} from "../molecule/instrumentedAtomFamily"
 import type {InfiniteTableFetchResult, InfiniteTableRowBase, WindowingState} from "../tableTypes"
 
 import {createSimpleTableStore} from "./createSimpleTableStore"
@@ -309,6 +311,19 @@ export interface PaginatedEntityStore<
          */
         refresh: WritableAtom<number, [], void>
     }
+
+    /**
+     * Release every atomFamily entry this store + its underlying table store
+     * own. Returns the total count of params removed. Call after a long-run
+     * ETL pass to release accumulated closures from rotated scopeIds.
+     */
+    dispose: () => number
+
+    /**
+     * Diagnostic: per-family active param counts for this store instance.
+     * Includes both this store's families and the inner table store's.
+     */
+    familySizes: () => {name: string; size: number}[]
 }
 
 // ============================================================================
@@ -396,6 +411,49 @@ export function createPaginatedEntityStore<
     // Helper to create params key for atomFamily
     const paramsKey = (params: PaginatedControllerParams) => `${params.scopeId}:${params.pageSize}`
 
+    // Per-store family registry — dispose() iterates this to release every
+    // entry. See createInfiniteTableStore.ts for the same pattern.
+    interface ManagedFamily {
+        clear: () => void
+        size: () => number
+        readonly name: string
+    }
+    const ownedFamilies: ManagedFamily[] = []
+    // Accept both call shapes to be drop-in compatible with jotai-family:
+    //   atomFamily(create, name)                — added by our migration
+    //   atomFamily(create, areEqual, name)      — preserves original equality fn
+    // The original jotai-family signature is (create, areEqual?). If we
+    // dropped the areEqual through migration, params objects compared by
+    // reference identity instead of structural equality, so every call
+    // would create a fresh atom and break memoization (visible as
+    // pagination state being lost between chunks).
+    // Constrain `A extends Atom<unknown>` to match `instrumentedAtomFamily`'s
+    // signature so the atom-type generic survives the wrapper. Returning the
+    // erased `…<P, never>` shape (as the earlier version did) collapsed every
+    // `get(family(params))` call to `unknown` — that's the leak the `as never`
+    // casts were papering over.
+    const atomFamily = <P, A extends Atom<unknown>>(
+        create: (p: P) => A,
+        areEqualOrName?: ((a: P, b: P) => boolean) | string,
+        nameArg?: string,
+    ) => {
+        let resolvedName: string | undefined
+        let resolvedAreEqual: ((a: P, b: P) => boolean) | undefined
+        if (typeof areEqualOrName === "function") {
+            resolvedAreEqual = areEqualOrName
+            resolvedName = nameArg
+        } else if (typeof areEqualOrName === "string") {
+            resolvedName = areEqualOrName
+        }
+        const fam = instrumentedAtomFamily<P, A>(create, {
+            name: resolvedName,
+            skipRegistry: true,
+            areEqual: resolvedAreEqual,
+        })
+        ownedFamilies.push(fam as unknown as ManagedFamily)
+        return fam
+    }
+
     // Rows selector atom family
     const rowsAtomFamily = atomFamily(
         (params: PaginatedControllerParams) =>
@@ -404,6 +462,7 @@ export function createPaginatedEntityStore<
                 return get(rowsAtom)
             }),
         (a, b) => paramsKey(a) === paramsKey(b),
+        "paginatedEntity.rowsAtomFamily",
     )
 
     // Pagination state selector atom family
@@ -414,6 +473,7 @@ export function createPaginatedEntityStore<
                 return get(paginationAtom)
             }),
         (a, b) => paramsKey(a) === paramsKey(b),
+        "paginatedEntity.paginationAtomFamily",
     )
 
     // Selection atom family (uses underlying store's selection)
@@ -421,6 +481,7 @@ export function createPaginatedEntityStore<
         (params: PaginatedControllerParams) =>
             datasetStore.atoms.selectionAtom({scopeId: params.scopeId}),
         (a, b) => a.scopeId === b.scopeId,
+        "paginatedEntity.selectionAtomFamily",
     )
 
     // Combined state atom family (rows + pagination) - read-only
@@ -437,6 +498,7 @@ export function createPaginatedEntityStore<
                 }
             }),
         (a, b) => paramsKey(a) === paramsKey(b),
+        "paginatedEntity.stateAtomFamily",
     )
 
     // List counts atom family - unified count summary
@@ -487,6 +549,7 @@ export function createPaginatedEntityStore<
                 }
             }),
         (a, b) => paramsKey(a) === paramsKey(b),
+        "paginatedEntity.listCountsAtomFamily",
     )
 
     // Controller atom family - combines all state + dispatch
@@ -546,6 +609,7 @@ export function createPaginatedEntityStore<
                 },
             ),
         (a, b) => paramsKey(a) === paramsKey(b),
+        "paginatedEntity.controllerAtomFamily",
     )
 
     return {
@@ -565,6 +629,36 @@ export function createPaginatedEntityStore<
         },
         actions: {
             refresh: refreshAtom,
+        },
+
+        // Release every atomFamily entry this store + its underlying
+        // infiniteTableStore own. After a long-running ETL pass that rotates
+        // scopeId per iteration, call dispose() to release the accumulated
+        // closures — otherwise heap grows ~50 KB per iteration from the
+        // 13 internal atom families (6 here + 7 in createInfiniteTableStore).
+        dispose() {
+            let total = 0
+            for (const f of ownedFamilies) {
+                total += f.size()
+                f.clear()
+            }
+            // Cascade into the table store
+            const inner = (datasetStore as unknown as {dispose?: () => number})?.dispose
+            if (typeof inner === "function") {
+                total += inner.call(datasetStore)
+            }
+            return total
+        },
+
+        // Diagnostic: per-family active param counts for this store instance.
+        familySizes() {
+            const own = ownedFamilies.map((f) => ({name: f.name, size: f.size()}))
+            const inner = (
+                datasetStore as unknown as {
+                    familySizes?: () => {name: string; size: number}[]
+                }
+            )?.familySizes
+            return typeof inner === "function" ? [...own, ...inner.call(datasetStore)] : own
         },
     }
 }

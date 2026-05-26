@@ -20,7 +20,12 @@
 
 import {z} from "zod"
 
-import {timestampFieldsSchema, auditFieldsSchema, safeParseWithLogging} from "../../shared"
+// See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
+import {
+    timestampFieldsSchema,
+    auditFieldsSchema,
+    safeParseWithLogging,
+} from "../../shared/utils/zodSchema"
 
 // --- ENUMS -------------------------------------------------------------------
 

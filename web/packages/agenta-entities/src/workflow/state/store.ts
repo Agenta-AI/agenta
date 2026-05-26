@@ -1706,6 +1706,24 @@ export const updateWorkflowDraftAtom = atom(
                 : undefined
         const incomingParameters =
             topLevelParameters !== undefined ? topLevelParameters : nestedParameters
+
+        if (incomingParameters !== undefined && !current) {
+            const updateKeys = Object.keys(rawUpdates).filter(
+                (key) => key !== "parameters" && key !== "data",
+            )
+            const dataKeys = rawUpdatedData ? Object.keys(rawUpdatedData) : []
+            const isParametersOnlyUpdate =
+                updateKeys.length === 0 &&
+                (!rawUpdatedData || dataKeys.every((key) => key === "parameters"))
+
+            if (
+                isParametersOnlyUpdate &&
+                isEqual(incomingParameters, serverData?.data?.parameters ?? null)
+            ) {
+                return
+            }
+        }
+
         const flags = serverData?.flags ?? current?.flags
         const shouldSyncPromptInputKeys =
             !!flags && !flags.is_custom && !flags.is_evaluator && !flags.is_feedback
