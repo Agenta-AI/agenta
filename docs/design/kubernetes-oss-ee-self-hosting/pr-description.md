@@ -72,6 +72,26 @@ The SDK reads `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` first, falling back to `AGEN
 
 `docs/design/kubernetes-oss-ee-self-hosting/qa-plan.md` captures the live cluster QA: install pre-v0.100.2 (`v0.100.1` EE tag) → create data → snapshot values → checkout this branch → translate values → `helm upgrade` → verify. Caught (and fixed in this PR) two chart regressions: missing postgres PVC size pin and missing redis-durable persistence default. Plus six doc-gaps in the migration guide and install guide (wrong Job/Service names, missing ingress prerequisite, stale values paths) — all listed at the bottom of qa-plan.md with FIXED/NOT-FIXED status and file paths.
 
+## Post-review fixes (review-cycle 4, commit e8c0e7361)
+
+A second deep audit caught the remaining drift between the chart, the SDK, and the docs:
+
+- **Chart name**: `agenta-oss` → `agenta` (chart is EE-capable; resource names change from `*-agenta-oss-*` to `*-agenta-*`). Doc references to `agenta-agenta-oss-alembic` updated to `agenta-alembic`.
+- **Ingress default**: `nginx` → `traefik` (matches v0.100.2 base; backends hardcode `SCRIPT_NAME=/api|/services` which requires prefix-strip).
+- **Bundled PostgreSQL major version pinned**: `postgresql.image.tag: "18"` in `values.yaml` so the Bitnami subchart doesn't float to `bitnami/postgresql:latest`. Compose was already pinned to `postgres:18`; the chart now matches.
+- **Insecure defaults aligned**: `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` / `AGENTA_WEBHOOKS_ALLOW_INSECURE` defaults flipped to `true` in compose env examples to match the code defaults (was advertising `false`, code said `true`).
+- **Six dead-config values wired**: `agenta.access.emailDisabled`, `cloudflare.turnstile.allowedHostnames`, `supertokens.{application,tenant,passwordPolicy,passwordMinLength,passwordMaxLength,passwordRegex}` now emit their corresponding env vars from `_helpers.tpl`.
+- **`secrets.yaml` identity blocks**: `{{- if .clientId }}KEY:` was on the same line as the conditional with `{{-` trimming the indent, collapsing keys onto the previous line. Rewritten so every conditional sits on its own line; rendered YAML is now valid for every identity provider.
+- **`_validations.tpl` dead check**: `secrets.existingSecret` + bundled Postgres safeguard now actually fires (checks for unrendered `{{...}}` in `global.postgresql.auth.existingSecret`, since Helm doesn't tpl-render values.yaml — Bitnami does, at install time).
+- **`values.schema.json`**: now enumerates every documented values key with leaf-level types and env-var pointers, so misspellings (`agenta.bogusKey`) fail at `helm install`. Bitnami subchart and per-component overrides stay open.
+- **NOTES.txt + K8s guide existing-secret instructions**: the chart's existing-secret path requires `global.postgresql.auth.existingSecret` to be set to the same name when bundled Postgres is enabled — both NOTES and the guide now show the matching `--set` and list all the optional Secret keys (LLM, identity, sendgrid, composio, daytona, …).
+- **K8s guide**: stale `email.sendgrid.*` → `sendgrid.*`; malformed `::: info` → `:::info`.
+- **Web container**: `SUPERTOKENS_CONNECTION_URI` removed from pod env in favor of the canonical `SUPERTOKENS_URI_CORE` used by api/services. `web/entrypoint.sh` back-fills the legacy name from the canonical so older web images still work.
+- **`webhooks/utils.py`**: now reads `env.agenta.webhooks.allow_insecure` via the shared `env` object (was bypassing it with raw `os.getenv`, against `AGENTS.md` convention).
+- **`run.sh`**: now detects existing license on re-install and aborts on OSS↔EE flip; previous behavior would silently overwrite license via `--reuse-values` + `--set agenta.license=`.
+- **Legacy SDK env-var aliases documented correctly**: pre-v0.100.2 SDK used the *singular* `AGENTA_SERVICE_MIDDLEWARE_{AUTH,CACHE}_ENABLED`. CONFIG_MAPPING.md and the migration table had them as plural — both docs fixed; SDK fallback unchanged (was already singular, matching `origin/main`).
+- **Compose env example legacy block trimmed**: legacy variable annotations dropped from the four `env.{oss,ee}.{dev,gh}.example` files; canonical replacements stay documented in `CONFIG_MAPPING.md` and the migration guide.
+
 ## Risk assessment
 
 - **App config drift** (env.py legacy aliases): low. Pydantic loader prefers new names, falls back to old. Existing deployments work without touching anything.
