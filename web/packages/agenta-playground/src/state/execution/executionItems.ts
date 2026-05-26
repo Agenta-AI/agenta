@@ -166,7 +166,7 @@ interface BuildExecutionItemBaseParams {
     requestPayload?: RequestPayloadData | null
     invocationUrl?: string | null
     variables?: string[]
-    variableValues?: Record<string, string>
+    variableValues?: Record<string, unknown>
     agConfigFallbacks?: AgConfigFallbackCandidate[]
     /** Runtime-resolved inputs (e.g. from chain upstream). Merged into rawBody.inputs when __rawBody is true. */
     inputValues?: Record<string, unknown>
@@ -352,34 +352,32 @@ function resolveVariableRowId(params: ResolveVariableRowIdParams): string | null
     return displayRowIds[0] ?? null
 }
 
-function stringifyValue(value: unknown): string {
-    if (value === undefined || value === null) return ""
-    if (typeof value === "string") return value
-    if (typeof value === "object") {
-        try {
-            return JSON.stringify(value)
-        } catch {
-            return String(value)
-        }
-    }
-    return String(value)
-}
-
-function resolveVariableValues(params: ResolveVariableValuesParams): Record<string, string> {
+/**
+ * Resolve testcase values to a dict for transport. Values are passed
+ * through NATIVE (object stays object, array stays array, number stays
+ * number) so the backend mustache / JSONPath resolver can navigate them
+ * (RFC: "native JSON stays native until template rendering").
+ *
+ * Prior implementation stringified via JSON.stringify for objects/arrays,
+ * which made `{{$.geo.region}}` fail at the backend with
+ * "Unreplaced variables in mustache template" because the JSONPath
+ * resolver can't navigate into a string.
+ */
+function resolveVariableValues(params: ResolveVariableValuesParams): Record<string, unknown> {
     const {allowedVariableKeys, sourceRowData} = params
     const source = sourceRowData ?? {}
 
     if (Array.isArray(allowedVariableKeys) && allowedVariableKeys.length > 0) {
-        const values: Record<string, string> = {}
+        const values: Record<string, unknown> = {}
         for (const key of allowedVariableKeys) {
-            values[key] = stringifyValue(source[key])
+            values[key] = source[key]
         }
         return values
     }
 
-    const values: Record<string, string> = {}
+    const values: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(source)) {
-        values[key] = stringifyValue(value)
+        values[key] = value
     }
     return values
 }
@@ -393,9 +391,14 @@ function buildCompletionInputRow(
     const keys = allowedVariableKeys.length > 0 ? allowedVariableKeys : Object.keys(sourceRowData)
     const enhanced: Record<string, unknown> = {__id: rowId}
 
+    // Pass values through NATIVE (RFC: "native JSON stays native until
+    // template rendering"). `extractInputValues` at the request-body layer
+    // already handles native object/array values without coercion. Prior
+    // `String(value)` wrap turned `{region: "..."}` into `"[object Object]"`
+    // which made even mustache `{{geo.region}}` resolve to empty.
     for (const key of keys) {
         const value = sourceRowData[key]
-        enhanced[key] = {value: value !== undefined && value !== null ? String(value) : ""}
+        enhanced[key] = {value: value === undefined || value === null ? "" : value}
     }
 
     return enhanced
@@ -986,7 +989,7 @@ function buildRequestBody(
         chatHistory?: TransformMessage[]
         requestPayload: RequestPayloadData | null | undefined
         variables: string[]
-        variableValues: Record<string, string>
+        variableValues: Record<string, unknown>
         entityId: string
         agConfigFallbacks?: AgConfigFallbackCandidate[]
     },
