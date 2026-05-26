@@ -24,10 +24,9 @@ import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
 import PromptComparisonVariantNavigation from "../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {BaseContainerProps} from "../types"
-const PlaygroundFocusDrawer = dynamic(
-    () => import("@agenta/playground-ui/components").then((m) => m.PlaygroundFocusDrawer),
-    {ssr: false},
-)
+const PlaygroundFocusDrawer = dynamic(() => import("../PlaygroundFocusDrawerAdapter"), {
+    ssr: false,
+})
 
 type MainLayoutProps = BaseContainerProps & {
     /** "app" (default) = standard app playground. "evaluator" = evaluator config playground. */

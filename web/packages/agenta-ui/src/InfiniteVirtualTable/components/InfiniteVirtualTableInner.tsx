@@ -34,6 +34,8 @@ import useScrollContainer from "../hooks/useScrollContainer"
 import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useTableKeyboardShortcuts from "../hooks/useTableKeyboardShortcuts"
 import useTableRowSelection from "../hooks/useTableRowSelection"
+import {useTypeChipColumns} from "../hooks/useTypeChipColumns"
+import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
 import type {InfiniteVirtualTableProps} from "../types"
 import {
@@ -71,6 +73,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     keyboardShortcuts,
     expandable,
     tableRef,
+    typeChips,
 }: InfiniteVirtualTableInnerProps<RecordType>) => {
     const generatedScopeId = useId()
     const resolvedScopeId = useMemo(
@@ -147,7 +150,12 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         [resizableProcessedColumns],
     )
 
-    const finalColumns = resizableProcessedColumns
+    const typeChipFeature = useTypeChipFeature(typeChips)
+    const finalColumns = useTypeChipColumns(
+        resizableProcessedColumns,
+        dataSource,
+        typeChipFeature.typeChips,
+    )
     const columnDescendantMap = useMemo(
         () => buildColumnDescendantMap(resizableProcessedColumns),
         [resizableProcessedColumns],

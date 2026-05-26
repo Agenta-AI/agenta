@@ -1,10 +1,14 @@
-import {SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {currentRevisionIdAtom} from "./queries"
 import {
-    addColumnToTestcasesAtom,
+    createColumnFromKey,
+    isArrayColumnValue,
+    tryParseAsObjectColumnValue,
+} from "./columnPathUtils"
+import {currentRevisionIdAtom} from "./queries"
+import {extractTestcaseUserData} from "./schema"
+import {
     deleteColumnFromTestcasesAtom,
     deletedEntityIdsAtom,
     newEntityIdsAtom,
@@ -90,7 +94,7 @@ export const clearPendingRenamesAtom = atom(null, (get, set) => {
 // ============================================================================
 
 export const pendingDeletedColumnsAtomFamily = atomFamily((_revisionId: string) =>
-    atom<Set<string>>(new Set()),
+    atom<Set<string>>(new Set<string>()),
 )
 
 /**
@@ -115,7 +119,7 @@ export const addPendingDeletedColumnAtom = atom(null, (get, set, columnKey: stri
 export const clearPendingDeletedColumnsAtom = atom(null, (get, set) => {
     const revisionId = get(currentRevisionIdAtom)
     if (!revisionId) return
-    set(pendingDeletedColumnsAtomFamily(revisionId), new Set())
+    set(pendingDeletedColumnsAtomFamily(revisionId), new Set<string>())
 })
 
 // ============================================================================
@@ -124,7 +128,7 @@ export const clearPendingDeletedColumnsAtom = atom(null, (get, set) => {
 // ============================================================================
 
 export const pendingAddedColumnsAtomFamily = atomFamily((_revisionId: string) =>
-    atom<Set<string>>(new Set()),
+    atom<Set<string>>(new Set<string>()),
 )
 
 /**
@@ -149,7 +153,7 @@ export const addPendingAddedColumnAtom = atom(null, (get, set, columnKey: string
 export const clearPendingAddedColumnsAtom = atom(null, (get, set) => {
     const revisionId = get(currentRevisionIdAtom)
     if (!revisionId) return
-    set(pendingAddedColumnsAtomFamily(revisionId), new Set())
+    set(pendingAddedColumnsAtomFamily(revisionId), new Set<string>())
 })
 
 /**
@@ -158,6 +162,8 @@ export const clearPendingAddedColumnsAtom = atom(null, (get, set) => {
 export interface Column {
     key: string
     name: string
+    parentKey?: string
+    subKey?: string
 }
 
 // ============================================================================
@@ -217,12 +223,9 @@ export const currentColumnKeysAtom = atom((get) => {
         if (deletedIds.has(id)) return
 
         const entity = get(testcaseEntityAtomFamily(id))
-        if (entity) {
-            Object.keys(entity).forEach((key) => {
-                if (!SYSTEM_FIELDS.has(key)) {
-                    keys.add(key)
-                }
-            })
+        const data = extractTestcaseUserData(entity)
+        if (data) {
+            Object.keys(data).forEach((key) => keys.add(key))
         }
     })
 
@@ -242,12 +245,9 @@ export const serverColumnKeysAtom = atom((get) => {
         // testcaseEntityAtomFamily returns draft if exists, otherwise server data
         // For server keys, we want the entity data (which includes server state)
         const entity = get(testcaseEntityAtomFamily(id))
-        if (entity) {
-            Object.keys(entity).forEach((key) => {
-                if (!SYSTEM_FIELDS.has(key)) {
-                    keys.add(key)
-                }
-            })
+        const data = extractTestcaseUserData(entity)
+        if (data) {
+            Object.keys(data).forEach((key) => keys.add(key))
         }
     })
 
@@ -359,60 +359,6 @@ export interface ExpandedColumn extends Column {
 const MAX_COLUMN_DEPTH = 5
 
 /**
- * Try to parse a value as a plain object (handles JSON strings)
- * Arrays are NOT treated as objects - they should be displayed as JSON
- */
-function tryParseAsObject(value: unknown): Record<string, unknown> | null {
-    // Reject arrays explicitly
-    if (Array.isArray(value)) {
-        return null
-    }
-    // Already an object (and not an array)
-    if (value && typeof value === "object") {
-        return value as Record<string, unknown>
-    }
-    // Try to parse JSON string - only if it's an object (starts with {), not an array
-    if (typeof value === "string") {
-        const trimmed = value.trim()
-        // Only parse objects, not arrays
-        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-            try {
-                const parsed = JSON.parse(trimmed)
-                // Double-check it's not an array after parsing
-                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                    return parsed as Record<string, unknown>
-                }
-            } catch {
-                // Not valid JSON
-            }
-        }
-    }
-    return null
-}
-
-/**
- * Check if a value is an array (handles JSON strings too)
- */
-function isArrayValue(value: unknown): boolean {
-    if (Array.isArray(value)) {
-        return true
-    }
-    // Check for JSON array strings
-    if (typeof value === "string") {
-        const trimmed = value.trim()
-        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-            try {
-                const parsed = JSON.parse(trimmed)
-                return Array.isArray(parsed)
-            } catch {
-                return false
-            }
-        }
-    }
-    return false
-}
-
-/**
  * Recursively collect object sub-keys up to maxDepth levels
  * @param obj - The object to analyze
  * @param prefix - Current path prefix (e.g., "event" or "event.location")
@@ -431,7 +377,7 @@ function collectObjectSubKeysRecursive(
 
     Object.entries(obj).forEach(([subKey, subValue]) => {
         // Never expose internal fields as nested columns.
-        if (subKey.startsWith("__")) return
+        if (subKey.startsWith("__") || subKey === "testcase_dedup_id") return
 
         const fullPath = prefix ? `${prefix}.${subKey}` : subKey
 
@@ -439,7 +385,7 @@ function collectObjectSubKeysRecursive(
         if (deletedCols.has(fullPath)) return
 
         // Skip array values entirely - they should be displayed as JSON, not expanded
-        if (isArrayValue(subValue)) {
+        if (isArrayColumnValue(subValue)) {
             // Add the key but don't recurse into it
             const parentSubKeys = objectSubKeys.get(prefix) || new Set<string>()
             parentSubKeys.add(subKey)
@@ -448,7 +394,7 @@ function collectObjectSubKeysRecursive(
         }
 
         // Try to parse as object to check if it's empty
-        const nestedObj = tryParseAsObject(subValue)
+        const nestedObj = tryParseAsObjectColumnValue(subValue)
 
         // Skip empty objects (e.g., "{}" from deleted nested properties)
         // Empty objects should not create columns
@@ -477,7 +423,7 @@ function collectObjectSubKeysRecursive(
 /**
  * Derived atom: analyzes testcase data to detect object-type columns
  * Returns a map of column key -> set of sub-keys found in that column's objects
- * Handles both actual objects and JSON strings
+ * Handles native objects and JSON object strings
  * Recursively expands up to MAX_COLUMN_DEPTH levels
  */
 export const objectColumnSubKeysAtom = atom((get) => {
@@ -496,12 +442,13 @@ export const objectColumnSubKeysAtom = atom((get) => {
         const entity = get(testcaseEntityAtomFamily(id))
         if (!entity) return
 
-        Object.entries(entity).forEach(([key, value]) => {
-            if (SYSTEM_FIELDS.has(key)) return
+        const data = extractTestcaseUserData(entity)
+        if (!data) return
+
+        Object.entries(data).forEach(([key, value]) => {
             if (deletedCols.has(key)) return
 
-            // Try to parse as object (handles JSON strings too)
-            const obj = tryParseAsObject(value)
+            const obj = tryParseAsObjectColumnValue(value)
             if (obj && Object.keys(obj).length > 0) {
                 // Recursively collect sub-keys up to MAX_COLUMN_DEPTH
                 // Pass deletedCols to filter out deleted nested paths
@@ -585,7 +532,7 @@ export const expandedColumnsAtom = atom((get) => {
 
 /**
  * Write-only atom: add a new column
- * Adds column metadata and initializes all entities with empty value
+ * Adds column metadata without writing placeholder values into testcase data.
  * Returns true if successful, false if column already exists
  */
 export const addColumnAtom = atom(null, (get, set, name: string): boolean => {
@@ -596,19 +543,15 @@ export const addColumnAtom = atom(null, (get, set, name: string): boolean => {
     if (!trimmedName) return false
 
     // Check if column already exists
-    const currentCols = get(currentColumnsAtom)
+    const currentCols = get(expandedColumnsAtom)
     if (currentCols.some((c) => c.key === trimmedName)) return false
 
-    // Initialize all entities with empty value for this column (batch update)
-    // Do this BEFORE adding to pending so entity atom doesn't apply pending changes
-    set(addColumnToTestcasesAtom, {columnKey: trimmedName, defaultValue: ""})
-
-    // Track pending addition for newly loaded pages
+    // Track pending addition for the commit payload.
     set(addPendingAddedColumnAtom, trimmedName)
 
     // Add to local columns
     const localCols = get(localColumnsAtomFamily(revisionId))
-    set(localColumnsAtomFamily(revisionId), [...localCols, {key: trimmedName, name: trimmedName}])
+    set(localColumnsAtomFamily(revisionId), [...localCols, createColumnFromKey(trimmedName)])
 
     return true
 })
@@ -685,9 +628,7 @@ export const renameColumnAtom = atom(
         const localCols = get(localColumnsAtomFamily(revisionId))
         set(
             localColumnsAtomFamily(revisionId),
-            localCols.map((c) =>
-                c.key === oldName ? {key: trimmedNewName, name: trimmedNewName} : c,
-            ),
+            localCols.map((c) => (c.key === oldName ? createColumnFromKey(trimmedNewName) : c)),
         )
 
         return true
