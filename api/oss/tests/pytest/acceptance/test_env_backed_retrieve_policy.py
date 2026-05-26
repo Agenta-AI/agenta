@@ -72,7 +72,7 @@ def test_workflows_path_mixing_does_not_return_400_at_policy_boundary(authed_api
             "environment_ref": {"slug": f"env-{uuid4().hex[:8]}"},
         },
     )
-    assert response.status_code != 400, response.text
+    assert 400 < response.status_code < 500, response.text
 
 
 def test_evaluators_path_mixing_does_not_return_400_at_policy_boundary(authed_api):
@@ -84,4 +84,4 @@ def test_evaluators_path_mixing_does_not_return_400_at_policy_boundary(authed_ap
             "environment_ref": {"slug": f"env-{uuid4().hex[:8]}"},
         },
     )
-    assert response.status_code != 400, response.text
+    assert 400 < response.status_code < 500, response.text

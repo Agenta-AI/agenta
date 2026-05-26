@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.core.git.types import is_identifying
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import VariantForkError
@@ -501,18 +502,11 @@ class GitDAO(GitDAOInterface):
 
             pick_default_variant = False
 
-            if variant_ref:
-                if variant_ref.id:
-                    stmt = stmt.filter(self.VariantDBE.id == variant_ref.id)  # type: ignore
-                    applied_identifying_filter = True
-                elif variant_ref.slug:
-                    stmt = stmt.filter(self.VariantDBE.slug == variant_ref.slug)  # type: ignore
-                    applied_identifying_filter = True
-            elif artifact_ref:
+            if artifact_ref:
                 if artifact_ref.id:
                     stmt = stmt.filter(self.VariantDBE.artifact_id == artifact_ref.id)  # type: ignore
                     applied_identifying_filter = True
-                    pick_default_variant = True
+                    pick_default_variant = not is_identifying(variant_ref)
                 elif artifact_ref.slug:
                     stmt = stmt.join(
                         self.ArtifactDBE,
@@ -521,7 +515,15 @@ class GitDAO(GitDAOInterface):
                         self.ArtifactDBE.slug == artifact_ref.slug,  # type: ignore
                     )
                     applied_identifying_filter = True
-                    pick_default_variant = True
+                    pick_default_variant = not is_identifying(variant_ref)
+
+            if variant_ref:
+                if variant_ref.id:
+                    stmt = stmt.filter(self.VariantDBE.id == variant_ref.id)  # type: ignore
+                    applied_identifying_filter = True
+                elif variant_ref.slug:
+                    stmt = stmt.filter(self.VariantDBE.slug == variant_ref.slug)  # type: ignore
+                    applied_identifying_filter = True
 
             if not applied_identifying_filter:
                 return None

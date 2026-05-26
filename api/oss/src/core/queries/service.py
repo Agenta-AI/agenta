@@ -886,6 +886,9 @@ class QueriesService:
         #
         query_revision_commit: QueryRevisionCommit,
     ) -> Optional[QueryRevision]:
+        if not query_revision_commit.slug:
+            query_revision_commit.slug = uuid4().hex[-12:]
+
         revision_commit_payload = self._sanitize_query_revision_payload(
             query_revision_commit.model_dump(
                 mode="json",

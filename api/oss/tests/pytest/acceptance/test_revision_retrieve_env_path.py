@@ -49,6 +49,25 @@ def _create_environment_with_deployment(authed_api, *, key, payload):
     assert response.status_code == 200, response.text
     env_variant = response.json()["environment_variant"]
 
+    # First commit lands at v0, which the DAO strips of `data`. Commit a
+    # placeholder first, then a real commit (v1+) carrying the deployment
+    # payload so the data is retained on retrieve. The env commit endpoint
+    # requires `data` (or `delta`) — an empty references dict is sufficient.
+    response = authed_api(
+        "POST",
+        "/environments/revisions/commit",
+        json={
+            "environment_revision_commit": {
+                "slug": f"envr-{slug}-init",
+                "environment_id": env["id"],
+                "environment_variant_id": env_variant["id"],
+                "message": "Initial commit",
+                "data": {"references": {}},
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+
     response = authed_api(
         "POST",
         "/environments/revisions/commit",

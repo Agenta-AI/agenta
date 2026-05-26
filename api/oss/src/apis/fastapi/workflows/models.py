@@ -255,7 +255,9 @@ class WorkflowRevisionRetrieveRequest(BaseModel):
 
     Resolves to a single revision by one or more reference types. Every
     reference supplied must agree with the resolved revision; contradictions
-    return HTTP 400.
+    return HTTP 400. For environment-backed lookup, `key` may be omitted when
+    `workflow_ref` is provided, in which case it defaults to
+    `<workflow_slug>.revision`.
     """
 
     workflow_ref: Optional[Reference] = Field(
