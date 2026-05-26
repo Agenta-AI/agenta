@@ -506,7 +506,18 @@ export function extractTemplateVariables(
     }
 
     // curly, jinja2, and mustache all use {{variableName}} for variable substitution
-    // Linear scan: find '{{', then find '}}', extract the content between them
+    // Linear scan: find '{{', then find '}}', extract the content between them.
+    //
+    // For mustache, skip block markers — they're structural syntax, not
+    // variables, and shouldn't surface as input ports:
+    //   - `{{#name}}` / `{{^name}}` — section opens / inverted sections
+    //   - `{{/name}}` — section closes
+    //   - `{{!comment}}` — comments
+    //   - `{{.}}` — the implicit iterator (current value inside a section)
+    //   - `{{> partial}}` — partials (rejected at render time, but skip here too)
+    // The mustache renderer pairs these structurally; the FE extractor must
+    // not treat them as referenced variables. The TokenPlugin highlights
+    // them via its own regex — this filter is for port discovery only.
     let i = 0
     while (i < input.length - 1) {
         if (input[i] === "{" && input[i + 1] === "{") {
@@ -514,7 +525,8 @@ export function extractTemplateVariables(
             const end = input.indexOf("}}", start)
             if (end !== -1) {
                 const variable = input.slice(start, end).trim()
-                if (variable && !variables.includes(variable)) {
+                const isMustacheBlockMarker = variable === "." || /^[#/^!>]/.test(variable)
+                if (variable && !isMustacheBlockMarker && !variables.includes(variable)) {
                     variables.push(variable)
                 }
                 i = end + 2

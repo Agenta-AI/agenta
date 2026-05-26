@@ -174,10 +174,25 @@ describe("groupTemplateVariables", () => {
         expect(result).toHaveLength(1)
     })
 
-    it("ignores invalid template variables", () => {
-        // '$.invalid.x' is not a known envelope slot, so it should be skipped
-        const result = groupTemplateVariables(["$.invalid.x"])
-        expect(result).toHaveLength(0)
+    it("ignores invalid template variables (envelope-slot typos)", () => {
+        // The validator flags envelope-slot typos (e.g. `input` → `inputs`)
+        // as invalid; groupTemplateVariables skips those. Non-typo roots
+        // (e.g. `$.geo.region`) are NOW accepted as testcase-spread keys
+        // per the RFC ("testcase top-level keys are spread into the render
+        // context") — they DO produce a group rooted at `inputs`.
+        const typo = groupTemplateVariables(["$.input.x"])
+        expect(typo).toHaveLength(0)
+    })
+
+    it("treats non-envelope JSONPath roots as testcase-spread inputs", () => {
+        // RFC canonical: `{{$.profile.name}}` against a `profile` testcase
+        // column. parseTemplateExpression routes the non-envelope first
+        // segment under the `inputs` envelope, key = first segment.
+        const result = groupTemplateVariables(["$.geo.region"])
+        expect(result).toHaveLength(1)
+        expect(result[0].envelope).toBe("inputs")
+        expect(result[0].key).toBe("geo")
+        expect(result[0].subPaths).toContain("region")
     })
 })
 

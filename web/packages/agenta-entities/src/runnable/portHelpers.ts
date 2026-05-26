@@ -191,11 +191,35 @@ function parseTemplateExpression(expr: string): ParsedTemplateExpression {
 
     const parseSegments = (segments: string[]): ParsedTemplateExpression => {
         if (segments.length === 0) return {envelope: "inputs", key: ""}
-        if (segments.length === 1) return {envelope: segments[0], key: ""}
+
+        const first = segments[0]
+        const firstIsEnvelope = KNOWN_ENVELOPE_SLOTS.has(first)
+
+        if (segments.length === 1) {
+            // `$.inputs` / `$.outputs` — envelope-only reference.
+            if (firstIsEnvelope) return {envelope: first, key: ""}
+            // `$.profile` — testcase-spread key. Per the RFC, testcase
+            // top-level columns are spread into the render context, so
+            // they live implicitly under the `inputs` envelope. Treating
+            // the first segment as the key under `inputs` keeps port
+            // discovery consistent with envelope-rooted writes.
+            return {envelope: "inputs", key: first}
+        }
+
+        if (firstIsEnvelope) {
+            return {
+                envelope: first,
+                key: segments[1],
+                subPath: segments.length > 2 ? segments.slice(2).join(".") : undefined,
+            }
+        }
+        // Testcase-spread key with a sub-path: `$.profile.name` →
+        // `{envelope: "inputs", key: "profile", subPath: "name"}`. The
+        // testcase spread makes this equivalent to `$.inputs.profile.name`.
         return {
-            envelope: segments[0],
-            key: segments[1],
-            subPath: segments.length > 2 ? segments.slice(2).join(".") : undefined,
+            envelope: "inputs",
+            key: first,
+            subPath: segments.length > 1 ? segments.slice(1).join(".") : undefined,
         }
     }
 
