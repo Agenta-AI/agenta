@@ -174,10 +174,11 @@ agenta:
 #   target: eu
 
 # ================================================================== #
-# docker
+# docker (compose-only — no-op on Kubernetes, kept commented so this
+# file mirrors the compose env surface without affecting K8s behavior).
 # ================================================================== #
-docker:
-  networkMode: "bridge"
+# docker:
+#   networkMode: "bridge"
 
 # ================================================================== #
 # === identity — OIDC providers ===

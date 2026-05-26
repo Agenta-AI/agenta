@@ -47,15 +47,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/* ================================================================
-   Safe accessors — return values dicts with empty-dict fallbacks.
-   This lets templates dereference subkeys without nil-pointer panics
-   when the user omits a whole top-level section from values.yaml.
-   ================================================================ */}}
-{{- define "agenta.api" -}}{{ default dict .Values.api | toYaml }}{{- end }}
-{{- define "agenta.web" -}}{{ default dict .Values.web | toYaml }}{{- end }}
-{{- define "agenta.svc" -}}{{ default dict .Values.services | toYaml }}{{- end }}
-
-{{/* ================================================================
    Component enabled flags (default true).
    ================================================================ */}}
 {{- define "agenta.api.enabled" -}}

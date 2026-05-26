@@ -23,7 +23,7 @@
 {{- $pg := default dict $global.postgresql -}}
 {{- $auth := default dict $pg.auth -}}
 {{- $existing := default "" $auth.existingSecret -}}
-{{- $isDefault := or (eq $existing "") (contains "{{" $existing) -}}
+{{- $isDefault := or (eq $existing "") (hasPrefix "{{" $existing) -}}
 {{- if and (eq (include "agenta.postgresql.enabled" .) "true") $secrets.existingSecret $isDefault }}
 {{- fail `
 

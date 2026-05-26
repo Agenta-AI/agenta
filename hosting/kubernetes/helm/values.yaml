@@ -39,10 +39,11 @@ agenta:
   cryptKey: "replace-me"
 
 # ================================================================== #
-# docker (compose-only, kept here so the helm surface mirrors compose)
+# docker (compose-only — no-op on Kubernetes, kept commented so the
+# helm surface mirrors the compose env without taking effect here).
 # ================================================================== #
-docker:
-  networkMode: "bridge"
+# docker:
+#   networkMode: "bridge"
 
 # ================================================================== #
 # postgres — connection settings.
