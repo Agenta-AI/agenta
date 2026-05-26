@@ -7,7 +7,8 @@ docs/docs/self-host/upgrades/v0.100.2-migration.mdx). To let
 operators upgrade without rewriting their values file first, this
 helper accepts the legacy paths and folds them into the canonical
 v0.100.2 positions. The rest of the chart only ever reads the
-canonical shape via `agenta.values`.
+canonical shape via `agenta.values` (defined in _helpers.tpl),
+which delegates to this `agenta.deprecated` helper.
 
 The helper is idempotent: passing a pure-v0.100.2 values dict
 returns it unchanged.
@@ -35,11 +36,13 @@ NOT translated (already accepted as-is by the new chart):
   secrets.oauth            (flat map; templates still read this)
   secrets.llmProviders     (flat map; templates still read this)
 
-Removing this layer in a future release: delete this file, drop the
-`agenta.values` indirection in `_helpers.tpl`, and templates revert
-to reading `.Values` directly.
+Removing this layer in a future release:
+  1. Delete this file (`templates/_compat.tpl`).
+  2. In _helpers.tpl, change the `agenta.values` body to
+     `{{- .Values | toYaml -}}` (one line). All consumers stay
+     unchanged because they call `include "agenta.values" .`.
 ================================================================ */}}
-{{- define "agenta.values" -}}
+{{- define "agenta.deprecated" -}}
 {{- $v := deepCopy .Values -}}
 {{- $legacyGlobal := default dict $v.global -}}
 {{- $legacySecrets := default dict $v.secrets -}}

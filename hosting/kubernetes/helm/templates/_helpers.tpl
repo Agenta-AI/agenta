@@ -155,11 +155,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.redisDurable.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.redisDurable).image).pullPolicy }}{{- end }}
 
 {{/* ================================================================
-   Renamed-section reads go through the v0.100.2 compat layer
-   (see _compat.tpl, helper `agenta.values`). Helpers/templates
-   that touch renamed paths (`agenta.*`, `posthog.*`, `postgres.*`,
-   `supertokens.apiKey`, `sendgrid.*`, `composio.*`, `newrelic.*`,
-   `cloudflare.*`) bind a local at the top of the helper:
+   Canonical values reader. Helpers/templates that touch renamed
+   paths (`agenta.*`, `posthog.*`, `postgres.*`, `supertokens.apiKey`,
+   `sendgrid.*`, `composio.*`, `newrelic.*`, `cloudflare.*`) bind
+   a local at the top of the helper:
 
        {{- $values := include "agenta.values" . | fromYaml -}}
 
@@ -168,7 +167,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    `redisDurable.*`, `ingress.*`, `workerX.*`, `cron.*`, `alembic.*`,
    `postgresql.*`, `identity.*`, `llm.*`, `secrets.*`, `global.*`)
    never had legacy forms and stay on direct `.Values.X` reads.
+
+   `agenta.values` delegates to `agenta.deprecated` (in _compat.tpl)
+   which folds pre-v0.100.2 keys into canonical positions. To remove
+   compat: delete _compat.tpl and change the body below to
+   `{{- .Values | toYaml -}}`.
    ================================================================ */}}
+{{- define "agenta.values" -}}
+{{- include "agenta.deprecated" . -}}
+{{- end }}
 
 {{/* ================================================================
    Secret name — either user-provided or chart-managed
