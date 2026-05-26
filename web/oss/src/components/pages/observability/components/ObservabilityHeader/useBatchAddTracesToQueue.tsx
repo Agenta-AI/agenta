@@ -18,7 +18,7 @@
  * materialized.
  */
 
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {simpleQueueMolecule, type SimpleQueue} from "@agenta/entities/simpleQueue"
 import {
@@ -27,7 +27,7 @@ import {
     DEFAULT_MAX_ITEMS,
 } from "@agenta/entities/simpleQueue/etl"
 import {notification} from "@agenta/ui/app-message"
-import {Button} from "antd"
+import {Button, Progress} from "antd"
 
 import type {Condition} from "@/oss/state/newObservability/atoms/queryHelpers"
 import {createAdaptiveTracePageFetcher} from "@/oss/state/newObservability/etl/adaptiveTracePageFetcher"
@@ -37,6 +37,55 @@ import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimit
 const MAX_ITEMS = DEFAULT_MAX_ITEMS
 /** Pre-formatted cap for toast copy (e.g. "1,000"). */
 const MAX_LABEL = MAX_ITEMS.toLocaleString()
+/** Auto-dismiss window for the success toast; rendered as a visible progress bar. */
+const SUCCESS_DISMISS_MS = 5_000
+
+/**
+ * Description wrapper that drives the success toast's own auto-dismiss timer:
+ * counts down from `durationMs` to 0 (UI mirrored via a Progress bar), then
+ * fires `onComplete` once. Antd's `duration` is set to 0 so this component is
+ * the sole owner of the timing — keeps the visible countdown and the actual
+ * dismissal in lockstep.
+ */
+const AutoDismissDescription = ({
+    text,
+    durationMs,
+    onComplete,
+}: {
+    text: string
+    durationMs: number
+    onComplete: () => void
+}) => {
+    const [percent, setPercent] = useState(100)
+    const completedRef = useRef(false)
+
+    useEffect(() => {
+        const startedAt = Date.now()
+        const id = window.setInterval(() => {
+            const remaining = Math.max(0, durationMs - (Date.now() - startedAt))
+            setPercent((remaining / durationMs) * 100)
+            if (remaining <= 0 && !completedRef.current) {
+                completedRef.current = true
+                window.clearInterval(id)
+                onComplete()
+            }
+        }, 50)
+        return () => window.clearInterval(id)
+    }, [durationMs, onComplete])
+
+    return (
+        <div>
+            <div>{text}</div>
+            <Progress
+                percent={percent}
+                showInfo={false}
+                strokeColor="#52c41a"
+                size="small"
+                className="!mt-2 !mb-0"
+            />
+        </div>
+    )
+}
 
 /** Trace-scan params the hook needs to build the adaptive page fetcher. */
 export interface BatchAddScanConfig {
@@ -185,17 +234,31 @@ export const useBatchAddTracesToQueue = () => {
                 }
 
                 const capped = result.stoppedBy === "cap"
+                const descriptionText = capped
+                    ? `Queued to "${queueName}". Hit the ${MAX_LABEL}-trace limit ` +
+                      `for one run — narrow the filter to queue the rest. ` +
+                      `They'll appear as the queue processes.`
+                    : `Queued to "${queueName}". They'll appear as the queue processes.`
                 notification.success({
                     key,
                     message: `Queued ${result.queued.toLocaleString()} traces`,
-                    description: capped
-                        ? `Queued to "${queueName}". Hit the ${MAX_LABEL}-trace limit ` +
-                          `for one run — narrow the filter to queue the rest. ` +
-                          `They'll appear as the queue processes.`
-                        : `Queued to "${queueName}". They'll appear as the queue processes.`,
-                    duration: capped ? 10 : 8,
+                    description: (
+                        <AutoDismissDescription
+                            text={descriptionText}
+                            durationMs={SUCCESS_DISMISS_MS}
+                            onComplete={() => notification.destroy(key)}
+                        />
+                    ),
+                    // Owned by `AutoDismissDescription` — antd's timer is disabled
+                    // so the visible countdown and the dismissal stay in sync.
+                    duration: 0,
                     btn: viewQueueUrl ? (
-                        <Button size="small" type="primary" href={viewQueueUrl}>
+                        <Button
+                            size="small"
+                            type="primary"
+                            href={viewQueueUrl}
+                            onClick={() => notification.destroy(key)}
+                        >
                             View queue
                         </Button>
                     ) : undefined,
