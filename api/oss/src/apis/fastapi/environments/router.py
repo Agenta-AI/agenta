@@ -8,6 +8,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
 from oss.src.core.events.utils import publish_revision_event
+from oss.src.core.git.types import RevisionRefInvalid
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -755,18 +756,24 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        (
-            environment_revision,
-            resolution_info,
-        ) = await self.environments_service.retrieve_environment_revision(
-            project_id=UUID(request.state.project_id),
-            #
-            environment_ref=environment_revision_retrieve_request.environment_ref,  # type: ignore
-            environment_variant_ref=environment_revision_retrieve_request.environment_variant_ref,  # type: ignore
-            environment_revision_ref=environment_revision_retrieve_request.environment_revision_ref,  # type: ignore
-            #
-            resolve=bool(environment_revision_retrieve_request.resolve),
-        )
+        try:
+            (
+                environment_revision,
+                resolution_info,
+            ) = await self.environments_service.retrieve_environment_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                environment_ref=environment_revision_retrieve_request.environment_ref,  # type: ignore
+                environment_variant_ref=environment_revision_retrieve_request.environment_variant_ref,  # type: ignore
+                environment_revision_ref=environment_revision_retrieve_request.environment_revision_ref,  # type: ignore
+                #
+                resolve=bool(environment_revision_retrieve_request.resolve),
+            )
+        except RevisionRefInvalid as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.message,
+            ) from e
 
         environment_revision_response = EnvironmentRevisionResponse(
             count=1 if environment_revision else 0,

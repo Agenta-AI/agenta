@@ -450,34 +450,3 @@ class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
 
     flags: Optional[WorkflowCatalogFlags] = None
     data: Optional[WorkflowRevisionData] = None
-
-
-# ------------------------------------------------------------------------------
-# Exceptions
-# ------------------------------------------------------------------------------
-
-
-class WorkflowRefInvalid(Exception):
-    """Raised when the supplied workflow/variant/revision refs are present but
-    cannot identify a single revision unambiguously.
-
-    Currently raised when `workflow_revision_ref` carries only `version` (no
-    `id`, no `slug`) and no `workflow_variant_ref` is provided. A revision
-    version is a per-variant sequence number and requires a variant context.
-    `revision_ref.id` and `revision_ref.slug` are both project-unique and do
-    not require this.
-
-    Not raised for the all-refs-empty case: `fetch_workflow_revision` returns
-    `None` for that case rather than raising, matching its "nothing to look
-    up" contract.
-    """
-
-    def __init__(
-        self,
-        message: str = "Workflow refs do not identify a single revision unambiguously.",
-    ):
-        self.message = message
-        super().__init__(message)
-
-
-# ------------------------------------------------------------------------------
