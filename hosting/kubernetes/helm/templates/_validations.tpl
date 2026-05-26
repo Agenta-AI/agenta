@@ -54,11 +54,12 @@ The Secret must contain a key named POSTGRES_PASSWORD.
    email links, CORS allow-lists, and any absolute-URL builder.
 
    The helper `agenta.{web,api,services}UrlEffective` already derives
-   the URLs from `ingress.host` when ingress is enabled, so the only
-   way to reach a fully-empty URL is:
-     - ingress.enabled is false (or has no host), AND
-     - agenta.webUrl / apiUrl / servicesUrl is unset.
-   Fail fast in that case rather than letting the app start broken.
+   the URLs from `ingress.host` when ingress is enabled. We fail if ANY
+   of the three resolves to empty — both the common case (ingress
+   disabled and none of agenta.webUrl/apiUrl/servicesUrl set) and
+   partial misconfigurations (e.g. only one or two of the URLs set
+   with ingress disabled). Fail fast rather than letting the app start
+   broken.
    ================================================================ */}}
 {{- define "agenta.validatePublicUrls" -}}
 {{- $web := include "agenta.webUrlEffective" . -}}

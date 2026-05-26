@@ -29,8 +29,9 @@ agenta:
   # them from ingress.host when ingress.enabled=true, and the example values
   # in hosting/kubernetes/{oss,ee}/values.*.example.yaml set them explicitly
   # for the port-forward (no-ingress) path. A validation in _validations.tpl
-  # fails the install if all three resolve to empty — that catches the
-  # common "ingress disabled, URLs not set" misconfiguration.
+  # fails the install if any of the three resolves to empty — that catches
+  # the common "ingress disabled, URLs not set" misconfiguration as well as
+  # partial overrides (e.g. setting only webUrl with ingress disabled).
 
   # ================================================================ #
   # Agenta — Secrets (REPLACE in production!)

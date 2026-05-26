@@ -122,12 +122,16 @@ if [[ "$NUKE" == "true" ]]; then
     fi
     # PVCs and Secrets with helm.sh/resource-policy: keep survive uninstall.
     # Use the standard instance label to clean up everything the chart owns.
-    kubectl -n "$NAMESPACE" delete pvc \
-        -l "app.kubernetes.io/instance=$RELEASE" \
-        --ignore-not-found
-    kubectl -n "$NAMESPACE" delete secret \
-        -l "app.kubernetes.io/instance=$RELEASE" \
-        --ignore-not-found
+    # Guard the deletes: --ignore-not-found doesn't suppress "namespace not found",
+    # so skip them entirely if the namespace doesn't exist (idempotent --nuke).
+    if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+        kubectl -n "$NAMESPACE" delete pvc \
+            -l "app.kubernetes.io/instance=$RELEASE" \
+            --ignore-not-found
+        kubectl -n "$NAMESPACE" delete secret \
+            -l "app.kubernetes.io/instance=$RELEASE" \
+            --ignore-not-found
+    fi
     echo "✅ Release '$RELEASE' nuked. Proceeding with fresh install..."
 fi
 
