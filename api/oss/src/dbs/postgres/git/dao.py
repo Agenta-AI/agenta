@@ -453,6 +453,16 @@ class GitDAO(GitDAOInterface):
 
         try:
             async with engine.core_session() as session:
+                artifact_row = await session.execute(
+                    select(self.ArtifactDBE.slug)  # type: ignore
+                    .filter(self.ArtifactDBE.project_id == project_id)  # type: ignore
+                    .filter(self.ArtifactDBE.id == variant_create.artifact_id)  # type: ignore
+                    .limit(1)
+                )
+                artifact_slug = artifact_row.scalar_one_or_none()
+                if artifact_slug is not None:
+                    variant_dbe.artifact_slug = artifact_slug
+
                 session.add(variant_dbe)
 
                 await session.commit()
@@ -489,14 +499,8 @@ class GitDAO(GitDAOInterface):
         applied_identifying_filter = False
 
         async with engine.core_session() as session:
-            stmt = (
-                select(self.VariantDBE)
-                .options(
-                    selectinload(self.VariantDBE.artifact),  # type: ignore
-                )
-                .filter(
-                    self.VariantDBE.project_id == project_id,  # type: ignore
-                )
+            stmt = select(self.VariantDBE).filter(
+                self.VariantDBE.project_id == project_id,  # type: ignore
             )
 
             pick_default_variant = False
@@ -547,10 +551,6 @@ class GitDAO(GitDAOInterface):
             variant = map_dbe_to_dto(
                 DTO=Variant,
                 dbe=variant_dbe,  # type: ignore
-            )
-
-            variant.artifact_slug = (
-                variant_dbe.artifact.slug if variant_dbe.artifact else None
             )
 
             return variant
@@ -1030,6 +1030,20 @@ class GitDAO(GitDAOInterface):
 
         try:
             async with engine.core_session() as session:
+                variant_row = await session.execute(
+                    select(
+                        self.VariantDBE.slug,  # type: ignore
+                        self.VariantDBE.artifact_slug,  # type: ignore
+                    )
+                    .filter(self.VariantDBE.project_id == project_id)  # type: ignore
+                    .filter(self.VariantDBE.id == revision_create.variant_id)  # type: ignore
+                    .limit(1)
+                )
+                variant_row_first = variant_row.first()
+                if variant_row_first is not None:
+                    revision_dbe.variant_slug = variant_row_first[0]
+                    revision_dbe.artifact_slug = variant_row_first[1]
+
                 session.add(revision_dbe)
 
                 await session.commit()

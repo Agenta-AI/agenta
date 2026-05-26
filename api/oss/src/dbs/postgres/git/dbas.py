@@ -1,4 +1,4 @@
-from sqlalchemy import Column, UUID
+from sqlalchemy import Column, String, UUID
 
 from oss.src.dbs.postgres.shared.dbas import (
     IdentifierDBA,
@@ -44,6 +44,11 @@ class VariantDBA(
         nullable=False,
     )
 
+    artifact_slug = Column(
+        String,
+        nullable=True,
+    )
+
 
 class RevisionDBA(
     IdentifierDBA,
@@ -64,7 +69,17 @@ class RevisionDBA(
         nullable=False,
     )
 
+    artifact_slug = Column(
+        String,
+        nullable=True,
+    )
+
     variant_id = Column(
         UUID(as_uuid=True),
         nullable=False,
+    )
+
+    variant_slug = Column(
+        String,
+        nullable=True,
     )
