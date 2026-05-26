@@ -98,6 +98,8 @@ export interface TraceSpanDrillInViewProps extends Omit<
     viewModePreset?: "default" | "message"
     /** Controls collapse behavior for rootScope="span" */
     allowSpanCollapse?: boolean
+    /** When collapsible, start collapsed (default: false) */
+    defaultCollapsed?: boolean
     /** Optional override data for rootScope="span" rendering */
     spanDataOverride?: unknown
 }
@@ -292,6 +294,7 @@ export const TraceSpanDrillInView = memo(
         rootScope = "attributes",
         viewModePreset = "default",
         allowSpanCollapse = true,
+        defaultCollapsed = false,
         spanDataOverride,
     }: TraceSpanDrillInViewProps) => {
         const spanEntityData = useAtomValue(traceSpanMolecule.selectors.data(spanId))
@@ -304,7 +307,7 @@ export const TraceSpanDrillInView = memo(
             imageAttachments,
         } = useMemo(() => sanitizeDataWithBlobUrls(spanData), [spanData])
 
-        const [isCollapsed, setIsCollapsed] = useState(false)
+        const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
         const [isSearchOpen, setIsSearchOpen] = useState(false)
         const [searchTerm, setSearchTerm] = useState("")
         const [currentResultIndex, setCurrentResultIndex] = useState(0)
