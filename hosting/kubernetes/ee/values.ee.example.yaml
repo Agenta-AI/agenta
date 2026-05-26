@@ -30,15 +30,15 @@ global:
 # ================================================================== #
 # api:
 #   image:
-#     tag: v0.100.1
+#     tag: latest
 #     pullPolicy: IfNotPresent
 # web:
 #   image:
-#     tag: v0.100.1
+#     tag: latest
 #     pullPolicy: IfNotPresent
 # services:
 #   image:
-#     tag: v0.100.1
+#     tag: latest
 #     pullPolicy: IfNotPresent
 
 # ================================================================== #
@@ -76,15 +76,8 @@ global:
 #       enabled: true
 
 # ================================================================== #
-# === agenta.billing ===
-# ================================================================== #
-# agenta:
-#   billing:
-#     catalog:
-#     pricing:
-
-# ================================================================== #
 # === agenta.extras ===
+# Consumed by EE (AGENTA_DEMOS): seeds demo workspaces/apps.
 # ================================================================== #
 # agenta:
 #   extras:
@@ -112,14 +105,20 @@ global:
 
 # ================================================================== #
 # === agenta.services ===
+# Consumed by the agenta SDK running inside services pods:
+#   - hook.allowInsecure   → AGENTA_SERVICES_HOOK_ALLOW_INSECURE
+#   - code.sandboxRunner   → AGENTA_SERVICES_CODE_SANDBOX_RUNNER (local|daytona)
+#   - middleware.authEnabled    → AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED
+#   - middleware.cachingEnabled → AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED
 # ================================================================== #
 # agenta:
 #   services:
-#     code:
-#       sandboxRunner: local
 #     hook:
 #       allowInsecure: false
+#     code:
+#       sandboxRunner: local
 #     middleware:
+#       authEnabled: true
 #       cachingEnabled: true
 
 # ================================================================== #
@@ -165,12 +164,15 @@ global:
 
 # ================================================================== #
 # === crisp ===
+# Surfaced to the web container as NEXT_PUBLIC_CRISP_WEBSITE_ID for the
+# in-app support widget.
 # ================================================================== #
 # crisp:
 #   websiteId:
 
 # ================================================================== #
 # === daytona ===
+# Consumed by the agenta SDK when running user code in Daytona sandboxes.
 # ================================================================== #
 # daytona:
 #   apiKey:
@@ -298,14 +300,6 @@ posthog:
 # sendgrid:
 #   apiKey:
 #   fromAddress:
-
-# ================================================================== #
-# === stripe ===
-# ================================================================== #
-# stripe:
-#   apiKey:
-#   webhookSecret:
-#   webhookTarget:
 
 # ================================================================== #
 # === supertokens ===

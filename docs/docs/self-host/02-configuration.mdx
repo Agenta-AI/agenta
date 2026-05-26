@@ -17,6 +17,17 @@ For Helm deployments, set the `values.yaml` path instead of the env var. The
 chart maps every value to the same canonical env var internally.
 :::
 
+:::note Helm-only — pre-existing Secret
+The Helm chart accepts a single Helm-only key, `secrets.existingSecret`, that
+points at a pre-created Kubernetes Secret. When set, the chart will not create
+or update the Secret object; it just wires `envFrom`/`secretKeyRef` references
+to the name you provide. Your Secret must contain the canonical env-var keys
+(`AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `POSTGRES_PASSWORD`, and any optional
+keys such as `SUPERTOKENS_API_KEY`, `OPENAI_API_KEY`, OAuth client secrets,
+etc.) — see [Deploy to Kubernetes — Secrets](/self-host/guides/deploy-to-kubernetes#secrets).
+This key has no env-var or `env.py` equivalent.
+:::
+
 ## Agenta — core
 
 | Env var | env.py path | values.yaml path |

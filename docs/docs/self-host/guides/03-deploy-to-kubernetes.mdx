@@ -209,7 +209,7 @@ To use an existing Kubernetes Secret instead of having the chart create one, set
 If you enable secret-backed settings such as OAuth, LLM provider keys, SendGrid, Composio, New Relic, or Turnstile, add those keys to the same Secret too. When `secrets.existingSecret` is set, the chart does not create or update the Secret for you.
 
 :::caution
-When `secrets.supertokensApiKey` is empty, the SuperTokens instance runs without authentication. Any pod that can reach the SuperTokens service can manage auth data. Set an API key for production deployments.
+When `supertokens.apiKey` is empty, the SuperTokens instance runs without authentication. Any pod that can reach the SuperTokens service can manage auth data. Set an API key for production deployments.
 :::
 
 ### Access Control

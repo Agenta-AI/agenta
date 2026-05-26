@@ -674,6 +674,17 @@ imagePullSecrets:
 {{- define "agenta.commonEnv" -}}
 {{- $agenta := default dict .Values.agenta -}}
 {{- $access := default dict $agenta.access -}}
+{{- $aiServices := default dict $agenta.aiServices -}}
+{{- $agentaApi := default dict $agenta.api -}}
+{{- $apiCaching := default dict $agentaApi.caching -}}
+{{- $extras := default dict $agenta.extras -}}
+{{- $logging := default dict $agenta.logging -}}
+{{- $otlp := default dict $agenta.otlp -}}
+{{- $agentaServices := default dict $agenta.services -}}
+{{- $svcHook := default dict $agentaServices.hook -}}
+{{- $svcCode := default dict $agentaServices.code -}}
+{{- $svcMiddleware := default dict $agentaServices.middleware -}}
+{{- $webhooksCfg := default dict $agenta.webhooks -}}
 {{- $rv := default dict .Values.redisVolatile -}}
 {{- $rd := default dict .Values.redisDurable -}}
 {{- $posthog := default dict .Values.posthog -}}
@@ -681,6 +692,9 @@ imagePullSecrets:
 {{- $composio := default dict .Values.composio -}}
 {{- $cf := default dict (default dict .Values.cloudflare).turnstile -}}
 {{- $nr := default dict .Values.newrelic -}}
+{{- $loops := default dict .Values.loops -}}
+{{- $crisp := default dict .Values.crisp -}}
+{{- $daytona := default dict .Values.daytona -}}
 {{- $secrets := default dict .Values.secrets -}}
 {{- $identity := default dict .Values.identity -}}
 {{- $llm := default dict .Values.llm -}}
@@ -747,6 +761,10 @@ imagePullSecrets:
       optional: true
 - name: POSTHOG_API_KEY
   value: {{ $posthog.apiKey | default "" | quote }}
+{{- if $posthog.apiUrl }}
+- name: POSTHOG_API_URL
+  value: {{ $posthog.apiUrl | quote }}
+{{- end }}
 - name: SENDGRID_FROM_ADDRESS
   value: {{ $sendgrid.fromAddress | default "" | quote }}
 - name: COMPOSIO_API_URL
@@ -788,6 +806,136 @@ imagePullSecrets:
 {{- with $access.defaultPlanOverlay }}
 - name: AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY
   value: {{ toJson . | quote }}
+{{- end }}
+{{- /* agenta.aiServices — AI service endpoint + auth */}}
+{{- if $aiServices.apiUrl }}
+- name: AGENTA_AI_SERVICES_API_URL
+  value: {{ $aiServices.apiUrl | quote }}
+{{- end }}
+{{- if $aiServices.environmentSlug }}
+- name: AGENTA_AI_SERVICES_ENVIRONMENT_SLUG
+  value: {{ $aiServices.environmentSlug | quote }}
+{{- end }}
+{{- if $aiServices.apiKey }}
+- name: AGENTA_AI_SERVICES_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_AI_SERVICES_API_KEY
+      optional: true
+{{- end }}
+{{- if $aiServices.refinePromptKey }}
+- name: AGENTA_AI_SERVICES_REFINE_PROMPT_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_AI_SERVICES_REFINE_PROMPT_KEY
+      optional: true
+{{- end }}
+{{- /* agenta.api.caching — request-cache toggle */}}
+{{- if hasKey $apiCaching "enabled" }}
+- name: AGENTA_API_CACHING_ENABLED
+  value: {{ $apiCaching.enabled | quote }}
+{{- end }}
+{{- /* agenta.logging — log destination + levels */}}
+{{- if hasKey $logging "consoleEnabled" }}
+- name: AGENTA_LOGGING_CONSOLE_ENABLED
+  value: {{ $logging.consoleEnabled | quote }}
+{{- end }}
+{{- if $logging.consoleLevel }}
+- name: AGENTA_LOGGING_CONSOLE_LEVEL
+  value: {{ $logging.consoleLevel | quote }}
+{{- end }}
+{{- if hasKey $logging "fileEnabled" }}
+- name: AGENTA_LOGGING_FILE_ENABLED
+  value: {{ $logging.fileEnabled | quote }}
+{{- end }}
+{{- if $logging.fileLevel }}
+- name: AGENTA_LOGGING_FILE_LEVEL
+  value: {{ $logging.fileLevel | quote }}
+{{- end }}
+{{- if $logging.filePath }}
+- name: AGENTA_LOGGING_FILE_PATH
+  value: {{ $logging.filePath | quote }}
+{{- end }}
+{{- if hasKey $logging "otlpEnabled" }}
+- name: AGENTA_LOGGING_OTLP_ENABLED
+  value: {{ $logging.otlpEnabled | quote }}
+{{- end }}
+{{- if $logging.otlpLevel }}
+- name: AGENTA_LOGGING_OTLP_LEVEL
+  value: {{ $logging.otlpLevel | quote }}
+{{- end }}
+{{- /* agenta.otlp — OTLP ingestion knobs */}}
+{{- if $otlp.maxBatchBytes }}
+- name: AGENTA_OTLP_MAX_BATCH_BYTES
+  value: {{ $otlp.maxBatchBytes | quote }}
+{{- end }}
+{{- /* agenta.webhooks — outbound webhook flags */}}
+{{- if hasKey $webhooksCfg "allowInsecure" }}
+- name: AGENTA_WEBHOOKS_ALLOW_INSECURE
+  value: {{ $webhooksCfg.allowInsecure | quote }}
+{{- end }}
+{{- /* agenta.services.hook — surfaced to user-code runners via SDK */}}
+{{- if hasKey $svcHook "allowInsecure" }}
+- name: AGENTA_SERVICES_HOOK_ALLOW_INSECURE
+  value: {{ $svcHook.allowInsecure | quote }}
+{{- end }}
+{{- /* agenta.services.code — SDK sandbox runner selector */}}
+{{- if $svcCode.sandboxRunner }}
+- name: AGENTA_SERVICES_CODE_SANDBOX_RUNNER
+  value: {{ $svcCode.sandboxRunner | quote }}
+{{- end }}
+{{- /* agenta.services.middleware — SDK middleware toggles */}}
+{{- if hasKey $svcMiddleware "authEnabled" }}
+- name: AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED
+  value: {{ $svcMiddleware.authEnabled | quote }}
+{{- end }}
+{{- if hasKey $svcMiddleware "cachingEnabled" }}
+- name: AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED
+  value: {{ $svcMiddleware.cachingEnabled | quote }}
+{{- end }}
+{{- /* agenta.extras.demos — EE reads AGENTA_DEMOS for demo workspace seeding */}}
+{{- if $extras.demos }}
+- name: AGENTA_DEMOS
+  value: {{ $extras.demos | quote }}
+- name: AGENTA_EXTRAS_DEMOS
+  value: {{ $extras.demos | quote }}
+{{- end }}
+{{- /* crisp — surfaced as NEXT_PUBLIC_CRISP_WEBSITE_ID to the web container */}}
+{{- if $crisp.websiteId }}
+- name: CRISP_WEBSITE_ID
+  value: {{ $crisp.websiteId | quote }}
+{{- end }}
+{{- /* daytona — sandbox runner config read by the agenta SDK */}}
+{{- if $daytona.apiUrl }}
+- name: DAYTONA_API_URL
+  value: {{ $daytona.apiUrl | quote }}
+{{- end }}
+{{- if $daytona.snapshot }}
+- name: DAYTONA_SNAPSHOT
+  value: {{ $daytona.snapshot | quote }}
+{{- end }}
+{{- if $daytona.target }}
+- name: DAYTONA_TARGET
+  value: {{ $daytona.target | quote }}
+{{- end }}
+{{- if $daytona.apiKey }}
+- name: DAYTONA_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: DAYTONA_API_KEY
+      optional: true
+{{- end }}
+{{- /* loops — transactional email */}}
+{{- if $loops.apiKey }}
+- name: LOOPS_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: LOOPS_API_KEY
+      optional: true
 {{- end }}
 {{- with $secrets.oauth }}
 {{- range $key, $val := . }}

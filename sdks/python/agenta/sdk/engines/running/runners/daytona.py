@@ -81,7 +81,7 @@ class DaytonaRunner(CodeRunner):
         if not os.getenv("DAYTONA_API_KEY"):
             raise ValueError(
                 "Missing required environment variable: DAYTONA_API_KEY. "
-                "Set AGENTA_SERVICES_SANDBOX_RUNNER=local to use local execution instead."
+                "Set AGENTA_SERVICES_CODE_SANDBOX_RUNNER=local to use local execution instead."
             )
 
     def _initialize_client(self) -> None:

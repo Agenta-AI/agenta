@@ -61,6 +61,8 @@ Before, settings were bucketed under `global.*`, `secrets.*`, `accessControl.*`,
 
 Full mapping: [Environment configuration reference](/self-host/configuration).
 
+The `secrets.existingSecret` Helm-only escape hatch (point a pre-created Kubernetes Secret at the chart) is unchanged. If you used it pre-v0.100.2, keep using it — just make sure the Secret carries the v0.100.2 env-var key names (e.g. `GOOGLE_OAUTH_CLIENT_SECRET` and `OPENAI_API_KEY`, not the legacy nested-map keys).
+
 ### 3. Environment variables renamed (old names still read as fallbacks)
 
 The Pydantic env loader reads the new name first and falls back to the old one when the new isn't set. Old env vars set in your existing deployment will keep working through one release cycle.
@@ -70,7 +72,7 @@ The Pydantic env loader reads the new name first and falls back to the old one w
 | `AGENTA_ALLOWED_DOMAINS` | `AGENTA_ACCESS_ALLOWED_DOMAINS` |
 | `AGENTA_BLOCKED_DOMAINS` | `AGENTA_ACCESS_BLOCKED_DOMAINS` |
 | `AGENTA_BLOCKED_EMAILS` | `AGENTA_ACCESS_BLOCKED_EMAILS` |
-| `AGENTA_ORG_CREATION_ALLOWLIST` | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` |
+| `AGENTA_ORG_CREATION_ALLOWLIST` / `AGENTA_ACCESS_ORG_CREATION_ALLOWLIST` / `AGENTA_ACCESS_ALLOWED_ORGANIZATION_OWNERS` | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` |
 | `AGENTA_DEFAULT_PLAN` | `AGENTA_ACCESS_DEFAULT_PLAN` |
 | `AGENTA_AUTO_MIGRATIONS` | `ALEMBIC_AUTO_MIGRATIONS` |
 | `AGENTA_DEMOS` | `AGENTA_EXTRAS_DEMOS` |

@@ -88,3 +88,13 @@ global:
       secretKeys:
         userPasswordKey: "POSTGRES_PASSWORD"
         adminPasswordKey: "POSTGRES_PASSWORD"
+
+# ================================================================== #
+# redisDurable — bundled redis StatefulSet, durable queue.
+#  - persistence.size: pinned for the same reason postgres is pinned;
+#    a floating default would break upgrades because volumeClaimTemplates
+#    is immutable on a StatefulSet.
+# ================================================================== #
+redisDurable:
+  persistence:
+    size: "5Gi"

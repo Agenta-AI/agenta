@@ -4,6 +4,43 @@ Your release is named: {{ .Release.Name }}
 
 {{- $ingress := default dict .Values.ingress }}
 {{- $secrets := default dict .Values.secrets }}
+{{- $agenta := default dict .Values.agenta }}
+{{- $postgres := default dict .Values.postgres }}
+
+{{- if or (eq ($agenta.authKey | toString) "replace-me") (eq ($agenta.cryptKey | toString) "replace-me") (eq ($postgres.password | toString) "password") }}
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  SECURITY WARNING — default secrets in use                           ║
+╠══════════════════════════════════════════════════════════════════════╣
+{{- if eq ($agenta.authKey | toString) "replace-me" }}
+║  agenta.authKey   = "replace-me"    ← REPLACE before production      ║
+{{- end }}
+{{- if eq ($agenta.cryptKey | toString) "replace-me" }}
+║  agenta.cryptKey  = "replace-me"    ← REPLACE before production      ║
+{{- end }}
+{{- if eq ($postgres.password | toString) "password" }}
+║  postgres.password = "password"     ← REPLACE before production      ║
+{{- end }}
+║                                                                      ║
+║  These defaults exist so the chart renders out-of-the-box for local  ║
+║  development. Override them in your values file:                     ║
+║                                                                      ║
+║    agenta:                                                           ║
+║      authKey:  "$(openssl rand -hex 32)"                             ║
+║      cryptKey: "$(openssl rand -hex 32)"                             ║
+║    postgres:                                                         ║
+║      password: "$(openssl rand -hex 24)"                             ║
+╚══════════════════════════════════════════════════════════════════════╝
+{{- end }}
+
+{{- if eq (include "agenta.ingress.enabled" .) "true" }}
+
+NOTE: ingress.enabled=true assumes a cluster-installed Ingress controller.
+The example values default to Traefik v3 with a StripPrefix Middleware
+(see `extraObjects` in the example values file) so /api and /services
+are routed correctly. If you use a different controller, replace the
+class + annotations and provide an equivalent path-rewrite mechanism.
+{{- end }}
 {{- if eq (include "agenta.ingress.enabled" .) "true" }}
 
 Agenta is accessible via Ingress:
