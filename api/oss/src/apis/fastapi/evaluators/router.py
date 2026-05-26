@@ -10,7 +10,11 @@ from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.events.utils import publish_revision_event
 
-from oss.src.core.git.types import VariantForkError, RevisionRefInvalid
+from oss.src.core.git.types import (
+    VariantForkError,
+    RetrieveRefsInsufficient,
+    RetrieveRefsInconsistent,
+)
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -1177,7 +1181,7 @@ class EvaluatorsRouter:
                 evaluator_variant_ref=evaluator_deploy_request.evaluator_variant_ref,
                 evaluator_revision_ref=evaluator_deploy_request.evaluator_revision_ref,
             )
-        except RevisionRefInvalid as e:
+        except (RetrieveRefsInsufficient, RetrieveRefsInconsistent) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=e.message,
@@ -1387,7 +1391,7 @@ class EvaluatorsRouter:
                 #
                 resolve=evaluator_revision_retrieve_request.resolve or False,
             )
-        except RevisionRefInvalid as e:
+        except (RetrieveRefsInsufficient, RetrieveRefsInconsistent) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=e.message,

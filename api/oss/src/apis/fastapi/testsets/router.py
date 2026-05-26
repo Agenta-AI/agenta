@@ -28,7 +28,7 @@ from oss.src.utils.caching import set_cache, get_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 from oss.src.core.events.utils import publish_revision_event
-from oss.src.core.git.types import RevisionRefInvalid
+from oss.src.core.git.types import RetrieveRefsInsufficient, RetrieveRefsInconsistent
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -1511,7 +1511,7 @@ class TestsetsRouter:
                     #
                     windowing=testset_revision_retrieve_request.windowing,
                 )
-            except RevisionRefInvalid as e:
+            except (RetrieveRefsInsufficient, RetrieveRefsInconsistent) as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=e.message,

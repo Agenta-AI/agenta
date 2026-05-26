@@ -11,7 +11,7 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.git.types import (
-    RevisionRefInvalid,
+    RetrieveRefsInsufficient,
     validate_revision_ref_unambiguous,
 )
 from oss.src.core.shared.dtos import Reference
@@ -32,7 +32,7 @@ class TestVersionOnlyRejection:
     variant scope and must raise."""
 
     def test_version_only_no_variant_raises(self):
-        with pytest.raises(RevisionRefInvalid) as exc:
+        with pytest.raises(RetrieveRefsInsufficient) as exc:
             validate_revision_ref_unambiguous(
                 artifact_ref=None,
                 variant_ref=None,
@@ -42,7 +42,7 @@ class TestVersionOnlyRejection:
 
     def test_version_only_with_empty_variant_ref_raises(self):
         # Reference(id=None, slug=None, version=None) is truthy but unidentifying.
-        with pytest.raises(RevisionRefInvalid):
+        with pytest.raises(RetrieveRefsInsufficient):
             validate_revision_ref_unambiguous(
                 artifact_ref=None,
                 variant_ref=_ref(),
@@ -52,7 +52,7 @@ class TestVersionOnlyRejection:
     def test_version_only_with_variant_having_only_version_raises(self):
         # A variant_ref whose only field is `version` doesn't scope anything
         # — version isn't an identifier for the variant either.
-        with pytest.raises(RevisionRefInvalid):
+        with pytest.raises(RetrieveRefsInsufficient):
             validate_revision_ref_unambiguous(
                 artifact_ref=None,
                 variant_ref=_ref(version="3"),
@@ -60,7 +60,7 @@ class TestVersionOnlyRejection:
             )
 
     def test_entity_type_appears_in_message(self):
-        with pytest.raises(RevisionRefInvalid) as exc:
+        with pytest.raises(RetrieveRefsInsufficient) as exc:
             validate_revision_ref_unambiguous(
                 artifact_ref=None,
                 variant_ref=None,
@@ -71,7 +71,7 @@ class TestVersionOnlyRejection:
         assert "testset_variant_ref" in exc.value.message
 
     def test_entity_type_default_is_artifact(self):
-        with pytest.raises(RevisionRefInvalid) as exc:
+        with pytest.raises(RetrieveRefsInsufficient) as exc:
             validate_revision_ref_unambiguous(
                 artifact_ref=None,
                 variant_ref=None,
@@ -216,7 +216,7 @@ class TestExceptionType:
             )
 
     def test_exception_message_attribute(self):
-        with pytest.raises(RevisionRefInvalid) as exc:
+        with pytest.raises(RetrieveRefsInsufficient) as exc:
             validate_revision_ref_unambiguous(
                 artifact_ref=None,
                 variant_ref=None,

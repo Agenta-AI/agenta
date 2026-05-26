@@ -11,7 +11,11 @@ from oss.src.utils.caching import invalidate_cache
 from oss.src.core.shared.dtos import (
     Reference,
 )
-from oss.src.core.git.types import VariantForkError, RevisionRefInvalid
+from oss.src.core.git.types import (
+    VariantForkError,
+    RetrieveRefsInsufficient,
+    RetrieveRefsInconsistent,
+)
 from oss.src.core.workflows.service import (
     WorkflowsService,
     SimpleWorkflowsService,
@@ -1235,7 +1239,7 @@ class WorkflowsRouter:
         # This route only accepts `workflow_revision_id` as a path param and
         # constructs `Reference(id=workflow_revision_id)`. That shape always
         # satisfies the service's ambiguity validation, so no try/except for
-        # `RevisionRefInvalid` is needed here. The other two call sites
+        # `RetrieveRefsInsufficient` is needed here. The other two call sites
         # (`deploy_workflow_revision` and `retrieve_workflow_revision`) pass
         # through caller-supplied refs and do wrap this call.
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
@@ -1536,7 +1540,7 @@ class WorkflowsRouter:
                 workflow_variant_ref=workflow_deploy_request.workflow_variant_ref,
                 workflow_revision_ref=workflow_deploy_request.workflow_revision_ref,
             )
-        except RevisionRefInvalid as e:
+        except (RetrieveRefsInsufficient, RetrieveRefsInconsistent) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=e.message,
@@ -1733,7 +1737,7 @@ class WorkflowsRouter:
                 #
                 resolve=workflow_revision_retrieve_request.resolve or False,
             )
-        except RevisionRefInvalid as e:
+        except (RetrieveRefsInsufficient, RetrieveRefsInconsistent) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=e.message,

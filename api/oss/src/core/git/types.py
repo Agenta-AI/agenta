@@ -15,7 +15,7 @@ class VariantForkError(GitError):
     """Raised when a variant fork request cannot be fulfilled."""
 
 
-class RevisionRefInvalid(GitError):
+class RetrieveRefsInsufficient(GitError):
     """Raised when artifact/variant/revision refs are present but cannot
     identify a single revision unambiguously.
 
@@ -28,6 +28,18 @@ class RevisionRefInvalid(GitError):
     Not raised for the all-refs-empty case: the entity service returns
     `None` for that case rather than raising, matching the "nothing to look
     up" contract.
+    """
+
+
+class RetrieveRefsInconsistent(GitError):
+    """Raised when redundant refs disagree with the resolved revision.
+
+    A caller may legitimately repeat identifying refs across the
+    artifact/variant/revision triple, but every redundant identifier must
+    name the same row that the lookup resolved. If `revision_ref.id`
+    resolves to a revision whose `artifact_id` does not match the
+    `artifact_ref.id` the caller sent, the request is rejected — silently
+    favoring one ref would be a footgun.
     """
 
 
@@ -100,10 +112,121 @@ def validate_revision_ref_unambiguous(
     if _is_identifying(variant_ref) or _is_identifying(artifact_ref):
         return
 
-    raise RevisionRefInvalid(
+    raise RetrieveRefsInsufficient(
         f"{entity_type}_revision_ref.version is a per-variant sequence number "
         f"and requires a {entity_type}_variant_ref or {entity_type}_ref to "
         f"scope it. Provide either, or identify the revision by "
         f"{entity_type}_revision_ref.id or {entity_type}_revision_ref.slug "
         f"(both are project-unique)."
     )
+
+
+def _mismatch(
+    ref_field: str,
+    ref_value,
+    resolved_field: str,
+    resolved_value,
+) -> Optional[str]:
+    if ref_value is None or resolved_value is None:
+        return None
+    if str(ref_value) == str(resolved_value):
+        return None
+    return (
+        f"{ref_field}={ref_value!r} does not match resolved revision's "
+        f"{resolved_field}={resolved_value!r}"
+    )
+
+
+def validate_retrieve_refs_consistent(
+    *,
+    artifact_ref: Optional[Reference],
+    variant_ref: Optional[Reference],
+    revision_ref: Optional[Reference],
+    resolved_artifact_id=None,
+    resolved_artifact_slug: Optional[str] = None,
+    resolved_variant_id=None,
+    resolved_variant_slug: Optional[str] = None,
+    resolved_revision_id=None,
+    resolved_revision_slug: Optional[str] = None,
+    resolved_revision_version: Optional[int] = None,
+    entity_type: str = "artifact",
+) -> None:
+    """Reject requests where caller-supplied refs contradict the resolved revision (rule 2.d enforcement).
+
+    The retrieve API tolerates redundant refs (the same revision identified
+    by multiple of `{artifact_ref, variant_ref, revision_ref}`) because they
+    are useful for sanity-check shapes. But every redundant identifier must
+    name the same row the lookup resolved — otherwise silently favoring one
+    ref over another is a footgun. The version field is the one exception:
+    it's a per-variant sequence number and lookup-by-id ignores it, so a
+    redundant version that disagrees is still a contradiction worth
+    rejecting.
+
+    None-valued caller fields are skipped (only present-but-wrong fails).
+    None-valued resolved fields are skipped too — caller asked for a
+    consistency check the DAO can't service, which is a no-op rather than a
+    failure.
+    """
+    mismatches: list[str] = []
+    if artifact_ref is not None:
+        mismatches.append(
+            _mismatch(
+                f"{entity_type}_ref.id",
+                artifact_ref.id,
+                "artifact_id",
+                resolved_artifact_id,
+            )
+        )
+        mismatches.append(
+            _mismatch(
+                f"{entity_type}_ref.slug",
+                artifact_ref.slug,
+                "artifact_slug",
+                resolved_artifact_slug,
+            )
+        )
+    if variant_ref is not None:
+        mismatches.append(
+            _mismatch(
+                f"{entity_type}_variant_ref.id",
+                variant_ref.id,
+                "variant_id",
+                resolved_variant_id,
+            )
+        )
+        mismatches.append(
+            _mismatch(
+                f"{entity_type}_variant_ref.slug",
+                variant_ref.slug,
+                "variant_slug",
+                resolved_variant_slug,
+            )
+        )
+    if revision_ref is not None:
+        mismatches.append(
+            _mismatch(
+                f"{entity_type}_revision_ref.id",
+                revision_ref.id,
+                "id",
+                resolved_revision_id,
+            )
+        )
+        mismatches.append(
+            _mismatch(
+                f"{entity_type}_revision_ref.slug",
+                revision_ref.slug,
+                "slug",
+                resolved_revision_slug,
+            )
+        )
+        if revision_ref.version is not None and resolved_revision_version is not None:
+            if str(revision_ref.version) != str(resolved_revision_version):
+                mismatches.append(
+                    f"{entity_type}_revision_ref.version="
+                    f"{revision_ref.version!r} does not match resolved "
+                    f"revision's version={resolved_revision_version!r}"
+                )
+
+    errors = [m for m in mismatches if m]
+    if errors:
+        raise RetrieveRefsInconsistent("; ".join(errors))

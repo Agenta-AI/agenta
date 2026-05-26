@@ -82,6 +82,7 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.git.types import (
     validate_revision_ref_unambiguous,
     needs_default_variant_resolution,
+    validate_retrieve_refs_consistent,
 )
 
 # Resolution is now handled by EmbedsService
@@ -1090,6 +1091,9 @@ class WorkflowsService:
             entity_type="workflow",
         )
 
+        _original_workflow_ref = workflow_ref
+        _original_workflow_variant_ref = workflow_variant_ref
+
         if needs_default_variant_resolution(
             artifact_ref=workflow_ref,
             variant_ref=workflow_variant_ref,
@@ -1138,6 +1142,20 @@ class WorkflowsService:
 
         if not revision:
             return None
+
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_workflow_ref,
+            variant_ref=_original_workflow_variant_ref,
+            revision_ref=workflow_revision_ref,
+            resolved_artifact_id=revision.artifact_id,
+            resolved_artifact_slug=revision.artifact_slug,
+            resolved_variant_id=revision.variant_id,
+            resolved_variant_slug=revision.variant_slug,
+            resolved_revision_id=revision.id,
+            resolved_revision_slug=revision.slug,
+            resolved_revision_version=revision.version,
+            entity_type="workflow",
+        )
 
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),

@@ -8,7 +8,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
 from oss.src.core.events.utils import publish_revision_event
-from oss.src.core.git.types import RevisionRefInvalid
+from oss.src.core.git.types import RetrieveRefsInsufficient, RetrieveRefsInconsistent
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -769,7 +769,7 @@ class EnvironmentsRouter:
                 #
                 resolve=bool(environment_revision_retrieve_request.resolve),
             )
-        except RevisionRefInvalid as e:
+        except (RetrieveRefsInsufficient, RetrieveRefsInconsistent) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=e.message,

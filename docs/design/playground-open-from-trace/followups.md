@@ -649,9 +649,9 @@ artifact/variant identity against what the caller sent:
   still belong to that same artifact. Otherwise the derived key looked up
   a slot the caller didn't actually mean — D15.
 
-On mismatch, raise a new `RevisionRefInconsistent(GitError)` and surface as
+On mismatch, raise a new `RetrieveRefsInconsistent(GitError)` and surface as
 400 naming the conflicting field. The exception and validator live in
-`core/git/types.py` next to `RevisionRefInvalid`.
+`core/git/types.py` next to `RetrieveRefsInsufficient`.
 
 ### C4. Catch variant-by-version analog — fixes D4 + D13
 
@@ -730,8 +730,8 @@ Inventory at this commit:
 
 - **12 inline `except` blocks** across 6 routers (workflows, applications,
   evaluators, testsets, queries, environments).
-- **2 domain exceptions** today: `VariantForkError`, `RevisionRefInvalid`.
-- **+1 from C3:** `RevisionRefInconsistent`.
+- **2 domain exceptions** today: `VariantForkError`, `RetrieveRefsInsufficient`.
+- **+1 from C3:** `RetrieveRefsInconsistent`.
 - **+1 possibly from C4:** a variant-ref-version helper exception.
 
 Each new git-domain exception multiplies the boilerplate by the number of
@@ -746,8 +746,8 @@ call sites. The codebase already has a cleaner pattern in `folders/`:
 Apply the same shape to the git domain:
 
 1. Define typed exceptions in `apis/fastapi/shared/git_exceptions.py` (or
-   similar): `VariantForkErrorException`, `RevisionRefInvalidException`,
-   `RevisionRefInconsistentException`. All inherit from
+   similar): `VariantForkErrorException`, `RetrieveRefsInsufficientException`,
+   `RetrieveRefsInconsistentException`. All inherit from
    `BadRequestException` (from `utils/exceptions.py:226`) which already
    carries the 400 status.
 2. Define `@handle_git_exceptions()` decorator in the same module that
@@ -805,7 +805,7 @@ across all six entity tables.
    any further change. Catches accidental regressions in the next steps.
 5. **C2** — lift the helper's `{artifact_ref + version}` rejection now
    that C1a makes the default-variant pick deterministic.
-6. **C3** — new `RevisionRefInconsistent` exception, post-resolution
+6. **C3** — new `RetrieveRefsInconsistent` exception, post-resolution
    consistency checks for entity-ref path, env-ref path, across-paths
    (explicit `key`), and across-paths (derived `key` / D15).
 7. **C4** — variant-by-version analog of the helper, plus the env-side
