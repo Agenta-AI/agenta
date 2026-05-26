@@ -204,7 +204,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    ================================================================ */}}
 {{- define "agenta.serviceAccountName" -}}
 {{- $sa := default dict .Values.serviceAccount -}}
-{{- $create := default true $sa.create -}}
+{{- /* See serviceaccount.yaml: `default true` would silently override
+       an explicit `serviceAccount.create: false`. Use hasKey so the
+       helper agrees with the template — otherwise pods would mount a
+       SA name the template never created. */ -}}
+{{- $create := true -}}
+{{- if hasKey $sa "create" -}}{{- $create = $sa.create -}}{{- end -}}
 {{- if $create }}
 {{- default (include "agenta.fullname" .) $sa.name }}
 {{- else }}
