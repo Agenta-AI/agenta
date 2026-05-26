@@ -158,8 +158,14 @@ export function useEvaluatorMetricDrawerData({
     scenarioId,
     sections,
 }: Pick<EvaluatorMetricsAdapterProps, "runId" | "scenarioId" | "sections">) {
-    const evaluatorSections = sections.filter((section) => section.kind === "annotation")
-    const metricSections = sections.filter((section) => section.kind === "metric")
+    const evaluatorSections = useMemo(
+        () => sections.filter((section) => section.kind === "annotation"),
+        [sections],
+    )
+    const metricSections = useMemo(
+        () => sections.filter((section) => section.kind === "metric"),
+        [sections],
+    )
     const evaluators = useMetricValueSectionData({
         runId,
         scenarioId,
@@ -204,8 +210,14 @@ const EvaluatorMetricsAdapter = ({
     rootViewMode,
     collapseSignal,
 }: EvaluatorMetricsAdapterProps) => {
-    const evaluatorSections = sections.filter((section) => section.kind === "annotation")
-    const metricSections = sections.filter((section) => section.kind === "metric")
+    const evaluatorSections = useMemo(
+        () => sections.filter((section) => section.kind === "annotation"),
+        [sections],
+    )
+    const metricSections = useMemo(
+        () => sections.filter((section) => section.kind === "metric"),
+        [sections],
+    )
 
     if (!evaluatorSections.length && !metricSections.length) return null
 
