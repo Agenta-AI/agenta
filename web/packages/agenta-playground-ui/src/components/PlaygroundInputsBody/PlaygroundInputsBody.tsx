@@ -43,6 +43,26 @@ export interface PlaygroundInputsBodyVariable {
     /** True when the variable is referenced by the prompt but not authored
      *  on the testcase yet. Renders a `[draft]` badge. */
     isDraft?: boolean
+    /** Optional tooltip text explaining the variable's role. Surfaced as a
+     *  small Info icon in the card header — used for evaluator envelope
+     *  variables (`inputs`/`outputs`) to keep the legacy guidance visible. */
+    helpText?: string
+}
+
+/**
+ * Optional section grouping for the variable cards. When present (see
+ * `PlaygroundInputsBodyProps.sections` below), each section renders inside
+ * a left-border accent block — mirrors the legacy `<SectionBlock>` look the
+ * grouped evaluator layout used in `SingleLayout`. Variable cards inside a
+ * section behave exactly like ungrouped cards otherwise.
+ */
+export interface PlaygroundInputsBodySection {
+    /** Aria label for the group (e.g. `"inputs"` / `"outputs"`). Not
+     *  rendered as a visible heading — the left-border + the per-card
+     *  TypeChip + name carry the disambiguation. */
+    ariaLabel: string
+    /** Variables rendered inside this section, in order. */
+    variables: PlaygroundInputsBodyVariable[]
 }
 
 export interface PlaygroundInputsBodyProps {
@@ -53,8 +73,13 @@ export interface PlaygroundInputsBodyProps {
     rowId: string
     /** Variables referenced by the prompt chain. Rendered as expanded cards
      *  in order. Include draft variables (referenced but not on testcase)
-     *  with `isDraft: true`. */
+     *  with `isDraft: true`. Ignored when `sections` is provided. */
     inputs: PlaygroundInputsBodyVariable[]
+    /** Optional grouped layout. When present, replaces the flat `inputs`
+     *  rendering with one left-border block per section. Used by the
+     *  evaluator grouped layout (`inputs` envelope + extracted field ports
+     *  in one block, `outputs` envelope in another). */
+    sections?: PlaygroundInputsBodySection[]
     /** Testcase columns NOT referenced by the prompt chain. Rendered under
      *  a single collapsed footer below all variable cards. Pass `undefined`
      *  or `[]` to skip the footer entirely. */
@@ -80,6 +105,7 @@ export interface PlaygroundInputsBodyProps {
 export function PlaygroundInputsBody({
     rowId,
     inputs,
+    sections,
     unreferencedColumns,
     editable,
     onValueChange,
@@ -87,8 +113,15 @@ export function PlaygroundInputsBody({
     onViewModeChange,
     unreferencedEditable = false,
 }: PlaygroundInputsBodyProps) {
+    // `sections` takes precedence over the flat `inputs` list. We still need
+    // to look up by name to route draft edits, so unify the membership
+    // source here.
+    const allVariables: PlaygroundInputsBodyVariable[] = sections
+        ? sections.flatMap((s) => s.variables)
+        : inputs
+
     const handleValueChange = (name: string, value: unknown) => {
-        const variable = inputs.find((v) => v.name === name)
+        const variable = allVariables.find((v) => v.name === name)
         if (variable?.isDraft && onAddDraftColumn) {
             onAddDraftColumn(name, value)
         } else {
@@ -96,22 +129,40 @@ export function PlaygroundInputsBody({
         }
     }
 
+    const renderCard = (variable: PlaygroundInputsBodyVariable) => (
+        <VariableCard
+            key={variable.name}
+            rowId={rowId}
+            name={variable.name}
+            value={variable.value}
+            options={getViewOptions(variable.value)}
+            defaultMode={getDefaultViewForValue(variable.value)}
+            isDraft={variable.isDraft}
+            helpText={variable.helpText}
+            editable={editable}
+            onValueChange={handleValueChange}
+            onViewModeChange={onViewModeChange}
+        />
+    )
+
     return (
         <div className="agenta-playground-inputs-body flex flex-col gap-2">
-            {inputs.map((variable) => (
-                <VariableCard
-                    key={variable.name}
-                    rowId={rowId}
-                    name={variable.name}
-                    value={variable.value}
-                    options={getViewOptions(variable.value)}
-                    defaultMode={getDefaultViewForValue(variable.value)}
-                    isDraft={variable.isDraft}
-                    editable={editable}
-                    onValueChange={handleValueChange}
-                    onViewModeChange={onViewModeChange}
-                />
-            ))}
+            {sections
+                ? sections.map((section) => (
+                      <div
+                          key={section.ariaLabel}
+                          role="group"
+                          aria-label={section.ariaLabel}
+                          // Mirrors the legacy `<SectionBlock>` accent in
+                          // `SingleLayout`. No visible heading — the chip + name
+                          // on each card carries the per-variable label, and the
+                          // left-border conveys the group identity.
+                          className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[#1677FF22]"
+                      >
+                          {section.variables.map(renderCard)}
+                      </div>
+                  ))
+                : inputs.map(renderCard)}
             {unreferencedColumns && unreferencedColumns.length > 0 ? (
                 <UnreferencedColumnsFooter
                     rowId={rowId}

@@ -40,7 +40,8 @@ import type {SimpleChatMessage} from "@agenta/ui/chat-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
-import {InputNumber, Switch, Tag, Typography} from "antd"
+import {Info} from "@phosphor-icons/react"
+import {InputNumber, Switch, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
@@ -65,6 +66,11 @@ interface VariableCardProps {
     /** True when the variable is referenced by the prompt but not authored
      *  on the testcase yet. Renders a `[draft]` badge. */
     isDraft?: boolean
+    /** Optional tooltip text explaining what the variable represents.
+     *  Surfaced as a small Info icon next to the name — matches the legacy
+     *  `VariableControlAdapter` header treatment for evaluator envelope
+     *  variables (`inputs`/`outputs`). */
+    helpText?: string
     /** Whether the card is editable (vs read-only). */
     editable: boolean
     /** Writes the new value to the testcase / draft store. NATIVE value. */
@@ -82,6 +88,7 @@ export function VariableCard({
     options,
     defaultMode,
     isDraft,
+    helpText,
     editable,
     onValueChange,
     onViewModeChange,
@@ -117,6 +124,19 @@ export function VariableCard({
                         {name}
                     </AntText>
                     <TypeChip variant={chipVariant} value={value} />
+                    {helpText ? (
+                        <Tooltip
+                            title={helpText}
+                            placement="topLeft"
+                            overlayStyle={{maxWidth: 360}}
+                        >
+                            <Info
+                                size={12}
+                                className="text-gray-400 hover:text-gray-600 shrink-0 cursor-help"
+                                aria-label={`About ${name}`}
+                            />
+                        </Tooltip>
+                    ) : null}
                     {isDraft ? (
                         <Tag
                             color="default"
