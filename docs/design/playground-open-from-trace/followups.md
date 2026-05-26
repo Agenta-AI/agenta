@@ -664,19 +664,47 @@ without `{environment_variant_ref}` or `{environment_ref}`.
 If C1's default-variant rule lets `{artifact_ref + variant.version}` resolve
 deterministically, accept it via the C2 pattern.
 
-### C5. Centralize env-backed retrieve rules — fixes D5 + D11 + D12
+### C5. Unify git-ref retrieval rules across paths and entities — fixes D5 + D11 + D12
 
-Move the `key` requirement, the `key = f"{slug}.revision"` derivation, and the
-path-mixing policy out of the three routers into a shared utility (call site:
-new `apis/fastapi/shared/env_resolution.py` or `core/git/env_resolution.py`).
-Define and document:
+C5 covers two layers of unification:
 
-- When `key` is required vs derivable (default-key rule from D11).
-- Whether path-mixing is allowed and how it's resolved (rule from D10).
-  Recommended: allow mixing, enforce consistency via C3.
+**Service-layer pipeline (six entities).** All six services'
+`fetch_*_revision` carry the same pipeline today:
+`validate_variant_refs_sufficient → validate_revision_refs_sufficient →
+snapshot caller refs → needs_default_variant_resolution → fetch_artifact →
+fetch_variant → fetch_revision → validate_retrieve_refs_consistent → wrap
+DTO`. That pipeline should be extracted into a shared template so adding a
+seventh git-backed entity (or evolving any of the six steps) happens in one
+place.
 
-After this lands, applications/workflows/evaluators all call the same helper
-and exhibit the same behavior.
+**Router-layer env-backed retrieve policy (three routers).** The
+`*_revision_retrieve` endpoints for applications, workflows, and evaluators
+should share:
+
+- `key` is required for env-backed lookups, derived from `artifact_ref.slug`
+  as `f"{slug}.revision"` when missing (D11 default-key rule).
+- Path-mixing is allowed; rely on C3's consistency check to reject
+  contradictions after resolution (D10 path-mixing rule).
+- Neither path identifying → 400.
+
+This PR aligns the three routers inline so they exhibit the same behavior;
+the actual helper extraction (both layers) is deferred to C5b.
+
+### C5b. Extract the unified retrieval blocks into shared helpers — deferred
+
+Once C5 has aligned both layers inline, factor the duplicated blocks into
+shared helpers:
+
+- Service-layer pipeline → e.g., `core/git/retrieve.py` or a mixin on the
+  existing git service base.
+- Router-layer env-resolution → e.g.,
+  `apis/fastapi/shared/utils.py:plan_env_backed_retrieve`.
+
+Bundle with C10's exception-translation decorator extraction — both touch
+the same boilerplate (router try/except + retrieve_*_revision call) and
+share the same six per-entity duplicates. Deferred so the alignment ships
+first as small, low-risk changes; the extractions are mechanical refactors
+afterwards.
 
 ### C6. Stable tie-break for latest-revision ordering — fixes D7
 

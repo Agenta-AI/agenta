@@ -285,7 +285,10 @@ class EvaluatorRevisionCommitRequest(BaseModel):
 class EvaluatorRevisionRetrieveRequest(BaseModel):
     """Body for retrieving one revision, either by direct reference or through an environment key.
 
-    Provide one of: an evaluator / variant / revision reference, or an environment reference plus `key`.
+    Provide an evaluator / variant / revision reference, an environment
+    reference (with `key` derived from the evaluator slug by default), or a
+    combination of both. Every reference supplied must agree with the
+    resolved revision; contradictions return HTTP 400.
     """
 
     evaluator_ref: Optional[Reference] = Field(
@@ -293,8 +296,8 @@ class EvaluatorRevisionRetrieveRequest(BaseModel):
         description=(
             "Evaluator artifact to look up. Identifies the artifact by `id` "
             "or `slug` (both project-unique). When no variant_ref or "
-            "revision_ref is provided, returns the latest revision of an "
-            "arbitrary variant of this evaluator."
+            "revision_ref is provided, returns the latest revision of the "
+            "evaluator's default variant."
         ),
     )
     evaluator_variant_ref: Optional[Reference] = Field(

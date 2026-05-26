@@ -251,13 +251,20 @@ class WorkflowRevisionCommitRequest(BaseModel):
 
 
 class WorkflowRevisionRetrieveRequest(BaseModel):
+    """Request body for `POST /workflows/revisions/retrieve`.
+
+    Resolves to a single revision by one or more reference types. Every
+    reference supplied must agree with the resolved revision; contradictions
+    return HTTP 400.
+    """
+
     workflow_ref: Optional[Reference] = Field(
         default=None,
         description=(
             "Workflow artifact to look up. Identifies the artifact by `id` or "
             "`slug` (both project-unique). When no variant_ref or revision_ref "
-            "is provided, returns the latest revision of an arbitrary variant "
-            "of this workflow."
+            "is provided, returns the latest revision of the workflow's "
+            "default variant."
         ),
     )
     workflow_variant_ref: Optional[Reference] = Field(
