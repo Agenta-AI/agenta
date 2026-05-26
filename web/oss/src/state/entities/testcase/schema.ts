@@ -1,5 +1,31 @@
-import {SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import {z} from "zod"
+
+const SYSTEM_FIELDS = new Set([
+    "id",
+    "key",
+    "testset_id",
+    "set_id",
+    "testset_variant_id",
+    "revision_id",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "created_by_id",
+    "updated_by_id",
+    "deleted_by_id",
+    "flags",
+    "tags",
+    "meta",
+    "__isSkeleton",
+    "__isNew",
+    "__dedup_id__",
+    "testcase_dedup_id",
+])
+
+const INTERNAL_USER_DATA_FIELDS = new Set(["testcase_dedup_id"])
+
+const isInternalUserDataField = (key: string): boolean =>
+    key.startsWith("__") || INTERNAL_USER_DATA_FIELDS.has(key)
 
 /**
  * Zod schema for testcase entity based on backend API
@@ -72,6 +98,41 @@ export type FlattenedTestcase = z.infer<typeof flattenedTestcaseSchema> & Record
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value)
+
+const TESTCASE_ENTITY_MARKER_FIELDS = new Set([
+    "id",
+    "key",
+    "testset_id",
+    "set_id",
+    "testset_variant_id",
+    "revision_id",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "created_by_id",
+    "updated_by_id",
+    "deleted_by_id",
+])
+
+const TESTCASE_ENTITY_UPDATE_MARKER_FIELDS = new Set([
+    "id",
+    "key",
+    "testset_id",
+    "set_id",
+    "testset_variant_id",
+    "revision_id",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "created_by_id",
+    "updated_by_id",
+    "deleted_by_id",
+])
+
+const isTestcaseEntityUpdate = (updates: Record<string, unknown>): boolean =>
+    isRecord(updates.data) ||
+    (Object.prototype.hasOwnProperty.call(updates, "data") &&
+        Object.keys(updates).some((key) => TESTCASE_ENTITY_UPDATE_MARKER_FIELDS.has(key)))
 
 const hasWrappedDataShape = (row: Record<string, unknown>): boolean => {
     if (!isRecord(row.data)) return false
@@ -160,12 +221,18 @@ export type TestcasesResponse = z.infer<typeof testcasesResponseSchema>
  */
 export function flattenTestcase(testcase: Testcase): FlattenedTestcase {
     const {data, ...rest} = testcase
-    return {
+    const flattened = {
         // Spread data fields first (column values)
-        ...(data || {}),
+        ...(isRecord(data) ? data : {}),
         // Then spread rest to preserve system fields (id, testset_id, etc.)
         ...rest,
+    } as FlattenedTestcase
+
+    if (data !== undefined) {
+        flattened.data = data
     }
+
+    return flattened
 }
 
 /**
@@ -188,7 +255,8 @@ export function normalizeToFlattenedTestcase(input: unknown): FlattenedTestcase 
         return {
             ...data,
             ...rest,
-        } as FlattenedTestcase
+            data,
+        } as unknown as FlattenedTestcase
     }
 
     return base as FlattenedTestcase
@@ -202,14 +270,164 @@ export function extractTestcaseUserData(input: unknown): Record<string, unknown>
     const normalized = normalizeToFlattenedTestcase(input)
     if (!normalized) return null
 
+    if (isRecord(normalized.data)) {
+        const data: Record<string, unknown> = {}
+
+        for (const [key, value] of Object.entries(normalized.data)) {
+            if (!isInternalUserDataField(key)) {
+                data[key] = value
+            }
+        }
+
+        for (const [key, value] of Object.entries(normalized)) {
+            if (!SYSTEM_FIELDS.has(key) && key !== "data") {
+                data[key] = value
+            }
+        }
+
+        return data
+    }
+
+    const stripSystemFields = Object.keys(normalized).some((key) =>
+        TESTCASE_ENTITY_MARKER_FIELDS.has(key),
+    )
     const data: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(normalized)) {
-        if (!SYSTEM_FIELDS.has(key) && key !== "data") {
+        if (key === "data") continue
+        if (isInternalUserDataField(key)) continue
+        if (!stripSystemFields || !SYSTEM_FIELDS.has(key)) {
             data[key] = value
         }
     }
 
     return data
+}
+
+export function deriveTestcaseColumnKeys(testcases: unknown[]): string[] {
+    const columnMap = new Map<string, string>()
+
+    for (const testcase of testcases) {
+        const userData = extractTestcaseUserData(testcase)
+        if (!userData) continue
+
+        for (const key of Object.keys(userData)) {
+            const lowerKey = key.toLowerCase()
+            if (!columnMap.has(lowerKey)) {
+                columnMap.set(lowerKey, key)
+            }
+        }
+    }
+
+    return Array.from(columnMap.values())
+}
+
+export function filterTestcaseUserDataToColumns(
+    input: unknown,
+    currentColumnKeys: Set<string>,
+    useCurrentColumns = true,
+): Record<string, unknown> {
+    const userData = extractTestcaseUserData(input)
+    if (!userData) return {}
+
+    if (!useCurrentColumns) return userData
+
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(userData)) {
+        if (currentColumnKeys.has(key)) {
+            result[key] = value
+        }
+    }
+
+    return result
+}
+
+const sortComparableValue = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+        return value.map(sortComparableValue)
+    }
+
+    if (isRecord(value)) {
+        const sorted: Record<string, unknown> = {}
+        for (const key of Object.keys(value).sort()) {
+            sorted[key] = sortComparableValue(value[key])
+        }
+        return sorted
+    }
+
+    return value
+}
+
+const normalizeUserDataValueForComparison = (value: unknown): string =>
+    value === undefined || value === null || value === ""
+        ? ""
+        : JSON.stringify(sortComparableValue(value))
+
+export function hasTestcaseUserDataChanges(current: unknown, original: unknown): boolean {
+    const currentUserData = extractTestcaseUserData(current) ?? {}
+    const originalUserData = extractTestcaseUserData(original) ?? {}
+
+    const currentKeys = Object.keys(currentUserData)
+    const originalKeys = Object.keys(originalUserData)
+
+    for (const key of currentKeys) {
+        if (!(key in originalUserData)) {
+            const currentValue = currentUserData[key]
+            if (currentValue !== undefined && currentValue !== null && currentValue !== "") {
+                return true
+            }
+            continue
+        }
+
+        if (
+            normalizeUserDataValueForComparison(currentUserData[key]) !==
+            normalizeUserDataValueForComparison(originalUserData[key])
+        ) {
+            return true
+        }
+    }
+
+    for (const key of originalKeys) {
+        if (!(key in currentUserData)) {
+            const originalValue = originalUserData[key]
+            if (originalValue !== undefined && originalValue !== null && originalValue !== "") {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+export function applyTestcaseUserDataUpdates(
+    flattened: FlattenedTestcase,
+    updates: Record<string, unknown>,
+): FlattenedTestcase {
+    const currentData = extractTestcaseUserData(flattened) ?? {}
+    const sanitizedUpdates = isTestcaseEntityUpdate(updates)
+        ? (extractTestcaseUserData(updates) ?? {})
+        : updates
+    const nextData: Record<string, unknown> = {...currentData}
+    const next: FlattenedTestcase & Record<string, unknown> = {...flattened, data: nextData}
+
+    for (const [key, value] of Object.entries(sanitizedUpdates)) {
+        if (key === "data") continue
+        if (isInternalUserDataField(key)) continue
+
+        if (value === undefined) {
+            delete nextData[key]
+            if (!SYSTEM_FIELDS.has(key)) {
+                delete next[key]
+            }
+            continue
+        }
+
+        nextData[key] = value
+        if (!SYSTEM_FIELDS.has(key)) {
+            next[key] = value
+        }
+    }
+
+    return next
 }
 
 /**
@@ -227,10 +445,12 @@ export function unflattenTestcase(flattened: FlattenedTestcase): Testcase {
         flags,
         tags,
         meta,
+        data: _data,
         testset_id,
         set_id,
-        ...data
+        ..._flatData
     } = flattened
+    const data = extractTestcaseUserData(flattened) ?? {}
 
     return testcaseSchema.parse({
         id,

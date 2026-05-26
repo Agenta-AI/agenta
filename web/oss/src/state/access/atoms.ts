@@ -161,14 +161,20 @@ export const pricingQueryAtom = atomWithQuery((get) => {
     }
 })
 
-// Derived: the slug of the deployment's free plan (the one with
-// `{"free": true}` in AGENTA_BILLING_PRICING). Used by UI gates like the
-// upgrade banner. `null` if no plan is marked free or pricing hasn't loaded.
 export const freePlanSlugAtom = atom((get): string | null => {
     const pricing = get(pricingQueryAtom).data
     if (!pricing) return null
     for (const [slug, entry] of Object.entries(pricing)) {
         if (entry?.free) return slug
+    }
+    return null
+})
+
+export const trialPlanAtom = atom((get): {plan: string; days: number} | null => {
+    const pricing = get(pricingQueryAtom).data
+    if (!pricing) return null
+    for (const [slug, entry] of Object.entries(pricing)) {
+        if (typeof entry?.trial === "number") return {plan: slug, days: entry.trial}
     }
     return null
 })

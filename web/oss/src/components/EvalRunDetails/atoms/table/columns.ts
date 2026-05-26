@@ -57,6 +57,15 @@ const splitPath = (path: string) => path.split(".").filter(Boolean)
 
 const METRIC_TYPE_FALLBACK = "string"
 
+const metricColumnsSignature = (columns: typeof GeneralAutoEvalMetricColumns) =>
+    columns
+        .map(
+            (column) =>
+                `${column.path}|${column.stepKey ?? ""}|${column.metricType ?? ""}|${column.name}`,
+        )
+        .sort()
+        .join("::")
+
 const createMetaColumns = (options?: {
     includeAction?: boolean
     includeTimestamp?: boolean
@@ -589,8 +598,16 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
             annotationOrder += 1
         }
 
-        // Only show "Metrics (Human)" for actual human evaluations
-        if (GeneralHumanEvalMetricColumns.length && evaluationType === "human") {
+        const humanMetricsDuplicateGeneric =
+            metricColumnsSignature(GeneralHumanEvalMetricColumns) ===
+            metricColumnsSignature(GeneralAutoEvalMetricColumns)
+
+        // Only show a separate "Metrics (Human)" group when it carries distinct columns.
+        if (
+            GeneralHumanEvalMetricColumns.length &&
+            evaluationType === "human" &&
+            !humanMetricsDuplicateGeneric
+        ) {
             groups.push({
                 id: "metrics:human",
                 label: "Metrics (Human)",

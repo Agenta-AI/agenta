@@ -42,7 +42,6 @@ const EnhancedDrawer = ({
         }
     }, [isVisible])
 
-    // Effect to close drawer when outside click
     useEffect(() => {
         if (!shouldRender) return
 
