@@ -18,6 +18,7 @@ import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {createEntityDraftState} from "../shared/createEntityDraftState"
 
 import {atomFamilyRegistry} from "./atomCleanup"
+import {buildDeleteColumnValueUpdates, getColumnValueFromRecord} from "./columnPathUtils"
 import {pendingColumnRenamesAtom, pendingDeletedColumnsAtom} from "./columnState"
 import {currentRevisionIdAtom} from "./queries"
 import {
@@ -574,34 +575,7 @@ const buildDeleteUpdates = (
     record: Record<string, unknown>,
     columnKey: string,
 ): Partial<FlattenedTestcase> | null => {
-    if (!columnKey) {
-        return null
-    }
-
-    if (columnKey in record) {
-        return {
-            [columnKey]: undefined,
-        } as Partial<FlattenedTestcase>
-    }
-
-    if (!columnKey.includes(".")) {
-        return null
-    }
-
-    const path = parsePath(columnKey)
-    if (path.length < 2 || getValueAtStringPath(record, columnKey) === undefined) {
-        return null
-    }
-
-    const updatedRecord = pruneEmptyAncestorPaths(
-        deleteValueAtPath(record, path) as Record<string, unknown>,
-        path,
-    )
-    const rootKey = String(path[0])
-
-    return {
-        [rootKey]: updatedRecord[rootKey],
-    } as Partial<FlattenedTestcase>
+    return buildDeleteColumnValueUpdates(record, columnKey) as Partial<FlattenedTestcase> | null
 }
 
 const buildAddUpdates = (
@@ -953,29 +927,7 @@ export const testcaseCellAtomFamily = atomFamily(
                     return undefined
                 }
 
-                const userData = extractTestcaseUserData(entity)
-
-                // First, try direct user-data access (handles flat keys with dots like "agents.md")
-                // This is important because column names can legitimately contain dots
-                const directValue = userData?.[column]
-                if (directValue !== undefined) {
-                    return directValue
-                }
-
-                // Handle nested paths (e.g., "VMs_previous_RFP.event")
-                // We need to parse JSON strings for nested access
-                const parts = column.split(".")
-
-                if (parts.length === 1) {
-                    return undefined
-                }
-
-                let current: any = userData
-                for (const part of parts) {
-                    current = current?.[part]
-                }
-
-                return current
+                return getColumnValueFromRecord(extractTestcaseUserData(entity), column)
             },
             cellValueEquals,
         )

@@ -10,6 +10,7 @@ import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {testcase} from "@/oss/state/entities/testcase"
+import {isNestedColumn} from "@/oss/state/entities/testcase/columnPathUtils"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import {extractTestcaseUserData} from "@/oss/state/entities/testcase/schema"
 
@@ -72,7 +73,7 @@ const TestcaseEditDrawerContent = ({
                 key: column.key,
                 name: column.name,
                 label: column.name ?? column.key,
-                pathMode: "direct",
+                pathMode: isNestedColumn(column) ? "nested" : "direct",
             })),
         [columns],
     )

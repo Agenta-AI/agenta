@@ -1,6 +1,11 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
+import {
+    createColumnFromKey,
+    isArrayColumnValue,
+    tryParseAsObjectColumnValue,
+} from "./columnPathUtils"
 import {currentRevisionIdAtom} from "./queries"
 import {extractTestcaseUserData} from "./schema"
 import {
@@ -157,6 +162,8 @@ export const clearPendingAddedColumnsAtom = atom(null, (get, set) => {
 export interface Column {
     key: string
     name: string
+    parentKey?: string
+    subKey?: string
 }
 
 // ============================================================================
@@ -352,27 +359,6 @@ export interface ExpandedColumn extends Column {
 const MAX_COLUMN_DEPTH = 5
 
 /**
- * Treat only native objects as expandable objects.
- * Arrays are NOT treated as objects - they should be displayed as JSON.
- */
-function tryParseAsObject(value: unknown): Record<string, unknown> | null {
-    if (Array.isArray(value)) {
-        return null
-    }
-    if (value && typeof value === "object") {
-        return value as Record<string, unknown>
-    }
-    return null
-}
-
-/**
- * Check if a value is a native array.
- */
-function isArrayValue(value: unknown): boolean {
-    return Array.isArray(value)
-}
-
-/**
  * Recursively collect object sub-keys up to maxDepth levels
  * @param obj - The object to analyze
  * @param prefix - Current path prefix (e.g., "event" or "event.location")
@@ -399,7 +385,7 @@ function collectObjectSubKeysRecursive(
         if (deletedCols.has(fullPath)) return
 
         // Skip array values entirely - they should be displayed as JSON, not expanded
-        if (isArrayValue(subValue)) {
+        if (isArrayColumnValue(subValue)) {
             // Add the key but don't recurse into it
             const parentSubKeys = objectSubKeys.get(prefix) || new Set<string>()
             parentSubKeys.add(subKey)
@@ -408,7 +394,7 @@ function collectObjectSubKeysRecursive(
         }
 
         // Try to parse as object to check if it's empty
-        const nestedObj = tryParseAsObject(subValue)
+        const nestedObj = tryParseAsObjectColumnValue(subValue)
 
         // Skip empty objects (e.g., "{}" from deleted nested properties)
         // Empty objects should not create columns
@@ -437,7 +423,7 @@ function collectObjectSubKeysRecursive(
 /**
  * Derived atom: analyzes testcase data to detect object-type columns
  * Returns a map of column key -> set of sub-keys found in that column's objects
- * Handles native objects only
+ * Handles native objects and JSON object strings
  * Recursively expands up to MAX_COLUMN_DEPTH levels
  */
 export const objectColumnSubKeysAtom = atom((get) => {
@@ -462,8 +448,7 @@ export const objectColumnSubKeysAtom = atom((get) => {
         Object.entries(data).forEach(([key, value]) => {
             if (deletedCols.has(key)) return
 
-            // Expand native objects only.
-            const obj = tryParseAsObject(value)
+            const obj = tryParseAsObjectColumnValue(value)
             if (obj && Object.keys(obj).length > 0) {
                 // Recursively collect sub-keys up to MAX_COLUMN_DEPTH
                 // Pass deletedCols to filter out deleted nested paths
@@ -558,7 +543,7 @@ export const addColumnAtom = atom(null, (get, set, name: string): boolean => {
     if (!trimmedName) return false
 
     // Check if column already exists
-    const currentCols = get(currentColumnsAtom)
+    const currentCols = get(expandedColumnsAtom)
     if (currentCols.some((c) => c.key === trimmedName)) return false
 
     // Track pending addition for the commit payload.
@@ -566,7 +551,7 @@ export const addColumnAtom = atom(null, (get, set, name: string): boolean => {
 
     // Add to local columns
     const localCols = get(localColumnsAtomFamily(revisionId))
-    set(localColumnsAtomFamily(revisionId), [...localCols, {key: trimmedName, name: trimmedName}])
+    set(localColumnsAtomFamily(revisionId), [...localCols, createColumnFromKey(trimmedName)])
 
     return true
 })
@@ -643,9 +628,7 @@ export const renameColumnAtom = atom(
         const localCols = get(localColumnsAtomFamily(revisionId))
         set(
             localColumnsAtomFamily(revisionId),
-            localCols.map((c) =>
-                c.key === oldName ? {key: trimmedNewName, name: trimmedNewName} : c,
-            ),
+            localCols.map((c) => (c.key === oldName ? createColumnFromKey(trimmedNewName) : c)),
         )
 
         return true
