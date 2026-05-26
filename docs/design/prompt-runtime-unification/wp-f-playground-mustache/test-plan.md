@@ -185,14 +185,14 @@ Full geo info: {{geo}}.
 **Prompt:**
 
 ```
-Region (via JSONPath): {{$.inputs.geo.region}}.
-First language: {{$.inputs.languages[0]}}.
+Region (via JSONPath): {{$.geo.region}}.
+First language: {{$.languages[0]}}.
 ```
 
 - Run against Vanuatu.
 - **Expected:** `Region (via JSONPath): Pacific Islands. First language: en.`
 - `{{$...}}` is pre-rendered before the mustache pass; values are substituted as inert text.
-- **Important:** JSONPath must root at a known envelope slot (`inputs`, `outputs`, `parameters`, `testcase`, `trace`, `revision`). The editor's validator (in `@agenta/shared/utils/templateVariable.ts`) flags `{{$.geo.region}}` as invalid because the runtime spread isn't visible to the static validator. Use `{{$.inputs.geo.region}}` for the validator-approved form, or stick with plain dotted access `{{geo.region}}` — equivalent at runtime.
+- Per the RFC, the JSONPath root can be a testcase top-level column (keys are spread into the render context). The editor accepts `{{$.geo.region}}` as well as `{{$.inputs.geo.region}}` — both resolve at runtime. The validator only flags actual typos of envelope slot names (e.g. `$.input.country` → suggests `inputs`).
 
 #### A6 — Mustache section iteration
 
