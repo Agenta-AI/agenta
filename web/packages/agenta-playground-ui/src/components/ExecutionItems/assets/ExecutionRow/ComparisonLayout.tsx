@@ -16,7 +16,11 @@ import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
+import {PlaygroundInputsBodyHost} from "@agenta/playground-ui/playground-inputs-body"
+import {
+    openPlaygroundFocusDrawerAtom,
+    useNewPlaygroundInputsBodyAtom,
+} from "@agenta/playground-ui/state"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 
@@ -99,6 +103,24 @@ const ComparisonLayout = ({
     )
     const structuralRootNode = rootNodes[0] ?? null
     const hasDownstreamNodes = downstreamNodes.length > 0
+
+    // Downstream key — same shape as SingleLayout. Used by
+    // `PlaygroundInputsBodyHost`'s visibility selector to namespace the
+    // referenced-vs-unreferenced split per evaluator chain.
+    const downstreamKey = useMemo(
+        () =>
+            downstreamNodes
+                .map((n) => n.entityId)
+                .sort()
+                .join(","),
+        [downstreamNodes],
+    )
+
+    // Feature flag — when true, the comparison view renders a single
+    // shared `PlaygroundInputsBodyHost` (V2 bordered cards + type chips +
+    // "View as ▾" dropdown) instead of the per-variable
+    // `VariableControlAdapter` loop. Off by default; OSS opts in.
+    const useNewInputsBody = useAtomValue(useNewPlaygroundInputsBodyAtom)
 
     const {getNodeLabel} = usePlaygroundNodeLabels(nodes)
 
@@ -240,81 +262,121 @@ const ComparisonLayout = ({
             >
                 <div className="flex gap-1 items-start">
                     <div className="flex flex-col grow">
-                        {variableIds.map((variableId, index) => (
-                            <div
-                                key={variableId}
-                                className={clsx([
-                                    "relative group/item",
-                                    {
-                                        "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]":
-                                            isChat && viewType === "comparison",
-                                    },
-                                ])}
-                            >
-                                <VariableControlAdapter
-                                    entityId={entityId as string}
-                                    variableKey={variableId}
-                                    view={view}
+                        {useNewInputsBody ? (
+                            <>
+                                {/* Row-level controls — moved out of the
+                                 *  per-variable header cluster in the new
+                                 *  inputs body. Open focus drawer + delete
+                                 *  row live together in a single toolbar
+                                 *  above the shared inputs body. */}
+                                {!inputOnly && (
+                                    <div className="flex items-center justify-end gap-1 px-2 pt-2">
+                                        <EnhancedButton
+                                            size="small"
+                                            type="text"
+                                            icon={<ArrowsOutLineHorizontalIcon size={14} />}
+                                            onClick={() =>
+                                                openFocusDrawer({
+                                                    rowId,
+                                                    entityId:
+                                                        structuralRootNode?.entityId ?? entityId,
+                                                })
+                                            }
+                                            disabled={!(structuralRootNode?.entityId ?? entityId)}
+                                            tooltipProps={{title: "Open details"}}
+                                        />
+                                        <EnhancedButton
+                                            size="small"
+                                            type="text"
+                                            icon={<MinusCircleIcon size={14} />}
+                                            onClick={() => deleteRow(rowId)}
+                                            disabled={rowCount <= 1}
+                                            tooltipProps={{title: "Remove"}}
+                                        />
+                                    </div>
+                                )}
+                                <PlaygroundInputsBodyHost
                                     rowId={rowId}
-                                    appType={appType}
+                                    downstreamKey={downstreamKey}
+                                    editable={!disabled}
+                                />
+                            </>
+                        ) : (
+                            variableIds.map((variableId, index) => (
+                                <div
+                                    key={variableId}
                                     className={clsx([
-                                        "*:!border-none",
+                                        "relative group/item",
                                         {
-                                            "rounded-none [&_article]:px-3 [&_article]:py-1 px-3":
-                                                viewType === "comparison",
+                                            "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]":
+                                                isChat && viewType === "comparison",
                                         },
                                     ])}
-                                    disabled={disabled}
-                                    placeholder="Enter value"
-                                    editorProps={{enableTokens: false}}
-                                    headerActions={
-                                        !inputOnly ? (
-                                            <>
-                                                <CopyVariableButton
-                                                    rowId={rowId}
-                                                    variableKey={variableId}
-                                                />
-                                                {index === 0 ? (
+                                >
+                                    <VariableControlAdapter
+                                        entityId={entityId as string}
+                                        variableKey={variableId}
+                                        view={view}
+                                        rowId={rowId}
+                                        appType={appType}
+                                        className={clsx([
+                                            "*:!border-none",
+                                            {
+                                                "rounded-none [&_article]:px-3 [&_article]:py-1 px-3":
+                                                    viewType === "comparison",
+                                            },
+                                        ])}
+                                        disabled={disabled}
+                                        placeholder="Enter value"
+                                        editorProps={{enableTokens: false}}
+                                        headerActions={
+                                            !inputOnly ? (
+                                                <>
+                                                    <CopyVariableButton
+                                                        rowId={rowId}
+                                                        variableKey={variableId}
+                                                    />
+                                                    {index === 0 ? (
+                                                        <EnhancedButton
+                                                            size="small"
+                                                            type="text"
+                                                            icon={
+                                                                <ArrowsOutLineHorizontalIcon
+                                                                    size={14}
+                                                                />
+                                                            }
+                                                            onClick={() =>
+                                                                openFocusDrawer({
+                                                                    rowId,
+                                                                    entityId:
+                                                                        structuralRootNode?.entityId ??
+                                                                        entityId,
+                                                                })
+                                                            }
+                                                            disabled={
+                                                                !(
+                                                                    structuralRootNode?.entityId ??
+                                                                    entityId
+                                                                )
+                                                            }
+                                                            tooltipProps={{title: "Open details"}}
+                                                        />
+                                                    ) : null}
                                                     <EnhancedButton
                                                         size="small"
                                                         type="text"
-                                                        icon={
-                                                            <ArrowsOutLineHorizontalIcon
-                                                                size={14}
-                                                            />
-                                                        }
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            openFocusDrawer({
-                                                                rowId,
-                                                                entityId:
-                                                                    structuralRootNode?.entityId ??
-                                                                    entityId,
-                                                            })
-                                                        }}
-                                                        disabled={
-                                                            !(
-                                                                structuralRootNode?.entityId ??
-                                                                entityId
-                                                            )
-                                                        }
-                                                        tooltipProps={{title: "Open details"}}
+                                                        icon={<MinusCircleIcon size={14} />}
+                                                        onClick={() => deleteRow(rowId)}
+                                                        disabled={rowCount <= 1}
+                                                        tooltipProps={{title: "Remove"}}
                                                     />
-                                                ) : null}
-                                                <EnhancedButton
-                                                    size="small"
-                                                    type="text"
-                                                    icon={<MinusCircleIcon size={14} />}
-                                                    onClick={() => deleteRow(rowId)}
-                                                    disabled={rowCount <= 1}
-                                                    tooltipProps={{title: "Remove"}}
-                                                />
-                                            </>
-                                        ) : undefined
-                                    }
-                                />
-                            </div>
-                        ))}
+                                                </>
+                                            ) : undefined
+                                        }
+                                    />
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
             </div>
