@@ -637,3 +637,84 @@ export function groupResolvedColumns(columns: ResolvedColumn[]): ResolvedColumnG
         return (firstAppearance.get(a.group.key) ?? 0) - (firstAppearance.get(b.group.key) ?? 0)
     })
 }
+
+// ============================================================================
+// Pre-resolution column grouping — group raw mappings by source.
+//
+// `groupResolvedColumns` above groups columns AFTER a row's values are
+// resolved. `groupRunColumns` works directly off the run schema
+// (steps + mappings), so the UI can build column headers before any
+// scenario data is hydrated.
+// ============================================================================
+
+/** A single UI column leaf, before value resolution. */
+export interface RunColumnLeaf {
+    /** Column display name (from `mapping.column.name`). */
+    name: string
+    /** Source category — testset / application / evaluator / metrics / other. */
+    kind: ColumnGroup["kind"]
+    /** The owning group's slug (null for metrics and some "other" groups). */
+    groupSlug: string | null
+}
+
+/** A group of UI columns sharing a `ColumnGroup` — one nested header. */
+export interface RunColumnGroup {
+    group: ColumnGroup
+    columns: RunColumnLeaf[]
+}
+
+/**
+ * Group a run's raw column mappings by source — testset / application /
+ * evaluator(s) / metrics / other.
+ *
+ * "other"-kind columns (steps with an unrecognised type, or mappings with
+ * no resolvable step) are **included**. They are real columns the
+ * backend-metadata column path also surfaces — dropping them would
+ * silently shrink the visible column set.
+ *
+ * Internal dedup keys (column names containing `_dedup_id`, e.g.
+ * `testcase_dedup_id`) are **excluded** — they are not user-facing
+ * columns. The backend-metadata column path drops them too.
+ *
+ * Group order: testset → application → evaluator(s) → metrics → other.
+ * Within a kind, groups appear in the order their columns first appear in
+ * the mapping list (matching `groupResolvedColumns`).
+ */
+export function groupRunColumns(steps: RunStep[], mappings: RunMapping[]): RunColumnGroup[] {
+    const stepByKey = new Map<string, RunStep>()
+    for (const s of steps) stepByKey.set(s.key, s)
+
+    const byKey = new Map<string, RunColumnGroup>()
+    const firstAppearance = new Map<string, number>()
+
+    mappings.forEach((mapping, idx) => {
+        const columnName = mapping.column?.name
+        if (typeof columnName !== "string" || !columnName) return
+        // Internal dedup keys are not user-facing columns.
+        if (columnName.includes("_dedup_id")) return
+        const step = mapping.step?.key ? (stepByKey.get(mapping.step.key) ?? null) : null
+        const path = mapping.step?.path ?? ""
+        const group = computeColumnGroup(step, path)
+
+        let slot = byKey.get(group.key)
+        if (!slot) {
+            slot = {group, columns: []}
+            byKey.set(group.key, slot)
+            firstAppearance.set(group.key, idx)
+        }
+        slot.columns.push({name: columnName, kind: group.kind, groupSlug: group.slug})
+    })
+
+    const kindOrder: Record<ColumnGroup["kind"], number> = {
+        testset: 0,
+        application: 1,
+        evaluator: 2,
+        metrics: 3,
+        other: 4,
+    }
+    return Array.from(byKey.values()).sort((a, b) => {
+        const k = kindOrder[a.group.kind] - kindOrder[b.group.kind]
+        if (k !== 0) return k
+        return (firstAppearance.get(a.group.key) ?? 0) - (firstAppearance.get(b.group.key) ?? 0)
+    })
+}

@@ -41,6 +41,8 @@ export type {
     ResolveMappingsOptions,
     ColumnGroup,
     ResolvedColumnGroup,
+    RunColumnLeaf,
+    RunColumnGroup,
 } from "./resolveMappings"
 export {
     DEFAULT_STEP_RESOLVERS,
@@ -53,6 +55,7 @@ export {
     resolveMappings,
     computeColumnGroup,
     groupResolvedColumns,
+    groupRunColumns,
 } from "./resolveMappings"
 
 // Molecule-backed cache-aware fetchers — all 4 entity types go through
@@ -91,12 +94,37 @@ export {
 // Per eval-filtering.md §D2: this is the v1 frontend transform over already-
 // loaded metric data. v2 server-side filter swaps the source's `filtering`
 // param and this transform becomes a no-op.
+//
+// Multi-predicate AND/OR composition (decision D8) — `PredicateGroup` plus
+// the `evaluate*` / `matchesRowFilter` row-level entry points and the
+// `makePredicateGroupFilter` pipeline transform.
 export {
     makeRowPredicateFilter,
+    makePredicateGroupFilter,
     unwrapStatsForCompare,
+    isPredicateGroup,
+    evaluateRowPredicate,
+    evaluatePredicateGroup,
+    evaluateRowFilter,
+    matchesRowFilter,
     type RowPredicate,
+    type PredicateGroup,
+    type RowFilter,
     type PredicateFilterOptions,
+    type PredicateGroupFilterOptions,
 } from "./rowPredicateFilter"
+
+// filterSchema — derives the filterable fields (typed + type-matched
+// operators) the Phase 2 filter UI offers. Decision D8 / eval-filtering D4.
+export {
+    buildFilterSchema,
+    operatorsForType,
+    type FilterSchema,
+    type FilterableField,
+    type FilterValueType,
+    type FilterOperator,
+    type BuildFilterSchemaOptions,
+} from "./filterSchema"
 
 // Hit-ratio meter — v1→v2 escalation signal (reports the regime; doesn't
 // swap engines today). Per eval-filtering.md §D2 + §C3: tracks rolling

@@ -17,6 +17,7 @@ import {
     runTestsetIdsAtomFamily,
     runFlagsAtomFamily,
 } from "../atoms/runDerived"
+import ScenarioFilterBar from "../etl/ScenarioFilterBar"
 import {previewEvalTypeAtom} from "../state/evalType"
 
 import CompareRunsMenu from "./CompareRunsMenu"
@@ -137,10 +138,12 @@ const PreviewEvalRunMeta = ({
     runId,
     projectId,
     className,
+    activeView,
 }: {
     runId: string
     projectId?: string | null
     className?: string
+    activeView?: ActiveView
 }) => {
     const _invocationRefs = useAtomValue(useMemo(() => runInvocationRefsAtomFamily(runId), [runId]))
     const _testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId), [runId]))
@@ -220,6 +223,7 @@ const PreviewEvalRunMeta = ({
                         </Button>
                     </Tooltip>
                 ) : null}
+                {activeView === "scenarios" ? <ScenarioFilterBar runId={runId} /> : null}
                 <CompareRunsMenu runId={runId} />
             </div>
         </div>
