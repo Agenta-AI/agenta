@@ -21,22 +21,15 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {simpleQueueMolecule, type SimpleQueue} from "@agenta/entities/simpleQueue"
-import {
-    addAllMatchingTracesToQueue,
-    BatchFlushError,
-    DEFAULT_MAX_ITEMS,
-} from "@agenta/entities/simpleQueue/etl"
+import {addAllMatchingTracesToQueue, BatchFlushError} from "@agenta/entities/simpleQueue/etl"
 import {notification} from "@agenta/ui/app-message"
 import {Button, Progress} from "antd"
+import {useAtomValue} from "jotai"
 
+import {queueMaxItemsAtom} from "@/oss/state/access/atoms"
 import type {Condition} from "@/oss/state/newObservability/atoms/queryHelpers"
 import {createAdaptiveTracePageFetcher} from "@/oss/state/newObservability/etl/adaptiveTracePageFetcher"
 import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimitRetry"
-
-/** Per-run cap on queued trace ids — mirrors the pipeline default. */
-const MAX_ITEMS = DEFAULT_MAX_ITEMS
-/** Pre-formatted cap for toast copy (e.g. "1,000"). */
-const MAX_LABEL = MAX_ITEMS.toLocaleString()
 /** Auto-dismiss window for the success toast; rendered as a visible progress bar. */
 const SUCCESS_DISMISS_MS = 5_000
 
@@ -113,195 +106,210 @@ export const useBatchAddTracesToQueue = () => {
     // Self-reference so the error notifications' Retry can re-run.
     const runRef = useRef<(input: BatchAddRunInput) => void>(() => {})
 
+    // Tier-aware per-run cap — derived from the current billing plan.
+    // Hobby/free deployments stay at the historical 1k default; pro,
+    // business, enterprise unlock progressively higher caps. The mapping
+    // lives in `@agenta/entities/trace/etl` so it's unit-tested.
+    const maxItems = useAtomValue(queueMaxItemsAtom)
+
     // Navigating away from observability aborts the run (partial add).
     useEffect(() => () => abortRef.current?.abort(), [])
 
-    const run = useCallback((input: BatchAddRunInput) => {
-        const {queue, scanConfig, viewQueueUrl} = input
-        const queueName = queue.name || "queue"
-        const key = `batch-add-queue-${queue.id}`
+    const run = useCallback(
+        (input: BatchAddRunInput) => {
+            const {queue, scanConfig, viewQueueUrl} = input
+            const queueName = queue.name || "queue"
+            const key = `batch-add-queue-${queue.id}`
+            // Capture the cap (and its formatted label) at run-time so a
+            // plan upgrade between runs picks up the new ceiling, but a
+            // single run quotes a consistent number throughout its toast.
+            const maxLabel = maxItems.toLocaleString()
 
-        // One run at a time per hook instance.
-        abortRef.current?.abort()
-        const controller = new AbortController()
-        abortRef.current = controller
+            // One run at a time per hook instance.
+            abortRef.current?.abort()
+            const controller = new AbortController()
+            abortRef.current = controller
 
-        // True only while this run still owns the toast key. A run superseded
-        // by a newer run (same queue → same `key`) must stay silent on its
-        // terminal toast, or it clobbers the live counter the new run owns.
-        const isCurrentRun = () => abortRef.current === controller
+            // True only while this run still owns the toast key. A run superseded
+            // by a newer run (same queue → same `key`) must stay silent on its
+            // terminal toast, or it clobbers the live counter the new run owns.
+            const isCurrentRun = () => abortRef.current === controller
 
-        const cancelBtn = (
-            <Button size="small" onClick={() => controller.abort()}>
-                Cancel
-            </Button>
-        )
+            const cancelBtn = (
+                <Button size="small" onClick={() => controller.abort()}>
+                    Cancel
+                </Button>
+            )
 
-        // Last reported queued count — kept so the rate-limited state can
-        // still show progress while the scan is paused.
-        let lastQueued = 0
+            // Last reported queued count — kept so the rate-limited state can
+            // still show progress while the scan is paused.
+            let lastQueued = 0
 
-        const showRunning = (queued: number) => {
-            lastQueued = queued
-            notification.open({
-                key,
-                message: `Queuing traces to "${queueName}"`,
-                description: `Queued ${queued.toLocaleString()} of up to ${MAX_LABEL} traces…`,
-                duration: 0,
-                btn: cancelBtn,
-            })
-        }
+            const showRunning = (queued: number) => {
+                lastQueued = queued
+                notification.open({
+                    key,
+                    message: `Queuing traces to "${queueName}"`,
+                    description: `Queued ${queued.toLocaleString()} of up to ${maxLabel} traces…`,
+                    duration: 0,
+                    btn: cancelBtn,
+                })
+            }
 
-        const showRateLimited = (delayMs: number) => {
-            notification.open({
-                key,
-                message: "Rate limited — pausing",
-                description:
-                    `Queued ${lastQueued.toLocaleString()} of up to ${MAX_LABEL} traces. ` +
-                    `The server is throttling requests; retrying in ` +
-                    `${Math.ceil(delayMs / 1000)}s…`,
-                duration: 0,
-                btn: cancelBtn,
-            })
-        }
+            const showRateLimited = (delayMs: number) => {
+                notification.open({
+                    key,
+                    message: "Rate limited — pausing",
+                    description:
+                        `Queued ${lastQueued.toLocaleString()} of up to ${maxLabel} traces. ` +
+                        `The server is throttling requests; retrying in ` +
+                        `${Math.ceil(delayMs / 1000)}s…`,
+                    duration: 0,
+                    btn: cancelBtn,
+                })
+            }
 
-        showRunning(0)
+            showRunning(0)
 
-        // Shared adaptive fetcher: bucket-aware proactive pacing + 429 retry.
-        // Same helper the bulk CSV export uses — pacing is driven by the live
-        // `X-RateLimit-Remaining` / `X-RateLimit-Limit` headers from EE
-        // throttling, not by an arbitrary constant.
-        const fetchPage = createAdaptiveTracePageFetcher({
-            ...scanConfig,
-            signal: controller.signal,
-            onRateLimitPause: (delayMs) => showRateLimited(delayMs),
-        })
-
-        // `addTraces` hits a different throttle bucket than the trace query,
-        // so bucket-aware pacing for it would need its own readings. The 429
-        // retry remains as the per-call safety net.
-        const addTracesWithRetry = (queueId: string, traceIds: string[]) =>
-            withRateLimitRetry(() => simpleQueueMolecule.set.addTraces(queueId, traceIds), {
+            // Shared adaptive fetcher: bucket-aware proactive pacing + 429 retry.
+            // Same helper the bulk CSV export uses — pacing is driven by the live
+            // `X-RateLimit-Remaining` / `X-RateLimit-Limit` headers from EE
+            // throttling, not by an arbitrary constant.
+            const fetchPage = createAdaptiveTracePageFetcher({
+                ...scanConfig,
                 signal: controller.signal,
-                onRetry: (delayMs) => showRateLimited(delayMs),
+                onRateLimitPause: (delayMs) => showRateLimited(delayMs),
             })
 
-        void (async () => {
-            try {
-                const result = await addAllMatchingTracesToQueue({
-                    fetchPage,
-                    addTraces: addTracesWithRetry,
-                    queueId: queue.id,
+            // `addTraces` hits a different throttle bucket than the trace query,
+            // so bucket-aware pacing for it would need its own readings. The 429
+            // retry remains as the per-call safety net.
+            const addTracesWithRetry = (queueId: string, traceIds: string[]) =>
+                withRateLimitRetry(() => simpleQueueMolecule.set.addTraces(queueId, traceIds), {
                     signal: controller.signal,
-                    // Pacing happens inside `fetchPage` based on live bucket
-                    // state — disable the source-level fixed delay.
-                    pageDelayMs: 0,
-                    onProgress: ({queued}) => {
-                        if (!controller.signal.aborted) showRunning(queued)
-                    },
+                    onRetry: (delayMs) => showRateLimited(delayMs),
                 })
 
-                // A superseded run resolves as "cancelled" — bail before it
-                // can overwrite the toast the newer run now owns.
-                if (!isCurrentRun()) return
-
-                // Antd's notification.{success,info,warning} called with an
-                // existing key UPDATES the entry in place — and when the
-                // previous entry was `duration: 0` (the running counter),
-                // the timer doesn't kick in from the new finite duration.
-                // Destroy first so each terminal toast lands as a fresh
-                // notification that honours its own duration.
-                notification.destroy(key)
-
-                if (result.stoppedBy === "cancelled") {
-                    notification.warning({
-                        key,
-                        message: "Cancelled",
-                        description: `${result.queued.toLocaleString()} traces queued to "${queueName}" before you stopped.`,
-                        duration: 6,
+            void (async () => {
+                try {
+                    const result = await addAllMatchingTracesToQueue({
+                        fetchPage,
+                        addTraces: addTracesWithRetry,
+                        queueId: queue.id,
+                        signal: controller.signal,
+                        // Pacing happens inside `fetchPage` based on live bucket
+                        // state — disable the source-level fixed delay.
+                        pageDelayMs: 0,
+                        // Tier-aware ceiling (1k hobby → 20k enterprise).
+                        maxItems,
+                        onProgress: ({queued}) => {
+                            if (!controller.signal.aborted) showRunning(queued)
+                        },
                     })
-                    return
-                }
 
-                if (result.queued === 0) {
-                    notification.info({
+                    // A superseded run resolves as "cancelled" — bail before it
+                    // can overwrite the toast the newer run now owns.
+                    if (!isCurrentRun()) return
+
+                    // Antd's notification.{success,info,warning} called with an
+                    // existing key UPDATES the entry in place — and when the
+                    // previous entry was `duration: 0` (the running counter),
+                    // the timer doesn't kick in from the new finite duration.
+                    // Destroy first so each terminal toast lands as a fresh
+                    // notification that honours its own duration.
+                    notification.destroy(key)
+
+                    if (result.stoppedBy === "cancelled") {
+                        notification.warning({
+                            key,
+                            message: "Cancelled",
+                            description: `${result.queued.toLocaleString()} traces queued to "${queueName}" before you stopped.`,
+                            duration: 6,
+                        })
+                        return
+                    }
+
+                    if (result.queued === 0) {
+                        notification.info({
+                            key,
+                            message: "Nothing queued",
+                            description: "No traces match this filter — nothing queued.",
+                            duration: 6,
+                        })
+                        return
+                    }
+
+                    const capped = result.stoppedBy === "cap"
+                    const descriptionText = capped
+                        ? `Queued to "${queueName}". Hit the ${maxLabel}-trace limit ` +
+                          `for one run — narrow the filter to queue the rest. ` +
+                          `They'll appear as the queue processes.`
+                        : `Queued to "${queueName}". They'll appear as the queue processes.`
+                    notification.success({
                         key,
-                        message: "Nothing queued",
-                        description: "No traces match this filter — nothing queued.",
-                        duration: 6,
+                        message: `Queued ${result.queued.toLocaleString()} traces`,
+                        description: (
+                            <AutoDismissDescription
+                                text={descriptionText}
+                                durationMs={SUCCESS_DISMISS_MS}
+                                onComplete={() => notification.destroy(key)}
+                            />
+                        ),
+                        // Owned by `AutoDismissDescription` — antd's timer is disabled
+                        // so the visible countdown and the dismissal stay in sync.
+                        duration: 0,
+                        btn: viewQueueUrl ? (
+                            <Button
+                                size="small"
+                                type="primary"
+                                href={viewQueueUrl}
+                                onClick={() => notification.destroy(key)}
+                            >
+                                View queue
+                            </Button>
+                        ) : undefined,
                     })
-                    return
-                }
+                } catch (err) {
+                    // Stale runs never reach here (an abort resolves, not rejects),
+                    // but guard anyway so a superseded run can't surface an error.
+                    if (!isCurrentRun()) return
 
-                const capped = result.stoppedBy === "cap"
-                const descriptionText = capped
-                    ? `Queued to "${queueName}". Hit the ${MAX_LABEL}-trace limit ` +
-                      `for one run — narrow the filter to queue the rest. ` +
-                      `They'll appear as the queue processes.`
-                    : `Queued to "${queueName}". They'll appear as the queue processes.`
-                notification.success({
-                    key,
-                    message: `Queued ${result.queued.toLocaleString()} traces`,
-                    description: (
-                        <AutoDismissDescription
-                            text={descriptionText}
-                            durationMs={SUCCESS_DISMISS_MS}
-                            onComplete={() => notification.destroy(key)}
-                        />
-                    ),
-                    // Owned by `AutoDismissDescription` — antd's timer is disabled
-                    // so the visible countdown and the dismissal stay in sync.
-                    duration: 0,
-                    btn: viewQueueUrl ? (
+                    const retryBtn = (
                         <Button
                             size="small"
-                            type="primary"
-                            href={viewQueueUrl}
-                            onClick={() => notification.destroy(key)}
+                            onClick={() => {
+                                notification.destroy(key)
+                                runRef.current(input)
+                            }}
                         >
-                            View queue
+                            Retry
                         </Button>
-                    ) : undefined,
-                })
-            } catch (err) {
-                // Stale runs never reach here (an abort resolves, not rejects),
-                // but guard anyway so a superseded run can't surface an error.
-                if (!isCurrentRun()) return
+                    )
 
-                const retryBtn = (
-                    <Button
-                        size="small"
-                        onClick={() => {
-                            notification.destroy(key)
-                            runRef.current(input)
-                        }}
-                    >
-                        Retry
-                    </Button>
-                )
-
-                if (err instanceof BatchFlushError) {
+                    if (err instanceof BatchFlushError) {
+                        notification.error({
+                            key,
+                            message: "Queue add incomplete",
+                            description: `Queued ${err.flushedCount.toLocaleString()} traces; ${err.failedCount.toLocaleString()} failed to queue.`,
+                            duration: 0,
+                            btn: retryBtn,
+                        })
+                        return
+                    }
                     notification.error({
                         key,
-                        message: "Queue add incomplete",
-                        description: `Queued ${err.flushedCount.toLocaleString()} traces; ${err.failedCount.toLocaleString()} failed to queue.`,
+                        message: "Queue add failed",
+                        description: err instanceof Error ? err.message : "Something went wrong.",
                         duration: 0,
                         btn: retryBtn,
                     })
-                    return
+                } finally {
+                    if (abortRef.current === controller) abortRef.current = null
                 }
-                notification.error({
-                    key,
-                    message: "Queue add failed",
-                    description: err instanceof Error ? err.message : "Something went wrong.",
-                    duration: 0,
-                    btn: retryBtn,
-                })
-            } finally {
-                if (abortRef.current === controller) abortRef.current = null
-            }
-        })()
-    }, [])
+            })()
+        },
+        [maxItems],
+    )
 
     runRef.current = run
 

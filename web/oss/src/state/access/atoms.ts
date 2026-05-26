@@ -1,3 +1,4 @@
+import {inferQueueMaxFromPlan} from "@agenta/entities/trace/etl"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -192,6 +193,17 @@ export const currentCatalogEntryAtom = atom((get): CatalogEntry | null => {
     const catalog = get(catalogQueryAtom).data
     if (!plan || !catalog) return null
     return catalog.find((entry) => entry.plan === plan) ?? null
+})
+
+// Derived: per-tier cap on how many traces a single "add all matching to
+// annotation queue" run will batch. The mapping lives in @agenta/entities
+// so it can be unit-tested without React/store coupling; this atom is just
+// the binding to the live subscription plan. Falls back to the hobby cap
+// when billing isn't on or the subscription hasn't loaded yet — matches
+// the historical 1k default.
+export const queueMaxItemsAtom = atom((get): number => {
+    const plan = get(currentSubscriptionQueryAtom).data?.plan
+    return inferQueueMaxFromPlan(plan)
 })
 
 export const rolesQueryAtom = atomWithQuery((get) => {

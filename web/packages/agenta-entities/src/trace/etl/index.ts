@@ -18,6 +18,13 @@ export {
     computeAdaptivePageDelayMs,
 } from "./adaptivePacing"
 export type {AdaptivePacingRateLimit} from "./adaptivePacing"
+export {
+    inferQueueMaxFromPlan,
+    QUEUE_MAX_BUSINESS,
+    QUEUE_MAX_ENTERPRISE,
+    QUEUE_MAX_HOBBY,
+    QUEUE_MAX_PRO,
+} from "./tierQueueCap"
 export type {
     ExportMatchingTracesOptions,
     ExportMatchingTracesProgress,
