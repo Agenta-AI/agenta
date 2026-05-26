@@ -1,7 +1,10 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $redisDurable := default dict $values.redisDurable -}}
 {{- $persistence := default dict $redisDurable.persistence -}}
-{{- $persistenceEnabled := default true $persistence.enabled -}}
+{{- $persistenceEnabled := true -}}
+{{- if hasKey $persistence "enabled" -}}
+{{- $persistenceEnabled = $persistence.enabled -}}
+{{- end -}}
 {{- if eq (include "agenta.redisDurable.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: StatefulSet

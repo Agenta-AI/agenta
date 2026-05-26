@@ -8,12 +8,21 @@ Your release is named: {{ .Release.Name }}
 {{- $agenta := default dict $values.agenta }}
 {{- $postgres := default dict $values.postgres }}
 
-{{- /* Detect pre-v0.100.2 legacy keys still present in the user's values. */ -}}
+{{- /* Detect pre-v0.100.2 legacy keys still present in the user's values.
+       Uses hasKey so explicit `false`/`""`/`0` legacy values still trigger
+       the deprecation NOTE, and so newly-covered legacy URL/posthog keys
+       under `global.*` are picked up. */ -}}
 {{- $legacyGlobal := default dict .Values.global -}}
-{{- $usingLegacy := or (or (or .Values.accessControl .Values.email) (or .Values.integrations .Values.observability)) (or .Values.captcha (or $legacyGlobal.agentaLicense $legacyGlobal.webUrl)) -}}
-{{- if not $usingLegacy -}}
-  {{- $legacyInSecrets := default dict .Values.secrets -}}
-  {{- $usingLegacy = or (or $legacyInSecrets.agentaAuthKey $legacyInSecrets.agentaCryptKey) (or $legacyInSecrets.postgresPassword $legacyInSecrets.supertokensApiKey) -}}
+{{- $legacyInSecrets := default dict .Values.secrets -}}
+{{- $usingLegacy := false -}}
+{{- range $k := list "accessControl" "email" "integrations" "observability" "captcha" -}}
+  {{- if hasKey $.Values $k -}}{{- $usingLegacy = true -}}{{- end -}}
+{{- end -}}
+{{- range $k := list "agentaLicense" "webUrl" "apiUrl" "servicesUrl" "posthogApiKey" -}}
+  {{- if hasKey $legacyGlobal $k -}}{{- $usingLegacy = true -}}{{- end -}}
+{{- end -}}
+{{- range $k := list "agentaAuthKey" "agentaCryptKey" "postgresPassword" "supertokensApiKey" -}}
+  {{- if hasKey $legacyInSecrets $k -}}{{- $usingLegacy = true -}}{{- end -}}
 {{- end }}
 {{- if $usingLegacy }}
 

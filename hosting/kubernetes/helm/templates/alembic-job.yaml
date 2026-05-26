@@ -57,7 +57,11 @@ spec:
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
             - name: ALEMBIC_AUTO_MIGRATIONS
-              value: {{ $alembic.autoMigrations | default true | quote }}
+              {{- if hasKey $alembic "autoMigrations" }}
+              value: {{ $alembic.autoMigrations | quote }}
+              {{- else }}
+              value: "true"
+              {{- end }}
             - name: ALEMBIC_CFG_PATH_CORE
               value: {{ include "agenta.alembicCfgPathCore" . | quote }}
             - name: ALEMBIC_CFG_PATH_TRACING

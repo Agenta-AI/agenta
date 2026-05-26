@@ -56,39 +56,41 @@ Removing this layer in a future release:
      defaults shipped in values.yaml. We can't tell apart "user set
      `agenta.license: oss`" from "user kept the chart default `oss`",
      so anyone passing a legacy key signals "treat my legacy file as
-     the source of truth for that key". */}}
+     the source of truth for that key".
+
+     Use `hasKey` (not truthy `if`) so an intentional `false`, `0`, or
+     `""` from a legacy file isn't silently dropped. */}}
 
 {{/* ---- agenta.* (license, URLs, secrets) ---- */}}
 {{- $agenta := default dict $v.agenta -}}
-{{- if $legacyGlobal.agentaLicense -}}
+{{- if hasKey $legacyGlobal "agentaLicense" -}}
   {{- $_ := set $agenta "license" $legacyGlobal.agentaLicense -}}
 {{- end -}}
-{{- if $legacyGlobal.webUrl -}}
+{{- if hasKey $legacyGlobal "webUrl" -}}
   {{- $_ := set $agenta "webUrl" $legacyGlobal.webUrl -}}
 {{- end -}}
-{{- if $legacyGlobal.apiUrl -}}
+{{- if hasKey $legacyGlobal "apiUrl" -}}
   {{- $_ := set $agenta "apiUrl" $legacyGlobal.apiUrl -}}
 {{- end -}}
-{{- if $legacyGlobal.servicesUrl -}}
+{{- if hasKey $legacyGlobal "servicesUrl" -}}
   {{- $_ := set $agenta "servicesUrl" $legacyGlobal.servicesUrl -}}
 {{- end -}}
-{{- if $legacySecrets.agentaAuthKey -}}
+{{- if hasKey $legacySecrets "agentaAuthKey" -}}
   {{- $_ := set $agenta "authKey" $legacySecrets.agentaAuthKey -}}
 {{- end -}}
-{{- if $legacySecrets.agentaCryptKey -}}
+{{- if hasKey $legacySecrets "agentaCryptKey" -}}
   {{- $_ := set $agenta "cryptKey" $legacySecrets.agentaCryptKey -}}
 {{- end -}}
 
 {{/* ---- agenta.access.* ---- */}}
 {{- $access := default dict $agenta.access -}}
 {{- range $k := list "allowedDomains" "blockedDomains" "blockedEmails" "plans" "roles" "rolesOverlay" "defaultPlan" "defaultPlanOverlay" "emailDisabled" -}}
-  {{- $legacyVal := index $legacyAccess $k -}}
-  {{- if $legacyVal -}}
-    {{- $_ := set $access $k $legacyVal -}}
+  {{- if hasKey $legacyAccess $k -}}
+    {{- $_ := set $access $k (index $legacyAccess $k) -}}
   {{- end -}}
 {{- end -}}
 {{- /* legacy: orgCreationAllowlist -> allowedOwnerEmails */ -}}
-{{- if $legacyAccess.orgCreationAllowlist -}}
+{{- if hasKey $legacyAccess "orgCreationAllowlist" -}}
   {{- $_ := set $access "allowedOwnerEmails" $legacyAccess.orgCreationAllowlist -}}
 {{- end -}}
 {{- if $access -}}
@@ -101,31 +103,31 @@ Removing this layer in a future release:
 
 {{/* ---- posthog.apiKey from global.posthogApiKey ---- */}}
 {{- $posthog := default dict $v.posthog -}}
-{{- if $legacyGlobal.posthogApiKey -}}
+{{- if hasKey $legacyGlobal "posthogApiKey" -}}
   {{- $_ := set $posthog "apiKey" $legacyGlobal.posthogApiKey -}}
   {{- $_ := set $v "posthog" $posthog -}}
 {{- end -}}
 
 {{/* ---- postgres.password from secrets.postgresPassword ---- */}}
 {{- $postgres := default dict $v.postgres -}}
-{{- if $legacySecrets.postgresPassword -}}
+{{- if hasKey $legacySecrets "postgresPassword" -}}
   {{- $_ := set $postgres "password" $legacySecrets.postgresPassword -}}
   {{- $_ := set $v "postgres" $postgres -}}
 {{- end -}}
 
 {{/* ---- supertokens.apiKey from secrets.supertokensApiKey ---- */}}
 {{- $supertokens := default dict $v.supertokens -}}
-{{- if $legacySecrets.supertokensApiKey -}}
+{{- if hasKey $legacySecrets "supertokensApiKey" -}}
   {{- $_ := set $supertokens "apiKey" $legacySecrets.supertokensApiKey -}}
   {{- $_ := set $v "supertokens" $supertokens -}}
 {{- end -}}
 
 {{/* ---- sendgrid.* from email.sendgrid.* ---- */}}
 {{- $sendgrid := default dict $v.sendgrid -}}
-{{- if $legacyEmail.apiKey -}}
+{{- if hasKey $legacyEmail "apiKey" -}}
   {{- $_ := set $sendgrid "apiKey" $legacyEmail.apiKey -}}
 {{- end -}}
-{{- if $legacyEmail.fromAddress -}}
+{{- if hasKey $legacyEmail "fromAddress" -}}
   {{- $_ := set $sendgrid "fromAddress" $legacyEmail.fromAddress -}}
 {{- end -}}
 {{- if $sendgrid -}}
@@ -134,10 +136,10 @@ Removing this layer in a future release:
 
 {{/* ---- composio.* from integrations.composio.* ---- */}}
 {{- $composio := default dict $v.composio -}}
-{{- if $legacyComposio.apiKey -}}
+{{- if hasKey $legacyComposio "apiKey" -}}
   {{- $_ := set $composio "apiKey" $legacyComposio.apiKey -}}
 {{- end -}}
-{{- if $legacyComposio.apiUrl -}}
+{{- if hasKey $legacyComposio "apiUrl" -}}
   {{- $_ := set $composio "apiUrl" $legacyComposio.apiUrl -}}
 {{- end -}}
 {{- if $composio -}}
@@ -146,7 +148,7 @@ Removing this layer in a future release:
 
 {{/* ---- newrelic.licenseKey from observability.newRelic.licenseKey ---- */}}
 {{- $newrelic := default dict $v.newrelic -}}
-{{- if $legacyNewRelic.licenseKey -}}
+{{- if hasKey $legacyNewRelic "licenseKey" -}}
   {{- $_ := set $newrelic "licenseKey" $legacyNewRelic.licenseKey -}}
   {{- $_ := set $v "newrelic" $newrelic -}}
 {{- end -}}
@@ -154,10 +156,10 @@ Removing this layer in a future release:
 {{/* ---- cloudflare.turnstile.* from captcha.turnstile.* ---- */}}
 {{- $cloudflare := default dict $v.cloudflare -}}
 {{- $turnstile := default dict $cloudflare.turnstile -}}
-{{- if $legacyTurnstile.siteKey -}}
+{{- if hasKey $legacyTurnstile "siteKey" -}}
   {{- $_ := set $turnstile "siteKey" $legacyTurnstile.siteKey -}}
 {{- end -}}
-{{- if $legacyTurnstile.secretKey -}}
+{{- if hasKey $legacyTurnstile "secretKey" -}}
   {{- $_ := set $turnstile "secretKey" $legacyTurnstile.secretKey -}}
 {{- end -}}
 {{- if $turnstile -}}
