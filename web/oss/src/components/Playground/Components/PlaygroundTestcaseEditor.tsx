@@ -7,8 +7,6 @@ import {
     type TestcaseDataEditorColumn,
 } from "@agenta/entity-ui/testcase"
 import {executionItemController} from "@agenta/playground"
-import {Plus} from "@phosphor-icons/react"
-import {Button, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 interface Column {
@@ -59,19 +57,6 @@ export function usePlaygroundTestcaseEditorModel(testcaseId: string) {
         })
     }, [entityData?.data, rawColumns, labelFor])
 
-    const editorColumns = useMemo<TestcaseDataEditorColumn[]>(
-        () =>
-            existingColumns.map((column) => ({
-                key: column.key,
-                label: column.label ?? column.name ?? column.key,
-                name: column.name,
-                type: schemaMap[column.key]?.type,
-                schema: schemaMap[column.key]?.schema,
-                pathMode: "direct",
-            })),
-        [existingColumns, schemaMap],
-    )
-
     const suggestedColumns = useMemo<SuggestedColumn[]>(() => {
         const existingKeys = new Set(existingColumns.map((c) => c.key))
         return schemaKeys
@@ -83,18 +68,42 @@ export function usePlaygroundTestcaseEditorModel(testcaseId: string) {
             }))
     }, [existingColumns, schemaKeys, schemaMap, labelFor])
 
-    const updateTestcase = useSetAtom(testcaseMolecule.actions.update)
-
-    const handleAddSuggested = useCallback(
-        (col: SuggestedColumn) => {
-            const currentData = entityData?.data ?? {}
-            if (col.key in currentData) return
-            updateTestcase(testcaseId, {
-                data: {...currentData, [col.key]: defaultValueForType(col.type)},
-            })
-        },
-        [entityData, testcaseId, updateTestcase],
+    // All columns: existing ones first, then any schema fields not yet in the testcase.
+    // Suggested columns are shown inline with empty defaults so users can start typing
+    // without having to click "+ Add" first.
+    const editorColumns = useMemo<TestcaseDataEditorColumn[]>(
+        () => [
+            ...existingColumns.map((column) => ({
+                key: column.key,
+                label: column.label ?? column.name ?? column.key,
+                name: column.name,
+                type: schemaMap[column.key]?.type,
+                schema: schemaMap[column.key]?.schema,
+                pathMode: "direct" as const,
+            })),
+            ...suggestedColumns.map((col) => ({
+                key: col.key,
+                label: col.label,
+                name: col.key,
+                type: col.type,
+                schema: schemaMap[col.key]?.schema,
+                pathMode: "direct" as const,
+            })),
+        ],
+        [existingColumns, suggestedColumns, schemaMap],
     )
+
+    // Merge testcase data with empty defaults for suggested columns so the editor
+    // renders all schema fields even before the user has typed anything.
+    const editorValue = useMemo(() => {
+        const existing = entityData?.data ?? {}
+        const suggestedDefaults = Object.fromEntries(
+            suggestedColumns.map((col) => [col.key, defaultValueForType(col.type)]),
+        )
+        return {...suggestedDefaults, ...existing}
+    }, [entityData?.data, suggestedColumns])
+
+    const updateTestcase = useSetAtom(testcaseMolecule.actions.update)
 
     const handleEditorChange = useCallback(
         (nextValue: Record<string, unknown>) => {
@@ -107,8 +116,8 @@ export function usePlaygroundTestcaseEditorModel(testcaseId: string) {
         entityData,
         existingColumns,
         editorColumns,
+        editorValue,
         suggestedColumns,
-        handleAddSuggested,
         handleEditorChange,
     }
 }
@@ -116,14 +125,10 @@ export function usePlaygroundTestcaseEditorModel(testcaseId: string) {
 /**
  * Playground testcase editor.
  *
- * Renders existing testcase columns through the shared testcase data editor.
- * Prompt-referenced columns that don't yet exist on the testcase are listed
- * separately as "Suggested" — adding them is an explicit user action.
- *
- * Why the split: a testcase may legitimately NOT have a field that the prompt
- * references. Auto-creating it on prompt edit would conflate "referenced" with
- * "defined" and ship implicit structure. The user decides when a column
- * becomes real.
+ * Renders all prompt-referenced columns (existing + suggested) through the
+ * shared testcase data editor. Suggested columns (referenced by the prompt but
+ * not yet in the testcase data) are shown inline with empty defaults so users
+ * can start typing immediately without an extra click.
  */
 function PlaygroundTestcaseEditor({
     testcaseId,
@@ -138,91 +143,26 @@ function PlaygroundTestcaseEditor({
     rootViewMode?: RootDrawerViewMode
     collapseSignal?: number
 }) {
-    const {
-        entityData,
-        existingColumns,
-        editorColumns,
-        suggestedColumns,
-        handleAddSuggested,
-        handleEditorChange,
-    } = usePlaygroundTestcaseEditorModel(testcaseId)
+    const {editorColumns, editorValue, handleEditorChange} =
+        usePlaygroundTestcaseEditorModel(testcaseId)
 
     return (
-        <div>
-            {existingColumns.length > 0 || suggestedColumns.length === 0 ? (
-                <TestcaseDataEditor
-                    value={entityData?.data ?? {}}
-                    columns={editorColumns}
-                    onChange={handleEditorChange}
-                    mode="edit"
-                    surface="playground"
-                    initialPath={initialPath}
-                    onPathChange={onPathChange}
-                    features={{
-                        typeChips: true,
-                        rootViewMode: false,
-                        columnMapping: false,
-                    }}
-                    rootViewMode={rootViewMode}
-                    collapseSignal={collapseSignal}
-                />
-            ) : null}
-
-            {suggestedColumns.length > 0 && (
-                <div className="px-4 pb-3 pt-3 flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                        <Typography.Text
-                            type="secondary"
-                            className="text-xs uppercase tracking-wide"
-                        >
-                            Suggested from prompt
-                        </Typography.Text>
-                        <Typography.Text
-                            type="secondary"
-                            className="text-xs"
-                            style={{fontSize: 11}}
-                        >
-                            Referenced by the prompt, not yet in this testcase. Missing is OK —
-                            values default to absent.
-                        </Typography.Text>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                        {suggestedColumns.map((col) => (
-                            <div
-                                key={col.key}
-                                className="flex items-center justify-between gap-2 px-3 py-2 rounded border border-dashed border-[rgba(5,23,41,0.15)] bg-[rgba(5,23,41,0.02)]"
-                            >
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <Typography.Text
-                                        className="font-[500] text-[12px] leading-[20px] text-[#758391] font-mono truncate"
-                                        title={col.key}
-                                    >
-                                        {col.label}
-                                    </Typography.Text>
-                                    <Tag
-                                        style={{
-                                            fontSize: 10,
-                                            lineHeight: "16px",
-                                            margin: 0,
-                                        }}
-                                    >
-                                        new
-                                    </Tag>
-                                </div>
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<Plus size={14} />}
-                                    onClick={() => handleAddSuggested(col)}
-                                >
-                                    Add
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
+        <TestcaseDataEditor
+            value={editorValue}
+            columns={editorColumns}
+            onChange={handleEditorChange}
+            mode="edit"
+            surface="playground"
+            initialPath={initialPath}
+            onPathChange={onPathChange}
+            features={{
+                typeChips: true,
+                rootViewMode: false,
+                columnMapping: false,
+            }}
+            rootViewMode={rootViewMode}
+            collapseSignal={collapseSignal}
+        />
     )
 }
 
