@@ -54,7 +54,7 @@ from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
-    validate_retrieve_refs_consistent,
+    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
 )
 from oss.src.core.shared.dtos import Reference, Windowing
 
@@ -687,25 +687,28 @@ class EnvironmentsService:
         if not revision:
             return None
 
-        validate_retrieve_refs_consistent(
-            artifact_ref=_original_environment_ref,
-            variant_ref=_original_environment_variant_ref,
-            revision_ref=environment_revision_ref,
-            resolved_artifact_ref=Reference(
-                id=revision.artifact_id,
-                slug=revision.artifact_slug,
-            ),
-            resolved_variant_ref=Reference(
-                id=revision.variant_id,
-                slug=revision.variant_slug,
-            ),
-            resolved_revision_ref=Reference(
-                id=revision.id,
-                slug=revision.slug,
-                version=revision.version,
-            ),
-            entity_type="environment",
-        )
+        # HOTFIX: env-stored refs may carry stale slugs.
+        # Re-enable once the web write paths are fixed and the historical rows
+        # are backfilled.
+        # validate_retrieve_refs_consistent(
+        #     artifact_ref=_original_environment_ref,
+        #     variant_ref=_original_environment_variant_ref,
+        #     revision_ref=environment_revision_ref,
+        #     resolved_artifact_ref=Reference(
+        #         id=revision.artifact_id,
+        #         slug=revision.artifact_slug,
+        #     ),
+        #     resolved_variant_ref=Reference(
+        #         id=revision.variant_id,
+        #         slug=revision.variant_slug,
+        #     ),
+        #     resolved_revision_ref=Reference(
+        #         id=revision.id,
+        #         slug=revision.slug,
+        #         version=revision.version,
+        #     ),
+        #     entity_type="environment",
+        # )
 
         environment_revision = EnvironmentRevision(
             **revision.model_dump(

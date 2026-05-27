@@ -83,7 +83,7 @@ from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
-    validate_retrieve_refs_consistent,
+    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
 )
 
 # Resolution is now handled by EmbedsService
@@ -1152,25 +1152,28 @@ class WorkflowsService:
         if not revision:
             return None
 
-        validate_retrieve_refs_consistent(
-            artifact_ref=_original_workflow_ref,
-            variant_ref=_original_workflow_variant_ref,
-            revision_ref=workflow_revision_ref,
-            resolved_artifact_ref=Reference(
-                id=revision.artifact_id,
-                slug=revision.artifact_slug,
-            ),
-            resolved_variant_ref=Reference(
-                id=revision.variant_id,
-                slug=revision.variant_slug,
-            ),
-            resolved_revision_ref=Reference(
-                id=revision.id,
-                slug=revision.slug,
-                version=revision.version,
-            ),
-            entity_type="workflow",
-        )
+        # HOTFIX: env-stored refs may carry stale slugs.
+        # Re-enable once the web write paths are fixed and the historical rows
+        # are backfilled.
+        # validate_retrieve_refs_consistent(
+        #     artifact_ref=_original_workflow_ref,
+        #     variant_ref=_original_workflow_variant_ref,
+        #     revision_ref=workflow_revision_ref,
+        #     resolved_artifact_ref=Reference(
+        #         id=revision.artifact_id,
+        #         slug=revision.artifact_slug,
+        #     ),
+        #     resolved_variant_ref=Reference(
+        #         id=revision.variant_id,
+        #         slug=revision.variant_slug,
+        #     ),
+        #     resolved_revision_ref=Reference(
+        #         id=revision.id,
+        #         slug=revision.slug,
+        #         version=revision.version,
+        #     ),
+        #     entity_type="workflow",
+        # )
 
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),
@@ -1229,17 +1232,18 @@ class WorkflowsService:
             env_workflow_variant_ref = workflow_references.get("workflow_variant")
             env_workflow_revision_ref = workflow_references.get("workflow_revision")
 
-            # Caller-supplied refs must agree with what the env-path
-            # resolved to. Compare each pair before overwriting.
-            validate_retrieve_refs_consistent(
-                artifact_ref=workflow_ref,
-                variant_ref=workflow_variant_ref,
-                revision_ref=workflow_revision_ref,
-                resolved_artifact_ref=env_workflow_ref,
-                resolved_variant_ref=env_workflow_variant_ref,
-                resolved_revision_ref=env_workflow_revision_ref,
-                entity_type="workflow",
-            )
+            # HOTFIX: env-stored refs may carry stale slugs.
+            # Re-enable once the web write paths are fixed and the historical
+            # rows are backfilled.
+            # validate_retrieve_refs_consistent(
+            #     artifact_ref=workflow_ref,
+            #     variant_ref=workflow_variant_ref,
+            #     revision_ref=workflow_revision_ref,
+            #     resolved_artifact_ref=env_workflow_ref,
+            #     resolved_variant_ref=env_workflow_variant_ref,
+            #     resolved_revision_ref=env_workflow_revision_ref,
+            #     entity_type="workflow",
+            # )
 
             workflow_ref = env_workflow_ref
             workflow_variant_ref = env_workflow_variant_ref

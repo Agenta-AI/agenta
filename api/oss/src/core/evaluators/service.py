@@ -23,7 +23,7 @@ from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
-    validate_retrieve_refs_consistent,
+    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
 )
 from oss.src.core.workflows.service import WorkflowsService
 
@@ -637,15 +637,18 @@ class EvaluatorsService:
             env_evaluator_variant_ref = evaluator_references.get("evaluator_variant")
             env_evaluator_revision_ref = evaluator_references.get("evaluator_revision")
 
-            validate_retrieve_refs_consistent(
-                artifact_ref=evaluator_ref,
-                variant_ref=evaluator_variant_ref,
-                revision_ref=evaluator_revision_ref,
-                resolved_artifact_ref=env_evaluator_ref,
-                resolved_variant_ref=env_evaluator_variant_ref,
-                resolved_revision_ref=env_evaluator_revision_ref,
-                entity_type="evaluator",
-            )
+            # HOTFIX: env-stored refs may carry stale slugs.
+            # Re-enable once the web write paths are fixed and the historical
+            # rows are backfilled.
+            # validate_retrieve_refs_consistent(
+            #     artifact_ref=evaluator_ref,
+            #     variant_ref=evaluator_variant_ref,
+            #     revision_ref=evaluator_revision_ref,
+            #     resolved_artifact_ref=env_evaluator_ref,
+            #     resolved_variant_ref=env_evaluator_variant_ref,
+            #     resolved_revision_ref=env_evaluator_revision_ref,
+            #     entity_type="evaluator",
+            # )
 
             evaluator_ref = env_evaluator_ref
             evaluator_variant_ref = env_evaluator_variant_ref
