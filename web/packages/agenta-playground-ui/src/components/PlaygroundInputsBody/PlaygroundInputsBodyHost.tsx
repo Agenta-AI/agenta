@@ -67,19 +67,31 @@ export function PlaygroundInputsBodyHost({
         ),
     )
 
-    // Read the input port schema map so we can inject helpText (and any
-    // other port-level metadata in the future) onto the variable entries.
-    // Only port schemas with a `helpText` field surface a tooltip; everything
-    // else falls through unchanged.
+    // Read the input port schema map so we can inject helpText + declared
+    // port type onto each variable entry:
+    //   - `helpText`     → evaluator envelope variables (`inputs`/`outputs`)
+    //                       keep the legacy guidance tooltip.
+    //   - `expectedType` → drives the default view mode + TypeChip for
+    //                       DRAFT variables (no value yet). Without it, a
+    //                       `geo` port referenced via `{{geo.region}}` opens
+    //                       as a text input with a `null` chip instead of
+    //                       Form + `object` chip.
     const portSchemaMap = useAtomValue(
         executionItemController.selectors.inputPortSchemaMap,
-    ) as Record<string, {helpText?: string}>
+    ) as Record<string, {helpText?: string; type?: string}>
 
     const enrichedInputs = useMemo<PlaygroundInputsBodyVariable[]>(
         () =>
             visibility.inputs.map((v) => {
-                const help = portSchemaMap[v.name]?.helpText
-                return help ? {...v, helpText: help} : v
+                const portSchema = portSchemaMap[v.name]
+                const help = portSchema?.helpText
+                const type = portSchema?.type as PlaygroundInputsBodyVariable["expectedType"]
+                if (!help && !type) return v
+                return {
+                    ...v,
+                    ...(help ? {helpText: help} : {}),
+                    ...(type ? {expectedType: type} : {}),
+                }
             }),
         [visibility.inputs, portSchemaMap],
     )
