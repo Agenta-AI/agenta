@@ -6,7 +6,7 @@ from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
-from oss.src.apis.fastapi.git.models import RetrievalInfo
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.environments.dtos import (
     Environment,
     EnvironmentCreate,
@@ -199,3 +199,4 @@ class EnvironmentRevisionResolveResponse(BaseModel):
     count: int = 0
     environment_revision: Optional[EnvironmentRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
+    retrieval_info: Optional[RetrievalInfo] = None

@@ -6,7 +6,7 @@ from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
 )
-from oss.src.apis.fastapi.git.models import RetrievalInfo
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.queries.dtos import (
     Query,
     QueryCreate,

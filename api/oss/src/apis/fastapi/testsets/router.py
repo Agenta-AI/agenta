@@ -32,7 +32,7 @@ from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.shared.dtos import (
     Reference,
 )
-from oss.src.apis.fastapi.git.utils import retrieval_info_for_revision
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.testcases.dtos import (
     Testcase,
 )
@@ -1000,10 +1000,6 @@ class TestsetsRouter:
         testset_revision_response = TestsetRevisionResponse(
             count=1 if testset_revision else 0,
             testset_revision=testset_revision,
-            retrieval_info=retrieval_info_for_revision(
-                testset_revision,
-                kind="testset",
-            ),
         )
 
         return testset_revision_response
@@ -1038,10 +1034,6 @@ class TestsetsRouter:
         testset_revision_response = TestsetRevisionResponse(
             count=1 if testset_revision else 0,
             testset_revision=testset_revision,
-            retrieval_info=retrieval_info_for_revision(
-                testset_revision,
-                kind="testset",
-            ),
         )
 
         await publish_revision_event(
@@ -1505,8 +1497,16 @@ class TestsetsRouter:
             else None
         )
 
-        if not testset_revision:
-            testset_revision = await self.testsets_service.fetch_testset_revision(
+        if testset_revision:
+            retrieval_info = build_retrieval_info(
+                revision=testset_revision,
+                entity_type="testset",
+            )
+        else:
+            (
+                testset_revision,
+                retrieval_info,
+            ) = await self.testsets_service.retrieve_testset_revision(
                 project_id=UUID(request.state.project_id),
                 #
                 testset_ref=testset_revision_retrieve_request.testset_ref,
@@ -1531,6 +1531,7 @@ class TestsetsRouter:
         testset_revision_response = TestsetRevisionResponse(
             count=1 if testset_revision else 0,
             testset_revision=testset_revision,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(

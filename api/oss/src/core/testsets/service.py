@@ -4,12 +4,14 @@ from uuid import UUID, uuid4
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    RetrievalInfo,
     #
     VariantCreate,
     VariantEdit,
@@ -693,6 +695,40 @@ class TestsetsService:
         )
 
         return testset_revision
+
+    async def retrieve_testset_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        testset_ref: Optional[Reference] = None,
+        testset_variant_ref: Optional[Reference] = None,
+        testset_revision_ref: Optional[Reference] = None,
+        #
+        include_testcase_ids: Optional[bool] = None,
+        include_testcases: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> tuple[Optional[TestsetRevision], Optional[RetrievalInfo]]:
+        testset_revision = await self.fetch_testset_revision(
+            project_id=project_id,
+            #
+            testset_ref=testset_ref,
+            testset_variant_ref=testset_variant_ref,
+            testset_revision_ref=testset_revision_ref,
+            #
+            include_testcase_ids=include_testcase_ids,
+            include_testcases=include_testcases,
+            #
+            windowing=windowing,
+        )
+
+        retrieval_info = build_retrieval_info(
+            revision=testset_revision,
+            entity_type="testset",
+        )
+
+        return testset_revision, retrieval_info
 
     async def edit_testset_revision(
         self,

@@ -6,7 +6,7 @@ from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
-from oss.src.apis.fastapi.git.models import RetrievalInfo
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.testsets.dtos import (
     Testset,
     TestsetCreate,

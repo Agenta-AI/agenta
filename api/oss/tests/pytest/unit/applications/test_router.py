@@ -11,7 +11,7 @@ from oss.src.apis.fastapi.applications.models import (
 )
 from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.core.applications.dtos import ApplicationRevision
-from oss.src.core.environments.dtos import EnvironmentRevision, EnvironmentRevisionData
+from oss.src.core.environments.dtos import EnvironmentRevision
 from oss.src.core.shared.dtos import Reference
 
 
@@ -51,7 +51,7 @@ async def test_deploy_application_revision_uses_environment_retrieve(monkeypatch
 
         async def retrieve_environment_revision(self, **kwargs):
             self.retrieve_calls.append(kwargs)
-            return environment_revision, None
+            return environment_revision, None, None
 
         async def fetch_environment_revision(self, **kwargs):
             self.fetch_called = True
@@ -119,6 +119,12 @@ async def test_deploy_application_revision_uses_environment_retrieve(monkeypatch
 async def test_retrieve_application_revision_returns_environment_retrieval_info(
     monkeypatch,
 ):
+    """The router is a pass-through: it surfaces whatever RetrievalInfo the
+    applications service returns. The service is responsible for assembling
+    environment + selected target references for environment-backed lookups.
+    """
+    from oss.src.core.git.dtos import RetrievalInfo
+
     project_id = uuid4()
     application_id = uuid4()
     application_variant_id = uuid4()
@@ -134,36 +140,33 @@ async def test_retrieve_application_revision_returns_environment_retrieval_info(
         application_id=application_id,
         application_variant_id=application_variant_id,
     )
-    selected_references = {
-        "application": Reference(id=application_id, slug="demo-app"),
-        "application_variant": Reference(id=application_variant_id, slug="main"),
-        "application_revision": Reference(
-            id=application_revision_id,
-            slug="app-rev",
-            version="3",
-        ),
-    }
-    environment_revision = EnvironmentRevision(
-        id=environment_revision_id,
-        slug="env-rev",
-        version="7",
-        environment_id=environment_id,
-        environment_variant_id=environment_variant_id,
-        data=EnvironmentRevisionData(
-            references={"demo-app.revision": selected_references},
-        ),
+    retrieval_info = RetrievalInfo(
+        key="demo-app.revision",
+        references={
+            "environment": Reference(id=environment_id, slug="production"),
+            "environment_variant": Reference(id=environment_variant_id),
+            "environment_revision": Reference(
+                id=environment_revision_id,
+                slug="env-rev",
+                version="7",
+            ),
+            "application": Reference(id=application_id, slug="demo-app"),
+            "application_variant": Reference(id=application_variant_id, slug="main"),
+            "application_revision": Reference(
+                id=application_revision_id,
+                slug="app-rev",
+                version="3",
+            ),
+        },
     )
 
     applications_service = AsyncMock()
     applications_service.retrieve_application_revision.return_value = (
         application_revision,
         None,
+        retrieval_info,
     )
     environments_service = AsyncMock()
-    environments_service.retrieve_environment_revision.return_value = (
-        environment_revision,
-        None,
-    )
 
     router = ApplicationsRouter(
         applications_service=applications_service,
@@ -197,3 +200,6 @@ async def test_retrieve_application_revision_returns_environment_retrieval_info(
         response.retrieval_info.references["application_revision"].id
         == application_revision_id
     )
+    # The router no longer does its own env round-trip; the applications service
+    # owns environment lookup and reference assembly.
+    environments_service.retrieve_environment_revision.assert_not_awaited()

@@ -39,6 +39,7 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    RetrievalInfo,
     RevisionCommit,
     #
     RevisionCreate,
@@ -50,6 +51,7 @@ from oss.src.core.git.dtos import (
     VariantQuery,
 )
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.shared.dtos import Reference, Windowing
 
 from oss.src.utils.logging import get_module_logger
@@ -680,7 +682,11 @@ class EnvironmentsService:
         environment_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
-    ) -> tuple[Optional[EnvironmentRevision], Optional[ResolutionInfo]]:
+    ) -> tuple[
+        Optional[EnvironmentRevision],
+        Optional[ResolutionInfo],
+        Optional[RetrievalInfo],
+    ]:
         """Retrieve the latest environment revision, resolving slug/id refs.
 
         Uses fetch_environment to resolve the environment artifact (supports slug),
@@ -700,7 +706,7 @@ class EnvironmentsService:
             and not environment_variant_ref
             and not environment_revision_ref
         ):
-            return None, None
+            return None, None, None
 
         # Resolve environment artifact → variant → revision
         if (
@@ -712,25 +718,17 @@ class EnvironmentsService:
                 project_id=project_id,
                 environment_ref=environment_ref,
             )
-            # log.info(
-            #     "retrieve_environment_revision: environment=%r",
-            #     environment and environment.id,
-            # )
 
             if not environment:
-                return None, None
+                return None, None, None
 
             environment_variant = await self.fetch_environment_variant(
                 project_id=project_id,
                 environment_ref=Reference(id=environment.id),
             )
-            # log.info(
-            #     "retrieve_environment_revision: environment_variant=%r",
-            #     environment_variant and environment_variant.id,
-            # )
 
             if not environment_variant:
-                return None, None
+                return None, None, None
 
             environment_variant_ref = Reference(id=environment_variant.id)
 
@@ -740,15 +738,19 @@ class EnvironmentsService:
             variant_ref=environment_variant_ref,
             revision_ref=environment_revision_ref,
         )
-        # log.info("retrieve_environment_revision: revision=%r", revision and revision.id)
 
         if not revision:
-            return None, None
+            return None, None, None
 
         environment_revision = EnvironmentRevision(**revision.model_dump(mode="json"))
 
+        retrieval_info = build_retrieval_info(
+            revision=environment_revision,
+            entity_type="environment",
+        )
+
         if not resolve:
-            return environment_revision, None
+            return environment_revision, None, retrieval_info
 
         # Resolve embeds in revision data
         if not self.embeds_service:
@@ -767,12 +769,7 @@ class EnvironmentsService:
         if environment_revision.data:
             environment_revision.data = EnvironmentRevisionData(**resolved_config)
 
-        # log.info(
-        #     "retrieve_environment_revision: resolved resolution_info=%r",
-        #     resolution_info,
-        # )
-
-        return environment_revision, resolution_info
+        return environment_revision, resolution_info, retrieval_info
 
     async def edit_environment_revision(
         self,

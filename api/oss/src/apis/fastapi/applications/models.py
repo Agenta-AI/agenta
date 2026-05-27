@@ -6,7 +6,7 @@ from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
 )
-from oss.src.apis.fastapi.git.models import RetrievalInfo
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.applications.dtos import (
     Application,
     ApplicationCatalogType,
@@ -671,6 +671,10 @@ class ApplicationRevisionResolveResponse(BaseModel):
     resolution_info: Optional[ResolutionInfo] = Field(
         default=None,
         description="Diagnostic info about which references were resolved.",
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References (artifact / variant / revision) actually used to retrieve this revision.",
     )
 
 

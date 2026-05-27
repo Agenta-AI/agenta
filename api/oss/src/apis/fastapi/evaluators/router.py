@@ -11,12 +11,9 @@ from oss.src.utils.caching import invalidate_cache
 from oss.src.core.events.utils import publish_revision_event
 
 from oss.src.core.git.types import VariantForkError
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.shared.dtos import (
     Reference,
-)
-from oss.src.apis.fastapi.git.utils import (
-    retrieval_info_for_environment_request,
-    retrieval_info_for_revision,
 )
 from oss.src.core.evaluators.dtos import (
     EvaluatorRevisionData,
@@ -1370,6 +1367,7 @@ class EvaluatorsRouter:
         (
             evaluator_revision,
             resolution_info,
+            retrieval_info,
         ) = await self.evaluators_service.retrieve_evaluator_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1390,19 +1388,6 @@ class EvaluatorsRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Environment revision does not contain evaluator references for the requested key.",
             )
-
-        retrieval_info = (
-            await retrieval_info_for_environment_request(
-                environments_service=self.environments_service,
-                project_id=UUID(request.state.project_id),
-                environment_ref=environment_ref,
-                environment_variant_ref=environment_variant_ref,
-                environment_revision_ref=environment_revision_ref,
-                key=key,
-            )
-            if environment_lookup_requested
-            else retrieval_info_for_revision(evaluator_revision, kind="evaluator")
-        )
 
         evaluator_revision_response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
@@ -1791,6 +1776,10 @@ class EvaluatorsRouter:
             count=1,
             evaluator_revision=evaluator_revision,
             resolution_info=resolution_info,
+            retrieval_info=build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+            ),
         )
 
 

@@ -6,6 +6,7 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.shared.dtos import Reference, Windowing, Trace, Traces
 from oss.src.core.tracing.dtos import (
     TracingQuery,
@@ -27,6 +28,7 @@ from oss.src.core.git.dtos import (
     ArtifactEdit,
     ArtifactQuery,
     ArtifactFork,
+    RetrievalInfo,
     RevisionsLog,
     #
     VariantCreate,
@@ -701,6 +703,40 @@ class QueriesService:
         )
 
         return _query_revision
+
+    async def retrieve_query_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query_ref: Optional[Reference] = None,
+        query_variant_ref: Optional[Reference] = None,
+        query_revision_ref: Optional[Reference] = None,
+        #
+        include_trace_ids: Optional[bool] = None,
+        include_traces: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> tuple[Optional[QueryRevision], Optional[RetrievalInfo]]:
+        query_revision = await self.fetch_query_revision(
+            project_id=project_id,
+            #
+            query_ref=query_ref,
+            query_variant_ref=query_variant_ref,
+            query_revision_ref=query_revision_ref,
+            #
+            include_trace_ids=include_trace_ids,
+            include_traces=include_traces,
+            #
+            windowing=windowing,
+        )
+
+        retrieval_info = build_retrieval_info(
+            revision=query_revision,
+            entity_type="query",
+        )
+
+        return query_revision, retrieval_info
 
     async def edit_query_revision(
         self,
