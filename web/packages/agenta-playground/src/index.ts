@@ -89,6 +89,13 @@ export type {OpenFromTraceResult} from "./state"
 export {hasAppReference} from "./state/controllers/traceRefResolution"
 export type {SpanWithReferences} from "./state/controllers/traceRefResolution"
 
+export {
+    EMPTY_TRACE_REFS_KEY,
+    buildResolvedTraceRefsKey,
+    buildResolvedTraceRefsKeyFromSpan,
+    resolvedTraceRefsAtomFamily,
+} from "./state/controllers/resolvedTraceRefsAtom"
+
 // ============================================================================
 // STANDALONE EXECUTION (no React context needed)
 // ============================================================================

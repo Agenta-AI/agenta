@@ -82,7 +82,7 @@ import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessa
 import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 
-import {extractReferences, resolveTraceRefs} from "./traceRefResolution"
+import {extractReferences, resolveTraceRefs, selectOpenFromTraceBranch} from "./traceRefResolution"
 import {getRunnableTypeResolver} from "./urlSnapshotController"
 
 // Import loadable state from entities (stays there due to entity dependencies)
@@ -1253,11 +1253,21 @@ const openFromTraceAtom = atom(
             const testcaseInputs =
                 Object.keys(promotedConfig).length > 0 ? cleanedInputs : actualInputs
 
-            // If there's an app_revision reference with a resolvable UUID
-            // (either from the trace directly or backfilled by the resolver
-            // above), open that revision directly.
+            // Pick the branch up-front so the gating logic is testable in
+            // isolation (`selectOpenFromTraceBranch`) and the inline checks
+            // below stay focused on dispatching, not deciding.
+            //
+            // The branch helper guards the application_revision branch on
+            // `!isEvaluatorSpan` even when the resolver above backfills
+            // application_revision.id. Evaluator runs always carry the
+            // graded app's refs alongside the evaluator's own; without this
+            // guard, clicking Playground on an evaluator span lands the
+            // user on the graded application instead of the evaluator
+            // revision (issue #4426, problem 3).
+            const branch = selectOpenFromTraceBranch(refs, isEvaluatorSpan)
+
             const revisionId = asString(refs.application_revision?.id)
-            if (revisionId) {
+            if (branch === "application_revision" && revisionId) {
                 set(addPrimaryNodeAtom, {
                     type: "workflow",
                     id: revisionId,
@@ -1297,7 +1307,7 @@ const openFromTraceAtom = atom(
             const evaluatorRevisionId = isEvaluatorSpan
                 ? asString(refs.evaluator_revision?.id)
                 : undefined
-            if (evaluatorRevisionId) {
+            if (branch === "evaluator_revision" && evaluatorRevisionId) {
                 // `skipInitialRow` prevents linkToRunnable from seeding an empty
                 // row — we write the envelope-shaped row ourselves right after
                 // so there's no transient empty row that React might observe.

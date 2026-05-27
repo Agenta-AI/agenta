@@ -119,6 +119,40 @@ describe("retrieveWorkflowRevision — request shaping", () => {
         expect(body).not.toHaveProperty("workflow_ref")
         expect(body).not.toHaveProperty("workflow_revision_ref")
     })
+
+    // Environment refs let the backend resolve through a deployment slot
+    // to find the workflow revision currently deployed there (issue #4426
+    // problem 2d). These are passed through as snake_case alongside the
+    // workflow refs.
+    it("forwards environment refs in the body", async () => {
+        fernRetrieve.mockResolvedValueOnce(validResponse)
+
+        await retrieveWorkflowRevision({
+            projectId: "proj-1",
+            environmentRef: {slug: "production"},
+            environmentVariantRef: {slug: "default"},
+            environmentRevisionRef: {id: "env-rev-1"},
+        })
+
+        const [body] = fernRetrieve.mock.calls[0]
+        expect(body).toEqual({
+            environment_ref: {slug: "production"},
+            environment_variant_ref: {slug: "default"},
+            environment_revision_ref: {id: "env-rev-1"},
+        })
+    })
+
+    it("treats an environment ref as an identifying ref (no early-return)", async () => {
+        fernRetrieve.mockResolvedValueOnce(validResponse)
+
+        const result = await retrieveWorkflowRevision({
+            projectId: "proj-1",
+            environmentRef: {slug: "production"},
+        })
+
+        expect(fernRetrieve).toHaveBeenCalledTimes(1)
+        expect(result).toMatchObject(validRevision)
+    })
 })
 
 describe("retrieveWorkflowRevision — response handling", () => {

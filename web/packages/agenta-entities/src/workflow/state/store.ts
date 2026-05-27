@@ -1938,6 +1938,15 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
     // Chat detection is meaningless for evaluator envelopes (inputs are {trace, inputs, outputs}).
     const isChat = isEvaluator ? false : detectIsChatFromInputs(params.inputs)
 
+    // Default URI for agenta-managed completion/chat ephemerals so the
+    // playground can fetch the corresponding OpenAPI schema and render a
+    // proper config panel (issue #4426 problem 2a). Without a URI the
+    // panel falls back to the empty "No configuration needed" state even
+    // when the trace carries parameters. Evaluators still take their URI
+    // from the caller (`deriveBuiltinUriFromSpanName` in openFromTrace).
+    const resolvedUri =
+        params.uri ?? (isEvaluator ? undefined : buildWorkflowUri(isChat ? "chat" : "completion"))
+
     const workflow: Workflow = {
         id,
         name: params.label,
@@ -1967,7 +1976,7 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
                 outputs: null,
                 parameters: null,
             },
-            ...(params.uri ? {uri: params.uri} : {}),
+            ...(resolvedUri ? {uri: resolvedUri} : {}),
         },
         // Store trace I/O in meta for port derivation and snapshot serialization
         meta: {
