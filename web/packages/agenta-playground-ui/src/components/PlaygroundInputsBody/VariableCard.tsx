@@ -42,11 +42,13 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
 import {CopySimple, Database, Info} from "@phosphor-icons/react"
-import {Button, InputNumber, Switch, Tag, Tooltip, Typography, message} from "antd"
+import {Button, Input, InputNumber, Switch, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
 import {variableViewModeAtomFamily} from "./viewModeAtoms"
+
+const {TextArea} = Input
 
 const {Text: AntText} = Typography
 
@@ -405,19 +407,22 @@ function TextLeafEditor({mode, value, editable, originalType, onChange}: TextLea
         [originalType, onChange],
     )
 
+    // Plain TextArea with the borderless variant — no hover ring, no focus
+    // border, no padding, no shadow. The variable card supplies the only
+    // visible boundary; this editor melts into it so the label, controls,
+    // and value read as one block.
     return (
-        <SharedEditor
-            initialValue={buffer}
-            handleChange={editable ? handleChange : undefined}
-            editorType="borderless"
-            className={clsx("min-h-[40px] overflow-hidden", mode === "markdown" && "prose-sm")}
-            disableDebounce
+        <TextArea
+            variant="borderless"
+            value={buffer}
+            onChange={(e) => handleChange(e.target.value)}
+            placeholder="Enter a value"
+            autoSize={{minRows: 2}}
             disabled={!editable}
-            state={editable ? undefined : "readOnly"}
-            placeholder="Enter value"
-            editorProps={{
-                showToolbar: false,
-            }}
+            className={clsx(
+                "!p-0 !shadow-none !min-h-[40px] resize-none",
+                mode === "markdown" && "prose-sm",
+            )}
         />
     )
 }
@@ -446,15 +451,21 @@ function CodeLeafEditor({mode, value, editable, onChange}: CodeLeafEditorProps) 
         [mode, onChange],
     )
 
+    // SharedEditor is needed here for code-only mode (line numbers + syntax
+    // highlighting). It's borderless, with `state="filled"` to suppress the
+    // built-in hover border, and explicit `!border-transparent` overrides to
+    // beat the `isEditorFocused && "!border-[#BDC7D1]"` rule baked into
+    // SharedEditorImpl. Result: NO inner border in any state — the variable
+    // card supplies the only boundary.
     return (
         <SharedEditor
             initialValue={buffer}
             handleChange={editable ? handleChange : undefined}
             editorType="borderless"
-            className="min-h-[60px] overflow-hidden"
+            className="min-h-[60px] overflow-hidden !p-0 !border-transparent hover:!border-transparent focus:!border-transparent focus-within:!border-transparent [&.agenta-shared-editor]:!border-transparent"
             disableDebounce
             disabled={!editable}
-            state={editable ? undefined : "readOnly"}
+            state={editable ? "filled" : "readOnly"}
             placeholder={mode === "json" ? "{}" : ""}
             editorProps={{
                 codeOnly: true,
