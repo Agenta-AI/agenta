@@ -508,26 +508,39 @@ export function extractTemplateVariables(
     // curly, jinja2, and mustache all use {{variableName}} for variable substitution
     // Linear scan: find '{{', then find '}}', extract the content between them.
     //
-    // For mustache, skip block markers — they're structural syntax, not
-    // variables, and shouldn't surface as input ports:
-    //   - `{{#name}}` / `{{^name}}` — section opens / inverted sections
-    //   - `{{/name}}` — section closes
-    //   - `{{!comment}}` — comments
-    //   - `{{.}}` — the implicit iterator (current value inside a section)
-    //   - `{{> partial}}` — partials (rejected at render time, but skip here too)
-    // The mustache renderer pairs these structurally; the FE extractor must
-    // not treat them as referenced variables. The TokenPlugin highlights
-    // them via its own regex — this filter is for port discovery only.
+    // For mustache, normalise / skip block-level syntax:
+    //
+    //   keep (strip prefix → variable name):
+    //     - `{{#name}}` — section opener: `name` IS a variable (the iterable
+    //                      / truthiness check), it still needs a value.
+    //     - `{{^name}}` — inverted section opener: same — `name` is a variable.
+    //     - `{{&name}}` — unescaped variable: `name` IS the variable.
+    //
+    //   skip entirely (not variables — structural / inert tokens):
+    //     - `{{/name}}`      — section closer (just a boundary marker).
+    //     - `{{!comment}}`   — comment.
+    //     - `{{> partial}}`  — partial template inclusion (resolved at render).
+    //     - `{{.}}`          — implicit iterator (current item, no base name).
+    //
+    // The TokenPlugin highlights all of these via its own regex — this filter
+    // is for PORT DISCOVERY only. The mustache renderer pairs `#`/`^`/`/`
+    // structurally at render time.
     let i = 0
     while (i < input.length - 1) {
         if (input[i] === "{" && input[i + 1] === "{") {
             const start = i + 2
             const end = input.indexOf("}}", start)
             if (end !== -1) {
-                const variable = input.slice(start, end).trim()
-                const isMustacheBlockMarker = variable === "." || /^[#/^!>]/.test(variable)
-                if (variable && !isMustacheBlockMarker && !variables.includes(variable)) {
-                    variables.push(variable)
+                const raw = input.slice(start, end).trim()
+                const isSkippablePrefix = /^[/!>]/.test(raw)
+                const isImplicitIterator = raw === "."
+                if (raw && !isSkippablePrefix && !isImplicitIterator) {
+                    // Strip section-opener / unescape prefixes — the base name
+                    // is the actual variable that needs a value.
+                    const variable = /^[#^&]/.test(raw) ? raw.slice(1).trim() : raw
+                    if (variable && !variables.includes(variable)) {
+                        variables.push(variable)
+                    }
                 }
                 i = end + 2
             } else {
