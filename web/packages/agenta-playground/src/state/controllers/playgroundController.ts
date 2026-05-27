@@ -1869,11 +1869,10 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
 
     // Re-link loadable-scoped state for any entity that was REPLACED in place
     // (e.g., a revision committed → new revision ID at the same position).
-    // Detection: an ID present in current but missing from new is paired with
-    // an ID present in new but missing from current. This catches commit
-    // (single-revision and compare-mode anchor or non-anchor) and any other
-    // path that swaps an entity. Pure additions/removals (compare mode add/
-    // remove) produce no pairing and are no-ops.
+    // Detection is POSITIONAL: only treat index `i` as a swap when both
+    // `currentIds[i]` is no longer in the new selection and `newIds[i]` was
+    // not in the previous selection. Pure reorders (`[A,B] → [B,A]`),
+    // additions, and removals produce no swap pair.
     //
     // Why here (and not in switchEntityAtom)? `setEntityIdsAtom` is the single
     // chokepoint that EVERY entity-change path funnels through — switchEntity,
@@ -1883,28 +1882,39 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
     if (currentRootNodes.length > 0 && newRootNodes.length > 0) {
         const currentIdSet = new Set(currentIds)
         const newIdSet = new Set(newIds)
-        const removedIds = currentIds.filter((id) => !newIdSet.has(id))
-        const addedIds = newIds.filter((id) => !currentIdSet.has(id))
-        const swapCount = Math.min(removedIds.length, addedIds.length)
+        const positionalSwaps = currentIds.flatMap((oldEntityId, index) => {
+            const newEntityId = newIds[index]
+            if (!newEntityId || oldEntityId === newEntityId) return []
+            // Guard against reorders: only a true swap when the old ID is gone
+            // from the new selection AND the new ID wasn't already selected.
+            if (newIdSet.has(oldEntityId) || currentIdSet.has(newEntityId)) return []
+            return [{oldEntityId, newEntityId, isAnchorSwap: index === 0}]
+        })
 
-        if (swapCount > 0) {
+        if (positionalSwaps.length > 0) {
             const oldLoadableId = get(derivedLoadableIdAtom)
-            const oldAnchorEntityId = currentRootNodes[0].entityId
             const newAnchorNode = newRootNodes[0]
             const newAnchorLoadableId = `testset:${newAnchorNode.entityType}:${newAnchorNode.entityId}`
 
-            for (let i = 0; i < swapCount; i += 1) {
-                const oldEntityId = removedIds[i]
-                const newEntityId = addedIds[i]
-                // The anchor's loadableId moves only on its own swap; non-anchor
-                // swaps in compare mode just rewrite session IDs in place.
-                const isAnchorSwap = oldEntityId === oldAnchorEntityId
-                const newLoadableId = isAnchorSwap ? newAnchorLoadableId : oldLoadableId
+            // Process non-anchor swaps first. The anchor swap MOVES data away
+            // from `oldLoadableId` and clears it, so any non-anchor rewrites
+            // that target `oldLoadableId` must run before that clear.
+            for (const swap of positionalSwaps) {
+                if (swap.isAnchorSwap) continue
                 relinkLoadableSessions(get, set, {
-                    oldEntityId,
-                    newEntityId,
+                    oldEntityId: swap.oldEntityId,
+                    newEntityId: swap.newEntityId,
                     oldLoadableId,
-                    newLoadableId,
+                    newLoadableId: oldLoadableId,
+                })
+            }
+            const anchorSwap = positionalSwaps.find((swap) => swap.isAnchorSwap)
+            if (anchorSwap) {
+                relinkLoadableSessions(get, set, {
+                    oldEntityId: anchorSwap.oldEntityId,
+                    newEntityId: anchorSwap.newEntityId,
+                    oldLoadableId,
+                    newLoadableId: newAnchorLoadableId,
                 })
             }
         }
@@ -2100,6 +2110,25 @@ function relinkLoadableSessions(
     if (moves) {
         set(executionStateAtomFamily(newLoadableId), nextExecState)
         set(executionStateAtomFamily(oldLoadableId), createInitialExecutionState())
+
+        // Also migrate row-level execution results stored on the loadable
+        // state itself. These render the per-row output cells; leaving them
+        // behind makes the just-committed revision look like it never ran.
+        // `linkToRunnable` will overwrite linkedRunnable* immediately after
+        // this, so we don't touch those fields here — only the
+        // execution-output map needs to move.
+        const oldLoadableState = get(loadableStateAtomFamily(oldLoadableId))
+        if (Object.keys(oldLoadableState.executionResults).length > 0) {
+            const newLoadableState = get(loadableStateAtomFamily(newLoadableId))
+            set(loadableStateAtomFamily(newLoadableId), {
+                ...newLoadableState,
+                executionResults: oldLoadableState.executionResults,
+            })
+            set(loadableStateAtomFamily(oldLoadableId), {
+                ...oldLoadableState,
+                executionResults: {},
+            })
+        }
     } else if (execRewrote) {
         set(executionStateAtomFamily(oldLoadableId), nextExecState)
     }
