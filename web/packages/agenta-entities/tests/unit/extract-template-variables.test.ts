@@ -1,12 +1,21 @@
 /**
  * Unit tests for extractTemplateVariables.
  *
- * Pins: mustache block markers (`{{#name}}`, `{{/name}}`, `{{^name}}`,
- * `{{!comment}}`, `{{> partial}}`, `{{.}}`) are NOT extracted as variables.
- * They are structural mustache syntax; treating them as variables produces
- * phantom input ports for "languages" / "comment" / etc.
+ * Mustache block syntax falls into two buckets for port discovery:
  *
- * Plain variables, dotted access, and JSONPath ARE extracted.
+ *   keep (strip prefix → variable name):
+ *     - `{{#name}}` — section opener: `name` IS a variable (the iterable
+ *                      truthiness check), it still needs a value.
+ *     - `{{^name}}` — inverted section opener: same — `name` is a variable.
+ *     - `{{&name}}` — unescaped variable: `name` IS the variable.
+ *
+ *   skip entirely (structural / inert tokens):
+ *     - `{{/name}}`      — section closer (boundary marker only).
+ *     - `{{!comment}}`   — comment.
+ *     - `{{> partial}}`  — partial template inclusion.
+ *     - `{{.}}`          — implicit iterator (current item, no base name).
+ *
+ * Plain variables, dotted access, and JSONPath are extracted as-is.
  */
 import {describe, expect, it} from "vitest"
 
@@ -30,14 +39,23 @@ describe("extractTemplateVariables", () => {
             ])
         })
 
-        it("skips section open `{{#name}}`", () => {
+        it("extracts section opener `{{#name}}` as a variable", () => {
+            // The opener IS a variable — `name` needs a value (array to iterate
+            // or truthy value to render the block). The closer below is just
+            // a boundary marker so it stays skipped.
             expect(
                 extractTemplateVariables("{{#languages}}{{.}}{{/languages}}", "mustache"),
-            ).toEqual([])
+            ).toEqual(["languages"])
         })
 
-        it("skips inverted section open `{{^name}}`", () => {
-            expect(extractTemplateVariables("{{^empty}}none{{/empty}}", "mustache")).toEqual([])
+        it("extracts inverted section opener `{{^name}}` as a variable", () => {
+            expect(extractTemplateVariables("{{^empty}}none{{/empty}}", "mustache")).toEqual([
+                "empty",
+            ])
+        })
+
+        it("extracts unescaped variable `{{&name}}`", () => {
+            expect(extractTemplateVariables("Raw: {{&html}}", "mustache")).toEqual(["html"])
         })
 
         it("skips section close `{{/name}}`", () => {
@@ -58,16 +76,27 @@ describe("extractTemplateVariables", () => {
             expect(extractTemplateVariables("{{.}}", "mustache")).toEqual([])
         })
 
-        it("extracts variables alongside block markers (filters only markers)", () => {
+        it("extracts variables AND section openers, skips closers and `.`", () => {
             const out = extractTemplateVariables(
                 "Hi {{name}}, list: {{#items}}- {{.}}{{/items}}. End.",
                 "mustache",
             )
-            expect(out).toEqual(["name"])
+            expect(out).toEqual(["name", "items"])
         })
 
         it("deduplicates repeated variables", () => {
             expect(extractTemplateVariables("{{a}} {{a}} {{b}}", "mustache")).toEqual(["a", "b"])
+        })
+
+        it("deduplicates section opener against plain reference of same name", () => {
+            // `{{items}}` followed by `{{#items}}...` should still produce
+            // a single `items` port.
+            expect(
+                extractTemplateVariables(
+                    "Plain: {{items}}; List: {{#items}}- {{.}}{{/items}}.",
+                    "mustache",
+                ),
+            ).toEqual(["items"])
         })
     })
 
@@ -76,10 +105,11 @@ describe("extractTemplateVariables", () => {
             expect(extractTemplateVariables("Hello {{name}}", "curly")).toEqual(["name"])
         })
 
-        it("filters out section-like prefixes too (defensive — curly doesn't use them)", () => {
+        it("strips section-like prefixes too (defensive — curly doesn't use them)", () => {
             // Curly doesn't have sections, but if a user pastes mustache
-            // syntax into a curly prompt, we don't want phantom ports.
-            expect(extractTemplateVariables("{{#items}}{{/items}}", "curly")).toEqual([])
+            // syntax into a curly prompt, the same prefix-stripping rule
+            // surfaces the base name. `{{#items}}` → `items`.
+            expect(extractTemplateVariables("{{#items}}{{/items}}", "curly")).toEqual(["items"])
         })
     })
 
