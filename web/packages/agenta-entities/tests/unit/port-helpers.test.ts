@@ -194,6 +194,47 @@ describe("groupTemplateVariables", () => {
         expect(result[0].key).toBe("geo")
         expect(result[0].subPaths).toContain("region")
     })
+
+    describe("sectionOpeners hint (mustache iteration intent)", () => {
+        it("marks a section-opener-only name as `array`", () => {
+            // `{{#languages}}{{.}}{{/languages}}` extracts `languages` as a
+            // plain variable; the sectionOpeners hint tells the grouper it's
+            // an iteration target → array type.
+            const result = groupTemplateVariables(["languages"], {
+                sectionOpeners: new Set(["languages"]),
+            })
+            expect(result).toHaveLength(1)
+            expect(result[0]).toMatchObject({
+                envelope: "inputs",
+                key: "languages",
+                type: "array",
+            })
+        })
+
+        it("keeps sub-pathed names as `object` even when in sectionOpeners", () => {
+            // `{{#user}}{{user.name}}{{/user}}` — `user` is in sectionOpeners
+            // BUT also has sub-paths, so it's an object (sub-paths are the
+            // stronger signal).
+            const result = groupTemplateVariables(["user", "$.user.name"], {
+                sectionOpeners: new Set(["user"]),
+            })
+            expect(result).toHaveLength(1)
+            expect(result[0].type).toBe("object")
+            expect(result[0].subPaths).toContain("name")
+        })
+
+        it("leaves non-opener names as `string`", () => {
+            const result = groupTemplateVariables(["plain"], {
+                sectionOpeners: new Set(["other"]),
+            })
+            expect(result[0].type).toBe("string")
+        })
+
+        it("is opt-in — no hint behaves exactly as before", () => {
+            const result = groupTemplateVariables(["languages"])
+            expect(result[0].type).toBe("string")
+        })
+    })
 })
 
 // ── extractInputPortsFromSchema ───────────────────────────────────────────────

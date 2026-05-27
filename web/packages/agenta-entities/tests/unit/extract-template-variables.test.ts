@@ -19,7 +19,7 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {extractTemplateVariables} from "../../src/runnable/utils"
+import {extractMustacheSectionOpeners, extractTemplateVariables} from "../../src/runnable/utils"
 
 describe("extractTemplateVariables", () => {
     describe("mustache", () => {
@@ -121,5 +121,49 @@ describe("extractTemplateVariables", () => {
         it("treats {{ as escaped literal, not a variable", () => {
             expect(extractTemplateVariables("Hello {{name}}", "fstring")).toEqual([])
         })
+    })
+})
+
+describe("extractMustacheSectionOpeners", () => {
+    it("returns an empty set for non-mustache formats", () => {
+        // Section semantics are mustache-specific. Other formats don't get
+        // the hint even if `#name` appears in their templates.
+        expect(extractMustacheSectionOpeners("{{#name}}{{/name}}", "curly").size).toBe(0)
+        expect(extractMustacheSectionOpeners("{{#name}}{{/name}}", "jinja2").size).toBe(0)
+        expect(extractMustacheSectionOpeners("{#name}{/name}", "fstring").size).toBe(0)
+    })
+
+    it("picks up `{{#name}}` openers", () => {
+        const out = extractMustacheSectionOpeners(
+            "{{#languages}}{{.}}{{/languages}}",
+            "mustache",
+        )
+        expect(Array.from(out)).toEqual(["languages"])
+    })
+
+    it("picks up `{{^name}}` inverted-section openers", () => {
+        const out = extractMustacheSectionOpeners("{{^empty}}none{{/empty}}", "mustache")
+        expect(Array.from(out)).toEqual(["empty"])
+    })
+
+    it("excludes `{{&name}}` (unescape is a variable, not a section)", () => {
+        expect(extractMustacheSectionOpeners("{{&html}}", "mustache").size).toBe(0)
+    })
+
+    it("excludes closers, comments, partials, the implicit iterator, and plain vars", () => {
+        expect(
+            extractMustacheSectionOpeners(
+                "{{/name}} {{!c}} {{> p}} {{.}} {{plain}}",
+                "mustache",
+            ).size,
+        ).toBe(0)
+    })
+
+    it("deduplicates repeated openers and mixes plain vars cleanly", () => {
+        const out = extractMustacheSectionOpeners(
+            "{{#items}}{{name}}{{/items}} and again {{#items}}{{/items}}",
+            "mustache",
+        )
+        expect(Array.from(out)).toEqual(["items"])
     })
 })
