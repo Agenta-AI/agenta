@@ -102,6 +102,12 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
     const [currentStep, setCurrentStep] = useState(0)
     const [isSubmitting, setIsSubmitting] = useState(false)
 
+    console.log("[post-signup][diag] PostSignupForm render", {
+        isSubmitting,
+        currentStep,
+        ts: Date.now(),
+    })
+
     const allQuestions: QuestionMeta[] = useMemo(() => {
         if (!survey.questions) return []
         return survey.questions.map(
@@ -139,6 +145,8 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
 
     const handleSubmitFormData = useCallback(
         async (values: any) => {
+            console.log("[post-signup][diag] handleSubmitFormData start", {ts: Date.now()})
+
             // Force the submitting view to commit synchronously, then yield
             // one animation frame so the browser actually paints it before
             // we trigger navigation. Without flushSync + rAF, React 18
@@ -149,7 +157,14 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
             flushSync(() => {
                 setIsSubmitting(true)
             })
+
+            console.log("[post-signup][diag] flushSync(setIsSubmitting=true) done", {
+                ts: Date.now(),
+            })
+
             await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
+            console.log("[post-signup][diag] rAF yielded", {ts: Date.now()})
 
             try {
                 // Get all values including unmounted fields from previous steps
@@ -214,9 +229,16 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     ...responses,
                     $set: personProperties,
                 })
+
+                console.log("[post-signup][diag] posthog.capture('survey sent') called", {
+                    ts: Date.now(),
+                })
             } catch (error) {
                 console.error("Error submitting survey:", error)
             } finally {
+                console.log("[post-signup][diag] calling router.push('/get-started')", {
+                    ts: Date.now(),
+                })
                 router.push("/get-started")
             }
         },
