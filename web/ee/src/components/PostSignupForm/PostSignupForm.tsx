@@ -2,7 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import type {User} from "@agenta/shared/types"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Checkbox, Form, Input, Radio, Rate, Space, Spin, Typography} from "antd"
+import {Button, Checkbox, Form, Input, Radio, Rate, Space, Typography} from "antd"
 import {useRouter} from "next/router"
 import {
     type MultipleSurveyQuestion,
@@ -16,6 +16,7 @@ import type {Org} from "@/oss/lib/Types"
 
 import {useStyles} from "./assets/styles"
 import PostSignupHeader from "./PostSignupHeader"
+import PostSignupSubmitting from "./PostSignupSubmitting"
 
 // Fisher-Yates shuffle algorithm
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -395,45 +396,50 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
 
     const isLastStep = currentStep >= totalSteps - 1
 
+    // Once we start submitting, replace the form with a clear, full-page
+    // "setting up" view. The form is about to be unmounted by router.push
+    // anyway — rendering an unambiguous transition state is better than
+    // showing the form as a half-disabled, half-overlaid intermediate state
+    // that can briefly blank out during Next.js's chunk fetch.
+    if (isSubmitting) {
+        return <PostSignupSubmitting orgs={orgs} />
+    }
+
     return (
         <>
             <PostSignupHeader orgs={orgs} />
 
-            <Spin spinning={isSubmitting} tip="Setting up your workspace…" size="large">
-                <Form
-                    layout="vertical"
-                    form={form}
-                    onFinish={handleSubmitFormData}
-                    className={classes.mainContainer}
-                    disabled={isSubmitting}
-                >
-                    <div className={classes.container}>
-                        <div className="space-y-1">
-                            <Typography.Paragraph>
-                                {currentStep + 1}/{totalSteps || 1}
-                            </Typography.Paragraph>
-                            <Typography.Title level={3}>
-                                {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
-                            </Typography.Title>
-                        </div>
-
-                        <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
+            <Form
+                layout="vertical"
+                form={form}
+                onFinish={handleSubmitFormData}
+                className={classes.mainContainer}
+            >
+                <div className={classes.container}>
+                    <div className="space-y-1">
+                        <Typography.Paragraph>
+                            {currentStep + 1}/{totalSteps || 1}
+                        </Typography.Paragraph>
+                        <Typography.Title level={3}>
+                            {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
+                        </Typography.Title>
                     </div>
 
-                    <Button
-                        size="large"
-                        type="primary"
-                        onClick={isLastStep ? form.submit : handleNextStep}
-                        className="w-full min-h-[32px] mt-2"
-                        iconPlacement="end"
-                        icon={!isSubmitting && <ArrowRight className="mt-[3px]" />}
-                        disabled={!isCurrentStepValid || isSubmitting}
-                        loading={isSubmitting}
-                    >
-                        {isLastStep ? "Submit" : "Continue"}
-                    </Button>
-                </Form>
-            </Spin>
+                    <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
+                </div>
+
+                <Button
+                    size="large"
+                    type="primary"
+                    onClick={isLastStep ? form.submit : handleNextStep}
+                    className="w-full min-h-[32px] mt-2"
+                    iconPlacement="end"
+                    icon={<ArrowRight className="mt-[3px]" />}
+                    disabled={!isCurrentStepValid}
+                >
+                    {isLastStep ? "Submit" : "Continue"}
+                </Button>
+            </Form>
         </>
     )
 }

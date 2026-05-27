@@ -33,6 +33,15 @@ const PostSignupRoute = () => {
     const {orgs} = useOrgData()
     const skipRedirectFiredRef = useRef(false)
 
+    // Every successful exit from this page (Submit, fallback Continue, or
+    // permanent-skip redirect) lands on /get-started. Prefetch it on mount so
+    // the route swap doesn't show a blank gap while Next.js compiles (dev) or
+    // fetches the chunk (prod). Pages-router prefetch is idempotent and safe
+    // to call on every mount.
+    useEffect(() => {
+        void router.prefetch("/get-started")
+    }, [router])
+
     useEffect(() => {
         if (readiness.status !== "skip") {
             skipRedirectFiredRef.current = false
