@@ -33,7 +33,7 @@ function TokenBehaviorOverlay() {
         <>
             <TokenPlugin templateFormat={config.templateFormat} />
             <AutoCloseTokenBracesPlugin />
-            <TokenMenuPlugin tokens={config.tokens} />
+            <TokenMenuPlugin tokens={config.tokens} templateFormat={config.templateFormat} />
             <TokenTooltipPlugin />
         </>
     )

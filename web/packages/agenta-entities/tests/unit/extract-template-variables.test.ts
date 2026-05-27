@@ -101,15 +101,37 @@ describe("extractTemplateVariables", () => {
     })
 
     describe("curly (legacy)", () => {
-        it("extracts {{name}} variables (same code path as mustache)", () => {
+        it("extracts {{name}} variables", () => {
             expect(extractTemplateVariables("Hello {{name}}", "curly")).toEqual(["name"])
         })
 
-        it("strips section-like prefixes too (defensive — curly doesn't use them)", () => {
-            // Curly doesn't have sections, but if a user pastes mustache
-            // syntax into a curly prompt, the same prefix-stripping rule
-            // surfaces the base name. `{{#items}}` → `items`.
-            expect(extractTemplateVariables("{{#items}}{{/items}}", "curly")).toEqual(["items"])
+        it("extracts dotted access {{user.name}}", () => {
+            expect(extractTemplateVariables("Hello {{user.name}}", "curly")).toEqual([
+                "user.name",
+            ])
+        })
+
+        it("SKIPS mustache-style markers (no section semantics in curly)", () => {
+            // Curly has no section / inverted-section / comment / partial
+            // syntax. If the user types `{{#items}}` it's an authoring
+            // error (mustache syntax pasted in). Don't extract — the
+            // editor still highlights the bad token visually, but no
+            // phantom port appears in the playground. The user can fix
+            // the template instead of being silently "helped".
+            expect(extractTemplateVariables("{{#items}}{{/items}}", "curly")).toEqual([])
+            expect(extractTemplateVariables("{{^empty}}none{{/empty}}", "curly")).toEqual([])
+            expect(extractTemplateVariables("{{&unescaped}}", "curly")).toEqual([])
+            expect(extractTemplateVariables("{{!comment}}", "curly")).toEqual([])
+            expect(extractTemplateVariables("{{> partial}}", "curly")).toEqual([])
+            expect(extractTemplateVariables("{{.}}", "curly")).toEqual([])
+        })
+
+        it("still extracts plain variables next to a bad mustache token", () => {
+            // Mixed authoring: the legit `{{name}}` survives; the
+            // `{{#items}}` mistake is dropped.
+            expect(extractTemplateVariables("Hi {{name}}, list: {{#items}}.", "curly")).toEqual(
+                ["name"],
+            )
         })
     })
 
