@@ -103,6 +103,10 @@ export interface PlaygroundInputsBodyProps {
     unreferencedColumns?: PlaygroundInputsBodyVariable[]
     /** Whether referenced variable cards are editable. */
     editable: boolean
+    /** When non-empty, every card shows a small database indicator in the
+     *  header — `Synced from {name}`. Communicates that the row's data
+     *  comes from a testset rather than being authored locally. */
+    connectedSourceName?: string | null
     /** Writes the new value for an existing column to the testcase store.
      *  Implementation should route through `testcaseMolecule.actions.update`
      *  so the testcase entity is updated atomically. NATIVE value — no
@@ -129,6 +133,7 @@ export function PlaygroundInputsBody({
     onAddDraftColumn,
     onViewModeChange,
     unreferencedEditable = false,
+    connectedSourceName,
 }: PlaygroundInputsBodyProps) {
     // `sections` takes precedence over the flat `inputs` list. We still need
     // to look up by name to route draft edits, so unify the membership
@@ -161,6 +166,7 @@ export function PlaygroundInputsBody({
             editable={editable}
             onValueChange={handleValueChange}
             onViewModeChange={onViewModeChange}
+            connectedSourceName={connectedSourceName}
         />
     )
 

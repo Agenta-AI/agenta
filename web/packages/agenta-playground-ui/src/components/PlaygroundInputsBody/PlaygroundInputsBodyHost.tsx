@@ -20,8 +20,9 @@
 
 import {useCallback, useMemo} from "react"
 
-import {executionItemController} from "@agenta/playground"
-import {useAtomValue, useSetAtom} from "jotai"
+import {loadableController} from "@agenta/entities/runnable"
+import {executionItemController, playgroundController} from "@agenta/playground"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {PlaygroundInputsBody} from "./PlaygroundInputsBody"
 import type {
@@ -128,6 +129,34 @@ export function PlaygroundInputsBodyHost({
 
     const setCellValue = useSetAtom(executionItemController.actions.setTestcaseCellValue)
 
+    // Connected-source name (set when the row is sourced from a testset
+    // rather than authored locally). Every card uses this to surface the
+    // unified database indicator — same per-card, gated by the global
+    // loadable state.
+    const loadableId = useAtomValue(
+        useMemo(() => playgroundController.selectors.loadableId(), []),
+    ) as string | null
+    // Build a single read-only atom that returns the connected-source
+    // descriptor (or null when no loadable is mounted). The cast through
+    // `unknown` keeps the conditional atom typeable — the runtime always
+    // returns the `{id, name, type}` shape (or null), but the atom-family
+    // factory has its own readonly atom type that wouldn't normally union
+    // cleanly with a fallback `atom(() => null)`.
+    const connectedSourceAtom = useMemo(
+        () =>
+            loadableId
+                ? loadableController.selectors.connectedSource(loadableId)
+                : (atom(() => null) as unknown as ReturnType<
+                      typeof loadableController.selectors.connectedSource
+                  >),
+        [loadableId],
+    )
+    const connectedSource = useAtomValue(connectedSourceAtom) as {
+        id: string | null
+        name: string | null
+    } | null
+    const connectedSourceName = connectedSource?.id ? (connectedSource.name ?? null) : null
+
     const handleValueChange = useCallback(
         (name: string, value: unknown) => {
             setCellValue({testcaseId: rowId, column: name, value})
@@ -146,6 +175,7 @@ export function PlaygroundInputsBodyHost({
             // Draft variables route through the same `setTestcaseCellValue`
             // reducer — it creates the new column on first set.
             onAddDraftColumn={handleValueChange}
+            connectedSourceName={connectedSourceName}
         />
     )
 }
