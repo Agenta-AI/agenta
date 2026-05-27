@@ -2,7 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import type {User} from "@agenta/shared/types"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Checkbox, Form, Input, Radio, Rate, Space, Typography} from "antd"
+import {Button, Checkbox, Form, Input, Radio, Rate, Space, Spin, Typography} from "antd"
 import {useRouter} from "next/router"
 import {
     type MultipleSurveyQuestion,
@@ -98,6 +98,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
     const classes = useStyles()
     const formData = Form.useWatch([], form)
     const [currentStep, setCurrentStep] = useState(0)
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const allQuestions: QuestionMeta[] = useMemo(() => {
         if (!survey.questions) return []
@@ -136,6 +137,11 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
 
     const handleSubmitFormData = useCallback(
         async (values: any) => {
+            // Flip into the submitting state immediately so the user sees a
+            // clear loading affordance instead of the form briefly clearing
+            // (or the previous step's questions lingering) while Next.js
+            // navigates away.
+            setIsSubmitting(true)
             try {
                 // Get all values including unmounted fields from previous steps
                 const allValues = {...form.getFieldsValue(true), ...values}
@@ -199,8 +205,6 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     ...responses,
                     $set: personProperties,
                 })
-
-                form.resetFields()
             } catch (error) {
                 console.error("Error submitting survey:", error)
             } finally {
@@ -389,41 +393,47 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
         })
     }, [currentQuestions, formData])
 
+    const isLastStep = currentStep >= totalSteps - 1
+
     return (
         <>
             <PostSignupHeader orgs={orgs} />
 
-            <Form
-                layout="vertical"
-                form={form}
-                onFinish={handleSubmitFormData}
-                className={classes.mainContainer}
-            >
-                <div className={classes.container}>
-                    <div className="space-y-1">
-                        <Typography.Paragraph>
-                            {currentStep + 1}/{totalSteps || 1}
-                        </Typography.Paragraph>
-                        <Typography.Title level={3}>
-                            {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
-                        </Typography.Title>
+            <Spin spinning={isSubmitting} tip="Setting up your workspace…" size="large">
+                <Form
+                    layout="vertical"
+                    form={form}
+                    onFinish={handleSubmitFormData}
+                    className={classes.mainContainer}
+                    disabled={isSubmitting}
+                >
+                    <div className={classes.container}>
+                        <div className="space-y-1">
+                            <Typography.Paragraph>
+                                {currentStep + 1}/{totalSteps || 1}
+                            </Typography.Paragraph>
+                            <Typography.Title level={3}>
+                                {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
+                            </Typography.Title>
+                        </div>
+
+                        <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
                     </div>
 
-                    <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
-                </div>
-
-                <Button
-                    size="large"
-                    type="primary"
-                    onClick={currentStep < totalSteps - 1 ? handleNextStep : form.submit}
-                    className="w-full min-h-[32px] mt-2"
-                    iconPlacement="end"
-                    icon={<ArrowRight className="mt-[3px]" />}
-                    disabled={!isCurrentStepValid}
-                >
-                    {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
-                </Button>
-            </Form>
+                    <Button
+                        size="large"
+                        type="primary"
+                        onClick={isLastStep ? form.submit : handleNextStep}
+                        className="w-full min-h-[32px] mt-2"
+                        iconPlacement="end"
+                        icon={!isSubmitting && <ArrowRight className="mt-[3px]" />}
+                        disabled={!isCurrentStepValid || isSubmitting}
+                        loading={isSubmitting}
+                    >
+                        {isLastStep ? "Submit" : "Continue"}
+                    </Button>
+                </Form>
+            </Spin>
         </>
     )
 }
