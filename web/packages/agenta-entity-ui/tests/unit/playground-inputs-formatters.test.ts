@@ -81,6 +81,27 @@ describe("formatters: valueToDisplay", () => {
         it("returns the raw string when it is not valid JSON", () => {
             expect(valueToDisplay("hello world", "yaml").trim()).toBe("hello world")
         })
+
+        it("returns empty string for empty containers (no flow-style `[]` / `{}` literal)", () => {
+            // `js-yaml.dump([])` and `dump({})` only produce flow-style
+            // literals because block style requires at least one item. The
+            // result looks identical to JSON — confusing the user when they
+            // explicitly picked YAML mode. Render as empty so the editor's
+            // placeholder takes over and the user types fresh YAML.
+            expect(valueToDisplay([], "yaml")).toBe("")
+            expect(valueToDisplay({}, "yaml")).toBe("")
+            // Strings that PARSE to empty containers get the same treatment.
+            expect(valueToDisplay("[]", "yaml")).toBe("")
+            expect(valueToDisplay("{}", "yaml")).toBe("")
+        })
+
+        it("still dumps non-empty arrays / objects as block-style YAML", () => {
+            const arr = valueToDisplay(["en", "fr"], "yaml")
+            expect(arr).toContain("- en")
+            expect(arr).toContain("- fr")
+            const obj = valueToDisplay({foo: "bar"}, "yaml")
+            expect(obj).toContain("foo: bar")
+        })
     })
 })
 
