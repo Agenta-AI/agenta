@@ -5,6 +5,9 @@
 - If you make changes to the API or SDK, make sure to run `ruff format` and `ruff check --fix` within the SDK or API folder (run from the repo root: `ruff format` then `ruff check`; fix all errors before committing)
 - If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` in the web folder and commit the generated file
 - The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry: `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds `dist/` automatically — so a fresh checkout works out of the box. **If you regenerate the client (`bash ./clients/scripts/generate.sh --language typescript`) or edit `web/packages/agenta-api-client/src/`, run `pnpm install` again or `pnpm --filter @agentaai/api-client build` so consumers (`@agenta/sdk`, `@agenta/entities`, `web/oss`, `web/ee`) see the update. The `.js` extensions in Fern's relative imports are intentional NodeNext-style emission and resolve only via the compiled `dist/`.**
+- For frontend API code, use the Fern-generated client via `@agenta/sdk`, not raw axios. See [Frontend API: Use the Fern Client](#frontend-api-use-the-fern-client).
+- For where to put new frontend code (package vs. app layer) and the full set of `@agenta/*` package conventions, read [`.claude/skills/agenta-package-practices/AGENTS.md`](.claude/skills/agenta-package-practices/AGENTS.md). The summary lives in [Code Placement: Packages vs. Application Code](#code-placement-packages-vs-application-code).
+- Frontend packages have unit tests under `tests/unit/`. See [Package Unit Tests](#package-unit-tests).
 
 ## Environment Config Conventions
 - For API configuration, add new environment variables to `api/oss/src/utils/env.py` and consume them via the shared `env` object.
@@ -1468,3 +1471,240 @@ Need loadable/runnable bridges?
 Building playground features?
 └─ Use: Components from @agenta/playground
 ```
+
+---
+
+## Frontend API: Use the Fern Client
+
+**All new frontend API code goes through the Fern-generated client, not raw axios.** The client is the single source of truth for request/response shapes — it's regenerated from the backend OpenAPI spec and prevents the FE from drifting from the backend.
+
+References:
+- Workspace SDK wrapper: `web/packages/agenta-sdk/src/index.ts` (`getAgentaSdkClient`)
+- Generated client: `web/packages/agenta-api-client/`
+- Existing Fern-using domains: `@agenta/entities/{gatewayTool,secret,event,testset,workflow}` (PR [#4425](https://github.com/Agenta-AI/agenta/pull/4425) migrated `workflow`)
+
+### Pattern
+
+```typescript
+import {getAgentaSdkClient} from "@agenta/sdk"
+import {getAgentaApiUrl} from "@agenta/shared/api"
+
+import {safeParseWithLogging} from "../../shared"
+import {someResponseSchema} from "../core"
+
+export async function someApiCall({
+    projectId,
+    refId,
+}: SomeParams): Promise<SomeResponse | null> {
+    if (!projectId) return null
+
+    // Single source of truth for the request/response shape — kept in sync
+    // with the backend OpenAPI spec via Fern codegen.
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    const data = await client.someDomain.someMethod(
+        {ref: {id: refId}},
+        {queryParams: {project_id: projectId}},
+    )
+
+    // Zod validation stays at the boundary — Fern's compile-time types
+    // under-declare backend `extra="allow"` fields (e.g. `artifact_slug`),
+    // so drift detection via the local schema still has independent value.
+    const validated = safeParseWithLogging(someResponseSchema, data, "[someApiCall]")
+    return validated ?? null
+}
+```
+
+### Key rules
+
+- Use `getAgentaSdkClient({host: getAgentaApiUrl()})` — it's a lazy singleton, share it across calls.
+- Pass query params via `{queryParams: {...}}`, NOT axios's `{params: {...}}`.
+- **Keep zod validation at the boundary.** Fern's types under-declare backend `extra="allow"` fields; the local schema is your independent drift check.
+- Use `safeParseWithLogging` from `@agenta/entities/shared` for the validation — it logs structured errors without crashing.
+
+### Anti-patterns
+
+```typescript
+// ❌ BAD — raw axios for a new endpoint
+const response = await axios.post(`${getAgentaApiUrl()}/workflows/revisions/retrieve`, body, {
+    params: {project_id: projectId},
+})
+
+// ❌ BAD — using axios `params` shape with the Fern client
+await client.workflows.retrieveWorkflowRevision(body, {params: {project_id}})
+//                                                       ^^^^^^
+// Fern expects `queryParams`, not `params`.
+
+// ❌ BAD — skipping zod validation because "Fern's types are typed"
+return await client.workflows.retrieveWorkflowRevision(body, {queryParams})
+// Misses backend-added fields and silent shape drift.
+```
+
+### Migrating legacy axios calls
+
+Legacy code in `web/oss/`, `web/ee/`, and parts of `@agenta/entities` still uses raw axios. Don't rewrite them en masse — migrate opportunistically when you touch a function for another reason. The migration is mechanical (see PR [#4425](https://github.com/Agenta-AI/agenta/pull/4425) commit `c3572fd` for the canonical example).
+
+---
+
+## Code Placement: Packages vs. Application Code
+
+For the full ruleset, decision tree, and `@agenta/*` package conventions, read [`.claude/skills/agenta-package-practices/AGENTS.md`](.claude/skills/agenta-package-practices/AGENTS.md). The skill is the source of truth.
+
+### Quick heuristic
+
+```
+Is the code used by 2+ features, or could be?
+├─ NO → Keep it in app layer (web/oss/src/ or web/ee/src/)
+└─ YES → Move to a package, picking by purpose:
+         ├─ Reusable UI component / style util          → @agenta/ui
+         ├─ Entity state (molecule, atoms, controllers) → @agenta/entities
+         ├─ Entity-specific UI (modals, pickers)        → @agenta/entity-ui
+         ├─ Playground state                            → @agenta/playground
+         ├─ Playground UI                               → @agenta/playground-ui
+         └─ Pure utility / type (no React, no antd)     → @agenta/shared
+```
+
+### Hard rules
+
+- **Respect the hierarchy.** A package may only import from packages below it: `shared ← ui ← entities ← entity-ui ← playground ← playground-ui`. Circular imports break the build.
+- **No legacy compat shims in packages.** Keep `OldFormat → NewFormat` adapters in the app layer. Packages stay clean.
+- **No `any` types.** Packages enforce `@typescript-eslint/no-explicit-any: error`.
+- **Use exported subpaths**, not internal paths: `import {x} from "@agenta/entities/testcase"`, not `from "@agenta/entities/src/testcase/state/molecule"`.
+- **Verify your change builds AND lints before pushing:** `pnpm turbo run build --filter=@agenta/<package>` and `pnpm turbo run lint --filter=@agenta/<package>`.
+
+The skill file has worked examples for each of these, plus the molecule pattern, bridge pattern, entity relations, paginated stores, drill-in views, and entity adapters.
+
+---
+
+## Package Unit Tests
+
+`@agenta/*` packages have unit tests under `tests/unit/`. Two packages currently host vitest setups (`@agenta/entities` since v0.75, `@agenta/playground` added in PR [#4425](https://github.com/Agenta-AI/agenta/pull/4425)); any new package that ships testable logic should match this layout.
+
+### Layout
+
+```
+web/packages/<pkg>/
+├── package.json          # adds vitest + scripts
+├── tsconfig.json         # excludes src/**/__tests__/**
+├── vitest.config.ts      # at package root
+└── tests/
+    ├── __mocks__/        # only if you need to stub deps (e.g. @agenta/ui for antd)
+    └── unit/
+        └── <feature>.test.ts
+```
+
+### Why tests live in `tests/unit/`, not in `src/`
+
+- The package build runs `tsc --noEmit` over `src/`. Test files in `src/**/__tests__/**` pull in deps (e.g. `@tanstack/query-core`) that aren't declared in the package's `dependencies`, causing CI's stricter resolution to fail even though they resolve locally via hoisting.
+- Test runners (vitest, `tsx --test`) transpile independently of the package's `tsconfig`, so moving tests out of `src/` doesn't change how they run.
+- Excluding `src/**/__tests__/**` from `tsconfig.json` keeps any legacy in-src tests from being type-checked during the build. New tests should not be placed in `src/`.
+
+Reference: commit [`1c0a900`](https://github.com/Agenta-AI/agenta/commit/1c0a9002574306f48b30c6e077eb3668b647d1b1) — `fix(entities): exclude in-src tests from the package build`.
+
+### Minimal `vitest.config.ts`
+
+```typescript
+import {defineConfig} from "vitest/config"
+
+export default defineConfig({
+    test: {
+        include: ["tests/unit/**/*.test.ts"],
+        environment: "node",
+        reporters: ["default", "junit"],
+        outputFile: {junit: "./test-results/junit.xml"},
+        coverage: {
+            provider: "v8",
+            include: ["src/**/*.ts"],
+            exclude: ["src/**/index.ts"],
+            reporter: ["text", "lcov", "json-summary"],
+            reportsDirectory: "./coverage",
+        },
+    },
+})
+```
+
+For packages that import React/antd code, stub `@agenta/ui` to keep the test environment pure Node:
+
+```typescript
+// vitest.config.ts (excerpt)
+resolve: {
+    alias: {
+        "@agenta/ui": path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),
+    },
+},
+```
+
+### Standard `package.json` scripts
+
+```json
+{
+  "scripts": {
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check": "pnpm run types:check && pnpm run lint"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.4",
+    "vitest": "^4.1.4"
+  }
+}
+```
+
+### Mocking the Fern client in tests
+
+Unit tests for Fern-using API functions should mock `@agenta/sdk`, not axios. Constructing a real Fern client tries to read env vars and initialize transport — neither is wanted in a unit test.
+
+```typescript
+import {beforeEach, describe, expect, it, vi} from "vitest"
+
+const fernRetrieve = vi.fn()
+
+// Mock `@agenta/sdk` so we can replace the Fern client method without
+// constructing a real client. `getAgentaSdkClient` returns the same fake
+// every call, so per-test state lives on `fernRetrieve`.
+vi.mock("@agenta/sdk", () => ({
+    getAgentaSdkClient: () => ({
+        workflows: {
+            retrieveWorkflowRevision: fernRetrieve,
+        },
+    }),
+}))
+
+// IMPORTANT: import the unit-under-test AFTER vi.mock, so it picks up
+// the mocked module.
+import {retrieveWorkflowRevision} from "../../src/workflow/api/api"
+
+beforeEach(() => {
+    fernRetrieve.mockReset()
+})
+
+it("invokes the Fern client with project_id as a queryParam", async () => {
+    fernRetrieve.mockResolvedValueOnce({workflow_revision: {id: "rev-1"}})
+
+    await retrieveWorkflowRevision({projectId: "proj-42", workflowRef: {id: "wf-1"}})
+
+    expect(fernRetrieve).toHaveBeenCalledTimes(1)
+    const [body, opts] = fernRetrieve.mock.calls[0]
+    expect(body).toEqual({workflow_ref: {id: "wf-1"}})
+    expect(opts).toEqual({queryParams: {project_id: "proj-42"}})
+})
+```
+
+Reference test files:
+- `web/packages/agenta-entities/tests/unit/retrieveWorkflowRevision.test.ts` — Fern client mocked
+- `web/packages/agenta-playground/tests/unit/traceRefResolution.test.ts` — pure-logic tests on the resolver
+- `web/packages/agenta-entities/tests/__mocks__/agenta-ui.ts` — antd stub for entity tests
+
+### What to test
+
+The high-value targets are:
+- **API request shape** — that we call the Fern method with the expected body and query params.
+- **Boundary validation** — that bad responses (zod mismatch) return `null` / an empty result instead of crashing.
+- **Pure derivation logic** — extractors, predicates, key-priority pickers, cache TTL behaviour.
+- **Guards** — early returns for empty IDs, missing project IDs, etc.
+
+Skip:
+- Anything that requires a running React tree (use Playwright/Storybook instead, or pull the logic out).
+- HTTP transport (Fern owns it; mock at the SDK level).
+- Antd component rendering inside packages.
