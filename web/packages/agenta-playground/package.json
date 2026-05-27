@@ -8,7 +8,12 @@
     "scripts": {
         "build": "tsc --noEmit",
         "types:check": "tsc --noEmit",
-        "lint": "eslint --config ../eslint.config.mjs src/"
+        "lint": "eslint --config ../eslint.config.mjs src/",
+        "test": "pnpm run test:unit",
+        "test:unit": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -34,7 +39,9 @@
         "@types/lz-string": "^1.5.0",
         "@types/node": "^20.8.10",
         "@types/react": "^19.0.10",
+        "@vitest/coverage-v8": "^4.1.4",
         "jotai-family": "^1.0.1",
-        "typescript": "5.8.3"
+        "typescript": "5.8.3",
+        "vitest": "^4.1.4"
     }
 }
