@@ -93,8 +93,14 @@ const PostSignupForm = () => {
     useEffect(() => {
         if (!error || autoRedirectAttempted) return
         const errorCode = (error as any).code as string | undefined
+        // All useSurvey error paths mean "we can't render the onboarding survey right now".
+        // Rather than show a blank page or an indefinite spinner, fall through to /get-started
+        // so the user can keep using the product. We lose survey data, not signups.
         const shouldRedirect =
-            errorCode === "survey-unavailable" || errorCode === "posthog-not-configured"
+            errorCode === "survey-unavailable" ||
+            errorCode === "posthog-not-configured" ||
+            errorCode === "posthog-unavailable" ||
+            errorCode === "survey-fetch-error"
         if (!shouldRedirect) {
             return
         }

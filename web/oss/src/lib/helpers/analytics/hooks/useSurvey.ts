@@ -17,13 +17,16 @@ export interface SurveyError extends Error {
     code: SurveyErrorCode
 }
 
-const SURVEY_TIMEOUT_MS = 6000
+const POSTHOG_LOAD_TIMEOUT_MS = 6000
+const SURVEY_FETCH_TIMEOUT_MS = 6000
 
 const createSurveyError = (code: SurveyErrorCode, message: string): SurveyError => {
     const error = new Error(message) as SurveyError
     error.code = code
     return error
 }
+
+const isSurveyRunning = (survey: Survey): boolean => Boolean(survey.start_date) && !survey.end_date
 
 export const useSurvey = (surveyName: string) => {
     const posthog = usePostHogAg()
@@ -67,7 +70,7 @@ export const useSurvey = (surveyName: string) => {
                     ? prev
                     : createSurveyError("posthog-unavailable", "PostHog failed to load"),
             )
-        }, SURVEY_TIMEOUT_MS)
+        }, POSTHOG_LOAD_TIMEOUT_MS)
 
         return () => {
             if (!timeoutRef.current) return
@@ -88,26 +91,73 @@ export const useSurvey = (surveyName: string) => {
         posthogLoaded && !manualError ? ["survey", surveyName] : null,
         async () => {
             return await new Promise<Survey | null>((resolve, reject) => {
+                let settled = false
+                const timeout = window.setTimeout(() => {
+                    if (settled) return
+                    settled = true
+                    reject(
+                        createSurveyError(
+                            "survey-fetch-error",
+                            `Survey fetch timed out after ${SURVEY_FETCH_TIMEOUT_MS}ms`,
+                        ),
+                    )
+                }, SURVEY_FETCH_TIMEOUT_MS)
+
+                const settle = (cb: () => void) => {
+                    if (settled) return
+                    settled = true
+                    window.clearTimeout(timeout)
+                    cb()
+                }
+
+                // We intentionally use getSurveys (not getActiveMatchingSurveys) because
+                // our signup survey is type="api" and rendered by our own form. The SDK's
+                // eligibility filter inside getActiveMatchingSurveys checks an auto-generated
+                // internal_targeting_flag_key (for the "show once" schedule) that returns
+                // false for brand-new identified users before their flag context settles —
+                // so the survey is silently filtered out. getSurveys returns the raw list;
+                // we own the "show once" decision via our own backend on form submit.
                 try {
-                    posthog?.surveys?.getActiveMatchingSurveys?.((surveys) => {
-                        const found = surveys?.find((s) => s.name?.includes(surveyName))
-                        if (!found) {
+                    const getSurveys = posthog?.getSurveys
+                    if (typeof getSurveys !== "function") {
+                        settle(() =>
                             reject(
                                 createSurveyError(
-                                    "survey-unavailable",
-                                    `Survey "${surveyName}" is not available`,
+                                    "posthog-unavailable",
+                                    "PostHog surveys API is not available",
                                 ),
+                            ),
+                        )
+                        return
+                    }
+
+                    getSurveys.call(
+                        posthog,
+                        (surveys: Survey[] | undefined) => {
+                            const found = surveys?.find(
+                                (s) => s.name?.includes(surveyName) && isSurveyRunning(s),
                             )
-                            return
-                        }
-                        resolve(found)
-                    }, false)
+                            if (!found) {
+                                settle(() =>
+                                    reject(
+                                        createSurveyError(
+                                            "survey-unavailable",
+                                            `Survey "${surveyName}" is not available`,
+                                        ),
+                                    ),
+                                )
+                                return
+                            }
+                            settle(() => resolve(found))
+                        },
+                        false,
+                    )
                 } catch (e: unknown) {
                     const error =
                         e instanceof Error
                             ? createSurveyError("survey-fetch-error", e.message)
                             : createSurveyError("survey-fetch-error", "Failed to load survey")
-                    reject(error)
+                    settle(() => reject(error))
                 }
             })
         },
