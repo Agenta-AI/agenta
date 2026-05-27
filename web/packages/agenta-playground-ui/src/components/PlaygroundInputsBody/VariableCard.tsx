@@ -180,7 +180,7 @@ export function VariableCard({
     }, [value])
 
     return (
-        <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2">
+        <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-solid border-[#d4d4d8] bg-white px-3 py-2">
             <div className="flex items-center justify-between gap-2 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
                     <AntText className="font-mono text-[12px] leading-[20px] font-medium text-[#1677FF] truncate">
@@ -343,15 +343,19 @@ function CardBody({mode, value, seedShape, editable, onChange}: CardBodyProps): 
     }
 
     // text / markdown for primitives — use the right widget per actual type.
+    // Borderless: the variable card itself supplies the encapsulating border,
+    // so the inner widget should NOT carry its own — otherwise the input
+    // visually "floats" inside the card and reads as a separate element.
     if (originalType === "number" && mode === "text") {
         return (
             <InputNumber
                 size="middle"
+                variant="borderless"
                 value={value as number}
                 disabled={!editable}
                 onChange={(next) => onChange(next ?? null)}
                 placeholder="Enter number"
-                className="w-full max-w-[320px]"
+                className="w-full max-w-[320px] !px-0"
             />
         )
     }
@@ -405,7 +409,7 @@ function TextLeafEditor({mode, value, editable, originalType, onChange}: TextLea
         <SharedEditor
             initialValue={buffer}
             handleChange={editable ? handleChange : undefined}
-            editorType="border"
+            editorType="borderless"
             className={clsx("min-h-[40px] overflow-hidden", mode === "markdown" && "prose-sm")}
             disableDebounce
             disabled={!editable}
@@ -446,7 +450,7 @@ function CodeLeafEditor({mode, value, editable, onChange}: CodeLeafEditorProps) 
         <SharedEditor
             initialValue={buffer}
             handleChange={editable ? handleChange : undefined}
-            editorType="border"
+            editorType="borderless"
             className="min-h-[60px] overflow-hidden"
             disableDebounce
             disabled={!editable}
