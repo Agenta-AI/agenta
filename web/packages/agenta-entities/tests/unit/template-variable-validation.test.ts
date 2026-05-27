@@ -7,11 +7,12 @@
  *
  * Why these tests live in agenta-entities: agenta-shared has no vitest
  * runner of its own. Same stopgap pattern as the other tests in this
- * folder. Cross-package relative import below is a test-time dep only.
+ * folder. We import via the workspace path alias rather than a relative
+ * path that would couple this test to the package's folder layout.
  */
 import {describe, expect, it} from "vitest"
 
-import {validateTemplateVariable} from "../../../agenta-shared/src/utils/templateVariable"
+import {validateTemplateVariable} from "@agenta/shared/utils"
 
 describe("validateTemplateVariable", () => {
     describe("plain names + dot notation", () => {
@@ -54,6 +55,15 @@ describe("validateTemplateVariable", () => {
 
         it("accepts the bare root `$` (whole context as compact JSON)", () => {
             expect(validateTemplateVariable("$").valid).toBe(true)
+        })
+
+        it("rejects `$.` (root with trailing dot, no field)", () => {
+            // Only the bare `$` is a valid empty form. `$.` has nothing
+            // after the dot so it can never resolve at render time —
+            // surface that as an authoring error in the editor.
+            const result = validateTemplateVariable("$.")
+            expect(result.valid).toBe(false)
+            expect(result.reason).toMatch(/has no field/i)
         })
 
         it("rejects when the root looks like a typo of an envelope slot", () => {

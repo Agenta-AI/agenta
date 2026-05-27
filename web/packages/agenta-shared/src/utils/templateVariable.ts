@@ -118,8 +118,16 @@ export function validateTemplateVariable(expr: string): TemplateVariableValidati
             .filter(Boolean)
         if (tokens.length === 0) {
             // `{{$}}` (whole context as compact JSON) is valid mustache
-            // JSONPath. `{{$.}}` or similar empties are caught by the
-            // hasEmptySegment check above.
+            // JSONPath. `{{$.}}` (root + trailing dot, no field) reaches
+            // here too because `hasEmptySegment` only catches DUPLICATED
+            // separators (`..`, `//`), not a lone trailing one — so reject
+            // it explicitly. Only the bare `$` form is allowed.
+            if (expr !== "$") {
+                return {
+                    valid: false,
+                    reason: "JSONPath root has no field after `$`.",
+                }
+            }
             return {valid: true}
         }
         // Per the RFC, the JSONPath root can be either an envelope slot

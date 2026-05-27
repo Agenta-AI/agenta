@@ -301,7 +301,19 @@ export function groupTemplateVariables(
     },
 ): GroupedTemplateVariable[] {
     const groups = new Map<string, {envelope: string; key: string; subPaths: Set<string>}>()
-    const sectionOpeners = options?.sectionOpeners
+
+    // Resolve section opener names through `parseTemplateExpression` and
+    // key them by envelope-scoped `${envelope}.${key}` ids — same identity
+    // the `groups` map uses below. Otherwise a section opener written as
+    // `{{#languages}}` would coerce BOTH `inputs.languages` AND
+    // `outputs.languages` (if both existed in the same prompt) to `array`.
+    const sectionOpenerIds = new Set<string>()
+    if (options?.sectionOpeners) {
+        for (const opener of options.sectionOpeners) {
+            const parsed = parseTemplateExpression(opener)
+            if (parsed.key) sectionOpenerIds.add(`${parsed.envelope}.${parsed.key}`)
+        }
+    }
 
     for (const placeholder of placeholders) {
         // Invalid envelope references (e.g. `$.input.xx.abc` — `input` is not
@@ -333,7 +345,8 @@ export function groupTemplateVariables(
         //      template addresses specific fields).
         //   2. Section opener AND no sub-paths → `"array"` (iteration intent).
         //   3. Otherwise → `"string"`.
-        const isSectionOpener = sectionOpeners?.has(key) ?? false
+        const groupId = `${envelope}.${key}`
+        const isSectionOpener = sectionOpenerIds.has(groupId)
         const type: GroupedTemplateVariable["type"] =
             subPathList.length > 0 ? "object" : isSectionOpener ? "array" : "string"
         return {
