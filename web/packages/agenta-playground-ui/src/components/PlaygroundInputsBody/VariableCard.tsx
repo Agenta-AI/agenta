@@ -41,8 +41,8 @@ import type {SimpleChatMessage} from "@agenta/ui/chat-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
-import {Info} from "@phosphor-icons/react"
-import {InputNumber, Switch, Tag, Tooltip, Typography} from "antd"
+import {CopySimple, Database, Info} from "@phosphor-icons/react"
+import {Button, InputNumber, Switch, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
@@ -84,6 +84,12 @@ interface VariableCardProps {
      *  sub-fields without having to add them manually. Render-only — the
      *  testcase value stays untouched until the user actually edits. */
     expectedSchema?: unknown
+    /** When set, the card shows a small database indicator with a tooltip
+     *  `Synced from {name}`. Communicates that this row's data comes from
+     *  a testset rather than being authored locally. Unified across every
+     *  card in the inputs body — the host either passes a name for all
+     *  cards or none. */
+    connectedSourceName?: string | null
     /** Whether the card is editable (vs read-only). */
     editable: boolean
     /** Writes the new value to the testcase / draft store. NATIVE value. */
@@ -104,6 +110,7 @@ export function VariableCard({
     helpText,
     expectedType,
     expectedSchema,
+    connectedSourceName,
     editable,
     onValueChange,
     onViewModeChange,
@@ -154,6 +161,24 @@ export function VariableCard({
         return buildEmptyShapeFromSchema(expectedSchema)
     }, [value, expectedSchema])
 
+    // Copy the value as text. Primitives stringify naturally; structured
+    // values pretty-print as JSON. Drafts (no value yet) copy as empty
+    // string — defensive against undefined.
+    const handleCopy = useCallback(() => {
+        const text =
+            value === undefined || value === null
+                ? ""
+                : typeof value === "string"
+                  ? value
+                  : typeof value === "number" || typeof value === "boolean"
+                    ? String(value)
+                    : JSON.stringify(value, null, 2)
+        navigator.clipboard.writeText(text).then(
+            () => message.success({content: "Copied", duration: 1.5}),
+            () => message.error({content: "Copy failed", duration: 2}),
+        )
+    }, [value])
+
     return (
         <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2">
             <div className="flex items-center justify-between gap-2 min-w-0">
@@ -190,12 +215,35 @@ export function VariableCard({
                         </Tag>
                     ) : null}
                 </div>
-                <ViewTypeSelect
-                    value={mode}
-                    options={options}
-                    onChange={handleModeChange}
-                    disabled={!editable}
-                />
+                <div className="flex items-center gap-1 shrink-0">
+                    {/* Unified action cluster — copy + (when connected)
+                     *  testset-sync indicator. Same set on every card so
+                     *  the row reads as a consistent block of inputs. */}
+                    {connectedSourceName ? (
+                        <Tooltip title={`Synced from ${connectedSourceName}`} placement="top">
+                            <Database
+                                size={14}
+                                className="text-gray-400 shrink-0"
+                                aria-label="Synced from testset"
+                            />
+                        </Tooltip>
+                    ) : null}
+                    <Tooltip title="Copy value" placement="top">
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<CopySimple size={14} />}
+                            onClick={handleCopy}
+                            aria-label={`Copy ${name}`}
+                        />
+                    </Tooltip>
+                    <ViewTypeSelect
+                        value={mode}
+                        options={options}
+                        onChange={handleModeChange}
+                        disabled={!editable}
+                    />
+                </div>
             </div>
             <div className="block">
                 <CardBody

@@ -107,10 +107,10 @@ export function getViewOptions(value: unknown): ViewOption[] {
     const opts: ViewOption[] = []
 
     if (kind === "string") {
-        opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "text", label: "String", hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
     } else if (kind === "boolean") {
-        opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "text", label: "String", hint: "default"})
     } else if (kind === "chat") {
         opts.push({value: "chat", label: "Chat", hint: "default"})
     } else if (kind === "object") {
@@ -188,12 +188,12 @@ export function getViewOptionsForExpectedType(
 
     const opts: ViewOption[] = []
     if (expectedKind === "string") {
-        opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "text", label: "String", hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
         opts.push({value: "json", label: "JSON"})
         opts.push({value: "yaml", label: "YAML"})
     } else if (expectedKind === "boolean") {
-        opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "text", label: "String", hint: "default"})
         opts.push({value: "json", label: "JSON"})
         opts.push({value: "yaml", label: "YAML"})
     } else if (expectedType === "array") {

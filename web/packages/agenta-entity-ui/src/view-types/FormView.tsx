@@ -417,16 +417,15 @@ const styles = {
         gap: 8,
         minWidth: 0,
     },
-    /* Unified field label — same vocabulary as `VariableCard`'s name in
-     * the parent header (mono, 12px, weight 500, brand blue). Nesting is
-     * communicated by the indent + rail; children shouldn't outweigh
-     * their parent name. */
+    /* Nested field label — distinguishes a PROPERTY of the value from the
+     * VARIABLE NAME (which the parent VariableCard renders in blue mono).
+     * Dark + bold + sans-serif at the parent name's size, so children
+     * don't outweigh the parent but still read as a distinct concept. */
     fieldLabel: {
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
         fontSize: 12,
-        fontWeight: 500,
+        fontWeight: 600,
         lineHeight: "20px",
-        color: "#1677FF",
+        color: "#1f2937",
         margin: 0,
     },
     nestedRail: {
