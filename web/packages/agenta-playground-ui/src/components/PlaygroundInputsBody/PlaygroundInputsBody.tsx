@@ -121,6 +121,9 @@ export interface PlaygroundInputsBodyProps {
     /** Optional. When `unreferencedColumns` is shown and the footer is
      *  expanded, gate edits to those rows. Defaults to read-only. */
     unreferencedEditable?: boolean
+    /** Active prompt template format. Forwarded to every `VariableCard`
+     *  so chat-mode rendering tokenizes the right `{{...}}` syntax. */
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
 }
 
 export function PlaygroundInputsBody({
@@ -134,6 +137,7 @@ export function PlaygroundInputsBody({
     onViewModeChange,
     unreferencedEditable = false,
     connectedSourceName,
+    templateFormat,
 }: PlaygroundInputsBodyProps) {
     // `sections` takes precedence over the flat `inputs` list. We still need
     // to look up by name to route draft edits, so unify the membership
@@ -167,6 +171,7 @@ export function PlaygroundInputsBody({
             onValueChange={handleValueChange}
             onViewModeChange={onViewModeChange}
             connectedSourceName={connectedSourceName}
+            templateFormat={templateFormat}
         />
     )
 
