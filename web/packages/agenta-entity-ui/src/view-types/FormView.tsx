@@ -402,6 +402,14 @@ const styles = {
         justifyContent: "space-between",
         gap: 8,
         minWidth: 0,
+        // Stretch the label row past `formOuter`'s right padding so the
+        // per-field `View as ▾` button right-aligns with the card-level
+        // dropdown above (which sits flush with the card content's right
+        // edge). The field BODY (leafCard / nested rail / etc.) stays
+        // inside the padding so the input rectangle keeps its breathing
+        // room from the card border. Negative margin matches
+        // `formOuter.paddingRight` — keep them in sync if either changes.
+        marginRight: -20,
     },
     labelLeft: {
         display: "flex",
