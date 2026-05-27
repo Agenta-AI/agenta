@@ -52,17 +52,25 @@ describe("formatters: valueToDisplay", () => {
             expect(valueToDisplay([1, 2], "json")).toBe("[\n  1,\n  2\n]")
         })
 
-        it("pretty-prints strings that ARE valid JSON", () => {
-            expect(valueToDisplay('{"a":1}', "json")).toBe('{\n  "a": 1\n}')
+        it("renders strings as JSON-literal (gap-04: strings stay strings — never parse)", () => {
+            // Plain string → quoted JSON literal. Crucially NOT the raw
+            // unquoted text, which the JSON code editor flags as a syntax
+            // error.
+            expect(valueToDisplay("Vanuatu", "json")).toBe('"Vanuatu"')
         })
 
-        it("returns the raw string when it is NOT valid JSON", () => {
-            expect(valueToDisplay("hello", "json")).toBe("hello")
+        it("renders JSON-shaped strings AS STRINGS (never auto-parse into objects)", () => {
+            // The metadata bug Mahmoud flagged: stringified JSON must NOT be
+            // mistaken for an object. The display preserves the string type
+            // by JSON-encoding the string literal (outer quotes, escaped
+            // inner quotes) instead of parsing + pretty-printing.
+            expect(valueToDisplay('{"a":1}', "json")).toBe('"{\\"a\\":1}"')
         })
 
         it("stringifies primitives as JSON literals", () => {
             expect(valueToDisplay(42, "json")).toBe("42")
             expect(valueToDisplay(true, "json")).toBe("true")
+            expect(valueToDisplay(false, "json")).toBe("false")
         })
     })
 
@@ -73,12 +81,21 @@ describe("formatters: valueToDisplay", () => {
             expect(out).toContain("b: two")
         })
 
-        it("dumps strings that ARE valid JSON as YAML", () => {
+        it("dumps strings AS STRINGS (never auto-parse JSON-shaped strings)", () => {
+            // gap-04: type preservation in display. A string containing
+            // JSON-shaped text gets yamlDump'd as a YAML scalar (quoted
+            // because the leading `{` would otherwise be ambiguous), NOT
+            // converted to a YAML mapping.
             const out = valueToDisplay('{"a":1}', "yaml")
-            expect(out).toContain("a: 1")
+            // The result is a YAML scalar — quoted or escaped depending on
+            // js-yaml's choice, but it must NOT produce a `a: 1` mapping.
+            expect(out).not.toMatch(/^a:\s/m)
+            // And the original string content survives a YAML re-parse.
+            // (Sanity check that we're dumping the string, not anything else.)
+            expect(out).toContain('{"a":1}')
         })
 
-        it("returns the raw string when it is not valid JSON", () => {
+        it("dumps plain strings as YAML plain scalars", () => {
             expect(valueToDisplay("hello world", "yaml").trim()).toBe("hello world")
         })
 
@@ -90,9 +107,14 @@ describe("formatters: valueToDisplay", () => {
             // placeholder takes over and the user types fresh YAML.
             expect(valueToDisplay([], "yaml")).toBe("")
             expect(valueToDisplay({}, "yaml")).toBe("")
-            // Strings that PARSE to empty containers get the same treatment.
-            expect(valueToDisplay("[]", "yaml")).toBe("")
-            expect(valueToDisplay("{}", "yaml")).toBe("")
+        })
+
+        it("preserves string-typed empty-container LITERALS (gap-04)", () => {
+            // `"[]"` is a STRING — it should NOT be parsed and then
+            // emptied. It survives as a YAML string scalar.
+            const out = valueToDisplay("[]", "yaml")
+            expect(out).not.toBe("") // not suppressed (it's a string, not an empty array)
+            expect(out).toContain("[]")
         })
 
         it("still dumps non-empty arrays / objects as block-style YAML", () => {

@@ -33,13 +33,23 @@ function isEmptyContainer(value: unknown): boolean {
 /**
  * Render a value as a string for display in an editor, per view mode.
  *
- * - text/markdown: primitives stringify naturally; objects/arrays show as
- *   compact JSON (matches the runtime's `{{var}}` rendering for whole-object
- *   insertion).
- * - json: pretty-printed JSON (objects/arrays as object/array literal; strings
- *   that already contain JSON-shaped text get pretty-printed too).
- * - yaml: YAML dump of the native value, falling back to raw string if the
- *   value isn't safely convertible.
+ * View modes are pure REPRESENTATION transforms — they NEVER change the
+ * value's type. A string is a string in every mode; an object is an object
+ * in every mode. Per the gap-04 invariant ("native JSON stays native"), we
+ * never auto-parse a JSON-shaped string into an object for display.
+ *
+ * - text / markdown: primitives stringify naturally; objects / arrays show
+ *   as compact JSON (matches the runtime's `{{var}}` rendering for
+ *   whole-object insertion).
+ * - json: `JSON.stringify(value, null, 2)` regardless of type.
+ *     - string  "Vanuatu"        → `"Vanuatu"`  (JSON literal, quoted)
+ *     - string  '{"a":1}'        → `"{\"a\":1}"` (escaped JSON literal — still a STRING)
+ *     - object  {a: 1}           → `{\n  "a": 1\n}` (multi-line)
+ *     - array   ["a", "b"]       → `[\n  "a",\n  "b"\n]`
+ *     - number  42               → `42`
+ *     - boolean true             → `true`
+ * - yaml: `yamlDump(value)` regardless of type. YAML's plain scalars cover
+ *   primitives; objects / arrays produce proper block-style YAML.
  *
  * Returns `""` for `null` and `undefined` so the editor renders empty.
  */
@@ -57,14 +67,10 @@ export function valueToDisplay(value: unknown, mode: ViewType): string {
     }
 
     if (mode === "json") {
-        if (typeof value === "string") {
-            try {
-                const parsed = JSON.parse(value)
-                return JSON.stringify(parsed, null, 2)
-            } catch {
-                return value
-            }
-        }
+        // No string special-case — strings get JSON-encoded into a literal
+        // (`"value"` with internal escapes if needed). If the string happens
+        // to contain JSON-shaped text, we still render it as a STRING
+        // literal; the type doesn't silently change at display time.
         try {
             return JSON.stringify(value, null, 2)
         } catch {
@@ -73,21 +79,15 @@ export function valueToDisplay(value: unknown, mode: ViewType): string {
     }
 
     if (mode === "yaml") {
-        if (typeof value === "string") {
-            try {
-                const parsed = JSON.parse(value)
-                if (isEmptyContainer(parsed)) return ""
-                return yamlDump(parsed, {noCompatMode: true, lineWidth: 100})
-            } catch {
-                return value
-            }
-        }
         // Empty containers (`[]` / `{}`) only have a flow-style YAML
         // representation, which looks identical to JSON literals. Return
         // an empty buffer instead so the editor's placeholder guides the
-        // user to type proper YAML; once they have actual data,
-        // `yamlDump` produces real block-style output.
+        // user to type proper YAML.
         if (isEmptyContainer(value)) return ""
+        // No string special-case here either — yamlDump handles strings as
+        // plain scalars (`Vanuatu`) and JSON-shaped strings as quoted
+        // scalars when needed (`'{"a":1}'`). Type preservation, same as
+        // JSON mode.
         try {
             return yamlDump(value, {noCompatMode: true, lineWidth: 100})
         } catch {
