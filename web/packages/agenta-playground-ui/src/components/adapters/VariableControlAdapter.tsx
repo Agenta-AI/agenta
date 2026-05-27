@@ -1,9 +1,14 @@
-import React, {useCallback, useEffect, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useState} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {getCollapseStyle} from "@agenta/ui/components/presentational"
 import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
-import {DrillInProvider, EditorProvider, markdownViewAtom} from "@agenta/ui/editor"
+import {
+    DrillInProvider,
+    EditorProvider,
+    SET_MARKDOWN_VIEW,
+    useLexicalComposerContext,
+} from "@agenta/ui/editor"
 import type {EditorProps} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
@@ -76,15 +81,19 @@ const VariableHeader: React.FC<{
     </div>
 )
 
-const MarkdownViewSynchronizer: React.FC<{editorId: string; enabled: boolean}> = ({
-    editorId,
-    enabled,
-}) => {
-    const setMarkdownView = useSetAtom(markdownViewAtom(editorId))
+const MarkdownViewSynchronizer: React.FC<{enabled: boolean}> = ({enabled}) => {
+    const [editor] = useLexicalComposerContext()
+
+    useLayoutEffect(() => {
+        editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+    }, [editor, enabled])
 
     useEffect(() => {
-        setMarkdownView(enabled)
-    }, [enabled, setMarkdownView])
+        const frameId = requestAnimationFrame(() => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+        })
+        return () => cancelAnimationFrame(frameId)
+    }, [editor, enabled])
 
     return null
 }
@@ -513,7 +522,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 enableTokens={!editorProps?.codeOnly}
                 disabled={isEffectivelyDisabled}
             >
-                <MarkdownViewSynchronizer editorId={editorId} enabled={viewMode === "markdown"} />
+                <MarkdownViewSynchronizer enabled={viewMode === "markdown"} />
                 <SharedEditor
                     id={editorId}
                     noProvider

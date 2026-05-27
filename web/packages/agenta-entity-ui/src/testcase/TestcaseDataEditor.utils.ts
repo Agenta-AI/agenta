@@ -1,4 +1,4 @@
-import {getValueAtPath, setValueAtPath, type DataPath} from "@agenta/shared/utils"
+import {getValueAtPath, hasValueAtPath, setValueAtPath, type DataPath} from "@agenta/shared/utils"
 
 import type {
     TestcaseDataEditorColumn,
@@ -115,6 +115,66 @@ export function setTestcaseColumnValue(
     }
 
     return {...value, [column.key]: nextValue}
+}
+
+function hasTestcaseColumnValue(
+    value: Record<string, unknown>,
+    column: TestcaseDataEditorColumn,
+): boolean {
+    const mode = column.pathMode ?? "direct"
+
+    if (mode === "direct") {
+        return Object.prototype.hasOwnProperty.call(value, column.key)
+    }
+
+    if (mode === "nested") {
+        return hasValueAtPath(value, column.key.split("."))
+    }
+
+    return (
+        Object.prototype.hasOwnProperty.call(value, column.key) ||
+        hasValueAtPath(value, column.key.split("."))
+    )
+}
+
+export function buildTestcaseCodeEditorValue(
+    value: Record<string, unknown>,
+    columns?: TestcaseDataEditorColumn[],
+): Record<string, unknown> {
+    if (!columns?.length) return value
+
+    let subset: Record<string, unknown> = {}
+
+    for (const column of columns) {
+        const columnValue = getTestcaseColumnValue(value, column)
+        if (columnValue !== undefined) {
+            subset = setTestcaseColumnValue(subset, column, columnValue)
+        }
+    }
+
+    return subset
+}
+
+export function mergeTestcaseCodeEditorValue(
+    value: Record<string, unknown>,
+    nextValue: Record<string, unknown>,
+    columns?: TestcaseDataEditorColumn[],
+): Record<string, unknown> {
+    if (!columns?.length) return nextValue
+
+    let merged = value
+
+    for (const column of columns) {
+        if (hasTestcaseColumnValue(nextValue, column)) {
+            merged = setTestcaseColumnValue(
+                merged,
+                column,
+                getTestcaseColumnValue(nextValue, column),
+            )
+        }
+    }
+
+    return merged
 }
 
 export function getTestcasePathValue(

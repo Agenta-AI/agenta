@@ -31,8 +31,9 @@ import {
 } from "../../state/focusDrawerAtom"
 import {clearFocusDrawerQueryParams, patchFocusDrawerQueryParams} from "../../state/urlFocusDrawer"
 
-import EvaluatorMetricsAdapter from "./EvaluatorMetricsAdapter"
-import InvocationOutputsAdapter from "./InvocationOutputsAdapter"
+import {buildEvaluationDrawerPayload} from "./drawerPayload"
+import EvaluatorMetricsAdapter, {useEvaluatorMetricDrawerData} from "./EvaluatorMetricsAdapter"
+import InvocationOutputsAdapter, {useInvocationOutputDrawerData} from "./InvocationOutputsAdapter"
 import {
     buildEvalDrawerItemIdentity,
     extractEmbeddedInputValue,
@@ -132,6 +133,16 @@ const EvalTestcaseDrawerAdapter = () => {
             }),
         [columnResult?.columns, columnResult?.groups],
     )
+    const outputData = useInvocationOutputDrawerData({
+        runId: runId ?? "",
+        scenarioId: scenarioId ?? "",
+        sections: outputSections,
+    })
+    const metricData = useEvaluatorMetricDrawerData({
+        runId: runId ?? "",
+        scenarioId: scenarioId ?? "",
+        sections: metricSections,
+    })
 
     const identity = useMemo(() => {
         if (!scenarioId) return null
@@ -148,6 +159,16 @@ const EvalTestcaseDrawerAdapter = () => {
 
         return extractEmbeddedInputValue(stepsQuery.data?.steps ?? [], inputColumns)
     }, [inputColumns, sourceTestcaseId, stepsQuery.data?.steps, testcaseData])
+    const drawerPayload = useMemo(
+        () =>
+            buildEvaluationDrawerPayload({
+                inputs: inputValue,
+                outputs: outputData.value,
+                evaluators: metricData.evaluators.value,
+                metrics: metricData.metrics.value,
+            }),
+        [inputValue, metricData.evaluators.value, metricData.metrics.value, outputData.value],
+    )
 
     const isLoading =
         columnsPending ||
@@ -203,47 +224,73 @@ const EvalTestcaseDrawerAdapter = () => {
     const currentScenario = currentIndex >= 0 ? loadedScenarios[currentIndex] : null
 
     const renderContent = useCallback(
-        ({initialPath, onPathChange}: TestcaseDrawerContentRenderProps): ReactNode => (
-            <div className="w-full [&_.drill-in-breadcrumb]:pl-4 [&_.drill-in-field-content]:px-4 [&_.drill-in-field-content]:pt-2">
-                <TestcaseDataEditor
-                    value={inputValue}
-                    columns={editorColumns}
-                    mode="view"
-                    surface="drawer"
-                    initialPath={initialPath}
-                    onPathChange={onPathChange}
-                    features={{
-                        typeChips: true,
-                        rootViewMode: true,
-                        columnMapping: false,
-                    }}
-                />
-            </div>
-        ),
-        [editorColumns, inputValue],
-    )
+        ({
+            initialPath,
+            onPathChange,
+            rootViewMode,
+            collapseSignal,
+        }: TestcaseDrawerContentRenderProps): ReactNode => {
+            if (rootViewMode !== "form") {
+                return (
+                    <div className="w-full">
+                        <TestcaseDataEditor
+                            value={drawerPayload}
+                            mode="view"
+                            surface="drawer"
+                            features={{
+                                typeChips: true,
+                                rootViewMode: false,
+                                columnMapping: false,
+                            }}
+                            rootViewMode={rootViewMode}
+                        />
+                    </div>
+                )
+            }
 
-    const renderOutputs = useCallback((): ReactNode => {
-        if (!outputSections.length) return null
-
-        return (
-            <InvocationOutputsAdapter
-                runId={runId ?? ""}
-                scenarioId={scenarioId ?? ""}
-                sections={outputSections}
-            />
-        )
-    }, [outputSections, runId, scenarioId])
-
-    const renderEvaluatorMetrics = useCallback(
-        (): ReactNode => (
-            <EvaluatorMetricsAdapter
-                runId={runId ?? ""}
-                scenarioId={scenarioId ?? ""}
-                sections={metricSections}
-            />
-        ),
-        [metricSections, runId, scenarioId],
+            return (
+                <div className="w-full [&_.drill-in-breadcrumb]:pl-4 [&_.drill-in-field-content]:px-4 [&_.drill-in-field-content]:pt-2">
+                    <TestcaseDataEditor
+                        value={inputValue}
+                        columns={editorColumns}
+                        mode="view"
+                        surface="drawer"
+                        initialPath={initialPath}
+                        onPathChange={onPathChange}
+                        features={{
+                            typeChips: true,
+                            rootViewMode: false,
+                            columnMapping: false,
+                        }}
+                        rootViewMode={rootViewMode}
+                        collapseSignal={collapseSignal}
+                    />
+                    <InvocationOutputsAdapter
+                        runId={runId ?? ""}
+                        scenarioId={scenarioId ?? ""}
+                        sections={outputSections}
+                        rootViewMode={rootViewMode}
+                        collapseSignal={collapseSignal}
+                    />
+                    <EvaluatorMetricsAdapter
+                        runId={runId ?? ""}
+                        scenarioId={scenarioId ?? ""}
+                        sections={metricSections}
+                        rootViewMode={rootViewMode}
+                        collapseSignal={collapseSignal}
+                    />
+                </div>
+            )
+        },
+        [
+            drawerPayload,
+            editorColumns,
+            inputValue,
+            metricSections,
+            outputSections,
+            runId,
+            scenarioId,
+        ],
     )
 
     useEffect(() => {
@@ -279,7 +326,7 @@ const EvalTestcaseDrawerAdapter = () => {
             hasPrevious={hasPrevious}
             hasNext={hasNext}
             testcaseNumber={currentScenario?.scenarioIndex ?? focus?.scenarioIndex ?? undefined}
-            testcaseData={inputValue}
+            testcaseData={drawerPayload}
             isLoading={isLoading}
             isError={Boolean(error)}
             errorMessage={
@@ -287,8 +334,7 @@ const EvalTestcaseDrawerAdapter = () => {
             }
             isDirty={false}
             renderContent={renderContent}
-            renderOutputs={renderOutputs}
-            renderEvaluatorMetrics={renderEvaluatorMetrics}
+            enableRootViewMode
         />
     )
 }

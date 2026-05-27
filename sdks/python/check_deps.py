@@ -33,10 +33,8 @@ RESET = "\033[0m"
 def version_tuple(v: str) -> tuple[int, ...]:
     parts = []
     for p in v.split(".")[:3]:
-        try:
-            parts.append(int(p))
-        except ValueError:
-            parts.append(0)
+        digits = "".join(c for c in p if c.isdigit())
+        parts.append(int(digits) if digits else 0)
     return tuple(parts)
 
 

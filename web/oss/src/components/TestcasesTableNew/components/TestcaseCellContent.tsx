@@ -8,10 +8,11 @@ import {
     extractChatMessages,
     normalizeValue,
     safeJsonStringify,
-    tryParseJson,
     type ChatPreviewStrategy,
 } from "@agenta/ui/cell-renderers"
 import {Typography} from "antd"
+
+import {parseTestcaseCellJson} from "./testcaseCellValueUtils"
 
 const {Text} = Typography
 const LAST_USER_PREVIEW_COLUMNS = new Set(["messages", "prompt", "input_messages"])
@@ -43,7 +44,7 @@ export function getTestcaseChatPreviewStrategy(
  */
 const TestcaseCellContent = memo(({value, columnKey, maxLines = 10}: TestcaseCellContentProps) => {
     const keyPrefix = useId()
-    const {parsed: jsonValue, isJson} = useMemo(() => tryParseJson(value), [value])
+    const {parsed: jsonValue, isJson} = useMemo(() => parseTestcaseCellJson(value), [value])
     const displayValue = useMemo(() => normalizeValue(value), [value])
     const chatPreviewStrategy = useMemo(
         () => getTestcaseChatPreviewStrategy(columnKey),
@@ -71,7 +72,7 @@ const TestcaseCellContent = memo(({value, columnKey, maxLines = 10}: TestcaseCel
         if (isChatMessages) {
             return (
                 <ChatMessagesCellContent
-                    value={value}
+                    value={jsonValue}
                     keyPrefix={`${keyPrefix}-popover`}
                     truncate={false}
                 />
@@ -88,7 +89,7 @@ const TestcaseCellContent = memo(({value, columnKey, maxLines = 10}: TestcaseCel
         if (isChatMessages) {
             return (
                 <ChatMessagesCellContent
-                    value={value}
+                    value={jsonValue}
                     keyPrefix={keyPrefix}
                     previewStrategy={chatPreviewStrategy}
                     maxLines={4}

@@ -1,7 +1,7 @@
 from typing import Optional, List, Tuple
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.shared.dtos import (
     sync_alias,
@@ -154,6 +154,8 @@ class TestsetVariantQuery(VariantQuery):
 
 
 class TestsetRevisionData(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     testcase_ids: Optional[List[UUID]] = None
     testcases: Optional[List[Testcase]] = None
 

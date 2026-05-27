@@ -30,12 +30,14 @@ function CodeEditor({
     displayValue,
     viewMode,
     onChange,
+    readOnly,
 }: {
     editorId: string
     value: unknown
     displayValue: string
     viewMode?: ViewMode
     onChange: (value: unknown) => void
+    readOnly?: boolean
 }) {
     if (viewMode !== "yaml") {
         return (
@@ -43,6 +45,7 @@ function CodeEditor({
                 editorKey={editorId}
                 initialValue={displayValue}
                 onValidChange={(nextValue) => onChange(parseCodeEditorValue(nextValue, value))}
+                readOnly={readOnly}
             />
         )
     }
@@ -60,13 +63,17 @@ function CodeEditor({
                 id={editorId}
                 initialValue={displayValue}
                 value={displayValue}
-                handleChange={(nextValue) =>
-                    onChange(parseCodeEditorValue(nextValue, value, viewMode))
+                handleChange={
+                    readOnly
+                        ? undefined
+                        : (nextValue) => onChange(parseCodeEditorValue(nextValue, value, viewMode))
                 }
                 editorType="border"
                 className="min-h-[60px] overflow-hidden"
                 disableDebounce
                 noProvider
+                disabled={readOnly}
+                state={readOnly ? "readOnly" : undefined}
                 editorProps={{
                     codeOnly: true,
                     language: "yaml",
@@ -103,12 +110,14 @@ function TextEditor({
     displayValue,
     markdown,
     onChange,
+    readOnly,
 }: {
     editorId: string
     value: unknown
     displayValue: string
     markdown?: boolean
     onChange: (value: unknown) => void
+    readOnly?: boolean
 }) {
     // Auto-infer native types from typed text so number / boolean values
     // stop getting stored as strings. Anything that doesn't look exactly
@@ -132,11 +141,13 @@ function TextEditor({
                 id={editorId}
                 initialValue={displayValue}
                 value={displayValue}
-                handleChange={handleChange}
+                handleChange={readOnly ? undefined : handleChange}
                 editorType="border"
                 className="overflow-hidden"
                 disableDebounce
                 noProvider
+                disabled={readOnly}
+                state={readOnly ? "readOnly" : undefined}
                 editorProps={
                     markdown
                         ? {
@@ -171,7 +182,7 @@ export function TestcaseDrillInFieldRenderer({
         [onChange],
     )
 
-    if (!editable || isRawMode) {
+    if (isRawMode) {
         return (
             <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 p-3 bg-gray-50 rounded-md max-h-[200px] overflow-auto">
                 {displayValue}
@@ -188,6 +199,7 @@ export function TestcaseDrillInFieldRenderer({
                 displayValue={displayValue}
                 viewMode={viewMode}
                 onChange={onChange}
+                readOnly={!editable}
             />
         )
     }
@@ -237,6 +249,7 @@ export function TestcaseDrillInFieldRenderer({
                 displayValue={displayValue}
                 markdown
                 onChange={onChange}
+                readOnly={!editable}
             />
         )
     }
@@ -248,6 +261,7 @@ export function TestcaseDrillInFieldRenderer({
                 value={value}
                 displayValue={displayValue}
                 onChange={onChange}
+                readOnly={!editable}
             />
         )
     }
@@ -261,6 +275,7 @@ export function TestcaseDrillInFieldRenderer({
                 displayValue={displayValue}
                 viewMode={viewMode}
                 onChange={onChange}
+                readOnly={!editable}
             />
         )
     }
@@ -271,6 +286,7 @@ export function TestcaseDrillInFieldRenderer({
             value={value}
             displayValue={displayValue}
             onChange={onChange}
+            readOnly={!editable}
         />
     )
 }

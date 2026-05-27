@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import type {TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
+import type {RootDrawerViewMode, TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {atom, useAtomValue} from "jotai"
 
@@ -25,12 +25,16 @@ interface ValueSectionProps {
     runId: string
     scenarioId: string
     sections: EvalDrawerMetricSection[]
+    rootViewMode?: RootDrawerViewMode
+    collapseSignal?: number
 }
 
 interface EvaluatorMetricsAdapterProps {
     runId: string
     scenarioId: string
     sections: EvalDrawerMetricSection[]
+    rootViewMode?: RootDrawerViewMode
+    collapseSignal?: number
 }
 
 const getEditorKey = (section: EvalDrawerMetricSection, column: EvaluationTableColumn) =>
@@ -79,7 +83,11 @@ const formatDrawerValue = ({
     return typeof formatted === "boolean" ? String(formatted) : formatted
 }
 
-const ValueSection = ({title, runId, scenarioId, sections}: ValueSectionProps) => {
+function useMetricValueSectionData({
+    runId,
+    scenarioId,
+    sections,
+}: Pick<ValueSectionProps, "runId" | "scenarioId" | "sections">) {
     const editorColumns = useMemo(
         () =>
             sections.flatMap((section) =>
@@ -142,14 +150,74 @@ const ValueSection = ({title, runId, scenarioId, sections}: ValueSectionProps) =
     )
     const value = useAtomValue(valueAtom)
 
-    if (!editorColumns.length) return null
-
-    return <EvalDrawerDataSection title={title} value={value} columns={editorColumns} />
+    return {columns: editorColumns, value}
 }
 
-const EvaluatorMetricsAdapter = ({runId, scenarioId, sections}: EvaluatorMetricsAdapterProps) => {
-    const evaluatorSections = sections.filter((section) => section.kind === "annotation")
-    const metricSections = sections.filter((section) => section.kind === "metric")
+export function useEvaluatorMetricDrawerData({
+    runId,
+    scenarioId,
+    sections,
+}: Pick<EvaluatorMetricsAdapterProps, "runId" | "scenarioId" | "sections">) {
+    const evaluatorSections = useMemo(
+        () => sections.filter((section) => section.kind === "annotation"),
+        [sections],
+    )
+    const metricSections = useMemo(
+        () => sections.filter((section) => section.kind === "metric"),
+        [sections],
+    )
+    const evaluators = useMetricValueSectionData({
+        runId,
+        scenarioId,
+        sections: evaluatorSections,
+    })
+    const metrics = useMetricValueSectionData({
+        runId,
+        scenarioId,
+        sections: metricSections,
+    })
+
+    return {evaluators, metrics}
+}
+
+const ValueSection = ({
+    title,
+    runId,
+    scenarioId,
+    sections,
+    rootViewMode,
+    collapseSignal,
+}: ValueSectionProps) => {
+    const {columns, value} = useMetricValueSectionData({runId, scenarioId, sections})
+
+    if (!columns.length) return null
+
+    return (
+        <EvalDrawerDataSection
+            title={title}
+            value={value}
+            columns={columns}
+            rootViewMode={rootViewMode}
+            collapseSignal={collapseSignal}
+        />
+    )
+}
+
+const EvaluatorMetricsAdapter = ({
+    runId,
+    scenarioId,
+    sections,
+    rootViewMode,
+    collapseSignal,
+}: EvaluatorMetricsAdapterProps) => {
+    const evaluatorSections = useMemo(
+        () => sections.filter((section) => section.kind === "annotation"),
+        [sections],
+    )
+    const metricSections = useMemo(
+        () => sections.filter((section) => section.kind === "metric"),
+        [sections],
+    )
 
     if (!evaluatorSections.length && !metricSections.length) return null
 
@@ -160,12 +228,16 @@ const EvaluatorMetricsAdapter = ({runId, scenarioId, sections}: EvaluatorMetrics
                 runId={runId}
                 scenarioId={scenarioId}
                 sections={evaluatorSections}
+                rootViewMode={rootViewMode}
+                collapseSignal={collapseSignal}
             />
             <ValueSection
                 title="Metrics"
                 runId={runId}
                 scenarioId={scenarioId}
                 sections={metricSections}
+                rootViewMode={rootViewMode}
+                collapseSignal={collapseSignal}
             />
         </div>
     )

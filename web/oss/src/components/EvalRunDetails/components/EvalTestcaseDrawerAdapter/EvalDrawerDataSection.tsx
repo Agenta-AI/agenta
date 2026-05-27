@@ -1,12 +1,24 @@
-import {TestcaseDataEditor, type TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
+import {
+    TestcaseDataEditor,
+    type RootDrawerViewMode,
+    type TestcaseDataEditorColumn,
+} from "@agenta/entity-ui/testcase"
 
 interface EvalDrawerDataSectionProps {
     title: string
     value: Record<string, unknown>
     columns: TestcaseDataEditorColumn[]
+    rootViewMode?: RootDrawerViewMode
+    collapseSignal?: number
 }
 
-const EvalDrawerDataSection = ({title, value, columns}: EvalDrawerDataSectionProps) => {
+const EvalDrawerDataSection = ({
+    title,
+    value,
+    columns,
+    rootViewMode = "form",
+    collapseSignal = 0,
+}: EvalDrawerDataSectionProps) => {
     if (!columns.length) return null
 
     return (
@@ -19,9 +31,11 @@ const EvalDrawerDataSection = ({title, value, columns}: EvalDrawerDataSectionPro
                 label={title}
                 features={{
                     typeChips: true,
-                    rootViewMode: true,
+                    rootViewMode: false,
                     columnMapping: false,
                 }}
+                rootViewMode={rootViewMode}
+                collapseSignal={collapseSignal}
             />
         </div>
     )

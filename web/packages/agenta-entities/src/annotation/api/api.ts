@@ -12,7 +12,8 @@
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {z} from "zod"
 
-import {safeParseWithLogging} from "../../shared"
+// See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {annotationSchema, type Annotation, type AnnotationsResponse} from "../core"
 import type {
     AnnotationDetailParams,

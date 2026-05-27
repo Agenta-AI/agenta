@@ -18,8 +18,10 @@ import deepEqual from "fast-deep-equal"
 import {parseCodeString, toCodeString, type RootDrawerViewMode} from "./codeFormat"
 import type {TestcaseDataEditorColumn, TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
 import {
+    buildTestcaseCodeEditorValue,
     getTestcasePathValue,
     getTestcaseRootItems,
+    mergeTestcaseCodeEditorValue,
     normalizeTestcaseData,
     resolveTestcaseEditorFeatures,
     setTestcasePathValue,
@@ -74,12 +76,7 @@ function FullPayloadCodeEditor({
     // commit then fails zod validation). On change, merge edits back over the
     // original value so system fields survive.
     const editableValue = useMemo(() => {
-        if (!columns?.length) return value
-        const subset: Record<string, unknown> = {}
-        for (const column of columns) {
-            subset[column.key] = value[column.key]
-        }
-        return subset
+        return buildTestcaseCodeEditorValue(value, columns)
     }, [columns, value])
 
     const displayValue = useMemo(() => toCodeString(editableValue, format), [editableValue, format])
@@ -92,33 +89,26 @@ function FullPayloadCodeEditor({
             if (parsed === editableValue) return
             const parsedRecord = normalizeTestcaseData(parsed as Record<string, unknown>)
             if (deepEqual(parsedRecord, editableValue)) return
-            onChange(columns?.length ? {...value, ...parsedRecord} : parsedRecord)
+            onChange(mergeTestcaseCodeEditorValue(value, parsedRecord, columns))
         },
         [columns, editable, editableValue, format, onChange, value],
     )
 
-    if (!editable) {
-        return (
-            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 p-4 bg-gray-50 overflow-auto">
-                {displayValue}
-            </pre>
-        )
-    }
-
     if (format === "json") {
         return (
-            <div className="p-4">
+            <div className="px-6 py-4">
                 <JsonEditorWithLocalState
                     editorKey={editorId}
                     initialValue={displayValue}
                     onValidChange={handleChange}
+                    readOnly={!editable}
                 />
             </div>
         )
     }
 
     return (
-        <div className="p-4">
+        <div className="px-6 py-4">
             <EditorProvider
                 key={`${editorId}-provider`}
                 id={editorId}
@@ -131,11 +121,13 @@ function FullPayloadCodeEditor({
                     id={editorId}
                     initialValue={displayValue}
                     value={displayValue}
-                    handleChange={handleChange}
+                    handleChange={editable ? handleChange : undefined}
                     editorType="border"
                     className="min-h-[200px] overflow-hidden"
                     disableDebounce
                     noProvider
+                    disabled={!editable}
+                    state={editable ? undefined : "readOnly"}
                     editorProps={{
                         codeOnly: true,
                         language: "yaml",

@@ -18,7 +18,8 @@ class EntityCreationConflict(Exception):
     def __str__(self):
         _message = self.message
 
-        for key, value in self.conflict.items():
-            _message += f" {key}={value}"
+        if self.conflict:
+            for key, value in self.conflict.items():
+                _message += f" {key}={value}"
 
         return _message
