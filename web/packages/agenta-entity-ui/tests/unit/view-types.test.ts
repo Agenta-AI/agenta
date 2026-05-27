@@ -9,6 +9,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    buildEmptyShapeFromSchema,
     detectFieldKind,
     detectNestedKind,
     getDefaultViewForExpectedType,
@@ -217,5 +218,100 @@ describe("view-types: expected-type-aware variants", () => {
         const opts = getViewOptionsForExpectedType(undefined, "string")
         expect(opts[0]?.value).toBe("text")
         expect(opts.map((o) => o.value)).toEqual(expect.arrayContaining(["markdown", "json"]))
+    })
+})
+
+describe("view-types: buildEmptyShapeFromSchema", () => {
+    it("returns null for null / non-object input", () => {
+        expect(buildEmptyShapeFromSchema(null)).toBeNull()
+        expect(buildEmptyShapeFromSchema(undefined)).toBeNull()
+        expect(buildEmptyShapeFromSchema("string")).toBeNull()
+    })
+
+    it("returns null for primitive schemas", () => {
+        expect(buildEmptyShapeFromSchema({type: "string"})).toBeNull()
+        expect(buildEmptyShapeFromSchema({type: "number"})).toBeNull()
+        expect(buildEmptyShapeFromSchema({type: "boolean"})).toBeNull()
+    })
+
+    it("returns an empty array for array schemas", () => {
+        expect(buildEmptyShapeFromSchema({type: "array"})).toEqual([])
+    })
+
+    it("builds an empty-value object from flat properties", () => {
+        const schema = {
+            type: "object",
+            properties: {region: {type: "string"}, subregion: {type: "string"}},
+        }
+        expect(buildEmptyShapeFromSchema(schema)).toEqual({region: "", subregion: ""})
+    })
+
+    it("recursively builds nested shapes from nested object properties", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                region: {type: "string"},
+                coordinates: {
+                    type: "object",
+                    properties: {lat: {type: "string"}, lng: {type: "string"}},
+                },
+            },
+        }
+        expect(buildEmptyShapeFromSchema(schema)).toEqual({
+            region: "",
+            coordinates: {lat: "", lng: ""},
+        })
+    })
+
+    it("prefers _pathHints over flat properties when both are present", () => {
+        // Playground's `buildSubPathSchema` flattens nested sub-paths into
+        // top-level `{type: "string"}` properties but preserves the original
+        // sub-paths in `_pathHints`. The helper reconstructs the nesting
+        // from `_pathHints` to surface the right structure.
+        const schema = {
+            type: "object",
+            properties: {
+                region: {type: "string"},
+                subregion: {type: "string"},
+                coordinates: {type: "string"}, // flattened
+            },
+            _pathHints: ["region", "subregion", "coordinates.lat", "coordinates.lng"],
+        }
+        expect(buildEmptyShapeFromSchema(schema)).toEqual({
+            region: "",
+            subregion: "",
+            coordinates: {lat: "", lng: ""},
+        })
+    })
+
+    it("handles empty _pathHints gracefully (falls back to properties)", () => {
+        const schema = {
+            type: "object",
+            properties: {region: {type: "string"}},
+            _pathHints: [],
+        }
+        expect(buildEmptyShapeFromSchema(schema)).toEqual({region: ""})
+    })
+
+    it("returns an empty object for object schemas with no properties / no hints", () => {
+        // Type-is-object but nothing to seed. The Form view will render an
+        // empty form (no fields) — caller can interpret that as "no shape".
+        expect(buildEmptyShapeFromSchema({type: "object"})).toBeNull()
+    })
+
+    it("doesn't crash on malformed _pathHints (non-string entries)", () => {
+        const schema = {
+            type: "object",
+            // @ts-expect-error — testing runtime robustness
+            _pathHints: ["valid.path", null, 42, "another"],
+        }
+        // Defensive — the helper just skips non-string entries.
+        const result = buildEmptyShapeFromSchema(schema)
+        expect(result).toEqual(
+            expect.objectContaining({
+                valid: {path: ""},
+                another: "",
+            }),
+        )
     })
 })

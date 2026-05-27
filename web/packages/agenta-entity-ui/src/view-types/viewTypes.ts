@@ -205,3 +205,85 @@ export function getDefaultViewForExpectedType(
 ): ViewType {
     return getViewOptionsForExpectedType(value, expectedType)[0]?.value ?? "json"
 }
+
+// ─── Empty-shape seed from JSON schema ─────────────────────────────────────
+//
+// When a draft variable references sub-paths (`{{geo.region}}`,
+// `{{geo.coordinates.lat}}`) but has no value yet, the playground's synthetic
+// port schema describes the expected structure two ways:
+//
+//   - `properties` — top-level keys flattened to `{type: "string"}` placeholders
+//   - `_pathHints` — original sub-paths (`["region", "coordinates.lat", ...]`)
+//                    preserving the nested shape information `properties` lost
+//
+// `buildEmptyShapeFromSchema` produces an empty-value object matching that
+// expected structure so Form view can show the fields and JSON / YAML modes
+// can seed their buffers with the right skeleton. Callers use it as a
+// render-only hint — until the user actually edits a field, the testcase
+// stays untouched.
+//
+// Returns `null` for primitive schemas (string / number / boolean) — those
+// don't have a "shape" worth seeding; the value-driven helpers handle them.
+
+/** Build a nested empty-value object from path-hints like `["a.b", "a.c"]`.
+ *  Defensive against malformed entries (non-strings are skipped) — the helper
+ *  receives data sourced from `unknown`-typed schema fragments. */
+function buildShapeFromPathHints(hints: unknown[]): Record<string, unknown> {
+    const out: Record<string, unknown> = {}
+    for (const path of hints) {
+        if (typeof path !== "string") continue
+        const segments = path.split(/[.[\]/]/).filter(Boolean)
+        if (segments.length === 0) continue
+        let cursor: Record<string, unknown> = out
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i]
+            const isLast = i === segments.length - 1
+            if (isLast) {
+                if (!(seg in cursor)) cursor[seg] = ""
+            } else {
+                const existing = cursor[seg]
+                if (typeof existing !== "object" || existing === null || Array.isArray(existing)) {
+                    cursor[seg] = {}
+                }
+                cursor = cursor[seg] as Record<string, unknown>
+            }
+        }
+    }
+    return out
+}
+
+/**
+ * Build a render-only empty-value seed matching the schema's expected
+ * structure. Returns `null` when there's nothing useful to seed (primitive
+ * type / missing properties / non-object input).
+ *
+ * Order of preference for object schemas:
+ *   1. `_pathHints` (preserves nested sub-paths)
+ *   2. `properties` (recursive, flat per level)
+ */
+export function buildEmptyShapeFromSchema(schema: unknown): unknown {
+    if (!schema || typeof schema !== "object") return null
+    const s = schema as {
+        type?: string
+        properties?: Record<string, unknown>
+        items?: unknown
+        _pathHints?: unknown
+    }
+
+    if (s.type === "object" && Array.isArray(s._pathHints) && s._pathHints.length > 0) {
+        return buildShapeFromPathHints(s._pathHints)
+    }
+
+    if (s.type === "object" && s.properties) {
+        const out: Record<string, unknown> = {}
+        for (const [key, prop] of Object.entries(s.properties)) {
+            const nested = buildEmptyShapeFromSchema(prop)
+            out[key] = nested ?? ""
+        }
+        return out
+    }
+
+    if (s.type === "array") return []
+    // Primitive / unknown schemas — no seed worth emitting.
+    return null
+}

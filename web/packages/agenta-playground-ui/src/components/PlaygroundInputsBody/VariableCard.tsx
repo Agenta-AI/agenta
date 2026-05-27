@@ -27,6 +27,7 @@ import {useCallback, useMemo, useState, type ReactNode} from "react"
 import {
     FormView,
     ViewTypeSelect,
+    buildEmptyShapeFromSchema,
     coerceTextEdit,
     inferLogicalType,
     isChatMessagesArray,
@@ -76,6 +77,13 @@ interface VariableCardProps {
      *  so a draft variable known to be an object shows the `object` chip
      *  instead of `null`. */
     expectedType?: ExpectedType
+    /** Declared port schema (JSON Schema fragment with `properties` /
+     *  `_pathHints`). When the variable is a draft (no value yet), Form /
+     *  JSON / YAML modes seed their initial render with an empty-value
+     *  skeleton built from this schema, so the user sees the expected
+     *  sub-fields without having to add them manually. Render-only — the
+     *  testcase value stays untouched until the user actually edits. */
+    expectedSchema?: unknown
     /** Whether the card is editable (vs read-only). */
     editable: boolean
     /** Writes the new value to the testcase / draft store. NATIVE value. */
@@ -95,6 +103,7 @@ export function VariableCard({
     isDraft,
     helpText,
     expectedType,
+    expectedSchema,
     editable,
     onValueChange,
     onViewModeChange,
@@ -133,6 +142,17 @@ export function VariableCard({
         }
         return inferLogicalType(value) as ChipVariant
     }, [value, expectedType])
+
+    // Render-only seed used by Form / JSON / YAML modes when the variable is
+    // a draft. The testcase value stays untouched — until the user actually
+    // edits a field, onChange never fires. See `buildEmptyShapeFromSchema`
+    // for the shape-derivation rules (prefers `_pathHints` over `properties`).
+    const seedShape = useMemo<unknown>(() => {
+        if (!expectedSchema) return null
+        const isEmpty = value === undefined || value === null || value === ""
+        if (!isEmpty) return null
+        return buildEmptyShapeFromSchema(expectedSchema)
+    }, [value, expectedSchema])
 
     return (
         <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2">
@@ -181,6 +201,7 @@ export function VariableCard({
                 <CardBody
                     mode={mode}
                     value={value}
+                    seedShape={seedShape}
                     editable={editable}
                     onChange={handleValueChange}
                 />
@@ -194,12 +215,24 @@ export function VariableCard({
 interface CardBodyProps {
     mode: ViewType
     value: unknown
+    /** Optional empty-value skeleton derived from the port schema, used as
+     *  the render-only seed for Form / JSON / YAML modes when `value` is a
+     *  draft (empty). The testcase stays untouched until the user actually
+     *  edits a field — `onChange` only fires on real edits. */
+    seedShape?: unknown
     editable: boolean
     onChange: (next: unknown) => void
 }
 
-function CardBody({mode, value, editable, onChange}: CardBodyProps): ReactNode {
+function CardBody({mode, value, seedShape, editable, onChange}: CardBodyProps): ReactNode {
     const originalType = useMemo<LogicalType>(() => inferLogicalType(value), [value])
+
+    // For structured modes (form / json / yaml), prefer the schema-derived
+    // seed when the testcase value is still empty so the user sees the
+    // expected fields. Other modes (text / markdown / chat) get the raw
+    // value — seeding wouldn't help there.
+    const valueIsEmpty = value === undefined || value === null || value === ""
+    const renderValue = valueIsEmpty && seedShape != null ? seedShape : value
 
     if (mode === "form") {
         // FormView expects an object record. If the value is an array, wrap
@@ -207,17 +240,17 @@ function CardBody({mode, value, editable, onChange}: CardBodyProps): ReactNode {
         // form can render. FormView itself recurses into arrays as well,
         // but its root signature is `Record<string, unknown>`.
         const obj =
-            value !== null && typeof value === "object" && !Array.isArray(value)
-                ? (value as Record<string, unknown>)
-                : Array.isArray(value)
-                  ? Object.fromEntries(value.map((v, i) => [String(i), v]))
+            renderValue !== null && typeof renderValue === "object" && !Array.isArray(renderValue)
+                ? (renderValue as Record<string, unknown>)
+                : Array.isArray(renderValue)
+                  ? Object.fromEntries(renderValue.map((v, i) => [String(i), v]))
                   : {}
         return (
             <FormView
                 value={obj}
                 editable={editable}
                 onChange={(next) => {
-                    if (Array.isArray(value)) {
+                    if (Array.isArray(renderValue)) {
                         // Recover an array from the indexed-record form. Sort
                         // the keys numerically and discard non-numeric keys
                         // (defensive — FormView preserves keys 1:1).
@@ -254,7 +287,7 @@ function CardBody({mode, value, editable, onChange}: CardBodyProps): ReactNode {
             <CodeLeafEditor
                 key={`${mode}-${originalType}`}
                 mode={mode}
-                value={value}
+                value={renderValue}
                 editable={editable}
                 onChange={onChange}
             />
