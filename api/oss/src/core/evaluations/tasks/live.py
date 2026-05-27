@@ -65,11 +65,9 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
 )
 from oss.src.core.queries.dtos import (
-    QueryRevisionData,
     QueryRevision,
 )
 from oss.src.core.evaluators.dtos import (
-    EvaluatorRevisionData,
     EvaluatorRevision,
 )
 
@@ -166,6 +164,70 @@ annotations_service = AnnotationsService(
 )
 
 # ------------------------------------------------------------------------------
+
+
+async def _resolve_query_revisions(
+    *,
+    queries_service: QueriesService,
+    project_id: UUID,
+    query_revision_refs: Dict[str, Reference],
+) -> Dict[str, QueryRevision]:
+    """Fetch each referenced query revision and skip ones missing identity or data."""
+    resolved: Dict[str, QueryRevision] = dict()
+
+    for query_step_key, query_revision_ref in query_revision_refs.items():
+        query_revision = await queries_service.fetch_query_revision(
+            project_id=project_id,
+            #
+            query_revision_ref=query_revision_ref,
+        )
+
+        if (
+            not query_revision
+            or not query_revision.id
+            or not query_revision.slug
+            or not query_revision.data
+        ):
+            log.warn(
+                f"Query revision with ref {query_revision_ref.model_dump(mode='json')} not found!"
+            )
+            continue
+
+        resolved[query_step_key] = query_revision
+
+    return resolved
+
+
+async def _resolve_evaluator_revisions(
+    *,
+    evaluators_service: EvaluatorsService,
+    project_id: UUID,
+    evaluator_revision_refs: Dict[str, Reference],
+) -> Dict[str, EvaluatorRevision]:
+    """Fetch each referenced evaluator revision and skip ones missing identity or data."""
+    resolved: Dict[str, EvaluatorRevision] = dict()
+
+    for evaluator_step_key, evaluator_revision_ref in evaluator_revision_refs.items():
+        evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+            project_id=project_id,
+            #
+            evaluator_revision_ref=evaluator_revision_ref,
+        )
+
+        if (
+            not evaluator_revision
+            or not evaluator_revision.id
+            or not evaluator_revision.slug
+            or not evaluator_revision.data
+        ):
+            log.warn(
+                f"Evaluator revision with ref {evaluator_revision_ref.model_dump(mode='json')} not found!"
+            )
+            continue
+
+        resolved[evaluator_step_key] = evaluator_revision
+
+    return resolved
 
 
 async def evaluate_live_query(
@@ -280,65 +342,25 @@ async def evaluate_live_query(
         # ----------------------------------------------------------------------
 
         # fetch query revisions ------------------------------------------------
-        for (
-            query_step_key,
-            query_revision_ref,
-        ) in query_revision_refs.items():
-            query_revision = await queries_service.fetch_query_revision(
-                project_id=project_id,
-                #
-                query_revision_ref=query_revision_ref,
-            )
-
-            if query_revision and not query_revision.data:
-                query_revision.data = QueryRevisionData()
-
-            if (
-                not query_revision
-                or not query_revision.id
-                or not query_revision.slug
-                or not query_revision.data
-            ):
-                log.warn(
-                    f"Query revision with ref {query_revision_ref.model_dump(mode='json')} not found!"
-                )
-                continue
-
-            query_step = input_steps[query_step_key]
-
-            query_revisions[query_step_key] = query_revision
-            query_references[query_step_key] = query_step.references
+        query_revisions = await _resolve_query_revisions(
+            queries_service=queries_service,
+            project_id=project_id,
+            query_revision_refs=query_revision_refs,
+        )
+        for query_step_key in query_revisions:
+            query_references[query_step_key] = input_steps[query_step_key].references
         # ----------------------------------------------------------------------
 
         # fetch evaluator revisions --------------------------------------------
-        for (
-            evaluator_step_key,
-            evaluator_revision_ref,
-        ) in evaluator_revision_refs.items():
-            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
-                project_id=project_id,
-                #
-                evaluator_revision_ref=evaluator_revision_ref,
-            )
-
-            if evaluator_revision and not evaluator_revision.data:
-                evaluator_revision.data = EvaluatorRevisionData()
-
-            if (
-                not evaluator_revision
-                or not evaluator_revision.id
-                or not evaluator_revision.slug
-                or not evaluator_revision.data
-            ):
-                log.warn(
-                    f"Evaluator revision with ref {evaluator_revision_ref.model_dump(mode='json')} not found!"
-                )
-                continue
-
-            evaluator_step = annotation_steps[evaluator_step_key]
-
-            evaluator_revisions[evaluator_step_key] = evaluator_revision
-            evaluator_references[evaluator_step_key] = evaluator_step.references
+        evaluator_revisions = await _resolve_evaluator_revisions(
+            evaluators_service=evaluators_service,
+            project_id=project_id,
+            evaluator_revision_refs=evaluator_revision_refs,
+        )
+        for evaluator_step_key in evaluator_revisions:
+            evaluator_references[evaluator_step_key] = annotation_steps[
+                evaluator_step_key
+            ].references
         # ----------------------------------------------------------------------
 
         # run query revisions --------------------------------------------------
