@@ -13,9 +13,12 @@
 export {
     detectFieldKind,
     detectNestedKind,
+    getDefaultViewForExpectedType,
     getDefaultViewForValue,
     getViewOptions,
+    getViewOptionsForExpectedType,
     isChatMessagesArray,
+    type ExpectedType,
     type FieldKind,
     type NestedKind,
     type ViewOption,

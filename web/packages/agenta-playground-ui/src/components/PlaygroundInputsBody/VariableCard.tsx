@@ -34,7 +34,7 @@ import {
     parseYamlEdit,
     valueToDisplay,
 } from "@agenta/entity-ui/view-types"
-import type {LogicalType, ViewOption, ViewType} from "@agenta/entity-ui/view-types"
+import type {ExpectedType, LogicalType, ViewOption, ViewType} from "@agenta/entity-ui/view-types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import type {SimpleChatMessage} from "@agenta/ui/chat-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -71,6 +71,11 @@ interface VariableCardProps {
      *  `VariableControlAdapter` header treatment for evaluator envelope
      *  variables (`inputs`/`outputs`). */
     helpText?: string
+    /** Declared port type from the runnable schema. Used as the TypeChip
+     *  fallback when the runtime value is empty (`undefined` / `null` / `""`)
+     *  so a draft variable known to be an object shows the `object` chip
+     *  instead of `null`. */
+    expectedType?: ExpectedType
     /** Whether the card is editable (vs read-only). */
     editable: boolean
     /** Writes the new value to the testcase / draft store. NATIVE value. */
@@ -89,6 +94,7 @@ export function VariableCard({
     defaultMode,
     isDraft,
     helpText,
+    expectedType,
     editable,
     onValueChange,
     onViewModeChange,
@@ -111,10 +117,22 @@ export function VariableCard({
         [onValueChange, name],
     )
 
-    const chipVariant = useMemo<ChipVariant>(
-        () => (isChatMessagesArray(value) ? "messages" : (inferLogicalType(value) as ChipVariant)),
-        [value],
-    )
+    const chipVariant = useMemo<ChipVariant>(() => {
+        if (isChatMessagesArray(value)) return "messages"
+        // For drafts (empty value), let the declared port type drive the
+        // chip so `geo` referenced as `{{geo.region}}` shows an `object`
+        // chip instead of falling through to `inferLogicalType(undefined)
+        // → "null"`.
+        const isEmpty = value === undefined || value === null || value === ""
+        if (isEmpty && expectedType) {
+            if (expectedType === "object") return "json-object"
+            if (expectedType === "array") return "json-array"
+            if (expectedType === "boolean") return "boolean"
+            if (expectedType === "number" || expectedType === "integer") return "number"
+            if (expectedType === "string") return "string"
+        }
+        return inferLogicalType(value) as ChipVariant
+    }, [value, expectedType])
 
     return (
         <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2">

@@ -29,8 +29,11 @@
  * in OSS / agenta-playground state), so this component stays pure.
  */
 
-import type {ViewType} from "@agenta/entity-ui/view-types"
-import {getDefaultViewForValue, getViewOptions} from "@agenta/entity-ui/view-types"
+import type {ExpectedType, ViewType} from "@agenta/entity-ui/view-types"
+import {
+    getDefaultViewForExpectedType,
+    getViewOptionsForExpectedType,
+} from "@agenta/entity-ui/view-types"
 
 import {UnreferencedColumnsFooter} from "./UnreferencedColumnsFooter"
 import {VariableCard} from "./VariableCard"
@@ -47,6 +50,13 @@ export interface PlaygroundInputsBodyVariable {
      *  small Info icon in the card header — used for evaluator envelope
      *  variables (`inputs`/`outputs`) to keep the legacy guidance visible. */
     helpText?: string
+    /** Declared port type from the runnable schema (`object` / `array` /
+     *  `string` / `number` / `integer` / `boolean`). When the variable is
+     *  a draft (no value yet), this drives the default view mode and the
+     *  TypeChip variant so the card opens in the right shape — e.g. a
+     *  `geo` port referenced via `{{geo.region}}` opens as Form with an
+     *  `object` chip instead of a text input with a `null` chip. */
+    expectedType?: ExpectedType
 }
 
 /**
@@ -135,10 +145,11 @@ export function PlaygroundInputsBody({
             rowId={rowId}
             name={variable.name}
             value={variable.value}
-            options={getViewOptions(variable.value)}
-            defaultMode={getDefaultViewForValue(variable.value)}
+            options={getViewOptionsForExpectedType(variable.value, variable.expectedType)}
+            defaultMode={getDefaultViewForExpectedType(variable.value, variable.expectedType)}
             isDraft={variable.isDraft}
             helpText={variable.helpText}
+            expectedType={variable.expectedType}
             editable={editable}
             onValueChange={handleValueChange}
             onViewModeChange={onViewModeChange}

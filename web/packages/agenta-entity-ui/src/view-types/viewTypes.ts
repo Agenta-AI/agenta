@@ -127,3 +127,81 @@ export function getViewOptions(value: unknown): ViewOption[] {
 export function getDefaultViewForValue(value: unknown): ViewType {
     return getViewOptions(value)[0]?.value ?? "json"
 }
+
+// ─── Expected-type-aware variants ──────────────────────────────────────────
+//
+// The plain `getViewOptions` / `getDefaultViewForValue` look only at the
+// runtime VALUE. For draft variables (referenced by prompt, not authored on
+// the testcase yet) the value is `undefined` — they fall through to the
+// "string" branch and produce text-input defaults even when the port schema
+// declares the variable as object/array (e.g. `geo` referenced via
+// `{{geo.region}}` / `{{geo.coordinates.lat}}`).
+//
+// The expected-type-aware variants below use the port schema's declared type
+// as a fallback when the runtime value is empty (`undefined` / `null` / `""`),
+// so draft object ports open as Form by default and chat-shaped arrays open
+// as Chat, matching what the user has clearly authored against.
+//
+// `ExpectedType` is intentionally narrow — it mirrors the port `type` field
+// surfaced by `inputPortSchemaMap` (`string` / `number` / `integer` /
+// `boolean` / `object` / `array`). Unknown types fall back to value-driven
+// behaviour.
+
+/** Declared port type from the runnable schema. */
+export type ExpectedType =
+    | "string"
+    | "number"
+    | "integer"
+    | "boolean"
+    | "object"
+    | "array"
+    | undefined
+
+function isValueEmpty(value: unknown): boolean {
+    return value === undefined || value === null || value === ""
+}
+
+function fieldKindFromExpected(expected: ExpectedType): FieldKind | null {
+    if (expected === "object" || expected === "array") return "object"
+    if (expected === "boolean") return "boolean"
+    if (expected === "string" || expected === "number" || expected === "integer") return "string"
+    return null
+}
+
+/**
+ * Same shape as `getViewOptions(value)`, but when `value` is empty, the
+ * dropdown is built from `expectedType` instead. This is how a draft
+ * variable known to be an object opens as `Form` rather than `Text`.
+ */
+export function getViewOptionsForExpectedType(
+    value: unknown,
+    expectedType: ExpectedType,
+): ViewOption[] {
+    if (!isValueEmpty(value)) return getViewOptions(value)
+    const expectedKind = fieldKindFromExpected(expectedType)
+    if (!expectedKind) return getViewOptions(value)
+
+    const opts: ViewOption[] = []
+    if (expectedKind === "string") {
+        opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "markdown", label: "Markdown"})
+    } else if (expectedKind === "boolean") {
+        opts.push({value: "text", label: "Text", hint: "default"})
+    } else if (expectedKind === "object") {
+        opts.push({value: "form", label: "Form", hint: "default"})
+    }
+    opts.push({value: "json", label: "JSON"})
+    opts.push({value: "yaml", label: "YAML"})
+    return opts
+}
+
+/**
+ * Default view picked the same way as `getDefaultViewForValue`, but with
+ * `expectedType` as a fallback when the value is empty.
+ */
+export function getDefaultViewForExpectedType(
+    value: unknown,
+    expectedType: ExpectedType,
+): ViewType {
+    return getViewOptionsForExpectedType(value, expectedType)[0]?.value ?? "json"
+}

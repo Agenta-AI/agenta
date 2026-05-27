@@ -11,8 +11,10 @@ import {describe, expect, it} from "vitest"
 import {
     detectFieldKind,
     detectNestedKind,
+    getDefaultViewForExpectedType,
     getDefaultViewForValue,
     getViewOptions,
+    getViewOptionsForExpectedType,
     isChatMessagesArray,
 } from "../../src/view-types/viewTypes"
 
@@ -173,5 +175,47 @@ describe("view-types: getDefaultViewForValue", () => {
 
     it("treats undefined as a string-kind value (default → 'text')", () => {
         expect(getDefaultViewForValue(undefined)).toBe("text")
+    })
+})
+
+describe("view-types: expected-type-aware variants", () => {
+    it("falls back to expectedType when value is undefined", () => {
+        // Draft `geo` port referenced via `{{geo.region}}` → object port.
+        expect(getDefaultViewForExpectedType(undefined, "object")).toBe("form")
+        expect(getDefaultViewForExpectedType(undefined, "array")).toBe("form")
+        expect(getDefaultViewForExpectedType(undefined, "boolean")).toBe("text")
+        expect(getDefaultViewForExpectedType(undefined, "number")).toBe("text")
+        expect(getDefaultViewForExpectedType(undefined, "string")).toBe("text")
+    })
+
+    it("falls back when value is null or empty string", () => {
+        expect(getDefaultViewForExpectedType(null, "object")).toBe("form")
+        expect(getDefaultViewForExpectedType("", "object")).toBe("form")
+    })
+
+    it("ignores expectedType when value is non-empty (value drives the kind)", () => {
+        // Real string value beats `expectedType: "object"` — the runtime
+        // value is the source of truth once it exists.
+        expect(getDefaultViewForExpectedType("hello", "object")).toBe("text")
+        // Real chat array beats `expectedType: "object"`.
+        const chat = [{role: "user", content: "hi"}]
+        expect(getDefaultViewForExpectedType(chat, "object")).toBe("chat")
+    })
+
+    it("returns the same options the value-driven helper would for empty + unknown type", () => {
+        // No expectedType → falls all the way through to value-driven defaults.
+        expect(getDefaultViewForExpectedType(undefined, undefined)).toBe("text")
+    })
+
+    it("getViewOptionsForExpectedType offers Form first for object drafts", () => {
+        const opts = getViewOptionsForExpectedType(undefined, "object")
+        expect(opts[0]?.value).toBe("form")
+        expect(opts.map((o) => o.value)).toEqual(expect.arrayContaining(["json", "yaml"]))
+    })
+
+    it("getViewOptionsForExpectedType offers Text first for string drafts", () => {
+        const opts = getViewOptionsForExpectedType(undefined, "string")
+        expect(opts[0]?.value).toBe("text")
+        expect(opts.map((o) => o.value)).toEqual(expect.arrayContaining(["markdown", "json"]))
     })
 })
