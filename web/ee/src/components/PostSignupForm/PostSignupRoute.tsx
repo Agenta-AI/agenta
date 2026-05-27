@@ -33,33 +33,6 @@ const PostSignupRoute = () => {
     const {orgs} = useOrgData()
     const skipRedirectFiredRef = useRef(false)
 
-    console.log("[post-signup][diag] PostSignupRoute render", {
-        status: readiness.status,
-        ts: Date.now(),
-    })
-
-    useEffect(() => {
-        console.log("[post-signup][diag] PostSignupRoute MOUNTED", {ts: Date.now()})
-        return () => {
-            console.log("[post-signup][diag] PostSignupRoute UNMOUNTED", {ts: Date.now()})
-        }
-    }, [])
-
-    useEffect(() => {
-        const handleStart = (url: string) => {
-            console.log("[post-signup][diag] routeChangeStart", {url, ts: Date.now()})
-        }
-        const handleComplete = (url: string) => {
-            console.log("[post-signup][diag] routeChangeComplete", {url, ts: Date.now()})
-        }
-        router.events.on("routeChangeStart", handleStart)
-        router.events.on("routeChangeComplete", handleComplete)
-        return () => {
-            router.events.off("routeChangeStart", handleStart)
-            router.events.off("routeChangeComplete", handleComplete)
-        }
-    }, [router.events])
-
     // Every successful exit from this page (Submit, fallback Continue, or
     // permanent-skip redirect) lands on /get-started. Prefetch it on mount so
     // the route swap doesn't show a blank gap while Next.js compiles (dev) or

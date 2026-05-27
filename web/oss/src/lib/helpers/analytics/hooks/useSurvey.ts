@@ -26,7 +26,16 @@ const createSurveyError = (code: SurveyErrorCode, message: string): SurveyError 
     return error
 }
 
-const isSurveyRunning = (survey: Survey): boolean => Boolean(survey.start_date) && !survey.end_date
+const isSurveyRunning = (survey: Survey): boolean => {
+    if (!survey.start_date) return false
+    const now = Date.now()
+    const startedAt = new Date(survey.start_date).getTime()
+    if (Number.isNaN(startedAt) || startedAt > now) return false
+    if (!survey.end_date) return true
+    const endedAt = new Date(survey.end_date).getTime()
+    if (Number.isNaN(endedAt)) return true
+    return endedAt > now
+}
 
 export const useSurvey = (surveyName: string) => {
     const posthog = usePostHogAg()
@@ -155,7 +164,7 @@ export const useSurvey = (surveyName: string) => {
                             posthog,
                             (surveys: Survey[] | undefined) => {
                                 const found = surveys?.find(
-                                    (s) => s.name?.includes(surveyName) && isSurveyRunning(s),
+                                    (s) => s.name === surveyName && isSurveyRunning(s),
                                 )
                                 if (!found) {
                                     settle(() =>

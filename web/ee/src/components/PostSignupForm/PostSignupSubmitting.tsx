@@ -18,7 +18,6 @@ interface PostSignupSubmittingProps {
  * setting things up" message rather than a blank screen.
  */
 const PostSignupSubmitting = ({orgs}: PostSignupSubmittingProps) => {
-    console.log("[post-signup][diag] PostSignupSubmitting render", {ts: Date.now()})
     return (
         <>
             <PostSignupHeader orgs={orgs} />
