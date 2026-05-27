@@ -92,6 +92,11 @@ interface VariableCardProps {
      *  card in the inputs body — the host either passes a name for all
      *  cards or none. */
     connectedSourceName?: string | null
+    /** Active prompt template format. When a value renders in chat mode,
+     *  the inner `ChatMessageList`'s editors use this to tokenize
+     *  `{{...}}` segments inside message content. Defaults to `"curly"`
+     *  to match the rest of the editor stack's defaults. */
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
     /** Whether the card is editable (vs read-only). */
     editable: boolean
     /** Writes the new value to the testcase / draft store. NATIVE value. */
@@ -113,6 +118,7 @@ export function VariableCard({
     expectedType,
     expectedSchema,
     connectedSourceName,
+    templateFormat = "curly",
     editable,
     onValueChange,
     onViewModeChange,
@@ -254,6 +260,7 @@ export function VariableCard({
                     seedShape={seedShape}
                     editable={editable}
                     onChange={handleValueChange}
+                    templateFormat={templateFormat}
                 />
             </div>
         </div>
@@ -272,9 +279,20 @@ interface CardBodyProps {
     seedShape?: unknown
     editable: boolean
     onChange: (next: unknown) => void
+    /** Active prompt template format. Forwarded to `ChatMessageList` when
+     *  the value renders in chat mode so its inner editors tokenize the
+     *  right `{{...}}` syntax. */
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
 }
 
-function CardBody({mode, value, seedShape, editable, onChange}: CardBodyProps): ReactNode {
+function CardBody({
+    mode,
+    value,
+    seedShape,
+    editable,
+    onChange,
+    templateFormat = "curly",
+}: CardBodyProps): ReactNode {
     const originalType = useMemo<LogicalType>(() => inferLogicalType(value), [value])
 
     // For structured modes (form / json / yaml), prefer the schema-derived
@@ -336,7 +354,7 @@ function CardBody({mode, value, seedShape, editable, onChange}: CardBodyProps): 
                 onChange={(next) => onChange(next)}
                 disabled={!editable}
                 enableTokens
-                templateFormat="curly"
+                templateFormat={templateFormat}
                 allowFileUpload={false}
             />
         )

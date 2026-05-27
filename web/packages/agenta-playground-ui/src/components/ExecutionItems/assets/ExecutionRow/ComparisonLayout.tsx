@@ -1,6 +1,7 @@
 import React, {useCallback, useMemo} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
@@ -121,6 +122,35 @@ const ComparisonLayout = ({
     // "View as ▾" dropdown) instead of the per-variable
     // `VariableControlAdapter` loop. Off by default; OSS opts in.
     const useNewInputsBody = useAtomValue(useNewPlaygroundInputsBodyAtom)
+
+    // Resolve the active prompt template_format from the structural root
+    // (the first depth-0 node). In comparison view multiple variants may
+    // declare different formats — we pick the structural root's value as
+    // the canonical one for tokenization inside chat-mode variable inputs.
+    // The trade-off is acceptable: the same testcase data feeds all
+    // variants, and the chat editor's `templateFormat` only affects how
+    // `{{...}}` segments TOKENIZE inside message content (it doesn't
+    // change rendering at runtime).
+    const primaryEntityIdForTemplateFormat = structuralRootNode?.entityId ?? entityId ?? ""
+    const primaryWorkflowData = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.data(primaryEntityIdForTemplateFormat),
+            [primaryEntityIdForTemplateFormat],
+        ),
+    )
+    const promptTemplateFormat = useMemo<"mustache" | "curly" | "fstring" | "jinja2">(() => {
+        const params = primaryWorkflowData?.data?.parameters as Record<string, unknown> | undefined
+        const prompt = params?.prompt as Record<string, unknown> | undefined
+        const raw =
+            (prompt?.template_format as string | undefined) ??
+            (prompt?.templateFormat as string | undefined) ??
+            (params?.template_format as string | undefined) ??
+            (params?.templateFormat as string | undefined)
+        if (raw === "mustache") return "mustache"
+        if (raw === "jinja2" || raw === "jinja") return "jinja2"
+        if (raw === "fstring") return "fstring"
+        return "curly"
+    }, [primaryWorkflowData?.data?.parameters])
 
     const {getNodeLabel} = usePlaygroundNodeLabels(nodes)
 
@@ -299,6 +329,7 @@ const ComparisonLayout = ({
                                     rowId={rowId}
                                     downstreamKey={downstreamKey}
                                     editable={!disabled}
+                                    templateFormat={promptTemplateFormat}
                                 />
                             </>
                         ) : (

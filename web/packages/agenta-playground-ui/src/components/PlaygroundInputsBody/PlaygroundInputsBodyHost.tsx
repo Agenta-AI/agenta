@@ -49,6 +49,12 @@ export interface PlaygroundInputsBodyHostProps {
         ariaLabel: string
         variableNames: string[]
     }[]
+    /** Active prompt template format. Forwarded to every variable card so
+     *  chat-mode rendering tokenizes the right `{{...}}` syntax. The
+     *  caller resolves this from the primary entity's prompt config — the
+     *  host doesn't read it itself because it has no single canonical
+     *  entity in comparison layouts (multiple variants may differ). */
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
 }
 
 export function PlaygroundInputsBodyHost({
@@ -56,6 +62,7 @@ export function PlaygroundInputsBodyHost({
     downstreamKey,
     editable,
     sections,
+    templateFormat,
 }: PlaygroundInputsBodyHostProps) {
     const visibility = useAtomValue(
         useMemo(
@@ -183,6 +190,7 @@ export function PlaygroundInputsBodyHost({
             // reducer — it creates the new column on first set.
             onAddDraftColumn={handleValueChange}
             connectedSourceName={connectedSourceName}
+            templateFormat={templateFormat}
         />
     )
 }

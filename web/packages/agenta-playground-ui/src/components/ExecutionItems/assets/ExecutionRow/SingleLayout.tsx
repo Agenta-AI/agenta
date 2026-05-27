@@ -625,6 +625,25 @@ const SingleView = ({
         useMemo(() => workflowMolecule.selectors.isDirty(entityId), [entityId]),
     )
 
+    // Resolve the active prompt template_format from the primary entity's
+    // parameters. Passed into `PlaygroundInputsBodyHost` so chat-mode
+    // variable inputs tokenize `{{...}}` with the right rules (mustache
+    // sections, jinja2, etc). Falls back to `"curly"` to match the
+    // editor stack's default when no value is stored yet.
+    const promptTemplateFormat = useMemo<"mustache" | "curly" | "fstring" | "jinja2">(() => {
+        const params = primaryWorkflowData?.data?.parameters as Record<string, unknown> | undefined
+        const prompt = params?.prompt as Record<string, unknown> | undefined
+        const raw =
+            (prompt?.template_format as string | undefined) ??
+            (prompt?.templateFormat as string | undefined) ??
+            (params?.template_format as string | undefined) ??
+            (params?.templateFormat as string | undefined)
+        if (raw === "mustache") return "mustache"
+        if (raw === "jinja2" || raw === "jinja") return "jinja2"
+        if (raw === "fstring") return "fstring"
+        return "curly"
+    }, [primaryWorkflowData?.data?.parameters])
+
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
     ) as string[]
@@ -916,6 +935,7 @@ const SingleView = ({
                                                 downstreamKey={downstreamKey}
                                                 editable={!isWaitingForVariableControls}
                                                 sections={groupedSections}
+                                                templateFormat={promptTemplateFormat}
                                             />
                                         )
                                     }
@@ -924,6 +944,7 @@ const SingleView = ({
                                             rowId={rowId}
                                             downstreamKey={downstreamKey}
                                             editable={!isWaitingForVariableControls}
+                                            templateFormat={promptTemplateFormat}
                                         />
                                     )
                                 }
