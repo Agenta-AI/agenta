@@ -508,7 +508,7 @@ export function extractTemplateVariables(
     // curly, jinja2, and mustache all use {{variableName}} for variable substitution
     // Linear scan: find '{{', then find '}}', extract the content between them.
     //
-    // For mustache, normalise / skip block-level syntax:
+    // For MUSTACHE, normalise / skip block-level syntax:
     //
     //   keep (strip prefix → variable name):
     //     - `{{#name}}` — section opener: `name` IS a variable (the iterable
@@ -522,6 +522,14 @@ export function extractTemplateVariables(
     //     - `{{> partial}}`  — partial template inclusion (resolved at render).
     //     - `{{.}}`          — implicit iterator (current item, no base name).
     //
+    // For CURLY / JINJA2, none of those prefix characters are valid in
+    // identifiers — those formats have no section semantics, no implicit
+    // iterator, no inline comments / partials inside `{{...}}`. If the user
+    // wrote `{{#items}}` in a curly prompt it's an authoring error (likely
+    // mustache syntax pasted in). Skip the extraction so no phantom port
+    // appears in the playground — the user sees the broken token in the
+    // editor without the FE silently masking it.
+    //
     // The TokenPlugin highlights all of these via its own regex — this filter
     // is for PORT DISCOVERY only. The mustache renderer pairs `#`/`^`/`/`
     // structurally at render time.
@@ -532,16 +540,29 @@ export function extractTemplateVariables(
             const end = input.indexOf("}}", start)
             if (end !== -1) {
                 const raw = input.slice(start, end).trim()
-                const isSkippablePrefix = /^[/!>]/.test(raw)
-                const isImplicitIterator = raw === "."
-                if (raw && !isSkippablePrefix && !isImplicitIterator) {
-                    // Strip section-opener / unescape prefixes — the base name
-                    // is the actual variable that needs a value.
-                    const variable = /^[#^&]/.test(raw) ? raw.slice(1).trim() : raw
-                    if (variable && !variables.includes(variable)) {
-                        variables.push(variable)
+
+                if (templateFormat === "mustache") {
+                    const isSkippablePrefix = /^[/!>]/.test(raw)
+                    const isImplicitIterator = raw === "."
+                    if (raw && !isSkippablePrefix && !isImplicitIterator) {
+                        // Strip section-opener / unescape prefixes — the base
+                        // name is the actual variable that needs a value.
+                        const variable = /^[#^&]/.test(raw) ? raw.slice(1).trim() : raw
+                        if (variable && !variables.includes(variable)) {
+                            variables.push(variable)
+                        }
+                    }
+                } else {
+                    // curly / jinja2 — only identifier-shaped tokens count.
+                    // Anything starting with mustache-style markers is an
+                    // authoring error in these formats; skip it so the
+                    // playground doesn't surface a port for the bad token.
+                    const startsWithMustacheMarker = /^[#^&/!>.]/.test(raw)
+                    if (raw && !startsWithMustacheMarker && !variables.includes(raw)) {
+                        variables.push(raw)
                     }
                 }
+
                 i = end + 2
             } else {
                 // No closing '}}' found, no more variables possible

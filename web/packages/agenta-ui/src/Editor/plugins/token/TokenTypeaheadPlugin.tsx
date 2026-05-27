@@ -77,13 +77,23 @@ interface PathContext {
  *   `country.`             → {mode:"flat", prefix: ["country"],        current: ""}
  *   `country.re`           → {mode:"flat", prefix: ["country"],        current: "re"}
  *
- * Section-mode examples (`#` / `^` prefix — mustache only):
+ * Section-mode examples (`#` / `^` prefix — MUSTACHE ONLY):
  *   `#`                    → {mode:"section",          prefix: [],         current: ""}
  *   `#la`                  → {mode:"section",          prefix: [],         current: "la"}
  *   `#user.`               → {mode:"section",          prefix: ["user"],   current: ""}
  *   `^empty`               → {mode:"inverted-section", prefix: [],         current: "empty"}
+ *
+ * In non-mustache formats, `{{#name}}` is an authoring error (no section
+ * semantics exist), so the section / inverted-section modes are suppressed.
+ * The plugin falls back to flat mode for those formats — the `#` / `^`
+ * appears as part of the literal query, matching nothing, so no
+ * suggestions surface and the user isn't tempted to author a broken
+ * template.
  */
-export function parsePathContext(input: string): PathContext {
+export function parsePathContext(
+    input: string,
+    templateFormat: "mustache" | "curly" | "fstring" | "jinja2" = "curly",
+): PathContext {
     if (input.startsWith("$")) {
         const body = input.replace(/^\$\.?/, "")
         if (body === "" && input === "$") return {mode: "path", prefix: [], current: ""}
@@ -93,7 +103,7 @@ export function parsePathContext(input: string): PathContext {
         const current = endsOnBoundary ? "" : (segments[segments.length - 1] ?? "")
         return {mode: "path", prefix, current}
     }
-    if (input.startsWith("#") || input.startsWith("^")) {
+    if (templateFormat === "mustache" && (input.startsWith("#") || input.startsWith("^"))) {
         const mode: PathMode = input.startsWith("#") ? "section" : "inverted-section"
         const body = input.slice(1)
         const endsOnBoundary = body.endsWith(".") || body.endsWith("[")
@@ -111,9 +121,14 @@ export function parsePathContext(input: string): PathContext {
 
 interface TokenMenuPluginProps {
     tokens: string[]
+    /** Active prompt template format. Section / inverted-section modes are
+     *  mustache-only — for other formats `{{#...}}` is an authoring error,
+     *  not a typeahead trigger. Defaults to `"curly"` to match the rest of
+     *  the editor's defaults. */
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
 }
 
-export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
+export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPluginProps) {
     const [editor] = useLexicalComposerContext()
     const [anchor, setAnchor] = useState<{element: HTMLElement; key: string} | null>(null)
     const [selectedIndex, setSelectedIndex] = useState(0)
@@ -151,7 +166,10 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
         return Array.from(uniqueTokens).filter(Boolean)
     }, [tokens])
 
-    const pathContext = useMemo(() => parsePathContext(inputQuery), [inputQuery])
+    const pathContext = useMemo(
+        () => parsePathContext(inputQuery, templateFormat),
+        [inputQuery, templateFormat],
+    )
 
     /**
      * Consumer-provided path suggestions (optional). The playground injects
