@@ -171,6 +171,13 @@ export function PlaygroundInputsBodyHost({
             sections={bodySections}
             unreferencedColumns={visibility.unreferencedColumns}
             editable={editable}
+            // Unreferenced columns are testcase data the user authored —
+            // they should be editable when the footer is expanded, same as
+            // any other variable card. The prop defaults to `false` in
+            // `PlaygroundInputsBody` (defensive — read-only display
+            // surfaces can opt out), so we explicitly pass `editable`
+            // here to match the rest of the inputs body.
+            unreferencedEditable={editable}
             onValueChange={handleValueChange}
             // Draft variables route through the same `setTestcaseCellValue`
             // reducer — it creates the new column on first set.
