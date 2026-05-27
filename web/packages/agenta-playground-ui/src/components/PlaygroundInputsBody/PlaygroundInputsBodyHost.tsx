@@ -68,17 +68,21 @@ export function PlaygroundInputsBodyHost({
     )
 
     // Read the input port schema map so we can inject helpText + declared
-    // port type onto each variable entry:
-    //   - `helpText`     → evaluator envelope variables (`inputs`/`outputs`)
-    //                       keep the legacy guidance tooltip.
-    //   - `expectedType` → drives the default view mode + TypeChip for
-    //                       DRAFT variables (no value yet). Without it, a
-    //                       `geo` port referenced via `{{geo.region}}` opens
-    //                       as a text input with a `null` chip instead of
-    //                       Form + `object` chip.
+    // port type + JSON-schema fragment onto each variable entry:
+    //   - `helpText`       → evaluator envelope variables (`inputs`/`outputs`)
+    //                          keep the legacy guidance tooltip.
+    //   - `expectedType`   → drives the default view mode + TypeChip for
+    //                          DRAFT variables (no value yet). Without it, a
+    //                          `geo` port referenced via `{{geo.region}}`
+    //                          opens as a text input with a `null` chip
+    //                          instead of Form + `object` chip.
+    //   - `expectedSchema` → seeds Form / JSON / YAML modes on drafts with an
+    //                          empty-value skeleton matching the expected
+    //                          sub-fields (so `geo` shows `region`, `subregion`,
+    //                          `coordinates.lat/lng` before the user types).
     const portSchemaMap = useAtomValue(
         executionItemController.selectors.inputPortSchemaMap,
-    ) as Record<string, {helpText?: string; type?: string}>
+    ) as Record<string, {helpText?: string; type?: string; schema?: unknown}>
 
     const enrichedInputs = useMemo<PlaygroundInputsBodyVariable[]>(
         () =>
@@ -86,11 +90,13 @@ export function PlaygroundInputsBodyHost({
                 const portSchema = portSchemaMap[v.name]
                 const help = portSchema?.helpText
                 const type = portSchema?.type as PlaygroundInputsBodyVariable["expectedType"]
-                if (!help && !type) return v
+                const schema = portSchema?.schema
+                if (!help && !type && !schema) return v
                 return {
                     ...v,
                     ...(help ? {helpText: help} : {}),
                     ...(type ? {expectedType: type} : {}),
+                    ...(schema ? {expectedSchema: schema} : {}),
                 }
             }),
         [visibility.inputs, portSchemaMap],

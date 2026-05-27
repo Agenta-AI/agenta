@@ -11,6 +11,7 @@
  */
 
 export {
+    buildEmptyShapeFromSchema,
     detectFieldKind,
     detectNestedKind,
     getDefaultViewForExpectedType,

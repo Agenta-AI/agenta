@@ -57,6 +57,13 @@ export interface PlaygroundInputsBodyVariable {
      *  `geo` port referenced via `{{geo.region}}` opens as Form with an
      *  `object` chip instead of a text input with a `null` chip. */
     expectedType?: ExpectedType
+    /** Declared port schema (JSON Schema fragment with `properties` /
+     *  `_pathHints`). When the variable is a draft, Form / JSON / YAML
+     *  modes pre-render an empty-value skeleton matching this shape so
+     *  the user sees the expected sub-fields without having to add them
+     *  manually. Render-only — the testcase value stays untouched until
+     *  the user actually edits a field. */
+    expectedSchema?: unknown
 }
 
 /**
@@ -150,6 +157,7 @@ export function PlaygroundInputsBody({
             isDraft={variable.isDraft}
             helpText={variable.helpText}
             expectedType={variable.expectedType}
+            expectedSchema={variable.expectedSchema}
             editable={editable}
             onValueChange={handleValueChange}
             onViewModeChange={onViewModeChange}
