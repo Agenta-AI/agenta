@@ -368,9 +368,15 @@ const styles = {
         // body), and the children sit indented behind it. Visually this
         // says "everything below belongs to the variable named in the
         // header above."
+        //
+        // No right padding — labels, leaf cards, and View-as buttons all
+        // extend to the card content's right edge so they share one
+        // vertical alignment with the card-level header above. Adding a
+        // padding-right here would push everything inside out of sync
+        // with the card-level dropdown.
         marginLeft: 20,
         paddingLeft: 16,
-        paddingRight: 20,
+        paddingRight: 0,
         borderLeft: RAIL,
     },
     rootStack: {
@@ -404,14 +410,6 @@ const styles = {
         justifyContent: "space-between",
         gap: 8,
         minWidth: 0,
-        // Stretch the label row past `formOuter`'s right padding so the
-        // per-field `View as ▾` button right-aligns with the card-level
-        // dropdown above (which sits flush with the card content's right
-        // edge). The field BODY (leafCard / nested rail / etc.) stays
-        // inside the padding so the input rectangle keeps its breathing
-        // room from the card border. Negative margin matches
-        // `formOuter.paddingRight` — keep them in sync if either changes.
-        marginRight: -20,
     },
     labelLeft: {
         display: "flex",
