@@ -181,6 +181,9 @@ class DaytonaRunner(CodeRunner):
         api_url = os.getenv("DAYTONA_API_URL") or "https://app.daytona.io/api"
         api_key = os.getenv("DAYTONA_API_KEY")
 
+        # We don't paginate: we assume orgs have <=25 snapshots. If an org
+        # exceeds that and the target snapshot falls off page 1, this raises
+        # "not found" — by design, we fail rather than retry or scan further.
         response = httpx.get(
             f"{api_url.rstrip('/')}/snapshots",
             params={"limit": 25},
@@ -264,28 +267,14 @@ class DaytonaRunner(CodeRunner):
                 **provider_env_vars,  # Add provider API keys
             }
 
-            def _create(sid: str) -> Any:
-                return self.daytona.create(
-                    CreateSandboxFromSnapshotParams(
-                        snapshot=sid,
-                        ephemeral=True,
-                        env_vars=env_vars,
-                        language=runtime,
-                    )
+            sandbox = self.daytona.create(
+                CreateSandboxFromSnapshotParams(
+                    snapshot=snapshot_id,
+                    ephemeral=True,
+                    env_vars=env_vars,
+                    language=runtime,
                 )
-
-            try:
-                sandbox = _create(snapshot_id)
-            except Exception as e:
-                # Snapshot may have been rebuilt with a new ID mid-cache;
-                # invalidate and retry once with a fresh lookup.
-                message = str(e).lower()
-                if "not found" in message or "not available" in message:
-                    self._snapshot_id_cache.pop((snapshot_ref, target))
-                    snapshot_id = self._resolve_snapshot_id(snapshot_ref, target)
-                    sandbox = _create(snapshot_id)
-                else:
-                    raise
+            )
 
             return sandbox
 
