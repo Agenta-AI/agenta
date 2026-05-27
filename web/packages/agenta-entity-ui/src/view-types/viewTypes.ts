@@ -173,10 +173,13 @@ function fieldKindFromExpected(expected: ExpectedType): FieldKind | null {
  * dropdown is built from `expectedType` instead. This is how a draft
  * variable known to be an object opens as `Form` rather than `Text`.
  *
- * Array drafts intentionally default to JSON: Form view has no good
- * empty-array UX (no "add item" affordance for `[]`), so JSON's `[]`
- * buffer is more useful. Form stays in the list for editing once items
- * exist.
+ * Ordering convention (consistent across every expectedType): the
+ * kind-specific modes go first, JSON and YAML always live at the BOTTOM.
+ * Strings get `[String, Markdown, JSON, YAML]`, objects/arrays get
+ * `[Form, JSON, YAML]`, booleans get `[String, JSON, YAML]`. The default
+ * mode is decoupled from list order — see `getDefaultViewForExpectedType`
+ * — so array drafts can still default to JSON without yanking JSON out
+ * of its conventional bottom-of-the-list slot.
  */
 export function getViewOptionsForExpectedType(
     value: unknown,
@@ -190,37 +193,39 @@ export function getViewOptionsForExpectedType(
     if (expectedKind === "string") {
         opts.push({value: "text", label: "String", hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
-        opts.push({value: "json", label: "JSON"})
-        opts.push({value: "yaml", label: "YAML"})
     } else if (expectedKind === "boolean") {
         opts.push({value: "text", label: "String", hint: "default"})
-        opts.push({value: "json", label: "JSON"})
-        opts.push({value: "yaml", label: "YAML"})
-    } else if (expectedType === "array") {
-        // JSON first for empty arrays — FormView can't surface an "add
-        // item" affordance for an empty `[]`, so JSON's editable buffer
-        // is the more useful entry point. Form stays available for once
-        // items exist.
-        opts.push({value: "json", label: "JSON", hint: "default"})
-        opts.push({value: "form", label: "Form"})
-        opts.push({value: "yaml", label: "YAML"})
     } else if (expectedKind === "object") {
-        opts.push({value: "form", label: "Form", hint: "default"})
-        opts.push({value: "json", label: "JSON"})
-        opts.push({value: "yaml", label: "YAML"})
+        opts.push({value: "form", label: "Form"})
     }
+    // JSON / YAML always at the bottom, in this order, for every kind.
+    opts.push({value: "json", label: "JSON"})
+    opts.push({value: "yaml", label: "YAML"})
     return opts
 }
 
 /**
- * Default view picked the same way as `getDefaultViewForValue`, but with
- * `expectedType` as a fallback when the value is empty.
+ * Default view mode for a typed draft. Independent of list order —
+ * `getViewOptionsForExpectedType` keeps a consistent layout regardless
+ * of which mode is the default.
+ *
+ *   - object → Form  (seeded with empty-shape when a schema is known)
+ *   - array  → JSON  (FormView has no add-item affordance for `[]`,
+ *                     JSON's buffer is the better empty-state UX)
+ *   - string/number/integer/boolean → text ("String" label)
  */
 export function getDefaultViewForExpectedType(
     value: unknown,
     expectedType: ExpectedType,
 ): ViewType {
-    return getViewOptionsForExpectedType(value, expectedType)[0]?.value ?? "json"
+    if (!isValueEmpty(value)) return getDefaultViewForValue(value)
+    if (expectedType === "object") return "form"
+    if (expectedType === "array") return "json"
+    if (expectedType === "boolean") return "text"
+    if (expectedType === "string" || expectedType === "number" || expectedType === "integer") {
+        return "text"
+    }
+    return getDefaultViewForValue(value)
 }
 
 // ─── Empty-shape seed from JSON schema ─────────────────────────────────────

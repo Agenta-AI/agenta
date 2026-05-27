@@ -225,11 +225,12 @@ describe("view-types: expected-type-aware variants", () => {
     it("array drafts default to JSON (not Form) — Form has no add-item affordance", () => {
         // Empty arrays in Form view show "(empty object)" with no way to
         // add items. JSON's `[]` buffer is the more useful entry point.
+        // BUT: list ordering keeps Form first (kind-specific), JSON/YAML
+        // at the bottom — same convention as every other kind. Default
+        // mode is decoupled from list order.
         expect(getDefaultViewForExpectedType(undefined, "array")).toBe("json")
         const opts = getViewOptionsForExpectedType(undefined, "array")
-        expect(opts[0]?.value).toBe("json")
-        // Form is still in the list — useful once the array has items.
-        expect(opts.map((o) => o.value)).toEqual(expect.arrayContaining(["form", "yaml"]))
+        expect(opts.map((o) => o.value)).toEqual(["form", "json", "yaml"])
     })
 
     it("array drafts switch to value-driven options once a real array exists", () => {
@@ -237,6 +238,22 @@ describe("view-types: expected-type-aware variants", () => {
         // with items (FormView renders them per-index).
         const arr = ["en", "fr"]
         expect(getDefaultViewForExpectedType(arr, "array")).toBe("form")
+    })
+
+    it("keeps JSON / YAML at the bottom for every expectedType (consistency)", () => {
+        // The dropdown should read the same regardless of which type the
+        // draft is — kind-specific modes first, JSON then YAML at the end.
+        const string = getViewOptionsForExpectedType(undefined, "string")
+        expect(string.map((o) => o.value)).toEqual(["text", "markdown", "json", "yaml"])
+
+        const object = getViewOptionsForExpectedType(undefined, "object")
+        expect(object.map((o) => o.value)).toEqual(["form", "json", "yaml"])
+
+        const array = getViewOptionsForExpectedType(undefined, "array")
+        expect(array.map((o) => o.value)).toEqual(["form", "json", "yaml"])
+
+        const boolean = getViewOptionsForExpectedType(undefined, "boolean")
+        expect(boolean.map((o) => o.value)).toEqual(["text", "json", "yaml"])
     })
 })
 
