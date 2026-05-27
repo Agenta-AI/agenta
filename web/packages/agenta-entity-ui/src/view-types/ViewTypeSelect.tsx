@@ -3,15 +3,20 @@
  * header. Lets the user switch render mode (text/markdown/chat/form/json/yaml)
  * for a single typed value.
  *
- * Styled to match the rest of the playground's small dropdowns — the
- * `Form / JSON / YAML` view picker in `PlaygroundVariantConfig` is the visual
- * reference: a borderless `antd Select`, `size="small"`, no header label,
- * no per-option hint pills.
+ * Trigger: text button reading "View as {Current Mode} ▾" (the "View as"
+ * prefix is intentional — it disambiguates the dropdown's purpose from the
+ * plain mode pickers used elsewhere).
+ *
+ * Menu: a plain flat list of options — no group header, no per-option hint
+ * pills. Matches the visual weight of the other small dropdowns in the
+ * playground (the prompt config view-mode picker is the reference).
  */
 
 import {useMemo} from "react"
 
-import {Select} from "antd"
+import {CaretDown} from "@phosphor-icons/react"
+import {Button, Dropdown} from "antd"
+import type {MenuProps} from "antd"
 
 import type {ViewOption, ViewType} from "./viewTypes"
 
@@ -20,12 +25,6 @@ interface ViewTypeSelectProps {
     options: ViewOption[]
     onChange: (value: ViewType) => void
     disabled?: boolean
-    /** Visual variant. Defaults to `"borderless"` — matches the prompt config
-     *  view-mode dropdown. Use `"outlined"` for surfaces that want a chip
-     *  border (rare). */
-    variant?: "borderless" | "outlined"
-    /** Optional className passed through to the Select root. */
-    className?: string
 }
 
 const VIEW_LABELS: Record<ViewType, string> = {
@@ -37,36 +36,48 @@ const VIEW_LABELS: Record<ViewType, string> = {
     yaml: "YAML",
 }
 
-export function ViewTypeSelect({
-    value,
-    options,
-    onChange,
-    disabled,
-    variant = "borderless",
-    className,
-}: ViewTypeSelectProps) {
-    const selectOptions = useMemo(
+export function ViewTypeSelect({value, options, onChange, disabled}: ViewTypeSelectProps) {
+    const items: MenuProps["items"] = useMemo(
         () =>
             options.map((opt) => ({
-                value: opt.value,
+                key: opt.value,
                 label: opt.label || VIEW_LABELS[opt.value],
+                onClick: () => onChange(opt.value),
             })),
-        [options],
+        [options, onChange],
     )
 
     return (
-        <Select<ViewType>
-            size="small"
-            variant={variant}
-            value={value}
-            onChange={onChange}
+        <Dropdown
+            menu={{items, selectedKeys: [value]}}
+            trigger={["click"]}
             disabled={disabled}
-            options={selectOptions}
-            popupMatchSelectWidth={false}
-            className={className}
-            style={{minWidth: 90}}
-        />
+            placement="bottomRight"
+        >
+            <Button type="text" size="small" disabled={disabled} style={styles.trigger}>
+                <span style={styles.triggerLabel}>
+                    View as <span style={styles.triggerValue}>{VIEW_LABELS[value]}</span>
+                </span>
+                <CaretDown size={12} style={styles.triggerCaret} />
+            </Button>
+        </Dropdown>
     )
+}
+
+const styles = {
+    trigger: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "0 8px",
+        height: 24,
+        borderRadius: 4,
+        fontSize: 12,
+        color: "#051729",
+    },
+    triggerLabel: {color: "rgba(5, 23, 41, 0.55)"},
+    triggerValue: {color: "#051729", fontWeight: 600},
+    triggerCaret: {marginTop: 1, opacity: 0.65},
 }
 
 export default ViewTypeSelect
