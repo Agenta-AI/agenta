@@ -25,7 +25,9 @@
 import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Input, InputNumber, Switch, Tag} from "antd"
+import {TypeChip} from "@agenta/ui/type-chip"
+import type {ChipVariant} from "@agenta/ui/type-chip"
+import {Input, InputNumber, Switch} from "antd"
 import {dump as yamlDump, load as yamlLoad} from "js-yaml"
 
 import {
@@ -37,22 +39,17 @@ import {
 } from "./viewTypes"
 import {ViewTypeSelect} from "./ViewTypeSelect"
 
-const NESTED_KIND_LABEL: Record<NestedKind, string> = {
+// Map the 6-way nested kind to the shared TypeChip vocabulary so nested
+// field labels use the SAME chip the parent VariableCard renders — keeps
+// the visual hierarchy consistent (parent name + chip → child name + chip
+// with the same look).
+const NESTED_KIND_CHIP: Record<NestedKind, ChipVariant> = {
     string: "string",
     number: "number",
     boolean: "boolean",
     null: "null",
-    object: "object",
-    array: "array",
-}
-
-const NESTED_KIND_TONE: Record<NestedKind, string> = {
-    string: "geekblue",
-    number: "blue",
-    boolean: "purple",
-    null: "default",
-    object: "gold",
-    array: "magenta",
+    object: "json-object",
+    array: "json-array",
 }
 
 interface FormViewProps {
@@ -122,7 +119,6 @@ interface FormFieldProps {
 
 function FormField({label, value, depth, editable, onChange}: FormFieldProps) {
     const kind = detectNestedKind(value)
-    const labelStyle = depth === 0 ? styles.labelTop : styles.labelNested
 
     // For string fields we manage a per-field view mode (Text / Markdown /
     // JSON / YAML). The view-type selector lives in the label row, on the
@@ -138,10 +134,16 @@ function FormField({label, value, depth, editable, onChange}: FormFieldProps) {
         <div style={styles.field}>
             <div style={styles.labelRow}>
                 <div style={styles.labelLeft}>
-                    <label style={labelStyle}>{label}</label>
-                    <Tag color={NESTED_KIND_TONE[kind]} style={styles.kindTag} variant="filled">
-                        {NESTED_KIND_LABEL[kind]}
-                    </Tag>
+                    {/* Label style matches the parent `VariableCard`'s name:
+                     *  mono, 12px, weight 500, blue. The depth / nesting is
+                     *  communicated by the indentation + rail above — no need
+                     *  to shout with a heavier label.
+                     *
+                     *  Children must NOT visually outweigh their parent — the
+                     *  parent's name + chip set the bar, the nested fields
+                     *  use the same vocabulary. */}
+                    <label style={styles.fieldLabel}>{label}</label>
+                    <TypeChip variant={NESTED_KIND_CHIP[kind]} value={value} />
                 </div>
                 {isString ? (
                     <ViewTypeSelect
@@ -417,20 +419,17 @@ const styles = {
         gap: 8,
         minWidth: 0,
     },
-    kindTag: {
-        fontSize: 10,
-        marginInlineEnd: 0,
+    /* Unified field label — same vocabulary as `VariableCard`'s name in
+     * the parent header (mono, 12px, weight 500, brand blue). Nesting is
+     * communicated by the indent + rail; children shouldn't outweigh
+     * their parent name. */
+    fieldLabel: {
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    },
-    labelTop: {
-        fontSize: 14,
-        fontWeight: 600,
-        color: "#1f2937",
-    },
-    labelNested: {
-        fontSize: 13,
-        fontWeight: 600,
-        color: "#1f2937",
+        fontSize: 12,
+        fontWeight: 500,
+        lineHeight: "20px",
+        color: "#1677FF",
+        margin: 0,
     },
     nestedRail: {
         marginLeft: 4,
