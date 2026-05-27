@@ -11,6 +11,7 @@ import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@
 import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {profileQueryAtom} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
+import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
 // Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
 export {projectIdAtom}
@@ -95,6 +96,7 @@ export const clearLastUsedProjectId = (workspaceId: string | null) => {
 export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
     const workspaceId = get(selectedOrgIdAtom)
     const snapshot = get(appStateSnapshotAtom)
+    const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
     const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
     return {
         queryKey: ["projects", workspaceId || ""],
@@ -106,6 +108,7 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         refetchOnMount: false,
         enabled:
             get(sessionExistsAtom) &&
+            jwtReady &&
             !!(get(profileQueryAtom)?.data as User)?.id &&
             !isAcceptRoute &&
             !!workspaceId,

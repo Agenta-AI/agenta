@@ -407,6 +407,12 @@ const Auth = () => {
     }, [emailSubmitted])
 
     useEffect(() => {
+        if (!emailSubmitted && isLoginCodeVisible) {
+            setIsLoginCodeVisible(false)
+        }
+    }, [emailSubmitted, isLoginCodeVisible])
+
+    useEffect(() => {
         if (!socialAvailable && !emailSubmitted) {
             setShowEmailForm(true)
         }

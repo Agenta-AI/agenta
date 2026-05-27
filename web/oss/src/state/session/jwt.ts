@@ -4,23 +4,28 @@ import {getJWT} from "@/oss/services/api"
 
 import {sessionExistsAtom} from "./atoms"
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 /**
  * jwtReadyAtom becomes `true` once a non-empty JWT is available in SuperTokens storage.
- * We poll it once on mount; the value is cached as it has an infinite staleTime.
- * Whenever the session starts (sessionExistsAtom true) but JWT is still empty,
- * the query function runs again and resolves when the token appears.
+ * On reload, SuperTokens can report that a session exists before the access
+ * token is readable, so this query waits briefly instead of caching `false`.
  */
 export const jwtReadyAtom = atomWithQuery<boolean>((get) => ({
     queryKey: ["jwt-ready"],
     queryFn: async () => {
-        const token = await getJWT()
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+            const token = await getJWT()
+            if (token) return true
 
-        // In test environment, consider JWT ready if test JWT is available
-        if (!token && typeof process !== "undefined" && process.env.NODE_ENV === "test") {
-            return !!(process.env.VITEST_TEST_JWT || process.env.TEST_JWT)
+            if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+                return !!(process.env.VITEST_TEST_JWT || process.env.TEST_JWT)
+            }
+
+            await wait(100)
         }
 
-        return !!token
+        return false
     },
     enabled:
         get(sessionExistsAtom) ||
