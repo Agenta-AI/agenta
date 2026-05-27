@@ -172,6 +172,11 @@ function fieldKindFromExpected(expected: ExpectedType): FieldKind | null {
  * Same shape as `getViewOptions(value)`, but when `value` is empty, the
  * dropdown is built from `expectedType` instead. This is how a draft
  * variable known to be an object opens as `Form` rather than `Text`.
+ *
+ * Array drafts intentionally default to JSON: Form view has no good
+ * empty-array UX (no "add item" affordance for `[]`), so JSON's `[]`
+ * buffer is more useful. Form stays in the list for editing once items
+ * exist.
  */
 export function getViewOptionsForExpectedType(
     value: unknown,
@@ -185,13 +190,25 @@ export function getViewOptionsForExpectedType(
     if (expectedKind === "string") {
         opts.push({value: "text", label: "Text", hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
+        opts.push({value: "json", label: "JSON"})
+        opts.push({value: "yaml", label: "YAML"})
     } else if (expectedKind === "boolean") {
         opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "json", label: "JSON"})
+        opts.push({value: "yaml", label: "YAML"})
+    } else if (expectedType === "array") {
+        // JSON first for empty arrays — FormView can't surface an "add
+        // item" affordance for an empty `[]`, so JSON's editable buffer
+        // is the more useful entry point. Form stays available for once
+        // items exist.
+        opts.push({value: "json", label: "JSON", hint: "default"})
+        opts.push({value: "form", label: "Form"})
+        opts.push({value: "yaml", label: "YAML"})
     } else if (expectedKind === "object") {
         opts.push({value: "form", label: "Form", hint: "default"})
+        opts.push({value: "json", label: "JSON"})
+        opts.push({value: "yaml", label: "YAML"})
     }
-    opts.push({value: "json", label: "JSON"})
-    opts.push({value: "yaml", label: "YAML"})
     return opts
 }
 
