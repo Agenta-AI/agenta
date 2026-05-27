@@ -34,16 +34,22 @@ interface Suggestion {
     hint?: string
 }
 
-type PathMode = "path" | "flat"
+type PathMode = "path" | "flat" | "section" | "inverted-section"
 
 interface PathContext {
     /**
-     * "path" → user is authoring a JSONPath expression rooted at `$`.
-     * "flat" → user is authoring a plain curly token (e.g. `{{country}}`,
-     *          `{{country.region}}`); resolves at runtime against the
-     *          flattened `inputs` kwargs by the SDK template engine, so
-     *          we drill into the `inputs` envelope implicitly when
-     *          asking the suggestions consumer for candidates.
+     * "path"             → user is authoring a JSONPath expression rooted at `$`.
+     * "flat"             → user is authoring a plain curly token (`{{country}}`,
+     *                        `{{country.region}}`); resolves at runtime against
+     *                        the flattened `inputs` kwargs by the SDK template
+     *                        engine, so we drill into the `inputs` envelope
+     *                        implicitly when asking the suggestions consumer.
+     * "section"          → mustache section opener: `{{#name}}`. Same
+     *                        suggestion sources as flat mode (the name is a
+     *                        field on the input context), but the inserted
+     *                        token text wraps as `{{#name}}`.
+     * "inverted-section" → mustache inverted section opener: `{{^name}}`.
+     *                        Same sources as "section"; inserted as `{{^name}}`.
      */
     mode: PathMode
     /** Path segments already committed before the current input (e.g. ["inputs"] when typing `$.inputs.ar`). */
@@ -70,8 +76,14 @@ interface PathContext {
  *   `co`                   → {mode:"flat", prefix: [],                 current: "co"}
  *   `country.`             → {mode:"flat", prefix: ["country"],        current: ""}
  *   `country.re`           → {mode:"flat", prefix: ["country"],        current: "re"}
+ *
+ * Section-mode examples (`#` / `^` prefix — mustache only):
+ *   `#`                    → {mode:"section",          prefix: [],         current: ""}
+ *   `#la`                  → {mode:"section",          prefix: [],         current: "la"}
+ *   `#user.`               → {mode:"section",          prefix: ["user"],   current: ""}
+ *   `^empty`               → {mode:"inverted-section", prefix: [],         current: "empty"}
  */
-function parsePathContext(input: string): PathContext {
+export function parsePathContext(input: string): PathContext {
     if (input.startsWith("$")) {
         const body = input.replace(/^\$\.?/, "")
         if (body === "" && input === "$") return {mode: "path", prefix: [], current: ""}
@@ -80,6 +92,15 @@ function parsePathContext(input: string): PathContext {
         const prefix = endsOnBoundary ? segments : segments.slice(0, -1)
         const current = endsOnBoundary ? "" : (segments[segments.length - 1] ?? "")
         return {mode: "path", prefix, current}
+    }
+    if (input.startsWith("#") || input.startsWith("^")) {
+        const mode: PathMode = input.startsWith("#") ? "section" : "inverted-section"
+        const body = input.slice(1)
+        const endsOnBoundary = body.endsWith(".") || body.endsWith("[")
+        const segments = body.split(/[.[\]'"]/).filter(Boolean)
+        const prefix = endsOnBoundary ? segments : segments.slice(0, -1)
+        const current = endsOnBoundary ? "" : (segments[segments.length - 1] ?? "")
+        return {mode, prefix, current}
     }
     const endsOnBoundary = input.endsWith(".") || input.endsWith("[")
     const segments = input.split(/[.[\]'"]/).filter(Boolean)
@@ -182,7 +203,13 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
             const body = [...prefix, label].join(".")
             const trailing = appendDot ? "." : ""
             const tokenText =
-                mode === "path" ? `{{$.${body}${trailing}}}` : `{{${body}${trailing}}}`
+                mode === "path"
+                    ? `{{$.${body}${trailing}}}`
+                    : mode === "section"
+                      ? `{{#${body}${trailing}}}`
+                      : mode === "inverted-section"
+                        ? `{{^${body}${trailing}}}`
+                        : `{{${body}${trailing}}}`
             results.push({label, tokenText, hint})
         }
 
@@ -216,9 +243,13 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
             return results
         }
 
-        // Flat-mode: ask the consumer for suggestions as if we were
-        // drilling into `$.inputs.<flat-prefix>`. Lets a single source
-        // (testcase columns, port schema sub-paths) feed both modes.
+        // Flat-mode AND section/inverted-section modes — all three share the
+        // same suggestion source. The section name is a field on the input
+        // context (mustache `#name` works for any truthy value: arrays
+        // iterate, objects context-switch, primitives render the block once),
+        // so the candidate set is the same as flat mode. The differing piece
+        // is the inserted tokenText, handled in `push()` above via the `mode`
+        // switch.
         if (getContextSuggestions) {
             const provided = getContextSuggestions(["inputs", ...prefix], current)
             for (const s of provided) push(s.label, {hint: s.hint})
