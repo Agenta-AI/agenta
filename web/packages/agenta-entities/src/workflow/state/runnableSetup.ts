@@ -281,10 +281,14 @@ export const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 
 /**
  * Workflow configuration (parameters).
+ *
+ * Reads from `workflowEntityAtomFamily` (the merged atom) so that parameter
+ * values seeded from inspect/openapi schema defaults flow into consumers.
+ * The base atom skips schema resolution and would hide those seeded values.
  */
 export const configurationAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
-        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        const entity = get(workflowEntityAtomFamily(workflowId))
         return resolveParameters(entity?.data) ?? null
     }),
 )

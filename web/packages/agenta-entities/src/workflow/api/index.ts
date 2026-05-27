@@ -59,6 +59,7 @@ export {
 export {
     createAppFromTemplate,
     AppServiceType,
+    extractDefaultsFromSchema,
     type CreateAppFromTemplateParams,
     type CreateAppFromTemplateResult,
 } from "./createFromTemplate"
