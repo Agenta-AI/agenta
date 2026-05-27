@@ -17,6 +17,17 @@ import {dump as yamlDump, load as yamlLoad} from "js-yaml"
 
 import type {ViewType} from "./viewTypes"
 
+/** True when the value is an empty array or empty object — the cases for
+ *  which YAML and JSON `[]` / `{}` literals look identical and where seeding
+ *  the YAML buffer doesn't help the user. */
+function isEmptyContainer(value: unknown): boolean {
+    if (Array.isArray(value)) return value.length === 0
+    if (value !== null && typeof value === "object") {
+        return Object.keys(value as Record<string, unknown>).length === 0
+    }
+    return false
+}
+
 /* ── Display: native value → string ──────────────────────────────────── */
 
 /**
@@ -65,11 +76,18 @@ export function valueToDisplay(value: unknown, mode: ViewType): string {
         if (typeof value === "string") {
             try {
                 const parsed = JSON.parse(value)
+                if (isEmptyContainer(parsed)) return ""
                 return yamlDump(parsed, {noCompatMode: true, lineWidth: 100})
             } catch {
                 return value
             }
         }
+        // Empty containers (`[]` / `{}`) only have a flow-style YAML
+        // representation, which looks identical to JSON literals. Return
+        // an empty buffer instead so the editor's placeholder guides the
+        // user to type proper YAML; once they have actual data,
+        // `yamlDump` produces real block-style output.
+        if (isEmptyContainer(value)) return ""
         try {
             return yamlDump(value, {noCompatMode: true, lineWidth: 100})
         } catch {

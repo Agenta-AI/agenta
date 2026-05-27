@@ -466,7 +466,7 @@ function CodeLeafEditor({mode, value, editable, onChange}: CodeLeafEditorProps) 
             disableDebounce
             disabled={!editable}
             state={editable ? "filled" : "readOnly"}
-            placeholder={mode === "json" ? "{}" : ""}
+            placeholder={mode === "json" ? "{}" : "Enter YAML"}
             editorProps={{
                 codeOnly: true,
                 language: mode,
