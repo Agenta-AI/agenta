@@ -1485,7 +1485,7 @@ References:
 
 ### Prerequisite
 
-The consuming package must declare `"@agenta/sdk": "workspace:../agenta-sdk"` in its `package.json` `dependencies`. Today `@agenta/entities` is the main consumer; any new package adopting Fern must add this dep first, otherwise `tsc --noEmit` fails on the `@agenta/sdk` import before the code runs.
+The consuming package must declare `"@agenta/sdk": "workspace:../agenta-sdk"` in its `package.json` `dependencies`. Today `@agenta/entities` is the main consumer; any new package adopting Fern must add this dep first, otherwise `tsc --noEmit` fails on the `@agenta/sdk` import at type-check time.
 
 ### Pattern
 
@@ -1559,7 +1559,7 @@ For the full ruleset, decision tree, and `@agenta/*` package conventions, read [
 
 ### Quick heuristic
 
-```
+```text
 Is the code used by 2+ features, or could be?
 ├─ NO → Keep it in app layer (web/oss/src/ or web/ee/src/)
 └─ YES → Move to a package, picking by purpose:
@@ -1589,7 +1589,7 @@ The skill file has worked examples for each of these, plus the molecule pattern,
 
 ### Layout
 
-```
+```text
 web/packages/<pkg>/
 ├── package.json          # adds vitest + scripts
 ├── tsconfig.json         # excludes src/**/__tests__/**
@@ -1712,7 +1712,7 @@ For code that exercises a real backend (not a Fern mock), use a separate integra
 
 Layout:
 
-```
+```text
 web/packages/<pkg>/
 ├── vitest.integration.config.ts          # separate from vitest.config.ts
 └── tests/
