@@ -1483,6 +1483,10 @@ References:
 - Generated client: `web/packages/agenta-api-client/`
 - Existing Fern-using domains: `@agenta/entities/{gatewayTool,secret,event,testset,workflow}` (PR [#4425](https://github.com/Agenta-AI/agenta/pull/4425) migrated `workflow`)
 
+### Prerequisite
+
+The consuming package must declare `"@agenta/sdk": "workspace:../agenta-sdk"` in its `package.json` `dependencies`. Today `@agenta/entities` is the main consumer; any new package adopting Fern must add this dep first, otherwise `tsc --noEmit` fails on the `@agenta/sdk` import before the code runs.
+
 ### Pattern
 
 ```typescript
@@ -1541,7 +1545,11 @@ return await client.workflows.retrieveWorkflowRevision(body, {queryParams})
 
 ### Migrating legacy axios calls
 
-Legacy code in `web/oss/`, `web/ee/`, and parts of `@agenta/entities` still uses raw axios. Don't rewrite them en masse — migrate opportunistically when you touch a function for another reason. The migration is mechanical (see PR [#4425](https://github.com/Agenta-AI/agenta/pull/4425) commit `c3572fd` for the canonical example).
+Legacy code in `web/oss/`, `web/ee/`, and parts of `@agenta/entities` still uses raw axios. The migration policy:
+
+- **New implementation = Fern.** Every new function that talks to the Agenta backend uses the Fern client, regardless of which file or package it lives in.
+- **Adding a new function to an existing axios-using file = Fern.** The new function uses Fern; you don't have to migrate the file's existing axios functions in the same change.
+- **Existing axios calls migrate incrementally.** Don't rewrite them en masse. Migrate opportunistically when you touch a function for another reason. The migration is mechanical (see PR [#4425](https://github.com/Agenta-AI/agenta/pull/4425) commit `c3572fd` for the canonical example).
 
 ---
 
@@ -1655,6 +1663,8 @@ resolve: {
 
 Unit tests for Fern-using API functions should mock `@agenta/sdk`, not axios. Constructing a real Fern client tries to read env vars and initialize transport — neither is wanted in a unit test.
 
+The mocked `getAgentaSdkClient` returns a fresh object each call, which is fine for typical tests. If your unit-under-test depends on the production singleton behaviour (e.g. caches the client reference across calls), tighten the mock to return the same instance each time.
+
 ```typescript
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -1695,6 +1705,51 @@ Reference test files:
 - `web/packages/agenta-entities/tests/unit/retrieveWorkflowRevision.test.ts` — Fern client mocked
 - `web/packages/agenta-playground/tests/unit/traceRefResolution.test.ts` — pure-logic tests on the resolver
 - `web/packages/agenta-entities/tests/__mocks__/agenta-ui.ts` — antd stub for entity tests
+
+### Integration tests
+
+For code that exercises a real backend (not a Fern mock), use a separate integration config. `@agenta/entities` is the established example.
+
+Layout:
+
+```
+web/packages/<pkg>/
+├── vitest.integration.config.ts          # separate from vitest.config.ts
+└── tests/
+    └── integration/
+        ├── setup/
+        │   ├── global.ts                 # one-time setup (e.g., spin up backend)
+        │   └── worker.ts                 # per-test-file setup
+        └── <feature>.integration.test.ts
+```
+
+Differences from unit config:
+- `include: ["tests/integration/**/*.test.ts"]`
+- `testTimeout` and `hookTimeout` raised to 30s (real network)
+- `sequence.concurrent: false` (tests share backend state)
+- `globalSetup` + `setupFiles` point at the setup files
+- No coverage section (integration tests aren't a coverage signal)
+
+`package.json` scripts:
+
+```json
+{
+  "scripts": {
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:all": "pnpm run test:unit && pnpm run test:integration"
+  }
+}
+```
+
+**When to write an integration test instead of a unit test:**
+
+- The code talks to a real backend service and the request/response contract is what you want to validate (mocking Fern hides exactly the thing you'd be testing).
+- The code coordinates multiple molecules or atoms whose interaction is the bug surface.
+- You're testing a migration path or schema evolution where the real backend's behaviour is the spec.
+
+For everything else (request shape, guards, pure derivation), stick with unit tests.
+
+Reference: `web/packages/agenta-entities/vitest.integration.config.ts` and `web/packages/agenta-entities/tests/integration/{testset,testcase,trace-span,environment}.integration.test.ts`.
 
 ### What to test
 
