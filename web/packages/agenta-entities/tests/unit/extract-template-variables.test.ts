@@ -106,9 +106,7 @@ describe("extractTemplateVariables", () => {
         })
 
         it("extracts dotted access {{user.name}}", () => {
-            expect(extractTemplateVariables("Hello {{user.name}}", "curly")).toEqual([
-                "user.name",
-            ])
+            expect(extractTemplateVariables("Hello {{user.name}}", "curly")).toEqual(["user.name"])
         })
 
         it("SKIPS mustache-style markers (no section semantics in curly)", () => {
@@ -129,9 +127,9 @@ describe("extractTemplateVariables", () => {
         it("still extracts plain variables next to a bad mustache token", () => {
             // Mixed authoring: the legit `{{name}}` survives; the
             // `{{#items}}` mistake is dropped.
-            expect(extractTemplateVariables("Hi {{name}}, list: {{#items}}.", "curly")).toEqual(
-                ["name"],
-            )
+            expect(extractTemplateVariables("Hi {{name}}, list: {{#items}}.", "curly")).toEqual([
+                "name",
+            ])
         })
     })
 
@@ -156,10 +154,7 @@ describe("extractMustacheSectionOpeners", () => {
     })
 
     it("picks up `{{#name}}` openers", () => {
-        const out = extractMustacheSectionOpeners(
-            "{{#languages}}{{.}}{{/languages}}",
-            "mustache",
-        )
+        const out = extractMustacheSectionOpeners("{{#languages}}{{.}}{{/languages}}", "mustache")
         expect(Array.from(out)).toEqual(["languages"])
     })
 
@@ -174,10 +169,8 @@ describe("extractMustacheSectionOpeners", () => {
 
     it("excludes closers, comments, partials, the implicit iterator, and plain vars", () => {
         expect(
-            extractMustacheSectionOpeners(
-                "{{/name}} {{!c}} {{> p}} {{.}} {{plain}}",
-                "mustache",
-            ).size,
+            extractMustacheSectionOpeners("{{/name}} {{!c}} {{> p}} {{.}} {{plain}}", "mustache")
+                .size,
         ).toBe(0)
     })
 

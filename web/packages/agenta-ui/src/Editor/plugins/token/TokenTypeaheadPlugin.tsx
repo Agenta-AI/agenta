@@ -273,13 +273,25 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
             for (const s of provided) push(s.label, {hint: s.hint})
         }
 
-        // Mine previously-seen flat tokens (everything that doesn't
-        // start with `$.`) sharing the current dot-prefix.
+        // Mine previously-seen flat tokens (everything that doesn't start
+        // with `$.`) sharing the current dot-prefix.
+        //
+        // Mustache section openers in the document show up here too — the
+        // token body is `#languages` / `^empty`. Two things matter:
+        //   - In FLAT mode, those tokens should be skipped entirely (they
+        //     aren't flat-style names and shouldn't pollute the list).
+        //   - In SECTION / inverted-section mode, strip the leading `#` /
+        //     `^` before comparing prefixes and extracting the next
+        //     segment. Otherwise selecting one would re-prefix in
+        //     `push()` and produce `{{##languages}}` / `{{^^empty}}`.
         const flatPrefix = prefix.length > 0 ? `${prefix.join(".")}.` : ""
         for (const token of dynamicallyReadingTokens) {
             if (!token || token.startsWith("$.") || token === "$") continue
-            if (flatPrefix && !token.startsWith(flatPrefix)) continue
-            const rest = flatPrefix ? token.slice(flatPrefix.length) : token
+            const hasSectionMarker = token.startsWith("#") || token.startsWith("^")
+            if (hasSectionMarker && mode === "flat") continue
+            const normalized = hasSectionMarker ? token.slice(1) : token
+            if (flatPrefix && !normalized.startsWith(flatPrefix)) continue
+            const rest = flatPrefix ? normalized.slice(flatPrefix.length) : normalized
             const nextSeg = rest.split(/[.[\]'"]/).filter(Boolean)[0]
             if (!nextSeg) continue
             push(nextSeg, {hint: "seen"})

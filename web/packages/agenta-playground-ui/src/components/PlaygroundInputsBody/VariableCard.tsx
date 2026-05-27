@@ -22,7 +22,7 @@
  * arrays, numbers as numbers, etc.
  */
 
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     FormView,
@@ -409,6 +409,14 @@ function TextLeafEditor({mode, value, editable, originalType, onChange}: TextLea
     const initial = useMemo(() => valueToDisplay(value, mode), [value, mode])
     const [buffer, setBuffer] = useState(initial)
 
+    // Resync the local buffer when `value` changes externally — e.g. testcase
+    // refetch from the store, a row update from another surface, or a
+    // discard/revert that resets the cell. Without this the visible text
+    // goes stale while the underlying state has already moved on.
+    useEffect(() => {
+        setBuffer(initial)
+    }, [initial])
+
     const handleChange = useCallback(
         (next: string) => {
             setBuffer(next)
@@ -449,6 +457,13 @@ interface CodeLeafEditorProps {
 function CodeLeafEditor({mode, value, editable, onChange}: CodeLeafEditorProps) {
     const initial = useMemo(() => valueToDisplay(value, mode), [value, mode])
     const [buffer, setBuffer] = useState(initial)
+
+    // Resync the local buffer when `value` changes externally — same
+    // reasoning as TextLeafEditor above. Mode switches (json ↔ yaml) also
+    // change `initial`, so this covers the user toggling view modes too.
+    useEffect(() => {
+        setBuffer(initial)
+    }, [initial])
 
     const handleChange = useCallback(
         (next: string) => {
