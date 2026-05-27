@@ -183,7 +183,9 @@ describe("view-types: expected-type-aware variants", () => {
     it("falls back to expectedType when value is undefined", () => {
         // Draft `geo` port referenced via `{{geo.region}}` → object port.
         expect(getDefaultViewForExpectedType(undefined, "object")).toBe("form")
-        expect(getDefaultViewForExpectedType(undefined, "array")).toBe("form")
+        // Arrays default to JSON instead of Form — empty arrays have no
+        // add-item affordance in Form view. See the dedicated test below.
+        expect(getDefaultViewForExpectedType(undefined, "array")).toBe("json")
         expect(getDefaultViewForExpectedType(undefined, "boolean")).toBe("text")
         expect(getDefaultViewForExpectedType(undefined, "number")).toBe("text")
         expect(getDefaultViewForExpectedType(undefined, "string")).toBe("text")
@@ -218,6 +220,23 @@ describe("view-types: expected-type-aware variants", () => {
         const opts = getViewOptionsForExpectedType(undefined, "string")
         expect(opts[0]?.value).toBe("text")
         expect(opts.map((o) => o.value)).toEqual(expect.arrayContaining(["markdown", "json"]))
+    })
+
+    it("array drafts default to JSON (not Form) — Form has no add-item affordance", () => {
+        // Empty arrays in Form view show "(empty object)" with no way to
+        // add items. JSON's `[]` buffer is the more useful entry point.
+        expect(getDefaultViewForExpectedType(undefined, "array")).toBe("json")
+        const opts = getViewOptionsForExpectedType(undefined, "array")
+        expect(opts[0]?.value).toBe("json")
+        // Form is still in the list — useful once the array has items.
+        expect(opts.map((o) => o.value)).toEqual(expect.arrayContaining(["form", "yaml"]))
+    })
+
+    it("array drafts switch to value-driven options once a real array exists", () => {
+        // Real array → value-driven path: Form is default for objects/arrays
+        // with items (FormView renders them per-index).
+        const arr = ["en", "fr"]
+        expect(getDefaultViewForExpectedType(arr, "array")).toBe("form")
     })
 })
 
