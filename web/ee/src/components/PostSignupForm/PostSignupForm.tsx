@@ -11,6 +11,7 @@ import {
     type SurveyQuestion,
     SurveyQuestionType,
 } from "posthog-js"
+import {flushSync} from "react-dom"
 
 import type {Org} from "@/oss/lib/Types"
 
@@ -138,11 +139,18 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
 
     const handleSubmitFormData = useCallback(
         async (values: any) => {
-            // Flip into the submitting state immediately so the user sees a
-            // clear loading affordance instead of the form briefly clearing
-            // (or the previous step's questions lingering) while Next.js
-            // navigates away.
-            setIsSubmitting(true)
+            // Force the submitting view to commit synchronously, then yield
+            // one animation frame so the browser actually paints it before
+            // we trigger navigation. Without flushSync + rAF, React 18
+            // batches this state update with the rest of this task and the
+            // prefetched /get-started route swaps in before the new render
+            // ever reaches the screen — the user just sees the half-torn-
+            // down form right up until the new page replaces it.
+            flushSync(() => {
+                setIsSubmitting(true)
+            })
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
             try {
                 // Get all values including unmounted fields from previous steps
                 const allValues = {...form.getFieldsValue(true), ...values}
