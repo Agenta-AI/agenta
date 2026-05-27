@@ -12,11 +12,13 @@ interface PostSignupFallbackProps {
     reason: PostSignupFallbackReason
 }
 
+const FALLBACK_MESSAGE =
+    "We couldn't load the welcome questionnaire right now. You can continue to your workspace and we'll skip this step."
+
 const REASON_MESSAGES: Record<PostSignupFallbackReason, string> = {
-    "posthog-load-failed":
-        "We couldn't load the welcome questionnaire right now. You can continue to your workspace and we'll skip this step.",
-    "survey-fetch-error":
-        "We couldn't load the welcome questionnaire right now. You can continue to your workspace and we'll skip this step.",
+    "posthog-load-failed": FALLBACK_MESSAGE,
+    "survey-fetch-error": FALLBACK_MESSAGE,
+    "watchdog-timeout": FALLBACK_MESSAGE,
 }
 
 /**

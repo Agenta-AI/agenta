@@ -92,32 +92,51 @@ export const useSurvey = (surveyName: string) => {
         async () => {
             return await new Promise<Survey | null>((resolve, reject) => {
                 let settled = false
-                const timeout = window.setTimeout(() => {
-                    if (settled) return
-                    settled = true
-                    reject(
-                        createSurveyError(
-                            "survey-fetch-error",
-                            `Survey fetch timed out after ${SURVEY_FETCH_TIMEOUT_MS}ms`,
-                        ),
-                    )
-                }, SURVEY_FETCH_TIMEOUT_MS)
+                let unsubscribeSurveys: (() => void) | undefined
+                let timeoutHandle: number | undefined
+
+                const cleanup = () => {
+                    if (timeoutHandle !== undefined) {
+                        window.clearTimeout(timeoutHandle)
+                        timeoutHandle = undefined
+                    }
+                    unsubscribeSurveys?.()
+                    unsubscribeSurveys = undefined
+                }
 
                 const settle = (cb: () => void) => {
                     if (settled) return
                     settled = true
-                    window.clearTimeout(timeout)
+                    cleanup()
                     cb()
                 }
 
-                // We intentionally use getSurveys (not getActiveMatchingSurveys) because
-                // our signup survey is type="api" and rendered by our own form. The SDK's
-                // eligibility filter inside getActiveMatchingSurveys checks an auto-generated
-                // internal_targeting_flag_key (for the "show once" schedule) that returns
-                // false for brand-new identified users before their flag context settles —
-                // so the survey is silently filtered out. getSurveys returns the raw list;
-                // we own the "show once" decision via our own backend on form submit.
-                try {
+                timeoutHandle = window.setTimeout(() => {
+                    settle(() =>
+                        reject(
+                            createSurveyError(
+                                "survey-fetch-error",
+                                `Survey fetch timed out after ${SURVEY_FETCH_TIMEOUT_MS}ms`,
+                            ),
+                        ),
+                    )
+                }, SURVEY_FETCH_TIMEOUT_MS)
+
+                // Two-stage wait:
+                //   1. onSurveysLoaded fires after posthog.surveys is initialized AND the
+                //      remote /api/surveys/ response has been processed. Without this gate,
+                //      calling getSurveys too early (right after posthog.__loaded but before
+                //      the surveys extension settles) makes the SDK fire the callback
+                //      synchronously with an empty list + isLoaded:false, which we'd mis-
+                //      interpret as "survey not found" and silently redirect away.
+                //   2. We then call getSurveys (NOT getActiveMatchingSurveys) because the
+                //      signup survey is type="api" and we render it ourselves. The SDK's
+                //      eligibility filter inside getActiveMatchingSurveys checks an auto-
+                //      generated internal_targeting_flag_key (from the "show once" schedule)
+                //      that returns false for brand-new identified users before their flag
+                //      context settles. getSurveys returns the raw list; we own the "show
+                //      once" decision via our own backend on form submit.
+                const runQuery = () => {
                     const getSurveys = posthog?.getSurveys
                     if (typeof getSurveys !== "function") {
                         settle(() =>
@@ -131,27 +150,74 @@ export const useSurvey = (surveyName: string) => {
                         return
                     }
 
-                    getSurveys.call(
+                    try {
+                        getSurveys.call(
+                            posthog,
+                            (surveys: Survey[] | undefined) => {
+                                const found = surveys?.find(
+                                    (s) => s.name?.includes(surveyName) && isSurveyRunning(s),
+                                )
+                                if (!found) {
+                                    settle(() =>
+                                        reject(
+                                            createSurveyError(
+                                                "survey-unavailable",
+                                                `Survey "${surveyName}" is not available`,
+                                            ),
+                                        ),
+                                    )
+                                    return
+                                }
+                                settle(() => resolve(found))
+                            },
+                            false,
+                        )
+                    } catch (e: unknown) {
+                        const error =
+                            e instanceof Error
+                                ? createSurveyError("survey-fetch-error", e.message)
+                                : createSurveyError("survey-fetch-error", "Failed to load survey")
+                        settle(() => reject(error))
+                    }
+                }
+
+                try {
+                    const onSurveysLoaded = posthog?.onSurveysLoaded
+                    if (typeof onSurveysLoaded !== "function") {
+                        // Older SDK or surveys extension not present — fall back to a
+                        // direct query and rely on the timeout to catch hangs.
+                        runQuery()
+                        return
+                    }
+
+                    const maybeUnsubscribe = onSurveysLoaded.call(
                         posthog,
-                        (surveys: Survey[] | undefined) => {
-                            const found = surveys?.find(
-                                (s) => s.name?.includes(surveyName) && isSurveyRunning(s),
-                            )
-                            if (!found) {
+                        (
+                            _loadedSurveys: Survey[],
+                            context?: {isLoaded: boolean; error?: string},
+                        ) => {
+                            if (context && !context.isLoaded) {
                                 settle(() =>
                                     reject(
                                         createSurveyError(
-                                            "survey-unavailable",
-                                            `Survey "${surveyName}" is not available`,
+                                            "survey-fetch-error",
+                                            context.error ?? "PostHog surveys failed to load",
                                         ),
                                     ),
                                 )
                                 return
                             }
-                            settle(() => resolve(found))
+                            runQuery()
                         },
-                        false,
                     )
+                    // onSurveysLoaded may fire its callback synchronously when surveys
+                    // are already loaded. In that case settle() ran before this
+                    // assignment, so we'd never unsubscribe; release it immediately.
+                    if (settled) {
+                        maybeUnsubscribe?.()
+                    } else {
+                        unsubscribeSurveys = maybeUnsubscribe
+                    }
                 } catch (e: unknown) {
                     const error =
                         e instanceof Error
