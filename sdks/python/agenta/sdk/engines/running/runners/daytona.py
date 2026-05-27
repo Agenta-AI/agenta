@@ -3,9 +3,12 @@ import json
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, Union, Optional, TYPE_CHECKING
 
+import httpx
+
 import agenta as ag
 from agenta.sdk.engines.running.runners.base import CodeRunner
 from agenta.sdk.contexts.running import RunningContext
+from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.lazy import _load_daytona
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -56,6 +59,12 @@ class DaytonaRunner(CodeRunner):
     """Remote code runner using Daytona sandbox for execution."""
 
     _instance: Optional["DaytonaRunner"] = None
+
+    # Snapshot name lookup is org-scoped on Daytona's side, so a `general: true`
+    # snapshot owned by another org can't be resolved by name from our org —
+    # only by ID. Cache the (name, target) -> id mapping for a day to avoid
+    # listing snapshots on every sandbox create.
+    _snapshot_id_cache: TTLLRUCache = TTLLRUCache(capacity=32, ttl=86400)
 
     def __new__(cls):
         """Singleton pattern to reuse Daytona client and sandbox."""
@@ -155,6 +164,46 @@ class DaytonaRunner(CodeRunner):
 
         return env_vars
 
+    def _resolve_snapshot_id(self, name: str, target: str) -> str:
+        """Resolve a snapshot name to its ID for the given region.
+
+        Sandbox creation by snapshot *name* only resolves snapshots owned by
+        the requesting org, even when the snapshot is marked ``general: true``
+        and visible in the dashboard. Resolving by *ID* works cross-org, so we
+        list snapshots, find one matching name + region + active state, and
+        cache the result.
+        """
+        cache_key = (name, target)
+        cached = self._snapshot_id_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        api_url = os.getenv("DAYTONA_API_URL") or "https://app.daytona.io/api"
+        api_key = os.getenv("DAYTONA_API_KEY")
+
+        response = httpx.get(
+            f"{api_url.rstrip('/')}/snapshots",
+            params={"limit": 25},
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        items = response.json().get("items", [])
+
+        for item in items:
+            if (
+                item.get("name") == name
+                and item.get("state") == "active"
+                and target in (item.get("regionIds") or [])
+            ):
+                snapshot_id = item["id"]
+                self._snapshot_id_cache.put(cache_key, snapshot_id)
+                return snapshot_id
+
+        raise RuntimeError(
+            f"No active Daytona snapshot named '{name}' found in region '{target}'."
+        )
+
     def _create_sandbox(self, runtime: Optional[str] = None) -> Any:
         """Create a new sandbox for this run from snapshot.
 
@@ -169,13 +218,16 @@ class DaytonaRunner(CodeRunner):
             runtime = runtime or "python"
 
             # Select general snapshot
-            snapshot_id = os.getenv("DAYTONA_SNAPSHOT")
+            snapshot_ref = os.getenv("DAYTONA_SNAPSHOT")
 
-            if not snapshot_id:
+            if not snapshot_ref:
                 raise RuntimeError(
                     f"No Daytona snapshot configured for runtime '{runtime}'. "
                     f"Set DAYTONA_SNAPSHOT environment variable."
                 )
+
+            target = os.getenv("DAYTONA_TARGET") or os.getenv("AGENTA_REGION") or "eu"
+            snapshot_id = self._resolve_snapshot_id(snapshot_ref, target)
 
             _, _, _, CreateSandboxFromSnapshotParams = _load_daytona()
 
@@ -212,14 +264,28 @@ class DaytonaRunner(CodeRunner):
                 **provider_env_vars,  # Add provider API keys
             }
 
-            sandbox = self.daytona.create(
-                CreateSandboxFromSnapshotParams(
-                    snapshot=snapshot_id,
-                    ephemeral=True,
-                    env_vars=env_vars,
-                    language=runtime,
+            def _create(sid: str) -> Any:
+                return self.daytona.create(
+                    CreateSandboxFromSnapshotParams(
+                        snapshot=sid,
+                        ephemeral=True,
+                        env_vars=env_vars,
+                        language=runtime,
+                    )
                 )
-            )
+
+            try:
+                sandbox = _create(snapshot_id)
+            except Exception as e:
+                # Snapshot may have been rebuilt with a new ID mid-cache;
+                # invalidate and retry once with a fresh lookup.
+                message = str(e).lower()
+                if "not found" in message or "not available" in message:
+                    self._snapshot_id_cache.pop((snapshot_ref, target))
+                    snapshot_id = self._resolve_snapshot_id(snapshot_ref, target)
+                    sandbox = _create(snapshot_id)
+                else:
+                    raise
 
             return sandbox
 
