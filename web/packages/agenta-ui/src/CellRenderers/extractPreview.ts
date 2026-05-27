@@ -6,7 +6,34 @@
  * something; the raw JSON fallback is the last rule in the list.
  */
 
-import {extractChatMessages, tryParseJson, type ChatExtractionPreference} from "./utils"
+import {extractChatMessages, type ChatExtractionPreference} from "./utils"
+
+// Loose JSON-string parser for the beautified dispatcher.
+//
+// `tryParseJsonValue` in @agenta/shared is intentionally strict and leaves
+// strings as strings, which is correct for the testcase / playground editors.
+// The dispatcher is the one place that must look inside JSON-encoded payloads,
+// because every rule below matches on object shape. A backend value like
+// `'{"returnValues":{"output":"..."},"log":"..."}'` is a string at the cell
+// boundary, and we need the parsed object for `outputKeyRule` to fire.
+//
+// Kept as a private helper in this file so nothing else can import it and
+// re-introduce auto-parsing in surfaces that have intentionally moved to
+// "strings stay strings".
+const tryParseJsonString = (input: unknown): unknown => {
+    if (typeof input !== "string") return input
+    const trimmed = input.trim()
+    const looksLikeContainer =
+        (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+        (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    if (!looksLikeContainer) return input
+    try {
+        const parsed = JSON.parse(trimmed)
+        return typeof parsed === "object" && parsed !== null ? parsed : input
+    } catch {
+        return input
+    }
+}
 
 export type Preview =
     | {renderer: "chat"; data: unknown[]; source: string}
@@ -108,8 +135,7 @@ const generationsOutputRule: Rule = {
 const RULES: Rule[] = [chatRule, inputKeyRule, outputKeyRule, generationsOutputRule]
 
 export const extractPreview = (value: unknown, side?: ChatExtractionPreference): Preview => {
-    const {parsed} = tryParseJson(value)
-    const candidate = parsed ?? value
+    const candidate = tryParseJsonString(value)
     const ctx: RuleContext = {side}
 
     for (const rule of RULES) {
