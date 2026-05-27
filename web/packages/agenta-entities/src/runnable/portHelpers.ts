@@ -142,11 +142,14 @@ export interface GroupedTemplateVariable {
     /** Display label. Same as `key` under this model. */
     name: string
     /**
-     * Declared shape. `"object"` when any placeholder references a sub-path
-     * of this group (signals the UI to render a JSON editor); otherwise
-     * `"string"`.
+     * Declared shape.
+     *   - `"object"` when any placeholder references a sub-path of this
+     *     group (`{{geo.region}}` → object with `region` sub-path).
+     *   - `"array"` when the name appears ONLY as a mustache section opener
+     *     (`{{#languages}}{{.}}{{/languages}}` → array, no sub-paths).
+     *   - `"string"` otherwise.
      */
-    type: "string" | "object"
+    type: "string" | "object" | "array"
     /**
      * Known sub-paths beneath the group (populated only when `type === "object"`).
      * Used to seed a shape-hint default in the JSON editor so users see
@@ -285,8 +288,20 @@ function parseTemplateExpression(expr: string): ParsedTemplateExpression {
  * `envelope === "inputs"`; other slots are runtime-resolved (backend
  * populates them from trace / workflow config / etc.).
  */
-export function groupTemplateVariables(placeholders: string[]): GroupedTemplateVariable[] {
+export function groupTemplateVariables(
+    placeholders: string[],
+    options?: {
+        /** Set of names that appeared as mustache section openers
+         *  (`{{#name}}` / `{{^name}}`) in the source template. Used to
+         *  refine type inference: a name referenced ONLY as a section
+         *  opener (no sub-paths) gets `type: "array"` — the iteration
+         *  intent is the strongest signal we have without parsing the
+         *  block body. Names with sub-paths stay `"object"` regardless. */
+        sectionOpeners?: Set<string>
+    },
+): GroupedTemplateVariable[] {
     const groups = new Map<string, {envelope: string; key: string; subPaths: Set<string>}>()
+    const sectionOpeners = options?.sectionOpeners
 
     for (const placeholder of placeholders) {
         // Invalid envelope references (e.g. `$.input.xx.abc` — `input` is not
@@ -313,11 +328,19 @@ export function groupTemplateVariables(placeholders: string[]): GroupedTemplateV
 
     return Array.from(groups.values()).map(({envelope, key, subPaths}) => {
         const subPathList = Array.from(subPaths)
+        // Type inference priority:
+        //   1. Sub-paths present → `"object"` (the strongest signal — the
+        //      template addresses specific fields).
+        //   2. Section opener AND no sub-paths → `"array"` (iteration intent).
+        //   3. Otherwise → `"string"`.
+        const isSectionOpener = sectionOpeners?.has(key) ?? false
+        const type: GroupedTemplateVariable["type"] =
+            subPathList.length > 0 ? "object" : isSectionOpener ? "array" : "string"
         return {
             envelope,
             key,
             name: key,
-            type: subPathList.length > 0 ? ("object" as const) : ("string" as const),
+            type,
             ...(subPathList.length > 0 ? {subPaths: subPathList} : {}),
         }
     })

@@ -556,6 +556,47 @@ export function extractTemplateVariables(
 }
 
 /**
+ * Extract names that appear as mustache SECTION OPENERS (`{{#name}}` or
+ * `{{^name}}`) from a template string.
+ *
+ * Distinct from `extractTemplateVariables`, which returns every referenced
+ * placeholder (section openers, plain variables, dotted access). Callers use
+ * this set as a hint when grouping variables — a name referenced ONLY as a
+ * section opener with no sub-paths is best surfaced as an `array` port
+ * (iteration intent) rather than the default `string` port.
+ *
+ * Always returns an empty set for non-mustache formats: curly / jinja2 /
+ * fstring don't have section semantics, so the hint isn't meaningful there.
+ */
+export function extractMustacheSectionOpeners(
+    input: string,
+    templateFormat: TemplateFormat = "curly",
+): Set<string> {
+    const names = new Set<string>()
+    if (templateFormat !== "mustache") return names
+
+    let i = 0
+    while (i < input.length - 1) {
+        if (input[i] === "{" && input[i + 1] === "{") {
+            const start = i + 2
+            const end = input.indexOf("}}", start)
+            if (end === -1) break
+            const raw = input.slice(start, end).trim()
+            // Section opener (`#name`) or inverted section opener (`^name`).
+            // `&name` is variable unescape, not a section — exclude.
+            if (/^[#^]/.test(raw)) {
+                const name = raw.slice(1).trim()
+                if (name) names.add(name)
+            }
+            i = end + 2
+        } else {
+            i++
+        }
+    }
+    return names
+}
+
+/**
  * Extract template variables from a JSON object recursively
  * @param obj - Object to extract variables from
  * @returns Array of unique variable names
@@ -730,6 +771,60 @@ export function extractVariablesFromConfig(
     }
 
     return variables
+}
+
+/**
+ * Mirror of `extractVariablesFromConfig` that collects mustache SECTION
+ * OPENERS (`{{#name}}` / `{{^name}}`) across all prompt-like entries in
+ * config. Used alongside `extractVariablesFromConfig` to feed the
+ * `sectionOpeners` hint into `groupTemplateVariables`, so a name referenced
+ * only via section markers (no sub-paths) surfaces as an `array` port
+ * instead of the default `string` port.
+ *
+ * Always returns an empty set for non-mustache prompts — section semantics
+ * are mustache-specific.
+ */
+export function extractSectionOpenersFromConfig(
+    agConfig: Record<string, unknown> | undefined,
+): Set<string> {
+    const openers = new Set<string>()
+    if (!agConfig) return openers
+
+    for (const value of Object.values(agConfig)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+        const prompt = value as Record<string, unknown>
+
+        const rawTf = (prompt.template_format ?? prompt.templateFormat) as string | undefined
+        const tf = resolveTemplateFormat(rawTf) ?? "curly"
+        if (tf !== "mustache") continue
+
+        if (!Array.isArray(prompt.messages)) continue
+        for (const message of prompt.messages) {
+            if (!message || typeof message !== "object") continue
+            const content = (message as Record<string, unknown>).content
+            if (typeof content === "string") {
+                for (const opener of extractMustacheSectionOpeners(content, tf)) {
+                    openers.add(opener)
+                }
+            } else if (Array.isArray(content)) {
+                for (const part of content) {
+                    if (typeof part === "string") {
+                        for (const opener of extractMustacheSectionOpeners(part, tf)) {
+                            openers.add(opener)
+                        }
+                    } else if (part && typeof part === "object") {
+                        const text = (part as Record<string, unknown>).text
+                        if (typeof text === "string") {
+                            for (const opener of extractMustacheSectionOpeners(text, tf)) {
+                                openers.add(opener)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return openers
 }
 
 /**

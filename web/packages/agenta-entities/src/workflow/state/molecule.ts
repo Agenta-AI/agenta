@@ -50,6 +50,8 @@ import {
 } from "../../runnable/portHelpers"
 import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
 import {
+    extractMustacheSectionOpeners,
+    extractSectionOpenersFromConfig,
     extractTemplateVariables,
     extractVariablesFromConfig,
     resolveTemplateFormat,
@@ -775,15 +777,21 @@ function buildEvaluatorFieldPortsFromTemplate(entity: Workflow | null | undefine
     const fmt = resolveTemplateFormat(rawFmt) ?? "curly"
 
     const placeholders: string[] = []
+    const sectionOpeners = new Set<string>()
     for (const message of messages) {
         const content = message?.content
         if (typeof content !== "string") continue
         for (const v of extractTemplateVariables(content, fmt)) {
             if (!placeholders.includes(v)) placeholders.push(v)
         }
+        // Collect mustache `{{#name}}` / `{{^name}}` openers so iteration
+        // intent surfaces as `type: "array"` for ports with no sub-paths.
+        for (const opener of extractMustacheSectionOpeners(content, fmt)) {
+            sectionOpeners.add(opener)
+        }
     }
 
-    const groups = groupTemplateVariables(placeholders)
+    const groups = groupTemplateVariables(placeholders, {sectionOpeners})
     const ports: RunnablePort[] = []
     const seen = new Set<string>()
     for (const group of groups) {
@@ -796,23 +804,36 @@ function buildEvaluatorFieldPortsFromTemplate(entity: Workflow | null | undefine
         if (RESERVED_FIELD_KEYS.has(group.key)) continue
         if (seen.has(group.key)) continue
         seen.add(group.key)
+        const baseHelpText = `Field referenced in your prompt as \`{{$.inputs.${group.key}}}\`${
+            group.type === "string" ? ` or \`{{${group.key}}}\`` : ""
+        }${
+            group.type === "array"
+                ? ` (used as a mustache section: \`{{#${group.key}}}…{{/${group.key}}}\`)`
+                : ""
+        }. Note: this value is merged into the \`inputs\` envelope at runtime, so it also appears inside \`{{inputs}}\` if your prompt renders the whole envelope.`
+
+        // Emit an explicit `array` schema for section-opener ports so the
+        // empty-shape seed produces `[]` (instead of nothing) and the new
+        // playground inputs body can show a sensible JSON skeleton on
+        // drafts. Object ports already get a schema from `subPaths`.
+        const schema =
+            group.subPaths && group.subPaths.length > 0
+                ? {
+                      type: "object",
+                      properties: Object.fromEntries(
+                          group.subPaths.map((sp) => [sp, {type: "string"}]),
+                      ),
+                  }
+                : group.type === "array"
+                  ? {type: "array"}
+                  : undefined
+
         ports.push({
             key: group.key,
             name: group.key,
             type: group.type,
-            helpText: `Field referenced in your prompt as \`{{$.inputs.${group.key}}}\`${
-                group.type === "string" ? ` or \`{{${group.key}}}\`` : ""
-            }. Note: this value is merged into the \`inputs\` envelope at runtime, so it also appears inside \`{{inputs}}\` if your prompt renders the whole envelope.`,
-            ...(group.subPaths && group.subPaths.length > 0
-                ? {
-                      schema: {
-                          type: "object",
-                          properties: Object.fromEntries(
-                              group.subPaths.map((sp) => [sp, {type: "string"}]),
-                          ),
-                      },
-                  }
-                : {}),
+            helpText: baseHelpText,
+            ...(schema ? {schema} : {}),
         })
     }
     return ports
@@ -887,14 +908,21 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
             if (params) {
                 const vars = extractVariablesFromConfig(params as Record<string, unknown>)
                 if (vars.length > 0) {
-                    return groupTemplateVariables(vars)
+                    const sectionOpeners = extractSectionOpenersFromConfig(
+                        params as Record<string, unknown>,
+                    )
+                    return groupTemplateVariables(vars, {sectionOpeners})
                         .filter((group) => group.envelope === "inputs")
                         .map((group) => ({
                             key: group.key,
                             name: group.name,
                             type: group.type,
                             required: true,
-                            ...(group.subPaths ? {schema: buildSubPathSchema(group.subPaths)} : {}),
+                            ...(group.subPaths
+                                ? {schema: buildSubPathSchema(group.subPaths)}
+                                : group.type === "array"
+                                  ? {schema: {type: "array"}}
+                                  : {}),
                         }))
                 }
             }
@@ -931,14 +959,21 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                 (key) => !systemFields.has(key),
             )
             if (vars.length > 0) {
-                return groupTemplateVariables(vars)
+                const sectionOpeners = extractSectionOpenersFromConfig(
+                    params as Record<string, unknown>,
+                )
+                return groupTemplateVariables(vars, {sectionOpeners})
                     .filter((group) => group.envelope === "inputs")
                     .map((group) => ({
                         key: group.key,
                         name: group.name,
                         type: group.type,
                         required: true,
-                        ...(group.subPaths ? {schema: buildSubPathSchema(group.subPaths)} : {}),
+                        ...(group.subPaths
+                            ? {schema: buildSubPathSchema(group.subPaths)}
+                            : group.type === "array"
+                              ? {schema: {type: "array"}}
+                              : {}),
                     }))
             }
         }
