@@ -323,11 +323,21 @@ function CardBody({mode, value, seedShape, editable, onChange}: CardBodyProps): 
 
     if (mode === "chat") {
         const messages = isChatMessagesArray(value) ? (value as SimpleChatMessage[]) : []
+        // Match the prop set used by `MessagesField` (drill-in drawer) which
+        // is the canonical working configuration for editing chat-shaped
+        // arrays. Without `enableTokens` / `templateFormat` the message
+        // editors mount their plugin stack in a constrained state and the
+        // content reads as static text. `allowFileUpload={false}` matches
+        // the variable-input UX — files belong in their own column, not
+        // inline in a testcase value.
         return (
             <ChatMessageList
                 messages={messages}
                 onChange={(next) => onChange(next)}
                 disabled={!editable}
+                enableTokens
+                templateFormat="curly"
+                allowFileUpload={false}
             />
         )
     }
