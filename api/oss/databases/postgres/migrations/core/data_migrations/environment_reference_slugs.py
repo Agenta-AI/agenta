@@ -16,7 +16,8 @@ def upgrade_environment_reference_slugs(session: Connection) -> None:
             }
         }
 
-    (or the ``workflow``/``workflow_variant``/``workflow_revision`` family).
+    (or the ``evaluator``/``workflow`` families, which reuse the same workflow_*
+    persistence, so one revision-lineage lookup is authoritative for all three).
 
     Some write paths persisted the bare entity *name* ("My App", "default") or
     the wrong slug at the artifact/variant levels, which breaks the retrieve
@@ -51,6 +52,7 @@ def upgrade_environment_reference_slugs(session: Connection) -> None:
                             -- detect it from whichever revision ref is present.
                             SELECT CASE
                                 WHEN k.refs ? 'application_revision' THEN 'application'
+                                WHEN k.refs ? 'evaluator_revision' THEN 'evaluator'
                                 WHEN k.refs ? 'workflow_revision' THEN 'workflow'
                                 ELSE NULL
                             END AS prefix
@@ -117,6 +119,7 @@ def upgrade_environment_reference_slugs(session: Connection) -> None:
                 CROSS JOIN LATERAL (
                     SELECT CASE
                         WHEN k.refs ? 'application_revision' THEN 'application'
+                        WHEN k.refs ? 'evaluator_revision' THEN 'evaluator'
                         WHEN k.refs ? 'workflow_revision' THEN 'workflow'
                         ELSE NULL
                     END AS prefix

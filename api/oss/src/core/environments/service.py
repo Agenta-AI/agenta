@@ -203,11 +203,17 @@ class EnvironmentsService:
         normalized: Dict[str, Dict[str, Reference]] = {}
 
         for key, group in references.items():
-            prefix = None
-            if "application_revision" in group:
-                prefix = "application"
-            elif "workflow_revision" in group:
-                prefix = "workflow"
+            # application/evaluator/workflow all persist into the workflow_*
+            # tables (applications & evaluators reuse workflow persistence), so a
+            # single revision-lineage lookup is authoritative for every family.
+            prefix = next(
+                (
+                    family
+                    for family in ("application", "evaluator", "workflow")
+                    if f"{family}_revision" in group
+                ),
+                None,
+            )
 
             revision_ref = group.get(f"{prefix}_revision") if prefix else None
 

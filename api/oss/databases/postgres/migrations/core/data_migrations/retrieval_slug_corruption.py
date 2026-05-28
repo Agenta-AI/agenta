@@ -20,8 +20,7 @@ def upgrade_retrieval_slug_corruption(session: Connection) -> None:
             r"""
             UPDATE workflow_variants
             SET slug = regexp_replace(slug, '[^a-zA-Z0-9_.\-]', '_', 'g')
-            WHERE slug ~ '\s'
-               OR slug !~ '^[a-zA-Z0-9_\-][a-zA-Z0-9_.\-]*$'
+            WHERE slug !~ '^[a-zA-Z0-9_\-][a-zA-Z0-9_.\-]*$'
             """
         )
     )
@@ -45,7 +44,8 @@ def upgrade_retrieval_slug_corruption(session: Connection) -> None:
                     SELECT jsonb_object_agg(
                         ref.key,
                         CASE
-                            WHEN ref.value -> 'application_variant' ->> 'slug' ~ '\s'
+                            WHEN ref.value -> 'application_variant' ->> 'slug'
+                                 !~ '^[a-zA-Z0-9_\-][a-zA-Z0-9_.\-]*$'
                             THEN jsonb_set(
                                 ref.value,
                                 '{application_variant,slug}',
@@ -62,7 +62,8 @@ def upgrade_retrieval_slug_corruption(session: Connection) -> None:
               AND EXISTS (
                 SELECT 1
                 FROM jsonb_each(er.data::jsonb -> 'references') AS ref
-                WHERE ref.value -> 'application_variant' ->> 'slug' ~ '\s'
+                WHERE ref.value -> 'application_variant' ->> 'slug'
+                      !~ '^[a-zA-Z0-9_\-][a-zA-Z0-9_.\-]*$'
               )
             """
         )

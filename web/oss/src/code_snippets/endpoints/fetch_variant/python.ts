@@ -11,7 +11,7 @@ import agenta as ag
 
 os.environ["AGENTA_API_KEY"] = "${apiKey}"
 os.environ["AGENTA_API_URL"] = "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}"
-    
+
 config = ag.ConfigManager.get_from_registry(
     app_slug="${appSlug}",
     variant_slug="${variantSlug}",
