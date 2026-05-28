@@ -64,16 +64,25 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value)
 
 const getPathValue = (value: unknown, path: string): unknown => {
-    if (!isRecord(value)) return undefined
+    // Arrays are valid roots/intermediates: paths like "trees.0.tree.id"
+    // need to traverse `trees` (an array) by numeric index.
+    if (!isRecord(value) && !Array.isArray(value)) return undefined
 
-    if (Object.prototype.hasOwnProperty.call(value, path)) {
-        return value[path]
+    if (
+        isRecord(value) &&
+        Object.prototype.hasOwnProperty.call(value as Record<string, unknown>, path)
+    ) {
+        return (value as Record<string, unknown>)[path]
     }
 
     return path
         .split(".")
         .filter(Boolean)
         .reduce<unknown>((current, segment) => {
+            if (Array.isArray(current)) {
+                const index = Number(segment)
+                return Number.isInteger(index) ? current[index] : undefined
+            }
             if (!isRecord(current)) return undefined
             return current[segment]
         }, value)
