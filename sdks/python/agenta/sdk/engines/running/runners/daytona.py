@@ -164,8 +164,8 @@ class DaytonaRunner(CodeRunner):
 
         return env_vars
 
-    def _resolve_snapshot_id(self, name: str, target: str) -> str:
-        """Resolve a snapshot name to its ID for the given region.
+    def _resolve_snapshot_id(self) -> str:
+        """Resolve the configured snapshot name to its ID for the active region.
 
         Sandbox creation by snapshot *name* only resolves snapshots owned by
         the requesting org, even when the snapshot is marked ``general: true``
@@ -173,6 +173,16 @@ class DaytonaRunner(CodeRunner):
         list snapshots, find one matching name + region + active state, and
         cache the result.
         """
+        name = os.getenv("DAYTONA_SNAPSHOT")
+
+        if not name:
+            raise RuntimeError(
+                "No Daytona snapshot configured. "
+                "Set DAYTONA_SNAPSHOT environment variable."
+            )
+
+        target = os.getenv("DAYTONA_TARGET") or os.getenv("AGENTA_REGION") or "eu"
+
         cache_key = (name, target)
         cached = self._snapshot_id_cache.get(cache_key)
         if cached is not None:
@@ -221,16 +231,7 @@ class DaytonaRunner(CodeRunner):
             runtime = runtime or "python"
 
             # Select general snapshot
-            snapshot_ref = os.getenv("DAYTONA_SNAPSHOT")
-
-            if not snapshot_ref:
-                raise RuntimeError(
-                    f"No Daytona snapshot configured for runtime '{runtime}'. "
-                    f"Set DAYTONA_SNAPSHOT environment variable."
-                )
-
-            target = os.getenv("DAYTONA_TARGET") or os.getenv("AGENTA_REGION") or "eu"
-            snapshot_id = self._resolve_snapshot_id(snapshot_ref, target)
+            snapshot_id = self._resolve_snapshot_id()
 
             _, _, _, CreateSandboxFromSnapshotParams = _load_daytona()
 
