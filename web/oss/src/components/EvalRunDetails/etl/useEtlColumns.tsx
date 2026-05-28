@@ -119,7 +119,7 @@ export const useEtlColumns = ({
             return {
                 key: g.group.key,
                 columnVisibilityLabel: g.group.label,
-                title: <EtlColumnHeader group={g.group} />,
+                title: <EtlColumnHeader group={g.group} runId={runId} />,
                 align: "left" as const,
                 children,
             }
