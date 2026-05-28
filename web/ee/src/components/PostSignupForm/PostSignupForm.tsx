@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Checkbox, Form, Input, Radio, Rate, Space, Spin, Typography} from "antd"
@@ -69,7 +69,6 @@ interface QuestionMeta {
 }
 
 const PostSignupForm = () => {
-    console.log("[post-signup] form mount")
     const [form] = Form.useForm()
     const router = useRouter()
     const posthog = usePostHogAg()
@@ -80,21 +79,23 @@ const PostSignupForm = () => {
     const [currentStep, setCurrentStep] = useState(0)
     const {survey, loading, error} = useSurvey("Signup 2")
     const [autoRedirectAttempted, setAutoRedirectAttempted] = useState(false)
+    const hasLoadedSurveyRef = useRef(false)
 
     useEffect(() => {
-        console.log("[post-signup] survey state", {
-            hasSurvey: Boolean(survey),
-            questionCount: survey?.questions?.length ?? 0,
-            loading,
-            error: error ? {code: (error as any).code, message: error.message} : null,
-        })
-    }, [error, loading, survey])
+        if (survey?.questions?.length) {
+            hasLoadedSurveyRef.current = true
+        }
+    }, [survey?.questions?.length])
 
     useEffect(() => {
         if (!error || autoRedirectAttempted) return
+        if (hasLoadedSurveyRef.current) return
         const errorCode = (error as any).code as string | undefined
         const shouldRedirect =
-            errorCode === "survey-unavailable" || errorCode === "posthog-not-configured"
+            errorCode === "survey-unavailable" ||
+            errorCode === "posthog-not-configured" ||
+            errorCode === "posthog-unavailable" ||
+            errorCode === "survey-fetch-error"
         if (!shouldRedirect) {
             return
         }
