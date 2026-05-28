@@ -40,7 +40,6 @@ import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 
-import {TemplateFormatPicker, type TemplateFormat} from "../../template-format"
 import {getModelSchema, getLLMConfigValue, getLLMConfigProperties} from "../SchemaControls"
 import {feedbackConfigModeAtomFamily} from "../SchemaControls/FeedbackConfigurationControl"
 import {
@@ -1382,26 +1381,17 @@ function PlaygroundConfigSection({
                             onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-2 flex-shrink-0"
                         >
-                            {/* Prompt template_format picker — let the user
-                             *  switch between Mustache (default), Jinja2, and
-                             *  legacy formats (Curly / F-string offered only
-                             *  when the prompt is already on one). Writes
-                             *  flow through `updatePromptRootField` so the
-                             *  value lives at `prompt.template_format` for
-                             *  legacy shapes and at the root for canonical. */}
-                            <TemplateFormatPicker
-                                value={
-                                    (promptModelInfo.promptValue.template_format as
-                                        | TemplateFormat
-                                        | undefined) ??
-                                    (promptModelInfo.promptValue.templateFormat as
-                                        | TemplateFormat
-                                        | undefined) ??
-                                    null
-                                }
-                                disabled={disabled}
-                                onChange={(next) => updatePromptRootField("template_format", next)}
-                            />
+                            {/* Note: the prompt template_format picker is NOT
+                             *  rendered here. Per Mahmoud's QA on the
+                             *  mustache rollout (Slack #release-v100, 2026-
+                             *  05-28), the picker only belongs to the right
+                             *  of the output-type / response-format control
+                             *  inside `PromptSchemaControl`, not in this
+                             *  section header. Adding it here was a
+                             *  duplicate placement (commit 2854349c47) and
+                             *  has been reverted. The original picker in
+                             *  `PromptSchemaControl` continues to handle
+                             *  the format choice for the playground. */}
                             {!disabled && onRefinePrompt && hasMessages && (
                                 <Tooltip title="Refine prompt with AI">
                                     <Button
