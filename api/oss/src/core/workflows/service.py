@@ -79,6 +79,12 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
 )
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+    needs_default_variant_resolution,
+    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
+)
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import (
@@ -828,6 +834,10 @@ class WorkflowsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=workflow_variant_ref,
+            entity_type="workflow",
+        )
         variant = await self.workflows_dao.fetch_variant(
             project_id=project_id,
             #
@@ -1079,7 +1089,25 @@ class WorkflowsService:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
 
-        if workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
+        validate_variant_refs_sufficient(
+            variant_ref=workflow_variant_ref,
+            entity_type="workflow",
+        )
+        validate_revision_refs_sufficient(
+            artifact_ref=workflow_ref,
+            variant_ref=workflow_variant_ref,
+            revision_ref=workflow_revision_ref,
+            entity_type="workflow",
+        )
+
+        _original_workflow_ref = workflow_ref
+        _original_workflow_variant_ref = workflow_variant_ref
+
+        if needs_default_variant_resolution(
+            artifact_ref=workflow_ref,
+            variant_ref=workflow_variant_ref,
+            revision_ref=workflow_revision_ref,
+        ):
             workflow = await self.fetch_workflow(
                 project_id=project_id,
                 #
@@ -1124,6 +1152,29 @@ class WorkflowsService:
         if not revision:
             return None
 
+        # HOTFIX: env-stored refs may carry stale slugs.
+        # Re-enable once the web write paths are fixed and the historical rows
+        # are backfilled.
+        # validate_retrieve_refs_consistent(
+        #     artifact_ref=_original_workflow_ref,
+        #     variant_ref=_original_workflow_variant_ref,
+        #     revision_ref=workflow_revision_ref,
+        #     resolved_artifact_ref=Reference(
+        #         id=revision.artifact_id,
+        #         slug=revision.artifact_slug,
+        #     ),
+        #     resolved_variant_ref=Reference(
+        #         id=revision.variant_id,
+        #         slug=revision.variant_slug,
+        #     ),
+        #     resolved_revision_ref=Reference(
+        #         id=revision.id,
+        #         slug=revision.slug,
+        #         version=revision.version,
+        #     ),
+        #     entity_type="workflow",
+        # )
+
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),
         )
@@ -1164,11 +1215,6 @@ class WorkflowsService:
                 environment_variant_ref=environment_variant_ref,
                 environment_revision_ref=environment_revision_ref,
             )
-            # log.info(
-            #     "retrieve_workflow_revision: env_revision=%r env_data=%r",
-            #     env_revision and env_revision.id,
-            #     env_revision and env_revision.data,
-            # )
 
             references_by_key = (
                 env_revision.data.references
@@ -1178,19 +1224,30 @@ class WorkflowsService:
             workflow_references = (
                 references_by_key.get(key) if references_by_key and key else None
             )
-            # log.info(
-            #     "retrieve_workflow_revision: key=%r references_by_key keys=%r workflow_references=%r",
-            #     key,
-            #     list(references_by_key.keys()) if references_by_key else None,
-            #     workflow_references,
-            # )
 
             if not workflow_references:
                 return None, None
 
-            workflow_ref = workflow_references.get("workflow")
-            workflow_variant_ref = workflow_references.get("workflow_variant")
-            workflow_revision_ref = workflow_references.get("workflow_revision")
+            env_workflow_ref = workflow_references.get("workflow")
+            env_workflow_variant_ref = workflow_references.get("workflow_variant")
+            env_workflow_revision_ref = workflow_references.get("workflow_revision")
+
+            # HOTFIX: env-stored refs may carry stale slugs.
+            # Re-enable once the web write paths are fixed and the historical
+            # rows are backfilled.
+            # validate_retrieve_refs_consistent(
+            #     artifact_ref=workflow_ref,
+            #     variant_ref=workflow_variant_ref,
+            #     revision_ref=workflow_revision_ref,
+            #     resolved_artifact_ref=env_workflow_ref,
+            #     resolved_variant_ref=env_workflow_variant_ref,
+            #     resolved_revision_ref=env_workflow_revision_ref,
+            #     entity_type="workflow",
+            # )
+
+            workflow_ref = env_workflow_ref
+            workflow_variant_ref = env_workflow_variant_ref
+            workflow_revision_ref = env_workflow_revision_ref
 
         if resolve:
             result = await self.resolve_workflow_revision(

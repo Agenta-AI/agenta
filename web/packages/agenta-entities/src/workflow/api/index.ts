@@ -12,6 +12,8 @@ export {
     queryWorkflowRevisionsByWorkflows,
     type WorkflowRevisionWindowing,
     queryWorkflowRevisions,
+    // Retrieve (single revision by ref — slug/version/id)
+    retrieveWorkflowRevision,
     // Fetch (single revision by ID)
     fetchWorkflowRevisionById,
     // Inspect (resolve full schema including inputs)
@@ -59,6 +61,7 @@ export {
 export {
     createAppFromTemplate,
     AppServiceType,
+    extractDefaultsFromSchema,
     type CreateAppFromTemplateParams,
     type CreateAppFromTemplateResult,
 } from "./createFromTemplate"
