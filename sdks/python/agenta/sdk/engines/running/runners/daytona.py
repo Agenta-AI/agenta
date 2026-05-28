@@ -191,12 +191,12 @@ class DaytonaRunner(CodeRunner):
         api_url = os.getenv("DAYTONA_API_URL") or "https://app.daytona.io/api"
         api_key = os.getenv("DAYTONA_API_KEY")
 
-        # We don't paginate: we assume orgs have <=25 snapshots. If an org
+        # We don't paginate: we assume orgs have <=100 snapshots. If an org
         # exceeds that and the target snapshot falls off page 1, this raises
         # "not found" — by design, we fail rather than retry or scan further.
         response = httpx.get(
             f"{api_url.rstrip('/')}/snapshots",
-            params={"limit": 25},
+            params={"limit": 100},
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=10.0,
         )
