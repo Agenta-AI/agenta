@@ -17,6 +17,8 @@ def _make_response(items):
 def runner(monkeypatch):
     monkeypatch.setenv("DAYTONA_API_KEY", "test-key")
     monkeypatch.delenv("DAYTONA_API_URL", raising=False)
+    monkeypatch.setenv("DAYTONA_SNAPSHOT", "snap")
+    monkeypatch.setenv("DAYTONA_TARGET", "eu")
     r = DaytonaRunner()
     # Singleton bleed-through: ensure a clean cache between tests.
     r._snapshot_id_cache.cache.clear()
@@ -38,7 +40,7 @@ def test_resolve_snapshot_id_returns_matching_active_snapshot(runner, monkeypatc
 
     monkeypatch.setattr(httpx, "get", fake_get)
 
-    assert runner._resolve_snapshot_id("snap", "eu") == "id-2"
+    assert runner._resolve_snapshot_id() == "id-2"
     assert len(calls) == 1
     assert calls[0][1] == {"limit": 25}
     assert calls[0][2] == {"Authorization": "Bearer test-key"}
@@ -55,8 +57,8 @@ def test_resolve_snapshot_id_uses_cache_on_second_call(runner, monkeypatch):
 
     monkeypatch.setattr(httpx, "get", fake_get)
 
-    assert runner._resolve_snapshot_id("snap", "eu") == "id-1"
-    assert runner._resolve_snapshot_id("snap", "eu") == "id-1"
+    assert runner._resolve_snapshot_id() == "id-1"
+    assert runner._resolve_snapshot_id() == "id-1"
     assert call_count["n"] == 1
 
 
@@ -75,8 +77,10 @@ def test_resolve_snapshot_id_caches_per_target(runner, monkeypatch):
 
     monkeypatch.setattr(httpx, "get", fake_get)
 
-    assert runner._resolve_snapshot_id("snap", "eu") == "eu-id"
-    assert runner._resolve_snapshot_id("snap", "us") == "us-id"
+    monkeypatch.setenv("DAYTONA_TARGET", "eu")
+    assert runner._resolve_snapshot_id() == "eu-id"
+    monkeypatch.setenv("DAYTONA_TARGET", "us")
+    assert runner._resolve_snapshot_id() == "us-id"
     # Two distinct cache keys → two HTTP calls.
     assert len(seen_targets) == 2
 
@@ -97,7 +101,7 @@ def test_resolve_snapshot_id_skips_inactive_snapshots(runner, monkeypatch):
 
     monkeypatch.setattr(httpx, "get", fake_get)
 
-    assert runner._resolve_snapshot_id("snap", "eu") == "id-2"
+    assert runner._resolve_snapshot_id() == "id-2"
 
 
 def test_resolve_snapshot_id_raises_when_no_match(runner, monkeypatch):
@@ -109,4 +113,11 @@ def test_resolve_snapshot_id_raises_when_no_match(runner, monkeypatch):
     monkeypatch.setattr(httpx, "get", fake_get)
 
     with pytest.raises(RuntimeError, match="No active Daytona snapshot named 'snap'"):
-        runner._resolve_snapshot_id("snap", "eu")
+        runner._resolve_snapshot_id()
+
+
+def test_resolve_snapshot_id_raises_when_snapshot_unset(runner, monkeypatch):
+    monkeypatch.delenv("DAYTONA_SNAPSHOT", raising=False)
+
+    with pytest.raises(RuntimeError, match="No Daytona snapshot configured"):
+        runner._resolve_snapshot_id()
