@@ -10,6 +10,7 @@ import {traceSidePanelOpenAtom} from "@/oss/components/SharedDrawers/TraceDrawer
 
 import TraceSidePanel from "../TraceSidePanel"
 
+import {getRawTraceSpanData} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import {TraceContentProps} from "./assets/types"
 import AnnotationTabItem from "./components/AnnotationTabItem"
@@ -71,6 +72,8 @@ const TraceContent = ({
             ]
         }
 
+        const rawActiveTrace = getRawTraceSpanData(activeTrace)
+
         return [
             {
                 key: "overview",
@@ -85,7 +88,7 @@ const TraceContent = ({
                         {spanEntityId ? (
                             <TraceSpanDrillInView
                                 spanId={spanEntityId}
-                                spanDataOverride={activeTrace}
+                                spanDataOverride={rawActiveTrace}
                                 title="Raw Data"
                                 editable={false}
                                 rootScope="span"
@@ -94,7 +97,7 @@ const TraceContent = ({
                         ) : (
                             <AccordionTreePanel
                                 label={"Raw Data"}
-                                value={activeTrace ?? {}}
+                                value={rawActiveTrace}
                                 enableFormatSwitcher
                                 fullEditorHeight
                                 enableSearch
@@ -136,7 +139,7 @@ const TraceContent = ({
                     traces={traces}
                 />
 
-                <Splitter className="h-[87vh] flex">
+                <Splitter className="flex-1 min-h-0">
                     <Splitter.Panel min={400} className="w-full flex-1">
                         <div className="flex-1">
                             <Tabs

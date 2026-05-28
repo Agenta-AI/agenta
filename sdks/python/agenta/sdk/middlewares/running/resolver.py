@@ -10,6 +10,7 @@ from agenta.sdk.models.workflows import (
     WorkflowRevisionData,
 )
 from agenta.sdk.contexts.running import RunningContext
+from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.engines.running.utils import (
     retrieve_handler,
 )
@@ -454,5 +455,7 @@ class ResolverMiddleware:
 
         if revision:
             request.data.parameters = request.data.parameters or revision.parameters
+
+        TracingContext.get().parameters = request.data.parameters
 
         return await call_next(request)
