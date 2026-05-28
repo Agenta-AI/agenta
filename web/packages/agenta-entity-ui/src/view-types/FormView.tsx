@@ -335,7 +335,19 @@ function StringLeafEditor({value, mode, editable, onChange}: StringLeafEditorPro
     return (
         <div style={styles.leafCard}>
             <SharedEditor
-                key={`leaf-${mode}-${buffer.length}`}
+                // Key by `mode` ONLY — switching between text/markdown/json/
+                // yaml legitimately needs a remount because `editorProps`
+                // (codeOnly, language, disableLongText) change.
+                //
+                // Do NOT include `buffer.length` or any keystroke-derived
+                // signal here. The previous key included `buffer.length`
+                // and that re-mounted the editor on every keystroke — which
+                // tore down the underlying <textarea>/<contenteditable>
+                // element, ripped focus out, and limited the user to
+                // one character per typing burst (JP, QA on mustache,
+                // 2026-05-28). The editor's own internal state tracks
+                // keystrokes; we only need to remount for mode changes.
+                key={`leaf-${mode}`}
                 initialValue={buffer}
                 handleChange={editable ? handleChange : undefined}
                 editorType="borderless"
