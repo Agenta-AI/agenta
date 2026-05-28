@@ -939,7 +939,7 @@ class QueriesRouter:
         query_revisions = await self.queries_service.log_query_revisions(
             project_id=UUID(request.state.project_id),
             #
-            query_revisions_log=query_revisions_log_request.query_revisions,
+            query_revisions_log=query_revisions_log_request.query_revisions_log,
         )
 
         revisions_response = QueryRevisionsResponse(

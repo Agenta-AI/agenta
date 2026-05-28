@@ -243,7 +243,7 @@ class WorkflowRevisionQueryRequest(BaseModel):
 
 
 class WorkflowRevisionCommitRequest(BaseModel):
-    workflow_revision: WorkflowRevisionCommit = Field(
+    workflow_revision_commit: WorkflowRevisionCommit = Field(
         description=(
             "Revision to append to a variant's history. Requires `workflow_variant_id` "
             "and optional `message`; `data` carries the new configuration."
@@ -335,7 +335,7 @@ class WorkflowRevisionDeployRequest(BaseModel):
 
 
 class WorkflowRevisionsLogRequest(BaseModel):
-    workflow: WorkflowRevisionsLog = Field(
+    workflow_revisions_log: WorkflowRevisionsLog = Field(
         description=(
             "Log query. Supply `workflow_id`, `workflow_variant_id`, or "
             "`workflow_revision_id` to scope the log, and an optional `depth`."

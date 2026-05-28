@@ -1745,12 +1745,10 @@ class ApplicationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        application_revisions = (
-            await self.applications_service.log_application_revisions(
-                project_id=UUID(request.state.project_id),
-                #
-                application_revisions_log=application_revisions_log_request.application,
-            )
+        application_revisions = await self.applications_service.log_application_revisions(
+            project_id=UUID(request.state.project_id),
+            #
+            application_revisions_log=application_revisions_log_request.application_revisions_log,
         )
 
         revisions_response = ApplicationRevisionsResponse(

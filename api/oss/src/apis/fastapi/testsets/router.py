@@ -1563,7 +1563,7 @@ class TestsetsRouter:
         testset_revisions = await self.testsets_service.log_testset_revisions(
             project_id=UUID(request.state.project_id),
             #
-            testset_revisions_log=testset_revisions_log_request.testset_revision,
+            testset_revisions_log=testset_revisions_log_request.testset_revisions_log,
             include_testcases=testset_revisions_log_request.include_testcases,
         )
 

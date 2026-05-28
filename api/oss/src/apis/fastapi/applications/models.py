@@ -164,7 +164,7 @@ class ApplicationRevisionsLogRequest(BaseModel):
     Each entry carries commit metadata and the full revision record.
     """
 
-    application: ApplicationRevisionsLog = Field(
+    application_revisions_log: ApplicationRevisionsLog = Field(
         description=(
             "Filter for the log. Typically set `application_variant_id` to list "
             "the revision history of a single variant; optionally set "

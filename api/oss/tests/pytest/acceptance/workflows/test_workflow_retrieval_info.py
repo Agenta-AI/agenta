@@ -41,7 +41,7 @@ def workflow_fixture(authed_api):
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision": {
+            "workflow_revision_commit": {
                 "slug": f"{slug}-v0",
                 "workflow_id": workflow_id,
                 "workflow_variant_id": variant_id,
@@ -54,7 +54,7 @@ def workflow_fixture(authed_api):
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision": {
+            "workflow_revision_commit": {
                 "slug": f"{slug}-v1",
                 "workflow_id": workflow_id,
                 "workflow_variant_id": variant_id,
@@ -143,7 +143,7 @@ def env_backed_fixture(authed_api):
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision": {
+            "workflow_revision_commit": {
                 "slug": f"{wf_slug}-v0",
                 "workflow_id": workflow_id,
                 "workflow_variant_id": variant_id,
@@ -156,7 +156,7 @@ def env_backed_fixture(authed_api):
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision": {
+            "workflow_revision_commit": {
                 "slug": f"{wf_slug}-v1",
                 "workflow_id": workflow_id,
                 "workflow_variant_id": variant_id,

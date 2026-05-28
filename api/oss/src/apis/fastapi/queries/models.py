@@ -132,7 +132,7 @@ class QueryRevisionCommitRequest(BaseModel):
 
 
 class QueryRevisionsLogRequest(BaseModel):
-    query_revisions: QueryRevisionsLog
+    query_revisions_log: QueryRevisionsLog
 
 
 class QueryRevisionRetrieveRequest(BaseModel):

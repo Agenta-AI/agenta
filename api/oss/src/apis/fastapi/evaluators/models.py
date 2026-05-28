@@ -191,7 +191,7 @@ class EvaluatorVariantForkRequest(BaseModel):  # TODO: FIX ME
 class EvaluatorRevisionsLogRequest(BaseModel):
     """Body for listing the revision log of an evaluator variant."""
 
-    evaluator: EvaluatorRevisionsLog = Field(
+    evaluator_revisions_log: EvaluatorRevisionsLog = Field(
         description="Log request scoped to an evaluator / variant / revision by id, slug, or version.",
     )
 

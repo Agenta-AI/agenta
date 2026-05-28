@@ -136,7 +136,7 @@ class EnvironmentRevisionRetrieveRequest(BaseModel):
 
 
 class EnvironmentRevisionsLogRequest(BaseModel):
-    environment: EnvironmentRevisionsLog
+    environment_revisions_log: EnvironmentRevisionsLog
 
 
 class EnvironmentRevisionResponse(BaseModel):

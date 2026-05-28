@@ -1164,12 +1164,10 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revisions = (
-            await self.environments_service.log_environment_revisions(
-                project_id=UUID(request.state.project_id),
-                #
-                environment_revisions_log=environment_revisions_log_request.environment,
-            )
+        environment_revisions = await self.environments_service.log_environment_revisions(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_revisions_log=environment_revisions_log_request.environment_revisions_log,
         )
 
         revisions_response = EnvironmentRevisionsResponse(

@@ -209,7 +209,7 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/revisions/log",
             json={
-                "workflow": {
+                "workflow_revisions_log": {
                     "workflow_variant_id": workflow_variant["id"],
                 },
             },
@@ -230,7 +230,7 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/revisions/log",
             json={
-                "workflow": {
+                "workflow_revisions_log": {
                     "workflow_variant_id": workflow_variant["id"],
                     "depth": 2,
                 },
@@ -254,7 +254,7 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/revisions/log",
             json={
-                "workflow": {
+                "workflow_revisions_log": {
                     "workflow_revision_id": workflow_revision["id"],
                 },
             },
@@ -276,7 +276,7 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/revisions/log",
             json={
-                "workflow": {
+                "workflow_revisions_log": {
                     "workflow_revision_id": workflow_revision["id"],
                     "depth": 2,
                 },
@@ -360,7 +360,7 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/revisions/log",
             json={
-                "workflow": {
+                "workflow_revisions_log": {
                     "workflow_variant_id": workflow_variant["id"],
                 },
             },
@@ -441,7 +441,7 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/revisions/log",
             json={
-                "workflow": {
+                "workflow_revisions_log": {
                     "workflow_variant_id": workflow_variant["id"],
                 },
             },
@@ -486,7 +486,7 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/revisions/log",
             json={
-                "workflow": {
+                "workflow_revisions_log": {
                     "workflow_variant_id": workflow_variant["id"],
                 },
             },

@@ -254,7 +254,7 @@ class TestsetRevisionRetrieveRequest(BaseModel):
 
 
 class TestsetRevisionsLogRequest(BaseModel):
-    testset_revision: TestsetRevisionsLog = Field(
+    testset_revisions_log: TestsetRevisionsLog = Field(
         description="Scope for the log: one of `testset_id`, `testset_variant_id`, or `testset_revision_id`. Optional `depth` limits how far back to walk.",
     )
     include_testcases: Optional[bool] = Field(

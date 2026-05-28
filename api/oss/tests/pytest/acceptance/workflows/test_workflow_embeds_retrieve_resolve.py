@@ -53,7 +53,7 @@ def _create_workflow_with_embed(
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision": {
+            "workflow_revision_commit": {
                 "slug": f"{base_slug}-v0",
                 "workflow_id": base_id,
                 "workflow_variant_id": base_variant_id,
@@ -67,7 +67,7 @@ def _create_workflow_with_embed(
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision": {
+            "workflow_revision_commit": {
                 "slug": f"{base_slug}-v1",
                 "workflow_id": base_id,
                 "workflow_variant_id": base_variant_id,
@@ -115,7 +115,7 @@ def _create_workflow_with_embed(
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision": {
+            "workflow_revision_commit": {
                 "slug": f"{embed_slug}-v0",
                 "workflow_id": embed_id,
                 "workflow_variant_id": embed_variant_id,
@@ -129,7 +129,7 @@ def _create_workflow_with_embed(
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision": {
+            "workflow_revision_commit": {
                 "slug": f"{embed_slug}-v1",
                 "workflow_id": embed_id,
                 "workflow_variant_id": embed_variant_id,
@@ -265,7 +265,7 @@ class TestWorkflowRetrieveWithResolve:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": f"{slug}-v0",
                     "workflow_id": wf_id,
                     "workflow_variant_id": variant_id,
@@ -279,7 +279,7 @@ class TestWorkflowRetrieveWithResolve:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": f"{slug}-v1",
                     "workflow_id": wf_id,
                     "workflow_variant_id": variant_id,

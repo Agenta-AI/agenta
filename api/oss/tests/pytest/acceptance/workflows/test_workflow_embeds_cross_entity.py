@@ -49,7 +49,7 @@ class TestWorkflowEnvironmentEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": uuid4().hex[-12:],
                     "workflow_id": referenced_workflow_id,
                     "workflow_variant_id": referenced_variant_id,
@@ -63,7 +63,7 @@ class TestWorkflowEnvironmentEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": f"{referenced_workflow_slug}-v1",
                     "workflow_id": referenced_workflow_id,
                     "workflow_variant_id": referenced_variant_id,
@@ -166,7 +166,7 @@ class TestWorkflowEnvironmentEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": uuid4().hex[-12:],
                     "workflow_id": workflow_id,
                     "workflow_variant_id": variant_id,
@@ -180,7 +180,7 @@ class TestWorkflowEnvironmentEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": f"{workflow_slug}-v1",
                     "workflow_id": workflow_id,
                     "workflow_variant_id": variant_id,
@@ -329,7 +329,7 @@ class TestWorkflowEnvironmentEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": uuid4().hex[-12:],
                     "workflow_id": workflow_id,
                     "workflow_variant_id": variant_id,
@@ -343,7 +343,7 @@ class TestWorkflowEnvironmentEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": f"{workflow_slug}-v1",
                     "workflow_id": workflow_id,
                     "workflow_variant_id": variant_id,
@@ -428,7 +428,7 @@ class TestEnvironmentWorkflowEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": uuid4().hex[-12:],
                     "workflow_id": workflow_id,
                     "workflow_variant_id": variant_id,
@@ -442,7 +442,7 @@ class TestEnvironmentWorkflowEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": f"{workflow_slug}-v1",
                     "workflow_id": workflow_id,
                     "workflow_variant_id": variant_id,
@@ -590,7 +590,7 @@ class TestChainedCrossEntityEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": uuid4().hex[-12:],
                     "workflow_id": base_workflow_id,
                     "workflow_variant_id": base_variant_id,
@@ -604,7 +604,7 @@ class TestChainedCrossEntityEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": f"{base_workflow_slug}-v1",
                     "workflow_id": base_workflow_id,
                     "workflow_variant_id": base_variant_id,
@@ -710,7 +710,7 @@ class TestChainedCrossEntityEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": uuid4().hex[-12:],
                     "workflow_id": top_workflow_id,
                     "workflow_variant_id": top_variant_id,
@@ -724,7 +724,7 @@ class TestChainedCrossEntityEmbeds:
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": f"{top_workflow_slug}-v1",
                     "workflow_id": top_workflow_id,
                     "workflow_variant_id": top_variant_id,

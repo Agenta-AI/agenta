@@ -1713,7 +1713,7 @@ class EvaluatorsRouter:
         evaluator_revisions = await self.evaluators_service.log_evaluator_revisions(
             project_id=UUID(request.state.project_id),
             #
-            evaluator_revisions_log=evaluator_revisions_log_request.evaluator,
+            evaluator_revisions_log=evaluator_revisions_log_request.evaluator_revisions_log,
         )
 
         revisions_response = EvaluatorRevisionsResponse(

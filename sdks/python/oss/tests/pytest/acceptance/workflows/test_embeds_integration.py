@@ -82,7 +82,7 @@ def _create_workflow_variant(authed_api, *, workflow_id: str):
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision": {
+            "workflow_revision_commit": {
                 "slug": _random_slug("stub"),
                 "workflow_id": workflow_id,
                 "workflow_variant_id": variant_id,
@@ -107,7 +107,7 @@ def _commit_workflow_revision(
             "POST",
             "/workflows/revisions/commit",
             json={
-                "workflow_revision": {
+                "workflow_revision_commit": {
                     "slug": revision_slug,
                     "workflow_id": workflow_id,
                     "workflow_variant_id": workflow_variant_id,
