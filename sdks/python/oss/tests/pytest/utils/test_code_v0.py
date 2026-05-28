@@ -14,6 +14,7 @@ The @instrument() decorator is bypassed via __wrapped__.
 """
 
 import asyncio
+import os
 
 import pytest
 
@@ -24,6 +25,21 @@ from agenta.sdk.workflows.errors import (
     MissingConfigurationParameterV0Error,
 )
 from agenta.sdk.workflows.handlers import code_v0
+
+_SANDBOX_RUNNER = (
+    os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
+    or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
+    or "local"
+).lower()
+
+# The JS/TS "raises" assertions are LocalRunner-specific: only LocalRunner
+# rejects non-python runtimes. Under the Daytona runner those runtimes are
+# valid, so skip rather than fail.
+requires_local_runner = pytest.mark.skipif(
+    _SANDBOX_RUNNER != "local",
+    reason=f"LocalRunner-only behavior; sandbox runner is '{_SANDBOX_RUNNER}'",
+)
+
 
 _code_v0 = code_v0.__wrapped__
 
@@ -264,6 +280,7 @@ class TestCodeV0Runtime:
         r = call(evaluate("return 1.0"), runtime="python")
         assert r["success"] is True
 
+    @requires_local_runner
     def test_javascript_runtime_invalid_for_local_raises(self):
         # LocalRunner only supports Python; JS/TS raises CodeV0Error
         with pytest.raises(CodeV0Error):
@@ -272,6 +289,7 @@ class TestCodeV0Runtime:
                 runtime="javascript",
             )
 
+    @requires_local_runner
     def test_typescript_runtime_invalid_for_local_raises(self):
         with pytest.raises(CodeV0Error):
             call(
