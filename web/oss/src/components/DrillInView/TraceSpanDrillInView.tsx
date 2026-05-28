@@ -583,7 +583,7 @@ export const TraceSpanDrillInView = memo(
                                     />
                                 </div>
                             ) : (
-                                <div className="mx-1 my-2 rounded-md bg-[#F6F8FB]">
+                                <div className="mx-1 my-2 rounded-md bg-white">
                                     <TextModeViewer
                                         editorId={`trace-span-${textViewerId}`}
                                         value={textOutput}
