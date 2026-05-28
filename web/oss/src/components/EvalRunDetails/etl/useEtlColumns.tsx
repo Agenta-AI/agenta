@@ -22,9 +22,11 @@ import {groupRunColumns, type ColumnGroup, type RunSchema} from "@agenta/entitie
 import {Tooltip} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
+import type {EvaluationTableColumnsResult} from "../atoms/table"
 import type {PreviewTableRow} from "../atoms/tableRows"
 
 import EtlResolvedCell, {EtlSkeletonCell} from "./cells/EtlResolvedCell"
+import {buildColumnValueTypeResolver} from "./columnValueTypes"
 import EtlColumnHeader from "./EtlColumnHeader"
 
 const WIDTH_BY_KIND: Record<ColumnGroup["kind"], number> = {
@@ -39,6 +41,13 @@ export interface UseEtlColumnsArgs {
     projectId: string | null
     runId: string | null
     schema: RunSchema | null
+    /**
+     * Backend-metadata column result. Used to look up each leaf's
+     * `metricType` so string-typed evaluator outputs are hidden from the
+     * table (they remain in the focus drawer, which reads `columnResult`
+     * directly). When omitted, no type-based filtering is applied.
+     */
+    columnResult?: EvaluationTableColumnsResult | null
 }
 
 /**
@@ -49,6 +58,7 @@ export const useEtlColumns = ({
     projectId,
     runId,
     schema,
+    columnResult,
 }: UseEtlColumnsArgs): ColumnsType<PreviewTableRow> => {
     return useMemo<ColumnsType<PreviewTableRow>>(() => {
         if (!schema || !projectId || !runId) return []
@@ -60,9 +70,28 @@ export const useEtlColumns = ({
         // group is kept on the production path in `Table.tsx` and rendered
         // by the existing metric cell. Emitting an ETL metrics group too
         // would duplicate it.
-        const grouped = groupRunColumns(schema.steps, schema.mappings).filter(
-            (g) => g.group.kind !== "metrics",
-        )
+        //
+        // String-typed evaluator outputs are also hidden from the table:
+        // their per-scenario values resolve through the metric layer as
+        // `{type: "string", count: …}` stats blobs that have no useful
+        // per-row scalar representation. They remain visible in the focus
+        // drawer (FocusDrawer reads `columnResult` directly, bypassing
+        // this hook).
+        const resolveValueType = buildColumnValueTypeResolver(columnResult ?? undefined)
+        const grouped = groupRunColumns(schema.steps, schema.mappings)
+            .filter((g) => g.group.kind !== "metrics")
+            .map((g) => ({
+                ...g,
+                columns: g.columns.filter(
+                    (leaf) =>
+                        resolveValueType({
+                            groupKind: leaf.kind,
+                            groupSlug: leaf.groupSlug,
+                            columnName: leaf.name,
+                        }) !== "string",
+                ),
+            }))
+            .filter((g) => g.columns.length > 0)
 
         return grouped.map((g) => {
             const children = g.columns.map((leaf) => {
@@ -117,5 +146,5 @@ export const useEtlColumns = ({
                 children,
             }
         })
-    }, [projectId, runId, schema])
+    }, [projectId, runId, schema, columnResult])
 }

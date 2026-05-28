@@ -117,7 +117,13 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
     const fields = useMemo(
         () =>
             buildFilterSchema(schema, {resolveValueType}).fields.filter(
-                (f) => FILTERABLE_COLUMN_KINDS[f.groupKind],
+                // String-typed evaluator outputs are excluded for the same
+                // reason they are hidden from the scenario table: their
+                // per-scenario value is a `{type: "string", count: …}` stats
+                // blob that `unwrapStatsForCompare` does not unwrap, so any
+                // filter comparison would compare against a raw object and
+                // never match. See `useEtlColumns.tsx`.
+                (f) => FILTERABLE_COLUMN_KINDS[f.groupKind] && f.valueType !== "string",
             ),
         [schema, resolveValueType],
     )

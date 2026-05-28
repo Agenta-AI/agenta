@@ -149,7 +149,7 @@ const EvalRunDetailsTable = ({
         })
     }, [active, comparePaginations, compareSlots])
 
-    const etlColumns = useEtlColumns({projectId, runId, schema: runSchema})
+    const etlColumns = useEtlColumns({projectId, runId, schema: runSchema, columnResult})
 
     // Page-level hydrate — predicate-aware: with an active filter it
     // fetches the entity slices the filter needs to be evaluated; with no
