@@ -28,10 +28,16 @@ export {
     type EvaluationResult,
     evaluationResultsResponseSchema,
     type EvaluationResultsResponse,
+    // Evaluation Metrics
+    evaluationMetricSchema,
+    type EvaluationMetric,
+    evaluationMetricsResponseSchema,
+    type EvaluationMetricsResponse,
 } from "./schema"
 
 export type {
     EvaluationRunDetailParams,
     EvaluationRunQueryParams,
     EvaluationResultsQueryParams,
+    EvaluationMetricsQueryParams,
 } from "./types"

@@ -32,6 +32,21 @@ export {
     type AnnotationColumnDef as EvaluationRunAnnotationColumnDef,
 } from "./state/molecule"
 
+// Per-scenario read-only molecules (cache-aware bulk prefetch).
+// Used by ETL hydrate + downstream cell renderers.
+export {
+    evaluationResultMolecule,
+    type EvaluationResultMolecule,
+    type PrefetchResultsArgs,
+    type PrefetchResultsOutcome,
+} from "./state/resultMolecule"
+export {
+    evaluationMetricMolecule,
+    type EvaluationMetricMolecule,
+    type PrefetchMetricsArgs,
+    type PrefetchMetricsOutcome,
+} from "./state/metricMolecule"
+
 // ============================================================================
 // SCHEMAS & TYPES
 // ============================================================================
@@ -66,6 +81,8 @@ export {
     type EvaluationResult,
     evaluationResultsResponseSchema,
     type EvaluationResultsResponse,
+    // Evaluation Metrics
+    type EvaluationMetric,
     // Param types
     type EvaluationRunDetailParams,
     type EvaluationRunQueryParams,

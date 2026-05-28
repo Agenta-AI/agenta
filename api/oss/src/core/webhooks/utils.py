@@ -1,13 +1,12 @@
 """Webhook utility functions."""
 
 import ipaddress
-import os
 import socket
 from urllib.parse import urlparse
 
-_WEBHOOK_ALLOW_INSECURE = (
-    os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
-).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+from oss.src.utils.env import env
+
+_WEBHOOK_ALLOW_INSECURE = env.agenta.webhooks.allow_insecure
 
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:

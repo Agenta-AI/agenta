@@ -32,11 +32,11 @@ def get_default_plan() -> str:
 
     Reads from `AGENTA_ACCESS_DEFAULT_PLAN` (canonical) or the legacy
     `AGENTA_DEFAULT_PLAN` env var (both surfaced via
-    `env.access_controls.default_plan`). If neither is set, defaults to:
+    `env.agenta.access.default_plan`). If neither is set, defaults to:
     - self_hosted_enterprise when Stripe is disabled
     - cloud_v0_hobby when Stripe is enabled
     """
-    raw = env.access_controls.default_plan
+    raw = env.agenta.access.default_plan
     if raw:
         return raw
 

@@ -29,3 +29,14 @@ export {
     // Span query atom (used internally by molecule)
     spanQueryAtomFamily,
 } from "./store"
+
+// ============================================================================
+// PREFETCH (cache-aware bulk)
+// ============================================================================
+
+export {
+    prefetchTracesByIds,
+    invalidateTrace,
+    type PrefetchTracesArgs,
+    type PrefetchTracesOutcome,
+} from "./prefetch"

@@ -115,6 +115,22 @@ jobs:
           SERVICES_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
           cd ..
 
+          echo "Bumping hosting/kubernetes/helm Chart.yaml"
+          CHART_FILE=hosting/kubernetes/helm/Chart.yaml
+          current_chart_version=$(awk '/^version:/ {print $2; exit}' "$CHART_FILE")
+          new_chart_version=$(npx semver "$current_chart_version" -i $BUMP_TYPE)
+          # version is the chart semver; appVersion tracks the app release tag (v-prefixed).
+          sed -i.bak -E "s/^version: .*/version: $new_chart_version/" "$CHART_FILE"
+          sed -i.bak -E "s/^appVersion: .*/appVersion: \"v$new_chart_version\"/" "$CHART_FILE"
+          rm -f "$CHART_FILE.bak"
+          HELM_VERSION=$new_chart_version
+          # NOTE: this only bumps the chart version on the release branch.
+          # The actual `helm package` / `helm push` happens in the platform
+          # repo's `41-release-to-public.yml` workflow, which fires off this
+          # same release branch alongside the PyPI/GHCR publishes. See the
+          # platform repo for that workflow; no chart-publish step lives in
+          # this application repo.
+
           WEB_VERSION=$(echo "$WEB_VERSION" | tr -d '[:space:]')
           EE_VERSION=$(echo "$EE_VERSION" | tr -d '[:space:]')
           OSS_VERSION=$(echo "$OSS_VERSION" | tr -d '[:space:]')
@@ -123,6 +139,7 @@ jobs:
           PY_SDK_VERSION=$(echo "$PY_SDK_VERSION" | tr -d '[:space:]')
           API_VERSION=$(echo "$API_VERSION" | tr -d '[:space:]')
           SERVICES_VERSION=$(echo "$SERVICES_VERSION" | tr -d '[:space:]')
+          HELM_VERSION=$(echo "$HELM_VERSION" | tr -d '[:space:]')
 
           echo "WEB_VERSION='$WEB_VERSION'"
           echo "EE_VERSION='$EE_VERSION'"
@@ -132,8 +149,9 @@ jobs:
           echo "PY_SDK_VERSION='$PY_SDK_VERSION'"
           echo "API_VERSION='$API_VERSION'"
           echo "SERVICES_VERSION='$SERVICES_VERSION'"
+          echo "HELM_VERSION='$HELM_VERSION'"
 
-          if [ "$EE_VERSION" = "$OSS_VERSION" ] && [ "$OSS_VERSION" = "$WEB_VERSION" ] && [ "$WEB_VERSION" = "$TS_CLIENT_VERSION" ] && [ "$TS_CLIENT_VERSION" = "$PY_CLIENT_VERSION" ] && [ "$PY_CLIENT_VERSION" = "$PY_SDK_VERSION" ] && [ "$PY_SDK_VERSION" = "$API_VERSION" ] && [ "$API_VERSION" = "$SERVICES_VERSION" ]; then
+          if [ "$EE_VERSION" = "$OSS_VERSION" ] && [ "$OSS_VERSION" = "$WEB_VERSION" ] && [ "$WEB_VERSION" = "$TS_CLIENT_VERSION" ] && [ "$TS_CLIENT_VERSION" = "$PY_CLIENT_VERSION" ] && [ "$PY_CLIENT_VERSION" = "$PY_SDK_VERSION" ] && [ "$PY_SDK_VERSION" = "$API_VERSION" ] && [ "$API_VERSION" = "$SERVICES_VERSION" ] && [ "$SERVICES_VERSION" = "$HELM_VERSION" ]; then
               echo "VERSIONS_MATCH=true" >> $GITHUB_OUTPUT
               echo "NEW_VERSION=$WEB_VERSION" >> $GITHUB_OUTPUT
           else
@@ -151,14 +169,18 @@ jobs:
           title: "[release] v${{ steps.bump_versions.outputs.NEW_VERSION }}"
           body: |
             New version v${{ steps.bump_versions.outputs.NEW_VERSION }} in
-            - (web)
-            - web/oss
-            - web/ee
-            - clients/typescript
-            - clients/python
-            - sdks/python
-            - api
+            - web
+              - web/oss
+              - web/ee
             - services
+            - api
+            - sdks
+              - sdks/python
+            - clients
+              - clients/python
+              - clients/typescript
+            - kubernetes
+              - kubernetes/helm
 
       - name: Fail if versions don't match
         if: steps.bump_versions.outputs.VERSIONS_MATCH != 'true'

@@ -212,43 +212,43 @@ class AuthService:
             elif env.auth.email_method == "otp":
                 all_allowed_methods.add("email:otp")
 
-            if env.auth.google_enabled:
+            if env.identity.google.enabled:
                 all_allowed_methods.add("social:google")
 
-            if env.auth.google_workspaces_enabled:
+            if env.identity.google_workspaces.enabled:
                 all_allowed_methods.add("social:google-workspaces")
 
-            if env.auth.github_enabled:
+            if env.identity.github.enabled:
                 all_allowed_methods.add("social:github")
 
-            if env.auth.facebook_enabled:
+            if env.identity.facebook.enabled:
                 all_allowed_methods.add("social:facebook")
 
-            if env.auth.apple_enabled:
+            if env.identity.apple.enabled:
                 all_allowed_methods.add("social:apple")
 
-            if env.auth.discord_enabled:
+            if env.identity.discord.enabled:
                 all_allowed_methods.add("social:discord")
 
-            if env.auth.twitter_enabled:
+            if env.identity.twitter.enabled:
                 all_allowed_methods.add("social:twitter")
 
-            if env.auth.gitlab_enabled:
+            if env.identity.gitlab.enabled:
                 all_allowed_methods.add("social:gitlab")
 
-            if env.auth.bitbucket_enabled:
+            if env.identity.bitbucket.enabled:
                 all_allowed_methods.add("social:bitbucket")
 
-            if env.auth.linkedin_enabled:
+            if env.identity.linkedin.enabled:
                 all_allowed_methods.add("social:linkedin")
 
-            if env.auth.okta_enabled:
+            if env.identity.okta.enabled:
                 all_allowed_methods.add("social:okta")
 
-            if env.auth.azure_ad_enabled:
+            if env.identity.azure_ad.enabled:
                 all_allowed_methods.add("social:azure-ad")
 
-            if env.auth.boxy_saml_enabled:
+            if env.identity.boxy_saml.enabled:
                 all_allowed_methods.add("social:boxy-saml")
 
         # Get SSO providers (EE only)
@@ -312,55 +312,55 @@ class AuthService:
         has_social_wildcard = "social:*" in all_allowed_methods
 
         if "social:google" in all_allowed_methods or (
-            has_social_wildcard and env.auth.google_enabled
+            has_social_wildcard and env.identity.google.enabled
         ):
             methods["social:google"] = True
         if "social:google-workspaces" in all_allowed_methods or (
-            has_social_wildcard and env.auth.google_workspaces_enabled
+            has_social_wildcard and env.identity.google_workspaces.enabled
         ):
             methods["social:google-workspaces"] = True
         if "social:github" in all_allowed_methods or (
-            has_social_wildcard and env.auth.github_enabled
+            has_social_wildcard and env.identity.github.enabled
         ):
             methods["social:github"] = True
         if "social:facebook" in all_allowed_methods or (
-            has_social_wildcard and env.auth.facebook_enabled
+            has_social_wildcard and env.identity.facebook.enabled
         ):
             methods["social:facebook"] = True
         if "social:apple" in all_allowed_methods or (
-            has_social_wildcard and env.auth.apple_enabled
+            has_social_wildcard and env.identity.apple.enabled
         ):
             methods["social:apple"] = True
         if "social:discord" in all_allowed_methods or (
-            has_social_wildcard and env.auth.discord_enabled
+            has_social_wildcard and env.identity.discord.enabled
         ):
             methods["social:discord"] = True
         if "social:twitter" in all_allowed_methods or (
-            has_social_wildcard and env.auth.twitter_enabled
+            has_social_wildcard and env.identity.twitter.enabled
         ):
             methods["social:twitter"] = True
         if "social:gitlab" in all_allowed_methods or (
-            has_social_wildcard and env.auth.gitlab_enabled
+            has_social_wildcard and env.identity.gitlab.enabled
         ):
             methods["social:gitlab"] = True
         if "social:bitbucket" in all_allowed_methods or (
-            has_social_wildcard and env.auth.bitbucket_enabled
+            has_social_wildcard and env.identity.bitbucket.enabled
         ):
             methods["social:bitbucket"] = True
         if "social:linkedin" in all_allowed_methods or (
-            has_social_wildcard and env.auth.linkedin_enabled
+            has_social_wildcard and env.identity.linkedin.enabled
         ):
             methods["social:linkedin"] = True
         if "social:okta" in all_allowed_methods or (
-            has_social_wildcard and env.auth.okta_enabled
+            has_social_wildcard and env.identity.okta.enabled
         ):
             methods["social:okta"] = True
         if "social:azure-ad" in all_allowed_methods or (
-            has_social_wildcard and env.auth.azure_ad_enabled
+            has_social_wildcard and env.identity.azure_ad.enabled
         ):
             methods["social:azure-ad"] = True
         if "social:boxy-saml" in all_allowed_methods or (
-            has_social_wildcard and env.auth.boxy_saml_enabled
+            has_social_wildcard and env.identity.boxy_saml.enabled
         ):
             methods["social:boxy-saml"] = True
 
