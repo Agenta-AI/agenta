@@ -76,7 +76,7 @@ class TestWorkflowEmbedsErrorHandling:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": "non-existent-workflow-12345",
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -169,7 +169,7 @@ class TestWorkflowEmbedsErrorHandling:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": "missing-123",
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -277,7 +277,7 @@ class TestWorkflowEmbedsErrorHandling:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": "missing-456",
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -382,7 +382,7 @@ class TestWorkflowEmbedsCircular:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": workflow_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -497,7 +497,7 @@ class TestWorkflowEmbedsCircular:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": workflow_a_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -540,7 +540,7 @@ class TestWorkflowEmbedsCircular:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": workflow_b_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -686,7 +686,7 @@ class TestWorkflowEmbedsLimits:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level3_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -752,7 +752,7 @@ class TestWorkflowEmbedsLimits:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level2_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -875,7 +875,7 @@ class TestWorkflowEmbedsLimits:
                         "@ag.references": {
                             "workflow_revision": {
                                 "slug": shared_slug,
-                                "version": "v1",
+                                "version": "1",
                                 "id": None,
                             }
                         }
