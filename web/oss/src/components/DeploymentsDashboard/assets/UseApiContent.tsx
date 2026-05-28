@@ -93,22 +93,22 @@ const UseApiContent = ({
     const fetchConfigCodeSnippet = useMemo(
         () => ({
             python: fetchConfigpythonCode(
-                currentApp?.slug ?? currentApp?.name ?? "",
+                currentApp?.slug ?? "",
                 envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
             bash: fetchConfigcURLCode(
-                currentApp?.slug ?? currentApp?.name ?? "",
+                currentApp?.slug ?? "",
                 envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
             typescript: fetchConfigtsCode(
-                currentApp?.slug ?? currentApp?.name ?? "",
+                currentApp?.slug ?? "",
                 envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
         }),
-        [apiKeyValue, currentApp?.name, currentApp?.slug, envName],
+        [apiKeyValue, currentApp?.slug, envName],
     )
 
     const renderTabChildren = useCallback(() => {
