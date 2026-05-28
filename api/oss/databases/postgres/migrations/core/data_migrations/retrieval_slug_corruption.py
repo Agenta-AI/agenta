@@ -58,7 +58,7 @@ def upgrade_retrieval_slug_corruption(session: Connection) -> None:
                 )
             )::json
             WHERE er.data IS NOT NULL
-              AND json_typeof(er.data) = 'object'
+              AND jsonb_typeof(er.data::jsonb) = 'object'
               AND EXISTS (
                 SELECT 1
                 FROM jsonb_each(er.data::jsonb -> 'references') AS ref
