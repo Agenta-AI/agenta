@@ -174,14 +174,30 @@ describe("groupTemplateVariables", () => {
         expect(result).toHaveLength(1)
     })
 
-    it("ignores invalid template variables (envelope-slot typos)", () => {
-        // The validator flags envelope-slot typos (e.g. `input` → `inputs`)
-        // as invalid; groupTemplateVariables skips those. Non-typo roots
-        // (e.g. `$.geo.region`) are NOW accepted as testcase-spread keys
-        // per the RFC ("testcase top-level keys are spread into the render
-        // context") — they DO produce a group rooted at `inputs`.
-        const typo = groupTemplateVariables(["$.input.x"])
-        expect(typo).toHaveLength(0)
+    it("ignores structurally malformed template variables", () => {
+        // Post-mustache QA (Slack #release-v100, 2026-05-28): the validator
+        // no longer flags near-typos of envelope slots — `$.input.x` is now
+        // VALID and produces a testcase-spread group rooted at `inputs` with
+        // key `input` and subPath `x`. Only structurally broken expressions
+        // (empty placeholders, `$<not-dot>`, `$.` without a field, empty
+        // segments) are filtered out by groupTemplateVariables.
+        expect(groupTemplateVariables([""])).toHaveLength(0)
+        expect(groupTemplateVariables(["$outputs.country"])).toHaveLength(0)
+        expect(groupTemplateVariables(["$."])).toHaveLength(0)
+        expect(groupTemplateVariables(["$..foo"])).toHaveLength(0)
+    })
+
+    it("treats near-typos of envelope slots as testcase-spread keys (no gating)", () => {
+        // `$.input.x` is no longer treated as a typo of `$.inputs.x`. The
+        // playground surfaces a variable named after the root segment
+        // (`input`), the backend resolves the path at render time, and any
+        // shape mismatch becomes a runtime error from the API — not a
+        // pre-flight UI error.
+        const result = groupTemplateVariables(["$.input.x"])
+        expect(result).toHaveLength(1)
+        expect(result[0].envelope).toBe("inputs")
+        expect(result[0].key).toBe("input")
+        expect(result[0].subPaths).toContain("x")
     })
 
     it("treats non-envelope JSONPath roots as testcase-spread inputs", () => {

@@ -316,10 +316,13 @@ export function groupTemplateVariables(
     }
 
     for (const placeholder of placeholders) {
-        // Invalid envelope references (e.g. `$.input.xx.abc` — `input` is not
-        // a known envelope slot) don't get an input control. The prompt
-        // editor's token node renders them with a distinct invalid state so
-        // the user sees the problem at the source.
+        // Structurally malformed placeholders (e.g. empty, `$outputs.x` with
+        // no dot after `$`, `$.` with no field, `$..foo` empty segment) don't
+        // get an input control. The prompt editor's token node renders them
+        // with a distinct invalid state so the user sees the problem at the
+        // source. Near-typos of envelope slots (`$.input.x`) are NOT filtered
+        // here — they're treated as testcase-spread keys per the post-2026-
+        // 05-28 mustache QA principle (see `templateVariable.ts` docstring).
         if (!isValidTemplateVariable(placeholder)) continue
 
         const parsed = parseTemplateExpression(placeholder)
