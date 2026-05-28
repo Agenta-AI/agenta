@@ -58,6 +58,12 @@ const DEMO_ORG_UUID = "00000000-0000-0000-0000-00000000d3m0"
 const OWN_PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 const DEMO_PROJECT_ID = "0193930d-83b6-7efa-a067-03056d548af4"
 
+// Fixture mirrors the relevant rows of Mahmoud's /projects/ response from
+// his investigation: the own-org "Default" project is_default_project=false,
+// the Demo Workspace's "Default" is_default_project=true. This is what
+// causes `projects.find(p => p.is_default_project)` (the cross-org fallback
+// inside pickPreferredProject when workspaceId is null) to land on the
+// demo project instead of an own-org one — the original bug.
 const projects = [
     {
         organization_id: OWN_ORG_UUID,
@@ -65,7 +71,7 @@ const projects = [
         workspace_id: OWN_ORG_UUID,
         project_id: OWN_PROJECT_ID,
         project_name: "Default",
-        is_default_project: true,
+        is_default_project: false,
         is_demo: null,
         user_role: "owner",
     },
