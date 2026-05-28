@@ -10,7 +10,7 @@ from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
-    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.shared.dtos import Reference, Windowing, Trace, Traces
 from oss.src.core.tracing.dtos import (
@@ -713,28 +713,25 @@ class QueriesService:
         if not revision:
             return None
 
-        # HOTFIX: env-stored refs may carry stale slugs.
-        # Re-enable once the web write paths are fixed and the historical rows
-        # are backfilled.
-        # validate_retrieve_refs_consistent(
-        #     artifact_ref=_original_query_ref,
-        #     variant_ref=_original_query_variant_ref,
-        #     revision_ref=query_revision_ref,
-        #     resolved_artifact_ref=Reference(
-        #         id=revision.artifact_id,
-        #         slug=revision.artifact_slug,
-        #     ),
-        #     resolved_variant_ref=Reference(
-        #         id=revision.variant_id,
-        #         slug=revision.variant_slug,
-        #     ),
-        #     resolved_revision_ref=Reference(
-        #         id=revision.id,
-        #         slug=revision.slug,
-        #         version=revision.version,
-        #     ),
-        #     entity_type="query",
-        # )
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_query_ref,
+            variant_ref=_original_query_variant_ref,
+            revision_ref=query_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="query",
+        )
 
         _query_revision = QueryRevision(
             **revision.model_dump(mode="json"),

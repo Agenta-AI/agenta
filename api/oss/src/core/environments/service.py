@@ -54,7 +54,7 @@ from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
-    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
 
@@ -174,6 +174,80 @@ class EnvironmentsService:
             else None
         )
         return _normalize_environment_references(previous_references)
+
+    async def _normalize_references_from_lineage(
+        self,
+        *,
+        project_id: UUID,
+        references: Optional[Dict[str, Dict[str, Reference]]],
+    ) -> Optional[Dict[str, Dict[str, Reference]]]:
+        """Repopulate artifact/variant/revision ref slugs from the revision row.
+
+        Callers historically sent the entity *name* or the wrong slug at the
+        artifact/variant levels. The revision id is the one value always sent
+        reliably, so for each app-key ref group we resolve the workflow revision
+        by id and rewrite all three levels' id+slug+version from that single
+        lineage — guaranteeing the stored refs are mutually consistent and pass
+        the retrieve consistency check. Groups whose revision id does not resolve
+        are left as-is.
+        """
+
+        if not references:
+            return references
+
+        if not self.embeds_service or not self.embeds_service.workflows_service:
+            return references
+
+        workflows_service = self.embeds_service.workflows_service
+
+        normalized: Dict[str, Dict[str, Reference]] = {}
+
+        for key, group in references.items():
+            prefix = None
+            if "application_revision" in group:
+                prefix = "application"
+            elif "workflow_revision" in group:
+                prefix = "workflow"
+
+            revision_ref = group.get(f"{prefix}_revision") if prefix else None
+
+            if not prefix or not revision_ref or not revision_ref.id:
+                normalized[key] = group
+                continue
+
+            revision = await workflows_service.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_revision_ref=Reference(id=revision_ref.id),
+            )
+
+            if not revision:
+                normalized[key] = group
+                continue
+
+            authoritative = {
+                prefix: Reference(
+                    id=revision.artifact_id,
+                    slug=revision.artifact_slug,
+                ),
+                f"{prefix}_variant": Reference(
+                    id=revision.variant_id,
+                    slug=revision.variant_slug,
+                ),
+                f"{prefix}_revision": Reference(
+                    id=revision.id,
+                    slug=revision.slug,
+                    version=revision.version,
+                ),
+            }
+
+            # Only rewrite levels the group already carried; preserve any other
+            # ref types untouched.
+            normalized[key] = {
+                ref_type: authoritative.get(ref_type, ref)
+                for ref_type, ref in group.items()
+            }
+
+        return normalized
 
     # environments ---------------------------------------------------------
 
@@ -687,28 +761,25 @@ class EnvironmentsService:
         if not revision:
             return None
 
-        # HOTFIX: env-stored refs may carry stale slugs.
-        # Re-enable once the web write paths are fixed and the historical rows
-        # are backfilled.
-        # validate_retrieve_refs_consistent(
-        #     artifact_ref=_original_environment_ref,
-        #     variant_ref=_original_environment_variant_ref,
-        #     revision_ref=environment_revision_ref,
-        #     resolved_artifact_ref=Reference(
-        #         id=revision.artifact_id,
-        #         slug=revision.artifact_slug,
-        #     ),
-        #     resolved_variant_ref=Reference(
-        #         id=revision.variant_id,
-        #         slug=revision.variant_slug,
-        #     ),
-        #     resolved_revision_ref=Reference(
-        #         id=revision.id,
-        #         slug=revision.slug,
-        #         version=revision.version,
-        #     ),
-        #     entity_type="environment",
-        # )
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_environment_ref,
+            variant_ref=_original_environment_variant_ref,
+            revision_ref=environment_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="environment",
+        )
 
         environment_revision = EnvironmentRevision(
             **revision.model_dump(
@@ -946,6 +1017,16 @@ class EnvironmentsService:
             project_id=project_id,
             environment_variant_id=environment_variant_id,
         )
+
+        # Repopulate embedded ref slugs from the revision lineage so the persisted
+        # references are always self-consistent regardless of what the caller sent.
+        if environment_revision_commit.data:
+            environment_revision_commit.data.references = (
+                await self._normalize_references_from_lineage(
+                    project_id=project_id,
+                    references=environment_revision_commit.data.references,
+                )
+            )
 
         if not environment_revision_commit.slug:
             environment_revision_commit.slug = uuid4().hex[-12:]
