@@ -195,6 +195,13 @@ export function PlaygroundInputsBody({
                 : inputs.map(renderCard)}
             {unreferencedColumns && unreferencedColumns.length > 0 ? (
                 <UnreferencedColumnsFooter
+                    // Key the footer on the set of unused column names so it
+                    // re-mounts whenever a column migrates in or out — that
+                    // resets `useState(false)` to keep the new unused entry
+                    // collapsed by default. Per Mahmoud/Arda's QA, the
+                    // unused values must never surface without an explicit
+                    // click. See `UnreferencedColumnsFooter` docstring.
+                    key={unreferencedColumns.map((c) => c.name).join("|")}
                     rowId={rowId}
                     columns={unreferencedColumns.map((c) => ({name: c.name, value: c.value}))}
                     editable={unreferencedEditable}
