@@ -46,10 +46,10 @@ def upgrade_environment_reference_slugs(session: Connection) -> None:
                         SELECT jsonb_object_agg(k.key, lineage.refs)
                         FROM jsonb_each(er.data::jsonb -> 'references') AS k(key, refs)
                         CROSS JOIN LATERAL (
-                            -- The per-key prefix is "application" or "workflow".
-                            -- Both families share the same {<prefix>,
-                            -- <prefix>_variant, <prefix>_revision} shape, so we
-                            -- detect it from whichever revision ref is present.
+                            -- The per-key prefix is application/evaluator/workflow
+                            -- (all reuse workflow_* persistence). Each family shares
+                            -- the same {<prefix>, <prefix>_variant, <prefix>_revision}
+                            -- shape, so we detect it from the revision ref present.
                             SELECT CASE
                                 WHEN k.refs ? 'application_revision' THEN 'application'
                                 WHEN k.refs ? 'evaluator_revision' THEN 'evaluator'
@@ -57,10 +57,11 @@ def upgrade_environment_reference_slugs(session: Connection) -> None:
                                 ELSE NULL
                             END AS prefix
                         ) AS p
-                        CROSS JOIN LATERAL (
+                        LEFT JOIN LATERAL (
                             -- Resolve the authoritative slugs from the revision
-                            -- lineage. NULL row_* (unresolved id / no prefix)
-                            -- leaves the refs untouched.
+                            -- lineage. LEFT JOIN so an unresolved id yields a
+                            -- NULL row (handled below as "leave refs untouched")
+                            -- instead of dropping the key from the rebuilt map.
                             SELECT a.slug AS artifact_slug,
                                    v.slug AS variant_slug,
                                    r.slug AS revision_slug

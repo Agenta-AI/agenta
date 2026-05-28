@@ -181,15 +181,19 @@ class EnvironmentsService:
         project_id: UUID,
         references: Optional[Dict[str, Dict[str, Reference]]],
     ) -> Optional[Dict[str, Dict[str, Reference]]]:
-        """Repopulate artifact/variant/revision ref slugs from the revision row.
+        """Repair stale artifact/variant/revision ref slugs from the revision row.
 
         Callers historically sent the entity *name* or the wrong slug at the
         artifact/variant levels. The revision id is the one value always sent
         reliably, so for each app-key ref group we resolve the workflow revision
-        by id and rewrite all three levels' id+slug+version from that single
-        lineage — guaranteeing the stored refs are mutually consistent and pass
-        the retrieve consistency check. Groups whose revision id does not resolve
-        are left as-is.
+        by id and rewrite each level's slug from that single lineage —
+        guaranteeing the stored refs are mutually consistent and pass the
+        retrieve consistency check.
+
+        Mirrors the backfill migration's contract: only the ``slug`` of a level
+        that already carries one is rewritten; ``id``/``version`` and slug-less
+        levels are left as-is. Groups whose revision id does not resolve are
+        left untouched.
         """
 
         if not references:
@@ -230,26 +234,18 @@ class EnvironmentsService:
                 normalized[key] = group
                 continue
 
-            authoritative = {
-                prefix: Reference(
-                    id=revision.artifact_id,
-                    slug=revision.artifact_slug,
-                ),
-                f"{prefix}_variant": Reference(
-                    id=revision.variant_id,
-                    slug=revision.variant_slug,
-                ),
-                f"{prefix}_revision": Reference(
-                    id=revision.id,
-                    slug=revision.slug,
-                    version=revision.version,
-                ),
+            authoritative_slug = {
+                prefix: revision.artifact_slug,
+                f"{prefix}_variant": revision.variant_slug,
+                f"{prefix}_revision": revision.slug,
             }
 
-            # Only rewrite levels the group already carried; preserve any other
-            # ref types untouched.
             normalized[key] = {
-                ref_type: authoritative.get(ref_type, ref)
+                ref_type: (
+                    ref.model_copy(update={"slug": authoritative_slug[ref_type]})
+                    if ref_type in authoritative_slug and ref.slug is not None
+                    else ref
+                )
                 for ref_type, ref in group.items()
             }
 
@@ -1003,6 +999,8 @@ class EnvironmentsService:
         user_id: UUID,
         #
         environment_revision_commit: EnvironmentRevisionCommit,
+        #
+        _normalize_references: bool = True,
     ) -> Optional[EnvironmentRevision]:
         # Route to delta handler if delta provided without data
         if (
@@ -1026,7 +1024,9 @@ class EnvironmentsService:
 
         # Repopulate embedded ref slugs from the revision lineage so the persisted
         # references are always self-consistent regardless of what the caller sent.
-        if environment_revision_commit.data:
+        # The delta path normalizes only its changed keys upstream and passes
+        # _normalize_references=False, so untouched keys aren't re-resolved.
+        if _normalize_references and environment_revision_commit.data:
             environment_revision_commit.data.references = (
                 await self._normalize_references_from_lineage(
                     project_id=project_id,
@@ -1136,9 +1136,15 @@ class EnvironmentsService:
                     base_references = dict(rev.data.references)
                     break
 
-        # Apply delta operations
+        # Apply delta operations. Normalize only the changed keys here — the
+        # base keys came from an already-committed (already-normalized) revision,
+        # so re-resolving all of them would be an O(keys) query fan-out per deploy.
         if delta.set:
-            base_references.update(delta.set)
+            normalized_set = await self._normalize_references_from_lineage(
+                project_id=project_id,
+                references=delta.set,
+            )
+            base_references.update(normalized_set or delta.set)
 
         if delta.remove:
             for key in delta.remove:
@@ -1159,11 +1165,12 @@ class EnvironmentsService:
             ),
         )
 
-        # Re-enter with full data
+        # Re-enter with full data; references were already normalized above.
         return await self.commit_environment_revision(
             project_id=project_id,
             user_id=user_id,
             environment_revision_commit=environment_revision_commit,
+            _normalize_references=False,
         )
 
     async def log_environment_revisions(

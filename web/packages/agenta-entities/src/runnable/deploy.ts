@@ -34,7 +34,7 @@ export interface PublishPayload {
     applicationId: string
     /** Optional: Workflow variant ID (if not provided, resolved from revision data) */
     workflowVariantId?: string
-    /** Optional: Variant slug — last-resort fallback; `resolveVariantSlug` re-derives the real slug by id. */
+    /** Optional: Variant slug. The backend re-derives slugs from the revision id on commit; this is best-effort. */
     variantSlug?: string
     /** Optional: Application slug */
     applicationSlug?: string
@@ -162,7 +162,7 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
                     slug: payload.applicationSlug,
                 },
                 application_variant: {
-                    id: payload.workflowVariantId || payload.applicationId,
+                    id: payload.workflowVariantId,
                     slug: variantSlug,
                 },
                 application_revision: {
