@@ -57,7 +57,12 @@ const MAX_LINES_BY_HEIGHT: Record<ScenarioRowHeight, number> = {
 const SLICES_BY_KIND: Record<ColumnKind, ("results" | "metrics" | "testcases" | "traces")[]> = {
     testset: ["results", "testcases"],
     application: ["results", "traces"],
-    evaluator: ["results", "metrics"],
+    // Evaluator outputs come from metrics first, but string-typed outputs
+    // (e.g. an LLM-judge's `reasoning` field) only land in the metric layer
+    // as a `{type: "string", count: N}` placeholder — the real value is on
+    // the annotation trace. Hydrate traces too so `resolveFromTrace` can
+    // find it when `resolveFromMetric` falls through.
+    evaluator: ["results", "metrics", "traces"],
     metrics: ["metrics"],
     other: ["results"],
 }
@@ -212,15 +217,19 @@ const EtlResolvedCell = ({
                     if (cached == null) materializer.request("testcases", {testcaseId})
                 }
             } else if (slice === "traces") {
+                // A scenario can carry multiple traces — typically one per
+                // result (invocation, annotation, …). Materialize every
+                // trace_id so evaluator cells can find the annotation trace
+                // alongside the application's invocation trace.
                 const cachedResults = evaluationResultMolecule.get.byScenario({
                     projectId,
                     runId,
                     scenarioId,
                 })
-                const traceId =
-                    cachedResults?.find((r) => typeof r.trace_id === "string" && r.trace_id)
-                        ?.trace_id ?? null
-                if (traceId) {
+                const traceIds = (cachedResults ?? [])
+                    .map((r) => r.trace_id)
+                    .filter((id): id is string => typeof id === "string" && id.length > 0)
+                for (const traceId of traceIds) {
                     const cached = queryClient.getQueryData(["trace-entity", projectId, traceId])
                     if (cached == null) materializer.request("traces", {traceId})
                 }
@@ -268,13 +277,17 @@ const EtlResolvedCell = ({
                     runId,
                     scenarioId,
                 })
-                const traceId =
-                    cachedResults?.find((r) => typeof r.trace_id === "string" && r.trace_id)
-                        ?.trace_id ?? null
-                if (!traceId) continue
-                const cached = queryClient.getQueryData(["trace-entity", projectId, traceId])
-                if (cached === undefined && !materializer?.hasFailed("traces", {traceId})) {
-                    return true
+                // Check every result's trace_id (not just the first) — a
+                // scenario can carry multiple traces and an evaluator cell
+                // needs the annotation trace, which isn't always result[0].
+                const traceIds = (cachedResults ?? [])
+                    .map((r) => r.trace_id)
+                    .filter((id): id is string => typeof id === "string" && id.length > 0)
+                for (const traceId of traceIds) {
+                    const cached = queryClient.getQueryData(["trace-entity", projectId, traceId])
+                    if (cached === undefined && !materializer?.hasFailed("traces", {traceId})) {
+                        return true
+                    }
                 }
             }
         }
