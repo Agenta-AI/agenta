@@ -69,6 +69,64 @@ def test_initialize_ag_attributes_cleans_known_fields_and_tracks_unsupported():
     assert "refs" not in ag["unsupported"]
 
 
+def test_initialize_ag_attributes_preserves_dotted_reference_slugs():
+    cleaned = initialize_ag_attributes(
+        {
+            "ag": {
+                "references": {
+                    "application_variant": {"slug": "n8n.default"},
+                    "application": {"slug": "n8n"},
+                }
+            }
+        }
+    )
+
+    references = cleaned["ag"]["references"]
+
+    assert references["application_variant"]["slug"] == "n8n.default"
+    assert references["application"]["slug"] == "n8n"
+
+
+def test_initialize_ag_attributes_nulls_unsafe_reference_slugs():
+    cleaned = initialize_ag_attributes(
+        {
+            "ag": {
+                "references": {
+                    "application": {"slug": "a/b"},
+                    "application_variant": {"slug": "has space"},
+                    "query": {"slug": "with?query"},
+                }
+            }
+        }
+    )
+
+    references = cleaned["ag"]["references"]
+
+    assert references["application"] == {}
+    assert references["application_variant"] == {}
+    assert references["query"] == {}
+
+
+def test_initialize_ag_attributes_nulls_path_traversal_reference_slugs():
+    cleaned = initialize_ag_attributes(
+        {
+            "ag": {
+                "references": {
+                    "application": {"slug": "."},
+                    "application_variant": {"slug": ".."},
+                    "query": {"slug": ".hidden"},
+                }
+            }
+        }
+    )
+
+    references = cleaned["ag"]["references"]
+
+    assert references["application"] == {}
+    assert references["application_variant"] == {}
+    assert references["query"] == {}
+
+
 def test_ag_metrics_accept_scalar_duration_errors_and_vector_tokens_costs():
     attrs = AgAttributes.model_validate(
         {
