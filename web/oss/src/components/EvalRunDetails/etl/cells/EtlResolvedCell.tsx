@@ -47,10 +47,21 @@ import {hydrationVersionAtom} from "../useHydrateScenarios"
 
 type ColumnKind = ColumnGroup["kind"]
 
+// Tuned to match the actual visible line count inside `.scenario-table-cell`
+// at each row-height variant. With `font-size: 13px` and `line-height: 1.6`
+// (~20.8px per line) — defined in `evaluations.css` — the available
+// content height after padding fits roughly:
+//   small  (80px row, 8px padding):  (80 - 16) / 20.8 ≈ 3 lines
+//   medium (160px row, 12px padding): (160 - 24) / 20.8 ≈ 6 lines
+//   large  (280px row, 12px padding): (280 - 24) / 20.8 ≈ 12 lines
+// `-webkit-line-clamp` places its ellipsis at line N — if N exceeds the
+// visible lines, the parent's `overflow: hidden` cuts the text mid-line and
+// the ellipsis is never seen. Matching N to the visible count puts the
+// ellipsis on the last fully-rendered line.
 const MAX_LINES_BY_HEIGHT: Record<ScenarioRowHeight, number> = {
-    small: 4,
-    medium: 9,
-    large: 18,
+    small: 3,
+    medium: 6,
+    large: 12,
 }
 
 /** Entity slices each column kind reads from. */

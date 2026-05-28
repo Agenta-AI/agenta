@@ -79,7 +79,14 @@ export const useEtlColumns = ({
                     ),
                     width: WIDTH_BY_KIND[leaf.kind],
                     minWidth: WIDTH_BY_KIND[leaf.kind],
-                    ellipsis: true,
+                    // `ellipsis: true` is intentionally NOT set here. Antd
+                    // applies `white-space: nowrap` to the cell when it is,
+                    // which collapses our multi-line content (e.g. an
+                    // evaluator's `reasoning` string) onto a single line.
+                    // The body cell is `EtlResolvedCell`, which already
+                    // clamps to a row-height-derived line count via
+                    // `-webkit-line-clamp`. The header has its own
+                    // ellipsis-ing inside the `Tooltip` span above.
                     align: "left" as const,
                     render: (_: unknown, record: PreviewTableRow) => {
                         // antd's virtual table can briefly call a cell
