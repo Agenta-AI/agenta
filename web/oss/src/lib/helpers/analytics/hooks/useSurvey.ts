@@ -88,26 +88,104 @@ export const useSurvey = (surveyName: string) => {
         posthogLoaded && !manualError ? ["survey", surveyName] : null,
         async () => {
             return await new Promise<Survey | null>((resolve, reject) => {
-                try {
-                    posthog?.surveys?.getActiveMatchingSurveys?.((surveys) => {
+                let completed = false
+                const unsubscribes: (() => void)[] = []
+                const timeout = window.setTimeout(() => {
+                    if (completed) return
+                    completed = true
+                    unsubscribes.forEach((unsubscribe) => unsubscribe())
+                    reject(
+                        createSurveyError("survey-fetch-error", "PostHog surveys failed to load"),
+                    )
+                }, SURVEY_TIMEOUT_MS)
+
+                const complete = (callback: () => void) => {
+                    if (completed) return
+                    completed = true
+                    window.clearTimeout(timeout)
+                    unsubscribes.forEach((unsubscribe) => unsubscribe())
+                    callback()
+                }
+
+                const readActiveMatchingSurveys = () => {
+                    posthog.getActiveMatchingSurveys((surveys) => {
                         const found = surveys?.find((s) => s.name?.includes(surveyName))
                         if (!found) {
-                            reject(
-                                createSurveyError(
-                                    "survey-unavailable",
-                                    `Survey "${surveyName}" is not available`,
+                            complete(() =>
+                                reject(
+                                    createSurveyError(
+                                        "survey-unavailable",
+                                        `Survey "${surveyName}" is not available`,
+                                    ),
                                 ),
                             )
                             return
                         }
-                        resolve(found)
+
+                        complete(() => resolve(found))
                     }, false)
+                }
+
+                try {
+                    const unsubscribeSurveys = posthog?.onSurveysLoaded?.((_surveys, context) => {
+                        try {
+                            if (context && !context.isLoaded) {
+                                complete(() =>
+                                    reject(
+                                        createSurveyError(
+                                            "survey-fetch-error",
+                                            context.error ?? "PostHog surveys failed to load",
+                                        ),
+                                    ),
+                                )
+                                return
+                            }
+
+                            const unsubscribeFeatureFlags = posthog.onFeatureFlags?.(() => {
+                                readActiveMatchingSurveys()
+                            })
+
+                            if (unsubscribeFeatureFlags) {
+                                unsubscribes.push(unsubscribeFeatureFlags)
+                            } else {
+                                readActiveMatchingSurveys()
+                            }
+                        } catch (e: unknown) {
+                            const error =
+                                e instanceof Error
+                                    ? createSurveyError("survey-fetch-error", e.message)
+                                    : createSurveyError(
+                                          "survey-fetch-error",
+                                          "Failed to load survey",
+                                      )
+                            complete(() => reject(error))
+                        }
+                    })
+
+                    if (unsubscribeSurveys) {
+                        unsubscribes.push(unsubscribeSurveys)
+                    }
+
+                    if (completed) {
+                        unsubscribes.forEach((unsubscribe) => unsubscribe())
+                    }
+
+                    if (!unsubscribeSurveys) {
+                        complete(() =>
+                            reject(
+                                createSurveyError(
+                                    "posthog-unavailable",
+                                    "PostHog surveys are not available",
+                                ),
+                            ),
+                        )
+                    }
                 } catch (e: unknown) {
                     const error =
                         e instanceof Error
                             ? createSurveyError("survey-fetch-error", e.message)
                             : createSurveyError("survey-fetch-error", "Failed to load survey")
-                    reject(error)
+                    complete(() => reject(error))
                 }
             })
         },
