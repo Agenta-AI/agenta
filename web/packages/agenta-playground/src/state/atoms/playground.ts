@@ -24,6 +24,61 @@ export const defaultLocalTestsetName = "Untitled Testset"
 export const playgroundNodesAtom = atom<PlaygroundNode[]>([]) as PrimitiveAtom<PlaygroundNode[]>
 
 /**
+ * Entity ID anchoring the loadable for the current playground session.
+ *
+ * The "anchor" is the depth-0 entity whose `loadableId`
+ * (`testset:<type>:<id>`) is treated as the canonical loadable for the
+ * playground. It's intentionally stateful (not a pure derivation from
+ * `playgroundNodesAtom`) so that reordering columns in comparison mode
+ * doesn't flip which entity owns the loadable — keep the original anchor
+ * as long as it's still present.
+ *
+ * Replaces the prior `let _loadableAnchorEntityId` module variable that was
+ * mutated inside `derivedLoadableIdAtom`'s getter — a Jotai anti-pattern
+ * that produced silent, non-deterministic anchor flips across surface
+ * transitions (app playground ↔ evaluator drawer ↔ traces).
+ *
+ * Writes to this atom are gated through `reanchorLoadableAtom`; direct
+ * sets are discouraged. See `reanchorLoadableAtom` for the policy.
+ */
+export const loadableAnchorEntityIdAtom = atom<string | null>(null) as PrimitiveAtom<string | null>
+
+/**
+ * Recompute `loadableAnchorEntityIdAtom` from the current
+ * `playgroundNodesAtom`. The policy:
+ *
+ *   1. If there are no depth-0 nodes → clear the anchor.
+ *   2. If the current anchor still matches a depth-0 node → keep it
+ *      (preserves stability across reordering and downstream-node-only
+ *      changes).
+ *   3. Otherwise → adopt the first depth-0 node as the new anchor.
+ *
+ * Call this immediately after any write to `playgroundNodesAtom`. The
+ * controller's higher-level node actions (addPrimaryNode, addDownstreamNode,
+ * removeNode, setEntityIds, resetAll, …) and the legacy
+ * `playgroundDispatchAtom` reducers both invoke this.
+ */
+export const reanchorLoadableAtom = atom(null, (get, set) => {
+    const nodes = get(playgroundNodesAtom)
+    const rootNodes = nodes.filter((n) => n.depth === 0)
+
+    if (rootNodes.length === 0) {
+        if (get(loadableAnchorEntityIdAtom) !== null) {
+            set(loadableAnchorEntityIdAtom, null)
+        }
+        return
+    }
+
+    const currentAnchor = get(loadableAnchorEntityIdAtom)
+    if (currentAnchor && rootNodes.some((n) => n.entityId === currentAnchor)) {
+        // Anchor still valid; keep it.
+        return
+    }
+
+    set(loadableAnchorEntityIdAtom, rootNodes[0].entityId)
+})
+
+/**
  * Currently selected node ID
  */
 export const selectedNodeIdAtom = atom<string | null>(null) as PrimitiveAtom<string | null>
@@ -103,6 +158,7 @@ export const playgroundDispatchAtom = atom(null, (get, set, action: PlaygroundAc
         case "addNode": {
             const nodes = get(playgroundNodesAtom)
             set(playgroundNodesAtom, [...nodes, action.node])
+            set(reanchorLoadableAtom)
             break
         }
         case "removeNode": {
@@ -111,6 +167,7 @@ export const playgroundDispatchAtom = atom(null, (get, set, action: PlaygroundAc
                 playgroundNodesAtom,
                 nodes.filter((n) => n.id !== action.nodeId),
             )
+            set(reanchorLoadableAtom)
             break
         }
         case "selectNode": {
@@ -169,6 +226,7 @@ export const playgroundDispatchAtom = atom(null, (get, set, action: PlaygroundAc
             set(testsetModalOpenAtom, false)
             set(mappingModalOpenAtom, false)
             set(editingConnectionIdAtom, null)
+            set(reanchorLoadableAtom)
             break
         }
     }

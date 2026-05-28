@@ -52,6 +52,7 @@ import {
     mappingModalOpenAtom,
     playgroundDispatchAtom,
     playgroundNodesAtom,
+    reanchorLoadableAtom,
     selectedNodeIdAtom,
     testsetModalOpenAtom,
 } from "../atoms/playground"
@@ -186,6 +187,7 @@ const addPrimaryNodeAtom = atom(
 
         // Reset state and add the primary node
         set(playgroundNodesAtom, [node])
+        set(reanchorLoadableAtom)
         set(selectedNodeIdAtom, nodeId)
         set(outputConnectionsAtom, [])
 
@@ -249,6 +251,11 @@ const addDownstreamNodeAtom = atom(
         }
 
         set(playgroundNodesAtom, [...nodes, node])
+        // Downstream-only changes don't alter the depth-0 set, so the
+        // anchor stays put — but invoking `reanchorLoadableAtom` here is
+        // still cheap and defends against the case where the anchor was
+        // never seeded (e.g., a downstream node added before any primary).
+        set(reanchorLoadableAtom)
         _onSelectionChange?.(get(entityIdsAtom), [])
 
         return {
@@ -271,6 +278,7 @@ const removeNodeAtom = atom(null, (get, set, nodeId: string): string[] => {
     // If removing primary node, reset everything
     if (nodeIndex === 0) {
         set(playgroundNodesAtom, [])
+        set(reanchorLoadableAtom)
         set(selectedNodeIdAtom, null)
         set(outputConnectionsAtom, [])
         _onSelectionChange?.([], removedEntityId ? [removedEntityId] : [])
@@ -282,6 +290,11 @@ const removeNodeAtom = atom(null, (get, set, nodeId: string): string[] => {
         playgroundNodesAtom,
         nodes.filter((n) => n.id !== nodeId),
     )
+    // Removing a non-primary (downstream) node leaves the depth-0 set
+    // untouched, so the anchor is preserved — but call reanchor to keep
+    // the bookkeeping correct in edge cases (e.g., the node being removed
+    // turns out to be depth-0 in a future schema).
+    set(reanchorLoadableAtom)
     set(
         outputConnectionsAtom,
         get(outputConnectionsAtom).filter(
@@ -408,6 +421,7 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
     }
 
     set(playgroundNodesAtom, [updatedNode, ...nodes.slice(1)])
+    set(reanchorLoadableAtom)
     set(outputConnectionsAtom, [])
 
     // Update local testset name if not connected to a remote testset
@@ -1860,6 +1874,7 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
     // Preserve downstream nodes (e.g. evaluators at depth > 0) when updating root selection.
     // If root selection is cleared entirely, downstream nodes are also removed.
     set(playgroundNodesAtom, newRootNodes.length > 0 ? [...newRootNodes, ...downstreamNodes] : [])
+    set(reanchorLoadableAtom)
 
     // Remap connections: if root nodes were removed, any downstream connections
     // that referenced them should be remapped to the new primary root.

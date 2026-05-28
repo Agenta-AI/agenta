@@ -16,7 +16,7 @@ import {selectAtom} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
+import {entityIdsAtom, loadableAnchorEntityIdAtom, playgroundNodesAtom} from "../atoms/playground"
 import {addUserMessageAtom} from "../chat"
 import {sharedMessageIdsAtomFamily} from "../chat/messageSelectors"
 
@@ -54,42 +54,31 @@ const toDisplayString = (value: unknown): string => {
 // ============================================================================
 
 /**
- * Derived loadableId from primary node
+ * Derived loadableId from the loadable anchor.
  *
- * This allows execution to work without manually constructing loadableId.
- * Format: "testset:{entityType}:{entityId}"
+ * Format: `"testset:{entityType}:{entityId}"`. Empty string when no anchor.
  *
- * The loadable ID is anchored to the first entity that was selected, and
- * remains stable across column reordering in comparison mode. It only
- * changes when the anchored entity is removed from the playground.
- *
- * @returns Atom for the derived loadableId or empty string if no primary node
+ * The loadable ID is anchored to the first depth-0 entity that was added,
+ * and remains stable across column reordering in comparison mode. The
+ * anchor is updated by `reanchorLoadableAtom` from every site that mutates
+ * `playgroundNodesAtom` (see `atoms/playground.ts`) — this getter is pure,
+ * which fixes a class of bugs where the previous module-level closure
+ * (`let _loadableAnchorEntityId`) was mutated inside the getter and flipped
+ * non-deterministically across surface transitions.
  *
  * @example
  * const loadableId = useAtomValue(derivedLoadableIdAtom)
- * // Returns "testset:appRevision:rev-123" if primary node is an app revision
+ * // Returns "testset:appRevision:rev-123" if anchor is "rev-123"
  */
-let _loadableAnchorEntityId: string | null = null
 export const derivedLoadableIdAtom = atom((get) => {
-    const rootNodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
-    if (rootNodes.length === 0) {
-        _loadableAnchorEntityId = null
-        return ""
-    }
-
-    // If the anchor entity is still present, keep using it so that
-    // reordering columns in comparison mode doesn't orphan stored data.
-    if (_loadableAnchorEntityId) {
-        const anchorNode = rootNodes.find((n) => n.entityId === _loadableAnchorEntityId)
-        if (anchorNode) {
-            return `testset:${anchorNode.entityType}:${anchorNode.entityId}`
-        }
-    }
-
-    // No valid anchor — set to first available node
-    const first = rootNodes[0]
-    _loadableAnchorEntityId = first.entityId
-    return `testset:${first.entityType}:${first.entityId}`
+    const anchor = get(loadableAnchorEntityIdAtom)
+    if (!anchor) return ""
+    // Resolve the anchor entity's `entityType` from the current node graph.
+    // Reading nodes here is cheap and necessary — we only have the entityId
+    // in the anchor; the type comes from the node record.
+    const anchorNode = get(playgroundNodesAtom).find((n) => n.depth === 0 && n.entityId === anchor)
+    if (!anchorNode) return ""
+    return `testset:${anchorNode.entityType}:${anchorNode.entityId}`
 })
 
 /**
