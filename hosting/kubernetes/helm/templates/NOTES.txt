@@ -1,0 +1,170 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named: {{ .Release.Name }}
+
+{{- $values := include "agenta.values" . | fromYaml }}
+{{- $ingress := default dict .Values.ingress }}
+{{- $secrets := default dict .Values.secrets }}
+{{- $agenta := default dict $values.agenta }}
+{{- $postgres := default dict $values.postgres }}
+{{- $redisVolatile := default dict $values.redisVolatile }}
+{{- $redisDurable := default dict $values.redisDurable }}
+
+{{- /* Detect pre-v0.100.3 legacy keys still present in the user's values.
+       Uses hasKey so explicit `false`/`""`/`0` legacy values still trigger
+       the deprecation NOTE, and so newly-covered legacy URL/posthog keys
+       under `global.*` are picked up. */ -}}
+{{- $legacyGlobal := default dict .Values.global -}}
+{{- $legacyInSecrets := default dict .Values.secrets -}}
+{{- $usingLegacy := false -}}
+{{- range $k := list "accessControl" "email" "integrations" "observability" "captcha" -}}
+  {{- if hasKey $.Values $k -}}{{- $usingLegacy = true -}}{{- end -}}
+{{- end -}}
+{{- range $k := list "agentaLicense" "webUrl" "apiUrl" "servicesUrl" "posthogApiKey" -}}
+  {{- if hasKey $legacyGlobal $k -}}{{- $usingLegacy = true -}}{{- end -}}
+{{- end -}}
+{{- range $k := list "agentaAuthKey" "agentaCryptKey" "postgresPassword" "supertokensApiKey" -}}
+  {{- if hasKey $legacyInSecrets $k -}}{{- $usingLegacy = true -}}{{- end -}}
+{{- end }}
+{{- if $usingLegacy }}
+
+NOTE: pre-v0.100.3 values keys detected (e.g. `accessControl.*`, `email.*`,
+`global.agentaLicense`, `secrets.agentaAuthKey`, …). The compat layer in the
+chart accepts them and folds them into their v0.100.3 equivalents at render
+time, so this install will work — but the compat layer is transitional and
+will be removed in a later release. Migration guide:
+https://docs.agenta.ai/self-host/upgrades/v0.100.3-migration
+{{- end }}
+
+{{- if or (eq ($agenta.authKey | toString) "replace-me") (eq ($agenta.cryptKey | toString) "replace-me") (eq ($postgres.password | toString) "password") }}
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  SECURITY WARNING — default secrets in use                           ║
+╠══════════════════════════════════════════════════════════════════════╣
+{{- if eq ($agenta.authKey | toString) "replace-me" }}
+║  agenta.authKey   = "replace-me"    ← REPLACE before production      ║
+{{- end }}
+{{- if eq ($agenta.cryptKey | toString) "replace-me" }}
+║  agenta.cryptKey  = "replace-me"    ← REPLACE before production      ║
+{{- end }}
+{{- if eq ($postgres.password | toString) "password" }}
+║  postgres.password = "password"     ← REPLACE before production      ║
+{{- end }}
+║                                                                      ║
+║  These defaults exist so the chart renders out-of-the-box for local  ║
+║  development. Override them in your values file:                     ║
+║                                                                      ║
+║    agenta:                                                           ║
+║      authKey:  "$(openssl rand -hex 32)"                             ║
+║      cryptKey: "$(openssl rand -hex 32)"                             ║
+║    postgres:                                                         ║
+║      password: "$(openssl rand -hex 24)"                             ║
+╚══════════════════════════════════════════════════════════════════════╝
+{{- end }}
+
+{{- if or (and (eq (include "agenta.redisVolatile.enabled" .) "true") (not $redisVolatile.password)) (and (eq (include "agenta.redisDurable.enabled" .) "true") (not $redisDurable.password)) }}
+
+NOTE: bundled Redis is running without a password (the default). This is
+fine for local/dev clusters where pod-to-pod traffic is trusted (Redis
+is ClusterIP-only), but exposes the cache/queue to any pod in the cluster.
+For shared or production clusters, set `redisVolatile.password` and
+`redisDurable.password` in your values file, and consider adding a
+NetworkPolicy restricting access to the agenta pods.
+{{- end }}
+
+{{- if eq (include "agenta.ingress.enabled" .) "true" }}
+
+NOTE: ingress.enabled=true assumes a cluster-installed Ingress controller.
+The example values default to Traefik v3 with a StripPrefix Middleware
+(see `extraObjects` in the example values file) so /api and /services
+are routed correctly. If you use a different controller, replace the
+class + annotations and provide an equivalent path-rewrite mechanism.
+{{- end }}
+{{- if eq (include "agenta.ingress.enabled" .) "true" }}
+
+Agenta is accessible via Ingress:
+{{- if $ingress.host }}
+  Web UI:   http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/
+  API:      http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/api/
+  Services: http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/services/
+{{- else }}
+  Determine the ingress IP:
+    kubectl get ingress {{ include "agenta.fullname" . }} -n {{ .Release.Namespace }}
+
+  Then access:
+    Web UI:   http://<INGRESS_IP>/
+    API:      http://<INGRESS_IP>/api/
+    Services: http://<INGRESS_IP>/services/
+{{- end }}
+{{- else }}
+
+Agenta services are available via ClusterIP. Use port-forward to access them:
+
+  # Web UI
+  kubectl port-forward svc/{{ include "agenta.fullname" . }}-web {{ include "agenta.web.port" . }}:{{ include "agenta.web.port" . }} -n {{ .Release.Namespace }}
+
+  # API
+  kubectl port-forward svc/{{ include "agenta.fullname" . }}-api {{ include "agenta.api.port" . }}:{{ include "agenta.api.port" . }} -n {{ .Release.Namespace }}
+{{- end }}
+
+To check the status of all pods:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- if eq (include "agenta.alembic.enabled" .) "true" }}
+
+Database migrations run as a post-install/post-upgrade hook. Check the migration job:
+  kubectl get jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=alembic
+  kubectl logs job/{{ include "agenta.fullname" . }}-alembic -n {{ .Release.Namespace }}
+{{- end }}
+
+{{- if $secrets.existingSecret }}
+
+You are using a pre-created Secret: {{ $secrets.existingSecret }}
+Ensure it contains the following keys:
+
+  Required:
+    - AGENTA_AUTH_KEY
+    - AGENTA_CRYPT_KEY
+    - POSTGRES_PASSWORD
+
+  Optional (only if you enabled the corresponding feature):
+    - SUPERTOKENS_API_KEY
+    - REDIS_VOLATILE_PASSWORD       # if bundled redis has a password
+    - REDIS_DURABLE_PASSWORD        # if bundled redis has a password
+    - SENDGRID_API_KEY              # email
+    - COMPOSIO_API_KEY              # composio
+    - CLOUDFLARE_TURNSTILE_SECRET_KEY
+    - NEWRELIC_LICENSE_KEY
+    - LOOPS_API_KEY
+    - DAYTONA_API_KEY
+    - AGENTA_AI_SERVICES_API_KEY
+    - AGENTA_AI_SERVICES_REFINE_PROMPT_KEY
+    - <PROVIDER>_API_KEY            # llm providers (openai, anthropic, …)
+    - <PROVIDER>_OAUTH_CLIENT_SECRET # identity providers (google, github, …)
+{{- if eq (include "agenta.postgresql.enabled" .) "true" }}
+
+Bundled PostgreSQL is enabled. Bitnami is configured to read the password from:
+  global.postgresql.auth.existingSecret: {{ include "agenta.pgauthSecretName" . }}
+{{- if ne (include "agenta.pgauthSecretName" .) $secrets.existingSecret }}
+
+WARNING: global.postgresql.auth.existingSecret resolves to "{{ include "agenta.pgauthSecretName" . }}"
+but secrets.existingSecret is "{{ $secrets.existingSecret }}".
+The Bitnami PostgreSQL subchart may fail to find the password.
+Set: --set global.postgresql.auth.existingSecret={{ $secrets.existingSecret }}
+{{- end }}
+{{- end }}
+{{- else }}
+
+IMPORTANT: Three secrets are REQUIRED. Set them in your values file:
+
+  agenta:
+    authKey: "<your-auth-key>"
+    cryptKey: "<your-crypt-key>"
+  postgres:
+    password: "<your-postgres-password>"
+
+Then install with:
+
+  helm install agenta hosting/kubernetes/helm \
+    -f hosting/kubernetes/oss/values.oss.example.yaml
+{{- end }}

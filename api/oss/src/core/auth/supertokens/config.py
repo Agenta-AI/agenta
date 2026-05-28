@@ -108,166 +108,246 @@ def get_thirdparty_providers() -> List[ProviderInput]:
         )
 
     # Google OAuth
-    if env.auth.google_enabled:
-        assert env.auth.google_oauth_client_id is not None
-        assert env.auth.google_oauth_client_secret is not None
+    if env.identity.google.enabled:
+        if env.identity.google.client_id is None:
+            raise RuntimeError(
+                "google identity provider enabled but client_id is missing"
+            )
+        if env.identity.google.client_secret is None:
+            raise RuntimeError(
+                "google identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="google",
-            client_id=env.auth.google_oauth_client_id,
-            client_secret=env.auth.google_oauth_client_secret,
+            client_id=env.identity.google.client_id,
+            client_secret=env.identity.google.client_secret,
         )
 
     # Google Workspaces OAuth
-    if env.auth.google_workspaces_enabled:
-        assert env.auth.google_workspaces_oauth_client_id is not None
-        assert env.auth.google_workspaces_oauth_client_secret is not None
+    if env.identity.google_workspaces.enabled:
+        if env.identity.google_workspaces.client_id is None:
+            raise RuntimeError(
+                "google_workspaces identity provider enabled but client_id is missing"
+            )
+        if env.identity.google_workspaces.client_secret is None:
+            raise RuntimeError(
+                "google_workspaces identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="google-workspaces",
-            client_id=env.auth.google_workspaces_oauth_client_id,
-            client_secret=env.auth.google_workspaces_oauth_client_secret,
+            client_id=env.identity.google_workspaces.client_id,
+            client_secret=env.identity.google_workspaces.client_secret,
             additional_config={
-                "hd": env.auth.google_workspaces_hd,
+                "hd": env.identity.google_workspaces.hd,
             }
-            if env.auth.google_workspaces_hd
+            if env.identity.google_workspaces.hd
             else None,
         )
 
     # GitHub OAuth
-    if env.auth.github_enabled:
-        assert env.auth.github_oauth_client_id is not None
-        assert env.auth.github_oauth_client_secret is not None
+    if env.identity.github.enabled:
+        if env.identity.github.client_id is None:
+            raise RuntimeError(
+                "github identity provider enabled but client_id is missing"
+            )
+        if env.identity.github.client_secret is None:
+            raise RuntimeError(
+                "github identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="github",
-            client_id=env.auth.github_oauth_client_id,
-            client_secret=env.auth.github_oauth_client_secret,
+            client_id=env.identity.github.client_id,
+            client_secret=env.identity.github.client_secret,
             additional_config={"scope": ["user:email"]},
         )
 
     # Facebook OAuth
-    if env.auth.facebook_enabled:
-        assert env.auth.facebook_oauth_client_id is not None
-        assert env.auth.facebook_oauth_client_secret is not None
+    if env.identity.facebook.enabled:
+        if env.identity.facebook.client_id is None:
+            raise RuntimeError(
+                "facebook identity provider enabled but client_id is missing"
+            )
+        if env.identity.facebook.client_secret is None:
+            raise RuntimeError(
+                "facebook identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="facebook",
-            client_id=env.auth.facebook_oauth_client_id,
-            client_secret=env.auth.facebook_oauth_client_secret,
+            client_id=env.identity.facebook.client_id,
+            client_secret=env.identity.facebook.client_secret,
         )
 
     # Apple OAuth
-    if env.auth.apple_enabled:
-        assert env.auth.apple_oauth_client_id is not None
+    if env.identity.apple.enabled:
+        if env.identity.apple.client_id is None:
+            raise RuntimeError(
+                "apple identity provider enabled but client_id is missing"
+            )
         additional_config = None
         if (
-            env.auth.apple_key_id
-            and env.auth.apple_team_id
-            and env.auth.apple_private_key
+            env.identity.apple.key_id
+            and env.identity.apple.team_id
+            and env.identity.apple.private_key
         ):
             additional_config = {
-                "keyId": env.auth.apple_key_id,
-                "teamId": env.auth.apple_team_id,
-                "privateKey": env.auth.apple_private_key,
+                "keyId": env.identity.apple.key_id,
+                "teamId": env.identity.apple.team_id,
+                "privateKey": env.identity.apple.private_key,
             }
         add_provider(
             provider_id="apple",
-            client_id=env.auth.apple_oauth_client_id,
-            client_secret=env.auth.apple_oauth_client_secret,
+            client_id=env.identity.apple.client_id,
+            client_secret=env.identity.apple.client_secret,
             additional_config=additional_config,
         )
 
     # Discord OAuth
-    if env.auth.discord_enabled:
-        assert env.auth.discord_oauth_client_id is not None
-        assert env.auth.discord_oauth_client_secret is not None
+    if env.identity.discord.enabled:
+        if env.identity.discord.client_id is None:
+            raise RuntimeError(
+                "discord identity provider enabled but client_id is missing"
+            )
+        if env.identity.discord.client_secret is None:
+            raise RuntimeError(
+                "discord identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="discord",
-            client_id=env.auth.discord_oauth_client_id,
-            client_secret=env.auth.discord_oauth_client_secret,
+            client_id=env.identity.discord.client_id,
+            client_secret=env.identity.discord.client_secret,
         )
 
     # Twitter OAuth
-    if env.auth.twitter_enabled:
-        assert env.auth.twitter_oauth_client_id is not None
-        assert env.auth.twitter_oauth_client_secret is not None
+    if env.identity.twitter.enabled:
+        if env.identity.twitter.client_id is None:
+            raise RuntimeError(
+                "twitter identity provider enabled but client_id is missing"
+            )
+        if env.identity.twitter.client_secret is None:
+            raise RuntimeError(
+                "twitter identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="twitter",
-            client_id=env.auth.twitter_oauth_client_id,
-            client_secret=env.auth.twitter_oauth_client_secret,
+            client_id=env.identity.twitter.client_id,
+            client_secret=env.identity.twitter.client_secret,
         )
 
     # GitLab OAuth
-    if env.auth.gitlab_enabled:
-        assert env.auth.gitlab_oauth_client_id is not None
-        assert env.auth.gitlab_oauth_client_secret is not None
+    if env.identity.gitlab.enabled:
+        if env.identity.gitlab.client_id is None:
+            raise RuntimeError(
+                "gitlab identity provider enabled but client_id is missing"
+            )
+        if env.identity.gitlab.client_secret is None:
+            raise RuntimeError(
+                "gitlab identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="gitlab",
-            client_id=env.auth.gitlab_oauth_client_id,
-            client_secret=env.auth.gitlab_oauth_client_secret,
+            client_id=env.identity.gitlab.client_id,
+            client_secret=env.identity.gitlab.client_secret,
             additional_config={
-                "gitlabBaseUrl": env.auth.gitlab_base_url,
+                "gitlabBaseUrl": env.identity.gitlab.base_url,
             }
-            if env.auth.gitlab_base_url
+            if env.identity.gitlab.base_url
             else None,
         )
 
     # Bitbucket OAuth
-    if env.auth.bitbucket_enabled:
-        assert env.auth.bitbucket_oauth_client_id is not None
-        assert env.auth.bitbucket_oauth_client_secret is not None
+    if env.identity.bitbucket.enabled:
+        if env.identity.bitbucket.client_id is None:
+            raise RuntimeError(
+                "bitbucket identity provider enabled but client_id is missing"
+            )
+        if env.identity.bitbucket.client_secret is None:
+            raise RuntimeError(
+                "bitbucket identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="bitbucket",
-            client_id=env.auth.bitbucket_oauth_client_id,
-            client_secret=env.auth.bitbucket_oauth_client_secret,
+            client_id=env.identity.bitbucket.client_id,
+            client_secret=env.identity.bitbucket.client_secret,
         )
 
     # LinkedIn OAuth
-    if env.auth.linkedin_enabled:
-        assert env.auth.linkedin_oauth_client_id is not None
-        assert env.auth.linkedin_oauth_client_secret is not None
+    if env.identity.linkedin.enabled:
+        if env.identity.linkedin.client_id is None:
+            raise RuntimeError(
+                "linkedin identity provider enabled but client_id is missing"
+            )
+        if env.identity.linkedin.client_secret is None:
+            raise RuntimeError(
+                "linkedin identity provider enabled but client_secret is missing"
+            )
         add_provider(
             provider_id="linkedin",
-            client_id=env.auth.linkedin_oauth_client_id,
-            client_secret=env.auth.linkedin_oauth_client_secret,
+            client_id=env.identity.linkedin.client_id,
+            client_secret=env.identity.linkedin.client_secret,
         )
 
     # Okta OAuth
-    if env.auth.okta_enabled:
-        assert env.auth.okta_oauth_client_id is not None
-        assert env.auth.okta_oauth_client_secret is not None
-        assert env.auth.okta_domain is not None
+    if env.identity.okta.enabled:
+        if env.identity.okta.client_id is None:
+            raise RuntimeError(
+                "okta identity provider enabled but client_id is missing"
+            )
+        if env.identity.okta.client_secret is None:
+            raise RuntimeError(
+                "okta identity provider enabled but client_secret is missing"
+            )
+        if env.identity.okta.domain is None:
+            raise RuntimeError("okta identity provider enabled but domain is missing")
         add_provider(
             provider_id="okta",
-            client_id=env.auth.okta_oauth_client_id,
-            client_secret=env.auth.okta_oauth_client_secret,
+            client_id=env.identity.okta.client_id,
+            client_secret=env.identity.okta.client_secret,
             additional_config={
-                "oktaDomain": env.auth.okta_domain,
+                "oktaDomain": env.identity.okta.domain,
             },
         )
 
     # Azure AD OAuth
-    if env.auth.azure_ad_enabled:
-        assert env.auth.azure_ad_oauth_client_id is not None
-        assert env.auth.azure_ad_oauth_client_secret is not None
-        assert env.auth.azure_ad_directory_id is not None
+    if env.identity.azure_ad.enabled:
+        if env.identity.azure_ad.client_id is None:
+            raise RuntimeError(
+                "azure_ad identity provider enabled but client_id is missing"
+            )
+        if env.identity.azure_ad.client_secret is None:
+            raise RuntimeError(
+                "azure_ad identity provider enabled but client_secret is missing"
+            )
+        if env.identity.azure_ad.directory_id is None:
+            raise RuntimeError(
+                "azure_ad identity provider enabled but directory_id is missing"
+            )
         add_provider(
             provider_id="azure-ad",
-            client_id=env.auth.azure_ad_oauth_client_id,
-            client_secret=env.auth.azure_ad_oauth_client_secret,
+            client_id=env.identity.azure_ad.client_id,
+            client_secret=env.identity.azure_ad.client_secret,
             additional_config={
-                "directoryId": env.auth.azure_ad_directory_id,
+                "directoryId": env.identity.azure_ad.directory_id,
             },
         )
 
     # BoxySAML OAuth
-    if env.auth.boxy_saml_enabled:
-        assert env.auth.boxy_saml_oauth_client_id is not None
-        assert env.auth.boxy_saml_oauth_client_secret is not None
-        assert env.auth.boxy_saml_url is not None
+    if env.identity.boxy_saml.enabled:
+        if env.identity.boxy_saml.client_id is None:
+            raise RuntimeError(
+                "boxy_saml identity provider enabled but client_id is missing"
+            )
+        if env.identity.boxy_saml.client_secret is None:
+            raise RuntimeError(
+                "boxy_saml identity provider enabled but client_secret is missing"
+            )
+        if env.identity.boxy_saml.url is None:
+            raise RuntimeError("boxy_saml identity provider enabled but url is missing")
         add_provider(
             provider_id="boxy-saml",
-            client_id=env.auth.boxy_saml_oauth_client_id,
-            client_secret=env.auth.boxy_saml_oauth_client_secret,
+            client_id=env.identity.boxy_saml.client_id,
+            client_secret=env.identity.boxy_saml.client_secret,
             additional_config={
-                "boxyURL": env.auth.boxy_saml_url,
+                "boxyURL": env.identity.boxy_saml.url,
             },
         )
 

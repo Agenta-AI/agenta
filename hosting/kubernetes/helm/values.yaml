@@ -1,0 +1,105 @@
+# ================================================================== #
+# Agenta — minimal values.yaml
+#
+# This file mirrors the docker-compose env surface defined in
+#   hosting/docker-compose/oss/env.oss.gh.example
+#   hosting/docker-compose/ee/env.ee.gh.example
+#
+# Variables that are uncommented in the compose example are uncommented
+# here with the same default value.  Variables that are commented-out
+# in compose are omitted entirely — templates supply sensible defaults
+# via helm's `default` function and helpers in _helpers.tpl.
+#
+# All Kubernetes plumbing (image repositories, tags, ports, replicas,
+# resources, security contexts, ingress wiring, postgresql/redis bundled
+# deployment knobs) lives in the templates, not here.  Override only
+# what you need.
+# ================================================================== #
+
+# ================================================================== #
+# Agenta — License (https://agenta.ai/pricing)
+# ================================================================== #
+agenta:
+  license: oss
+
+  # ================================================================ #
+  # Agenta — Core endpoints
+  # ================================================================ #
+  # webUrl/apiUrl/servicesUrl are intentionally unset here. The chart derives
+  # them from ingress.host when ingress.enabled=true, and the example values
+  # in hosting/kubernetes/{oss,ee}/values.*.example.yaml set them explicitly
+  # for the port-forward (no-ingress) path. A validation in _validations.tpl
+  # fails the install if any of the three resolves to empty — that catches
+  # the common "ingress disabled, URLs not set" misconfiguration as well as
+  # partial overrides (e.g. setting only webUrl with ingress disabled).
+
+  # ================================================================ #
+  # Agenta — Secrets (REPLACE in production!)
+  # ================================================================ #
+  authKey: "replace-me"
+  cryptKey: "replace-me"
+
+# ================================================================== #
+# docker (compose-only — no-op on Kubernetes, kept commented so the
+# helm surface mirrors the compose env without taking effect here).
+# ================================================================== #
+# docker:
+#   networkMode: "bridge"
+
+# ================================================================== #
+# postgres — connection settings.
+# The compose example ships POSTGRES_PASSWORD=password as the default
+# for the bundled postgres deployment.  Mirror that here so the chart
+# renders out-of-the-box; production users must override.
+# ================================================================== #
+postgres:
+  password: "password"
+
+# ================================================================== #
+# posthog
+# ================================================================== #
+posthog:
+  apiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+
+# ================================================================== #
+# postgresql (Bitnami subchart) — bundled deployment.
+#  - enabled: required for the subchart's Chart.yaml condition to fire
+#  - auth.username: lines up with what the chart-managed pgauth Secret
+#    and the Agenta connection URIs expect
+#  - primary.persistence.size: pinned so the Bitnami default never
+#    floats (volumeClaimTemplates is immutable on a StatefulSet)
+#  - primary.initdb.scriptsConfigMap: points Bitnami at the chart-
+#    managed initdb ConfigMap that creates agenta_{core,tracing,supertokens}.
+#    The single-quoted tpl expression is rendered by the Bitnami subchart
+#    at install time (Helm does not tpl-render values.yaml itself).
+#  - global.postgresql.auth.{existingSecret,secretKeys}: tell Bitnami to
+#    read POSTGRES_PASSWORD from the chart-managed `<release>-pgauth`
+#    Secret instead of generating its own
+# ================================================================== #
+postgresql:
+  enabled: true
+  auth:
+    username: "agenta"
+  primary:
+    initdb:
+      scriptsConfigMap: '{{ printf "%s-postgresql-initdb" .Release.Name }}'
+    persistence:
+      size: "10Gi"
+
+global:
+  postgresql:
+    auth:
+      existingSecret: '{{ printf "%s-pgauth" .Release.Name }}'
+      secretKeys:
+        userPasswordKey: "POSTGRES_PASSWORD"
+        adminPasswordKey: "POSTGRES_PASSWORD"
+
+# ================================================================== #
+# redisDurable — bundled redis StatefulSet, durable queue.
+#  - persistence.size: pinned for the same reason postgres is pinned;
+#    a floating default would break upgrades because volumeClaimTemplates
+#    is immutable on a StatefulSet.
+# ================================================================== #
+redisDurable:
+  persistence:
+    size: "5Gi"

@@ -30,8 +30,8 @@ def bound_logger_trace(self, *args, **kwargs):
 structlog.stdlib.BoundLogger.trace = bound_logger_trace
 
 # ENV VARS
-AGENTA_LOG_CONSOLE_ENABLED = env.logging.console_enabled
-AGENTA_LOG_CONSOLE_LEVEL = env.logging.console_level
+AGENTA_LOG_CONSOLE_ENABLED = env.agenta.logging.console_enabled
+AGENTA_LOG_CONSOLE_LEVEL = env.agenta.logging.console_level
 
 # COLORS
 LEVEL_COLORS = {

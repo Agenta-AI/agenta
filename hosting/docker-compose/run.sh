@@ -16,7 +16,7 @@ AGENTA_WEB_URL=  # Use env var if available, otherwise default
 ENV_FILE=""  # Default to no env file
 BUILD=false  # Default to no forced build
 NO_CACHE=false  # Default to using cache
-PULL_ENABLED=true  # Pull non-built images when not building, unless disabled
+PULL_ENABLED=  # Stage-dependent default applied after parsing: gh→true, dev→false
 NUKE=false  # Default to not nuking volumes
 
 show_usage() {
@@ -33,7 +33,8 @@ show_usage() {
     echo "  --dev                   Alias for --image dev"
     echo ""
     echo "Source:"
-    echo "  --no-pull               Disable pulling non-built images before up"
+    echo "  --pull                  Pull non-built images before up (default for --gh)"
+    echo "  --no-pull               Skip pulling non-built images (default for --dev)"
     echo "  --local                 Use local gh source (requires --image gh)"
     echo "  --build                 Build images before up"
     echo "  --no-cache              Build with --no-cache (requires --build)"
@@ -45,7 +46,8 @@ show_usage() {
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
     echo ""
     echo "Environment:"
-    echo "  --env-file <path>       Use explicit env file (otherwise stage default)"
+    echo "  -e, --env <path>        Use explicit env file (otherwise stage default)"
+    echo "  --env-file <path>       Alias for --env"
     echo ""
     echo "Database:"
     echo "  --nuke                  Remove related volumes on shutdown"
@@ -196,9 +198,9 @@ while [[ "$#" -gt 0 ]]; do
             AGENTA_WEB_URL="$2"
             shift
             ;;
-        --env-file)
+        -e|--env|--env-file)
             if [[ -z "${2:-}" ]]; then
-                error_exit "Missing value for --env-file."
+                error_exit "Missing value for $1."
             fi
             ENV_FILE="$2"
             shift
@@ -209,7 +211,16 @@ while [[ "$#" -gt 0 ]]; do
         --no-cache)
             NO_CACHE=true
             ;;
+        --pull)
+            if [[ "$PULL_ENABLED" == "false" ]]; then
+                error_exit "Conflicting flags: --pull and --no-pull cannot be combined."
+            fi
+            PULL_ENABLED=true
+            ;;
         --no-pull)
+            if [[ "$PULL_ENABLED" == "true" ]]; then
+                error_exit "Conflicting flags: --pull and --no-pull cannot be combined."
+            fi
             PULL_ENABLED=false
             ;;
         --nuke)
@@ -249,6 +260,17 @@ elif [[ "$SSL_ENABLED" == "true" ]]; then
     STAGE="gh.ssl"
 else
     STAGE="gh"
+fi
+
+# Stage-aware default for pull when the user did not pass --pull/--no-pull.
+# - gh stages use prebuilt registry images: default to pull (catch latest pushes).
+# - dev stage uses locally-built images: default to no-pull (registry has no dev tag).
+if [[ -z "$PULL_ENABLED" ]]; then
+    if [[ "$IMAGE_MODE" == "dev" ]]; then
+        PULL_ENABLED=false
+    else
+        PULL_ENABLED=true
+    fi
 fi
 
 # Set AGENTA_WEB_URL based on web mode if not already set
