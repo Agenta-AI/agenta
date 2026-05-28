@@ -151,12 +151,12 @@ class TestHookV0UrlValidation:
 
     def test_blocked_localhost_rejected(self):
         # Disable insecure mode so private-IP / loopback blocking is enforced.
-        with patch("agenta.sdk.workflows.handlers._WEBHOOK_ALLOW_INSECURE", False):
+        with patch("agenta.sdk.workflows.handlers._HOOK_ALLOW_INSECURE", False):
             with pytest.raises(InvalidConfigurationParameterV0Error):
                 call_with_url("https://127.0.0.1/hook")
 
     def test_blocked_loopback_name_rejected(self):
-        with patch("agenta.sdk.workflows.handlers._WEBHOOK_ALLOW_INSECURE", False):
+        with patch("agenta.sdk.workflows.handlers._HOOK_ALLOW_INSECURE", False):
             with pytest.raises(InvalidConfigurationParameterV0Error):
                 call_with_url("https://localhost/hook")
 

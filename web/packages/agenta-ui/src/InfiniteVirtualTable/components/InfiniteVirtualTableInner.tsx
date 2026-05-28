@@ -34,6 +34,8 @@ import useScrollContainer from "../hooks/useScrollContainer"
 import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useTableKeyboardShortcuts from "../hooks/useTableKeyboardShortcuts"
 import useTableRowSelection from "../hooks/useTableRowSelection"
+import {useTypeChipColumns} from "../hooks/useTypeChipColumns"
+import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
 import type {InfiniteVirtualTableProps} from "../types"
 import {
@@ -71,6 +73,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     keyboardShortcuts,
     expandable,
     tableRef,
+    typeChips,
 }: InfiniteVirtualTableInnerProps<RecordType>) => {
     const generatedScopeId = useId()
     const resolvedScopeId = useMemo(
@@ -147,6 +150,13 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         [resizableProcessedColumns],
     )
 
+    const typeChipFeature = useTypeChipFeature(typeChips)
+    const typeChipColumns = useTypeChipColumns(
+        resizableProcessedColumns,
+        dataSource,
+        typeChipFeature.typeChips,
+    )
+
     // Workaround for an AntD virtual-table layout quirk: after fast horizontal
     // scrolling, header <th> widths can drift away from body cell widths until
     // *something* forces a column-level re-render. We bump `layoutNudge` after
@@ -155,11 +165,8 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     const [layoutNudge, setLayoutNudge] = useState(0)
 
     const finalColumns = useMemo(
-        () =>
-            layoutNudge > 0
-                ? resizableProcessedColumns.map((col) => ({...col}))
-                : resizableProcessedColumns,
-        [resizableProcessedColumns, layoutNudge],
+        () => (layoutNudge > 0 ? typeChipColumns.map((col) => ({...col})) : typeChipColumns),
+        [typeChipColumns, layoutNudge],
     )
     const columnDescendantMap = useMemo(
         () => buildColumnDescendantMap(resizableProcessedColumns),

@@ -28,6 +28,7 @@ from oss.src.utils.caching import set_cache, get_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 from oss.src.core.events.utils import publish_revision_event
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -338,7 +339,7 @@ class TestsetsRouter:
             self.create_testset_variant,
             methods=["POST"],
             operation_id="create_testset_variant",
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_200_OK,
             response_model=TestsetVariantResponse,
             response_model_exclude_none=True,
         )
@@ -1443,6 +1444,7 @@ class TestsetsRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=TestsetRevisionResponse(), exclude=[HTTPException])
+    @handle_git_exceptions()
     async def retrieve_testset_revision(
         self,
         request: Request,

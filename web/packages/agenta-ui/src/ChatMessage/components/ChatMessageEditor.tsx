@@ -38,6 +38,8 @@ export interface ChatMessageEditorProps {
     footer?: React.ReactNode
     /** Whether the content is JSON */
     isJSON?: boolean
+    /** Code editor language when rendering structured content */
+    language?: "json" | "yaml"
     /** Whether this is a tool message */
     isTool?: boolean
     /** Custom role options for the dropdown */
@@ -83,6 +85,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
     headerBottom,
     footer,
     isJSON,
+    language = "json",
     roleOptions,
     enableTokens,
     templateFormat,
@@ -156,6 +159,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             {...props}
             editorProps={{
                 codeOnly: isJSON,
+                language: isJSON ? language : undefined,
                 noProvider: true,
                 enableTokens: Boolean(enableTokens),
                 tokens,
@@ -173,19 +177,25 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
  * Chat message editor with EditorProvider wrapper.
  * Use this component for standalone message editing outside of the Playground.
  */
-const ChatMessageEditor: React.FC<ChatMessageEditorProps> = ({isJSON, isTool, ...props}) => {
+const ChatMessageEditor: React.FC<ChatMessageEditorProps> = ({
+    isJSON,
+    isTool,
+    language = "json",
+    ...props
+}) => {
     return (
         <EditorProvider
             codeOnly={isTool || isJSON}
+            language={isTool || isJSON ? language : undefined}
             enableTokens={Boolean(props.enableTokens)}
             tokens={props.tokens}
             templateFormat={props.templateFormat}
             showToolbar={false}
             disabled={props.disabled}
-            id={`${props.id}-${isJSON}`}
+            id={`${props.id}-${isJSON}-${language}`}
             loadingFallback={props.loadingFallback}
         >
-            <ChatMessageEditorInner isJSON={isJSON} {...props} />
+            <ChatMessageEditorInner isJSON={isJSON} language={language} {...props} />
         </EditorProvider>
     )
 }

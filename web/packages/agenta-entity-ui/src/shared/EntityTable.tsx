@@ -55,6 +55,7 @@ import {
     type BuildEntityColumnsOptions,
     type RowHeightFeatureConfig,
     type TableScopeConfig,
+    type TypeChipConfig,
 } from "@agenta/ui/table"
 import type {GroupColumnsOptions} from "@agenta/ui/utils"
 import {Checkbox} from "antd"
@@ -140,6 +141,12 @@ export interface EntityTableProps<
     showSettings?: boolean
     /** Enable table export action (default: true) */
     enableExport?: boolean
+    /**
+     * Type chip config. When omitted, a default config is built from
+     * `getCellValue`/`getRowData` so chip rendering doesn't depend on each
+     * caller wiring it up. Pass `null` to disable chips entirely.
+     */
+    typeChips?: TypeChipConfig<TRow> | null
     /** Jotai store for entity atom access (default: global store) */
     store?: ReturnType<typeof getDefaultStore>
     /** Page size for table scope (default: 100) */
@@ -210,6 +217,7 @@ export function EntityTable<
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
     enableExport = true,
+    typeChips,
     store,
     pageSize,
     emptyMessage = "No data found",
@@ -460,6 +468,28 @@ export function EntityTable<
         return <TableEmptyState message={emptyMessage} />
     }
 
+    // Default type chip wiring. Reuses existing data accessors so chips appear
+    // for every consumer (eg. testset preview modal in edit mode) without each
+    // caller having to opt in. Pass `typeChips={null}` to disable.
+    const defaultGetRowValue = useCallback(
+        (record: TRow, columnKey: string): unknown => {
+            if (getCellValue) return getCellValue(record, columnKey)
+            const data = getRowData(record)
+            return data ? data[columnKey] : undefined
+        },
+        [getCellValue, getRowData],
+    )
+
+    const effectiveTypeChips = useMemo<TypeChipConfig<TRow> | undefined>(() => {
+        if (typeChips === null) return undefined
+        if (typeChips) return typeChips
+        return {
+            defaultEnabled: true,
+            storageKey: "agenta:entity-table:type-chips-enabled",
+            getRowValue: defaultGetRowValue,
+        }
+    }, [typeChips, defaultGetRowValue])
+
     return (
         <div className="h-full">
             <InfiniteVirtualTableFeatureShell<TRow>
@@ -471,6 +501,7 @@ export function EntityTable<
                 autoHeight={autoHeight}
                 useSettingsDropdown={showSettings}
                 enableExport={enableExport}
+                typeChips={effectiveTypeChips}
                 store={globalStore}
                 tableProps={{
                     size: "small",

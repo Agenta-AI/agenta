@@ -8,7 +8,7 @@ This module is the single runtime source of truth for:
 
 Code defaults live in `types.py` and `ee.src.models.shared_models`. Environment
 overrides come from `AGENTA_ACCESS_PLANS` and `AGENTA_ACCESS_ROLES` (raw JSON
-strings exposed via `env.access_controls`). Parsing happens once at import time.
+strings exposed via `env.agenta.access`). Parsing happens once at import time.
 """
 
 import hashlib
@@ -686,7 +686,7 @@ def _resolve_default_plan_slug(plans: Dict[str, Dict[Tracker, Any]]) -> str:
     Mirrors `subscriptions.types.get_default_plan()` without importing it (to
     avoid pulling subscription/Stripe code into the access-controls layer).
     """
-    raw = env.access_controls.default_plan
+    raw = env.agenta.access.default_plan
     if raw:
         return raw
     if env.stripe.enabled:
@@ -705,10 +705,10 @@ def _build_controls() -> tuple[
     Dict[str, List[Dict[str, Any]]],
     str,
 ]:
-    plans_payload = env.access_controls.plans
-    roles_payload = env.access_controls.roles
-    roles_overlay_payload = env.access_controls.roles_overlay
-    plan_overlay_payload = env.access_controls.default_plan_overlay
+    plans_payload = env.agenta.access.plans
+    roles_payload = env.agenta.access.roles
+    roles_overlay_payload = env.agenta.access.roles_overlay
+    plan_overlay_payload = env.agenta.access.default_plan_overlay
 
     if plans_payload is not None:
         plans, descriptions = _parse_plans_override(plans_payload)

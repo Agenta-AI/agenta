@@ -130,3 +130,10 @@ export {testcasePaginatedStore} from "./state"
 export {testcaseDataController} from "./state"
 
 export type {TestcaseTableRow, TestcasePaginatedMeta, TestcaseDataConfig} from "./state"
+
+/**
+ * Cache-aware bulk prefetch for testcases by ID list. Used by the ETL
+ * hydrate pipeline + downstream cell renderers. Writes results to the
+ * shared TanStack cache at `["testcase", projectId, testcaseId]`.
+ */
+export {prefetchTestcasesByIds} from "./state"

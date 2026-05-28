@@ -54,8 +54,16 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceStreamResponse,  # noqa: F401
     #
     JsonSchemas,  # noqa: F401
-    WorkflowRevisionData,
+    WorkflowRevisionData as BaseWorkflowRevisionData,
 )
+
+
+class WorkflowRevisionData(BaseWorkflowRevisionData):
+    pass
+
+
+WorkflowRevisionCommitData = WorkflowRevisionData
+
 
 # aliases ----------------------------------------------------------------------
 
@@ -450,6 +458,3 @@ class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
 
     flags: Optional[WorkflowCatalogFlags] = None
     data: Optional[WorkflowRevisionData] = None
-
-
-# ------------------------------------------------------------------------------
