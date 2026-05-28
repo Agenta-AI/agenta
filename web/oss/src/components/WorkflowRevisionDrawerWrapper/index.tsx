@@ -15,7 +15,6 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import {
     registerWorkflowCommitCallbacks,
     getWorkflowCommitCallbacks,
-    hasFullPagePlaygroundUX,
     parseEvaluatorKeyFromUri,
     evaluatorTemplatesMapAtom,
     workflowMolecule,
@@ -191,7 +190,6 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     const resetAll = useSetAtom(playgroundController.actions.resetAll)
     const clearAllRuns = useSetAtom(clearAllRunsMutationAtom)
     const setInitialized = useSetAtom(playgroundInitializedAtom)
-    const setSelectedAppLabel = useSetAtom(selectedAppLabelAtom)
     const setConnectedTestset = useSetAtom(connectedTestsetAtom)
     const connectApp = useSetAtom(connectAppToEvaluatorAtom)
     const setPersistedTestset = useSetAtom(persistedTestsetSelectionAtom)
@@ -202,10 +200,12 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
 
             const store = getDefaultStore()
 
-            // Restore persisted app selection (survives drawer close/reopen and commits)
+            // Restore persisted app selection (survives drawer close/reopen and commits).
+            // `selectedAppLabelAtom` is derived from the node graph now — the
+            // `connectApp` call below seeds the depth-0 node with the persisted
+            // label, which the derived atom picks up automatically.
             const persisted = store.get(persistedAppSelectionAtom)
             if (persisted) {
-                setSelectedAppLabel(persisted.appLabel)
                 connectApp({
                     appRevisionId: persisted.appRevisionId,
                     appLabel: persisted.appLabel,
@@ -263,7 +263,8 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
 
             resetAll()
             setInitialized(false)
-            setSelectedAppLabel(null)
+            // `selectedAppLabelAtom` is derived from the node graph — `resetAll`
+            // above clears the nodes, which flips the label back to `null`.
             setConnectedTestset(null)
         }
     }, [
@@ -272,7 +273,6 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         resetAll,
         clearAllRuns,
         setInitialized,
-        setSelectedAppLabel,
         setConnectedTestset,
         connectApp,
     ])
@@ -325,6 +325,10 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
                 flags: {is_evaluator: false, is_feedback: false},
+                // Picking an *app* to connect upstream of the evaluator — the
+                // adapter's default "Evaluator" label would make the search
+                // bar say "Search evaluator…" which is wrong here.
+                parentLabel: "Application",
             }),
         [],
     )
@@ -483,23 +487,18 @@ const useDrawerCreateCommitCallback = () => {
                     // (`Router.pathname` only flips on `routeChangeComplete`,
                     // so a synchronous close after `router.push` would patch
                     // the still-current `/evaluators` URL and push back to it.)
+                    //
                     // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the
-                    // flag is off, post-create stays in the drawer flow even
-                    // for evaluators whose classifier supports full-page UX.
-                    let eligibleForPlayground = false
-                    if (
-                        EVALUATOR_FULL_PAGE_NAV_ENABLED &&
-                        newAppId &&
-                        newRevisionId &&
-                        newWorkflow
-                    ) {
-                        eligibleForPlayground = hasFullPagePlaygroundUX({
-                            flags: newWorkflow.flags ?? null,
-                            data: newWorkflow.data ?? null,
-                            meta: newWorkflow.meta ?? null,
-                            slug: newWorkflow.slug ?? null,
-                        })
-                    }
+                    // flag is off, post-create stays in the drawer flow. When
+                    // on, every freshly committed evaluator (regardless of
+                    // template type) lands on `/apps/<id>/playground` —
+                    // mirroring app-create's post-commit navigation. The
+                    // earlier classifier-only gate was removed so declarative
+                    // evaluators get the same surface (variants, traces,
+                    // sidebar context) as LLM/code ones.
+                    const eligibleForPlayground = Boolean(
+                        EVALUATOR_FULL_PAGE_NAV_ENABLED && newAppId && newRevisionId,
+                    )
 
                     if (eligibleForPlayground && newAppId && newRevisionId) {
                         const url = `${baseAppURLRef.current}/${encodeURIComponent(

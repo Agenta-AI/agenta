@@ -14,7 +14,6 @@ import {useCallback, useEffect, useMemo} from "react"
 
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import {EntityPicker} from "@agenta/entity-ui"
 import {
     createWorkflowRevisionAdapter,
     type WorkflowRevisionSelectionResult,
@@ -22,7 +21,6 @@ import {
 import {playgroundController} from "@agenta/playground"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
-import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -32,12 +30,7 @@ import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
-import {
-    connectAppToEvaluatorAtom,
-    evaluatorConfigEntityIdsAtom,
-    hasAppConnectedAtom,
-    selectedAppLabelAtom,
-} from "./atoms"
+import {connectAppToEvaluatorAtom, evaluatorConfigEntityIdsAtom} from "./atoms"
 import EvaluatorPlaygroundHeader from "./EvaluatorPlaygroundHeader"
 
 const PlaygroundMainView = dynamic(
@@ -77,13 +70,11 @@ const ConfigureEvaluatorPageInner = () => {
     useAtomValue(playgroundSyncAtom)
 
     const configEntityIds = useAtomValue(evaluatorConfigEntityIdsAtom)
-    const hasAppConnected = useAtomValue(hasAppConnectedAtom)
     const connectApp = useSetAtom(connectAppToEvaluatorAtom)
-    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
 
     // Read the current evaluator entity from playground nodes
-    // Phase 1: evaluator is at depth 0 (primary)
-    // Phase 2: evaluator is at depth 1 (downstream)
+    // Phase 1: evaluator is at depth 0 (primary, standalone run)
+    // Phase 2: evaluator is at depth 1 (downstream of a connected app — chain run)
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
     const evaluatorNode = useMemo(() => {
         const downstream = nodes.find((n) => n.depth > 0)
@@ -96,13 +87,21 @@ const ConfigureEvaluatorPageInner = () => {
         void preloadEditorPlugins()
     }, [])
 
-    // App workflow picker (shared between header and empty state)
+    // App workflow picker — opt-in for chain-mode execution. The evaluator can
+    // also run standalone: the user fills the testcase row's template variables
+    // (e.g. `{{inputs}}`, `{{outputs}}` for LLM-as-a-judge) directly. The
+    // header surfaces this picker; we never block the run panel on it.
     const appWorkflowAdapter = useMemo(
         () =>
             createWorkflowRevisionAdapter({
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
                 flags: {is_evaluator: false, is_feedback: false},
+                // The picker on the evaluator playground header is picking an
+                // upstream *app* workflow to connect to — without this the
+                // search bar would say "Search evaluator…" (the adapter's
+                // historical default) while the user is choosing an app.
+                parentLabel: "Application",
             }),
         [],
     )
@@ -118,24 +117,6 @@ const ConfigureEvaluatorPageInner = () => {
             })
         },
         [connectApp, evaluatorNode],
-    )
-
-    const runDisabledContent = useMemo(
-        () => (
-            <>
-                <Typography.Text type="secondary" className="text-sm">
-                    Select an app to run the evaluator chain
-                </Typography.Text>
-                <EntityPicker<WorkflowRevisionSelectionResult>
-                    variant="popover-cascader"
-                    adapter={appWorkflowAdapter}
-                    onSelect={handleAppSelect}
-                    size="middle"
-                    placeholder={selectedAppLabel ?? "Select app"}
-                />
-            </>
-        ),
-        [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
     )
 
     const providers = useMemo(
@@ -156,12 +137,7 @@ const ConfigureEvaluatorPageInner = () => {
                     appWorkflowAdapter={appWorkflowAdapter}
                     onAppSelect={handleAppSelect}
                 />
-                <PlaygroundMainView
-                    mode="evaluator"
-                    configEntityIdsOverride={configEntityIds}
-                    runDisabled={!hasAppConnected}
-                    runDisabledContent={runDisabledContent}
-                />
+                <PlaygroundMainView mode="evaluator" configEntityIdsOverride={configEntityIds} />
             </div>
         </OSSPlaygroundShell>
     )

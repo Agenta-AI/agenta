@@ -13,6 +13,8 @@ import Papa from "papaparse"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
+import type {FilterItem} from "@/oss/components/Filters/types"
+import {fieldConfigByOptionKey} from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
 import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
@@ -25,6 +27,7 @@ import {buildTraceQueryParams} from "@/oss/state/newObservability/atoms/queryHel
 import {createAdaptiveTracePageFetcher} from "@/oss/state/newObservability/etl/adaptiveTracePageFetcher"
 import {createExportWriter, PICKER_CANCELLED} from "@/oss/state/newObservability/etl/exportWriter"
 import {getAgData} from "@/oss/state/newObservability/selectors/tracing"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 import {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "../../assets/exportUtils"
 import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOptions"
@@ -145,6 +148,92 @@ const ObservabilityHeader = ({
     const filterColumns = useMemo(
         () => getFilterColumns(attributeKeyOptions),
         [attributeKeyOptions],
+    )
+
+    // --- Live label flip for the permanent references row in the dialog -----
+    //
+    // After Apply, the atom regenerates the references row's `attributes.key`
+    // from the effective trace_type (annotation → evaluator, invocation →
+    // application). That's what makes the label switch between "Evaluator ID"
+    // and "Application ID" in the chip outside the dialog. But while the user
+    // is still editing in the dialog, the row sits in local state — changing
+    // the trace_type dropdown there has no visual effect on the references
+    // row's label, which feels broken.
+    //
+    // The reconciler below produces a *display-only* projection of the local
+    // filter rows: if a trace_type row is present, it re-derives the permanent
+    // references row's `selectedField` / `selectedLabel` to match. The
+    // underlying `filter` state is untouched (the reconciler only runs in a
+    // `useMemo` inside the dialog) and the Apply path is unchanged — on
+    // Apply, the atom still strips and re-derives the permanent row, so the
+    // backend value matches the displayed label.
+    //
+    // Skipped for non-evaluator workflows: the references row is always pinned
+    // to `application` there, so flipping the label on trace_type changes
+    // would be misleading.
+    const workflowKind = useAtomValue(currentWorkflowContextAtom).workflowKind
+    const filterFieldMap = useMemo(() => fieldConfigByOptionKey(filterColumns), [filterColumns])
+    const reconcileFilterRows = useCallback(
+        (rows: FilterItem[]): FilterItem[] => {
+            if (workflowKind !== "evaluator") return rows
+
+            const tt = rows.find(
+                (r) => r.selectedField === "trace_type" || r.field === "trace_type",
+            )
+            // Mirror the atom's trace_type intent resolution (controls.ts):
+            // honour `is_not`/`not_in` against the 2-value enum by flipping.
+            const op = tt?.operator
+            const rawValue = Array.isArray(tt?.value) ? tt?.value[0] : tt?.value
+            const isAffirm = op === "is" || op === "in"
+            const isNeg = op === "is_not" || op === "not_in"
+            const normalize = (x: unknown): "annotation" | "invocation" | null =>
+                x === "annotation" ? "annotation" : x === "invocation" ? "invocation" : null
+            const flip = (x: unknown): "annotation" | "invocation" | null =>
+                x === "annotation" ? "invocation" : x === "invocation" ? "annotation" : null
+            let effective: "annotation" | "invocation" | null = null
+            if (tt && isAffirm) effective = normalize(rawValue)
+            else if (tt && isNeg) effective = flip(rawValue)
+
+            // When trace_type is absent, fall through to "no opinion" — keep
+            // whatever the row currently shows (which came from the atom's
+            // default for this workflow kind).
+            if (!effective) return rows
+
+            const targetCategory = effective === "invocation" ? "application" : "evaluator"
+
+            return rows.map((row) => {
+                if (!row.isPermanent) return row
+                const optionKey = row.selectedField || row.field
+                if (!optionKey) return row
+                const fc = filterFieldMap.get(optionKey)
+                if (!fc?.referenceCategory) return row
+                if (
+                    fc.referenceCategory !== "application" &&
+                    fc.referenceCategory !== "evaluator"
+                ) {
+                    return row
+                }
+                if (fc.referenceCategory === targetCategory) return row
+                // Find the corresponding FieldConfig for the target category
+                // with the same referenceProperty (id / slug).
+                let target: typeof fc | undefined
+                for (const candidate of filterFieldMap.values()) {
+                    if (candidate.referenceCategory !== targetCategory) continue
+                    if (candidate.referenceProperty !== fc.referenceProperty) continue
+                    target = candidate
+                    break
+                }
+                if (!target) return row
+                return {
+                    ...row,
+                    field: target.optionKey,
+                    selectedField: target.optionKey,
+                    selectedLabel: target.label,
+                    baseField: target.baseField,
+                }
+            })
+        },
+        [workflowKind, filterFieldMap],
     )
     const selectedTraceIds = useMemo(
         () =>
@@ -579,6 +668,7 @@ const ObservabilityHeader = ({
                             columns={filterColumns}
                             onApplyFilter={onApplyFilter}
                             onClearFilter={onClearFilter}
+                            reconcileFilterRows={reconcileFilterRows}
                         />
 
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />

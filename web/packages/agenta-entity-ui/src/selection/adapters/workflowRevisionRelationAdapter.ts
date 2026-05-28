@@ -327,12 +327,34 @@ export interface CreateWorkflowRevisionAdapterOptions {
     ) => WorkflowRevisionSelectionResult
 
     /**
-     * Empty state message.
+     * Display label for the parent (workflow) level. Drives the picker's
+     * search placeholder ("Search {parentLabel}…"), the empty-list "No
+     * {parentLabel} found" copy, and similar UI strings.
+     *
+     * Defaults to `"Evaluator"` when used in skip-variant mode (the adapter's
+     * original primary use case was evaluator selection), but consumers
+     * picking app workflows — e.g., `EvaluatorPlaygroundHeader` — should pass
+     * `"Application"` so the search bar doesn't say "Search evaluator…" while
+     * the user is actually picking an app.
+     *
+     * @example
+     * ```typescript
+     * createWorkflowRevisionAdapter({
+     *     skipVariantLevel: true,
+     *     flags: {is_evaluator: false},
+     *     parentLabel: "Application",
+     * })
+     * ```
+     */
+    parentLabel?: string
+
+    /**
+     * Empty state message. Defaults to "No {parentLabel}s found".
      */
     emptyMessage?: string
 
     /**
-     * Loading state message.
+     * Loading state message. Defaults to "Loading {parentLabel}s...".
      */
     loadingMessage?: string
 
@@ -421,11 +443,18 @@ export function createWorkflowRevisionAdapter(
         toSelection,
         emptyMessage,
         loadingMessage,
+        parentLabel = "Evaluator",
         flags,
         filterWorkflows,
         skipVariantLevel = false,
         workflowListAtom,
     } = options
+
+    // Derive empty/loading defaults from the parent label so callers picking
+    // app workflows don't see "No evaluators found" in an app picker.
+    const lowerParent = parentLabel.toLowerCase()
+    const resolvedEmptyMessage = emptyMessage ?? `No ${lowerParent}s found`
+    const resolvedLoadingMessage = loadingMessage ?? `Loading ${lowerParent}s...`
 
     const emptyListState: ListQueryState<unknown> = {
         data: [],
@@ -467,7 +496,7 @@ export function createWorkflowRevisionAdapter(
         return createTwoLevelAdapter<WorkflowRevisionSelectionResult>({
             name: "workflowRevision",
             parentType: "workflow",
-            parentLabel: "Evaluator",
+            parentLabel,
             parentListAtom: resolvedWorkflowsListAtom,
             parentOverrides: {
                 getId: (entity: unknown) => (entity as {id: string}).id,
@@ -502,7 +531,7 @@ export function createWorkflowRevisionAdapter(
                     return {
                         type: "workflowRevision",
                         id: revision.id,
-                        label: `${workflow?.label ?? "Evaluator"} / v${revision.version ?? 0}`,
+                        label: `${workflow?.label ?? parentLabel} / v${revision.version ?? 0}`,
                         path,
                         metadata: {
                             workflowId: workflow?.id ?? "",
@@ -513,8 +542,8 @@ export function createWorkflowRevisionAdapter(
                         },
                     }
                 }),
-            emptyMessage: emptyMessage ?? "No evaluators found",
-            loadingMessage: loadingMessage ?? "Loading evaluators...",
+            emptyMessage: resolvedEmptyMessage,
+            loadingMessage: resolvedLoadingMessage,
         })
     }
 

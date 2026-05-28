@@ -17,6 +17,10 @@ const EVALUATOR_TAB_PARAM_HUMAN = "human"
 // Template dropdown
 const EVALUATOR_TEMPLATE_DROPDOWN_TITLE = "Select evaluator type"
 const EVALUATOR_EXACT_MATCH_TEMPLATE_NAME = "Exact Match"
+// Backend template key `auto_ai_critique`; display name lives in
+// api/oss/src/resources/evaluators/evaluators.py. LLM-as-a-judge is the
+// canonical "full-page playground" evaluator (has flags.is_llm).
+const EVALUATOR_LLM_AS_A_JUDGE_TEMPLATE_NAME = "LLM-as-a-judge"
 
 // Drawer (create)
 const EVALUATOR_DRAWER_CREATE_TITLE = "New Evaluator"
@@ -563,6 +567,7 @@ export {
     EVALUATOR_SEARCH_PLACEHOLDER,
     EVALUATOR_TEMPLATE_DROPDOWN_TITLE,
     EVALUATOR_EXACT_MATCH_TEMPLATE_NAME,
+    EVALUATOR_LLM_AS_A_JUDGE_TEMPLATE_NAME,
     EVALUATOR_DRAWER_CREATE_TITLE,
     EVALUATOR_CORRECT_ANSWER_PROP,
     EVALUATOR_DRAWER_CREATE_BUTTON_LABEL,
@@ -573,6 +578,9 @@ export {
     EVALUATOR_SELECT_APP_PLACEHOLDER,
     EVALUATOR_NO_APPS_TEXT,
     EVALUATOR_NON_COMPLETION_TYPE_LABELS,
+    EVALUATOR_POPOVER_TEST_ID,
+    EVALUATOR_POPOVER_ROOT_PANEL_TEST_ID,
+    EVALUATOR_POPOVER_CHILD_PANEL_TEST_ID,
     EVALUATOR_RUN_BUTTON_LABEL,
     EVALUATOR_RESULT_CARD_SELECTOR,
     createHumanEvaluatorFromDrawer,

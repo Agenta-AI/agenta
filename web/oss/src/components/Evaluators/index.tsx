@@ -3,7 +3,6 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {
     createEvaluatorFromTemplate,
     type EvaluatorCatalogTemplate,
-    hasFullPagePlaygroundUX,
     invalidateEvaluatorsListCache,
     workflowMolecule,
 } from "@agenta/entities/workflow"
@@ -260,22 +259,18 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                 return
             }
 
-            // Only prompt/code-authored evaluators open in the full-page
-            // playground. Declarative classifiers (match, contains, regex,
-            // json_multi_field_match, …) fall back to the drawer-edit flow —
-            // their config is a handful of form fields and the playground
-            // page would surface misleading envelope variable inputs.
+            // All non-archived automatic evaluators open in the full-page
+            // playground. Earlier this was gated on classifier type
+            // (`hasFullPagePlaygroundUX`) so declarative classifiers stayed in
+            // the drawer-edit flow, but in practice that meant whole evaluator
+            // types had no UI path into the per-evaluator pages (variants,
+            // traces). Drawer stays available as a secondary affordance via
+            // the row context menu's Configure action.
             //
             // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is
-            // off, every row click resolves to the drawer regardless of the
-            // evaluator's classifier (the new flow stays code-complete but
-            // hidden until follow-up fixes land).
-            const entity = record.revisionId ? workflowMolecule.get.data(record.revisionId) : null
+            // off, every row click resolves to the drawer.
             const shouldNavigateToFullPage = Boolean(
-                EVALUATOR_FULL_PAGE_NAV_ENABLED &&
-                record.workflowId &&
-                entity &&
-                hasFullPagePlaygroundUX(entity as Parameters<typeof hasFullPagePlaygroundUX>[0]),
+                EVALUATOR_FULL_PAGE_NAV_ENABLED && record.workflowId,
             )
 
             const navigated =
