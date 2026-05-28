@@ -42,7 +42,7 @@ def test_resolve_snapshot_id_returns_matching_active_snapshot(runner, monkeypatc
 
     assert runner._resolve_snapshot_id() == "id-2"
     assert len(calls) == 1
-    assert calls[0][1] == {"limit": 25}
+    assert calls[0][1] == {"limit": 100}
     assert calls[0][2] == {"Authorization": "Bearer test-key"}
 
 
@@ -121,3 +121,28 @@ def test_resolve_snapshot_id_raises_when_snapshot_unset(runner, monkeypatch):
 
     with pytest.raises(RuntimeError, match="No Daytona snapshot configured"):
         runner._resolve_snapshot_id()
+
+
+def test_resolve_snapshot_id_force_refresh_bypasses_cache(runner, monkeypatch):
+    ids = iter(["stale-id", "fresh-id"])
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        return _make_response(
+            [
+                {
+                    "id": next(ids),
+                    "name": "snap",
+                    "state": "active",
+                    "regionIds": ["eu"],
+                }
+            ]
+        )
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    # First resolution caches the (now stale) ID.
+    assert runner._resolve_snapshot_id() == "stale-id"
+    # A cache hit would return the stale ID; force_refresh re-lists and overwrites.
+    assert runner._resolve_snapshot_id(force_refresh=True) == "fresh-id"
+    # The refreshed ID is now what's cached.
+    assert runner._resolve_snapshot_id() == "fresh-id"
