@@ -162,6 +162,80 @@ function buildUpstreamReferences(params: {
     return normalizeApplicationReferences(sourcePayload?.references)
 }
 
+/**
+ * Build the `references.evaluator{,_variant,_revision}` map for a chain stage
+ * whose target node is an evaluator.
+ *
+ * The playground node's `entity.id` is a REVISION id. We read the merged
+ * revision record from the workflow molecule and pull both the revision-level
+ * fields (id / slug / version) and the parent workflow + variant identity
+ * (workflow_id, workflow_slug, workflow_variant_id, workflow_variant_slug)
+ * that the backend writes on revision responses.
+ *
+ * The trace storage layer indexes evaluator references by these fields:
+ *   - `references.evaluator.{id, slug}` ← parent workflow identity
+ *   - `references.evaluator_variant.{id, slug}` ← parent variant identity
+ *   - `references.evaluator_revision.{id, slug, version}` ← this revision
+ *
+ * Without these, traces emitted from playground chain runs don't surface on
+ * the evaluator's `/apps/<evalId>/traces` page — the page filters by
+ * `references.evaluator.slug`, and a missing slot returns 0 matches.
+ * Matches the shape backend evaluation runs emit (verified against real
+ * auto-evaluation trace data on 2026-05-28).
+ *
+ * Returns `undefined` when the node isn't an evaluator workflow, or when the
+ * revision data isn't available yet (rare — only during initial hydration).
+ */
+function buildEvaluatorSelfReferences(params: {
+    get: Getter
+    revisionId: string
+}): TraceReferenceMap | undefined {
+    const revision = params.get(workflowMolecule.selectors.data(params.revisionId)) as
+        | (Record<string, unknown> & {flags?: Record<string, unknown> | null})
+        | null
+    if (!revision) return undefined
+    if (!revision.flags?.is_evaluator) return undefined
+
+    const refs: TraceReferenceMap = {}
+
+    // evaluator (parent workflow)
+    const workflowId = readString(revision.workflow_id)
+    const workflowSlug = readString(revision.workflow_slug)
+    if (workflowId || workflowSlug) {
+        refs.evaluator = {
+            ...(workflowId ? {id: workflowId} : {}),
+            ...(workflowSlug ? {slug: workflowSlug} : {}),
+        }
+    }
+
+    // evaluator_variant (parent variant)
+    const variantId = readString(revision.workflow_variant_id) ?? readString(revision.variant_id)
+    const variantSlug = readString(revision.workflow_variant_slug)
+    if (variantId || variantSlug) {
+        refs.evaluator_variant = {
+            ...(variantId ? {id: variantId} : {}),
+            ...(variantSlug ? {slug: variantSlug} : {}),
+        }
+    }
+
+    // evaluator_revision (this revision)
+    const revisionId = readString(revision.id) ?? params.revisionId
+    const revisionSlug = readString(revision.slug)
+    const revisionVersion =
+        typeof revision.version === "number"
+            ? String(revision.version)
+            : readString(revision.version)
+    if (revisionId || revisionSlug || revisionVersion) {
+        refs.evaluator_revision = {
+            ...(revisionId ? {id: revisionId} : {}),
+            ...(revisionSlug ? {slug: revisionSlug} : {}),
+            ...(revisionVersion ? {version: revisionVersion} : {}),
+        }
+    }
+
+    return Object.keys(refs).length > 0 ? refs : undefined
+}
+
 function createConcurrencyLimiter(concurrency: number) {
     let active = 0
     const queue: (() => void)[] = []
@@ -471,20 +545,27 @@ export async function executeStepForSessionWithExecutionItems(
                                   nodeResults,
                               })
                             : undefined
-
-                    const isEvaluatorStage =
-                        node.depth > 0 &&
-                        get(workflowMolecule.selectors.isEvaluator(node.entity.id as string))
-                    const stageReferences =
-                        node.depth > 0 && !isEvaluatorStage
-                            ? buildUpstreamReferences({
-                                  get,
-                                  incomingConnection: allConnections.find(
-                                      (connection) => connection.targetNodeId === nodeId,
-                                  ),
-                                  runnableNodes,
-                              })
-                            : undefined
+                    const stageReferences = (() => {
+                        if (node.depth === 0) return undefined
+                        const upstream = buildUpstreamReferences({
+                            get,
+                            incomingConnection: allConnections.find(
+                                (connection) => connection.targetNodeId === nodeId,
+                            ),
+                            runnableNodes,
+                        })
+                        // For evaluator stages, also attach the evaluator's
+                        // own identity so the emitted trace can be found via
+                        // `references.evaluator.slug` on the evaluator's
+                        // /apps/<evalId>/traces page. Merges with upstream
+                        // application refs (the app being scored).
+                        const selfEval = buildEvaluatorSelfReferences({
+                            get,
+                            revisionId: node.entity.id as string,
+                        })
+                        if (!upstream && !selfEval) return undefined
+                        return {...(upstream ?? {}), ...(selfEval ?? {})}
+                    })()
 
                     const stageExecutionItem = stageHandle.run({
                         get,

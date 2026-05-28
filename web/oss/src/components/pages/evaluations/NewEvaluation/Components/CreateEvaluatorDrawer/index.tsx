@@ -88,6 +88,10 @@ const DrawerHeader = ({entityId, onClose}: {entityId: string; onClose: () => voi
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
                 flags: {is_evaluator: false, is_feedback: false},
+                // Picking an *app* to attach to the evaluator — without this
+                // the search bar would say "Search evaluator…" (the adapter's
+                // historical default in skip-variant mode).
+                parentLabel: "Application",
             }),
         [],
     )
@@ -187,6 +191,10 @@ const DrawerContent = ({
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
                 flags: {is_evaluator: false, is_feedback: false},
+                // Picking an *app* to attach to the evaluator — without this
+                // the search bar would say "Search evaluator…" (the adapter's
+                // historical default in skip-variant mode).
+                parentLabel: "Application",
             }),
         [],
     )

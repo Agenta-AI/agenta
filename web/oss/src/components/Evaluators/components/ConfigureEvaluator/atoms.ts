@@ -115,8 +115,27 @@ export const hasAppConnectedAtom = atom((get) => {
     return nodes.some((n) => n.depth > 0)
 })
 
-/** Label of the currently selected app workflow (for display in header picker). */
-export const selectedAppLabelAtom = atom<string | null>(null)
+/**
+ * Label of the currently selected app workflow (for display in header picker).
+ *
+ * Derived from the node graph: when an evaluator-as-downstream (depth > 0)
+ * exists, the primary (depth-0) node is the connected app, and its `label`
+ * is what we want to show. Returns `null` in standalone mode (no downstream).
+ *
+ * Derived (not a primitive atom) so URL-hydration of the snapshot — which
+ * restores `playgroundNodesAtom` along with each node's `label` — automatically
+ * surfaces the right label without any explicit re-seeding from the page.
+ * Previously the atom was a primitive `atom<string | null>(null)`, which left
+ * the picker placeholder empty after reload while the disconnect button and
+ * testset dropdown (both gated on the node graph) showed normally.
+ */
+export const selectedAppLabelAtom = atom<string | null>((get) => {
+    const nodes = get(playgroundNodesAtom)
+    const hasDownstream = nodes.some((n) => n.depth > 0)
+    if (!hasDownstream) return null
+    const primary = nodes.find((n) => n.depth === 0)
+    return primary?.label ?? null
+})
 
 // ============================================================================
 // CONNECT APP (on app select)
@@ -143,8 +162,9 @@ export const connectAppToEvaluatorAtom = atom(
     ) => {
         const {appRevisionId, appLabel, evaluatorRevisionId, evaluatorLabel} = params
 
-        // Track selected app label for display + persist across sessions
-        set(selectedAppLabelAtom, appLabel)
+        // Persist across sessions. The picker display label is derived from
+        // the depth-0 node's `label` via `selectedAppLabelAtom`, so no extra
+        // write needed here.
         set(persistedAppSelectionAtom, {appRevisionId, appLabel})
 
         // Replace primary node with app
@@ -167,3 +187,39 @@ export const connectAppToEvaluatorAtom = atom(
         })
     },
 )
+
+// ============================================================================
+// DISCONNECT APP (reverse the connect)
+// ============================================================================
+
+/**
+ * Disconnect the upstream app and return to standalone evaluator mode.
+ *
+ * Reverse of `connectAppToEvaluatorAtom`:
+ * 1. Capture the downstream evaluator's identity (we need it after removal).
+ * 2. Remove the downstream evaluator node (`removeNodeAtom` keeps primary if
+ *    target is depth > 0; if there's no depth-1 node, this is a no-op and we
+ *    just swap primary).
+ * 3. Swap the primary node back to the evaluator. `changePrimaryNodeAtom`
+ *    clears `outputConnectionsAtom` for us as a side-effect.
+ * 4. Clear the persisted app selection + display label so the picker placeholder
+ *    reverts to "Select app".
+ */
+export const disconnectAppFromEvaluatorAtom = atom(null, (get, set) => {
+    const nodes = get(playgroundController.selectors.nodes())
+    const downstreamEvaluator = nodes.find((n) => n.depth > 0)
+    if (!downstreamEvaluator) return
+
+    const evaluatorEntity = {
+        type: downstreamEvaluator.entityType,
+        id: downstreamEvaluator.entityId,
+        label: downstreamEvaluator.label ?? "Evaluator",
+    }
+
+    set(playgroundController.actions.removeNode, downstreamEvaluator.id)
+    set(playgroundController.actions.changePrimaryNode, evaluatorEntity)
+    // `selectedAppLabelAtom` is derived from the node graph — clearing the
+    // downstream above is what flips it back to `null`. Only the persisted
+    // localStorage cache needs an explicit clear.
+    set(persistedAppSelectionAtom, null)
+})

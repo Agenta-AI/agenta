@@ -1,7 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {
-    fullPagePlaygroundEvaluatorsAtom,
     nonArchivedAppWorkflowsAtom,
     nonArchivedEvaluatorsAtom,
     parseWorkflowKeyFromUri,
@@ -116,24 +115,15 @@ const SWITCHER_MENU_CLASS = clsx(
 const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     const ctx = useAtomValue(currentWorkflowContextAtom)
     const apps = useAtomValue(nonArchivedAppWorkflowsAtom) as readonly Workflow[]
-    // Full set of evaluators — used for resolving the *active* workflow (the
-    // user may be inside a drawer-only evaluator currently). The switcher
-    // dropdown below uses `fullPagePlaygroundEvaluators` instead so it only
-    // lists evaluators whose destination is /apps/[id]/playground — clicking
-    // a declarative classifier or human evaluator from the sidebar would
-    // route through the route guard and bounce back to /evaluators, which is
-    // confusing.
     const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
     // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off, the
-    // switcher dropdown hides the "Evaluators" group entirely. Clicking an
-    // entry would route to `/apps/<evaluatorId>/playground`, which the
-    // (also-gated) `PlaygroundRouter` guard would immediately bounce back to
-    // `/evaluators` — exposing the entry would just produce a flicker.
-    const fullPagePlaygroundEvaluatorsRaw = useAtomValue(
-        fullPagePlaygroundEvaluatorsAtom,
-    ) as readonly Workflow[]
-    const fullPagePlaygroundEvaluators: readonly Workflow[] = EVALUATOR_FULL_PAGE_NAV_ENABLED
-        ? fullPagePlaygroundEvaluatorsRaw
+    // switcher dropdown hides the "Evaluators" group entirely. With the flag
+    // on, ALL non-archived evaluators are listed — every evaluator kind has
+    // a working `/apps/<id>/*` surface (PlaygroundRouter renders
+    // ConfigureEvaluatorPage for all evaluator workflows regardless of
+    // template type), so there's no reason to filter to LLM/code only.
+    const switcherEvaluators: readonly Workflow[] = EVALUATOR_FULL_PAGE_NAV_ENABLED
+        ? evaluators
         : EMPTY_WORKFLOWS
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
@@ -192,16 +182,16 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                 children: apps.map((w) => toMenuItem(w, false)),
             })
         }
-        if (fullPagePlaygroundEvaluators.length) {
+        if (switcherEvaluators.length) {
             items.push({
                 key: "evaluators-header",
                 type: "group",
                 label: "Evaluators",
-                children: fullPagePlaygroundEvaluators.map((w) => toMenuItem(w, true)),
+                children: switcherEvaluators.map((w) => toMenuItem(w, true)),
             })
         }
         return items
-    }, [apps, fullPagePlaygroundEvaluators])
+    }, [apps, switcherEvaluators])
 
     const handleSwitcherClick = useCallback<NonNullable<MenuProps["onClick"]>>(
         ({key}) => {

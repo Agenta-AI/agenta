@@ -6,7 +6,7 @@
  * Reads evaluator info from playground nodes (URL-driven, no props needed).
  */
 
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
@@ -15,11 +15,12 @@ import type {
     WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
-import {Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {X} from "@phosphor-icons/react"
+import {Button, Tooltip, Typography} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {selectedAppLabelAtom} from "./atoms"
+import {disconnectAppFromEvaluatorAtom, selectedAppLabelAtom} from "./atoms"
 
 const TestsetDropdown = dynamic(
     () => import("@/oss/components/Playground/Components/TestsetDropdown"),
@@ -71,9 +72,24 @@ const EvaluatorPlaygroundHeader: React.FC<EvaluatorPlaygroundHeaderProps> = ({
 
     // Selected app label for display in the picker trigger
     const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
+    const disconnectApp = useSetAtom(disconnectAppFromEvaluatorAtom)
+    const handleDisconnect = useCallback(() => {
+        disconnectApp()
+    }, [disconnectApp])
 
     // Check if we have an app node (depth-0 with a different entity than evaluator)
     const hasAppSelected = nodes.some((n) => n.depth === 0 && n.entityId !== evaluatorEntityId)
+
+    // Footer inside the picker popover — only when an app is currently connected.
+    // Mirrors the "Disconnect all" pattern used by the evaluator picker in
+    // `Playground/Components/PlaygroundHeader/index.tsx`.
+    const popupFooter = hasAppSelected ? (
+        <div className="border-0 border-t border-solid border-[rgba(5,23,41,0.06)] p-2">
+            <Button size="small" danger className="w-full" onClick={handleDisconnect}>
+                Disconnect app
+            </Button>
+        </div>
+    ) : undefined
 
     return (
         <div className="flex items-center justify-between gap-4 px-2.5 py-2 bg-[var(--ag-rgba-000-02)] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
@@ -83,15 +99,33 @@ const EvaluatorPlaygroundHeader: React.FC<EvaluatorPlaygroundHeaderProps> = ({
                 </Typography>
             </div>
 
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
                 <EntityPicker<WorkflowRevisionSelectionResult>
                     variant="popover-cascader"
                     adapter={appWorkflowAdapter}
                     onSelect={onAppSelect}
                     size="small"
                     placeholder={selectedAppLabel ?? "Select app"}
+                    popupFooter={popupFooter}
                 />
-                {hasAppSelected && <TestsetDropdown />}
+                {hasAppSelected && (
+                    <Tooltip title="Disconnect app">
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<X size={12} />}
+                            onClick={handleDisconnect}
+                            aria-label="Disconnect app"
+                        />
+                    </Tooltip>
+                )}
+                {/* Testset is always connectable, with or without an upstream
+                 * app. The earlier `hasAppSelected` gate matched the
+                 * runDisabled gate we removed in T7 — same regression, same
+                 * fix: standalone evaluator runs need a testset just as much
+                 * as chained ones (the evaluator's prompt template variables
+                 * still come from testcase row fields). */}
+                <TestsetDropdown />
             </div>
         </div>
     )
