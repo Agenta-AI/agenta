@@ -337,26 +337,35 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
             //   - Neither: don't touch (e.g., updating only `search` shouldn't
             //     overwrite the trace_type intent).
             if (nextTraceType) {
-                const v = nextTraceType.value
-                // Normalize is/is_not against the two-value enum to a single
-                // affirmative value.
+                // The filter dialog sends `value` as a scalar for `is`/
+                // `is_not` and as an array for `in`/`not_in` (e.g.,
+                // `["annotation"]`). Normalize to an array, filter to known
+                // enum values, then collapse single-value arrays back to a
+                // scalar for the choice atom — which only stores one value.
+                const rawValues = Array.isArray(nextTraceType.value)
+                    ? nextTraceType.value
+                    : [nextTraceType.value]
+                const values = rawValues.filter(
+                    (entry: unknown): entry is "annotation" | "invocation" =>
+                        entry === "annotation" || entry === "invocation",
+                )
                 const op = nextTraceType.operator
                 const isAffirm = op === "is" || op === "in"
                 const isNeg = op === "is_not" || op === "not_in"
-                const flip = (x: unknown): "annotation" | "invocation" | null =>
-                    x === "annotation" ? "invocation" : x === "invocation" ? "annotation" : null
+                const flip = (x: "annotation" | "invocation"): "annotation" | "invocation" =>
+                    x === "annotation" ? "invocation" : "annotation"
                 let resolved: "annotation" | "invocation" | null = null
-                if (isAffirm) {
-                    resolved =
-                        v === "annotation" ? "annotation" : v === "invocation" ? "invocation" : null
-                } else if (isNeg) {
-                    resolved = flip(v)
+                if (values.length === 1) {
+                    if (isAffirm) resolved = values[0]
+                    else if (isNeg) resolved = flip(values[0])
                 }
                 if (resolved) {
                     set(traceTypeChoiceAtomFamily(tab), {kind: "value", value: resolved})
                 } else {
-                    // Unknown shape (e.g., a future trace_type value we don't
-                    // map). Treat as "cleared" rather than fabricating a value.
+                    // Multi-value selections (e.g., `in: ["annotation",
+                    // "invocation"]` — equivalent to "no filter") or
+                    // future enum values we don't map. Treat as cleared
+                    // rather than fabricating a single-value pick.
                     set(traceTypeChoiceAtomFamily(tab), {kind: "cleared"})
                 }
             } else {

@@ -162,12 +162,14 @@ export const connectAppToEvaluatorAtom = atom(
     ) => {
         const {appRevisionId, appLabel, evaluatorRevisionId, evaluatorLabel} = params
 
-        // Persist across sessions. The picker display label is derived from
-        // the depth-0 node's `label` via `selectedAppLabelAtom`, so no extra
-        // write needed here.
-        set(persistedAppSelectionAtom, {appRevisionId, appLabel})
-
-        // Replace primary node with app
+        // Replace primary node with the app FIRST — if the graph mutation
+        // bails out (changePrimaryNode returns null when there's no current
+        // primary to swap), we must not commit a stale persisted record.
+        // Pre-fix the persist happened before this call, which could leave
+        // an `{appRevisionId, appLabel}` entry in localStorage referring to
+        // a connection that never actually formed; the next mount would
+        // re-hydrate from that record and the picker would show "connected"
+        // for an app the playground never linked.
         const nodeId = set(playgroundController.actions.changePrimaryNode, {
             type: "workflow",
             id: appRevisionId,
@@ -185,6 +187,11 @@ export const connectAppToEvaluatorAtom = atom(
                 label: evaluatorLabel,
             },
         })
+
+        // Persist only after both graph mutations succeeded. The picker
+        // display label is derived from the depth-0 node's `label` via
+        // `selectedAppLabelAtom`, so no extra write needed here.
+        set(persistedAppSelectionAtom, {appRevisionId, appLabel})
     },
 )
 
@@ -208,7 +215,16 @@ export const connectAppToEvaluatorAtom = atom(
 export const disconnectAppFromEvaluatorAtom = atom(null, (get, set) => {
     const nodes = get(playgroundController.selectors.nodes())
     const downstreamEvaluator = nodes.find((n) => n.depth > 0)
-    if (!downstreamEvaluator) return
+    if (!downstreamEvaluator) {
+        // No downstream node means the graph is already in the
+        // standalone-evaluator shape, but a stale `persistedAppSelectionAtom`
+        // entry could still be on disk (e.g., from a previous session where
+        // `connectAppToEvaluatorAtom` persisted before its swap silently
+        // failed mid-mutation). Clear it on this path too so the next mount
+        // doesn't re-hydrate a phantom "connected" app.
+        set(persistedAppSelectionAtom, null)
+        return
+    }
 
     const evaluatorEntity = {
         type: downstreamEvaluator.entityType,

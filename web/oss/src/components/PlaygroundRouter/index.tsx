@@ -70,7 +70,19 @@ const PlaygroundRouter = () => {
     // ConfigureEvaluatorPage renders the same few form fields the drawer
     // would, with the bonus of the evaluator-as-app surface (variants,
     // traces, sidebar context).
-    if (ctx.workflowKind === "evaluator") return <ConfigureEvaluatorPage />
+    //
+    // Exception: `is_feedback` evaluators (human-annotation workflows) are
+    // intentionally drawer-only in /evaluators — they don't run, they capture
+    // human input. Routing them to `ConfigureEvaluatorPage` would render a
+    // page with no testset/run controls that make sense for them. Direct
+    // URL visits to `/apps/<human-id>/playground` fall through to the
+    // generic `<Playground />`, which will (correctly) treat them as an
+    // unsupported playground target and let the upstream route guard /
+    // landing logic redirect them back to /evaluators.
+    const isFeedbackEvaluator = ctx.workflow?.flags?.is_feedback === true
+    if (ctx.workflowKind === "evaluator" && !isFeedbackEvaluator) {
+        return <ConfigureEvaluatorPage />
+    }
     return <Playground />
 }
 

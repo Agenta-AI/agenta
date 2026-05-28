@@ -118,13 +118,17 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
     // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off, the
     // switcher dropdown hides the "Evaluators" group entirely. With the flag
-    // on, ALL non-archived evaluators are listed — every evaluator kind has
-    // a working `/apps/<id>/*` surface (PlaygroundRouter renders
-    // ConfigureEvaluatorPage for all evaluator workflows regardless of
-    // template type), so there's no reason to filter to LLM/code only.
-    const switcherEvaluators: readonly Workflow[] = EVALUATOR_FULL_PAGE_NAV_ENABLED
-        ? evaluators
-        : EMPTY_WORKFLOWS
+    // on, list every evaluator EXCEPT human/feedback workflows:
+    // `is_feedback` evaluators are drawer-only in /evaluators (they capture
+    // human input, they don't run), so the corresponding `/apps/<id>/*`
+    // surface has no useful UI. PlaygroundRouter falls through to the
+    // generic `<Playground />` for those, which doesn't make sense to
+    // expose via the sidebar switcher — clicking would land on a
+    // run-controls page for a workflow that has nothing to run.
+    const switcherEvaluators: readonly Workflow[] = useMemo(() => {
+        if (!EVALUATOR_FULL_PAGE_NAV_ENABLED) return EMPTY_WORKFLOWS
+        return evaluators.filter((w) => !w.flags?.is_feedback)
+    }, [evaluators])
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)

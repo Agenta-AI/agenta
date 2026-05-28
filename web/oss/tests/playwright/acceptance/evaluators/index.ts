@@ -1,4 +1,19 @@
 import {
+    createTagString,
+    TestCoverage,
+    TestPath,
+    TestScope,
+    TestSpeedType,
+    TestLensType,
+    TestCostType,
+    TestLicenseType,
+    TestRoleType,
+    TestcaseType,
+} from "@agenta/web-tests/playwright/config/testTags"
+
+import {buildAcceptanceTags} from "../utils/tags"
+
+import {
     test,
     expect,
     ensureEvaluatorTab,
@@ -32,19 +47,6 @@ import {
     EVALUATOR_RESULT_CARD_SELECTOR,
     HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE,
 } from "./tests"
-import {
-    createTagString,
-    TestCoverage,
-    TestPath,
-    TestScope,
-    TestSpeedType,
-    TestLensType,
-    TestCostType,
-    TestLicenseType,
-    TestRoleType,
-    TestcaseType,
-} from "@agenta/web-tests/playwright/config/testTags"
-import {buildAcceptanceTags} from "../utils/tags"
 
 const testEvaluators = () => {
     test(
@@ -240,26 +242,16 @@ const testEvaluators = () => {
                 page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
             ).toBeVisible({timeout: 10000})
 
-            // Verify the evaluator appears in the table.
-            // Use the search input to narrow results, then poll via [data-row-key].
-            const searchInput2 = page.locator('input[placeholder="Search"]').first()
-            if (await searchInput2.isVisible().catch(() => false)) {
-                await searchInput2.fill(evaluatorName)
-            }
-            await expect
-                .poll(
-                    async () =>
-                        page.locator("[data-row-key]").filter({hasText: evaluatorName}).count(),
-                    {timeout: 15000},
-                )
-                .toBeGreaterThan(0)
-            await expect(
-                page.locator("[data-row-key]").filter({hasText: evaluatorName}).first(),
-            ).toBeVisible({timeout: 5000})
-
-            // Step 2: Post-commit navigates to /apps/<id>/playground (full-page surface,
-            // not the drawer — per the re-enable of EVALUATOR_FULL_PAGE_NAV. Earlier this
-            // test used the drawer flow; rewritten to operate on the new page surface.)
+            // Step 2: Post-commit navigates to `/apps/<id>/playground` — the
+            // full-page surface introduced by the EVALUATOR_FULL_PAGE_NAV
+            // re-enable. Assert the redirect FIRST (no DOM-poll for the
+            // registry table). Earlier this test waited on `[data-row-key]`
+            // entries before the URL check, which raced against the redirect:
+            // once the post-commit navigation won, the table wasn't in the
+            // DOM and the poll timed out. The evaluator's presence in the
+            // registry is exercised by the post-create-row-click test
+            // alongside; here we only care that the create flow leads to
+            // the playground page.
             await expect(page).toHaveURL(/\/apps\/[^/]+\/playground(\?|$|#)/, {timeout: 15000})
             const surface = page.locator("body")
 
