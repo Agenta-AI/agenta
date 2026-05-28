@@ -236,6 +236,21 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
             // (derivedLoadableIdAtom reads from nodes to resolve the loadableId)
             clearAllRuns()
 
+            // CLEANUP ORDER MATTERS for the persist-effect race.
+            //
+            // The persist effect below (`useEffect` watching connectedTestset
+            // + displayRowIds) writes the current row snapshot to
+            // localStorage. If we drain rows BEFORE flipping
+            // `connectedTestsetAtom` to null, there's a window where the
+            // effect could fire with an empty row list but a still-truthy
+            // connection — and persist `testcases: []`, which the next mount
+            // would restore as "connected but empty".
+            //
+            // So: null connectedTestset FIRST. The effect's early-return
+            // (`if (!connectedTestset) return`) wins, and the subsequent
+            // imperative cleanup can drain rows safely.
+            setConnectedTestset(null)
+
             // Clear loadable rows + state
             const loadableId = store.get(derivedLoadableIdAtom)
             if (loadableId) {
@@ -265,7 +280,6 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
             setInitialized(false)
             // `selectedAppLabelAtom` is derived from the node graph — `resetAll`
             // above clears the nodes, which flips the label back to `null`.
-            setConnectedTestset(null)
         }
     }, [
         entityId,
@@ -277,8 +291,26 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         connectApp,
     ])
 
-    // Save testset connection to localStorage whenever the user connects a testset
+    // Save testset connection to localStorage whenever the user connects a
+    // testset or its rows change.
+    //
+    // `displayRowIds` is in the dependency array so the effect re-fires when
+    // rows arrive after connection (the hydration path connects first, rows
+    // populate next) and when the user adds/removes rows after the initial
+    // connect. Without it, only the first snapshot ever persisted — every
+    // edit was silently dropped on reload.
+    //
+    // We also REFUSE to persist `testcases: []` while `connectedSourceId` is
+    // set. That state pairing ("connected, but no rows") only ever shows up
+    // mid-race — e.g., `connectToSourceAtom` resets the global
+    // `testcaseIdsAtom` before repopulating, and any persist that fires in
+    // that gap would write empty data. The next mount would restore that
+    // empty data into a "connected but empty" loadable — exactly the
+    // symptom in Mahmoud's report. If the user genuinely deletes every row,
+    // we wait for them to either re-add rows or disconnect; we don't burn
+    // their persisted testcases on a transient.
     const connectedTestset = useAtomValue(connectedTestsetAtom)
+    const displayRowIds = useAtomValue(testcaseMolecule.atoms.displayRowIds)
     useEffect(() => {
         if (!connectedTestset) return
         const store = getDefaultStore()
@@ -286,13 +318,24 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         if (!loadableId) return
         const loadableState = store.get(loadableStateAtomFamily(loadableId))
         if (!loadableState.connectedSourceId) return
-        const rowIds = store.get(testcaseMolecule.atoms.displayRowIds)
-        const testcases = rowIds
+
+        // Empty-rows guard: don't overwrite previously-saved testcases with
+        // an empty array while we still claim to be connected. See the
+        // block-comment above for the race this prevents.
+        if (displayRowIds.length === 0) return
+
+        const testcases = displayRowIds
             .map((id) => {
                 const entity = testcaseMolecule.get.data(id)
                 return entity ? ({...entity, id} as {id: string} & Record<string, unknown>) : null
             })
             .filter((t): t is {id: string} & Record<string, unknown> => t !== null)
+
+        // If every row exists in the molecule's ids but none have data yet
+        // (rare — usually data lands before ids in the controller), also
+        // skip. Persisting `testcases: []` for a connected source is the bug
+        // we're trying to avoid.
+        if (testcases.length === 0) return
 
         setPersistedTestset({
             revisionId: loadableState.connectedSourceId,
@@ -300,7 +343,7 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
             sourceName: connectedTestset.name ?? null,
             testcases,
         })
-    }, [connectedTestset, setPersistedTestset])
+    }, [connectedTestset, displayRowIds, setPersistedTestset])
 
     const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
 
