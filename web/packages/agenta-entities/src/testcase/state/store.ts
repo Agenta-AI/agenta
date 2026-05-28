@@ -57,89 +57,283 @@ export const setCurrentRevisionIdAtom = atom(null, (_get, set, revisionId: strin
 })
 
 // ============================================================================
-// ID TRACKING ATOMS
+// ID TRACKING ATOMS — PER-LOADABLE FAMILIES + GLOBAL "CURRENT" VIEW
 // ============================================================================
+//
+// Background. Pre-refactor, `testcaseIdsAtom` (and `newEntityIdsAtom`,
+// `deletedEntityIdsAtom`) were single global atoms. Any `connectToSource`
+// or `disconnect` call unconditionally wiped them. With two surfaces both
+// using the testcase store at the same time (e.g., app playground + a
+// drawer-based evaluator playground), the second connect would drain the
+// first's rows even though its connection metadata stayed intact —
+// classic "connected but empty" symptom reported by Mahmoud.
+//
+// Refactor. The state now lives in per-loadable atom families. Each
+// loadable owns its own row list, local-new ids and deleted-ids — so
+// connecting / disconnecting loadable A no longer affects loadable B.
+//
+// The original global atoms are kept as a backward-compat shim: a derived
+// view of the family at `currentLoadableIdForIdsAtom`. Consumers that
+// haven't been migrated to the per-loadable API still work, and they read
+// whatever loadable is "current" (typically updated by
+// `connectToSourceAtom` and `disconnectAtom`). New / migrated consumers
+// should use the per-loadable families directly to avoid cross-loadable
+// drift.
 
 /**
- * List of testcase IDs from server
- * Accumulated by paginated query as pages load
+ * Loadable currently anchored for the legacy global `testcaseIdsAtom` /
+ * `newEntityIdsAtom` / `deletedEntityIdsAtom` views. The loadable
+ * controller's `connectToSource` / `disconnect` actions update this when
+ * they target a specific loadable, so unmigrated consumers see the
+ * "right" loadable's data in single-loadable scenarios.
+ *
+ * `null` means "no active loadable" — global views fall back to empty.
  */
-export const testcaseIdsAtom = atom<string[]>([])
+export const currentLoadableIdForIdsAtom = atom<string | null>(null) as PrimitiveAtom<string | null>
+
+const EMPTY_STRING_ARRAY: string[] = []
+const EMPTY_STRING_SET: Set<string> = new Set<string>()
 
 /**
- * Append testcase IDs (called when paginated data arrives)
- * Deduplicates both incoming IDs and against existing IDs
+ * Per-loadable testcase IDs from the server. Populated as paginated
+ * queries land for a given loadable.
  */
-export const setTestcaseIdsAtom = atom(null, (get, set, ids: string[]) => {
-    const existing = get(testcaseIdsAtom)
-    const existingSet = new Set(existing)
-    const uniqueNewIds: string[] = []
-    const seenInBatch = new Set<string>()
+export const testcaseIdsByLoadableAtomFamily = atomFamily(
+    (_loadableId: string) => atom<string[]>([]) as PrimitiveAtom<string[]>,
+)
 
-    for (const id of ids) {
-        if (!existingSet.has(id) && !seenInBatch.has(id)) {
-            uniqueNewIds.push(id)
-            seenInBatch.add(id)
+/**
+ * Per-loadable locally-created entity IDs (not yet committed to the
+ * server). Splitting from the server ids family lets us track "newly
+ * added by the user" separately and apply them on top in the merged view.
+ */
+export const newEntityIdsByLoadableAtomFamily = atomFamily(
+    (_loadableId: string) => atom<string[]>([]) as PrimitiveAtom<string[]>,
+)
+
+/**
+ * Per-loadable soft-deleted entity IDs (pending save). Kept as a Set so
+ * membership checks against the server ids are O(1).
+ */
+export const deletedEntityIdsByLoadableAtomFamily = atomFamily(
+    (_loadableId: string) => atom<Set<string>>(new Set<string>()) as PrimitiveAtom<Set<string>>,
+)
+
+// ---------------------------------------------------------------------------
+// Per-loadable setters (preferred API for new code).
+// ---------------------------------------------------------------------------
+
+/**
+ * Append testcase IDs into a loadable's bucket (idempotent — incoming
+ * duplicates and ids already present are skipped).
+ */
+export const setTestcaseIdsForLoadableAtom = atom(
+    null,
+    (get, set, loadableId: string, ids: string[]) => {
+        const family = testcaseIdsByLoadableAtomFamily(loadableId)
+        const existing = get(family)
+        const existingSet = new Set(existing)
+        const uniqueNewIds: string[] = []
+        const seenInBatch = new Set<string>()
+
+        for (const id of ids) {
+            if (!existingSet.has(id) && !seenInBatch.has(id)) {
+                uniqueNewIds.push(id)
+                seenInBatch.add(id)
+            }
         }
-    }
 
-    if (uniqueNewIds.length > 0) {
-        set(testcaseIdsAtom, [...existing, ...uniqueNewIds])
-    }
+        if (uniqueNewIds.length > 0) {
+            set(family, [...existing, ...uniqueNewIds])
+        }
+    },
+)
+
+/**
+ * Clear all testcase IDs for a loadable. Used by `connectToSourceAtom`
+ * when re-anchoring the loadable to a different source, and by
+ * `disconnectAtom` on teardown.
+ */
+export const resetTestcaseIdsForLoadableAtom = atom(null, (_get, set, loadableId: string) => {
+    set(testcaseIdsByLoadableAtomFamily(loadableId), [])
 })
 
 /**
- * Reset testcase IDs (called when revision changes)
+ * Clear locally-created entity IDs for a loadable.
  */
-export const resetTestcaseIdsAtom = atom(null, (_get, set) => {
-    set(testcaseIdsAtom, [])
+export const clearNewEntityIdsForLoadableAtom = atom(null, (_get, set, loadableId: string) => {
+    set(newEntityIdsByLoadableAtomFamily(loadableId), [])
 })
 
-// ============================================================================
-// NEW ENTITY IDS (locally created, not yet saved)
-// ============================================================================
-
-const newEntityIdsBaseAtom = atom<string[]>([])
-export const newEntityIdsAtom = atom((get) => get(newEntityIdsBaseAtom))
-
-export const addNewEntityIdAtom = atom(null, (get, set, id: string) => {
-    const prev = get(newEntityIdsBaseAtom)
-    set(newEntityIdsBaseAtom, [...prev, id])
+/**
+ * Clear soft-deleted entity IDs for a loadable.
+ */
+export const clearDeletedIdsForLoadableAtom = atom(null, (_get, set, loadableId: string) => {
+    set(deletedEntityIdsByLoadableAtomFamily(loadableId), new Set())
 })
 
-export const removeNewEntityIdAtom = atom(null, (get, set, id: string) => {
-    const prev = get(newEntityIdsBaseAtom)
-    set(
-        newEntityIdsBaseAtom,
-        prev.filter((i) => i !== id),
-    )
+export const addNewEntityIdForLoadableAtom = atom(
+    null,
+    (get, set, loadableId: string, id: string) => {
+        const family = newEntityIdsByLoadableAtomFamily(loadableId)
+        const prev = get(family)
+        set(family, [...prev, id])
+    },
+)
+
+export const removeNewEntityIdForLoadableAtom = atom(
+    null,
+    (get, set, loadableId: string, id: string) => {
+        const family = newEntityIdsByLoadableAtomFamily(loadableId)
+        const prev = get(family)
+        set(
+            family,
+            prev.filter((entry) => entry !== id),
+        )
+    },
+)
+
+export const markDeletedForLoadableAtom = atom(null, (get, set, loadableId: string, id: string) => {
+    const family = deletedEntityIdsByLoadableAtomFamily(loadableId)
+    const prev = get(family)
+    const next = new Set(prev)
+    next.add(id)
+    set(family, next)
 })
 
-export const clearNewEntityIdsAtom = atom(null, (_get, set) => {
-    set(newEntityIdsBaseAtom, [])
-})
-
-// ============================================================================
-// DELETED ENTITY IDS (soft deleted, pending save)
-// ============================================================================
-
-const deletedEntityIdsBaseAtom = atom<Set<string>>(new Set<string>())
-export const deletedEntityIdsAtom = atom((get) => get(deletedEntityIdsBaseAtom))
-
-export const markDeletedAtom = atom(null, (_get, set, id: string) => {
-    set(deletedEntityIdsBaseAtom, (prev) => new Set([...prev, id]))
-})
-
-export const unmarkDeletedAtom = atom(null, (get, set, id: string) => {
-    set(deletedEntityIdsBaseAtom, (prev) => {
+export const unmarkDeletedForLoadableAtom = atom(
+    null,
+    (get, set, loadableId: string, id: string) => {
+        const family = deletedEntityIdsByLoadableAtomFamily(loadableId)
+        const prev = get(family)
+        if (!prev.has(id)) return
         const next = new Set(prev)
         next.delete(id)
-        return next
-    })
+        set(family, next)
+    },
+)
+
+// ---------------------------------------------------------------------------
+// Legacy global atoms — derived from the family at the current loadable.
+// Kept so existing consumers continue to work without per-loadable plumbing.
+// ---------------------------------------------------------------------------
+
+/**
+ * List of testcase IDs for the *currently active* loadable, derived from
+ * `testcaseIdsByLoadableAtomFamily` at `currentLoadableIdForIdsAtom`.
+ *
+ * @deprecated — prefer `testcaseIdsByLoadableAtomFamily(loadableId)` so
+ * the read is scoped to your surface's loadable. The global view can
+ * drift across two coexisting surfaces.
+ */
+export const testcaseIdsAtom = atom<string[]>((get) => {
+    const id = get(currentLoadableIdForIdsAtom)
+    if (!id) return EMPTY_STRING_ARRAY
+    return get(testcaseIdsByLoadableAtomFamily(id))
 })
 
-export const clearDeletedIdsAtom = atom(null, (_get, set) => {
-    set(deletedEntityIdsBaseAtom, new Set())
+/**
+ * Append testcase IDs for the *currently active* loadable. Writes go to
+ * `testcaseIdsByLoadableAtomFamily(currentLoadableIdForIdsAtom)` —
+ * intentionally a no-op when no loadable is active so legacy callers
+ * don't silently leak rows into a "default" bucket.
+ *
+ * @deprecated — prefer `setTestcaseIdsForLoadableAtom` with an explicit
+ * loadableId.
+ */
+export const setTestcaseIdsAtom = atom(null, (get, set, ids: string[]) => {
+    const id = get(currentLoadableIdForIdsAtom)
+    if (!id) return
+    set(setTestcaseIdsForLoadableAtom, id, ids)
+})
+
+/**
+ * @deprecated — prefer `resetTestcaseIdsForLoadableAtom`.
+ */
+export const resetTestcaseIdsAtom = atom(null, (get, set) => {
+    const id = get(currentLoadableIdForIdsAtom)
+    if (!id) return
+    set(resetTestcaseIdsForLoadableAtom, id)
+})
+
+// ============================================================================
+// NEW ENTITY IDS (locally created, not yet saved) — backward-compat global view
+// ============================================================================
+
+/**
+ * @deprecated — prefer `newEntityIdsByLoadableAtomFamily(loadableId)`.
+ */
+export const newEntityIdsAtom = atom<string[]>((get) => {
+    const id = get(currentLoadableIdForIdsAtom)
+    if (!id) return EMPTY_STRING_ARRAY
+    return get(newEntityIdsByLoadableAtomFamily(id))
+})
+
+/**
+ * @deprecated — prefer `addNewEntityIdForLoadableAtom`.
+ */
+export const addNewEntityIdAtom = atom(null, (get, set, id: string) => {
+    const loadableId = get(currentLoadableIdForIdsAtom)
+    if (!loadableId) return
+    set(addNewEntityIdForLoadableAtom, loadableId, id)
+})
+
+/**
+ * @deprecated — prefer `removeNewEntityIdForLoadableAtom`.
+ */
+export const removeNewEntityIdAtom = atom(null, (get, set, id: string) => {
+    const loadableId = get(currentLoadableIdForIdsAtom)
+    if (!loadableId) return
+    set(removeNewEntityIdForLoadableAtom, loadableId, id)
+})
+
+/**
+ * @deprecated — prefer `clearNewEntityIdsForLoadableAtom`.
+ */
+export const clearNewEntityIdsAtom = atom(null, (get, set) => {
+    const id = get(currentLoadableIdForIdsAtom)
+    if (!id) return
+    set(clearNewEntityIdsForLoadableAtom, id)
+})
+
+// ============================================================================
+// DELETED ENTITY IDS (soft deleted, pending save) — backward-compat global view
+// ============================================================================
+
+/**
+ * @deprecated — prefer `deletedEntityIdsByLoadableAtomFamily(loadableId)`.
+ */
+export const deletedEntityIdsAtom = atom<Set<string>>((get) => {
+    const id = get(currentLoadableIdForIdsAtom)
+    if (!id) return EMPTY_STRING_SET
+    return get(deletedEntityIdsByLoadableAtomFamily(id))
+})
+
+/**
+ * @deprecated — prefer `markDeletedForLoadableAtom`.
+ */
+export const markDeletedAtom = atom(null, (get, set, id: string) => {
+    const loadableId = get(currentLoadableIdForIdsAtom)
+    if (!loadableId) return
+    set(markDeletedForLoadableAtom, loadableId, id)
+})
+
+/**
+ * @deprecated — prefer `unmarkDeletedForLoadableAtom`.
+ */
+export const unmarkDeletedAtom = atom(null, (get, set, id: string) => {
+    const loadableId = get(currentLoadableIdForIdsAtom)
+    if (!loadableId) return
+    set(unmarkDeletedForLoadableAtom, loadableId, id)
+})
+
+/**
+ * @deprecated — prefer `clearDeletedIdsForLoadableAtom`.
+ */
+export const clearDeletedIdsAtom = atom(null, (get, set) => {
+    const id = get(currentLoadableIdForIdsAtom)
+    if (!id) return
+    set(clearDeletedIdsForLoadableAtom, id)
 })
 
 // ============================================================================
@@ -186,8 +380,15 @@ export const setSelectionDraftAtom = atom(
 export const commitSelectionDraftAtom = atom(null, (get, set, revisionId: string) => {
     const draft = get(testcaseSelectionDraftAtomFamily(revisionId))
     if (draft !== null) {
-        // Update the testcase IDs to match the selection
-        set(testcaseIdsAtom, [...draft])
+        // Update the testcase IDs for the current loadable to match the
+        // selection. Pre-refactor this wrote the global `testcaseIdsAtom`;
+        // now we route the write through the per-loadable family using
+        // the current loadable tracker (set by `connectToSourceAtom`),
+        // which matches the legacy semantics for single-loadable usage.
+        const loadableId = get(currentLoadableIdForIdsAtom)
+        if (loadableId) {
+            set(testcaseIdsByLoadableAtomFamily(loadableId), [...draft])
+        }
         // Clear the draft
         set(testcaseSelectionDraftAtomFamily(revisionId), null)
     }

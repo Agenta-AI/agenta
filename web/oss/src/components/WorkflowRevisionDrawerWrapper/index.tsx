@@ -53,7 +53,7 @@ import {
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
 import {Button, Typography, message} from "antd"
-import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
+import {atom, getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -302,15 +302,30 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     //
     // We also REFUSE to persist `testcases: []` while `connectedSourceId` is
     // set. That state pairing ("connected, but no rows") only ever shows up
-    // mid-race — e.g., `connectToSourceAtom` resets the global
-    // `testcaseIdsAtom` before repopulating, and any persist that fires in
-    // that gap would write empty data. The next mount would restore that
-    // empty data into a "connected but empty" loadable — exactly the
-    // symptom in Mahmoud's report. If the user genuinely deletes every row,
-    // we wait for them to either re-add rows or disconnect; we don't burn
-    // their persisted testcases on a transient.
+    // mid-race — e.g., during a re-connect, `connectToSourceAtom` clears the
+    // bucket before repopulating, and any persist that fires in that gap
+    // would write empty data. The next mount would restore that empty data
+    // into a "connected but empty" loadable — exactly the symptom in
+    // Mahmoud's report. If the user genuinely deletes every row, we wait
+    // for them to either re-add rows or disconnect; we don't burn their
+    // persisted testcases on a transient.
+    //
+    // Phase 3 — we subscribe to THIS drawer's loadable via the per-loadable
+    // family rather than the global `testcaseMolecule.atoms.displayRowIds`
+    // view. That way the persist effect never observes another surface's
+    // rows (or another surface's transient empty state) leaking into our
+    // bucket.
     const connectedTestset = useAtomValue(connectedTestsetAtom)
-    const displayRowIds = useAtomValue(testcaseMolecule.atoms.displayRowIds)
+    const drawerDisplayRowIdsAtom = useMemo(
+        () =>
+            atom<string[]>((get) => {
+                const id = get(derivedLoadableIdAtom)
+                if (!id) return []
+                return get(testcaseMolecule.atoms.displayRowIdsForLoadable(id))
+            }),
+        [],
+    )
+    const displayRowIds = useAtomValue(drawerDisplayRowIdsAtom)
     useEffect(() => {
         if (!connectedTestset) return
         const store = getDefaultStore()

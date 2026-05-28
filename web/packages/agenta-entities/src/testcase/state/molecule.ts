@@ -54,13 +54,17 @@ import {
     testcaseCellAtomFamily,
     // Draft
     testcaseDraftAtomFamily,
-    // ID tracking
+    // ID tracking — backward-compat global views
     testcaseIdsAtom,
     newEntityIdsAtom,
     deletedEntityIdsAtom,
     addNewEntityIdAtom,
     markDeletedAtom,
     removeNewEntityIdAtom,
+    // ID tracking — per-loadable families (preferred)
+    testcaseIdsByLoadableAtomFamily,
+    newEntityIdsByLoadableAtomFamily,
+    deletedEntityIdsByLoadableAtomFamily,
     // Context
     currentRevisionIdAtom,
     setCurrentRevisionIdAtom,
@@ -282,12 +286,39 @@ const hasUnsavedChangesAtom = atom((get) => {
 })
 
 /**
+ * Display row IDs for a *specific loadable* — unified list of all
+ * testcase IDs for table display in that loadable's surface. Returns
+ * server IDs first (excluding deleted), then new (local) IDs at the end.
+ *
+ * Reads from the per-loadable families introduced in Phase 3 of the
+ * testset-sync refactor. Surfaces that own their loadableId should
+ * subscribe through this family rather than the legacy global
+ * `displayRowIdsAtom`, which can drift when two surfaces coexist
+ * (e.g., app playground + evaluator drawer).
+ */
+const displayRowIdsByLoadableAtomFamily = atomFamily((loadableId: string) =>
+    atom((get): string[] => {
+        const newIds = get(newEntityIdsByLoadableAtomFamily(loadableId))
+        const serverIds = get(testcaseIdsByLoadableAtomFamily(loadableId))
+        const deletedIds = get(deletedEntityIdsByLoadableAtomFamily(loadableId))
+
+        const activeServerIds = serverIds.filter((id) => !deletedIds.has(id))
+        return [...activeServerIds, ...newIds]
+    }),
+)
+
+/**
  * Display row IDs - unified list of all testcase IDs for table display
  *
  * Returns new (local) IDs first, then server IDs (excluding deleted).
  * This is the single source of truth for what rows to display in the table.
  *
  * Entity Uniformity: Both local and server entities are accessed via the same API.
+ *
+ * @deprecated — prefer `displayRowIdsByLoadableAtomFamily(loadableId)`
+ * so the read is scoped to your surface's loadable. The global view is a
+ * derived alias of the family at the "current loadable" tracker, which
+ * can drift when two surfaces are mounted simultaneously.
  */
 const displayRowIdsAtom = atom((get) => {
     const newIds = get(newEntityIdsAtom)
@@ -598,14 +629,48 @@ const extendedMolecule = extendMolecule(baseMolecule, {
     atoms: {
         /** Cell value accessor for fine-grained table subscriptions */
         cell: testcaseCellAtomFamily,
-        /** Server testcase IDs */
+        /**
+         * Server testcase IDs (legacy global view — current loadable).
+         * @deprecated prefer `idsForLoadable` with an explicit loadableId.
+         */
         ids: testcaseIdsAtom,
-        /** New entity IDs (local only) */
+        /**
+         * New entity IDs (local only) — legacy global view.
+         * @deprecated prefer `newIdsForLoadable`.
+         */
         newIds: newEntityIdsAtom,
-        /** Deleted entity IDs (pending save) */
+        /**
+         * Deleted entity IDs (pending save) — legacy global view.
+         * @deprecated prefer `deletedIdsForLoadable`.
+         */
         deletedIds: deletedEntityIdsAtom,
-        /** Display row IDs - unified list (new first, then server, excluding deleted) */
+        /**
+         * Display row IDs - unified list (new first, then server,
+         * excluding deleted) — legacy global view.
+         * @deprecated prefer `displayRowIdsForLoadable` with an explicit
+         * loadableId.
+         */
         displayRowIds: displayRowIdsAtom,
+        /**
+         * Per-loadable server testcase IDs. Prefer this over `ids` so the
+         * read is scoped to your surface's loadable.
+         */
+        idsForLoadable: testcaseIdsByLoadableAtomFamily,
+        /**
+         * Per-loadable locally-created entity IDs. Prefer this over
+         * `newIds`.
+         */
+        newIdsForLoadable: newEntityIdsByLoadableAtomFamily,
+        /**
+         * Per-loadable soft-deleted entity IDs. Prefer this over
+         * `deletedIds`.
+         */
+        deletedIdsForLoadable: deletedEntityIdsByLoadableAtomFamily,
+        /**
+         * Per-loadable display row IDs (server minus deleted, then new).
+         * Prefer this over `displayRowIds`.
+         */
+        displayRowIdsForLoadable: displayRowIdsByLoadableAtomFamily,
         /** Current revision ID */
         revisionId: currentRevisionIdAtom,
         /** Has any dirty testcase */

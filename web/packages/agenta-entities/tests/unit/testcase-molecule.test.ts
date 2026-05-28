@@ -21,11 +21,25 @@ import {describe, it, expect} from "vitest"
 import {createStore} from "jotai"
 
 import {testcaseMolecule} from "../../src/testcase/state/molecule"
+import {currentLoadableIdForIdsAtom} from "../../src/testcase/state/store"
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Stable test-only loadable id. Every test uses a fresh store, so they can
+ * share this key without bleeding state between tests.
+ */
+const TEST_LOADABLE_ID = "test-loadable"
+
 function freshStore() {
-    return createStore()
+    const store = createStore()
+    // Phase 3 refactor — the legacy global ids/newIds/deletedIds atoms
+    // are now derived views of per-loadable families, anchored on
+    // `currentLoadableIdForIdsAtom`. Seed it so the global setters (used
+    // by molecule actions) write into a real bucket; otherwise they
+    // no-op and the asserts on the global views see empty arrays.
+    store.set(currentLoadableIdForIdsAtom, TEST_LOADABLE_ID)
+    return store
 }
 
 // ── Molecule shape ────────────────────────────────────────────────────────────

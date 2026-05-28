@@ -43,15 +43,15 @@ import {loadableColumnsFromRunnableAtomFamily} from "../runnable/bridge"
 import {SYSTEM_FIELDS, type Testcase} from "../testcase/core"
 import {testcaseMolecule} from "../testcase/state/molecule"
 import {
-    setTestcaseIdsAtom,
-    resetTestcaseIdsAtom,
-    clearNewEntityIdsAtom,
     currentRevisionIdAtom,
-    deletedEntityIdsAtom,
+    currentLoadableIdForIdsAtom,
     markDeletedAtom,
-    newEntityIdsAtom,
     setCurrentRevisionIdAtom,
-    clearDeletedIdsAtom,
+    // Per-loadable setters / families (Phase 3 — cross-loadable pollution fix)
+    setTestcaseIdsForLoadableAtom,
+    resetTestcaseIdsForLoadableAtom,
+    clearNewEntityIdsForLoadableAtom,
+    clearDeletedIdsForLoadableAtom,
     testcaseDraftAtomFamily,
 } from "../testcase/state/store"
 import {pendingColumnOpsAtomFamily} from "../testset/state"
@@ -270,7 +270,7 @@ const connectedRowsAtomFamily = atomFamily((loadableId: string) =>
         }
 
         // Always derive from testcaseMolecule - unified entity system for local and connected
-        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
 
         // Filter out hidden testcase IDs (UI-only filter, doesn't affect testset data)
         const hiddenIds = state.hiddenTestcaseIds
@@ -353,7 +353,7 @@ const connectedRowsAtomFamily = atomFamily((loadableId: string) =>
 const displayRowIdsAtomFamily = atomFamily((loadableId: string) =>
     atom((get) => {
         const state = get(loadableStateAtomFamily(loadableId))
-        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
 
         // Filter out hidden testcase IDs (UI-only filter, doesn't affect testset data)
         const hiddenIds = state.hiddenTestcaseIds
@@ -365,9 +365,9 @@ const displayRowIdsAtomFamily = atomFamily((loadableId: string) =>
  * Total row count for a loadable (including hidden testcases).
  * Used to display "displayed / total" in the UI when some testcases are hidden.
  */
-const totalRowCountAtomFamily = atomFamily((_loadableId: string) =>
+const totalRowCountAtomFamily = atomFamily((loadableId: string) =>
     atom((get) => {
-        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
         return allDisplayRowIds.length
     }),
 )
@@ -387,7 +387,7 @@ const allRowsIncludingHiddenAtomFamily = atomFamily((loadableId: string) =>
         const expectedKeys = new Set(expectedColumns.map((c) => c.key))
 
         // Get ALL display row IDs (not filtered by hidden)
-        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
 
         return allDisplayRowIds.map((id) => {
             const entity = get(testcaseMolecule.data(id))
@@ -448,8 +448,8 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
         }
 
         // Check if there are any new or deleted entities
-        const newEntityIds = get(newEntityIdsAtom)
-        const deletedEntityIds = get(deletedEntityIdsAtom)
+        const newEntityIds = get(testcaseMolecule.atoms.newIdsForLoadable(loadableId))
+        const deletedEntityIds = get(testcaseMolecule.atoms.deletedIdsForLoadable(loadableId))
         if (newEntityIds.length > 0 || deletedEntityIds.size > 0) {
             return true
         }
@@ -463,7 +463,7 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
         }
 
         // Check if any testcase has been edited using entity-level isDirty
-        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const displayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
         for (const id of displayRowIds) {
             const isDirty = get(testcaseMolecule.isDirty(id))
             if (isDirty) {
@@ -496,7 +496,7 @@ const newColumnKeysAtomFamily = atomFamily((loadableId: string) =>
         const expectedColumns = get(loadableColumnsFromRunnableAtomFamily(loadableId))
         const expectedKeys = new Set(expectedColumns.map((c) => c.key))
 
-        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const displayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
         if (displayRowIds.length === 0) return []
 
         // Check first row to determine original keys - use SERVER data, not merged data
@@ -563,7 +563,7 @@ export const derivedColumnChangesAtomFamily = atomFamily((loadableId: string) =>
         }
 
         // Get server columns from testcase data
-        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const displayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
         if (displayRowIds.length === 0) {
             // No testcases - all expected columns are "new"
             return {added: [...expectedKeys], removed: []}
@@ -639,7 +639,7 @@ const removeRowAtom = atom(null, (get, set, loadableId: string, rowId: string) =
     newHiddenIds.add(rowId)
 
     // Update active row if needed
-    const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+    const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
     const remaining = allDisplayRowIds.filter((id) => id !== rowId && !newHiddenIds.has(id))
     const newActiveRowId = state.activeRowId === rowId ? (remaining[0] ?? null) : state.activeRowId
 
@@ -679,7 +679,9 @@ const importRowsAtom = atom(
         const newHiddenIds = new Set(state.hiddenTestcaseIds)
 
         // Get existing testcase IDs to check for duplicates
-        const existingIds = new Set(get(testcaseMolecule.atoms.displayRowIds))
+        const existingIds = new Set(
+            get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId)),
+        )
 
         // Add each testcase as a new local entity (or unhide if already exists)
         for (const tc of testcases) {
@@ -748,7 +750,7 @@ const setRowsAtom = atom(null, (get, set, loadableId: string, rows: TestsetRow[]
     const state = get(loadableStateAtomFamily(loadableId))
 
     // Clear existing testcase entities first
-    const existingIds = get(testcaseMolecule.atoms.displayRowIds)
+    const existingIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
     for (const id of existingIds) {
         set(testcaseMolecule.actions.delete, id)
     }
@@ -760,7 +762,7 @@ const setRowsAtom = atom(null, (get, set, loadableId: string, rows: TestsetRow[]
     }
 
     // Update active row
-    const newDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+    const newDisplayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
     set(loadableStateAtomFamily(loadableId), {
         ...state,
         activeRowId: newDisplayRowIds.length > 0 ? newDisplayRowIds[0] : null,
@@ -774,7 +776,7 @@ const clearRowsAtom = atom(null, (get, set, loadableId: string) => {
     const state = get(loadableStateAtomFamily(loadableId))
 
     // Delete all testcase entities
-    const existingIds = get(testcaseMolecule.atoms.displayRowIds)
+    const existingIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
     for (const id of existingIds) {
         set(testcaseMolecule.actions.delete, id)
     }
@@ -796,19 +798,19 @@ const resetRowsForPlaygroundClearAtom = atom(null, (get, set, loadableId: string
     const state = get(loadableStateAtomFamily(loadableId))
 
     if (state.connectedSourceId) {
-        const newIds = get(newEntityIdsAtom)
+        const newIds = get(testcaseMolecule.atoms.newIdsForLoadable(loadableId))
         const newIdSet = new Set(newIds)
         for (const id of newIds) {
             set(testcaseMolecule.actions.delete, id)
         }
 
-        set(clearDeletedIdsAtom)
+        set(clearDeletedIdsForLoadableAtom, loadableId)
         set(testcaseMolecule.actions.discardAll)
 
         const hiddenTestcaseIds = new Set(
             [...state.hiddenTestcaseIds].filter((id) => !newIdSet.has(id)),
         )
-        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const displayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
         const visibleRowIds = displayRowIds.filter((id) => !hiddenTestcaseIds.has(id))
 
         set(loadableStateAtomFamily(loadableId), {
@@ -820,14 +822,14 @@ const resetRowsForPlaygroundClearAtom = atom(null, (get, set, loadableId: string
         return
     }
 
-    const existingIds = get(testcaseMolecule.atoms.displayRowIds)
+    const existingIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
     for (const id of existingIds) {
         set(testcaseMolecule.actions.delete, id)
     }
 
-    set(resetTestcaseIdsAtom)
-    set(clearNewEntityIdsAtom)
-    set(clearDeletedIdsAtom)
+    set(resetTestcaseIdsForLoadableAtom, loadableId)
+    set(clearNewEntityIdsForLoadableAtom, loadableId)
+    set(clearDeletedIdsForLoadableAtom, loadableId)
 
     const result = set(testcaseMolecule.actions.add, {data: {}})
 
@@ -870,7 +872,7 @@ const initializeWithColumnsAtom = atom(
         })
 
         // Check if we need to create an initial row
-        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const displayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
         const shouldAddRow = displayRowIds.length === 0 && !state.connectedSourceId
 
         // Update columns in state
@@ -900,7 +902,7 @@ const addColumnAtom = atom(null, (get, set, loadableId: string, column: TestsetC
     })
 
     // Add empty value to all testcase entities
-    const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+    const displayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
     for (const rowId of displayRowIds) {
         set(testcaseMolecule.actions.update, rowId, {[column.key]: ""})
     }
@@ -946,11 +948,14 @@ const connectToSourceAtom = atom(
         const queryClient = get(queryClientAtom)
         const projectId = get(projectIdAtom)
 
-        // Clear local entities before connecting to a new source
-        // This ensures Replace mode fully replaces existing data
-        set(clearNewEntityIdsAtom)
-        set(clearDeletedIdsAtom)
-        set(resetTestcaseIdsAtom)
+        // Phase 3 fix — clear the TARGETED loadable's ids, not the global
+        // bucket. Pre-refactor these were global resets, which meant
+        // connecting loadable B would silently wipe loadable A's rows
+        // even though A's connection metadata stayed truthy. That was the
+        // root cause of the "connected but empty" symptom.
+        set(clearNewEntityIdsForLoadableAtom, loadableId)
+        set(clearDeletedIdsForLoadableAtom, loadableId)
+        set(resetTestcaseIdsForLoadableAtom, loadableId)
 
         // If testcases provided, populate query cache + drafts and set IDs
         // Note: Testcases are stored in nested Testcase format
@@ -965,8 +970,15 @@ const connectToSourceAtom = atom(
                 ids.push(tc.id)
             }
             // Reset and set testcase IDs so displayRowIds picks them up
-            set(setTestcaseIdsAtom, ids)
+            set(setTestcaseIdsForLoadableAtom, loadableId, ids)
         }
+
+        // Update the "current loadable" tracker so legacy global views
+        // (`testcaseIdsAtom`, `newEntityIdsAtom`, `displayRowIdsAtom`,
+        // etc.) read this loadable's bucket. Migrated consumers should
+        // subscribe to `*ByLoadableAtomFamily(loadableId)` directly so
+        // they never depend on this tracker.
+        set(currentLoadableIdForIdsAtom, loadableId)
 
         set(loadableStateAtomFamily(loadableId), {
             ...state,
@@ -1007,8 +1019,18 @@ const disconnectAtom = atom(null, (get, set, loadableId: string) => {
     })
     // Clear currentRevisionIdAtom since we're no longer connected
     set(setCurrentRevisionIdAtom, null)
-    // Reset testcase IDs - these were populated when connecting to a source
-    set(resetTestcaseIdsAtom)
+    // Phase 3 fix — clear only the TARGETED loadable's ids (and new /
+    // deleted scratch sets). Pre-refactor this called the global
+    // `resetTestcaseIdsAtom`, which wiped any other loadable's rows that
+    // happened to share the global store.
+    set(resetTestcaseIdsForLoadableAtom, loadableId)
+    set(clearNewEntityIdsForLoadableAtom, loadableId)
+    set(clearDeletedIdsForLoadableAtom, loadableId)
+    // If this loadable was the "current" tracker target, drop the
+    // pointer so legacy global views return empty instead of stale data.
+    if (get(currentLoadableIdForIdsAtom) === loadableId) {
+        set(currentLoadableIdForIdsAtom, null)
+    }
 })
 
 /**
@@ -1028,7 +1050,7 @@ const updateTestcaseSelectionAtom = atom(
         const selectedSet = new Set(selectedIds)
 
         // Get all testcase IDs (including hidden ones) to determine what's being deselected
-        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
 
         // Calculate new hidden set:
         // - Remove from hidden: IDs that are now selected (unhide)
@@ -1047,13 +1069,15 @@ const updateTestcaseSelectionAtom = atom(
             hiddenTestcaseIds: newHiddenIds,
         })
 
-        // Only update testcaseIdsAtom for CONNECTED mode (server testcases)
-        // For local testsets, the IDs are already in newEntityIdsAtom and
-        // displayRowIds combines both. Calling setTestcaseIdsAtom would cause duplicates.
+        // Only update testcase ids for CONNECTED mode (server testcases).
+        // For local testsets, the IDs already live in
+        // `newEntityIdsByLoadableAtomFamily(loadableId)` and `displayRowIds`
+        // combines both — calling the setter would cause duplicates.
         if (state.connectedSourceId) {
-            // Reset first, then set - setTestcaseIdsAtom appends, so we need to clear first
-            set(resetTestcaseIdsAtom)
-            set(setTestcaseIdsAtom, selectedIds)
+            // Reset first, then set — the setter appends, so we need to
+            // clear first. Both operations target THIS loadable only.
+            set(resetTestcaseIdsForLoadableAtom, loadableId)
+            set(setTestcaseIdsForLoadableAtom, loadableId, selectedIds)
         }
     },
 )
@@ -1071,7 +1095,7 @@ const discardChangesAtom = atom(null, (get, set, loadableId: string) => {
     }
 
     // LOCAL: Clear local testcase entities
-    const existingIds = get(testcaseMolecule.atoms.displayRowIds)
+    const existingIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
     for (const id of existingIds) {
         set(testcaseMolecule.actions.delete, id)
     }
@@ -1353,7 +1377,7 @@ const linkToRunnableAtom = atom(
         const state = get(loadableStateAtomFamily(loadableId))
 
         // Check if we need to create an initial row
-        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const displayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
         const shouldAddRow =
             displayRowIds.length === 0 && !state.connectedSourceId && !options?.skipInitialRow
 
@@ -2182,7 +2206,7 @@ const newColumnsFromOutputMappingsAtomFamily = atomFamily((loadableId: string) =
 
         // Also check testcase data for existing columns
         if (state.connectedSourceId) {
-            const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+            const displayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
             if (displayRowIds.length > 0) {
                 const firstRow = get(testcaseMolecule.selectors.serverData(displayRowIds[0]))
                 if (firstRow) {
@@ -2239,7 +2263,7 @@ const initializeDefaultOutputMappingsAtom = atom(null, (get, set, loadableId: st
 
     // For new columns, add them to testcase data so they appear in the UI
     // This is similar to what addColumnAtom does
-    const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+    const displayRowIds = get(testcaseMolecule.atoms.displayRowIdsForLoadable(loadableId))
     for (const mapping of newMappings) {
         if (mapping.isNewColumn && mapping.targetColumn) {
             // Add empty value to all testcase rows
