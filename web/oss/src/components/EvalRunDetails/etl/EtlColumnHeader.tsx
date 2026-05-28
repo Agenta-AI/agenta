@@ -90,17 +90,24 @@ const EtlColumnHeader = ({group, runId}: EtlColumnHeaderProps) => {
     }, [group, evaluatorsQuery.data])
 
     const label = useMemo(() => {
+        // Each non-"other" group is prefixed with its kind ("Testset: …",
+        // "Application: …", "Evaluator: …") so the header reads as a
+        // self-describing pair. Falls back to the slug (or the existing
+        // slug-titled label for evaluator) when the entity name hasn't
+        // loaded — we use `group.slug` directly here, not `group.label`,
+        // because the default labels already embed the kind word and
+        // would double-prefix (e.g. "Testset: Testset completion-tst").
         switch (group.kind) {
             case "testset":
-                return name ? `Testset ${name}` : group.label
+                return `Testset: ${name ?? group.slug ?? "—"}`
             case "application":
-                return name ? `Application ${name}` : group.label
+                return `Application: ${name ?? group.slug ?? "—"}`
             case "evaluator":
-                return evaluatorName ?? group.label
+                return `Evaluator: ${evaluatorName ?? group.label}`
             default:
                 return group.label
         }
-    }, [group.kind, group.label, name, evaluatorName])
+    }, [group.kind, group.label, group.slug, name, evaluatorName])
 
     return (
         <Tooltip title={label} placement="top">
