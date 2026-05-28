@@ -18,16 +18,25 @@ const initialSnapshot: AppStateSnapshot = {
     timestamp: Date.now(),
 }
 
-// Eagerly initialize projectIdAtom and sessionAtom from the URL-parsed initial location.
-// This ensures entity package queries (which depend on both atoms) are enabled
-// during the very first render pass, before React effects fire.
-// Without this, these atoms stay at their defaults (null / false) until the effect phase,
-// causing entity queries to stay disabled — especially on pages like evaluations
-// where queries depend on sessionAtom + projectIdAtom being set.
+// Eagerly initialize projectIdAtom and sessionAtom from the URL-parsed initial
+// location. Both entity-package queries and oss queries gate on these atoms,
+// and now share a single sessionAtom (oss's sessionExistsAtom is a re-export
+// of @agenta/shared/state's sessionAtom — see state/session/atoms.ts). Setting
+// it once here unblocks every gated query on the first render pass, before
+// React effects fire.
 //
-// If a projectId is present in the URL, the user must be on an authenticated route
-// (ProtectedRoute guards all /w/.../p/... pages), so we can safely pre-set sessionAtom.
-// SessionListener will confirm the real auth state once React effects fire.
+// Without this, the atoms stay at their defaults (null / false) until
+// SessionListener's effect runs, which produces a visible flake:
+// projectsQueryAtom is gated on sessionExistsAtom, so the demo-workspace
+// banner (which needs project?.is_demo) can't render until the effect tick
+// completes and the projects fetch returns. That's the "banner missing on
+// reload" race users have reported.
+//
+// If a projectId is present in the URL, the user must be on an authenticated
+// route (ProtectedRoute guards all /w/.../p/... pages), so we can safely
+// pre-set sessionAtom. SessionListener will confirm the real auth state once
+// React effects fire — if it's actually false, ProtectedRoute redirects to
+// login before the optimistic queries matter.
 if (initialParsedLocation.projectId) {
     const store = getDefaultStore()
     store.set(projectIdAtom, initialParsedLocation.projectId)

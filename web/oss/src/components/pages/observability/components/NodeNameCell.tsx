@@ -1,10 +1,8 @@
 import {memo} from "react"
 
-import {Space, Tooltip, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {Typography} from "antd"
 
 import {SpanCategory} from "@/oss/services/tracing/types"
-import {nodeDisplayNameAtomFamily} from "@/oss/state/newObservability"
 
 import {spanTypeStyles} from "../assets/constants"
 
@@ -14,24 +12,17 @@ interface Props {
 }
 
 const NodeNameCell = memo(({name, type}: Props) => {
-    const display = useAtomValue(nodeDisplayNameAtomFamily(name))
     const {icon: Icon} = spanTypeStyles[type ?? "undefined"]
 
     return (
-        <Space align="center" size={4}>
-            <div className="grid place-items-center">
+        <div className="flex items-center gap-1 min-w-0">
+            <div className="grid place-items-center shrink-0">
                 <Icon size={16} />
             </div>
-            <Typography>
-                {display.truncated ? (
-                    <Tooltip title={display.full} placement="bottom">
-                        {display.text}
-                    </Tooltip>
-                ) : (
-                    display.text
-                )}
-            </Typography>
-        </Space>
+            <Typography.Text ellipsis={{tooltip: name}} className="flex-1 min-w-0">
+                {name}
+            </Typography.Text>
+        </div>
     )
 })
 

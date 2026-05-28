@@ -114,21 +114,9 @@ const DeploymentDrawer = ({
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {
-        python: fetchConfigpythonCode(
-            currentApp?.slug ?? currentApp?.name ?? "",
-            selectedEnvironment?.name!,
-            "",
-        ),
-        bash: fetchConfigcURLCode(
-            currentApp?.slug ?? currentApp?.name ?? "",
-            selectedEnvironment?.name!,
-            "",
-        ),
-        typescript: fetchConfigtsCode(
-            currentApp?.slug ?? currentApp?.name ?? "",
-            selectedEnvironment?.name!,
-            "",
-        ),
+        python: fetchConfigpythonCode(currentApp?.slug ?? "", selectedEnvironment?.name!, ""),
+        bash: fetchConfigcURLCode(currentApp?.slug ?? "", selectedEnvironment?.name!, ""),
+        typescript: fetchConfigtsCode(currentApp?.slug ?? "", selectedEnvironment?.name!, ""),
     }
 
     const handleOpenSelectDeployVariantModal = () => {
@@ -307,7 +295,7 @@ const DeploymentDrawer = ({
                 environmentVariantId={entityEnv?.variant_id ?? null}
                 currentAppRevisionId={selectedEnvironment.deployedRevisionId ?? null}
                 appId={appId}
-                appSlug={currentApp?.slug ?? currentApp?.name ?? null}
+                appSlug={currentApp?.slug ?? null}
             />
         </>
     )
