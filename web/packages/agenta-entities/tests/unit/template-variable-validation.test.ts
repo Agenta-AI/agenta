@@ -53,6 +53,26 @@ describe("validateTemplateVariable", () => {
             expect(validateTemplateVariable("$.country").valid).toBe(true)
         })
 
+        // Post-mustache QA (Slack #release-v100, 2026-05-28): Mahmoud + JP
+        // aligned that the playground does NOT validate JSONPath roots
+        // against the envelope-slot list. Any well-formed `$.<segment>...`
+        // surfaces a variable named after the root segment. Format
+        // mismatches surface as runtime errors from the API, not UI errors.
+        // The previous "did you mean…?" typo-detection behaviour is gone.
+        it("accepts roots that prefix-match envelope slots (no typo gating)", () => {
+            // Previously rejected: `input`/`output`/`out` near-typos of slots.
+            expect(validateTemplateVariable("$.input.country").valid).toBe(true)
+            expect(validateTemplateVariable("$.output.answer").valid).toBe(true)
+            expect(validateTemplateVariable("$.out.iso").valid).toBe(true)
+        })
+
+        it("does not return a `suggestion` field for JSONPath", () => {
+            // Suggestion field is only emitted by the JSON Pointer branch
+            // post-2026-05-28. The JSONPath branch never returns it now.
+            expect(validateTemplateVariable("$.input.country").suggestion).toBeUndefined()
+            expect(validateTemplateVariable("$.output.answer").suggestion).toBeUndefined()
+        })
+
         it("accepts the bare root `$` (whole context as compact JSON)", () => {
             expect(validateTemplateVariable("$").valid).toBe(true)
         })
@@ -66,24 +86,24 @@ describe("validateTemplateVariable", () => {
             expect(result.reason).toMatch(/has no field/i)
         })
 
-        it("rejects when the root looks like a typo of an envelope slot", () => {
-            // `input` → `inputs`, `out` → `outputs` etc. These are the
-            // actionable typo hints the editor surfaces.
-            const inputTypo = validateTemplateVariable("$.input.country")
-            expect(inputTypo.valid).toBe(false)
-            expect(inputTypo.suggestion).toBe("inputs")
+        it("rejects `$<not-dot>...` (JSONPath root without dot)", () => {
+            // `$outputs.country` is not a JSONPath — JSONPath roots descend
+            // with `.` (or end at the bare `$`). Per Mahmoud's QA on the
+            // mustache rollout, typeahead steers users to insert the `.`
+            // automatically; this branch is the safety net for when a user
+            // bypasses typeahead and types or pastes a bare `$<name>` form.
+            const noDot = validateTemplateVariable("$outputs.country")
+            expect(noDot.valid).toBe(false)
+            expect(noDot.reason).toMatch(/must be followed by `\.`/i)
 
-            const outTypo = validateTemplateVariable("$.out.answer")
-            expect(outTypo.valid).toBe(false)
-            expect(outTypo.suggestion).toBe("outputs")
-        })
+            // Same for single-segment `$foo` — also rejected.
+            const noDotSingle = validateTemplateVariable("$foo")
+            expect(noDotSingle.valid).toBe(false)
+            expect(noDotSingle.reason).toMatch(/must be followed by `\.`/i)
 
-        it("rejects with a hint that mentions testcase-column escape", () => {
-            const result = validateTemplateVariable("$.input.country")
-            expect(result.reason).toMatch(/looks like a typo/i)
-            // The reason text should mention the testcase-column form so the
-            // user knows how to express it if `input` is actually their column.
-            expect(result.reason).toMatch(/testcase column/i)
+            // Same for `$1` or other non-dot characters.
+            expect(validateTemplateVariable("$1").valid).toBe(false)
+            expect(validateTemplateVariable("$[0]").valid).toBe(false)
         })
     })
 
