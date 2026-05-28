@@ -469,6 +469,8 @@ async def check_if_user_invitation_exists(email: str, organization_id: str):
             .where(
                 InvitationDB.email == email,
                 ProjectDB.organization_id == uuid.UUID(organization_id),
+                InvitationDB.used.is_(False),
+                InvitationDB.expiration_date > datetime.now(timezone.utc),
             )
         )
         user_invitation = result.scalars().first()
@@ -1371,7 +1373,7 @@ async def get_project_invitation_by_email(project_id: str, email: str) -> Invita
 async def get_project_invitation_by_organization_and_email(
     organization_id: str,
     email: str,
-) -> InvitationDB:
+) -> Optional[InvitationDB]:
     """Get an invitation by organization and email, regardless of project."""
 
     async with engine.core_session() as session:
@@ -1564,7 +1566,7 @@ async def get_project_invitation_by_organization_token_and_email(
     organization_id: str,
     token: str,
     email: str,
-) -> InvitationDB:
+) -> Optional[InvitationDB]:
     """Get an invitation by organization, token, and email, regardless of project."""
 
     async with engine.core_session() as session:

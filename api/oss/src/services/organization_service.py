@@ -106,8 +106,10 @@ async def check_valid_organization_invitation(
             organization_id=organization_id, token=token, email=email
         )
     )
-    if invitation is not None and invitation.expiration_date > datetime.now(
-        timezone.utc
+    if (
+        invitation is not None
+        and not invitation.used
+        and invitation.expiration_date > datetime.now(timezone.utc)
     ):
         return invitation
 
