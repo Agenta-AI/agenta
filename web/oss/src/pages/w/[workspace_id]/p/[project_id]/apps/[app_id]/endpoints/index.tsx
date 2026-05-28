@@ -125,7 +125,7 @@ export const createParams = (
         inputs["messages"] = [{role: "user", content: ""}]
     }
 
-    const appSlug = app?.name ?? app?.slug
+    const appSlug = app?.slug ?? undefined
     const params: GenericObject = {
         data: {inputs},
         references: {
