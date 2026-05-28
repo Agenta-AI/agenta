@@ -77,19 +77,27 @@ export const useEtlColumns = ({
         // per-row scalar representation. They remain visible in the focus
         // drawer (FocusDrawer reads `columnResult` directly, bypassing
         // this hook).
+        //
+        // The filter is restricted to `evaluator` leaves because
+        // `buildColumnValueTypeResolver` falls back to a column-name-only
+        // lookup — without the kind guard, a same-named testset /
+        // application / other column would inherit the evaluator's
+        // `metricType` and be incorrectly dropped.
         const resolveValueType = buildColumnValueTypeResolver(columnResult ?? undefined)
         const grouped = groupRunColumns(schema.steps, schema.mappings)
             .filter((g) => g.group.kind !== "metrics")
             .map((g) => ({
                 ...g,
-                columns: g.columns.filter(
-                    (leaf) =>
+                columns: g.columns.filter((leaf) => {
+                    if (leaf.kind !== "evaluator") return true
+                    return (
                         resolveValueType({
                             groupKind: leaf.kind,
                             groupSlug: leaf.groupSlug,
                             columnName: leaf.name,
-                        }) !== "string",
-                ),
+                        }) !== "string"
+                    )
+                }),
             }))
             .filter((g) => g.columns.length > 0)
 
