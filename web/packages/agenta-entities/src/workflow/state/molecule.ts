@@ -911,7 +911,17 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                     const sectionOpeners = extractSectionOpenersFromConfig(
                         params as Record<string, unknown>,
                     )
-                    return groupTemplateVariables(vars, {sectionOpeners})
+                    // Resolve the workflow-level template_format so the
+                    // grouper can apply format-aware parsing (curly →
+                    // literal-key dotted names; mustache/jinja2 → nested).
+                    // See parseTemplateExpression docstring + Slack QA on
+                    // 2026-05-28 ("did curly still behave as curly?").
+                    const promptObj = params.prompt as Record<string, unknown> | undefined
+                    const rawTf =
+                        (promptObj?.template_format as string | undefined) ??
+                        ((params as Record<string, unknown>).template_format as string | undefined)
+                    const templateFormat = resolveTemplateFormat(rawTf) ?? undefined
+                    return groupTemplateVariables(vars, {sectionOpeners, templateFormat})
                         .filter((group) => group.envelope === "inputs")
                         .map((group) => ({
                             key: group.key,
@@ -962,7 +972,15 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                 const sectionOpeners = extractSectionOpenersFromConfig(
                     params as Record<string, unknown>,
                 )
-                return groupTemplateVariables(vars, {sectionOpeners})
+                // Same format resolution as the `is_base` branch above —
+                // workflow-level template_format steers literal-vs-nested
+                // dot parsing for plain `{{foo.bar}}` placeholders.
+                const promptObj = params.prompt as Record<string, unknown> | undefined
+                const rawTf =
+                    (promptObj?.template_format as string | undefined) ??
+                    ((params as Record<string, unknown>).template_format as string | undefined)
+                const templateFormat = resolveTemplateFormat(rawTf) ?? undefined
+                return groupTemplateVariables(vars, {sectionOpeners, templateFormat})
                     .filter((group) => group.envelope === "inputs")
                     .map((group) => ({
                         key: group.key,

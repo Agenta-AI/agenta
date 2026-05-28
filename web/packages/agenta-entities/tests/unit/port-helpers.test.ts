@@ -211,6 +211,121 @@ describe("groupTemplateVariables", () => {
         expect(result[0].subPaths).toContain("region")
     })
 
+    describe("templateFormat — plain dot-notation parsing", () => {
+        // Background: backend curly does literal-key-first lookup
+        // (sdks/python/agenta/sdk/utils/resolvers.py:46-50). A curly user
+        // authoring `{{user.name}}` typically means a column LITERALLY named
+        // `"user.name"`, and legacy curly testsets carry such dotted column
+        // names. The other formats (mustache / jinja2) parse `{{user.name}}`
+        // as nested by their spec.
+        //
+        // JSONPath and JSON Pointer paths stay nested regardless of format —
+        // the backend treats `$.*` / `/*` identically across modes.
+
+        it("curly: plain dotted names become literal single keys", () => {
+            const result = groupTemplateVariables(["user.name"], {
+                templateFormat: "curly",
+            })
+            expect(result).toHaveLength(1)
+            expect(result[0]).toMatchObject({
+                envelope: "inputs",
+                key: "user.name",
+                type: "string",
+            })
+            expect(result[0].subPaths).toBeUndefined()
+        })
+
+        it("curly: deep dotted names stay as a single literal key", () => {
+            const result = groupTemplateVariables(["topic.story.title"], {
+                templateFormat: "curly",
+            })
+            expect(result).toHaveLength(1)
+            expect(result[0].key).toBe("topic.story.title")
+            expect(result[0].subPaths).toBeUndefined()
+        })
+
+        it("curly: envelope-rooted dot paths still route through the envelope", () => {
+            // `inputs.country` — first segment IS a known envelope slot, so
+            // the literal-key fallback does NOT kick in. The envelope route
+            // takes precedence so `inputs.country` and `$.inputs.country`
+            // produce the same shape.
+            const result = groupTemplateVariables(["inputs.country"], {
+                templateFormat: "curly",
+            })
+            expect(result).toHaveLength(1)
+            expect(result[0]).toMatchObject({
+                envelope: "inputs",
+                key: "country",
+            })
+        })
+
+        it("curly: JSONPath placeholders still parse as nested", () => {
+            // `$.user.name` is JSONPath — backend treats it identically across
+            // formats per templating.py docstring. Stay nested.
+            const result = groupTemplateVariables(["$.user.name"], {
+                templateFormat: "curly",
+            })
+            expect(result).toHaveLength(1)
+            expect(result[0].envelope).toBe("inputs")
+            expect(result[0].key).toBe("user")
+            expect(result[0].subPaths).toContain("name")
+        })
+
+        it("mustache: plain dotted names parse as nested (spec-conformant)", () => {
+            const result = groupTemplateVariables(["user.name"], {
+                templateFormat: "mustache",
+            })
+            expect(result).toHaveLength(1)
+            expect(result[0]).toMatchObject({
+                envelope: "inputs",
+                key: "user",
+                type: "object",
+            })
+            expect(result[0].subPaths).toContain("name")
+        })
+
+        it("jinja2: plain dotted names parse as nested (attribute/item access)", () => {
+            const result = groupTemplateVariables(["user.name"], {
+                templateFormat: "jinja2",
+            })
+            expect(result).toHaveLength(1)
+            expect(result[0].key).toBe("user")
+            expect(result[0].subPaths).toContain("name")
+        })
+
+        it("no format specified: defaults to nested (backward-compat)", () => {
+            // Callers that don't pass templateFormat keep the pre-2026-05-28
+            // behaviour: nested dot-notation. Important so older call sites
+            // and tests don't silently flip semantics on us.
+            const result = groupTemplateVariables(["user.name"])
+            expect(result).toHaveLength(1)
+            expect(result[0].key).toBe("user")
+            expect(result[0].subPaths).toContain("name")
+        })
+
+        it("curly: deduplicates literal-key references across sub-paths", () => {
+            // Two placeholders that both name the literal key `"user.name"`.
+            // groupTemplateVariables should collapse to ONE port — same key
+            // identity, no spurious sub-paths.
+            const result = groupTemplateVariables(["user.name", "user.name"], {
+                templateFormat: "curly",
+            })
+            expect(result).toHaveLength(1)
+            expect(result[0].key).toBe("user.name")
+            expect(result[0].subPaths).toBeUndefined()
+        })
+
+        it("curly: a mix of literal-dotted and plain names yields distinct ports", () => {
+            // `country` → plain port; `user.name` → literal-key port. Two
+            // distinct entries, no nesting between them.
+            const result = groupTemplateVariables(["country", "user.name"], {
+                templateFormat: "curly",
+            })
+            expect(result).toHaveLength(2)
+            expect(result.map((g) => g.key).sort()).toEqual(["country", "user.name"])
+        })
+    })
+
     describe("sectionOpeners hint (mustache iteration intent)", () => {
         it("marks a section-opener-only name as `array`", () => {
             // `{{#languages}}{{.}}{{/languages}}` extracts `languages` as a
