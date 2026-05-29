@@ -142,13 +142,9 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         }
     }, [revisionList, selectedRevisionId, selectedVariantId])
 
-    const variantSlug =
-        selectedVariant?.slug ||
-        selectedVariant?.name ||
-        selectedRevision?.name ||
-        "my-variant-slug"
+    const variantSlug = selectedVariant?.slug || "my-variant-slug"
     const variantVersion = selectedRevision?.version ?? latestRevision?.version ?? 1
-    const appSlug = currentApp?.slug || currentApp?.name || "my-app-slug"
+    const appSlug = currentApp?.slug || "my-app-slug"
     const apiKey = apiKeyValue || "YOUR_API_KEY"
 
     const invokeLlmUrl = (uri && uri.trim()) || ""
@@ -184,7 +180,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
 
     const fetchConfigCodeSnippet = useMemo(
         () => ({
-            python: buildPythonSnippet(appSlug, variantSlug, variantVersion),
+            python: buildPythonSnippet(appSlug, variantSlug, variantVersion, apiKey),
             typescript: buildTypescriptSnippet(appSlug, variantSlug, variantVersion, apiKey),
             bash: buildCurlSnippet(appSlug, variantSlug, variantVersion, apiKey),
         }),
@@ -193,11 +189,11 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
 
     const invokeLlmAppCodeSnippet = useMemo(
         () => ({
-            python: invokeLlmApppythonCode(invokeLlmUrl, params, apiKeyValue || "x.xxxxxxxx"),
-            bash: invokeLlmAppcURLCode(invokeLlmUrl, params, apiKeyValue || "x.xxxxxxxx"),
-            typescript: invokeLlmApptsCode(invokeLlmUrl, params, apiKeyValue || "x.xxxxxxxx"),
+            python: invokeLlmApppythonCode(invokeLlmUrl, params, apiKey),
+            bash: invokeLlmAppcURLCode(invokeLlmUrl, params, apiKey),
+            typescript: invokeLlmApptsCode(invokeLlmUrl, params, apiKey),
         }),
-        [apiKeyValue, invokeLlmUrl, params],
+        [apiKey, invokeLlmUrl, params],
     )
 
     const renderTabChildren = useCallback(() => {

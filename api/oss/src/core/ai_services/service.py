@@ -127,7 +127,7 @@ def _validate_messages(messages: Any) -> bool:
 class AIServicesService:
     @classmethod
     def from_env(cls) -> "AIServicesService":
-        config = env.ai_services
+        config = env.agenta.ai_services
 
         if not config.enabled:
             return cls(config=config, client=None)

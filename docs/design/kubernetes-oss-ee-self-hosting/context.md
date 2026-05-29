@@ -5,7 +5,7 @@
 Agenta already has:
 
 - a Docker Compose deployment path for OSS and EE
-- a Kubernetes Helm chart and guide for OSS
+- a Helm chart and Kubernetes guide for OSS
 
 But the Kubernetes path is currently OSS-specific and behind the current runtime topology. We want a clean self-hosting story on Kubernetes for both OSS and EE.
 
@@ -33,4 +33,4 @@ But the Kubernetes path is currently OSS-specific and behind the current runtime
 
 ## User-facing direction
 
-The desired end state is a unified Kubernetes chart flow that supports both OSS and EE using `AGENTA_LICENSE`, with curated example values files for each mode.
+The desired end state is a unified Helm chart flow that supports both OSS and EE using `AGENTA_LICENSE`, with curated example values files for each mode.

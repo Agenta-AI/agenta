@@ -39,7 +39,8 @@ def execute_code_safely(
     Execute the provided code safely.
 
     Uses the configured runner (local or remote Daytona)
-    based on the AGENTA_SERVICES_SANDBOX_RUNNER environment variable.
+    based on the AGENTA_SERVICES_CODE_SANDBOX_RUNNER environment variable
+    (legacy AGENTA_SERVICES_SANDBOX_RUNNER still accepted as fallback).
 
     Args:
         - app_params (Dict[str, Any]): The parameters of the app variant. (v1 only)

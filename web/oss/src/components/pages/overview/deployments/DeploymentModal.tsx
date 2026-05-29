@@ -62,7 +62,10 @@ const DeploymentModal = ({
                 environmentSlug: selectedEnvironment.name,
                 applicationId: selectedVariant.workflow_id || "",
                 workflowVariantId: selectedVariant.workflow_variant_id ?? undefined,
-                variantSlug: selectedVariant.slug ?? undefined,
+                variantSlug:
+                    selectedVariant.workflow_variant_slug ??
+                    selectedVariant.variant_slug ??
+                    undefined,
                 revisionVersion: selectedVariant.version ?? undefined,
             })
             message.success(`Published ${selectedVariant.name} to ${selectedEnvironment.name}`)

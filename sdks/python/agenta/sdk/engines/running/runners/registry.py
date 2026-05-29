@@ -18,7 +18,8 @@ def get_runner() -> CodeRunner:
     """
     Registry to get the appropriate code runner based on environment configuration.
 
-    Uses AGENTA_SERVICES_SANDBOX_RUNNER environment variable:
+    Reads AGENTA_SERVICES_CODE_SANDBOX_RUNNER (canonical, v0.100.3+) with a
+    fallback to the legacy AGENTA_SERVICES_SANDBOX_RUNNER.
     - "local" (default): Uses current container for local execution
     - "daytona": Uses Daytona remote sandbox
 
@@ -28,7 +29,11 @@ def get_runner() -> CodeRunner:
     Raises:
         ValueError: If Daytona runner is selected but required environment variables are missing
     """
-    runner_type = os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER", "local").lower()
+    runner_type = (
+        os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
+        or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
+        or "local"
+    ).lower()
 
     if runner_type == "daytona":
         try:
@@ -37,12 +42,12 @@ def get_runner() -> CodeRunner:
             raise ValueError(
                 "Daytona runner requires the 'daytona' package. "
                 "Install optional dependencies or set "
-                "AGENTA_SERVICES_SANDBOX_RUNNER=local."
+                "AGENTA_SERVICES_CODE_SANDBOX_RUNNER=local."
             ) from exc
     elif runner_type == "local":
         return LocalRunner()
     else:
         raise ValueError(
-            f"Unknown AGENTA_SERVICES_SANDBOX_RUNNER value: {runner_type}. "
+            f"Unknown AGENTA_SERVICES_CODE_SANDBOX_RUNNER value: {runner_type}. "
             f"Supported values: 'local', 'daytona'"
         )

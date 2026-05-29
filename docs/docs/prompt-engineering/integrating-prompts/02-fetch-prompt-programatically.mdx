@@ -263,6 +263,19 @@ curl -X POST "https://cloud.agenta.ai/api/applications/revisions/retrieve" \
   </TabItem>
 </Tabs>
 
+## How the request resolves
+
+You can identify the revision you want with any combination of:
+
+- `application_revision_ref` — by `id` or `slug`, or by `version` paired with a `application_variant_ref`.
+- `application_variant_ref` — picks the latest revision on that variant.
+- `application_ref` — picks the latest revision on the application's default variant.
+- `environment_ref` (+ optional `key`) — picks the revision currently deployed to that environment under the default key `{application_slug}.revision`.
+
+You may supply more than one reference. Every reference you send must agree with the resolved revision; if any contradicts, the endpoint returns `400 Bad Request` and the response detail names the field that disagreed.
+
+The endpoint also returns `400` when the references are not sufficient to identify a single revision — for example, when only `application_revision_ref.version` is provided (a per-variant sequence number with no variant context), or when only `application_variant_ref.version` is provided (variants do not have versions).
+
 ## Response Format
 
 The SDK returns the configuration parameters directly as a dictionary. When using the REST API, the response contains the full revision data including configuration under `params` along with reference metadata:
