@@ -52,7 +52,7 @@ async def test_resolve_query_revisions_keeps_revision_with_real_data():
     revision_with_data = QueryRevision(
         id=revision_id,
         slug="my-query",
-        data=QueryRevisionData(),
+        data=QueryRevisionData(trace_ids=["00000000000000000000000000000001"]),
     )
 
     queries_service = SimpleNamespace(
@@ -112,7 +112,7 @@ async def test_resolve_evaluator_revisions_keeps_revision_with_real_data():
     revision_with_data = EvaluatorRevision(
         id=revision_id,
         slug="my-evaluator",
-        data=EvaluatorRevisionData(),
+        data=EvaluatorRevisionData(uri="http://evaluator.local/invoke"),
     )
 
     evaluators_service = SimpleNamespace(

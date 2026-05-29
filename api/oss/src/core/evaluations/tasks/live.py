@@ -182,14 +182,29 @@ async def _resolve_query_revisions(
             query_revision_ref=query_revision_ref,
         )
 
-        if (
-            not query_revision
-            or not query_revision.id
-            or not query_revision.slug
-            or not query_revision.data
-        ):
+        if not query_revision:
             log.warn(
-                f"Query revision with ref {query_revision_ref.model_dump(mode='json')} not found!"
+                "Skipping query revision: not found.",
+                query_step_key=query_step_key,
+                query_revision_ref=query_revision_ref.model_dump(mode="json"),
+            )
+            continue
+
+        if not query_revision.id or not query_revision.slug:
+            log.warn(
+                "Skipping query revision: found but missing identity.",
+                query_step_key=query_step_key,
+                query_revision_ref=query_revision_ref.model_dump(mode="json"),
+                has_id=bool(query_revision.id),
+                has_slug=bool(query_revision.slug),
+            )
+            continue
+
+        if not query_revision.data:
+            log.warn(
+                "Skipping query revision: found but missing data.",
+                query_step_key=query_step_key,
+                query_revision_ref=query_revision_ref.model_dump(mode="json"),
             )
             continue
 
@@ -214,14 +229,29 @@ async def _resolve_evaluator_revisions(
             evaluator_revision_ref=evaluator_revision_ref,
         )
 
-        if (
-            not evaluator_revision
-            or not evaluator_revision.id
-            or not evaluator_revision.slug
-            or not evaluator_revision.data
-        ):
+        if not evaluator_revision:
             log.warn(
-                f"Evaluator revision with ref {evaluator_revision_ref.model_dump(mode='json')} not found!"
+                "Skipping evaluator revision: not found.",
+                evaluator_step_key=evaluator_step_key,
+                evaluator_revision_ref=evaluator_revision_ref.model_dump(mode="json"),
+            )
+            continue
+
+        if not evaluator_revision.id or not evaluator_revision.slug:
+            log.warn(
+                "Skipping evaluator revision: found but missing identity.",
+                evaluator_step_key=evaluator_step_key,
+                evaluator_revision_ref=evaluator_revision_ref.model_dump(mode="json"),
+                has_id=bool(evaluator_revision.id),
+                has_slug=bool(evaluator_revision.slug),
+            )
+            continue
+
+        if not evaluator_revision.data:
+            log.warn(
+                "Skipping evaluator revision: found but missing data.",
+                evaluator_step_key=evaluator_step_key,
+                evaluator_revision_ref=evaluator_revision_ref.model_dump(mode="json"),
             )
             continue
 
@@ -562,6 +592,17 @@ async def evaluate_live_query(
                         scenario_has_pending[idx] = True
                         continue
 
+                    # skip annotation steps whose evaluator revision was not
+                    # resolved (missing identity or data) — both maps are only
+                    # populated for successfully resolved revisions.
+                    if annotation_step_key not in evaluator_revisions:
+                        log.error(
+                            f"Evaluator revision for {annotation_step_key} not found!"
+                        )
+                        scenario_has_errors[idx] += 1
+                        scenario_status[idx] = EvaluationStatus.ERRORS
+                        continue
+
                     step_status = EvaluationStatus.SUCCESS
 
                     references: Dict[str, Any] = {
@@ -576,17 +617,6 @@ async def evaluate_live_query(
 
                     # invoke annotation workflow -------------------------------
                     evaluator_revision = evaluator_revisions[annotation_step_key]
-
-                    if not evaluator_revision:
-                        log.error(
-                            f"Evaluator revision for {annotation_step_key} not found!"
-                        )
-                        scenario_has_errors[idx] += 1
-                        # run_has_errors += 1
-                        step_status = EvaluationStatus.FAILURE
-                        scenario_status[idx] = EvaluationStatus.ERRORS
-                        # run_status = EvaluationStatus.ERRORS
-                        continue
 
                     _revision = evaluator_revision.model_dump(
                         mode="json",
