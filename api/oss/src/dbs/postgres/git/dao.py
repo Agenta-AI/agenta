@@ -1593,6 +1593,9 @@ class GitDAO(GitDAOInterface):
         try:
             async with engine.core_session() as session:
                 if initial and revision_commit.variant_id:
+                    # Race condition: two concurrent initial commits for the same variant
+                    # can both pass this check before either inserts. Accepted — this path
+                    # is only hit once at variant creation time, making a collision unlikely.
                     guard_stmt = (
                         select(func.count())  # pylint: disable=not-callable
                         .select_from(self.RevisionDBE)  # type: ignore
@@ -1606,7 +1609,6 @@ class GitDAO(GitDAOInterface):
                         return None
 
                 session.add(revision_dbe)
-
                 await session.commit()
 
                 await session.refresh(
