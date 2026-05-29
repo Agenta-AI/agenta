@@ -11,6 +11,14 @@ export interface FocusTarget {
     compareMode?: boolean
     testcaseId?: string | null
     scenarioIndex?: number | null
+    /**
+     * Compared-run scenarioIds resolved by the table at click time, keyed by
+     * compare runId. The table is the single place that has correctly
+     * paginated + matched compare rows; carrying the resolved ids forward lets
+     * the focus drawer render compare outputs without re-resolving them from a
+     * separately-keyed (and never-populated) paginated atom instance.
+     */
+    compareScenarioIds?: Record<string, string | null>
 }
 
 export interface FocusDrawerState extends FocusTarget {
@@ -29,17 +37,31 @@ export const focusDrawerAtom = atomWithImmer<FocusDrawerState>(initialFocusDrawe
 
 export const focusScenarioAtom = atom<FocusTarget | null>((get) => {
     const state = get(focusDrawerAtom) as FocusDrawerState
-    const {focusRunId, focusScenarioId, compareMode, testcaseId, scenarioIndex} = state
+    const {
+        focusRunId,
+        focusScenarioId,
+        compareMode,
+        testcaseId,
+        scenarioIndex,
+        compareScenarioIds,
+    } = state
     if (!focusScenarioId) return null
-    return {focusRunId, focusScenarioId, compareMode, testcaseId, scenarioIndex}
+    return {focusRunId, focusScenarioId, compareMode, testcaseId, scenarioIndex, compareScenarioIds}
 })
 
 export const isFocusDrawerOpenAtom = atom((get) => (get(focusDrawerAtom) as FocusDrawerState).open)
 
 export const focusDrawerTargetAtom = atom<FocusTarget>((get) => {
     const state = get(focusDrawerAtom) as FocusDrawerState
-    const {focusRunId, focusScenarioId, compareMode, testcaseId, scenarioIndex} = state
-    return {focusRunId, focusScenarioId, compareMode, testcaseId, scenarioIndex}
+    const {
+        focusRunId,
+        focusScenarioId,
+        compareMode,
+        testcaseId,
+        scenarioIndex,
+        compareScenarioIds,
+    } = state
+    return {focusRunId, focusScenarioId, compareMode, testcaseId, scenarioIndex, compareScenarioIds}
 })
 
 export const setFocusDrawerTargetAtom = atom(null, (_get, set, target: FocusTarget) => {
@@ -58,6 +80,7 @@ export const setFocusDrawerTargetAtom = atom(null, (_get, set, target: FocusTarg
         draft.compareMode = target.compareMode
         draft.testcaseId = target.testcaseId
         draft.scenarioIndex = target.scenarioIndex
+        draft.compareScenarioIds = target.compareScenarioIds
     })
 })
 
@@ -78,6 +101,7 @@ export const openFocusDrawerAtom = atom(null, (_get, set, target: FocusTarget) =
             draft.compareMode = target.compareMode
             draft.testcaseId = target.testcaseId
             draft.scenarioIndex = target.scenarioIndex
+            draft.compareScenarioIds = target.compareScenarioIds
         }
     })
 })
@@ -108,6 +132,7 @@ export const applyFocusDrawerStateAtom = atom(
             draft.compareMode = next.compareMode
             draft.testcaseId = next.testcaseId
             draft.scenarioIndex = next.scenarioIndex
+            draft.compareScenarioIds = next.compareScenarioIds
         })
     },
 )
@@ -159,7 +184,24 @@ export const compareScenarioMatchesAtom = atom<CompareScenarioInfo[]>((get) => {
             return
         }
 
-        // Try to find matching scenario in this run
+        // Prefer the scenarioId the table already resolved at click time. The
+        // table paginates compare runs at its own pageSize, so re-resolving
+        // here via combinedRowsAtomFamily with a different pageSize reads an
+        // orphaned (never-populated) atom instance and yields null — leaving
+        // compare outputs blank. The carried-forward id avoids that entirely.
+        const providedScenarioId = focus.compareScenarioIds?.[compareRunId]
+        if (providedScenarioId) {
+            results.push({
+                runId: compareRunId,
+                scenarioId: providedScenarioId,
+                compareIndex: idx + 1,
+            })
+            return
+        }
+
+        // Fallback (e.g. reload with the drawer reopened from URL, where the
+        // table-resolved ids aren't in memory): match against the paginated
+        // rows directly.
         const combinedRowsAtom = evaluationPreviewTableStore.atoms.combinedRowsAtomFamily({
             scopeId: compareRunId,
             pageSize: 1000, // Use a large page size to search through scenarios
