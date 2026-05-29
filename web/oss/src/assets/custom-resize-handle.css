@@ -28,3 +28,13 @@ th:hover .custom-resize-handle,
 th:focus .custom-resize-handle {
     opacity: 1;
 }
+
+/*
+ * Fixed-right columns (e.g. a sticky Actions column) anchor the handle inside
+ * the cell so the default 9px overhang doesn't bleed into the scrollbar gutter
+ * and create a phantom column slot on the right edge of the table.
+ */
+.ant-table-cell-fix-right .custom-resize-handle {
+    right: 0;
+    width: 9px;
+}

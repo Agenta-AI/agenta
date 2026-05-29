@@ -222,7 +222,7 @@ const TextModeViewer = ({
             showToolbar={false}
             enableTokens={false}
             readOnly
-            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
+            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-input]:!text-[12.5px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
         >
             <MarkdownModeSync isMarkdownView={mode === "text"} />
             <EditorWrapper
@@ -583,7 +583,7 @@ export const TraceSpanDrillInView = memo(
                                     />
                                 </div>
                             ) : (
-                                <div className="mx-1 my-2 rounded-md bg-[#F6F8FB]">
+                                <div className="mx-1 my-2 rounded-md bg-white">
                                     <TextModeViewer
                                         editorId={`trace-span-${textViewerId}`}
                                         value={textOutput}
