@@ -9,15 +9,12 @@
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
-import type {Atom} from "jotai"
 import {atomWithMutation} from "jotai-tanstack-query"
 
 import {deployToEnvironment} from "../environment/api/mutations"
 import type {Environment} from "../environment/core"
 import {invalidateEnvironmentsListCache} from "../environment/state/environmentMolecule"
 import {environmentsListQueryAtomFamily} from "../environment/state/store"
-import {workflowMolecule} from "../workflow"
-import {workflowVariantsListDataAtomFamily} from "../workflow/state/store"
 
 // ============================================================================
 // PAYLOAD TYPES
@@ -34,7 +31,7 @@ export interface PublishPayload {
     applicationId: string
     /** Optional: Workflow variant ID (if not provided, resolved from revision data) */
     workflowVariantId?: string
-    /** Optional: Variant slug. The backend re-derives slugs from the revision id on commit; this is best-effort. */
+    /** Optional: Variant slug (for building appKey) */
     variantSlug?: string
     /** Optional: Application slug */
     applicationSlug?: string
@@ -86,32 +83,6 @@ function resolveAppKey(env: Environment, applicationId: string, applicationSlug?
     return `${applicationId}.revision`
 }
 
-/**
- * Re-derive the variant's real slug by id so a wrong `payload.variantSlug`
- * (variant name or revision slug) can't be persisted into the references.
- * The backend also normalizes this on commit; this keeps the local cache correct.
- */
-function resolveVariantSlug(
-    get: <T>(atom: Atom<T>) => T,
-    payload: PublishPayload,
-): string | undefined {
-    const revisionData = payload.revisionId ? workflowMolecule.get.data(payload.revisionId) : null
-
-    const slugFromRevision =
-        revisionData?.workflow_variant_slug ?? revisionData?.variant_slug ?? undefined
-    if (slugFromRevision) return slugFromRevision
-
-    const variantId = payload.workflowVariantId
-    const workflowId = revisionData?.workflow_id ?? payload.applicationId
-    if (variantId && workflowId) {
-        const variants = get(workflowVariantsListDataAtomFamily(workflowId))
-        const variant = variants.find((v) => v.id === variantId)
-        if (variant?.slug) return variant.slug
-    }
-
-    return payload.variantSlug
-}
-
 // ============================================================================
 // PUBLISH MUTATION
 // ============================================================================
@@ -149,7 +120,6 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
         }
 
         const appKey = resolveAppKey(env, payload.applicationId, payload.applicationSlug)
-        const variantSlug = resolveVariantSlug(get, payload)
 
         await deployToEnvironment({
             projectId,
@@ -163,7 +133,7 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
                 },
                 application_variant: {
                     id: payload.workflowVariantId,
-                    slug: variantSlug,
+                    slug: payload.variantSlug,
                 },
                 application_revision: {
                     id: payload.revisionId,
@@ -214,7 +184,6 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
     }
 
     const appKey = resolveAppKey(env, payload.applicationId, payload.applicationSlug)
-    const variantSlug = resolveVariantSlug(store.get, payload)
 
     await deployToEnvironment({
         projectId,
@@ -228,7 +197,7 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
             },
             application_variant: {
                 id: payload.workflowVariantId,
-                slug: variantSlug,
+                slug: payload.variantSlug,
             },
             application_revision: {
                 id: payload.revisionId,
