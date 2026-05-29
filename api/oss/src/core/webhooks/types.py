@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, HttpUrl, field_validator
+from pydantic import BaseModel, HttpUrl
 
 from oss.src.core.events.types import EventType
 from oss.src.core.shared.dtos import (
@@ -120,14 +120,6 @@ class WebhookSubscriptionData(BaseModel):
     auth_mode: Optional[Literal["signature", "authorization"]] = None
 
     event_types: Optional[List[WebhookEventType]] = None
-
-    @field_validator("event_types", mode="before")
-    @classmethod
-    def drop_unknown_event_types(cls, v):
-        if v is None:
-            return v
-        known = WebhookEventType._value2member_map_
-        return [et for et in v if et in known]
 
 
 class WebhookSubscription(Identifier, Lifecycle, Header, Metadata):
