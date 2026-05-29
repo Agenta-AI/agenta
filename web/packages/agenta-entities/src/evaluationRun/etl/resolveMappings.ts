@@ -311,6 +311,33 @@ export const resolveFromTrace: StepResolver = ({result, row, path}) => {
 }
 
 /**
+ * String-typed evaluator outputs (e.g. an LLM-judge's `reasoning` field) are
+ * stored in metric data as a `{type: "string", count: N}` placeholder rather
+ * than the actual string — the backend can't build a distribution over
+ * arbitrary text, so it only records that *some* string was emitted. The
+ * real value lives on the annotation trace and is resolved via
+ * `resolveFromTrace` instead.
+ *
+ * Detect that exact shape (`type: "string"` + numeric `count`, no
+ * distribution / scalar fields) so `resolveFromMetric` can return `null`
+ * and let the composed `resolveFromTrace` fallback take over. Mirrors the
+ * legacy `isStringTypePlaceholder` check in
+ * `EvalRunDetails/atoms/scenarioColumnValues.ts`.
+ */
+function isStringTypeMetricPlaceholder(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false
+    const obj = value as Record<string, unknown>
+    if (obj.type !== "string" || typeof obj.count !== "number") return false
+    return (
+        obj.value === undefined &&
+        obj.freq === undefined &&
+        obj.frequency === undefined &&
+        obj.rank === undefined &&
+        obj.mean === undefined
+    )
+}
+
+/**
  * Resolver that reads from `metric.data[step.key][path]`.
  *
  * Metric.data is `{stepKey: {flatAttributePath: valueOrStatsObject}}`. The
@@ -318,6 +345,10 @@ export const resolveFromTrace: StepResolver = ({result, row, path}) => {
  * (not a dot-walk). That matches what the server emits — paths like
  * `"attributes.ag.data.outputs.success"` are baked-in flat keys, not nested
  * objects. Trying to dot-walk would fail.
+ *
+ * Returns `null` (not the placeholder) for string-typed metric outputs so
+ * the composed `resolveFromTrace` fallback can extract the actual string
+ * from the annotation trace.
  */
 export const resolveFromMetric: StepResolver = ({step, row, path}) => {
     for (const m of row.metrics) {
@@ -325,7 +356,9 @@ export const resolveFromMetric: StepResolver = ({step, row, path}) => {
         if (!data) continue
         const bucket = data[step.key] as Record<string, unknown> | undefined
         if (bucket && bucket[path] !== undefined) {
-            return {value: bucket[path], source: "metric"}
+            const value = bucket[path]
+            if (isStringTypeMetricPlaceholder(value)) return null
+            return {value, source: "metric"}
         }
     }
     return null
