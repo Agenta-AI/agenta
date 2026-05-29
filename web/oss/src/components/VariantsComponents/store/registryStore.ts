@@ -56,16 +56,15 @@ export interface RegistryRevisionRow {
 
 /**
  * Recursively picks the model name from a parameters object.
- * Reused from getVariantColumns.tsx logic.
+ * Only returns strings sourced from an explicit model key (model, model_name,
+ * modelName, engine). Arbitrary string values (e.g. system_message, prompts)
+ * are never returned.
  */
 const pickModelFromParams = (value: unknown, depth = 0, visited = new Set<unknown>()): string => {
     if (!value || depth > 6) return ""
+    if (typeof value !== "object") return ""
     if (visited.has(value)) return ""
-    if (typeof value === "object") visited.add(value)
-
-    if (typeof value === "string") {
-        return value.trim()
-    }
+    visited.add(value)
 
     if (Array.isArray(value)) {
         for (const item of value) {
@@ -75,20 +74,14 @@ const pickModelFromParams = (value: unknown, depth = 0, visited = new Set<unknow
         return ""
     }
 
-    if (typeof value === "object") {
-        const obj = value as Record<string, unknown>
-        const directModel = [obj.model, obj.model_name, obj.modelName, obj.engine].find(
-            (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
-        ) as string | undefined
-        if (directModel) return directModel.trim()
+    const obj = value as Record<string, unknown>
+    const directModel = [obj.model, obj.model_name, obj.modelName, obj.engine].find(
+        (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
+    ) as string | undefined
+    if (directModel) return directModel.trim()
 
-        const llmConfig = obj.llm_config ?? obj.llmConfig
-        if (llmConfig) {
-            const result = pickModelFromParams(llmConfig, depth + 1, visited)
-            if (result) return result
-        }
-
-        for (const nested of Object.values(obj)) {
+    for (const nested of Object.values(obj)) {
+        if (nested && typeof nested === "object") {
             const result = pickModelFromParams(nested, depth + 1, visited)
             if (result) return result
         }

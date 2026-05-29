@@ -1,5 +1,4 @@
 import {logAtom, projectIdAtom} from "@agenta/shared/state"
-import type {User} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -9,7 +8,6 @@ import {fetchAllProjects} from "@/oss/services/project"
 import {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
-import {profileQueryAtom} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
 
 // Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
@@ -104,11 +102,14 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: false,
-        enabled:
-            get(sessionExistsAtom) &&
-            !!(get(profileQueryAtom)?.data as User)?.id &&
-            !isAcceptRoute &&
-            !!workspaceId,
+        // sessionExistsAtom is the actual auth gate. Don't also gate on
+        // profile.data.id — fetchAllProjects() uses session cookies, not
+        // user.id, and the profile gate forced /projects/ to wait for
+        // /profile/ to complete (sequential), producing a visible window
+        // where project?.is_demo is unknown and the demo-workspace banner
+        // can't render on cold reload. Letting both queries fire in
+        // parallel under the same session gate closes that window.
+        enabled: get(sessionExistsAtom) && !isAcceptRoute && !!workspaceId,
     }
 })
 
@@ -135,7 +136,11 @@ const projectMatchesWorkspace = (project: ProjectsResponse, workspaceId: string)
     return false
 }
 
-const pickPreferredProject = (
+/**
+ * Exported for unit-test access (projectAtom.race.test.ts). Internal to this
+ * module otherwise — callers should go through projectAtom.
+ */
+export const pickPreferredProject = (
     projects: ProjectsResponse[],
     workspaceId: string | null,
     lastUsedProjectId: string | null,
@@ -174,7 +179,14 @@ const pickPreferredProject = (
 export const projectAtom = atom((get) => {
     const projects = get(projectsAtom) as ProjectsResponse[]
     const organization = get(selectedOrgAtom)
-    const workspaceId = organization?.default_workspace?.id || null
+    // Fall back to selectedOrgIdAtom (URL-derived, immediate) so the
+    // null window between /projects/ and the slower /organizations/{id}
+    // fetch doesn't make pickPreferredProject do a cross-org
+    // is_default_project search, which can land on the Demo Workspace's
+    // default project for users whose membership has is_demo=true.
+    // projectMatchesWorkspace accepts either workspace_id or
+    // organization_id, so the URL-derived org UUID filters correctly.
+    const workspaceId = organization?.default_workspace?.id ?? get(selectedOrgIdAtom) ?? null
     const projectId = get(projectIdAtom)
 
     if (!projects.length) return null

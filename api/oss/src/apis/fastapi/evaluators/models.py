@@ -285,20 +285,40 @@ class EvaluatorRevisionCommitRequest(BaseModel):
 class EvaluatorRevisionRetrieveRequest(BaseModel):
     """Body for retrieving one revision, either by direct reference or through an environment key.
 
-    Provide one of: an evaluator / variant / revision reference, or an environment reference plus `key`.
+    Provide an evaluator / variant / revision reference, an environment
+    reference (with `key` derived from the evaluator slug by default), or a
+    combination of both. Every reference supplied must agree with the
+    resolved revision; contradictions return HTTP 400.
     """
 
     evaluator_ref: Optional[Reference] = Field(
         default=None,
-        description="Retrieve the latest revision of this evaluator.",
+        description=(
+            "Evaluator artifact to look up. Identifies the artifact by `id` "
+            "or `slug` (both project-unique). When no variant_ref or "
+            "revision_ref is provided, returns the latest revision of the "
+            "evaluator's default variant."
+        ),
     )
     evaluator_variant_ref: Optional[Reference] = Field(
         default=None,
-        description="Retrieve the latest revision on this variant.",
+        description=(
+            "Evaluator variant to look up. Identifies the variant by `id` or "
+            "`slug` (both project-unique). When no revision_ref is provided, "
+            "returns the latest revision of this variant."
+        ),
     )
     evaluator_revision_ref: Optional[Reference] = Field(
         default=None,
-        description="Retrieve this specific revision.",
+        description=(
+            "Evaluator revision to look up. "
+            "`id` alone identifies a revision (project-unique). "
+            "`slug` alone identifies a revision (project-unique). "
+            "`version` alone is a per-variant sequence number and is **not** "
+            "sufficient on its own; it must be combined with an "
+            "`evaluator_variant_ref`. Sending only `version` without a "
+            "variant ref returns HTTP 400."
+        ),
     )
     environment_ref: Optional[Reference] = Field(
         default=None,

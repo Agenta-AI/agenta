@@ -50,6 +50,12 @@ from oss.src.core.git.dtos import (
     VariantQuery,
 )
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+    needs_default_variant_resolution,
+    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 
 from oss.src.utils.logging import get_module_logger
@@ -409,6 +415,10 @@ class EnvironmentsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[EnvironmentVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=environment_variant_ref,
+            entity_type="environment",
+        )
         variant = await self.environments_dao.fetch_variant(
             project_id=project_id,
             #
@@ -613,10 +623,25 @@ class EnvironmentsService:
         ):
             return None
 
-        if (
-            environment_ref
-            and not environment_variant_ref
-            and not environment_revision_ref
+        validate_variant_refs_sufficient(
+            variant_ref=environment_variant_ref,
+            entity_type="environment",
+        )
+
+        validate_revision_refs_sufficient(
+            artifact_ref=environment_ref,
+            variant_ref=environment_variant_ref,
+            revision_ref=environment_revision_ref,
+            entity_type="environment",
+        )
+
+        _original_environment_ref = environment_ref
+        _original_environment_variant_ref = environment_variant_ref
+
+        if needs_default_variant_resolution(
+            artifact_ref=environment_ref,
+            variant_ref=environment_variant_ref,
+            revision_ref=environment_revision_ref,
         ):
             environment = await self.fetch_environment(
                 project_id=project_id,
@@ -662,6 +687,29 @@ class EnvironmentsService:
         if not revision:
             return None
 
+        # HOTFIX: env-stored refs may carry stale slugs.
+        # Re-enable once the web write paths are fixed and the historical rows
+        # are backfilled.
+        # validate_retrieve_refs_consistent(
+        #     artifact_ref=_original_environment_ref,
+        #     variant_ref=_original_environment_variant_ref,
+        #     revision_ref=environment_revision_ref,
+        #     resolved_artifact_ref=Reference(
+        #         id=revision.artifact_id,
+        #         slug=revision.artifact_slug,
+        #     ),
+        #     resolved_variant_ref=Reference(
+        #         id=revision.variant_id,
+        #         slug=revision.variant_slug,
+        #     ),
+        #     resolved_revision_ref=Reference(
+        #         id=revision.id,
+        #         slug=revision.slug,
+        #         version=revision.version,
+        #     ),
+        #     entity_type="environment",
+        # )
+
         environment_revision = EnvironmentRevision(
             **revision.model_dump(
                 mode="json",
@@ -683,69 +731,25 @@ class EnvironmentsService:
     ) -> tuple[Optional[EnvironmentRevision], Optional[ResolutionInfo]]:
         """Retrieve the latest environment revision, resolving slug/id refs.
 
-        Uses fetch_environment to resolve the environment artifact (supports slug),
-        then fetches the default variant and latest revision.
-        Optionally resolves embedded references when resolve=True.
+        Delegates to fetch_environment_revision so the same insufficient/
+        inconsistent-ref validations run on the retrieve path. Optionally
+        resolves embedded references when resolve=True.
         """
-        # log.info(
-        #     "retrieve_environment_revision: environment_ref=%r environment_variant_ref=%r environment_revision_ref=%r resolve=%r",
-        #     environment_ref,
-        #     environment_variant_ref,
-        #     environment_revision_ref,
-        #     resolve,
-        # )
+        validate_variant_refs_sufficient(
+            variant_ref=environment_variant_ref,
+            entity_type="environment",
+        )
 
-        if (
-            not environment_ref
-            and not environment_variant_ref
-            and not environment_revision_ref
-        ):
-            return None, None
-
-        # Resolve environment artifact → variant → revision
-        if (
-            environment_ref
-            and not environment_variant_ref
-            and not environment_revision_ref
-        ):
-            environment = await self.fetch_environment(
-                project_id=project_id,
-                environment_ref=environment_ref,
-            )
-            # log.info(
-            #     "retrieve_environment_revision: environment=%r",
-            #     environment and environment.id,
-            # )
-
-            if not environment:
-                return None, None
-
-            environment_variant = await self.fetch_environment_variant(
-                project_id=project_id,
-                environment_ref=Reference(id=environment.id),
-            )
-            # log.info(
-            #     "retrieve_environment_revision: environment_variant=%r",
-            #     environment_variant and environment_variant.id,
-            # )
-
-            if not environment_variant:
-                return None, None
-
-            environment_variant_ref = Reference(id=environment_variant.id)
-
-        revision = await self.environments_dao.fetch_revision(
+        environment_revision = await self.fetch_environment_revision(
             project_id=project_id,
             #
-            variant_ref=environment_variant_ref,
-            revision_ref=environment_revision_ref,
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
         )
-        # log.info("retrieve_environment_revision: revision=%r", revision and revision.id)
 
-        if not revision:
+        if not environment_revision:
             return None, None
-
-        environment_revision = EnvironmentRevision(**revision.model_dump(mode="json"))
 
         if not resolve:
             return environment_revision, None
@@ -942,6 +946,9 @@ class EnvironmentsService:
             project_id=project_id,
             environment_variant_id=environment_variant_id,
         )
+
+        if not environment_revision_commit.slug:
+            environment_revision_commit.slug = uuid4().hex[-12:]
 
         dumped = environment_revision_commit.model_dump(
             mode="json",
