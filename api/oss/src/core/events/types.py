@@ -37,12 +37,12 @@ class EventType(str, Enum):
     TESTSETS_REVISIONS_LOGGED = "testsets.revisions.logged"
     TESTSETS_REVISIONS_COMMITTED = "testsets.revisions.committed"
 
-    # Application revisions
-    APPLICATIONS_REVISIONS_RETRIEVED = "applications.revisions.retrieved"
-    APPLICATIONS_REVISIONS_FETCHED = "applications.revisions.fetched"
-    APPLICATIONS_REVISIONS_QUERIED = "applications.revisions.queried"
-    APPLICATIONS_REVISIONS_LOGGED = "applications.revisions.logged"
-    APPLICATIONS_REVISIONS_COMMITTED = "applications.revisions.committed"
+    # Application revisions (commented out — applications emit as workflow events)
+    # APPLICATIONS_REVISIONS_RETRIEVED = "applications.revisions.retrieved"
+    # APPLICATIONS_REVISIONS_FETCHED = "applications.revisions.fetched"
+    # APPLICATIONS_REVISIONS_QUERIED = "applications.revisions.queried"
+    # APPLICATIONS_REVISIONS_LOGGED = "applications.revisions.logged"
+    # APPLICATIONS_REVISIONS_COMMITTED = "applications.revisions.committed"
 
     # Workflow revisions
     WORKFLOWS_REVISIONS_RETRIEVED = "workflows.revisions.retrieved"
@@ -51,12 +51,12 @@ class EventType(str, Enum):
     WORKFLOWS_REVISIONS_LOGGED = "workflows.revisions.logged"
     WORKFLOWS_REVISIONS_COMMITTED = "workflows.revisions.committed"
 
-    # Evaluator revisions
-    EVALUATORS_REVISIONS_RETRIEVED = "evaluators.revisions.retrieved"
-    EVALUATORS_REVISIONS_FETCHED = "evaluators.revisions.fetched"
-    EVALUATORS_REVISIONS_QUERIED = "evaluators.revisions.queried"
-    EVALUATORS_REVISIONS_LOGGED = "evaluators.revisions.logged"
-    EVALUATORS_REVISIONS_COMMITTED = "evaluators.revisions.committed"
+    # Evaluator revisions (commented out — evaluators emit as workflow events)
+    # EVALUATORS_REVISIONS_RETRIEVED = "evaluators.revisions.retrieved"
+    # EVALUATORS_REVISIONS_FETCHED = "evaluators.revisions.fetched"
+    # EVALUATORS_REVISIONS_QUERIED = "evaluators.revisions.queried"
+    # EVALUATORS_REVISIONS_LOGGED = "evaluators.revisions.logged"
+    # EVALUATORS_REVISIONS_COMMITTED = "evaluators.revisions.committed"
 
     # Environment revisions
     ENVIRONMENTS_REVISIONS_RETRIEVED = "environments.revisions.retrieved"

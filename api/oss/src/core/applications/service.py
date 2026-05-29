@@ -842,10 +842,10 @@ class ApplicationsService:
         # Write-action emission lives in the SERVICE layer (read actions live
         # in the router). Every caller of commit_application_revision — direct
         # commit route, simple-service create/edit, deploy paths — therefore
-        # emits exactly one `applications.revisions.committed` event. See
+        # emits exactly one `workflows.revisions.committed` event. See
         # core/events/utils.py for the read-vs-write split rationale.
         await publish_revision_event(
-            domain="application",
+            domain="workflow",
             action="commit",
             project_id=project_id,
             user_id=user_id,

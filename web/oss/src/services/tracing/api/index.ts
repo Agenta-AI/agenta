@@ -167,7 +167,7 @@ export const fetchSessions = async (params: {
     const projectId = ensureProjectId()
     const applicationId = params.appId ? ensureAppId(params.appId) : undefined
 
-    const url = new URL(`${base}/tracing/sessions/query`)
+    const url = new URL(`${base}/spans/sessions/query`)
     if (projectId) url.searchParams.set("project_id", projectId)
     if (applicationId) url.searchParams.set("application_id", applicationId)
 

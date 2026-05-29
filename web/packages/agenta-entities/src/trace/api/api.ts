@@ -184,7 +184,7 @@ export async function fetchSessions(
     }
 
     const response = await axios.post(
-        `${baseUrl}/tracing/sessions/query?${queryParams.toString()}`,
+        `${baseUrl}/spans/sessions/query?${queryParams.toString()}`,
         payload,
     )
 

@@ -1411,7 +1411,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="retrieve",
             revision=application_revision_response.application_revision,
             count=application_revision_response.count,
@@ -1488,7 +1488,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="fetch",
             revision=response.application_revision,
             count=response.count,
@@ -1668,7 +1668,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="query",
             revisions=response.application_revisions or [],
             count=response.count,
@@ -1751,7 +1751,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="log",
             revisions=revisions_response.application_revisions or [],
             count=revisions_response.count,

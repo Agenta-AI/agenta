@@ -1398,7 +1398,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="retrieve",
             revision=evaluator_revision_response.evaluator_revision,
             count=evaluator_revision_response.count,
@@ -1475,7 +1475,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="fetch",
             revision=response.evaluator_revision,
             count=response.count,
@@ -1644,7 +1644,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="query",
             revisions=response.evaluator_revisions or [],
             count=response.count,
@@ -1723,7 +1723,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="log",
             revisions=revisions_response.evaluator_revisions or [],
             count=revisions_response.count,
