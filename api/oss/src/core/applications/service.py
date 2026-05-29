@@ -815,6 +815,8 @@ class ApplicationsService:
         user_id: UUID,
         #
         application_revision_commit: ApplicationRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[ApplicationRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **application_revision_commit.model_dump(
@@ -827,6 +829,9 @@ class ApplicationsService:
             user_id=user_id,
             #
             workflow_revision_commit=workflow_revision_commit,
+            #
+            initial=initial,
+            #
             emit=False,
         )
 

@@ -1000,6 +1000,8 @@ class EnvironmentsService:
         #
         environment_revision_commit: EnvironmentRevisionCommit,
         #
+        initial: bool = False,
+        #
         _normalize_references: bool = True,
     ) -> Optional[EnvironmentRevision]:
         # Route to delta handler if delta provided without data
@@ -1049,6 +1051,8 @@ class EnvironmentsService:
             user_id=user_id,
             #
             revision_commit=revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:

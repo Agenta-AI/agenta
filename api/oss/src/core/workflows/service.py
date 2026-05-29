@@ -1377,6 +1377,8 @@ class WorkflowsService:
         #
         workflow_revision_commit: WorkflowRevisionCommit,
         #
+        initial: bool = False,
+        #
         emit: bool = True,
     ) -> Optional[WorkflowRevision]:
         data = workflow_revision_commit.data
@@ -1459,6 +1461,8 @@ class WorkflowsService:
             user_id=user_id,
             #
             revision_commit=_revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:

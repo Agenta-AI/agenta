@@ -989,12 +989,20 @@ class TestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        testset_revision = await self.testsets_service.create_testset_revision(
+        testset_revision = await self.testsets_service.commit_testset_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            testset_revision_create=testset_revision_create_request.testset_revision,
+            testset_revision_commit=TestsetRevisionCommit(
+                **testset_revision_create_request.testset_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
             include_testcases=testset_revision_create_request.include_testcases,
+            #
+            initial=True,
         )
 
         testset_revision_response = TestsetRevisionResponse(

@@ -29,6 +29,7 @@ from oss.src.core.applications.dtos import (
     ApplicationCatalogType,
     ApplicationCatalogTemplate,
     ApplicationCatalogPreset,
+    ApplicationRevisionCommit,
     ApplicationRevisionData,
 )
 
@@ -1440,11 +1441,19 @@ class ApplicationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        application_revision = await self.applications_service.create_application_revision(
+        application_revision = await self.applications_service.commit_application_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            application_revision_create=application_revision_create_request.application_revision,
+            application_revision_commit=ApplicationRevisionCommit(
+                **application_revision_create_request.application_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         return ApplicationRevisionResponse(

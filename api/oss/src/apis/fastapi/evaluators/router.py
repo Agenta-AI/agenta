@@ -15,6 +15,7 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
+    EvaluatorRevisionCommit,
     EvaluatorRevisionData,
     #
     SimpleEvaluatorQuery,
@@ -1427,11 +1428,19 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        evaluator_revision = await self.evaluators_service.create_evaluator_revision(
+        evaluator_revision = await self.evaluators_service.commit_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_revision_create=evaluator_revision_create_request.evaluator_revision,
+            evaluator_revision_commit=EvaluatorRevisionCommit(
+                **evaluator_revision_create_request.evaluator_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         return EvaluatorRevisionResponse(

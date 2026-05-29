@@ -885,6 +885,8 @@ class QueriesService:
         user_id: UUID,
         #
         query_revision_commit: QueryRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[QueryRevision]:
         if not query_revision_commit.slug:
             query_revision_commit.slug = uuid4().hex[-12:]
@@ -917,6 +919,8 @@ class QueriesService:
             user_id=user_id,
             #
             revision_commit=_revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:

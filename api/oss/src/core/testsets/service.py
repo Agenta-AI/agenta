@@ -908,6 +908,8 @@ class TestsetsService:
         #
         testset_revision_commit: TestsetRevisionCommit,
         #
+        initial: bool = False,
+        #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         if testset_revision_commit.delta and not testset_revision_commit.data:
@@ -952,6 +954,8 @@ class TestsetsService:
             user_id=user_id,
             #
             revision_commit=revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:

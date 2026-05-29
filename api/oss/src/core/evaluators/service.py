@@ -814,6 +814,8 @@ class EvaluatorsService:
         user_id: UUID,
         #
         evaluator_revision_commit: EvaluatorRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[EvaluatorRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **evaluator_revision_commit.model_dump(
@@ -826,6 +828,9 @@ class EvaluatorsService:
             user_id=user_id,
             #
             workflow_revision_commit=workflow_revision_commit,
+            #
+            initial=initial,
+            #
             emit=False,
         )
 

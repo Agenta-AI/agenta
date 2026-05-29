@@ -20,6 +20,7 @@ from oss.src.core.workflows.service import (
 from oss.src.core.environments.service import (
     EnvironmentsService,
 )
+from oss.src.core.workflows.dtos import WorkflowRevisionCommit
 from oss.src.core.environments.dtos import (
     EnvironmentRevisionCommit,
     EnvironmentRevisionDelta,
@@ -1195,11 +1196,19 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        workflow_revision = await self.workflows_service.create_workflow_revision(
+        workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            workflow_revision_create=workflow_revision_create_request.workflow_revision,
+            workflow_revision_commit=WorkflowRevisionCommit(
+                **workflow_revision_create_request.workflow_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         # Invalidate legacy caches so the registry page reflects the new revision
