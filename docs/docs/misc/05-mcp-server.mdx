@@ -1,164 +1,158 @@
 ---
 title: "Agenta MCP Server"
-description: "Connect AI coding agents like Cursor, Claude Code, and VS Code Copilot to Agenta documentation using the Agenta MCP server."
+description: "Connect MCP-capable agents to Agenta so they can author applications, evaluators, testsets, evaluations, and environment references through the Agenta API."
 sidebar_label: "MCP Server"
 ---
-
-The Agenta MCP server gives AI coding agents direct access to Agenta documentation. When you connect your IDE to this server, your AI assistant can look up Agenta features, APIs, and code examples on demand.
-
-This helps you integrate Agenta into your projects faster. Instead of switching between your editor and documentation, you can ask your AI agent questions and get accurate answers grounded in official docs.
-
-## Installation
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-<Tabs>
-<TabItem value="cursor" label="Cursor">
+The Agenta MCP server lets MCP-capable agents author resources in an Agenta project through the Agenta API. It exposes a curated v1 surface over the confirmed `/simple/*` endpoints and intentionally does not start evaluation runs, deploy applications, manage billing or organizations, expose traces, or provide public multi-tenant OAuth.
 
-Add the following to your `mcp.json` file:
+All requests use one project-scoped Agenta API key configured on the MCP server. Treat hosted HTTP deployments as internal-only unless you add a separate per-user auth layer.
 
-```json
-{
-  "mcpServers": {
-    "agenta": {
-      "url": "https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp",
-      "transport": "sse"
-    }
-  }
-}
-```
-
-</TabItem>
-
-<TabItem value="vscode" label="VS Code Copilot">
-
-1. Open the Command Palette (⌘+Shift+P on Mac, Ctrl+Shift+P on Windows)
-2. Select "MCP: Add Server..."
-3. Choose `HTTP` as the transport type
-4. Paste this URL:
-   ```
-   https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp
-   ```
-5. Name the server `agenta` and choose whether to save it in user or workspace settings
-
-The MCP server is now available in Agent mode.
-
-</TabItem>
-
-<TabItem value="claude" label="Claude Code">
-
-Run this command in your terminal:
+## Install from source
 
 ```bash
-claude mcp add \
-  --transport http \
-  agenta \
-  https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp \
-  --scope user
+git clone https://github.com/Agenta-AI/agenta.git
+cd agenta/clients/mcp-python
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e .
 ```
 
-To verify the connection, start a Claude Code session and type `/mcp`.
+## Configure Agenta
 
-<details>
-<summary>Manual configuration</summary>
+Set the API key and API base URL for the project you want the MCP server to author in:
 
-You can also add the server by editing a settings file directly. Choose the appropriate file based on your desired scope:
+```bash
+export AGENTA_API_KEY="agenta-api-key"
+export AGENTA_API_URL="https://cloud.agenta.ai/api"
+export AGENTA_AUTH_SCHEME="ApiKey"
+```
 
-- **User scope**: `~/.claude/settings.json`
-- **Project scope**: `your-repo/.claude/settings.json`
-- **Local scope**: `your-repo/.claude/settings.local.json`
+For EU Cloud, use:
 
-Add this configuration:
+```bash
+export AGENTA_API_URL="https://eu.cloud.agenta.ai/api"
+```
+
+For self-hosted Docker Compose sibling deployment, use:
+
+```bash
+export AGENTA_API_URL="http://api:8000"
+```
+
+The package includes `.env.example`, but the server does not auto-load `.env` files. If you use one, source it before starting:
+
+```bash
+cp .env.example .env
+$EDITOR .env
+set -a && source .env && set +a
+```
+
+Verify the API connection with the read-only smoke test:
+
+```bash
+python3 scripts/smoke.py
+```
+
+## Run the server
+
+<Tabs>
+<TabItem value="stdio" label="Local stdio">
+
+Use stdio for local desktop and CLI MCP clients that spawn the server as a subprocess:
+
+```bash
+AGENTA_API_KEY="agenta-api-key" \
+AGENTA_API_URL="https://cloud.agenta.ai/api" \
+agenta-mcp
+```
+
+Example client configuration:
 
 ```json
 {
   "mcpServers": {
     "agenta": {
-      "transportType": "http",
-      "url": "https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp",
-      "verifySsl": true
-    }
-  }
-}
-```
-
-</details>
-
-</TabItem>
-
-<TabItem value="windsurf" label="Windsurf">
-
-1. Open the Command Palette (⌘+Shift+P)
-2. Select "MCP Configuration Panel"
-3. Click "Add custom server"
-4. Add this configuration:
-
-```json
-{
-  "mcpServers": {
-    "agenta": {
-      "serverUrl": "https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp"
-    }
-  }
-}
-```
-
-Alternatively, you can edit the configuration file directly at `~/.codeium/windsurf/mcp_config.json` (macOS/Linux) or `%USERPROFILE%\.codeium\windsurf\mcp_config.json` (Windows).
-
-
-</TabItem>
-
-<TabItem value="other" label="Other Clients">
-
-Most MCP clients support SSE (Server-Sent Events) transport. Use this configuration:
-
-```json
-{
-  "mcpServers": {
-    "agenta": {
-      "url": "https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp",
-      "transport": "sse"
+      "command": "agenta-mcp",
+      "env": {
+        "AGENTA_API_KEY": "agenta-api-key",
+        "AGENTA_API_URL": "https://cloud.agenta.ai/api",
+        "AGENTA_AUTH_SCHEME": "ApiKey"
+      }
     }
   }
 }
 ```
 
 </TabItem>
+<TabItem value="http" label="Internal HTTP">
 
+Use Streamable HTTP when another internal service connects to the MCP server over the network:
+
+```bash
+AGENTA_API_KEY="agenta-api-key" \
+AGENTA_API_URL="http://api:8000" \
+AGENTA_MCP_TRANSPORT="streamable-http" \
+MCP_HOST="0.0.0.0" \
+MCP_PORT="8001" \
+agenta-mcp
+```
+
+The server listens on:
+
+```text
+http://<host>:8001/mcp
+```
+
+Behind the provided Docker Compose Traefik snippets, clients reach the server at `/mcp/` and Traefik strips that prefix before forwarding to the MCP service.
+
+</TabItem>
+<TabItem value="docker" label="Docker">
+
+Build the image locally:
+
+```bash
+docker build -t agenta-mcp .
+```
+
+Run it against Agenta Cloud or EU Cloud:
+
+```bash
+docker run --rm -p 8001:8001 \
+  -e AGENTA_API_KEY="agenta-api-key" \
+  -e AGENTA_API_URL="https://eu.cloud.agenta.ai/api" \
+  -e AGENTA_AUTH_SCHEME="ApiKey" \
+  -e AGENTA_MCP_TRANSPORT="streamable-http" \
+  agenta-mcp
+```
+
+For persistent self-hosted deployment, paste the matching snippet into the Agenta Compose file:
+
+- OSS: `clients/mcp-python/deploy/compose.snippet.yml`
+- EE: `clients/mcp-python/deploy/compose.ee.snippet.yml`
+
+Set `AGENTA_MCP_API_KEY` in the same environment file used by the stack.
+
+</TabItem>
 </Tabs>
 
-## What you can do
+## Available tools
 
-Once connected, your AI agent can:
+| Area | Tools |
+| --- | --- |
+| Applications | `list_applications`, `get_application`, `get_application_schema`, `list_application_templates`, `list_application_presets`, `create_application`, `update_application_prompt` |
+| Evaluators | `list_evaluator_templates`, `list_evaluator_presets`, `list_evaluators`, `get_evaluator`, `create_evaluator` |
+| Testsets | `list_testsets`, `get_testset`, `create_testset`, `upload_testset_file` |
+| Evaluations | `list_evaluations`, `get_evaluation`, `create_evaluation` |
+| Environments | `list_environments` |
 
-- Help you set up prompt management, instrumentation and evaluation workflows
-- Search Agenta documentation to answer your questions
-- Find code examples for SDK integration and observability
+After connecting a client, start with `list_applications` or `list_application_templates` to confirm the API key can read the intended project. `create_application` accepts `app_type="chat"`, `app_type="completion"`, or `app_type="custom"`; when omitted it falls back to `completion`. Custom apps require an explicit `uri`.
 
-:::info
-It is advised to let the AI agent know to use the MCP server when asking questions.
+For evaluators, agents should first choose the evaluator family. Use `evaluator_type="auto"` with `auto_evaluator_type` values such as `exact_match`, `contains_json`, or `llm_as_a_judge`. Use `evaluator_type="human"` for feedback-style human evaluation; it defaults to the `feedback` template and `quality-rating` preset unless another preset is supplied.
 
-```
-Set up LLM instrumentation with Agenta. Use the Agenta MCP to get the information needed.
-```
-:::
+## Security posture
 
-## Technical details
-
-| Property | Value |
-|----------|-------|
-| Endpoint | `https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp` |
-| Transport | SSE (Server-Sent Events) |
-| Authentication | None required |
-
-### Available Tools
-
-The Agenta MCP server provides the following tools:
-
-- **`algolia_search_index_my-docs-markdown`**: Search the Agenta documentation index. Returns raw Algolia search results with full content, allowing AI agents to find relevant documentation, code examples, and API references. Supports filtering by language, version, and Docusaurus tags.
-
-- **`algolia_search_for_facet_values`**: Explore available facet values (e.g., languages, versions, tags) in the documentation index. Useful for discovering what filtering options are available.
-
-- **`algolia_recommendations`**: Retrieve AI-powered recommendations for related documentation content based on the current context.
-
+The v1 server is internal-first. A hosted MCP endpoint with one `AGENTA_API_KEY` means every MCP caller acts as that key owner. Keep HTTP deployments private unless you implement separate client-to-MCP authentication and per-user or per-tenant credentials from MCP to Agenta.

@@ -149,6 +149,21 @@ Most optional variables can be left empty. A few are worth calling out:
 
 The example file lists all variables with descriptions, grouped by category.
 
+## Optional MCP Server
+
+The Agenta MCP server can be deployed as an internal sibling service for MCP-capable agents that need to author Agenta resources through the API.
+
+1. Copy the service from `clients/mcp-python/deploy/compose.ee.snippet.yml` into `hosting/docker-compose/ee/docker-compose.gh.yml`.
+2. Add a project-scoped MCP API key to the same environment file used by the stack:
+
+```bash
+AGENTA_MCP_API_KEY=agenta-api-key
+```
+
+3. Start the stack normally with `run.sh` or `docker compose`.
+
+The snippet routes `/mcp/` through Traefik and configures the MCP service to call the internal API service at `http://api:8000`. Keep this endpoint behind the same private access boundary as the rest of the deployment; v1 uses one server-side API key for all MCP callers.
+
 ## Architecture Overview
 
 The compose stack runs these services:

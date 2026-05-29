@@ -1,13 +1,13 @@
 ---
-title: "Agenta Documentation MCP Server"
+title: "Agenta MCP Server"
 slug: mcp-server
 date: 2025-12-14
 tags: [v0.68.3]
-description: "Connect AI coding agents to Agenta documentation using the Agenta MCP server."
+description: "Connect MCP-capable agents to Agenta so they can author applications, evaluators, testsets, evaluations, and environment references through the Agenta API."
 ---
 
-AI coding agents like Cursor, Claude Code, VS Code Copilot, and Windsurf can now access Agenta documentation directly through the Agenta MCP server.
+Agenta now includes an MCP server for agentic authoring workflows. MCP-capable agents can connect to an Agenta project and use a curated v1 tool surface over the Agenta API to create and inspect applications, evaluators, testsets, evaluation configurations, and environments.
 
-The MCP server implements the Model Context Protocol, allowing AI assistants to search and retrieve Agenta documentation on demand. Instead of manually searching docs, your AI agent can answer questions about Agenta features, APIs, and code examples.
+The v1 server is intentionally scoped: it does not start evaluation runs, deploy applications, manage billing or organizations, expose traces, or provide public multi-tenant OAuth. It uses one project-scoped Agenta API key configured on the MCP server, so hosted deployments should stay behind internal access controls.
 
-**[Read the full setup guide →](/misc/mcp-server)**
+**[Read the setup guide →](/misc/mcp-server)**

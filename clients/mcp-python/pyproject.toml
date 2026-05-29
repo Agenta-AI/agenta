@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agenta-mcp"
+version = "0.1.0"
+description = "MCP server exposing a curated authoring surface over the Agenta API"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.13.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+agenta-mcp = "agenta_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

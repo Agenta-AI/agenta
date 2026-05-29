@@ -1,0 +1,29 @@
+# Paste this service into hosting/docker-compose/oss/docker-compose.gh.yml.
+# For Enterprise Edition, use compose.ee.snippet.yml instead.
+# It is internal-first: Traefik exposes /mcp/ only wherever your existing stack is reachable,
+# and the MCP server talks to the API container directly at http://api:8000.
+services:
+  mcp:
+    build:
+      context: ../../../clients/mcp-python
+      dockerfile: Dockerfile
+    environment:
+      AGENTA_API_KEY: ${AGENTA_MCP_API_KEY:?set AGENTA_MCP_API_KEY}
+      AGENTA_API_URL: http://api:8000
+      AGENTA_AUTH_SCHEME: ApiKey
+      AGENTA_MCP_TRANSPORT: streamable-http
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8001
+    networks:
+      - agenta-oss-gh-network
+    depends_on:
+      - api
+    labels:
+      - "traefik.http.routers.mcp.rule=PathPrefix(`/mcp/`)"
+      - "traefik.http.routers.mcp.entrypoints=web"
+      - "traefik.http.middlewares.mcp-strip.stripprefix.prefixes=/mcp"
+      - "traefik.http.middlewares.mcp-strip.stripprefix.forceslash=true"
+      - "traefik.http.routers.mcp.middlewares=mcp-strip"
+      - "traefik.http.services.mcp.loadbalancer.server.port=8001"
+      - "traefik.http.routers.mcp.service=mcp"
+    restart: always
