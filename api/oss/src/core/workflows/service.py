@@ -1479,6 +1479,7 @@ class WorkflowsService:
                 project_id=project_id,
                 user_id=user_id,
                 revision=_workflow_revision,
+                message=workflow_revision_commit.message,
             )
 
         return await self._normalize_revision_for_read(

@@ -76,7 +76,10 @@ export async function fetchAllPreviewTraces(
         }
     })
 
-    const response = await axios.post(`${baseUrl}/spans/query?${queryParams.toString()}`, payload)
+    const response = await axios.post(
+        `${baseUrl}/tracing/spans/query?${queryParams.toString()}`,
+        payload,
+    )
 
     // Try parsing as SpansResponse first (spans array format)
     const spansResult = spansResponseSchema.safeParse(response.data)
@@ -104,7 +107,9 @@ export async function fetchPreviewTrace(
     const queryParams = new URLSearchParams()
     if (projectId) queryParams.set("project_id", projectId)
 
-    const response = await axios.get(`${baseUrl}/traces/${traceId}?${queryParams.toString()}`)
+    const response = await axios.get(
+        `${baseUrl}/tracing/traces/${traceId}?${queryParams.toString()}`,
+    )
 
     // API returns TracesResponse format with count and traces record
     return safeParseWithLogging(tracesResponseSchema, response.data, "[fetchPreviewTrace]")
@@ -123,7 +128,9 @@ export async function deletePreviewTrace(traceId: string, projectId: string): Pr
     const queryParams = new URLSearchParams()
     if (projectId) queryParams.set("project_id", projectId)
 
-    const response = await axios.delete(`${baseUrl}/traces/${traceId}?${queryParams.toString()}`)
+    const response = await axios.delete(
+        `${baseUrl}/tracing/traces/${traceId}?${queryParams.toString()}`,
+    )
 
     return response.data
 }
@@ -184,7 +191,7 @@ export async function fetchSessions(
     }
 
     const response = await axios.post(
-        `${baseUrl}/spans/sessions/query?${queryParams.toString()}`,
+        `${baseUrl}/tracing/sessions/query?${queryParams.toString()}`,
         payload,
     )
 

@@ -411,10 +411,9 @@ class TracingRouter:
         )
 
         if spans:
-            _root_spans = [s for s in spans if getattr(s, "parent_id", None) is None]
-            _trace_ids = [
-                s.trace_id for s in _root_spans if getattr(s, "trace_id", None)
-            ]
+            _trace_ids = list(
+                dict.fromkeys(s.trace_id for s in spans if getattr(s, "trace_id", None))
+            )
         elif traces:
             _trace_ids = list(traces.keys())
         else:
@@ -1138,8 +1137,9 @@ class SpansRouter:
                     detail="You have reached your trace retrieval quota for this period.",
                 )
 
-        root_spans = [s for s in spans if getattr(s, "parent_id", None) is None]
-        trace_ids = [s.trace_id for s in root_spans if getattr(s, "trace_id", None)]
+        trace_ids = list(
+            dict.fromkeys(s.trace_id for s in spans if getattr(s, "trace_id", None))
+        )
         await publish_trace_queried(
             request=request,
             count=len(trace_ids),
@@ -1212,10 +1212,9 @@ class SpansRouter:
                     detail="You have reached your trace retrieval quota for this period.",
                 )
 
-        root_spans = [s for s in spans if getattr(s, "parent_id", None) is None]
-        fetched_trace_ids = [
-            s.trace_id for s in root_spans if getattr(s, "trace_id", None)
-        ]
+        fetched_trace_ids = list(
+            dict.fromkeys(s.trace_id for s in spans if getattr(s, "trace_id", None))
+        )
         await publish_trace_fetched(
             request=request,
             count=len(fetched_trace_ids),
