@@ -12,22 +12,12 @@ class RequestType(str, Enum):
 
 class EventType(str, Enum):
     UNKNOWN = "unknown"
+
     WEBHOOKS_SUBSCRIPTIONS_TESTED = "webhooks.subscriptions.tested"
 
     # Tracing reads
     TRACES_FETCHED = "traces.fetched"
     TRACES_QUERIED = "traces.queried"
-
-    # Testcase reads
-    TESTCASES_FETCHED = "testcases.fetched"
-    TESTCASES_QUERIED = "testcases.queried"
-
-    # Application revisions
-    APPLICATIONS_REVISIONS_RETRIEVED = "applications.revisions.retrieved"
-    APPLICATIONS_REVISIONS_FETCHED = "applications.revisions.fetched"
-    APPLICATIONS_REVISIONS_QUERIED = "applications.revisions.queried"
-    APPLICATIONS_REVISIONS_LOGGED = "applications.revisions.logged"
-    APPLICATIONS_REVISIONS_COMMITTED = "applications.revisions.committed"
 
     # Query revisions
     QUERIES_REVISIONS_RETRIEVED = "queries.revisions.retrieved"
@@ -36,12 +26,30 @@ class EventType(str, Enum):
     QUERIES_REVISIONS_LOGGED = "queries.revisions.logged"
     QUERIES_REVISIONS_COMMITTED = "queries.revisions.committed"
 
+    # Testcase reads
+    TESTCASES_FETCHED = "testcases.fetched"
+    TESTCASES_QUERIED = "testcases.queried"
+
     # Testset revisions
     TESTSETS_REVISIONS_RETRIEVED = "testsets.revisions.retrieved"
     TESTSETS_REVISIONS_FETCHED = "testsets.revisions.fetched"
     TESTSETS_REVISIONS_QUERIED = "testsets.revisions.queried"
     TESTSETS_REVISIONS_LOGGED = "testsets.revisions.logged"
     TESTSETS_REVISIONS_COMMITTED = "testsets.revisions.committed"
+
+    # Application revisions
+    APPLICATIONS_REVISIONS_RETRIEVED = "applications.revisions.retrieved"
+    APPLICATIONS_REVISIONS_FETCHED = "applications.revisions.fetched"
+    APPLICATIONS_REVISIONS_QUERIED = "applications.revisions.queried"
+    APPLICATIONS_REVISIONS_LOGGED = "applications.revisions.logged"
+    APPLICATIONS_REVISIONS_COMMITTED = "applications.revisions.committed"
+
+    # Workflow revisions
+    WORKFLOWS_REVISIONS_RETRIEVED = "workflows.revisions.retrieved"
+    WORKFLOWS_REVISIONS_FETCHED = "workflows.revisions.fetched"
+    WORKFLOWS_REVISIONS_QUERIED = "workflows.revisions.queried"
+    WORKFLOWS_REVISIONS_LOGGED = "workflows.revisions.logged"
+    WORKFLOWS_REVISIONS_COMMITTED = "workflows.revisions.committed"
 
     # Evaluator revisions
     EVALUATORS_REVISIONS_RETRIEVED = "evaluators.revisions.retrieved"

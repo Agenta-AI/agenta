@@ -565,6 +565,13 @@ REVISION_EVENT_TYPES: Dict[str, Dict[str, EventType]] = {
         "log": EventType.ENVIRONMENTS_REVISIONS_LOGGED,
         "commit": EventType.ENVIRONMENTS_REVISIONS_COMMITTED,
     },
+    "workflow": {
+        "retrieve": EventType.WORKFLOWS_REVISIONS_RETRIEVED,
+        "fetch": EventType.WORKFLOWS_REVISIONS_FETCHED,
+        "query": EventType.WORKFLOWS_REVISIONS_QUERIED,
+        "log": EventType.WORKFLOWS_REVISIONS_LOGGED,
+        "commit": EventType.WORKFLOWS_REVISIONS_COMMITTED,
+    },
 }
 
 

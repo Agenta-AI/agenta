@@ -11,6 +11,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.helpers import parse_url
+from oss.src.core.events.utils import publish_revision_event
 
 from agenta.sdk.engines.running.utils import (
     infer_flags_from_data,
@@ -1375,6 +1376,8 @@ class WorkflowsService:
         user_id: UUID,
         #
         workflow_revision_commit: WorkflowRevisionCommit,
+        #
+        emit: bool = True,
     ) -> Optional[WorkflowRevision]:
         data = workflow_revision_commit.data
         if data and data.uri and not data.url:
@@ -1465,9 +1468,14 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
-        # Do not publish workflow commits here: applications/evaluators delegate
-        # through this method and would double-emit their own commit events.
-        # await publish_revision_event(domain="workflow", action="commit", ...)
+        if emit:
+            await publish_revision_event(
+                domain="workflow",
+                action="commit",
+                project_id=project_id,
+                user_id=user_id,
+                revision=_workflow_revision,
+            )
 
         return await self._normalize_revision_for_read(
             project_id=project_id,

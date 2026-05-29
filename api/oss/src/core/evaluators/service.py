@@ -826,6 +826,7 @@ class EvaluatorsService:
             user_id=user_id,
             #
             workflow_revision_commit=workflow_revision_commit,
+            emit=False,
         )
 
         if not workflow_revision:

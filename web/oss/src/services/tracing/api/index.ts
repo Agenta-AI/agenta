@@ -26,7 +26,7 @@ export const fetchAllPreviewTraces = async (
     const applicationId = ensureAppId(appId)
 
     // New query endpoint expects POST with JSON body
-    const url = new URL(`${base}/tracing/spans/query`)
+    const url = new URL(`${base}/spans/query`)
     if (projectId) url.searchParams.set("project_id", projectId)
     if (applicationId) url.searchParams.set("application_id", applicationId)
 
@@ -94,7 +94,7 @@ export const fetchAllPreviewTracesWithMeta = async (
     const projectId = ensureProjectId()
     const applicationId = ensureAppId(appId)
 
-    const url = new URL(`${base}/tracing/spans/query`)
+    const url = new URL(`${base}/spans/query`)
     if (projectId) url.searchParams.set("project_id", projectId)
     if (applicationId) url.searchParams.set("application_id", applicationId)
 
@@ -134,7 +134,7 @@ export const fetchPreviewTrace = async (traceId: string) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
 
-    const url = new URL(`${base}/tracing/traces/${traceId}`)
+    const url = new URL(`${base}/traces/${traceId}`)
     if (projectId) url.searchParams.set("project_id", projectId)
 
     return fetchJson(url)
@@ -144,7 +144,7 @@ export const deletePreviewTrace = async (traceId: string) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
 
-    const url = new URL(`${base}/tracing/traces/${traceId}`)
+    const url = new URL(`${base}/traces/${traceId}`)
     if (projectId) url.searchParams.set("project_id", projectId)
 
     return fetchJson(url, {method: "DELETE"})
