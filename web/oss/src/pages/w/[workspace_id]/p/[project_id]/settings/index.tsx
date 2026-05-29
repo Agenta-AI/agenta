@@ -161,7 +161,7 @@ const Settings: React.FC = () => {
                     ),
                 }
             case "secrets":
-                return {content: <Secrets />, title: "Models"}
+                return {content: <Secrets />, title: "Providers & Models"}
             case "tools":
                 return {content: <Tools />, title: "Tools"}
             case "apiKeys":
