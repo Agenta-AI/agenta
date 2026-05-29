@@ -158,7 +158,7 @@ const deploymentPaginatedMetaAtom = atom<DeploymentQueryMeta>((get) => {
         projectId: get(projectIdAtom),
         environmentId: get(selectedEnvironmentIdAtom),
         appId: appIdFromRoute || currentApp?.id || null,
-        appSlug: currentApp?.name ?? currentApp?.slug ?? null,
+        appSlug: currentApp?.slug ?? null,
         searchTerm: get(deploymentSearchTermAtom) || undefined,
     }
 })

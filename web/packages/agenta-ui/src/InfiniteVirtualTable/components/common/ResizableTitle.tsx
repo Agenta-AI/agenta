@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useState} from "react"
+import {memo, useMemo, useState} from "react"
 import type {ThHTMLAttributes} from "react"
 
 import {Skeleton} from "antd"
@@ -22,20 +22,20 @@ export interface ResizableTitleProps extends Omit<
 export const ResizableTitle = memo((props: ResizableTitleProps) => {
     const {onResize, onResizeStart, onResizeStop, width, minWidth, ...restProps} = props
 
-    // Local live width to avoid forcing parent re-renders on every drag frame
-    const [liveWidth, setLiveWidth] = useState<number | undefined>(width)
+    // liveWidth is set only during an active drag so the <th> carries an inline
+    // width override for smooth visual feedback. When idle it's undefined and
+    // the cell is sized by AntD's <colgroup>, keeping header and body in sync.
+    const [liveWidth, setLiveWidth] = useState<number | undefined>(undefined)
+    const isDragging = liveWidth !== undefined
+
     const resolvedMinWidth = useMemo(
         () => (typeof minWidth === "number" ? minWidth : 48),
         [minWidth],
     )
 
-    useEffect(() => {
-        setLiveWidth(width)
-    }, [width])
-
     // Only enable resizable behavior when a resize handler is provided.
-    // This ensures non-resizable columns (e.g., selection or fixed columns)
-    // are not wrapped in the Resizable component and keep their native layout.
+    // This ensures non-resizable columns (e.g., selection column) keep their
+    // native layout.
     if (!width || !onResize) {
         return <th {...restProps} />
     }
@@ -43,7 +43,10 @@ export const ResizableTitle = memo((props: ResizableTitleProps) => {
         <Resizable
             width={liveWidth ?? width}
             height={0}
-            onResizeStart={(...args) => onResizeStart?.(...args)}
+            onResizeStart={(e, data) => {
+                setLiveWidth(width ?? data.size.width)
+                onResizeStart?.(e, data)
+            }}
             handle={
                 <span
                     className="react-resizable-handle custom-resize-handle"
@@ -52,9 +55,14 @@ export const ResizableTitle = memo((props: ResizableTitleProps) => {
             }
             onResize={(e: React.SyntheticEvent, data: ResizeCallbackData) => {
                 setLiveWidth(data.size.width)
-                onResize && onResize(e, data)
+                onResize?.(e, data)
             }}
-            onResizeStop={(...args) => onResizeStop?.(...args)}
+            onResizeStop={(e, data) => {
+                onResizeStop?.(e, data)
+                // Commit lives in the parent atom now — clear the drag override
+                // so subsequent renders source width from column.width via colgroup.
+                setLiveWidth(undefined)
+            }}
             draggableOpts={{enableUserSelectHack: false}}
         >
             <th
@@ -63,7 +71,7 @@ export const ResizableTitle = memo((props: ResizableTitleProps) => {
                     ...restProps.style,
                     paddingRight: 8,
                     minWidth: resolvedMinWidth,
-                    width: (liveWidth ?? width) || resolvedMinWidth || 160,
+                    ...(isDragging ? {width: liveWidth} : null),
                 }}
                 className={cn([restProps.className, {"select-none": !!onResize}])}
             >
