@@ -8,6 +8,7 @@
 
 import type {Workflow} from "@agenta/entities/workflow"
 import {queryWorkflows} from "@agenta/entities/workflow"
+import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -192,3 +193,17 @@ export const refetchWorkflowsAtom = atom(null, (_get) => {
     const query = _get(workflowsQueryAtom)
     query.refetch()
 })
+
+/**
+ * Invalidate the prompts-page workflows list cache.
+ *
+ * Prompt creation runs inside the workflow drawer and then navigates to the
+ * playground, so the prompts page is unmounted while the new prompt commits.
+ * With `staleTime: 30_000` + `refetchOnWindowFocus: false`, React Query serves
+ * the stale list when the user returns and the new prompt is missing until a
+ * manual reload. Invalidating here marks the query stale so it refetches on the
+ * next mount (and refetches immediately if the page is still mounted).
+ */
+export async function invalidatePromptsWorkflowQueries() {
+    await queryClient.invalidateQueries({queryKey: ["prompts-workflows"], exact: false})
+}

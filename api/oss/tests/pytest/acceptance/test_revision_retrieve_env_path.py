@@ -19,18 +19,6 @@ service-layer pipeline, so the matrix is intentionally symmetric.
 
 from uuid import uuid4
 
-import pytest
-
-# HOTFIX: the env-path `validate_retrieve_refs_consistent` guardrail is commented
-# out in the service layer ("env-stored refs may carry stale slugs"), so a
-# path-mixed inconsistent revision_ref currently resolves to 200 instead of 400.
-# Remove this marker when the guardrail is re-enabled (web write paths fixed +
-# historical backfill).
-_HOTFIX_GUARDRAIL_DISABLED = pytest.mark.xfail(
-    reason="HOTFIX: env-path validate_retrieve_refs_consistent disabled until backfill",
-    strict=True,
-)
-
 
 # environment helpers ----------------------------------------------------------
 
@@ -201,7 +189,6 @@ def test_workflows_env_retrieve_with_redundant_consistent_artifact(authed_api):
     assert response.json()["workflow_revision"]["id"] == revision["id"]
 
 
-@_HOTFIX_GUARDRAIL_DISABLED
 def test_workflows_env_retrieve_path_mixed_inconsistent_revision_returns_400(
     authed_api,
 ):
@@ -328,7 +315,6 @@ def test_applications_env_retrieve_with_redundant_consistent_artifact(authed_api
     assert response.json()["application_revision"]["id"] == revision["id"]
 
 
-@_HOTFIX_GUARDRAIL_DISABLED
 def test_applications_env_retrieve_path_mixed_inconsistent_revision_returns_400(
     authed_api,
 ):
@@ -455,7 +441,6 @@ def test_evaluators_env_retrieve_with_redundant_consistent_artifact(authed_api):
     assert response.json()["evaluator_revision"]["id"] == revision["id"]
 
 
-@_HOTFIX_GUARDRAIL_DISABLED
 def test_evaluators_env_retrieve_path_mixed_inconsistent_revision_returns_400(
     authed_api,
 ):

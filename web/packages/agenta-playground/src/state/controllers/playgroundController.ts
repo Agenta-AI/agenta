@@ -39,6 +39,7 @@ import {
 } from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
+import type {Getter, Setter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import type {SnapshotLoadableConnection, SnapshotLocalTestset} from "../../snapshot"
@@ -55,12 +56,15 @@ import {
     selectedNodeIdAtom,
     testsetModalOpenAtom,
 } from "../atoms/playground"
-import {duplicateSessionResponsesWithContextAtom} from "../chat"
+import {executionByMessageIdAtomFamily, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
+import type {ChatMessage} from "../chat"
 import type {
     AppRevisionCommitPayload,
     AppRevisionCreateVariantPayload,
     AppRevisionCrudResult,
 } from "../context"
+import {createInitialExecutionState, executionStateAtomFamily} from "../execution"
+import type {ExecutionSession, RunResult} from "../execution"
 import {
     displayedEntityIdsAtom,
     isComparisonViewAtom,
@@ -1822,6 +1826,60 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
             depth: 0,
         }
     })
+
+    // Re-link loadable-scoped state for any entity that was REPLACED in place
+    // (e.g., a revision committed → new revision ID at the same position).
+    // Detection is POSITIONAL: only treat index `i` as a swap when both
+    // `currentIds[i]` is no longer in the new selection and `newIds[i]` was
+    // not in the previous selection. Pure reorders (`[A,B] → [B,A]`),
+    // additions, and removals produce no swap pair.
+    //
+    // Why here (and not in switchEntityAtom)? `setEntityIdsAtom` is the single
+    // chokepoint that EVERY entity-change path funnels through — switchEntity,
+    // URL hydration, applyPlaygroundSelection, SUB 4 validation, removeEntity.
+    // Putting the re-link at this level fixes commit, drawer-mode commit, and
+    // any future caller that swaps an entity, with one change.
+    if (currentRootNodes.length > 0 && newRootNodes.length > 0) {
+        const currentIdSet = new Set(currentIds)
+        const newIdSet = new Set(newIds)
+        const positionalSwaps = currentIds.flatMap((oldEntityId, index) => {
+            const newEntityId = newIds[index]
+            if (!newEntityId || oldEntityId === newEntityId) return []
+            // Guard against reorders: only a true swap when the old ID is gone
+            // from the new selection AND the new ID wasn't already selected.
+            if (newIdSet.has(oldEntityId) || currentIdSet.has(newEntityId)) return []
+            return [{oldEntityId, newEntityId, isAnchorSwap: index === 0}]
+        })
+
+        if (positionalSwaps.length > 0) {
+            const oldLoadableId = get(derivedLoadableIdAtom)
+            const newAnchorNode = newRootNodes[0]
+            const newAnchorLoadableId = `testset:${newAnchorNode.entityType}:${newAnchorNode.entityId}`
+
+            // Process non-anchor swaps first. The anchor swap MOVES data away
+            // from `oldLoadableId` and clears it, so any non-anchor rewrites
+            // that target `oldLoadableId` must run before that clear.
+            for (const swap of positionalSwaps) {
+                if (swap.isAnchorSwap) continue
+                relinkLoadableSessions(get, set, {
+                    oldEntityId: swap.oldEntityId,
+                    newEntityId: swap.newEntityId,
+                    oldLoadableId,
+                    newLoadableId: oldLoadableId,
+                })
+            }
+            const anchorSwap = positionalSwaps.find((swap) => swap.isAnchorSwap)
+            if (anchorSwap) {
+                relinkLoadableSessions(get, set, {
+                    oldEntityId: anchorSwap.oldEntityId,
+                    newEntityId: anchorSwap.newEntityId,
+                    oldLoadableId,
+                    newLoadableId: newAnchorLoadableId,
+                })
+            }
+        }
+    }
+
     // Preserve downstream nodes (e.g. evaluators at depth > 0) when updating root selection.
     // If root selection is cleared entirely, downstream nodes are also removed.
     set(playgroundNodesAtom, newRootNodes.length > 0 ? [...newRootNodes, ...downstreamNodes] : [])
@@ -1896,9 +1954,152 @@ const removeEntityAtom = atom(null, (get, set, entityId: string) => {
 })
 
 /**
+ * Re-link loadable-scoped state from one entity to another.
+ *
+ * Called when an entity in the playground is replaced (e.g., after committing
+ * a workflow revision). The committed revision gets a new ID, so any state
+ * keyed by `loadableId` (= `testset:<type>:<entityId>`) and any session-tagged
+ * data (`sess:<entityId>` in messages and execution sessions) needs to follow
+ * the rename. Without this, chat history and execution sessions get orphaned
+ * at the old loadableId and the UI appears to reset.
+ *
+ * Two cases:
+ *  - Anchor commit: the swapped entity is the loadableId anchor → loadableId
+ *    changes, so chat + execution state is moved to the new loadableId and
+ *    `sess:<old>` references are rewritten to `sess:<new>`.
+ *  - Non-anchor commit (compare mode): loadableId stays the same, but the
+ *    per-revision session ID still needs rewriting in place so the new
+ *    revision's column finds its responses.
+ */
+function relinkLoadableSessions(
+    get: Getter,
+    set: Setter,
+    {
+        oldEntityId,
+        newEntityId,
+        oldLoadableId,
+        newLoadableId,
+    }: {
+        oldEntityId: string
+        newEntityId: string
+        oldLoadableId: string
+        newLoadableId: string
+    },
+) {
+    const oldSessionId = `sess:${oldEntityId}`
+    const newSessionId = `sess:${newEntityId}`
+    const moves = oldLoadableId !== newLoadableId
+
+    // --- Chat: rewrite per-revision sessionId in messages; move atom families
+    // if the loadableId changed. Shared (user/system) messages are untouched.
+    const messageIds = get(messageIdsAtomFamily(oldLoadableId))
+    const messagesById = get(messagesByIdAtomFamily(oldLoadableId))
+    const executionByMessageId = get(executionByMessageIdAtomFamily(oldLoadableId))
+
+    let chatRewrote = false
+    const rewrittenMessagesById: Record<string, ChatMessage> = {}
+    for (const [id, msg] of Object.entries(messagesById)) {
+        if (msg.sessionId === oldSessionId) {
+            rewrittenMessagesById[id] = {...msg, sessionId: newSessionId}
+            chatRewrote = true
+        } else {
+            rewrittenMessagesById[id] = msg
+        }
+    }
+
+    if (moves) {
+        set(messageIdsAtomFamily(newLoadableId), [...messageIds])
+        set(messagesByIdAtomFamily(newLoadableId), rewrittenMessagesById)
+        set(executionByMessageIdAtomFamily(newLoadableId), {...executionByMessageId})
+        set(messageIdsAtomFamily(oldLoadableId), [])
+        set(messagesByIdAtomFamily(oldLoadableId), {})
+        set(executionByMessageIdAtomFamily(oldLoadableId), {})
+    } else if (chatRewrote) {
+        set(messagesByIdAtomFamily(oldLoadableId), rewrittenMessagesById)
+    }
+
+    // --- Execution state: rewrite the per-revision session in sessionsById,
+    // activeSessionIds and resultsByKey (key = `${stepId}:${sessionId}`). Other
+    // variants' sessions in compare mode are left untouched.
+    const execState = get(executionStateAtomFamily(oldLoadableId))
+
+    let execRewrote = false
+    const rewrittenSessionsById: Record<string, ExecutionSession> = {}
+    for (const [id, session] of Object.entries(execState.sessionsById)) {
+        if (id === oldSessionId) {
+            rewrittenSessionsById[newSessionId] = {
+                ...session,
+                id: newSessionId,
+                runnableId: newEntityId,
+            }
+            execRewrote = true
+        } else {
+            rewrittenSessionsById[id] = session
+        }
+    }
+
+    const rewrittenActiveSessionIds = execState.activeSessionIds.map((id) => {
+        if (id === oldSessionId) {
+            execRewrote = true
+            return newSessionId
+        }
+        return id
+    })
+
+    const rewrittenResultsByKey: Record<string, RunResult> = {}
+    const oldKeySuffix = `:${oldSessionId}`
+    for (const [key, result] of Object.entries(execState.resultsByKey)) {
+        if (result.sessionId === oldSessionId) {
+            const newKey = key.endsWith(oldKeySuffix)
+                ? `${key.slice(0, -oldKeySuffix.length)}:${newSessionId}`
+                : key
+            rewrittenResultsByKey[newKey] = {...result, sessionId: newSessionId}
+            execRewrote = true
+        } else {
+            rewrittenResultsByKey[key] = result
+        }
+    }
+
+    const nextExecState = {
+        ...execState,
+        sessionsById: rewrittenSessionsById,
+        activeSessionIds: rewrittenActiveSessionIds,
+        resultsByKey: rewrittenResultsByKey,
+    }
+
+    if (moves) {
+        set(executionStateAtomFamily(newLoadableId), nextExecState)
+        set(executionStateAtomFamily(oldLoadableId), createInitialExecutionState())
+
+        // Also migrate row-level execution results stored on the loadable
+        // state itself. These render the per-row output cells; leaving them
+        // behind makes the just-committed revision look like it never ran.
+        // `linkToRunnable` will overwrite linkedRunnable* immediately after
+        // this, so we don't touch those fields here — only the
+        // execution-output map needs to move.
+        const oldLoadableState = get(loadableStateAtomFamily(oldLoadableId))
+        if (Object.keys(oldLoadableState.executionResults).length > 0) {
+            const newLoadableState = get(loadableStateAtomFamily(newLoadableId))
+            set(loadableStateAtomFamily(newLoadableId), {
+                ...newLoadableState,
+                executionResults: oldLoadableState.executionResults,
+            })
+            set(loadableStateAtomFamily(oldLoadableId), {
+                ...oldLoadableState,
+                executionResults: {},
+            })
+        }
+    } else if (execRewrote) {
+        set(executionStateAtomFamily(oldLoadableId), nextExecState)
+    }
+}
+
+/**
  * Switch one entity for another in the displayed selection.
- * Handles both single and comparison mode. Duplicates chat history
- * from the old entity to the new one.
+ * Handles both single and comparison mode. The loadable-scoped re-link
+ * (chat history, execution sessions, results) happens inside setEntityIdsAtom
+ * via positional swap detection, so this just computes the updated array
+ * and delegates.
  */
 const switchEntityAtom = atom(
     null,
@@ -1909,10 +2110,6 @@ const switchEntityAtom = atom(
                 ? current.map((id) => (id === currentEntityId ? newEntityId : id))
                 : [newEntityId]
 
-        set(duplicateSessionResponsesWithContextAtom, {
-            sourceRevisionId: currentEntityId,
-            targetRevisionId: newEntityId,
-        })
         set(setEntityIdsAtom, updated)
         _onSelectionChange?.(updated, [currentEntityId])
     },
@@ -2067,9 +2264,6 @@ export const playgroundController = {
 
         /** Reset playground state and clear all output connections */
         resetAll: resetAllAtom,
-
-        /** Duplicate session responses from one entity to another */
-        duplicateSessionResponses: duplicateSessionResponsesWithContextAtom,
 
         /** Restore a testset connection from a URL snapshot (call after primary node is set) */
         restoreLoadableConnection: restoreLoadableConnectionAtom,

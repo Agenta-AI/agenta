@@ -297,7 +297,7 @@ class LegacyVariantsRouter:
             ),
             service_ref=None,
             variant_ref=ReferenceRequestModel(
-                slug=variant.slug if variant else revision.slug,
+                slug=(variant.slug if variant else revision.variant_slug),
                 version=revision.version,
                 id=variant_id,
                 commit_message=revision.message,
