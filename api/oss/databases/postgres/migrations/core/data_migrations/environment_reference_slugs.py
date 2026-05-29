@@ -173,6 +173,7 @@ def upgrade_environment_reference_slugs(session: Connection) -> None:
 
         session.commit()
         total += result.rowcount
+        click.echo(f"  ... backfilled {total} rows so far")
 
     click.echo(
         click.style(
