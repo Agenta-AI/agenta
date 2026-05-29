@@ -75,16 +75,19 @@ const invitePendingMember = async (page: any, apiHelpers: any, uiHelpers: any): 
     const basePath = apiHelpers.getProjectScopedBasePath()
     await page.goto(`${basePath}/settings`, {waitUntil: "domcontentloaded"})
     await uiHelpers.expectPath("/settings")
-    // networkidle ensures the dynamic() import for InviteUsersModal has finished loading
-    // before we click the button — avoids the race where the click fires before the
-    // modal component is mounted, leaving the dialog never visible.
-    await page.waitForLoadState("networkidle")
-    await expect(page.getByRole("button", {name: "Invite Members"})).toBeVisible({timeout: 15000})
 
-    await page.getByRole("button", {name: "Invite Members"}).click()
+    const inviteButton = page.getByRole("button", {name: "Invite Members"})
+    await expect(inviteButton).toBeVisible({timeout: 20000})
+    await inviteButton.click()
+
     const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
-    await expect(inviteModal).toBeVisible({timeout: 15000})
-    await inviteModal.getByPlaceholder("member@organization.com").fill(testEmail)
+    const emailInput = inviteModal.getByPlaceholder("member@organization.com")
+    // Wait for the email input rather than just the dialog — the InviteUsersModal
+    // is a dynamic() import, so the form body can lag behind the modal wrapper.
+    // Waiting for the input guarantees the chunk has fully rendered.
+    await expect(emailInput).toBeVisible({timeout: 20000})
+    await emailInput.fill(testEmail)
+
     await Promise.all([
         waitForInviteResponse(page),
         inviteModal.getByRole("button", {name: "Invite"}).click(),
@@ -114,9 +117,8 @@ const membersTests = () => {
                 const basePath = apiHelpers.getProjectScopedBasePath()
                 await page.goto(`${basePath}/settings`, {waitUntil: "domcontentloaded"})
                 await uiHelpers.expectPath("/settings")
-                await page.waitForLoadState("networkidle")
                 await expect(page.getByRole("button", {name: "Invite Members"})).toBeVisible({
-                    timeout: 15000,
+                    timeout: 20000,
                 })
             })
 
@@ -126,10 +128,10 @@ const membersTests = () => {
                     await page.getByRole("button", {name: "Invite Members"}).click()
 
                     const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
-                    await expect(inviteModal).toBeVisible({timeout: 10000})
-
                     const emailInput = inviteModal.getByPlaceholder("member@organization.com")
-                    await expect(emailInput).toBeVisible({timeout: 5000})
+                    // Wait for the input directly — the InviteUsersModal is a dynamic()
+                    // import so the form body can lag behind the modal wrapper appearing.
+                    await expect(emailInput).toBeVisible({timeout: 20000})
                     await emailInput.fill(testEmail)
 
                     // EE renders a role selector; keep the default selection
@@ -166,7 +168,9 @@ const membersTests = () => {
         "should resend an invitation and confirm success",
         {tag: lightFastTags},
         async ({page, apiHelpers, uiHelpers}) => {
-            test.setTimeout(60000)
+            // invitePendingMember runs a full invite flow as setup — give enough
+            // headroom for navigation + modal interaction + the resend action.
+            test.setTimeout(90000)
 
             await scenarios.given("the user is authenticated", async () => {
                 await expectAuthenticatedSession(page)
@@ -203,7 +207,9 @@ const membersTests = () => {
         "should remove a pending member from the workspace",
         {tag: lightFastTags},
         async ({page, apiHelpers, uiHelpers}) => {
-            test.setTimeout(60000)
+            // invitePendingMember runs a full invite flow as setup — give enough
+            // headroom for navigation + modal interaction + the remove action.
+            test.setTimeout(90000)
 
             await scenarios.given("the user is authenticated", async () => {
                 await expectAuthenticatedSession(page)

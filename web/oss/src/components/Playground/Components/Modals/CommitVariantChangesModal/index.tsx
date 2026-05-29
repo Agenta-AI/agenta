@@ -148,7 +148,12 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                             newRevisionData?.workflow_variant_id ??
                             runnableData?.workflow_variant_id ??
                             undefined,
-                        variantSlug: newRevisionData?.slug ?? runnableData?.slug ?? undefined,
+                        variantSlug:
+                            newRevisionData?.workflow_variant_slug ??
+                            newRevisionData?.variant_slug ??
+                            runnableData?.workflow_variant_slug ??
+                            runnableData?.variant_slug ??
+                            undefined,
                         revisionVersion: newRevisionData?.version ?? undefined,
                         note,
                     })
@@ -187,7 +192,12 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         newRevisionData?.workflow_variant_id ??
                         runnableData?.workflow_variant_id ??
                         undefined,
-                    variantSlug: newRevisionData?.slug ?? runnableData?.slug ?? undefined,
+                    variantSlug:
+                        newRevisionData?.workflow_variant_slug ??
+                        newRevisionData?.variant_slug ??
+                        runnableData?.workflow_variant_slug ??
+                        runnableData?.variant_slug ??
+                        undefined,
                     revisionVersion: newRevisionData?.version ?? undefined,
                     note,
                 })

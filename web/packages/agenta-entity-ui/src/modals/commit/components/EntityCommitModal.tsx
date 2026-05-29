@@ -199,7 +199,12 @@ export function EntityCommitModal({
     const isExternallyControlled = externalOpen !== undefined
     // Determine actual open state
     const isOpen = isExternallyControlled ? Boolean(externalOpen) : internalOpen
-    const createFieldsEntity = currentEntity ?? externalEntity ?? null
+    // Prefer the prop over the atom — the atom can hold stale data from a
+    // previous session whose `afterClose` reset never fired (e.g. parent
+    // unmounted mid-animation), and Effect 1's `setEntity(externalEntity)`
+    // doesn't propagate to `currentEntity` until the next render, which is
+    // too late for Effect 2's default-name computation on first open.
+    const createFieldsEntity = externalEntity ?? currentEntity ?? null
     const createFieldsConfig =
         typeof createEntityFields === "object" ? createEntityFields : undefined
     const createFieldsModes = createFieldsConfig?.modes
