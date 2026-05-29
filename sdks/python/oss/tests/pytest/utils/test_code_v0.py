@@ -26,8 +26,8 @@ from agenta.sdk.workflows.errors import (
 )
 from agenta.sdk.workflows.handlers import code_v0
 
-_code_v0 = code_v0.__wrapped__
 
+_code_v0 = code_v0.__wrapped__
 
 # Mirrors registry.get_runner() precedence: local unless explicitly overridden.
 _SANDBOX_RUNNER = (
