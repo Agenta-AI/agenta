@@ -154,8 +154,7 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
         () =>
             fields.map((f) => {
                 const groupLabel =
-                    (f.groupSlug ? evaluatorNameBySlug.get(f.groupSlug) : undefined) ??
-                    f.groupLabel
+                    (f.groupSlug ? evaluatorNameBySlug.get(f.groupSlug) : undefined) ?? f.groupLabel
                 return {
                     value: encodeField(f),
                     label: `${groupLabel} · ${f.label}`,
