@@ -124,9 +124,9 @@ class RetrieveRefsInsufficient(GitError):
 class InitialRevisionConflict(GitError):
     """Raised when an initial revision already exists for a variant.
 
-    The `initial=True` guard in the DAO returns None when a revision is
-    already present. Services translate that into this exception so routers
-    can map it to HTTP 409 without inspecting None.
+    The `initial=True` guard in the DAO raises this exception when a
+    revision already exists for the variant, so routers can map it to
+    HTTP 409 via `@handle_git_exceptions()` without inspecting None.
     """
 
 

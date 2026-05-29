@@ -1548,7 +1548,7 @@ class GitDAO(GitDAOInterface):
 
     # --------------------------------------------------------------------------
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[InitialRevisionConflict])
     async def commit_revision(
         self,
         *,
