@@ -487,6 +487,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                 templateFormat={localTemplateFormat}
                 tokens={stableVariables}
                 loadingFallback="static"
+                viewModes={["text", "markdown"]}
             />
 
             {/* Tools list */}
