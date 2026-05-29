@@ -5,6 +5,7 @@ import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {atom, useAtomValue} from "jotai"
 
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
+import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 
 import {
     buildColumnValueConfig,
@@ -203,6 +204,55 @@ const ValueSection = ({
     )
 }
 
+interface EvaluatorSectionProps {
+    runId: string
+    scenarioId: string
+    section: EvalDrawerMetricSection
+    rootViewMode?: RootDrawerViewMode
+    collapseSignal?: number
+}
+
+/**
+ * Renders a single annotation/evaluator section with its own trace info.
+ * Each evaluator has its own annotation trace (separate from the invocation
+ * trace), so they are rendered as individual sections rather than flattened.
+ */
+const EvaluatorSection = ({
+    runId,
+    scenarioId,
+    section,
+    rootViewMode,
+    collapseSignal,
+}: EvaluatorSectionProps) => {
+    const evaluatorSections = useMemo(() => [section], [section])
+    const {columns, value} = useMetricValueSectionData({
+        runId,
+        scenarioId,
+        sections: evaluatorSections,
+    })
+
+    if (!columns.length) return null
+
+    return (
+        <EvalDrawerDataSection
+            title={section.label}
+            value={value}
+            columns={columns}
+            rootViewMode={rootViewMode}
+            collapseSignal={collapseSignal}
+            headerExtra={
+                section.traceId ? (
+                    <SharedGenerationResultUtils
+                        traceId={section.traceId}
+                        showStatus={false}
+                        className="flex items-center gap-1"
+                    />
+                ) : null
+            }
+        />
+    )
+}
+
 const EvaluatorMetricsAdapter = ({
     runId,
     scenarioId,
@@ -223,14 +273,16 @@ const EvaluatorMetricsAdapter = ({
 
     return (
         <div className="flex flex-col">
-            <ValueSection
-                title="Evaluators"
-                runId={runId}
-                scenarioId={scenarioId}
-                sections={evaluatorSections}
-                rootViewMode={rootViewMode}
-                collapseSignal={collapseSignal}
-            />
+            {evaluatorSections.map((section) => (
+                <EvaluatorSection
+                    key={section.id}
+                    runId={runId}
+                    scenarioId={scenarioId}
+                    section={section}
+                    rootViewMode={rootViewMode}
+                    collapseSignal={collapseSignal}
+                />
+            ))}
             <ValueSection
                 title="Metrics"
                 runId={runId}
