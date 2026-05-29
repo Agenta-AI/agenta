@@ -597,7 +597,9 @@ async def evaluate_live_query(
                     # populated for successfully resolved revisions.
                     if annotation_step_key not in evaluator_revisions:
                         log.error(
-                            f"Evaluator revision for {annotation_step_key} not found!"
+                            "Evaluator revision not resolved; skipping annotation step.",
+                            run_id=run_id,
+                            annotation_step_key=annotation_step_key,
                         )
                         scenario_has_errors[idx] += 1
                         scenario_status[idx] = EvaluationStatus.ERRORS

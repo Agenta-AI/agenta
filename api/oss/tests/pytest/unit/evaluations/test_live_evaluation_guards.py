@@ -1,8 +1,16 @@
+# ruff: noqa: E402
+
+import sys
+import types
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+
+# Stub genson so importing oss.src.core.evaluations.tasks.live (which transitively
+# pulls in services depending on it) does not require genson during unit tests.
+sys.modules.setdefault("genson", types.SimpleNamespace(SchemaBuilder=object))
 
 from oss.src.core.evaluators.dtos import EvaluatorRevision, EvaluatorRevisionData
 from oss.src.core.queries.dtos import QueryRevision, QueryRevisionData
