@@ -1427,7 +1427,7 @@ class ApplicationsRouter:
         *,
         application_revision_create_request: ApplicationRevisionCreateRequest,
     ) -> ApplicationRevisionResponse:
-        """Create a revision row directly, without the commit workflow.
+        """Create and commit the initial revision for an application variant.
 
         Advanced use only. For normal development loops prefer
         `POST /applications/revisions/commit`, which commits the new revision

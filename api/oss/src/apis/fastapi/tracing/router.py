@@ -420,7 +420,7 @@ class TracingRouter:
             _trace_ids = []
         await publish_trace_queried(
             request=request,
-            count=count,
+            count=len(_trace_ids),
             trace_ids=_trace_ids,
         )
 
