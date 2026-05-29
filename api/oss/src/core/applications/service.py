@@ -24,7 +24,7 @@ from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
-    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.workflows.service import WorkflowsService
 
@@ -638,18 +638,15 @@ class ApplicationsService:
                 "application_revision"
             )
 
-            # HOTFIX: env-stored refs may carry stale slugs.
-            # Re-enable once the web write paths are fixed and the historical
-            # rows are backfilled.
-            # validate_retrieve_refs_consistent(
-            #     artifact_ref=application_ref,
-            #     variant_ref=application_variant_ref,
-            #     revision_ref=application_revision_ref,
-            #     resolved_artifact_ref=env_application_ref,
-            #     resolved_variant_ref=env_application_variant_ref,
-            #     resolved_revision_ref=env_application_revision_ref,
-            #     entity_type="application",
-            # )
+            validate_retrieve_refs_consistent(
+                artifact_ref=application_ref,
+                variant_ref=application_variant_ref,
+                revision_ref=application_revision_ref,
+                resolved_artifact_ref=env_application_ref,
+                resolved_variant_ref=env_application_variant_ref,
+                resolved_revision_ref=env_application_revision_ref,
+                entity_type="application",
+            )
 
             application_ref = env_application_ref
             application_variant_ref = env_application_variant_ref
