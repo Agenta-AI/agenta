@@ -37,7 +37,9 @@ def map_event_dbe_to_dto(*, event_dbe: EventDBE) -> Event:
         event_id=event_dbe.event_id,
         #
         request_type=event_dbe.request_type,
-        event_type=EventType(event_dbe.event_type),
+        event_type=EventType(event_dbe.event_type)
+        if event_dbe.event_type in EventType._value2member_map_
+        else EventType.UNKNOWN,
         #
         timestamp=event_dbe.timestamp,
         #

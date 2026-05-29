@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
 
 from oss.src.core.events.types import EventType
 from oss.src.core.shared.dtos import (
@@ -84,22 +84,19 @@ class WebhookEventType(str, Enum):
     WORKFLOWS_REVISIONS_LOGGED = EventType.WORKFLOWS_REVISIONS_LOGGED.value
     WORKFLOWS_REVISIONS_COMMITTED = EventType.WORKFLOWS_REVISIONS_COMMITTED.value
 
-    # Application revisions — kept so existing webhook subscriptions that
-    # reference these values deserialize correctly; no new events are emitted
-    # (applications now emit as workflow events).
-    APPLICATIONS_REVISIONS_RETRIEVED = EventType.APPLICATIONS_REVISIONS_RETRIEVED.value
-    APPLICATIONS_REVISIONS_FETCHED = EventType.APPLICATIONS_REVISIONS_FETCHED.value
-    APPLICATIONS_REVISIONS_QUERIED = EventType.APPLICATIONS_REVISIONS_QUERIED.value
-    APPLICATIONS_REVISIONS_LOGGED = EventType.APPLICATIONS_REVISIONS_LOGGED.value
-    APPLICATIONS_REVISIONS_COMMITTED = EventType.APPLICATIONS_REVISIONS_COMMITTED.value
+    # Application revisions — not currently emitted (applications emit as workflow events).
+    # APPLICATIONS_REVISIONS_RETRIEVED = "applications.revisions.retrieved"
+    # APPLICATIONS_REVISIONS_FETCHED = "applications.revisions.fetched"
+    # APPLICATIONS_REVISIONS_QUERIED = "applications.revisions.queried"
+    # APPLICATIONS_REVISIONS_LOGGED = "applications.revisions.logged"
+    # APPLICATIONS_REVISIONS_COMMITTED = "applications.revisions.committed"
 
-    # Evaluator revisions — same as above; kept for deserialization of existing
-    # subscriptions; no new events are emitted.
-    EVALUATORS_REVISIONS_RETRIEVED = EventType.EVALUATORS_REVISIONS_RETRIEVED.value
-    EVALUATORS_REVISIONS_FETCHED = EventType.EVALUATORS_REVISIONS_FETCHED.value
-    EVALUATORS_REVISIONS_QUERIED = EventType.EVALUATORS_REVISIONS_QUERIED.value
-    EVALUATORS_REVISIONS_LOGGED = EventType.EVALUATORS_REVISIONS_LOGGED.value
-    EVALUATORS_REVISIONS_COMMITTED = EventType.EVALUATORS_REVISIONS_COMMITTED.value
+    # Evaluator revisions — not currently emitted (evaluators emit as workflow events).
+    # EVALUATORS_REVISIONS_RETRIEVED = "evaluators.revisions.retrieved"
+    # EVALUATORS_REVISIONS_FETCHED = "evaluators.revisions.fetched"
+    # EVALUATORS_REVISIONS_QUERIED = "evaluators.revisions.queried"
+    # EVALUATORS_REVISIONS_LOGGED = "evaluators.revisions.logged"
+    # EVALUATORS_REVISIONS_COMMITTED = "evaluators.revisions.committed"
 
     # Environment revisions
     ENVIRONMENTS_REVISIONS_RETRIEVED = EventType.ENVIRONMENTS_REVISIONS_RETRIEVED.value
@@ -123,6 +120,14 @@ class WebhookSubscriptionData(BaseModel):
     auth_mode: Optional[Literal["signature", "authorization"]] = None
 
     event_types: Optional[List[WebhookEventType]] = None
+
+    @field_validator("event_types", mode="before")
+    @classmethod
+    def drop_unknown_event_types(cls, v):
+        if v is None:
+            return v
+        known = WebhookEventType._value2member_map_
+        return [et for et in v if et in known]
 
 
 class WebhookSubscription(Identifier, Lifecycle, Header, Metadata):
