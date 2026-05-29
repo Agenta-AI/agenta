@@ -135,13 +135,33 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
         [schema, resolveValueType],
     )
     const fieldByKey = useMemo(() => new Map(fields.map((f) => [encodeField(f), f])), [fields])
+
+    // The filter-schema group label is a humanified slug (e.g. "Rubic
+    // Zn3a"). The table column headers resolve the evaluator's configured
+    // name onto every column as `evaluatorName` — reuse that here, keyed by
+    // evaluator slug, so filter options read as evaluator names not slugs.
+    const evaluatorNameBySlug = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const col of columnResult?.columns ?? []) {
+            if (col.evaluatorSlug && col.evaluatorName) {
+                map.set(col.evaluatorSlug, col.evaluatorName)
+            }
+        }
+        return map
+    }, [columnResult])
+
     const fieldOptions = useMemo(
         () =>
-            fields.map((f) => ({
-                value: encodeField(f),
-                label: `${f.groupLabel} · ${f.label}`,
-            })),
-        [fields],
+            fields.map((f) => {
+                const groupLabel =
+                    (f.groupSlug ? evaluatorNameBySlug.get(f.groupSlug) : undefined) ??
+                    f.groupLabel
+                return {
+                    value: encodeField(f),
+                    label: `${groupLabel} · ${f.label}`,
+                }
+            }),
+        [fields, evaluatorNameBySlug],
     )
 
     // Run graph carries no filterable columns — hide the bar entirely.
