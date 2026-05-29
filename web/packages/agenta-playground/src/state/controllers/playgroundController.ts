@@ -82,6 +82,7 @@ import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessa
 import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 
+import {extractReferences, resolveTraceRefs} from "./traceRefResolution"
 import {getRunnableTypeResolver} from "./urlSnapshotController"
 
 // Import loadable state from entities (stays there due to entity dependencies)
@@ -1007,30 +1008,6 @@ function extractModelConfig(span: TraceSpanNode): Record<string, unknown> | null
 }
 
 /**
- * Reference structure from backend (SimpleTraceReferences):
- * - application: {id, slug, version}
- * - application_variant: {id, slug, version}
- * - application_revision: {id, slug, version}
- * - evaluator: {id, slug, version}
- * - evaluator_variant: {id, slug, version}
- * - evaluator_revision: {id, slug, version}
- */
-interface TraceReference {
-    id?: string
-    slug?: string
-    version?: string
-}
-
-interface TraceReferences {
-    application?: TraceReference
-    application_variant?: TraceReference
-    application_revision?: TraceReference
-    evaluator?: TraceReference
-    evaluator_variant?: TraceReference
-    evaluator_revision?: TraceReference
-}
-
-/**
  * Extract `ag.flags` from a span's attributes.
  *
  * Flags sit at `attributes.ag.flags` (sibling of `ag.data`), so `extractAgData`
@@ -1063,53 +1040,14 @@ function deriveBuiltinUriFromSpanName(spanName: string | null | undefined): stri
 }
 
 /**
- * Extract references from ag.references (dict format) or top-level references array
- */
-function extractReferences(span: TraceSpanNode): TraceReferences {
-    const result: TraceReferences = {}
-
-    // Try ag.references first (dict format from backend)
-    const agData = (span.attributes as Record<string, unknown>)?.ag as Record<string, unknown>
-    const agRefs = agData?.references as Record<string, TraceReference> | undefined
-    if (agRefs) {
-        if (agRefs.application) result.application = agRefs.application
-        if (agRefs.application_variant) result.application_variant = agRefs.application_variant
-        if (agRefs.application_revision) result.application_revision = agRefs.application_revision
-        if (agRefs.evaluator) result.evaluator = agRefs.evaluator
-        if (agRefs.evaluator_variant) result.evaluator_variant = agRefs.evaluator_variant
-        if (agRefs.evaluator_revision) result.evaluator_revision = agRefs.evaluator_revision
-    }
-
-    // Also check top-level references array (alternative format)
-    const topRefs = span.references as
-        | {id?: string; slug?: string; version?: string; attributes?: {key?: string}}[]
-        | undefined
-    if (topRefs && Array.isArray(topRefs)) {
-        for (const ref of topRefs) {
-            const key = ref.attributes?.key
-            if (!key) continue
-            const refData: TraceReference = {id: ref.id, slug: ref.slug, version: ref.version}
-            if (key === "application" && !result.application) result.application = refData
-            if (key === "application_variant" && !result.application_variant)
-                result.application_variant = refData
-            if (key === "application_revision" && !result.application_revision)
-                result.application_revision = refData
-            if (key === "evaluator" && !result.evaluator) result.evaluator = refData
-            if (key === "evaluator_variant" && !result.evaluator_variant)
-                result.evaluator_variant = refData
-            if (key === "evaluator_revision" && !result.evaluator_revision)
-                result.evaluator_revision = refData
-        }
-    }
-
-    return result
-}
-
-/**
  * Result from opening a trace in playground.
- * - If `type` is "revision", the trace has a valid application_revision reference
- *   and the playground opened that existing revision.
- * - If `type` is "ephemeral", a new ephemeral workflow was created from the trace data.
+ *
+ * - `type: "revision"` — the trace has (or resolves to) a specific revision
+ *   id; the playground opens that revision directly.
+ * - `type: "ephemeral"` — a local-only workflow was created from the trace
+ *   data; no app or revision linkage. The caller should open it in the
+ *   stacked drawer (no app context) or, if `appId` is set, full-page inside
+ *   that app (legacy evaluator path).
  */
 export interface OpenFromTraceResult {
     type: "revision" | "ephemeral"
@@ -1135,7 +1073,7 @@ export interface OpenFromTraceResult {
  */
 const openFromTraceAtom = atom(
     null,
-    (_get, set, activeSpan: TraceSpanNode): OpenFromTraceResult => {
+    async (get, set, activeSpan: TraceSpanNode): Promise<OpenFromTraceResult> => {
         const spanType = activeSpan.span_type
         const agData = extractAgData(activeSpan)
         const refs = extractReferences(activeSpan)
@@ -1149,6 +1087,35 @@ const openFromTraceAtom = atom(
             asString(agData.variantName) ??
             asString(activeSpan.span_name) ??
             "Trace Replay"
+
+        // Resolve any combination of trace refs to concrete `{appId, revId}`.
+        //
+        // Third-party instrumentations (n8n, LangChain-style adapters) often
+        // emit refs as slugs or versions instead of UUIDs. We fire one
+        // round-trip whenever the trace gives us anything identifying
+        // (app/variant/revision × id/slug — or version when scoped) and
+        // backfill only the ids that aren't already on the refs. The local
+        // ids the trace supplied are authoritative and never overwritten.
+        //
+        // Skipped when we already have both app.id and revision.id (no
+        // network call needed) or when the only identifier is a bare
+        // revision.version (the backend rejects that as ambiguous).
+        const haveBothIds = Boolean(
+            asString(refs.application?.id) && asString(refs.application_revision?.id),
+        )
+        if (!haveBothIds) {
+            const projectId = get(projectIdAtom)
+            const resolved = await resolveTraceRefs(refs, projectId)
+            if (resolved.appId && !asString(refs.application?.id)) {
+                refs.application = {...(refs.application ?? {}), id: resolved.appId}
+            }
+            if (resolved.revisionId && !asString(refs.application_revision?.id)) {
+                refs.application_revision = {
+                    ...(refs.application_revision ?? {}),
+                    id: resolved.revisionId,
+                }
+            }
+        }
 
         // Extract safe reference IDs (origin's asString guards)
         const applicationId = asString(refs.application?.id)
@@ -1286,11 +1253,9 @@ const openFromTraceAtom = atom(
             const testcaseInputs =
                 Object.keys(promotedConfig).length > 0 ? cleanedInputs : actualInputs
 
-            // If there's an app_revision reference with a resolvable UUID,
-            // open that revision directly. A bare `version` (e.g. "1") is
-            // a sequence number — not a revision ID — so we can't target a
-            // specific revision with it and fall through to the ephemeral
-            // path below (which still navigates to the app playground).
+            // If there's an app_revision reference with a resolvable UUID
+            // (either from the trace directly or backfilled by the resolver
+            // above), open that revision directly.
             const revisionId = asString(refs.application_revision?.id)
             if (revisionId) {
                 set(addPrimaryNodeAtom, {
@@ -1363,7 +1328,7 @@ const openFromTraceAtom = atom(
                 }
             }
 
-            // No revision — create ephemeral workflow.
+            // No revision and no app linkage — create ephemeral workflow.
             // Evaluator spans carry is_evaluator + the derived URI so downstream
             // selectors dispatch correctly (schema, ports, request payload).
             const sourceRef = isEvaluatorSpan

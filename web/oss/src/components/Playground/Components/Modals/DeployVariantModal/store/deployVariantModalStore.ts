@@ -109,12 +109,12 @@ export const deploySubmitAtom = atom(
         const workflowId = workflowData?.workflow_id || ""
         const variants = workflowId ? get(workflowVariantsListDataAtomFamily(workflowId)) : []
         const variantEntity = variants.find((v) => v.id === workflowData?.workflow_variant_id)
-        const resolvedVariantSlug = variantEntity?.name || variantEntity?.slug || workflowData?.slug
+        const resolvedVariantSlug = variantEntity?.slug || undefined
 
         // Resolve application slug from the workflows list
         const workflows = get(workflowsListDataAtom)
         const workflowEntity = workflows.find((w) => w.id === workflowId)
-        const applicationSlug = workflowEntity?.slug || workflowEntity?.name || undefined
+        const applicationSlug = workflowEntity?.slug || undefined
 
         try {
             console.debug("[DeployModal] submit:publish", {
