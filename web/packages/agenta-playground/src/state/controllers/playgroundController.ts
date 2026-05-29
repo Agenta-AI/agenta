@@ -56,12 +56,7 @@ import {
     selectedNodeIdAtom,
     testsetModalOpenAtom,
 } from "../atoms/playground"
-import {
-    duplicateSessionResponsesWithContextAtom,
-    executionByMessageIdAtomFamily,
-    messageIdsAtomFamily,
-    messagesByIdAtomFamily,
-} from "../chat"
+import {executionByMessageIdAtomFamily, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 import type {ChatMessage} from "../chat"
 import type {
     AppRevisionCommitPayload,
@@ -2269,9 +2264,6 @@ export const playgroundController = {
 
         /** Reset playground state and clear all output connections */
         resetAll: resetAllAtom,
-
-        /** Duplicate session responses from one entity to another */
-        duplicateSessionResponses: duplicateSessionResponsesWithContextAtom,
 
         /** Restore a testset connection from a URL snapshot (call after primary node is set) */
         restoreLoadableConnection: restoreLoadableConnectionAtom,
