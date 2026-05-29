@@ -40,7 +40,7 @@ const LabelInput = ({
                     variant="borderless"
                     className={clsx("px-0 rounded-none", className)}
                     spellCheck={false}
-                    autoComplete="off"
+                    autoComplete="new-password"
                     {...props}
                 />
             ) : (

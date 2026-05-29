@@ -113,7 +113,7 @@ const Settings: React.FC = () => {
                         case "projects":
                             return "Projects"
                         case "secrets":
-                            return "Models"
+                            return "Providers & Models"
                         case "tools":
                             return "Tools"
                         case "apiKeys":
