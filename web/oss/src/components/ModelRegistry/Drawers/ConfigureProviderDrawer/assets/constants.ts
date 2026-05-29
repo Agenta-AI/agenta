@@ -23,6 +23,7 @@ export const PROVIDER_FIELDS: {
         note: "This secret will be encrypted in transit and at rest.",
         model: ["azure", "custom", ...STANDARD_PROVIDER_KINDS],
         required: false,
+        attributes: {kind: "text", type: "password"},
     },
     {
         key: "apiBaseUrl",
@@ -76,6 +77,7 @@ export const PROVIDER_FIELDS: {
         note: "This secret will be encrypted in transit and at rest.",
         model: ["bedrock", "sagemaker"],
         required: false,
+        attributes: {kind: "text", type: "password"},
     },
     {
         key: "accessKey",
@@ -84,6 +86,7 @@ export const PROVIDER_FIELDS: {
         note: "This secret will be encrypted in transit and at rest.",
         model: ["bedrock", "sagemaker"],
         required: false,
+        attributes: {kind: "text", type: "password"},
     },
     {
         key: "sessionToken",
@@ -92,5 +95,6 @@ export const PROVIDER_FIELDS: {
         note: "This secret will be encrypted in transit and at rest.",
         model: [],
         required: false,
+        attributes: {kind: "text", type: "password"},
     },
 ]
