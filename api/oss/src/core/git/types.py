@@ -78,8 +78,8 @@ applications) reject it at the boundary.
 Exception registry
 ==================
 
-`VariantForkError`, `RetrieveRefsInsufficient`, and
-`RetrieveRefsInconsistent` are translated to HTTP responses by
+`InitialRevisionConflict`, `VariantForkError`, `RetrieveRefsInsufficient`,
+and `RetrieveRefsInconsistent` are translated to HTTP responses by
 `@handle_git_exceptions()` in
 `api/oss/src/apis/fastapi/git/exceptions.py`. Any new git-domain
 exception added here must also be registered there.
@@ -118,6 +118,15 @@ class RetrieveRefsInsufficient(GitError):
     Not raised for the all-refs-empty case: the entity service returns
     `None` for that case rather than raising, matching the "nothing to look
     up" contract.
+    """
+
+
+class InitialRevisionConflict(GitError):
+    """Raised when an initial revision already exists for a variant.
+
+    The `initial=True` guard in the DAO returns None when a revision is
+    already present. Services translate that into this exception so routers
+    can map it to HTTP 409 without inspecting None.
     """
 
 

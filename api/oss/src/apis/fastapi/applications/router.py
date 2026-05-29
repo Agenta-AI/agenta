@@ -1421,6 +1421,7 @@ class ApplicationsRouter:
         return application_revision_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_application_revision(
         self,
         request: Request,

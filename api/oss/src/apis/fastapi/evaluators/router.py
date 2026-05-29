@@ -1408,6 +1408,7 @@ class EvaluatorsRouter:
         return evaluator_revision_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_evaluator_revision(
         self,
         request: Request,

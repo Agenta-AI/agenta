@@ -1182,6 +1182,7 @@ class WorkflowsRouter:
     # WORKFLOW REVISIONS -------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_workflow_revision(
         self,
         request: Request,
