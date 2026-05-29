@@ -889,7 +889,7 @@ class TestWorkflowEmbedsMixedTypes:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level1_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -1052,7 +1052,7 @@ class TestWorkflowEmbedsMixedTypes:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level2_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -1272,7 +1272,7 @@ class TestWorkflowEmbedsMixedTypes:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level3_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -1396,7 +1396,7 @@ class TestWorkflowEmbedsMixedTypes:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level1_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }

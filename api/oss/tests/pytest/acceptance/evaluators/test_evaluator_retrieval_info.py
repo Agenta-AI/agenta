@@ -18,7 +18,7 @@ def evaluator_fixture(authed_api):
     )
     assert r.status_code == 200, r.text
     vid = r.json()["evaluator_variant"]["id"]
-    authed_api(
+    r = authed_api(
         "POST",
         "/evaluators/revisions/commit",
         json={
@@ -30,6 +30,7 @@ def evaluator_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     r = authed_api(
         "POST",
         "/evaluators/revisions/commit",
@@ -94,14 +95,16 @@ class TestEvaluatorRetrievalInfo:
 def env_backed_evaluator_fixture(authed_api):
     slug = f"eval-envret-{uuid4().hex[:8]}"
     r = authed_api("POST", "/evaluators/", json={"evaluator": {"slug": slug}})
+    assert r.status_code == 200, r.text
     eid = r.json()["evaluator"]["id"]
     r = authed_api(
         "POST",
         "/evaluators/variants/",
         json={"evaluator_variant": {"slug": f"{slug}-v", "evaluator_id": eid}},
     )
+    assert r.status_code == 200, r.text
     vid = r.json()["evaluator_variant"]["id"]
-    authed_api(
+    r = authed_api(
         "POST",
         "/evaluators/revisions/commit",
         json={
@@ -113,6 +116,7 @@ def env_backed_evaluator_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     r = authed_api(
         "POST",
         "/evaluators/revisions/commit",
@@ -125,10 +129,12 @@ def env_backed_evaluator_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     revision = r.json()["evaluator_revision"]
 
     env_slug = f"env-{uuid4().hex[:8]}"
     r = authed_api("POST", "/environments/", json={"environment": {"slug": env_slug}})
+    assert r.status_code == 200, r.text
     env_id = r.json()["environment"]["id"]
     r = authed_api(
         "POST",
@@ -140,8 +146,9 @@ def env_backed_evaluator_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     env_variant_id = r.json()["environment_variant"]["id"]
-    authed_api(
+    r = authed_api(
         "POST",
         "/environments/revisions/commit",
         json={
@@ -154,6 +161,7 @@ def env_backed_evaluator_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     selector_key = "eval-suite.revision"
     r = authed_api(
         "POST",
@@ -205,8 +213,10 @@ class TestEvaluatorRetrievalInfoEnvBacked:
         info = r.json()["retrieval_info"]
         refs = info["references"]
         assert refs["environment"]["id"] == f["environment_id"]
+        assert refs["environment_variant"]["id"] == f["environment_variant_id"]
         assert refs["environment_revision"]["id"] == f["environment_revision_id"]
         assert refs["evaluator"]["id"] == f["evaluator_id"]
+        assert refs["evaluator_variant"]["id"] == f["variant_id"]
         assert refs["evaluator_revision"]["id"] == f["revision_id"]
         assert info["key"] == f["selector_key"]
 

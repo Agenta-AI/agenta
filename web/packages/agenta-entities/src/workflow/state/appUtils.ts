@@ -150,7 +150,7 @@ export async function createEphemeralAppFromTemplate({
     // produce an invalid builtin URI when fed straight into `buildWorkflowUri`.
     const uri = template.data?.uri ?? buildWorkflowUri(type)
     const localId = generateLocalId("local")
-    const resolvedName = defaultName ?? `${capitalize(type)} prompt`
+    const resolvedName = defaultName ?? `${capitalize(type)}`
 
     const catalogSchemas = template.data?.schemas as
         | Record<string, Record<string, unknown> | null | undefined>

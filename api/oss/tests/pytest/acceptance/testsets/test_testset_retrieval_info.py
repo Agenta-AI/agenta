@@ -23,7 +23,7 @@ def testset_fixture(authed_api):
     assert r.status_code == 200, r.text
     vid = r.json()["testset_variant"]["id"]
     # v0
-    authed_api(
+    r = authed_api(
         "POST",
         "/testsets/revisions/commit",
         json={
@@ -35,6 +35,7 @@ def testset_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     # v1 with empty testcases list
     r = authed_api(
         "POST",

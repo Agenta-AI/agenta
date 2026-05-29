@@ -126,6 +126,7 @@ def env_backed_fixture(authed_api):
     """Create a workflow plus an environment whose references map points at it."""
     wf_slug = f"wf-envret-{uuid4().hex[:8]}"
     r = authed_api("POST", "/workflows/", json={"workflow": {"slug": wf_slug}})
+    assert r.status_code == 200, r.text
     workflow_id = r.json()["workflow"]["id"]
     r = authed_api(
         "POST",
@@ -137,6 +138,7 @@ def env_backed_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     variant_id = r.json()["workflow_variant"]["id"]
     # v0 + v1 double commit
     r = authed_api(
@@ -173,6 +175,7 @@ def env_backed_fixture(authed_api):
         "/environments/",
         json={"environment": {"slug": env_slug, "name": "Env"}},
     )
+    assert r.status_code == 200, r.text
     env_id = r.json()["environment"]["id"]
     r = authed_api(
         "POST",
@@ -184,6 +187,7 @@ def env_backed_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     env_variant_id = r.json()["environment_variant"]["id"]
 
     # Env revisions follow a v0-then-v1 commit pattern: v0 carries no data,

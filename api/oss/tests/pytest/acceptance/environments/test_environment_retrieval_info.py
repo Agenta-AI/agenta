@@ -24,7 +24,7 @@ def environment_fixture(authed_api):
     assert r.status_code == 200, r.text
     variant_id = r.json()["environment_variant"]["id"]
     # v0
-    authed_api(
+    r = authed_api(
         "POST",
         "/environments/revisions/commit",
         json={
@@ -37,6 +37,7 @@ def environment_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     # v1 with empty refs (still no embeds — safe for resolve)
     r = authed_api(
         "POST",

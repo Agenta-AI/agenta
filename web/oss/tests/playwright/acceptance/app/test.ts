@@ -58,7 +58,11 @@ export const openCreateAppDrawerForType = async (
             .catch(() => false)
 
         if (opened) {
-            await typeSelector.click()
+            // The Popover re-renders when appTemplatesQueryAtom resolves,
+            // making the item briefly unstable. force:true dispatches the
+            // click immediately without waiting for Playwright's stability
+            // check, which otherwise retries until the 60 s test timeout.
+            await typeSelector.click({force: true})
             const drawer = page
                 .getByRole("dialog")
                 .filter({has: page.getByTestId("app-create-name-input")})

@@ -141,7 +141,7 @@ class TestWorkflowEmbedsArchived:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": base_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -300,7 +300,7 @@ class TestWorkflowEmbedsArchived:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": base_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }

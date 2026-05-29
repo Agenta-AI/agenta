@@ -186,7 +186,7 @@ class TestSDKEmbedsIntegration:
                             "@ag.references": {
                                 "workflow_revision": {
                                     "slug": base_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             },
@@ -268,7 +268,7 @@ class TestSDKEmbedsIntegration:
                             "@ag.references": {
                                 "workflow_revision": {
                                     "slug": level3_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             }
@@ -293,7 +293,7 @@ class TestSDKEmbedsIntegration:
                             "@ag.references": {
                                 "workflow_revision": {
                                     "slug": level2_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             }
@@ -336,7 +336,7 @@ class TestSDKEmbedsIntegration:
                             "@ag.references": {
                                 "workflow_revision": {
                                     "slug": a_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             }
@@ -358,7 +358,7 @@ class TestSDKEmbedsIntegration:
                             "@ag.references": {
                                 "workflow_revision": {
                                     "slug": b_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             }
@@ -403,7 +403,7 @@ class TestSDKEmbedsIntegration:
                             "@ag.references": {
                                 "workflow_revision": {
                                     "slug": base_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             },
@@ -449,7 +449,7 @@ class TestSDKEmbedsIntegration:
                             "@ag.references": {
                                 "workflow_revision": {
                                     "slug": base_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             },
@@ -500,7 +500,7 @@ class TestSDKEmbedsIntegration:
                             "@ag.references": {
                                 "workflow_revision": {
                                     "slug": base_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             }

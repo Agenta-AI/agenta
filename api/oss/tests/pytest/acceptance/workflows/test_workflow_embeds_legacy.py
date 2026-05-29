@@ -140,7 +140,7 @@ class TestApplicationsEmbeds:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": base_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     },
@@ -461,7 +461,7 @@ class TestEvaluatorsEmbeds:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": base_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -619,7 +619,7 @@ class TestEvaluatorsEmbeds:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level2_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -692,7 +692,7 @@ class TestEvaluatorsEmbeds:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level1_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -874,7 +874,7 @@ class TestCrossEntityReferences:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": eval_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -1049,7 +1049,7 @@ class TestCrossEntityReferences:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": app_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }

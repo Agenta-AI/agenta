@@ -9,6 +9,7 @@ from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.core.events.utils import publish_revision_event
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -959,6 +960,7 @@ class QueriesRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=QueryRevisionResponse(), exclude=[HTTPException])
+    @handle_git_exceptions()
     async def retrieve_query_revision(
         self,
         request: Request,

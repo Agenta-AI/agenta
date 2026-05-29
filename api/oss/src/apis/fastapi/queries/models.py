@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -136,9 +136,35 @@ class QueryRevisionsLogRequest(BaseModel):
 
 
 class QueryRevisionRetrieveRequest(BaseModel):
-    query_ref: Optional[Reference] = None
-    query_variant_ref: Optional[Reference] = None
-    query_revision_ref: Optional[Reference] = None
+    query_ref: Optional[Reference] = Field(
+        default=None,
+        description=(
+            "Query artifact to look up. Identifies the artifact by `id` or "
+            "`slug` (both project-unique). When no variant_ref or "
+            "revision_ref is provided, returns the latest revision of an "
+            "arbitrary variant of this query."
+        ),
+    )
+    query_variant_ref: Optional[Reference] = Field(
+        default=None,
+        description=(
+            "Query variant to look up. Identifies the variant by `id` or "
+            "`slug` (both project-unique). When no revision_ref is provided, "
+            "returns the latest revision of this variant."
+        ),
+    )
+    query_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description=(
+            "Query revision to look up. "
+            "`id` alone identifies a revision (project-unique). "
+            "`slug` alone identifies a revision (project-unique). "
+            "`version` alone is a per-variant sequence number and is **not** "
+            "sufficient on its own; it must be combined with a "
+            "`query_variant_ref`. Sending only `version` without a variant "
+            "ref returns HTTP 400."
+        ),
+    )
     #
     include_trace_ids: Optional[bool] = None
     include_traces: Optional[bool] = None
