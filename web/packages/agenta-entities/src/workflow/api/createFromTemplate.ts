@@ -53,13 +53,14 @@ export interface CreateAppFromTemplateResult {
 // ============================================================================
 
 /**
- * Extract default parameter values from a catalog template's parameter schema.
+ * Extract default parameter values from a JSON Schema's properties.
  *
- * The catalog template provides `data.schemas.parameters` as a JSON Schema
- * with `default` values on properties. This function collects those defaults
- * into a flat parameters object suitable for committing as the initial revision.
+ * Collects each property's `default` into a flat parameters object suitable
+ * for seeding an entity's initial parameter values. Used both for catalog
+ * templates (here) and for custom URL workflows whose schema arrives via
+ * openapi.json (see store.ts).
  */
-function extractDefaultsFromSchema(
+export function extractDefaultsFromSchema(
     schema: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
     if (!schema) return {}

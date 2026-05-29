@@ -40,6 +40,8 @@ export interface LabeledFieldProps {
     size?: "xs" | "sm" | "md"
     /** Layout direction */
     direction?: "vertical" | "horizontal"
+    /** Gap between label and control (vertical direction only). Defaults to "xs" (4px). */
+    gap?: "xs" | "sm" | "md"
     /** Children (the actual control) */
     children: ReactNode
     /** Additional CSS classes */
@@ -61,6 +63,7 @@ export function LabeledField({
     tooltipPlacement = "right",
     size = "xs",
     direction = "vertical",
+    gap = "xs",
     children,
     className,
 }: LabeledFieldProps) {
@@ -77,7 +80,7 @@ export function LabeledField({
         <div
             className={cn(
                 direction === "vertical"
-                    ? cn(flexLayouts.column, gapClasses.xs)
+                    ? cn(flexLayouts.column, gapClasses[gap])
                     : cn(flexLayouts.rowCenter, gapClasses.sm),
                 className,
             )}

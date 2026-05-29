@@ -520,4 +520,6 @@ class ResolverMiddleware:
         if revision:
             request.data.parameters = request.data.parameters or revision.parameters
 
+        TracingContext.get().parameters = request.data.parameters
+
         return await call_next(request)

@@ -39,6 +39,13 @@ export interface UseEtlColumnsArgs {
     projectId: string | null
     runId: string | null
     schema: RunSchema | null
+    /**
+     * Each comparison run's own schema, keyed by runId. Comparison rows
+     * resolve their application/output cells against the comparison run's
+     * schema — its invocation step keys (and app slug) differ from the base
+     * run's, so resolving against the base schema yields no match ("—").
+     */
+    comparisonSchemas?: Record<string, RunSchema | null>
 }
 
 /**
@@ -49,6 +56,7 @@ export const useEtlColumns = ({
     projectId,
     runId,
     schema,
+    comparisonSchemas,
 }: UseEtlColumnsArgs): ColumnsType<PreviewTableRow> => {
     return useMemo<ColumnsType<PreviewTableRow>>(() => {
         if (!schema || !projectId || !runId) return []
@@ -79,7 +87,14 @@ export const useEtlColumns = ({
                     ),
                     width: WIDTH_BY_KIND[leaf.kind],
                     minWidth: WIDTH_BY_KIND[leaf.kind],
-                    ellipsis: true,
+                    // `ellipsis: true` is intentionally NOT set here. Antd
+                    // applies `white-space: nowrap` to the cell when it is,
+                    // which collapses our multi-line content (e.g. an
+                    // evaluator's `reasoning` string) onto a single line.
+                    // The body cell is `EtlResolvedCell`, which already
+                    // clamps to a row-height-derived line count via
+                    // `-webkit-line-clamp`. The header has its own
+                    // ellipsis-ing inside the `Tooltip` span above.
                     align: "left" as const,
                     render: (_: unknown, record: PreviewTableRow) => {
                         // antd's virtual table can briefly call a cell
@@ -92,17 +107,34 @@ export const useEtlColumns = ({
                         if (record.__isSkeleton || !record.scenarioId) {
                             return <EtlSkeletonCell />
                         }
+                        // Comparison rows carry their own runId. Resolve them
+                        // against the comparison run's *own* schema — its
+                        // invocation step keys differ from the base run's, so
+                        // resolving against the base schema finds no result
+                        // and the cell renders "—".
+                        const cellRunId = record.runId ?? runId
+                        const isComparison = cellRunId !== runId
+                        const cellSchema = isComparison
+                            ? (comparisonSchemas?.[cellRunId] ?? null)
+                            : schema
+                        // Comparison run's schema not resolved yet — keep a
+                        // skeleton rather than flashing "—".
+                        if (isComparison && !cellSchema) {
+                            return <EtlSkeletonCell />
+                        }
                         return (
                             <EtlResolvedCell
                                 projectId={projectId}
-                                // Comparison rows carry their own runId.
-                                runId={record.runId ?? runId}
+                                runId={cellRunId}
                                 scenarioId={record.scenarioId}
                                 scenarioStatus={record.status}
                                 columnKind={leaf.kind}
-                                columnGroupSlug={leaf.groupSlug}
+                                // Match comparison columns by kind + name only:
+                                // the group slug is derived from the app slug,
+                                // which differs per run.
+                                columnGroupSlug={isComparison ? null : leaf.groupSlug}
                                 columnName={leaf.name}
-                                schema={schema}
+                                schema={cellSchema}
                             />
                         )
                     },
@@ -112,10 +144,10 @@ export const useEtlColumns = ({
             return {
                 key: g.group.key,
                 columnVisibilityLabel: g.group.label,
-                title: <EtlColumnHeader group={g.group} />,
+                title: <EtlColumnHeader group={g.group} runId={runId} />,
                 align: "left" as const,
                 children,
             }
         })
-    }, [projectId, runId, schema])
+    }, [projectId, runId, schema, comparisonSchemas])
 }

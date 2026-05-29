@@ -1,10 +1,3 @@
-import type {Locator, Page} from "@playwright/test"
-import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect} from "@agenta/web-tests/utils"
-import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
-import {expectAuthenticatedSession} from "../utils/auth"
-import {createScenarios} from "../utils/scenarios"
-import {buildAcceptanceTags} from "../utils/tags"
 import {
     TestCoverage,
     TestcaseType,
@@ -16,6 +9,14 @@ import {
     TestRoleType,
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
+import {expect} from "@agenta/web-tests/utils"
+import type {Locator, Page} from "@playwright/test"
+
+import {expectAuthenticatedSession} from "../utils/auth"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
 
 interface WorkflowRevision {
     id: string
@@ -28,12 +29,12 @@ interface WorkflowRevisionsResponse {
     count?: number
 }
 
-type PromptRegistryApiHelpers = {
+interface PromptRegistryApiHelpers {
     getApp: (slug: string) => Promise<{id: string}>
     waitForApiResponse: <T>(options: {route: string; method: string}) => Promise<T>
 }
 
-type PromptRegistryUiHelpers = {
+interface PromptRegistryUiHelpers {
     expectPath: (path: string) => Promise<void>
 }
 
@@ -88,13 +89,40 @@ const openFirstPublishedWorkflowRevision = async (
 
     test.skip(revisions.length === 0, "No workflow revisions found in registry")
 
-    const selectedRevision = revisions[0]
-    const revisionId = selectedRevision.id
-    const row = page.locator(`[data-row-key="${revisionId}"]`).first()
-    await expect(row).toBeVisible({timeout: 30000})
+    // The app may accumulate revisions across test runs, and the table uses
+    // virtual scrolling — so a specific revision ID from the API response may
+    // not be rendered if it is scrolled out of the viewport. Instead poll for
+    // ANY visible published revision row and click whichever appears first.
+    const publishedRevisionIds = new Set(revisions.map((r) => r.id))
+    let foundRevisionId: string | null = null
+
+    await expect
+        .poll(
+            async () => {
+                const rows = page.locator("[data-row-key]")
+                const count = await rows.count()
+                for (let i = 0; i < count; i++) {
+                    const row = rows.nth(i)
+                    const key = await row.getAttribute("data-row-key").catch(() => null)
+                    if (
+                        key &&
+                        publishedRevisionIds.has(key) &&
+                        (await row.isVisible().catch(() => false))
+                    ) {
+                        foundRevisionId = key
+                        return true
+                    }
+                }
+                return false
+            },
+            {timeout: 30000},
+        )
+        .toBe(true)
+
+    const row = page.locator(`[data-row-key="${foundRevisionId}"]`).first()
     await row.click()
 
-    return revisionId
+    return foundRevisionId!
 }
 
 const expectWorkflowRevisionDrawer = async (page: Page, appId: string, revisionId: string) => {

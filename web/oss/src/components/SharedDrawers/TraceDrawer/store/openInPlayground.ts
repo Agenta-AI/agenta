@@ -17,7 +17,7 @@ export type {OpenFromTraceResult}
  */
 export const openTraceInPlaygroundAtom = atom(
     null,
-    (_get, set, activeSpan: TraceSpanNode): OpenFromTraceResult => {
+    async (_get, set, activeSpan: TraceSpanNode): Promise<OpenFromTraceResult> => {
         return set(playgroundController.actions.openFromTrace, activeSpan)
     },
 )

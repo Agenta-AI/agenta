@@ -332,6 +332,91 @@ describe("annotation step → composeResolvers(metric, trace)", () => {
         assert.equal(col.value, true)
     })
 
+    it("falls through to trace when metric value is a string-type placeholder", () => {
+        // String-typed evaluator outputs (e.g. an LLM-judge `reasoning`
+        // field) only land in the metric layer as a `{type: "string",
+        // count: N}` placeholder — the real value is on the annotation
+        // trace. `resolveFromMetric` must return null for that shape so the
+        // composed `resolveFromTrace` fallback picks the actual string up.
+        const row = makeRow({
+            results: [
+                {
+                    run_id: "r1",
+                    scenario_id: "scen1",
+                    step_key: "eval-1",
+                    trace_id: "trace-eval",
+                    status: "success",
+                },
+            ],
+            metrics: [
+                {
+                    id: "m1",
+                    run_id: "r1",
+                    data: {
+                        "eval-1": {
+                            "attributes.ag.data.outputs.success": {
+                                type: "string",
+                                count: 3,
+                            },
+                        },
+                    },
+                } as unknown as HydratedScenarioRow<TestScenario>["metrics"][number],
+            ],
+            traces: {
+                "trace-eval": {
+                    spans: {
+                        eval_v0: {
+                            attributes: {
+                                ag: {data: {outputs: {success: "the model was correct"}}},
+                            },
+                        },
+                    },
+                },
+            },
+        })
+        const [col] = resolveMappings(row, schema)
+        assert.equal(col.source, "trace")
+        assert.equal(col.value, "the model was correct")
+    })
+
+    it("keeps the metric value when the string-typed entry has distribution data", () => {
+        // A `{type: "string"}` shape that ALSO carries `freq` / `value` /
+        // etc. is real distribution data (not a placeholder) and must be
+        // returned as-is — only the bare `{type, count}` shape falls
+        // through.
+        const row = makeRow({
+            results: [
+                {
+                    run_id: "r1",
+                    scenario_id: "scen1",
+                    step_key: "eval-1",
+                    trace_id: "trace-eval",
+                    status: "success",
+                },
+            ],
+            metrics: [
+                {
+                    id: "m1",
+                    run_id: "r1",
+                    data: {
+                        "eval-1": {
+                            "attributes.ag.data.outputs.success": {
+                                type: "string",
+                                count: 3,
+                                freq: [{value: "yes", count: 2}],
+                            },
+                        },
+                    },
+                } as unknown as HydratedScenarioRow<TestScenario>["metrics"][number],
+            ],
+        })
+        const [col] = resolveMappings(row, schema)
+        assert.equal(col.source, "metric")
+        const v = col.value as {type: string; freq: unknown[]}
+        assert.equal(v.type, "string")
+        assert.deepEqual(v.freq, [{value: "yes", count: 2}])
+    })
+
     it("returns missing when neither metric nor trace has the path", () => {
         const row = makeRow({
             results: [
