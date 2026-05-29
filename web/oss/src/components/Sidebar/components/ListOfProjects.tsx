@@ -26,6 +26,8 @@ import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
 
+import {buildProjectSwitchHref} from "./assets/projectSwitchHref"
+
 interface ListOfProjectsProps {
     collapsed: boolean
     buttonProps?: ButtonProps
@@ -261,19 +263,13 @@ const ListOfProjects = ({
             cacheLastUsedProjectId(workspaceId, projectId)
             if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
-            // Extract the current page path to preserve navigation context
-            const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
-            const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
-
-            // Preserve query params for settings tab
-            const isOnSettingsPage = currentPagePath.startsWith("settings")
-            const currentTab =
-                (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
-                (router.query.tab as string | undefined)
-            const tabParam =
-                isOnSettingsPage && currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
-
-            const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
+            const href = buildProjectSwitchHref({
+                workspaceId,
+                projectId,
+                currentAsPath: router.asPath,
+                settingsTab,
+                queryTab: router.query.tab as string | undefined,
+            })
 
             void router.push(href)
         },
