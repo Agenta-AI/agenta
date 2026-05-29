@@ -54,35 +54,6 @@ def upgrade_environment_reference_slugs(session: Connection) -> None:
                   AND er.data IS NOT NULL
                   AND jsonb_typeof(er.data::jsonb) = 'object'
                   AND er.data::jsonb ? 'references'
-                  AND EXISTS (
-                    SELECT 1
-                    FROM jsonb_each(er.data::jsonb -> 'references') AS k(key, refs)
-                    CROSS JOIN LATERAL (
-                        SELECT CASE
-                            WHEN k.refs ? 'application_revision' THEN 'application'
-                            WHEN k.refs ? 'evaluator_revision'   THEN 'evaluator'
-                            WHEN k.refs ? 'workflow_revision'    THEN 'workflow'
-                            ELSE NULL
-                        END AS prefix
-                    ) AS p
-                    JOIN workflow_revisions r
-                        ON p.prefix IS NOT NULL
-                       AND r.id::text = k.refs -> (p.prefix || '_revision') ->> 'id'
-                    JOIN workflow_variants v ON v.id = r.variant_id
-                    JOIN workflow_artifacts a ON a.id = r.artifact_id
-                    WHERE (
-                            k.refs -> p.prefix ? 'slug'
-                            AND k.refs -> p.prefix ->> 'slug' <> a.slug
-                        )
-                       OR (
-                            k.refs -> (p.prefix || '_variant') ? 'slug'
-                            AND k.refs -> (p.prefix || '_variant') ->> 'slug' <> v.slug
-                        )
-                       OR (
-                            k.refs -> (p.prefix || '_revision') ? 'slug'
-                            AND k.refs -> (p.prefix || '_revision') ->> 'slug' <> r.slug
-                        )
-                  )
                   {cursor_clause}
                 ORDER BY er.id
                 LIMIT :batch_size
