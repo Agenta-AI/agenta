@@ -12,12 +12,10 @@ import {
 } from "@agenta/shared/utils"
 import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-import {useSetAtom} from "jotai"
 
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
 import {ViewModeDropdown} from "../../drill-in/core/ViewModeDropdown"
 import {getViewOptions, type ViewMode} from "../../drill-in/utils/getViewOptions"
-import {markdownViewAtom} from "../../Editor/state/assets/atoms"
 import {message, modal} from "../../utils/appMessageContext"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 import {createSnippetPdfAttachment} from "../utils/snippetAttachment"
@@ -46,6 +44,10 @@ const ChatMessageItem: React.FC<{
     tokens?: string[]
     loadingFallback: "skeleton" | "none" | "static"
     maxPasteChars?: number
+    /** Restrict the view-mode dropdown to a subset (e.g. ["text", "markdown"]
+     *  for config messages where JSON/YAML modes are noise). When omitted,
+     *  the dropdown shows whatever getViewOptions returns for the content. */
+    viewModes?: ChatViewMode[]
     ImagePreview?: React.ComponentType<{
         src: string
         alt: string
@@ -76,6 +78,7 @@ const ChatMessageItem: React.FC<{
     tokens,
     loadingFallback,
     maxPasteChars,
+    viewModes,
     ImagePreview,
     onRoleChange,
     onTextChange,
@@ -98,20 +101,12 @@ const ChatMessageItem: React.FC<{
     const attachments = getAttachments(msg.content ?? null)
     const hasAttachmentsFlag = attachments.length > 0
 
-    // Mirror TurnMessageAdapter: sync Lexical's `markdownView` atom from the
-    // parent-owned viewMode so the editor's CSS class flips when the dropdown
-    // moves into/out of "markdown". The `key={editorId-viewMode}` on the
-    // editor remounts it on every switch so the markdown plugin re-evaluates
-    // on a fresh instance — no manual command dispatch needed.
-    const setMarkdownView = useSetAtom(markdownViewAtom(editorId))
-    useEffect(() => {
-        setMarkdownView(viewMode === "markdown")
-    }, [setMarkdownView, viewMode])
-
-    const viewOptions = useMemo(
-        () => getViewOptions(textContent) as {value: ChatViewMode; label: string}[],
-        [textContent],
-    )
+    const viewOptions = useMemo(() => {
+        const all = getViewOptions(textContent) as {value: ChatViewMode; label: string}[]
+        if (!viewModes || viewModes.length === 0) return all
+        const allowed = new Set(viewModes)
+        return all.filter((opt) => allowed.has(opt.value))
+    }, [textContent, viewModes])
 
     const handleCreateSnippetFromPaste = useCallback(
         ({
@@ -178,6 +173,7 @@ const ChatMessageItem: React.FC<{
                 onChangeText={(text) => onTextChange(index, text)}
                 isJSON={isCodeMode}
                 language={editorLanguage}
+                markdownView={viewMode === "markdown"}
                 enableTokens={enableTokens && !isCodeMode}
                 templateFormat={templateFormat}
                 tokens={tokens}
@@ -300,6 +296,10 @@ export interface ChatMessageListProps {
     loadingFallback?: "skeleton" | "none" | "static"
     /** Block paste operations that would make a message exceed this many characters. */
     maxPasteChars?: number
+    /** Restrict the per-message view-mode dropdown to a subset. Pass
+     *  ["text", "markdown"] for plain-text config messages where JSON/YAML
+     *  modes are noise. When omitted, all four modes are offered. */
+    viewModes?: ChatViewMode[]
 }
 
 /**
@@ -330,6 +330,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     defaultMinimized = false,
     loadingFallback = "skeleton",
     maxPasteChars,
+    viewModes,
 }) => {
     const listInstanceIdRef = useRef(generateKey())
     // Maintain stable React keys for each message position.
@@ -476,6 +477,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                         tokens={tokens}
                         loadingFallback={loadingFallback}
                         maxPasteChars={maxPasteChars}
+                        viewModes={viewModes}
                         ImagePreview={ImagePreview}
                         onRoleChange={handleRoleChange}
                         onTextChange={handleTextChange}
