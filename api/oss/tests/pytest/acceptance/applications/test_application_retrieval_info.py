@@ -114,6 +114,7 @@ class TestApplicationRetrievalInfo:
 def env_backed_application_fixture(authed_api):
     slug = f"app-envret-{uuid4().hex[:8]}"
     r = authed_api("POST", "/applications/", json={"application": {"slug": slug}})
+    assert r.status_code == 200, r.text
     app_id = r.json()["application"]["id"]
     r = authed_api(
         "POST",
@@ -125,8 +126,9 @@ def env_backed_application_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     variant_id = r.json()["application_variant"]["id"]
-    authed_api(
+    r = authed_api(
         "POST",
         "/applications/revisions/commit",
         json={
@@ -138,6 +140,7 @@ def env_backed_application_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     r = authed_api(
         "POST",
         "/applications/revisions/commit",
@@ -150,10 +153,12 @@ def env_backed_application_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     revision = r.json()["application_revision"]
 
     env_slug = f"env-{uuid4().hex[:8]}"
     r = authed_api("POST", "/environments/", json={"environment": {"slug": env_slug}})
+    assert r.status_code == 200, r.text
     env_id = r.json()["environment"]["id"]
     r = authed_api(
         "POST",
@@ -165,9 +170,10 @@ def env_backed_application_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     env_variant_id = r.json()["environment_variant"]["id"]
 
-    authed_api(
+    r = authed_api(
         "POST",
         "/environments/revisions/commit",
         json={
@@ -180,6 +186,7 @@ def env_backed_application_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     selector_key = "demo.revision"
     r = authed_api(
         "POST",
@@ -233,8 +240,10 @@ class TestApplicationRetrievalInfoEnvBacked:
         assert info is not None
         refs = info["references"]
         assert refs["environment"]["id"] == f["environment_id"]
+        assert refs["environment_variant"]["id"] == f["environment_variant_id"]
         assert refs["environment_revision"]["id"] == f["environment_revision_id"]
         assert refs["application"]["id"] == f["application_id"]
+        assert refs["application_variant"]["id"] == f["variant_id"]
         assert refs["application_revision"]["id"] == f["revision_id"]
         assert info["key"] == f["selector_key"]
 

@@ -22,7 +22,7 @@ def query_fixture(authed_api):
     )
     assert r.status_code == 200, r.text
     vid = r.json()["query_variant"]["id"]
-    authed_api(
+    r = authed_api(
         "POST",
         "/queries/revisions/commit",
         json={
@@ -34,6 +34,7 @@ def query_fixture(authed_api):
             }
         },
     )
+    assert r.status_code == 200, r.text
     r = authed_api(
         "POST",
         "/queries/revisions/commit",
