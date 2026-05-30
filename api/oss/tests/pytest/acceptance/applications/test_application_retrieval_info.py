@@ -81,7 +81,7 @@ class TestApplicationRetrievalInfo:
         assert refs["application"]["id"] == application_fixture["application_id"]
         assert refs["application_variant"]["id"] == application_fixture["variant_id"]
         assert refs["application_revision"]["id"] == application_fixture["revision_id"]
-        assert info.get("key") is None
+        assert info.get("selector") is None
         for k in ("environment", "environment_variant", "environment_revision"):
             assert k not in refs
 
@@ -245,7 +245,7 @@ class TestApplicationRetrievalInfoEnvBacked:
         assert refs["application"]["id"] == f["application_id"]
         assert refs["application_variant"]["id"] == f["variant_id"]
         assert refs["application_revision"]["id"] == f["revision_id"]
-        assert info["key"] == f["selector_key"]
+        assert info["selector"] == {"key": f["selector_key"]}
 
     def test_env_backed_retrieve_missing_key_returns_404(
         self, authed_api, env_backed_application_fixture

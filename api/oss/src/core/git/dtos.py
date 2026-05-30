@@ -138,12 +138,12 @@ class RetrievalInfo(BaseModel):
     For direct retrievals, `references` carries the artifact / variant / revision
     that was fetched. For environment-backed retrievals, it additionally carries
     the environment + environment_variant + environment_revision used to look
-    the target up, and `key` is the key inside the environment's references map
-    that selected the target.
+    the target up, and `selector` is {the key: path} map inside the environment's
+    references map that selected the target.
     """
 
     references: Dict[str, Reference] = Field(default_factory=dict)
-    key: Optional[str] = None
+    selector: Optional[Dict[str, str]] = None
 
 
 # ------------------------------------------------------------------------------

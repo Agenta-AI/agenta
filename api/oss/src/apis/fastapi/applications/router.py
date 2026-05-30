@@ -30,6 +30,7 @@ from oss.src.core.applications.dtos import (
     ApplicationCatalogType,
     ApplicationCatalogTemplate,
     ApplicationCatalogPreset,
+    ApplicationRevisionCommit,
     ApplicationRevisionData,
 )
 
@@ -1415,7 +1416,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="retrieve",
             revision=application_revision_response.application_revision,
             count=application_revision_response.count,
@@ -1424,13 +1425,14 @@ class ApplicationsRouter:
         return application_revision_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_application_revision(
         self,
         request: Request,
         *,
         application_revision_create_request: ApplicationRevisionCreateRequest,
     ) -> ApplicationRevisionResponse:
-        """Create a revision row directly, without the commit workflow.
+        """Create and commit the initial revision for an application variant.
 
         Advanced use only. For normal development loops prefer
         `POST /applications/revisions/commit`, which commits the new revision
@@ -1444,11 +1446,19 @@ class ApplicationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        application_revision = await self.applications_service.create_application_revision(
+        application_revision = await self.applications_service.commit_application_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            application_revision_create=application_revision_create_request.application_revision,
+            application_revision_commit=ApplicationRevisionCommit(
+                **application_revision_create_request.application_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         return ApplicationRevisionResponse(
@@ -1492,7 +1502,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="fetch",
             revision=response.application_revision,
             count=response.count,
@@ -1672,7 +1682,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="query",
             revisions=response.application_revisions or [],
             count=response.count,
@@ -1753,7 +1763,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="log",
             revisions=revisions_response.application_revisions or [],
             count=revisions_response.count,

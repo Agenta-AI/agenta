@@ -141,7 +141,7 @@ async def test_retrieve_application_revision_returns_environment_retrieval_info(
         application_variant_id=application_variant_id,
     )
     retrieval_info = RetrievalInfo(
-        key="demo-app.revision",
+        selector={"key": "demo-app.revision"},
         references={
             "environment": Reference(id=environment_id, slug="production"),
             "environment_variant": Reference(id=environment_variant_id),
@@ -193,7 +193,7 @@ async def test_retrieve_application_revision_returns_environment_retrieval_info(
     )
 
     assert response.retrieval_info is not None
-    assert response.retrieval_info.key == "demo-app.revision"
+    assert response.retrieval_info.selector == {"key": "demo-app.revision"}
     assert response.retrieval_info.references["environment"].id == environment_id
     assert response.retrieval_info.references["environment_revision"].version == "7"
     assert (

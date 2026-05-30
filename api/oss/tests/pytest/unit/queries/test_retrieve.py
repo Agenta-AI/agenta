@@ -51,7 +51,7 @@ async def test_retrieve_query_revision_builds_retrieval_info():
     assert retrieval_info.references["query_variant"].id == variant_id
     assert retrieval_info.references["query_revision"].id == revision_id
     assert retrieval_info.references["query_revision"].version == "2"
-    assert retrieval_info.key is None
+    assert retrieval_info.selector is None
 
 
 @pytest.mark.asyncio

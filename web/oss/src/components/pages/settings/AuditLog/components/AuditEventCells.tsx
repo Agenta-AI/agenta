@@ -14,7 +14,8 @@
 import type {Event} from "@agenta/entities/event"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {dayjs} from "@agenta/shared/utils"
-import {Tag, Tooltip, Typography} from "antd"
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
+import {Tag, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
 import {UserReference} from "@/oss/components/References/UserReference"
@@ -40,9 +41,9 @@ export const EventTimestampCell = ({eventId}: {eventId: string}) => {
 
     return (
         <Tooltip title={dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss.SSS")}>
-            <Typography.Text className="text-xs whitespace-nowrap">
+            <Tag className="m-0 font-mono text-xs whitespace-nowrap" bordered>
                 {dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss")}
-            </Typography.Text>
+            </Tag>
         </Tooltip>
     )
 }
@@ -64,7 +65,9 @@ export const ActorCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
-    return <UserReference userId={readActor(event)} />
+    // min-w-0 + truncate lets the resolved name ellipsize inside the narrow
+    // User column instead of overflowing the cell.
+    return <UserReference userId={readActor(event)} className="min-w-0 [&_*]:truncate" />
 }
 
 /** Count — number of items the event touched (`attributes.count`). */
@@ -75,19 +78,23 @@ export const CountCell = ({eventId}: {eventId: string}) => {
     const count = readCount(event)
     if (count === null) return <Dash />
 
-    return <Typography.Text className="text-xs tabular-nums">{count}</Typography.Text>
+    return (
+        <Tag className="m-0 font-mono text-xs tabular-nums" bordered>
+            {count}
+        </Tag>
+    )
 }
 
-/** Request id (UUID) that correlates all events from a single request. */
-export const RequestIdCell = ({eventId}: {eventId: string}) => {
+/** Event id (UUID) — the unique identifier of this audit event. */
+export const EventIdCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
     return (
-        <Tooltip title={event.request_id}>
-            <Typography.Text className="text-xs font-mono truncate block max-w-[260px]">
-                {event.request_id}
-            </Typography.Text>
-        </Tooltip>
+        <TooltipWithCopyAction copyText={event.event_id || ""} title="Copy event id">
+            <Tag className="m-0 font-mono text-xs whitespace-nowrap" bordered>
+                {event.event_id}
+            </Tag>
+        </TooltipWithCopyAction>
     )
 }

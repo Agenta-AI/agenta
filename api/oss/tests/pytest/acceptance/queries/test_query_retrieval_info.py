@@ -70,4 +70,4 @@ class TestQueryRetrievalInfo:
         assert refs["query"]["id"] == query_fixture["query_id"]
         assert refs["query_variant"]["id"] == query_fixture["variant_id"]
         assert refs["query_revision"]["id"] == query_fixture["revision_id"]
-        assert info.get("key") is None
+        assert info.get("selector") is None

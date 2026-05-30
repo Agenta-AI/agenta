@@ -7,6 +7,7 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
+from oss.src.core.events.utils import publish_revision_event
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -20,6 +21,7 @@ from oss.src.core.workflows.service import (
 from oss.src.core.environments.service import (
     EnvironmentsService,
 )
+from oss.src.core.workflows.dtos import WorkflowRevisionCommit
 from oss.src.core.environments.dtos import (
     EnvironmentRevisionCommit,
     EnvironmentRevisionDelta,
@@ -1181,6 +1183,7 @@ class WorkflowsRouter:
     # WORKFLOW REVISIONS -------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_workflow_revision(
         self,
         request: Request,
@@ -1195,11 +1198,19 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        workflow_revision = await self.workflows_service.create_workflow_revision(
+        workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            workflow_revision_create=workflow_revision_create_request.workflow_revision,
+            workflow_revision_commit=WorkflowRevisionCommit(
+                **workflow_revision_create_request.workflow_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         # Invalidate legacy caches so the registry page reflects the new revision
@@ -1232,6 +1243,14 @@ class WorkflowsRouter:
             project_id=UUID(request.state.project_id),
             #
             workflow_revision_ref=Reference(id=workflow_revision_id),
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="workflow",
+            action="fetch",
+            revision=workflow_revision,
+            count=1 if workflow_revision else 0,
         )
 
         workflow_revision_response = WorkflowRevisionResponse(
@@ -1397,6 +1416,14 @@ class WorkflowsRouter:
             order="descending",
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="workflow",
+            action="query",
+            revisions=workflow_revisions,
+            count=len(workflow_revisions),
+        )
+
         workflow_revisions_response = WorkflowRevisionsResponse(
             count=len(workflow_revisions),
             workflow_revisions=workflow_revisions,
@@ -1464,6 +1491,14 @@ class WorkflowsRouter:
             project_id=UUID(request.state.project_id),
             #
             workflow_revisions_log=workflow_revisions_log_request.workflow_revisions_log,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="workflow",
+            action="log",
+            revisions=workflow_revisions,
+            count=len(workflow_revisions),
         )
 
         workflow_revisions_response = WorkflowRevisionsResponse(
@@ -1731,6 +1766,14 @@ class WorkflowsRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Environment revision does not contain workflow references for the requested key.",
             )
+
+        await publish_revision_event(
+            request=request,
+            domain="workflow",
+            action="retrieve",
+            revision=workflow_revision,
+            count=1 if workflow_revision else 0,
+        )
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,

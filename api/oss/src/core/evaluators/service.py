@@ -846,6 +846,8 @@ class EvaluatorsService:
         user_id: UUID,
         #
         evaluator_revision_commit: EvaluatorRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[EvaluatorRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **evaluator_revision_commit.model_dump(
@@ -858,6 +860,10 @@ class EvaluatorsService:
             user_id=user_id,
             #
             workflow_revision_commit=workflow_revision_commit,
+            #
+            initial=initial,
+            #
+            emit=False,
         )
 
         if not workflow_revision:
@@ -872,10 +878,10 @@ class EvaluatorsService:
         # Write-action emission lives in the SERVICE layer (read actions live
         # in the router). Every caller of commit_evaluator_revision — direct
         # commit route, simple-service create/edit, etc. — therefore emits
-        # exactly one `evaluators.revisions.committed` event. See
+        # exactly one `workflows.revisions.committed` event. See
         # core/events/utils.py for the read-vs-write split rationale.
         await publish_revision_event(
-            domain="evaluator",
+            domain="workflow",
             action="commit",
             project_id=project_id,
             user_id=user_id,

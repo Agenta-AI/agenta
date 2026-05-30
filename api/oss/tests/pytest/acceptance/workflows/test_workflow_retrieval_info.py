@@ -93,7 +93,7 @@ class TestWorkflowRetrievalInfo:
         assert refs["workflow"]["id"] == workflow_fixture["workflow_id"]
         assert refs["workflow_variant"]["id"] == workflow_fixture["variant_id"]
         assert refs["workflow_revision"]["id"] == workflow_fixture["revision_id"]
-        assert info.get("key") is None
+        assert info.get("selector") is None
         # Environment refs should NOT appear on a direct retrieve.
         assert "environment" not in refs
         assert "environment_variant" not in refs
@@ -273,7 +273,7 @@ class TestWorkflowRetrievalInfoEnvBacked:
         assert refs["workflow"]["id"] == env_backed_fixture["workflow_id"]
         assert refs["workflow_variant"]["id"] == env_backed_fixture["variant_id"]
         assert refs["workflow_revision"]["id"] == env_backed_fixture["revision_id"]
-        assert info["key"] == env_backed_fixture["selector_key"]
+        assert info["selector"] == {"key": env_backed_fixture["selector_key"]}
 
     def test_env_backed_retrieve_missing_key_returns_404(
         self, authed_api, env_backed_fixture

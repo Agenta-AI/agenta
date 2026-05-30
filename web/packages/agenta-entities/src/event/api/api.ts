@@ -58,14 +58,21 @@ export async function fetchEventsPage(params: EventListParams): Promise<EventsPa
     }
 
     const event: AgentaApi.EventQuery = {
-        request_id: filters.requestId || null,
         request_type: filters.requestType || null,
+        request_id: filters.requestId || null,
         event_type: filters.eventType || null,
+        event_id: filters.eventId || null,
     }
 
     const windowing: AgentaApi.Windowing = {
         limit,
         order: "descending",
+    }
+    if (filters.timestampRange?.from) {
+        windowing.oldest = filters.timestampRange.from
+    }
+    if (filters.timestampRange?.to) {
+        windowing.newest = filters.timestampRange.to
     }
     if (cursor) {
         const decoded = decodeCursor(cursor)

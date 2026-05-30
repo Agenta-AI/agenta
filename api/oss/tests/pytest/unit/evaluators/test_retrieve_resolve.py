@@ -62,7 +62,7 @@ async def test_retrieve_evaluator_revision_direct_builds_retrieval_info():
     assert retrieval_info.references["evaluator"].id == artifact_id
     assert retrieval_info.references["evaluator_variant"].id == variant_id
     assert retrieval_info.references["evaluator_revision"].id == revision_id
-    assert retrieval_info.key is None
+    assert retrieval_info.selector is None
 
 
 @pytest.mark.asyncio
@@ -132,7 +132,7 @@ async def test_retrieve_evaluator_revision_env_backed_merges_env_references():
     assert retrieval_info is not None
     assert retrieval_info.references["environment"].id == environment_id
     assert retrieval_info.references["evaluator_revision"].id == revision_id
-    assert retrieval_info.key == "eval-suite.revision"
+    assert retrieval_info.selector == {"key": "eval-suite.revision"}
 
 
 @pytest.mark.asyncio
