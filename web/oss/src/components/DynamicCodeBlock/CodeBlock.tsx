@@ -72,18 +72,25 @@ const ShikiHighlightPlugin: FC<{langs: string[]; themeName: string}> = ({langs, 
     return null
 }
 
-const InitializeContentPlugin: FC<{language: string; value: string}> = ({language, value}) => {
+const InitializeContentPlugin: FC<{language: string; value: string; themeName: string}> = ({
+    language,
+    value,
+    themeName,
+}) => {
     const [editor] = useLexicalComposerContext()
 
     useEffect(() => {
         editor.update(() => {
             const root = $getRoot()
             root.clear()
-            const codeNode = $createCodeNode(language)
+            // The Shiki tokenizer reads the theme off the CodeNode (getTheme()),
+            // not from registerCodeHighlighting — so the theme MUST be set here,
+            // otherwise tokens render with the fallback (light) palette in dark.
+            const codeNode = $createCodeNode(language, themeName)
             codeNode.append($createTextNode(value))
             root.append(codeNode)
         })
-    }, [editor, language, value])
+    }, [editor, language, value, themeName])
 
     return null
 }
@@ -120,7 +127,11 @@ const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
                     placeholder={null}
                     ErrorBoundary={LexicalErrorBoundary}
                 />
-                <InitializeContentPlugin language={lexicalLanguage} value={value} />
+                <InitializeContentPlugin
+                    language={lexicalLanguage}
+                    value={value}
+                    themeName={shikiTheme}
+                />
                 <ShikiHighlightPlugin langs={langs} themeName={shikiTheme} />
             </LexicalComposer>
         </div>
