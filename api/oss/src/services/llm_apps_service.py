@@ -6,6 +6,7 @@ import aiohttp
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from agenta.sdk.models.shared import Reference
 from oss.src.utils.logging import get_module_logger
 from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
@@ -437,7 +438,15 @@ async def run_with_retry(
     """
 
     if "references" in kwargs and "testcase_id" in input_data:
-        kwargs["references"]["testcase"] = {"id": input_data["testcase_id"]}
+        # Ensure references dict is fully serialized before modifying
+        references = kwargs["references"]
+        if isinstance(references, dict):
+            references = {
+                k: (v.model_dump(exclude_none=True) if isinstance(v, Reference) else v)
+                for k, v in references.items()
+            }
+        references["testcase"] = {"id": input_data["testcase_id"]}
+        kwargs["references"] = references
 
     # references = kwargs.get("references", None)
     # links = kwargs.get("links", None)

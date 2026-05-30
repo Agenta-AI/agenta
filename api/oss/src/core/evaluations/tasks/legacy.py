@@ -49,6 +49,19 @@ from oss.src.core.evaluations.utils import (
     select_traces_for_reuse,
 )
 
+logger = get_module_logger(__name__)
+
+
+def _serialize_references(references: Dict[str, Any]) -> Dict[str, Any]:
+    """Serialize Reference objects to dicts for llm_apps_service batch_invoke."""
+    result = {}
+    for key, value in references.items():
+        if isinstance(value, Reference):
+            result[key] = value.model_dump(exclude_none=True)
+        else:
+            result[key] = value
+    return result
+
 
 log = get_module_logger(__name__)
 
@@ -588,7 +601,7 @@ async def evaluate_batch_testset(
                     uri=uri,
                     rate_limit_config=run_config,
                     application_id=str(application.id),
-                    references=application_references,
+                    references=_serialize_references(application_references),
                     scenarios=[
                         scenario.model_dump(
                             mode="json",
@@ -1508,7 +1521,7 @@ async def evaluate_batch_invocation(
                     uri=uri,
                     rate_limit_config=run_config,
                     application_id=str(application.id),
-                    references=references,
+                    references=_serialize_references(references),
                     scenarios=[
                         scenario.model_dump(
                             mode="json",

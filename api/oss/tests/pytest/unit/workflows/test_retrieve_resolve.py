@@ -147,8 +147,6 @@ async def test_retrieve_workflow_revision_env_backed_merges_env_references():
 
 @pytest.mark.asyncio
 async def test_retrieve_workflow_revision_env_backed_missing_key_returns_none():
-    artifact_id = uuid4()
-    variant_id = uuid4()
     environment_revision_id = uuid4()
 
     environment_revision = EnvironmentRevision(
@@ -184,8 +182,6 @@ async def test_retrieve_workflow_revision_env_backed_missing_key_returns_none():
     assert revision is None
     assert resolution_info is None
     assert retrieval_info is None
-    # Direct workflow refs should not have been used to short-circuit.
-    assert artifact_id != variant_id  # ensure UUIDs are distinct (harmless sanity)
 
 
 @pytest.mark.asyncio
