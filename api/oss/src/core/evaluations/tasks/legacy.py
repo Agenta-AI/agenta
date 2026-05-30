@@ -53,14 +53,21 @@ logger = get_module_logger(__name__)
 
 
 def _serialize_references(references: Dict[str, Any]) -> Dict[str, Any]:
-    """Serialize Reference objects to dicts for llm_apps_service batch_invoke."""
-    result = {}
-    for key, value in references.items():
-        if isinstance(value, Reference):
-            result[key] = value.model_dump(exclude_none=True)
-        else:
-            result[key] = value
-    return result
+    """Serialize Reference objects and UUIDs to JSON-compatible dicts."""
+    from uuid import UUID
+
+    def _deep_serialize(obj: Any) -> Any:
+        if isinstance(obj, UUID):
+            return str(obj)
+        elif isinstance(obj, Reference):
+            return obj.model_dump(exclude_none=True)
+        elif isinstance(obj, dict):
+            return {k: _deep_serialize(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [_deep_serialize(item) for item in obj]
+        return obj
+
+    return {k: _deep_serialize(v) for k, v in references.items()}
 
 
 log = get_module_logger(__name__)
@@ -221,7 +228,8 @@ async def _resolve_testset_input_specs(
                 "testset_revision": testset_revision,
                 "testcases": testcases,
                 "testcases_data": [
-                    {**testcase.data, "id": str(testcase.id)} for testcase in testcases
+                    {**testcase.data, "testcase_id": str(testcase.id)}
+                    for testcase in testcases
                 ],
             }
         )

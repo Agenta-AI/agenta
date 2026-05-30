@@ -210,6 +210,21 @@ def _format_curl_request(
     return " ".join(parts)
 
 
+def _deep_serialize(obj: Any) -> Any:
+    """Recursively serialize objects to JSON-compatible types."""
+    from uuid import UUID
+
+    if isinstance(obj, UUID):
+        return str(obj)
+    elif isinstance(obj, dict):
+        return {k: _deep_serialize(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_deep_serialize(item) for item in obj]
+    elif isinstance(obj, Reference):
+        return obj.model_dump(exclude_none=True)
+    return obj
+
+
 def build_invoke_request(
     *,
     inputs: Dict[str, Any],
@@ -224,7 +239,7 @@ def build_invoke_request(
     }
 
     if references:
-        request["references"] = references
+        request["references"] = _deep_serialize(references)
 
     return request
 
@@ -445,7 +460,8 @@ async def run_with_retry(
                 k: (v.model_dump(exclude_none=True) if isinstance(v, Reference) else v)
                 for k, v in references.items()
             }
-        references["testcase"] = {"id": input_data["testcase_id"]}
+        testcase_id = input_data["testcase_id"]
+        references["testcase"] = {"id": str(testcase_id) if testcase_id else None}
         kwargs["references"] = references
 
     # references = kwargs.get("references", None)
