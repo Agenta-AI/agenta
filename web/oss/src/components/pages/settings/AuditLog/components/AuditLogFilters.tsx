@@ -6,7 +6,7 @@
  * page-1 fetch.
  */
 
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {
     EventType,
@@ -94,28 +94,31 @@ const AuditLogFilters = ({onRefresh}: AuditLogFiltersProps) => {
         setRequestId(null)
     }, [setRequestId, setRequestType])
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            const trimmed = eventIdDraft.trim()
-            if (!trimmed) {
-                setEventId(null)
-                return
-            }
-            if (UUID_PATTERN.test(trimmed)) {
-                setEventId(trimmed)
-                return
-            }
-            setEventId(null)
-        }, ID_DEBOUNCE_MS)
-        return () => clearTimeout(timer)
+    // Commit the draft id into the filter atom. Only valid UUIDs filter;
+    // anything else (including a partial entry) clears the filter.
+    const commitEventId = useCallback(() => {
+        const trimmed = eventIdDraft.trim()
+        setEventId(trimmed && UUID_PATTERN.test(trimmed) ? trimmed : null)
     }, [eventIdDraft, setEventId])
+
+    useEffect(() => {
+        const timer = setTimeout(commitEventId, ID_DEBOUNCE_MS)
+        return () => clearTimeout(timer)
+    }, [commitEventId])
+
+    // Flush the debounced id before refreshing so a refresh clicked right after
+    // typing uses the value on screen rather than the previously committed one.
+    const handleRefresh = useCallback(() => {
+        commitEventId()
+        onRefresh()
+    }, [commitEventId, onRefresh])
 
     return (
         <div className="flex flex-wrap items-center gap-2">
             <EnhancedButton
                 aria-label="Refresh audit log data"
                 icon={<ArrowsClockwiseIcon size={14} className="mt-[0.8px]" />}
-                onClick={onRefresh}
+                onClick={handleRefresh}
                 tooltipProps={{title: "Refresh data"}}
             />
             <QuickDateRangePicker value={timestampRange} onChange={setTimestampRange} />
