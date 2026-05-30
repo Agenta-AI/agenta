@@ -14,6 +14,7 @@ import {
     eventTimestampRangeFilterAtom,
     type EventTableRow,
 } from "@agenta/entities/event"
+import {dayjs} from "@agenta/shared/utils"
 import {
     createActionsColumn,
     InfiniteVirtualTableFeatureShell,
@@ -39,7 +40,14 @@ import AuditLogFilters from "./AuditLogFilters"
 
 const SkeletonCell = () => <Skeleton.Input active size="small" className="w-full" />
 
-const RELATIVE_TIME_PRESETS: Record<string, {amount: number; unit: "minute" | "hour" | "day"}> = {
+// Mirror the relative presets offered by QuickDateRangePicker. Keep this in
+// sync with SORT_PRESETS there — including the `month` presets — so Refresh can
+// roll every relative window forward instead of falling back to the originally
+// captured one. Uses dayjs units so `month` matches the picker's calendar math.
+const RELATIVE_TIME_PRESETS: Record<
+    string,
+    {amount: number; unit: "minute" | "hour" | "day" | "month"}
+> = {
     "30 mins": {amount: 30, unit: "minute"},
     "1 hour": {amount: 1, unit: "hour"},
     "6 hours": {amount: 6, unit: "hour"},
@@ -47,6 +55,8 @@ const RELATIVE_TIME_PRESETS: Record<string, {amount: number; unit: "minute" | "h
     "3 days": {amount: 3, unit: "day"},
     "7 days": {amount: 7, unit: "day"},
     "14 days": {amount: 14, unit: "day"},
+    "1 month": {amount: 1, unit: "month"},
+    "3 months": {amount: 3, unit: "month"},
 }
 
 const recomputeRelativeTimestampRange = (preset?: string | null) => {
@@ -55,12 +65,7 @@ const recomputeRelativeTimestampRange = (preset?: string | null) => {
     const config = RELATIVE_TIME_PRESETS[preset]
     if (!config) return null
 
-    const multipliers = {
-        minute: 60 * 1000,
-        hour: 60 * 60 * 1000,
-        day: 24 * 60 * 60 * 1000,
-    }
-    const from = new Date(Date.now() - config.amount * multipliers[config.unit])
+    const from = dayjs().subtract(config.amount, config.unit)
 
     // Open-ended upper bound (no `to`) so the window always extends to "now" —
     // consistent with the default range; only the relative `from` is recomputed.
