@@ -52,6 +52,19 @@ const isColorValue = (val: unknown): boolean =>
 const stripColors = <T extends Record<string, unknown>>(obj: T): Partial<T> =>
     Object.fromEntries(Object.entries(obj).filter(([, val]) => !isColorValue(val))) as Partial<T>
 
+// Same as stripColors but for the per-component override map
+// ({ Tag: {...}, Tabs: {...}, ... }): strip colors inside each component's token
+// object while keeping its structural overrides (fontSizeSM, lineHeight, padding,
+// radii). Without this, dark mode loses every component-level sizing override and
+// falls back to the derived globals — e.g. Tag renders at fontSizeSM 10 instead of
+// the configured 12, so tags (and Tabs/Select/Badge/...) shrink vs. light mode.
+const stripComponentColors = <T extends Record<string, Record<string, unknown>>>(
+    components: T,
+): Record<string, Record<string, unknown>> =>
+    Object.fromEntries(
+        Object.entries(components).map(([name, tokens]) => [name, stripColors(tokens)]),
+    )
+
 // ============================================================================
 // DARK THEME TUNING — single source of truth for the dark color schema.
 //
@@ -136,6 +149,10 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 token: {
                     ...baseToken,
                     ...stripColors(antdTokens.token),
+                    // Mirror light mode's component overrides (spread into token) so
+                    // structural sizing matches across themes; colors are stripped per
+                    // component so darkAlgorithm still owns dark colors.
+                    ...stripComponentColors(antdTokens.components),
                     ...DARK_TOKEN_OVERRIDES,
                 },
                 components: darkComponents,
