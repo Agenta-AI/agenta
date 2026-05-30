@@ -11,15 +11,15 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         flexDirection: "column",
         width: "100%",
         flex: 1,
-        border: "1px solid #EAEFF5",
+        border: `1px solid ${theme.colorBorderSecondary}`,
         borderRadius: "10px",
-        backgroundColor: "white",
+        backgroundColor: theme.colorBgContainer,
         boxShadow:
             "0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)",
         cursor: "pointer",
         transition: "background-color 0.2s",
         "&:hover": {
-            backgroundColor: "#F9FAFB",
+            backgroundColor: theme.colorFillTertiary,
         },
     },
 }))

@@ -73,18 +73,20 @@ const QueryFilterOption = ({option}: {option: QueryOption}) => {
                     filtering={revisionFiltering}
                     compact
                     compactMaxRows={1}
-                    className="text-xs text-[#475467]"
+                    className="text-xs text-[var(--ag-c-475467)]"
                 />
             ) : isLoading ? (
-                <Typography.Text className="text-xs text-[#98A2B3]">
+                <Typography.Text className="text-xs text-[var(--ag-c-98A2B3)]">
                     Loading filters…
                 </Typography.Text>
             ) : fallbackSummary ? (
-                <Typography.Text className="text-xs text-[#475467]" ellipsis>
+                <Typography.Text className="text-xs text-[var(--ag-c-475467)]" ellipsis>
                     {fallbackSummary}
                 </Typography.Text>
             ) : (
-                <Typography.Text className="text-xs text-[#98A2B3]">No filters</Typography.Text>
+                <Typography.Text className="text-xs text-[var(--ag-c-98A2B3)]">
+                    No filters
+                </Typography.Text>
             )}
         </div>
     )

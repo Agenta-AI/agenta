@@ -11,7 +11,10 @@ const TypingIndicator: FC<{label?: string; className?: string; size?: "small" | 
 }) => {
     return (
         <div
-            className={clsx("w-full px-3 py-2 rounded-md text-[13px] text-[#667085bf]", className)}
+            className={clsx(
+                "w-full px-3 py-2 rounded-md text-[13px] text-[var(--ag-c-667085BF)]",
+                className,
+            )}
         >
             <Spin
                 indicator={

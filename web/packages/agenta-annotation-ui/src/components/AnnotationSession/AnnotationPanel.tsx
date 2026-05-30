@@ -191,7 +191,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                                 {evaluator.name ?? slug}
                             </Typography.Text>
                             <Typography.Text
-                                className="text-[#758391] truncate max-w-[40%] text-end"
+                                className="text-[var(--ag-c-758391)] truncate max-w-[40%] text-end"
                                 title={slug}
                             >
                                 {slug}
@@ -242,7 +242,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                             type="text"
                             size="small"
                             icon={<Info size={14} />}
-                            className="!text-[#758391] !w-6 !h-6 !min-w-0 !p-0"
+                            className="!text-[var(--ag-c-758391)] !w-6 !h-6 !min-w-0 !p-0"
                         />
                     </Popover>
                 )}
@@ -323,7 +323,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                     activeKey={activeKeys}
                     onChange={handleCollapseChange}
                     items={collapseItems}
-                    className="rounded-none [&_.ant-collapse-item]:!bg-white [&_.ant-collapse-header]:!bg-[#05172905] [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-white [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
+                    className="rounded-none [&_.ant-collapse-item]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-header]:!bg-[var(--ag-c-05172905)] [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
                     bordered={false}
                 />
             </div>

@@ -356,14 +356,14 @@ const FiltersSummary = () => {
 
     if (!groups.length) {
         return (
-            <Typography.Text className="text-xs text-[#98A2B3] whitespace-nowrap">
+            <Typography.Text className="text-xs text-[var(--ag-c-98A2B3)] whitespace-nowrap">
                 No filters applied
             </Typography.Text>
         )
     }
 
     return (
-        <div className="flex gap-2 text-xs text-[#475467] grow overflow-x-auto">
+        <div className="flex gap-2 text-xs text-[var(--ag-c-475467)] grow overflow-x-auto">
             {groups.map((group) =>
                 group.chips.map((chip) => {
                     const tone = REFERENCE_CHIP_TONES[group.kind]
@@ -381,7 +381,7 @@ const FiltersSummary = () => {
                                 "m-0 px-2 py-0.5 text-xs border border-solid rounded",
                                 toneColors
                                     ? "hover:brightness-95"
-                                    : "text-[#475467] bg-[#F2F4F7] border-transparent",
+                                    : "text-[var(--ag-c-475467)] bg-[var(--ag-c-F2F4F7)] border-transparent",
                             )}
                             style={
                                 toneColors
@@ -403,7 +403,7 @@ const FiltersSummary = () => {
                                 }
                             >
                                 <span className={toneColors ? "text-inherit" : undefined}>
-                                    <span className="font-medium text-[#101828]">
+                                    <span className="font-medium text-[var(--ag-c-101828)]">
                                         {group.label}:
                                     </span>{" "}
                                     {chip.label}

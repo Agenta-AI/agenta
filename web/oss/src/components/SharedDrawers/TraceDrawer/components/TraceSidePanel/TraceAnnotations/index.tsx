@@ -252,7 +252,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                             className={clsx(
                                                 "flex items-center flex-wrap gap-1 justify-between",
                                                 "py-1 px-3 cursor-pointer",
-                                                "rounded-lg border border-[#BDC7D1] border-solid",
+                                                "rounded-lg border border-[var(--ag-c-BDC7D1)] border-solid",
                                             )}
                                         >
                                             <Typography.Text className="truncate overflow-hidden text-ellipsis flex-1">

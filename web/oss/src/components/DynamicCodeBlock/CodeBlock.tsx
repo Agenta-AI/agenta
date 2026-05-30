@@ -31,7 +31,7 @@ const useStyles = createUseStyles({
         padding: 12,
         borderRadius: 6,
         overflowX: "auto",
-        background: "#FAFAFA",
+        background: "var(--ag-c-FAFAFA)",
         outline: "none",
         whiteSpace: "pre",
     },

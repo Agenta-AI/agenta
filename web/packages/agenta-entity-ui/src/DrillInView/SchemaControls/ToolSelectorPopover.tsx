@@ -816,7 +816,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     }, [gatewayTools, resetAndClose])
 
     const content = (
-        <div className="flex min-w-[460px] bg-white rounded-lg overflow-hidden border border-zinc-100 shadow-sm">
+        <div className="flex min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-zinc-100 shadow-sm">
             <div
                 ref={leftPanelRef}
                 className="w-[232px] border-0 border-r border-solid border-zinc-100"
@@ -967,7 +967,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
             </div>
 
             <div
-                className="w-[232px] bg-white"
+                className="w-[232px] bg-[var(--ag-c-FFFFFF)]"
                 style={leftPanelHeight ? {height: leftPanelHeight} : undefined}
             >
                 {activeBuiltinProvider ? (

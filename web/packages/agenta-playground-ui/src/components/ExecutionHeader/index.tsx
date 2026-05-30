@@ -105,7 +105,7 @@ const ExecutionHeader = ({
                 "sticky top-0 z-10",
                 isComparisonView
                     ? "h-[40px] bg-[var(--ant-control-item-bg-active)]"
-                    : "h-[48px] bg-white",
+                    : "h-[48px] bg-[var(--ag-c-FFFFFF)]",
                 className,
             )}
         >

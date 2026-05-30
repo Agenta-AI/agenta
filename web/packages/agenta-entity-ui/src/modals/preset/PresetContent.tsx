@@ -64,7 +64,7 @@ export const PresetContent = memo(function PresetContent({
 
             {/* Right content - preview */}
             <div className="flex flex-col gap-4 flex-1 h-full overflow-y-auto">
-                <div className="flex items-start justify-between gap-4 sticky top-0 z-10 bg-white">
+                <div className="flex items-start justify-between gap-4 sticky top-0 z-10 bg-[var(--ag-c-FFFFFF)]">
                     <Typography.Text className="text-lg font-medium -mt-1">
                         Select a Preset
                     </Typography.Text>

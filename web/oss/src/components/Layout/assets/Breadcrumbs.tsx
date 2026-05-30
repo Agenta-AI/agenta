@@ -16,6 +16,7 @@ import packageJsonData from "../../../../package.json"
 import EnhancedButton from "../../EnhancedUIs/Button"
 
 import {useStyles, type StyleProps} from "./styles"
+import ThemeSwitcher from "./ThemeSwitcher"
 
 const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.ReactNode}[] => {
     if (!breadcrumbs) return []
@@ -80,7 +81,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
         <section
             className={clsx(
                 classes.breadcrumbContainer,
-                "sticky top-0 z-[100] bg-white max-w-full overflow-hidden gap-4 !px-3",
+                "sticky top-0 z-[100] bg-[var(--ag-c-FFFFFF)] max-w-full overflow-hidden gap-4 !px-3",
             )}
         >
             <div className="flex flex-nowrap items-center shrink-1 min-w-0">
@@ -121,7 +122,8 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
                 </div>
             </div>
 
-            <div className={clsx(classes.topRightBar, "shrink-0 flex items-center gap-2")}>
+            <div className={clsx(classes.topRightBar, "shrink-0 flex items-center gap-3")}>
+                <ThemeSwitcher />
                 <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>

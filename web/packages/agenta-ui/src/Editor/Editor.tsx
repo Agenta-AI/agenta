@@ -1027,7 +1027,7 @@ export const EditorProvider = ({
     if (!config) {
         return (
             <div
-                className="bg-white relative flex flex-col p-2 border rounded-lg"
+                className="bg-[var(--ag-c-FFFFFF)] relative flex flex-col p-2 border rounded-lg"
                 style={
                     dimensions?.width
                         ? {
@@ -1048,7 +1048,7 @@ export const EditorProvider = ({
                 "agenta-rich-text-editor",
                 "min-h-[70px]",
                 "w-full",
-                "text-[#1C2C3D] relative flex flex-col rounded-lg",
+                "text-[var(--ag-c-1C2C3D)] relative flex flex-col rounded-lg",
                 {
                     disabled: disabled,
                 },

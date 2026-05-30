@@ -24,7 +24,7 @@ const SideBanner = () => {
                 <Title level={3} className="font-bold">
                     Build Robust AI Applications
                 </Title>
-                <Typography.Paragraph className="text-sm text-[#586673]">
+                <Typography.Paragraph className="text-sm text-[var(--ag-c-586673)]">
                     Streamline the development of your LLM applications. Experiment, evaluate, and
                     monitor AI applications faster and easier than ever before. Empower your team
                     with seamless collaboration.

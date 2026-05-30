@@ -355,7 +355,7 @@ const ToolHeader = memo(function ToolHeader({
                     <div className="flex items-center gap-1">
                         <div className="flex items-center">
                             {builtinIcon && (
-                                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[#F8FAFC]">
+                                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--ag-c-F8FAFC)]">
                                     {builtinIcon}
                                 </span>
                             )}

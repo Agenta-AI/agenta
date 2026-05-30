@@ -421,8 +421,8 @@ const DrillInFieldHeader = memo(
             ? "cursor-pointer hover:bg-[rgba(5,23,41,0.04)] transition-colors"
             : ""
         const headerClassName = isFlat
-            ? `flex items-center justify-between py-1 px-3 bg-white ${headerInteractive}`
-            : `flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)] ${headerInteractive}`
+            ? `flex items-center justify-between py-1 px-3 bg-[var(--ag-c-FFFFFF)] ${headerInteractive}`
+            : `flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)] ${headerInteractive}`
 
         // Mapping popover content
         const mappingContent = onMapToColumn && (
@@ -574,7 +574,7 @@ const DrillInFieldHeader = memo(
                                     />
                                 </Tooltip>
                                 {popoverOpen && (
-                                    <div className="absolute right-0 top-full mt-1 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                                    <div className="absolute right-0 top-full mt-1 bg-[var(--ag-c-FFFFFF)] rounded-md shadow-lg border border-gray-200 z-50">
                                         {mappingContent}
                                     </div>
                                 )}

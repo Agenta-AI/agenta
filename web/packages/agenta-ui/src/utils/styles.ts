@@ -171,9 +171,9 @@ export const bgColors = {
     /** Active/selected background - controlItemBgActive - zinc-1 (#f5f7fa) */
     active: "bg-zinc-1",
     /** Container background - colorBgContainer (#ffffff) */
-    container: "bg-white",
+    container: "bg-[var(--ag-c-FFFFFF)]",
     /** Elevated background - colorBgElevated (#ffffff) */
-    elevated: "bg-white",
+    elevated: "bg-[var(--ag-c-FFFFFF)]",
     /** Hover subtle - for hover states on subtle backgrounds */
     hoverSubtle: "hover:bg-zinc-1",
 } as const

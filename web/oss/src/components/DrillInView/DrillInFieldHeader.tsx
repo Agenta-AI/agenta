@@ -224,7 +224,9 @@ function ViewModeDropdown({
                     option.value === value ? "bg-[rgba(5,23,41,0.04)]" : ""
                 }`}
             >
-                <span className="text-[13px] font-medium text-[#051729]">{option.label}</span>
+                <span className="text-[13px] font-medium text-[var(--ag-c-051729)]">
+                    {option.label}
+                </span>
                 {option.value === value ? (
                     <span className="text-[11px] text-[rgba(5,23,41,0.55)]">default</span>
                 ) : null}
@@ -243,7 +245,7 @@ function ViewModeDropdown({
             <Button type="text" size="small" className="inline-flex items-center gap-1 px-2 h-6">
                 <span className="text-[12px] text-[rgba(5,23,41,0.55)]">
                     View as{" "}
-                    <span className="font-semibold text-[#051729]">
+                    <span className="font-semibold text-[var(--ag-c-051729)]">
                         {selectedOption?.label ?? value}
                     </span>
                 </span>
@@ -300,7 +302,7 @@ const DrillInFieldHeader = memo(
         const showCopyButton = alwaysShowCopy || isCollapsed || expandable
 
         return (
-            <div className="drill-in-field-header flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
+            <div className="drill-in-field-header flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
                 <div className="flex items-center gap-2">
                     {showCollapseToggle ? (
                         <>

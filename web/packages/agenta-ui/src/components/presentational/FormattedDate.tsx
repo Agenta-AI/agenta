@@ -79,7 +79,7 @@ export function FormattedDate({
 
     if (asTag) {
         return (
-            <Tag variant="filled" className={cn("bg-[#0517290F]", className)}>
+            <Tag variant="filled" className={cn("bg-[var(--ag-c-0517290F)]", className)}>
                 {inner}
             </Tag>
         )

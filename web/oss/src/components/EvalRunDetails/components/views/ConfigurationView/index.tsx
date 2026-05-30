@@ -404,9 +404,9 @@ const EvaluationRunTagItem = memo(({runId, index}: {runId: string; index: number
     )
 
     return (
-        <div className="py-2 px-4 border-[0.5px] border-solid border-[#EAEFF5]">
+        <div className="py-2 px-4 border-[0.5px] border-solid border-[var(--ag-c-EAEFF5)]">
             {summary.isLoading ? (
-                <div className="h-6 w-full rounded-md bg-[#F2F4F7]" />
+                <div className="h-6 w-full rounded-md bg-[var(--ag-c-F2F4F7)]" />
             ) : (
                 <EvaluationRunTag
                     label={label ?? "Evaluation"}
@@ -511,7 +511,9 @@ const ConfigurationSectionRow = memo(
                         }
                     }}
                 >
-                    <Text className="text-sm font-semibold text-[#344054]">{section.title}</Text>
+                    <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">
+                        {section.title}
+                    </Text>
 
                     <Button
                         type="link"

@@ -68,7 +68,7 @@ const DrawerDetails = ({revisionId}: DrawerDetailsProps) => {
                     <Typography.Text className="text-sm font-medium leading-5">
                         Date modified
                     </Typography.Text>
-                    <Tag bordered={false} className="w-fit bg-[#0517290f]">
+                    <Tag bordered={false} className="w-fit bg-[var(--ag-c-0517290F)]">
                         {new Date(createdAt).toLocaleDateString()}
                     </Tag>
                 </div>
@@ -79,7 +79,7 @@ const DrawerDetails = ({revisionId}: DrawerDetailsProps) => {
                     <Typography.Text className="text-sm font-medium leading-5">
                         Modified by
                     </Typography.Text>
-                    <Tag bordered={false} className="w-fit bg-[#0517290f]">
+                    <Tag bordered={false} className="w-fit bg-[var(--ag-c-0517290F)]">
                         <UserAuthorLabel userId={createdById} showPrefix={false} showAvatar />
                     </Tag>
                 </div>
@@ -90,7 +90,7 @@ const DrawerDetails = ({revisionId}: DrawerDetailsProps) => {
                     <Typography.Text className="text-sm font-medium leading-5">
                         Notes
                     </Typography.Text>
-                    <Tag bordered={false} className="w-fit bg-[#0517290f]">
+                    <Tag bordered={false} className="w-fit bg-[var(--ag-c-0517290F)]">
                         {commitMessage}
                     </Tag>
                 </div>

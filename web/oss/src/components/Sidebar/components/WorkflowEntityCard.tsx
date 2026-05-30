@@ -96,7 +96,7 @@ const SWITCHER_MENU_CLASS = clsx(
     "[&_.ant-dropdown-menu-item-group-title]:sticky",
     "[&_.ant-dropdown-menu-item-group-title]:top-0",
     "[&_.ant-dropdown-menu-item-group-title]:z-10",
-    "[&_.ant-dropdown-menu-item-group-title]:bg-white",
+    "[&_.ant-dropdown-menu-item-group-title]:bg-[var(--ag-c-FFFFFF)]",
 )
 
 /**
@@ -248,7 +248,7 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     return (
         <div
             className={clsx(
-                "rounded-md border border-solid border-gray-200 bg-white px-2.5 py-2",
+                "rounded-md border border-solid border-gray-200 bg-[var(--ag-c-FFFFFF)] px-2.5 py-2",
                 "flex flex-col gap-1.5",
             )}
         >

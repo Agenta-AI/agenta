@@ -25,7 +25,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     topContainer: {
         wdith: "100%",
         height: 200,
-        backgroundColor: "#F5F7FA",
+        backgroundColor: theme.colorFillTertiary,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

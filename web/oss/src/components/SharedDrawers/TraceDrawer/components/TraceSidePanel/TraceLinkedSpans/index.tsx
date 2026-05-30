@@ -50,7 +50,7 @@ const TraceLinkedSpans = () => {
                             <Tag
                                 key={`${link.trace_id}-${link.span_id}-${link.key || ""}`}
                                 bordered={false}
-                                className="cursor-pointer self-start bg-[#0517290F] flex gap-1 items-center"
+                                className="cursor-pointer self-start bg-[var(--ag-c-0517290F)] flex gap-1 items-center"
                                 onClick={() => handleNavigate(link)}
                             >
                                 <TreeStructureIcon size={14} />{" "}

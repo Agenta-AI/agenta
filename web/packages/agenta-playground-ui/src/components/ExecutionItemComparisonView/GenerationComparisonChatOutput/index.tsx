@@ -86,7 +86,7 @@ const GenerationComparisonChatOutputCell = ({
             <>
                 <div
                     className={clsx([
-                        "shrink-0 flex flex-col self-stretch sticky left-0 z-[99] bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                        "shrink-0 flex flex-col self-stretch sticky left-0 z-[99] bg-[var(--ag-c-FFFFFF)] border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                         {"border-r": variantIndex === 0},
                     ])}
                 >
@@ -99,7 +99,7 @@ const GenerationComparisonChatOutputCell = ({
                 <div
                     className={clsx([
                         "!min-w-[400px] flex-1",
-                        "shrink-0 bg-white z-[1]",
+                        "shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
                         "flex flex-col self-stretch",
                         "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
                     ])}
@@ -116,7 +116,7 @@ const GenerationComparisonChatOutputCell = ({
         <>
             <div
                 className={clsx([
-                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[99] bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[99] bg-[var(--ag-c-FFFFFF)] border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                     {"border-r": variantIndex === 0},
                 ])}
             >
@@ -186,7 +186,7 @@ const GenerationComparisonChatOutputCell = ({
             <div
                 className={clsx([
                     "!min-w-[400px] flex-1",
-                    "shrink-0 bg-white z-[1]",
+                    "shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
                     "flex flex-col self-stretch",
                     "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
                 ])}

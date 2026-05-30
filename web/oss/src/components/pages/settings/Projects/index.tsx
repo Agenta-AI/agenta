@@ -182,7 +182,7 @@ const ProjectsSettings = () => {
                         <div className="flex items-center gap-2">
                             <Text strong>{record.project_name}</Text>
                             {record.is_default_project && (
-                                <Tag className="bg-[#0517290F] m-0">Default</Tag>
+                                <Tag className="bg-[var(--ag-c-0517290F)] m-0">Default</Tag>
                             )}
                         </div>
                         <Text type="secondary" className="text-xs">

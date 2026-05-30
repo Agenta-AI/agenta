@@ -21,7 +21,7 @@ export function CreateTestsetCard({onFileUpload, onBuildInUI}: CreateTestsetCard
                 }}
                 showUploadList={false}
                 disabled={!onFileUpload}
-                className="!bg-white !border-gray-200 !rounded-xl"
+                className="!bg-[var(--ag-c-FFFFFF)] !border-gray-200 !rounded-xl"
             >
                 <div className="flex flex-col items-center justify-center gap-2 py-1">
                     <InboxOutlined className="text-gray-400 text-xl" />

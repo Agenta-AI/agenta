@@ -33,16 +33,16 @@ const HighlightedJson: FC<{data: Record<string, unknown>}> = ({data}) => {
             }
 
             const token = match[0]
-            let className = "text-[#d19a66]" // number - orange
+            let className = "text-[var(--ag-c-D19A66)]" // number - orange
 
             if (/^"/.test(token)) {
                 if (/:$/.test(token)) {
-                    className = "text-[#d19a66]" // key - orange
+                    className = "text-[var(--ag-c-D19A66)]" // key - orange
                 } else {
-                    className = "text-[#98c379]" // string value - green
+                    className = "text-[var(--ag-c-98C379)]" // string value - green
                 }
             } else if (/true|false|null/.test(token)) {
-                className = "text-[#c678dd]" // boolean/null - purple
+                className = "text-[var(--ag-c-C678DD)]" // boolean/null - purple
             }
 
             parts.push(
@@ -122,8 +122,8 @@ export const RequestPreview: FC<Props> = ({form}) => {
             </Tooltip>
 
             <div className="mb-3">
-                <span className="mr-2 font-bold text-[#c678dd]">{preview.method}</span>
-                <span className="break-all text-[#98c379]">{preview.url}</span>
+                <span className="mr-2 font-bold text-[var(--ag-c-C678DD)]">{preview.method}</span>
+                <span className="break-all text-[var(--ag-c-98C379)]">{preview.url}</span>
             </div>
 
             {Object.keys(preview.headers).length > 0 && (

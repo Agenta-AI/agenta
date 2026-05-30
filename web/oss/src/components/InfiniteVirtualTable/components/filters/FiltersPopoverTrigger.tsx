@@ -19,7 +19,7 @@ interface FiltersPopoverTriggerProps {
 }
 
 const FilterCountBadge = ({count}: {count: number}) => (
-    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] !px-1 rounded-md bg-[#E5E7EB] text-[#374151] text-xs font-medium">
+    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] !px-1 rounded-md bg-[var(--ag-c-E5E7EB)] text-[var(--ag-c-374151)] text-xs font-medium">
         {count}
     </span>
 )

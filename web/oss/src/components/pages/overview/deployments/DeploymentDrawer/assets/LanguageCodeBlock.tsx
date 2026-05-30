@@ -45,7 +45,7 @@ const LanguageCodeBlock = ({
                         <div
                             className={clsx(
                                 "absolute top-0 left-0 right-0 bottom-0",
-                                "backdrop-blur-md bg-[#051729] bg-opacity-10 z-10",
+                                "backdrop-blur-md bg-[var(--ag-c-051729)] bg-opacity-10 z-10",
                                 "flex flex-col gap-2 items-center justify-center rounded-lg",
                             )}
                         >
@@ -84,7 +84,7 @@ const LanguageCodeBlock = ({
                         <div
                             className={clsx(
                                 "absolute top-0 left-0 right-0 bottom-0",
-                                "backdrop-blur-md bg-[#051729] bg-opacity-10 z-10",
+                                "backdrop-blur-md bg-[var(--ag-c-051729)] bg-opacity-10 z-10",
                                 "flex flex-col gap-2 items-center justify-center rounded-lg",
                             )}
                         >

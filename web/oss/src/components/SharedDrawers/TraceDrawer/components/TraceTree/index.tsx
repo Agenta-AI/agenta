@@ -48,7 +48,7 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                     <Typography.Text
                         className={
                             status_code === StatusCode.STATUS_CODE_ERROR
-                                ? `${classes.treeTitle} text-[#D61010] font-[500]`
+                                ? `${classes.treeTitle} text-[var(--ag-c-D61010)] font-[500]`
                                 : classes.treeTitle
                         }
                     >

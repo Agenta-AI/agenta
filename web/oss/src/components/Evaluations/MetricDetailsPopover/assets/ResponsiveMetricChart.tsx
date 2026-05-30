@@ -730,7 +730,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                             hoveredBin === computedHighlightBinIndex
                                         return (
                                             <div
-                                                className="pointer-events-none z-50 absolute rounded-lg border border-[#d0d7e3] bg-white/95 px-3 py-2 text-xs text-gray-900 shadow-lg"
+                                                className="pointer-events-none z-50 absolute rounded-lg border border-[var(--ag-c-D0D7E3)] bg-white/95 px-3 py-2 text-xs text-gray-900 shadow-lg"
                                                 style={{
                                                     left: mousePos.x + 16,
                                                     top: mousePos.y - 32,

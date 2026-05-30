@@ -82,7 +82,7 @@ export const DrillInFieldRenderer = memo(function DrillInFieldRenderer({
     // Read-only preview mode
     if (!editable) {
         return (
-            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[#9d4edd] p-3 bg-gray-50 rounded-md max-h-[120px] overflow-hidden">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[var(--ag-c-9D4EDD)] p-3 bg-gray-50 rounded-md max-h-[120px] overflow-hidden">
                 {stringValue}
             </pre>
         )

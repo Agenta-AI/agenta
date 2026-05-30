@@ -47,7 +47,7 @@ const SelectEvaluators = ({
             <Input
                 placeholder="Search"
                 variant="borderless"
-                className="border-0 border-b border-solid border-[#0517290F] rounded-none py-2"
+                className="border-0 border-b border-solid border-[var(--ag-c-0517290F)] rounded-none py-2"
                 onChange={(e) => setSearch(e.target.value)}
             />
             <div className="flex flex-col gap-3 py-1 px-2">
@@ -77,7 +77,7 @@ const SelectEvaluators = ({
                             )}
                         >
                             <span className="capitalize w-[70%] truncate">{evaluator.name}</span>
-                            <span className="text-[#758391] shrink-0">Metric</span>
+                            <span className="text-[var(--ag-c-758391)] shrink-0">Metric</span>
                         </Checkbox>
                     </Tooltip>
                 ))}

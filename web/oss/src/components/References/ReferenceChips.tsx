@@ -11,8 +11,8 @@ import {previewTestsetReferenceAtomFamily} from "./atoms/entityReferences"
 type ChipTone = "variant" | "testset"
 
 const CHIP_STYLES: Record<ChipTone, string> = {
-    variant: "!border-[#E9D7FE] !bg-[#F4EBFF] !text-[#7839EE]",
-    testset: "!border-[#FCE7F6] !bg-[#FDF2FA] !text-[#C11574]",
+    variant: "!border-[var(--ag-c-E9D7FE)] !bg-[var(--ag-c-F4EBFF)] !text-[var(--ag-c-7839EE)]",
+    testset: "!border-[var(--ag-c-FCE7F6)] !bg-[var(--ag-c-FDF2FA)] !text-[var(--ag-c-C11574)]",
 }
 
 interface ReferenceChipProps extends TagProps {

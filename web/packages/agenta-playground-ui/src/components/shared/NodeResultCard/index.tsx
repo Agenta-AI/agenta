@@ -32,15 +32,15 @@ export const NodeNameTag = ({
     <div className="flex items-center gap-1">
         <Tag
             variant="filled"
-            className="!m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[#0517290F] text-[#344054] border border-solid border-transparent"
+            className="!m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent"
         >
             {name}
-            {version != null && <span className="text-[#667085] ml-1">v{version}</span>}
+            {version != null && <span className="text-[var(--ag-c-667085)] ml-1">v{version}</span>}
         </Tag>
         {isDraft && (
             <Tag
                 variant="filled"
-                className="!m-0 rounded-[6px] px-1.5 py-[1px] text-[10px] leading-[22px] bg-[#FFF7E6] text-[#D4760A] border border-solid border-[#FFE4B5]"
+                className="!m-0 rounded-[6px] px-1.5 py-[1px] text-[10px] leading-[22px] bg-[var(--ag-c-FFF7E6)] text-[var(--ag-c-D4760A)] border border-solid border-[var(--ag-c-FFE4B5)]"
             >
                 draft
             </Tag>
@@ -100,7 +100,7 @@ export const NodeResultCard = ({
                 style={{paddingTop: LEGEND_HEIGHT}}
             >
                 <div
-                    className="absolute bg-white px-1 z-[2] flex items-center gap-1"
+                    className="absolute bg-[var(--ag-c-FFFFFF)] px-1 z-[2] flex items-center gap-1"
                     style={{top: 0, left: 10}}
                 >
                     <NodeNameTag name={name} version={version} isDraft={isDraft} />
@@ -131,7 +131,7 @@ export const NodeResultCard = ({
                         }}
                     />
                     <div
-                        className="relative bg-white px-3 pb-2 pt-6"
+                        className="relative bg-[var(--ag-c-FFFFFF)] px-3 pb-2 pt-6"
                         style={{
                             borderRadius: BORDER_RADIUS - BORDER_WIDTH,
                         }}
@@ -149,7 +149,7 @@ export const NodeResultCard = ({
             style={{paddingTop: LEGEND_HEIGHT}}
         >
             <div
-                className="absolute bg-white px-1 z-[1] flex items-center gap-1"
+                className="absolute bg-[var(--ag-c-FFFFFF)] px-1 z-[1] flex items-center gap-1"
                 style={{top: 0, left: 10}}
             >
                 <NodeNameTag name={name} version={version} isDraft={isDraft} />

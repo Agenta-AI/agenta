@@ -22,7 +22,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         border: `1px solid ${theme.colorBorder}`,
         textAlign: "center",
         "& > div:nth-child(1)": {
-            backgroundColor: "rgba(0, 0, 0, 0.02)",
+            backgroundColor: theme.colorFillQuaternary,
             lineHeight: theme.lineHeight,
             flex: 1,
             borderRight: `1px solid ${theme.colorBorder}`,

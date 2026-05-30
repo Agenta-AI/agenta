@@ -53,7 +53,7 @@ const DefaultFieldRenderer: FieldRendererComponent = ({value, editable}) => {
     return (
         <pre
             className={`text-xs font-mono whitespace-pre-wrap break-words m-0 p-3 bg-gray-50 rounded-md max-h-[200px] overflow-auto ${
-                editable ? "text-gray-700" : "text-[#9d4edd]"
+                editable ? "text-gray-700" : "text-[var(--ag-c-9D4EDD)]"
             }`}
         >
             {displayValue}

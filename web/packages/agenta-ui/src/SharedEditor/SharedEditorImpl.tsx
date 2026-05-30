@@ -392,15 +392,16 @@ const SharedEditor = ({
                 "[&_.agenta-editor-wrapper]:w-full",
                 "p-[11px]",
                 {
-                    "border-[#BDC7D1]": editorType === "border",
-                    "hover:border-[#394857] focus:border-[#BDC7D1]": editorType === "border",
+                    "border-[var(--ag-c-BDC7D1)]": editorType === "border",
+                    "hover:border-[var(--ag-c-394857)] focus:border-[var(--ag-c-BDC7D1)]":
+                        editorType === "border",
                     "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
                     "hover:border-[394857] focus:border-[394857]":
                         state === "filled" && editorType === "border",
                 },
                 {
-                    "border-[transparent] hover:!border-[#BDC7D1] focus:border-[#BDC7D1]":
+                    "border-[transparent] hover:!border-[var(--ag-c-BDC7D1)] focus:border-[var(--ag-c-BDC7D1)]":
                         editorType === "borderless",
                     "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "borderless",
@@ -413,7 +414,7 @@ const SharedEditor = ({
                     "pt-0 [&_.editor-code]:!pr-2 [&_.editor-code]:!bg-[transparent] [&_.editor-code]:!m-0 [&_.editor-code]:!pt-2 [&_.editor-code]:!pb-1 [&_.agenta-editor-wrapper]:!-ml-[12px] [&_.agenta-editor-wrapper]:!w-[calc(100%+24px)] [&_.agenta-editor-wrapper]:mb-1 overflow-hidden":
                         editorProps?.codeOnly,
                 },
-                isEditorFocused && "!border-[#BDC7D1]",
+                isEditorFocused && "!border-[var(--ag-c-BDC7D1)]",
                 className,
             ),
         [
@@ -534,7 +535,9 @@ const SharedEditor = ({
             )}
 
             {pasteLimitError ? (
-                <div className="mt-2 text-[13px] leading-5 text-[#D61010]">{pasteLimitError}</div>
+                <div className="mt-2 text-[13px] leading-5 text-[var(--ag-c-D61010)]">
+                    {pasteLimitError}
+                </div>
             ) : null}
 
             {footer}

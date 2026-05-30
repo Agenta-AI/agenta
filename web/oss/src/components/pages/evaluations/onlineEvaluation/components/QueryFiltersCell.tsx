@@ -97,7 +97,7 @@ export default function QueryFiltersCell({record}: {record: RowRecord}) {
         <div className="flex flex-col gap-2">
             <FiltersPreview filtering={filtering} compact />
             {hasMeta ? (
-                <div className="flex flex-wrap gap-3 text-[11px] text-[#667085]">
+                <div className="flex flex-wrap gap-3 text-[11px] text-[var(--ag-c-667085)]">
                     {historicalRangeLabel ? (
                         <span className="whitespace-nowrap">{historicalRangeLabel}</span>
                     ) : null}

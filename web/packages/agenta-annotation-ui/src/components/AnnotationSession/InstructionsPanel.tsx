@@ -47,13 +47,13 @@ const QueueDescriptionPanel = memo(function QueueDescriptionPanel({
                     aria-expanded={open}
                     className="flex items-center gap-2 w-full px-4 py-2 text-left bg-[var(--ant-color-fill-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)] transition-colors cursor-pointer border-none"
                 >
-                    <Info size={14} className="shrink-0 text-[#758391]" />
+                    <Info size={14} className="shrink-0 text-[var(--ag-c-758391)]" />
                     <Typography.Text type="secondary" className="text-xs font-medium flex-1">
                         Description
                     </Typography.Text>
                     <CaretDown
                         size={12}
-                        className={`text-[#758391] transition-transform ${open ? "rotate-180" : ""}`}
+                        className={`text-[var(--ag-c-758391)] transition-transform ${open ? "rotate-180" : ""}`}
                     />
                 </button>
             </Popover>

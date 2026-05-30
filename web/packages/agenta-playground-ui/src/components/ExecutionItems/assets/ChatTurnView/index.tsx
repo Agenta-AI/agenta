@@ -111,7 +111,7 @@ const EvaluatorResultPopover = ({
     // Build popover content
     const popoverContent = useMemo(() => {
         if (!fullResult || status === "idle" || status === "cancelled") {
-            return <span className="text-[#bdc7d1] text-xs">Pending run</span>
+            return <span className="text-[var(--ag-c-BDC7D1)] text-xs">Pending run</span>
         }
         if (status === "running" || status === "pending") {
             return <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />

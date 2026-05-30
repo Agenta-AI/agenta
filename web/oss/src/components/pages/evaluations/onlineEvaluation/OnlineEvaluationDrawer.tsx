@@ -401,7 +401,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             selectedEvaluatorConfig.name || selectedEvaluatorConfig?.slug || "Evaluator"
         return (
             <div className="flex items-center gap-2">
-                <span className="text-xs text-[#1D2939] font-medium">{displayName}</span>
+                <span className="text-xs text-[var(--ag-c-1D2939)] font-medium">{displayName}</span>
                 <EvaluatorTypeTag
                     label={finalTypeLabel}
                     color={finalTypeColor}
@@ -428,12 +428,12 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             summaryParts.push(`Sampling ${rateValue}%`)
         }
         summaryParts.push("Live traffic")
-        return <span className="text-xs text-[#475467]">{summaryParts.join(" • ")}</span>
+        return <span className="text-xs text-[var(--ag-c-475467)]">{summaryParts.join(" • ")}</span>
     }, [filters.length, samplingRate])
 
     const buildPanelHeader = (title: string, summary?: ReactNode) => (
         <div className="flex w-full items-center justify-between gap-2">
-            <span className="text-[#101828] font-normal">{title}</span>
+            <span className="text-[var(--ag-c-101828)] font-normal">{title}</span>
             {summary ? <div className="flex items-center gap-2">{summary}</div> : null}
         </div>
     )

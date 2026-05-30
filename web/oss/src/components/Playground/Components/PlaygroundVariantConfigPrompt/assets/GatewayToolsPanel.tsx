@@ -43,7 +43,7 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
         <div className="flex flex-col gap-2">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <Typography.Text className="text-xs font-medium text-[#888]">
+                <Typography.Text className="text-xs font-medium text-[var(--ag-c-888)]">
                     GATEWAY TOOLS
                 </Typography.Text>
                 <Button
@@ -142,7 +142,7 @@ function ConnectionRow({connection, onTest}: {connection: ToolConnection; onTest
 
     return (
         <div
-            className="flex items-center gap-2 px-2 py-1 rounded hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a2a] cursor-pointer"
+            className="flex items-center gap-2 px-2 py-1 rounded hover:bg-[var(--ag-c-F5F5F5)] dark:hover:bg-[var(--ag-c-2A2A2A)] cursor-pointer"
             onClick={onTest}
         >
             {logo ? (

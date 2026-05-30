@@ -151,7 +151,7 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
                     toneOverride={null}
                 />
             ) : variantLabel ? (
-                <span className="text-sm text-[#475467]">{variantLabel}</span>
+                <span className="text-sm text-[var(--ag-c-475467)]">{variantLabel}</span>
             ) : null}
         </div>
     )
@@ -183,7 +183,7 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
 
             {!collapsed ? (
                 view === "json" && variantConfig ? (
-                    <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
+                    <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)]">
                         <JsonEditor
                             initialValue={JSON.stringify(variantConfig, null, 2)}
                             language="json"

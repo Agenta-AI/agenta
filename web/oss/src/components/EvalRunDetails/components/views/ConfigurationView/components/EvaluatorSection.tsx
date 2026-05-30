@@ -167,7 +167,7 @@ const EvaluatorCard = ({
             href={evaluatorHref}
             label={evaluatorDisplayLabel}
             toneOverride={null}
-            className="max-w-full !bg-[#F2F4F7] !border-[#D0D5DD] !text-[#1D2939]"
+            className="max-w-full !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-D0D5DD)] !text-[var(--ag-c-1D2939)]"
         />
     )
 
@@ -184,7 +184,7 @@ const EvaluatorCard = ({
                     <div className="flex min-w-0 items-center gap-2">
                         {titleNode}
                         {evaluator.version ? (
-                            <span className="rounded-full bg-[#F2F4F7] px-2 py-0.5 text-xs font-medium text-[#475467]">
+                            <span className="rounded-full bg-[var(--ag-c-F2F4F7)] px-2 py-0.5 text-xs font-medium text-[var(--ag-c-475467)]">
                                 V{evaluator.version}
                             </span>
                         ) : null}
@@ -219,7 +219,7 @@ const EvaluatorCard = ({
                                     <Text type="secondary">{evaluator.description}</Text>
                                 ) : null}
                                 {view === "json" && hasEvaluatorJson ? (
-                                    <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
+                                    <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)]">
                                         <JsonEditor
                                             key={evaluatorJsonKey}
                                             initialValue={evaluatorJson}

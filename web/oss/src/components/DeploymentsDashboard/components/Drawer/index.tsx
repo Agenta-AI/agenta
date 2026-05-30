@@ -152,7 +152,7 @@ const DeploymentsDrawerContent = ({
                         "[&_.ant-tabs-nav]:sticky",
                         "[&_.ant-tabs-nav]:px-4",
                         "[&_.ant-tabs-nav]:-top-[25px]",
-                        "[&_.ant-tabs-nav]:bg-white",
+                        "[&_.ant-tabs-nav]:bg-[var(--ag-c-FFFFFF)]",
                         "[&_.ant-tabs-nav]:z-[1]",
                         "[&_.ant-tabs-nav]:m-0",
                         "[&_.ant-tabs-content-holder]:p-4",

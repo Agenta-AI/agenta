@@ -179,7 +179,7 @@ const ListOfOrgs = ({
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                             <InitialsAvatar size="small" name={organization.name} />
                             <span className="truncate">{organization.name}</span>
-                            {isDemo && <Tag className="bg-[#0517290F] m-0">demo</Tag>}
+                            {isDemo && <Tag className="bg-[var(--ag-c-0517290F)] m-0">demo</Tag>}
                         </div>
                     </div>
                 ),

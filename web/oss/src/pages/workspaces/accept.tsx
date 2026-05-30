@@ -211,12 +211,12 @@ const Accept: FC = () => {
         }
 
         return (
-            <main className="flex flex-col grow h-full overflow-hidden items-center justify-center bg-[#f5f7fa]">
+            <main className="flex flex-col grow h-full overflow-hidden items-center justify-center bg-[var(--ag-c-F5F7FA)]">
                 <Card className="max-w-[520px] w-[90%] text-center">
                     <Typography.Title level={3} className="!mb-2">
                         Unable to accept invitation
                     </Typography.Title>
-                    <Typography.Paragraph className="text-[#586673] !mb-6">
+                    <Typography.Paragraph className="text-[var(--ag-c-586673)] !mb-6">
                         {error}
                     </Typography.Paragraph>
                     <div className="flex gap-3 justify-center flex-wrap">

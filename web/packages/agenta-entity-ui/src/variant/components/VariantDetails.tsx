@@ -65,7 +65,10 @@ const VariantDetails = ({
             ) : (
                 isLatest &&
                 showLatestTag && (
-                    <Tag className={`bg-[#E6F4FF] text-[#1677FF]`} variant="filled">
+                    <Tag
+                        className={`bg-[var(--ag-c-E6F4FF)] text-[var(--ag-c-1677FF)]`}
+                        variant="filled"
+                    >
                         Last modified
                     </Tag>
                 )

@@ -294,7 +294,7 @@ const GenerationComparisonCompletionOutput = ({
                 {variantIndex === 0 ? (
                     <div
                         className={clsx([
-                            "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[99] !w-[400px]",
+                            "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[var(--ag-c-FFFFFF)] sticky left-0 z-[99] !w-[400px]",
                             {"border-r": variantIndex === 0},
                             "shrink-0",
                         ])}
@@ -306,7 +306,7 @@ const GenerationComparisonCompletionOutput = ({
                 ) : null}
                 <div
                     className={clsx([
-                        "!min-w-[400px] flex-1 shrink-0 bg-white z-[1]",
+                        "!min-w-[400px] flex-1 shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
                         "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
                     ])}
                 >
@@ -323,7 +323,7 @@ const GenerationComparisonCompletionOutput = ({
             {variantIndex === 0 ? (
                 <div
                     className={clsx([
-                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[99] !w-[400px]",
+                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[var(--ag-c-FFFFFF)] sticky left-0 z-[99] !w-[400px]",
                         {"border-r": variantIndex === 0},
                         "shrink-0",
                     ])}
@@ -336,7 +336,7 @@ const GenerationComparisonCompletionOutput = ({
 
             <div
                 className={clsx([
-                    "!min-w-[400px] flex-1 shrink-0 bg-white z-[1]",
+                    "!min-w-[400px] flex-1 shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
                     "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
                 ])}
             >

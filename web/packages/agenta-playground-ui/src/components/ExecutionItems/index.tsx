@@ -47,7 +47,7 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({
     if (isExecutionLoading) {
         return (
             <div className="w-full">
-                <div className="h-[48px] border-0 border-b border-solid border-colorBorderSecondary px-4 py-2 bg-white">
+                <div className="h-[48px] border-0 border-b border-solid border-colorBorderSecondary px-4 py-2 bg-[var(--ag-c-FFFFFF)]">
                     <div className="h-6 w-[220px] rounded bg-[rgba(5,23,41,0.06)] animate-pulse" />
                 </div>
                 <div className="p-4 flex flex-col gap-3">

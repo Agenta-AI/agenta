@@ -11,7 +11,7 @@ const GenerationComparisonInputHeader: React.FC<GenerationComparisonInputHeaderP
     return (
         <div
             className={clsx(
-                "w-full h-[44px] border-0 border-b border-r border-solid border-colorBorderSecondary px-4 flex gap-2 items-center text-base font-medium bg-white",
+                "w-full h-[44px] border-0 border-b border-r border-solid border-colorBorderSecondary px-4 flex gap-2 items-center text-base font-medium bg-[var(--ag-c-FFFFFF)]",
                 className,
             )}
         >

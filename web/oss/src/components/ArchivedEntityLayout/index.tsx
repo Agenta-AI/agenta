@@ -44,7 +44,7 @@ export default function ArchivedEntityLayout({
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 {isEmpty ? (
-                    <div className="flex h-full min-h-[320px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-white">
+                    <div className="flex h-full min-h-[320px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-[var(--ag-c-FFFFFF)]">
                         <EmptyComponent
                             description={
                                 <div className="flex flex-col gap-2">

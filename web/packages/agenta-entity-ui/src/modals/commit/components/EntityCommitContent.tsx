@@ -382,7 +382,7 @@ export function EntityCommitContent({
                                             }
                                         />
                                         {(slugFieldError || slugValidationError) && (
-                                            <div className="mt-0.5 flex items-start gap-1 text-[#ff4d4f]">
+                                            <div className="mt-0.5 flex items-start gap-1 text-[var(--ag-c-FF4D4F)]">
                                                 <WarningCircle
                                                     size={16}
                                                     className="mt-0.5 shrink-0"

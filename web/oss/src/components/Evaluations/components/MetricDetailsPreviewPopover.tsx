@@ -533,7 +533,7 @@ const MetricPopoverContent = ({
                 {headlineMetrics.map(({label, value}) => (
                     <div
                         key={label}
-                        className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] shadow-sm"
+                        className="flex items-center gap-1 rounded-full bg-[var(--ag-c-FFFFFF)] px-3 py-1 text-[11px] shadow-sm"
                     >
                         <span className="uppercase tracking-wide text-[10px] text-neutral-400">
                             {label}
@@ -569,14 +569,14 @@ const MetricPopoverContent = ({
 
     const highlightChip =
         highlightDisplay && !isStringMetricWithoutDistribution ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-900 shadow-sm">
+            <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-[var(--ag-c-FFFFFF)] px-3 py-1 text-[11px] text-neutral-900 shadow-sm">
                 <span className="uppercase tracking-wide text-[10px] text-neutral-400">Value</span>
                 {highlightDisplay}
             </span>
         ) : null
 
     return (
-        <div className="flex w-[320px] max-w-[360px] flex-col gap-4 rounded-2xl bg-white p-4 text-xs text-neutral-700">
+        <div className="flex w-[320px] max-w-[360px] flex-col gap-4 rounded-2xl bg-[var(--ag-c-FFFFFF)] p-4 text-xs text-neutral-700">
             <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-neutral-900">

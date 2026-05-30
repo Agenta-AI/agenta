@@ -128,15 +128,21 @@ const FiltersPreview = ({filtering, filters, className, compact}: FiltersPreview
 
     if (compact) {
         return (
-            <div className={clsx("flex flex-col gap-1 text-xs text-[#475467]", className)}>
+            <div
+                className={clsx("flex flex-col gap-1 text-xs text-[var(--ag-c-475467)]", className)}
+            >
                 {normalizedFilters.map((item) => (
                     <div
                         key={item.id}
                         className="leading-snug whitespace-nowrap overflow-hidden text-ellipsis"
                     >
-                        <span className="font-medium text-[#1D2939]">{item.fieldLabel}</span>{" "}
-                        <span className="text-[#98A2B3]">{item.operatorLabel}</span>{" "}
-                        <span className="font-medium text-[#1D2939]">{item.valueLabel}</span>
+                        <span className="font-medium text-[var(--ag-c-1D2939)]">
+                            {item.fieldLabel}
+                        </span>{" "}
+                        <span className="text-[var(--ag-c-98A2B3)]">{item.operatorLabel}</span>{" "}
+                        <span className="font-medium text-[var(--ag-c-1D2939)]">
+                            {item.valueLabel}
+                        </span>
                     </div>
                 ))}
             </div>
@@ -146,9 +152,9 @@ const FiltersPreview = ({filtering, filters, className, compact}: FiltersPreview
     return (
         <div className={clsx("flex flex-col gap-1", className)}>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,2fr] mb-1.5">
-                <Text className="text-[11px] uppercase text-[#667085]">Field</Text>
-                <Text className="text-[11px] uppercase text-[#667085]">Operator</Text>
-                <Text className="text-[11px] uppercase text-[#667085]">Value</Text>
+                <Text className="text-[11px] uppercase text-[var(--ag-c-667085)]">Field</Text>
+                <Text className="text-[11px] uppercase text-[var(--ag-c-667085)]">Operator</Text>
+                <Text className="text-[11px] uppercase text-[var(--ag-c-667085)]">Value</Text>
             </div>
             {normalizedFilters.map((item) => (
                 <div key={item.id} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,2fr]">

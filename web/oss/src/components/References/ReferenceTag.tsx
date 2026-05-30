@@ -38,7 +38,7 @@ const ReferenceTag = ({
                 "group flex items-center gap-1 border border-solid rounded px-2 py-0.5 text-xs transition-all",
                 toneColors
                     ? "hover:brightness-95"
-                    : "bg-[#0517290F] hover:bg-[#05172916] text-[#344054] border-transparent",
+                    : "bg-[var(--ag-c-0517290F)] hover:bg-[var(--ag-c-05172916)] text-[var(--ag-c-344054)] border-transparent",
                 className,
             )}
             style={

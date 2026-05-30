@@ -106,7 +106,7 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
     if (onboardingWidgetStatus === "completed" || welcomeCardsDismissed) return null
 
     return (
-        <div className="flex flex-col gap-8 rounded-lg bg-[#F5F7FA] p-6">
+        <div className="flex flex-col gap-8 rounded-lg bg-[var(--ag-c-F5F7FA)] p-6">
             <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-col">
                     <Typography className="!text-xl !font-medium">Welcome,</Typography>
@@ -117,7 +117,7 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
                 <Button
                     type="text"
                     size="small"
-                    icon={<XIcon size={16} className="text-[#6B7280]" />}
+                    icon={<XIcon size={16} className="text-[var(--ag-c-6B7280)]" />}
                     onClick={dismissWelcomeCards}
                 />
             </div>

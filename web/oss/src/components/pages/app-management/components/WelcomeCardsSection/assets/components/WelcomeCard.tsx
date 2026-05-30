@@ -17,13 +17,15 @@ const WelcomeCard = ({title, subtitle, onClick, hidden}: WelcomeCardProps) => {
         <div onClick={onClick} className={hidden ? "hidden" : classes.welcomeCardContainer}>
             <div className="flex flex-1 flex-col gap-1 p-4">
                 <Typography.Text className="!text-base !font-medium">{title}</Typography.Text>
-                <Typography.Text className="!text-sm !text-[#586673]">{subtitle}</Typography.Text>
+                <Typography.Text className="!text-sm !text-[var(--ag-c-586673)]">
+                    {subtitle}
+                </Typography.Text>
             </div>
             <div className="flex items-end justify-end p-4">
                 <Button
                     type="text"
                     icon={<ArrowUpRightIcon size={18} />}
-                    className="pointer-events-none text-[#6B7280] hover:!bg-transparent"
+                    className="pointer-events-none text-[var(--ag-c-6B7280)] hover:!bg-transparent"
                 />
             </div>
         </div>

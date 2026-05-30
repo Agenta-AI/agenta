@@ -89,7 +89,9 @@ const QuerySection = ({runId}: QuerySectionProps) => {
             <SectionHeaderRow
                 left={
                     <div className="flex flex-col gap-1">
-                        <Text className="text-sm font-semibold text-[#344054]">Query</Text>
+                        <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">
+                            Query
+                        </Text>
                     </div>
                 }
                 right={
@@ -127,7 +129,7 @@ const QuerySection = ({runId}: QuerySectionProps) => {
             </div>
 
             {view === "json" && queryJson ? (
-                <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC] mt-3">
+                <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)] mt-3">
                     <JsonEditor
                         key={(revisionId ?? revisionSlug ?? "query") as string}
                         initialValue={queryJson}

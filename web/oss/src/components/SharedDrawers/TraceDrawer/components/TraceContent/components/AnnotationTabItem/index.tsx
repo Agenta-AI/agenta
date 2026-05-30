@@ -24,7 +24,7 @@ import {getAnnotationTableColumns} from "./assets/getAnnotationTableColumns"
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     expandableTable: {
         "& .ant-table-cell": {
-            backgroundColor: "#F5F7FA",
+            backgroundColor: theme.colorFillTertiary,
         },
     },
     table: {

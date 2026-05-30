@@ -113,7 +113,7 @@ function ChildPanelContent({
         <div data-testid={POPOVER_CASCADER_TEST_IDS.childPanel} style={panelStyle}>
             {/* Child panel header */}
             {multiSelect && (
-                <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-start justify-between">
+                <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between">
                     <div className="flex flex-col gap-0.5">
                         <span className="text-[10px] font-medium truncate" title={parentLabel}>
                             {parentLabel}
@@ -560,7 +560,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 >
                     {/* Selection summary */}
                     {selectionSummaryText ? (
-                        <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-center">
+                        <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[var(--ag-c-05172905)] h-8 flex items-center">
                             <span className="text-zinc-500 text-[10px]">
                                 {selectionSummaryText}
                             </span>

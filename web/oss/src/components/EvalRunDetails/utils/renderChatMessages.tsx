@@ -128,7 +128,7 @@ export function renderChatMessages({
                                             href={fileContent.dataUri}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="text-[#1677ff]"
+                                            className="text-[var(--ag-c-1677FF)]"
                                         >
                                             {fileContent.filename}
                                         </a>
@@ -206,7 +206,7 @@ export function renderChatMessages({
                                                 href={fileContent.dataUri}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="text-[#1677ff]"
+                                                className="text-[var(--ag-c-1677FF)]"
                                             >
                                                 {fileContent.filename}
                                             </a>
@@ -271,7 +271,7 @@ export function renderChatMessages({
                                                 href={fileContent?.dataUri}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="text-[#1677ff]"
+                                                className="text-[var(--ag-c-1677FF)]"
                                             >
                                                 {fileContent.filename}
                                             </a>

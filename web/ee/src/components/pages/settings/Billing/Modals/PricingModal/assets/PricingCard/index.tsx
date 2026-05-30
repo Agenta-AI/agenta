@@ -96,7 +96,7 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
                 <ul className="-ml-5 overflow-auto">
                     {plan.features?.map((point, idx) => {
                         return (
-                            <li className="text-[#586673]" key={idx}>
+                            <li className="text-[var(--ag-c-586673)]" key={idx}>
                                 {point}
                             </li>
                         )

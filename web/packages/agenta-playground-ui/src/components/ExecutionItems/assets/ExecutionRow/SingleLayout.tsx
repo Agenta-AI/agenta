@@ -76,7 +76,7 @@ const SectionBlock: React.FC<{
     <div
         role="group"
         aria-label={ariaLabel}
-        className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[#1677FF22]"
+        className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[var(--ag-c-1677FF22)]"
     >
         {children}
     </div>
@@ -165,7 +165,7 @@ const RowHeaderActions = ({
 const StepTag = ({icon, name}: {icon: React.ReactNode; name: string}) => (
     <Tag
         variant="filled"
-        className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[#0517290F] text-[#344054] border border-solid border-transparent"
+        className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent"
     >
         {icon}
         {name}
@@ -727,7 +727,7 @@ const SingleView = ({
                         renderLabel={(label) => (
                             <Tag
                                 variant="filled"
-                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[#0517290F] text-[#344054] border border-solid border-transparent cursor-pointer select-none hover:bg-[#0517291A] transition-colors"
+                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent cursor-pointer select-none hover:bg-[var(--ag-c-0517291A)] transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     openFocusDrawer({rowId, entityId})
@@ -920,7 +920,7 @@ const SingleView = ({
                             <div
                                 className={clsx(
                                     "min-w-0",
-                                    !currentDisplayResult && !isBusy && "text-[#bdc7d1]",
+                                    !currentDisplayResult && !isBusy && "text-[var(--ag-c-BDC7D1)]",
                                 )}
                             >
                                 <ExecutionResultView

@@ -78,7 +78,7 @@ const PreviewQueryCellContent = ({
                 </div>
             </TooltipWithCopyAction>
             {hasWindowingMeta ? (
-                <div className="flex flex-wrap gap-2 text-[11px] text-[#667085]">
+                <div className="flex flex-wrap gap-2 text-[11px] text-[var(--ag-c-667085)]">
                     {samplingRate && samplingRate !== "—" ? (
                         <span className="whitespace-nowrap">Sampling: {samplingRate}</span>
                     ) : null}

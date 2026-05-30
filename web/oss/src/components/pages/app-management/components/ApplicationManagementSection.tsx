@@ -137,7 +137,7 @@ const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSe
     const emptyState = useMemo(() => {
         if (isArchived) {
             return (
-                <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-white">
+                <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-[var(--ag-c-FFFFFF)]">
                     <Empty description="No archived apps" />
                 </div>
             )

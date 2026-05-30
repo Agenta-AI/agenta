@@ -56,11 +56,11 @@ const TypePill = ({
     <Tooltip title={label} placement="topLeft">
         <Tag
             bordered
-            style={
-                color
-                    ? {backgroundColor: color.bg, color: color.text, borderColor: color.border}
-                    : undefined
-            }
+            // Use antd's preset color name (e.g. "blue", "gold") rather than the
+            // resolved hex so the tag adapts to light/dark via the active algorithm.
+            // The preset hex in EvaluatorColor matches antd's light palette exactly,
+            // so light mode is unchanged.
+            color={color?.name}
             className={cn("!m-0 max-w-[160px] truncate", className)}
         >
             {label}

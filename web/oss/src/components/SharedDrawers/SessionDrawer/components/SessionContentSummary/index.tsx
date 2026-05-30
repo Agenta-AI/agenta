@@ -41,7 +41,7 @@ const SessionContentSummary = () => {
                             <div className="px-2 py-0.5 border-0 border-r border-solid border-colorSplit bg-gray-50 capitalize text-nowrap">
                                 {key.replace(/_/g, " ")}
                             </div>
-                            <div className="px-2 py-0.5 bg-white text-nowrap shrink-0">
+                            <div className="px-2 py-0.5 bg-[var(--ag-c-FFFFFF)] text-nowrap shrink-0">
                                 {formatSummaryValue(key, value as number | string[])}
                             </div>
                         </div>

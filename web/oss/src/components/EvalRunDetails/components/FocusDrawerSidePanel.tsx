@@ -71,7 +71,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
         return columnResult.evaluators.map((evaluator) => ({
             title: evaluator.name ?? evaluator.slug ?? "Evaluator",
             id: `evaluator:${evaluator.id ?? evaluator.slug ?? evaluator.name}`,
-            icon: <Speedometer size={14} className="text-[#758391]" />,
+            icon: <Speedometer size={14} className="text-[var(--ag-c-758391)]" />,
             anchorId:
                 (evaluator.id && groupAnchorMap.get(`annotation:${evaluator.id}`)) ??
                 (evaluator.slug && groupAnchorMap.get(`annotation:${evaluator.slug}`)) ??
@@ -86,7 +86,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             {
                 title: "Input",
                 id: "input",
-                icon: <Download size={14} className="text-[#1677FF]" />,
+                icon: <Download size={14} className="text-[var(--ag-c-1677FF)]" />,
                 anchorId:
                     groupAnchorMap.get("inputs") ??
                     groupAnchorMap.get("input") ??
@@ -95,7 +95,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             {
                 title: "Output",
                 id: "output",
-                icon: <Sparkle size={14} className="text-[#13C2C2]" />,
+                icon: <Sparkle size={14} className="text-[var(--ag-c-13C2C2)]" />,
                 anchorId:
                     groupAnchorMap.get("outputs") ??
                     groupAnchorMap.get("invocation") ??
@@ -107,7 +107,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             children.push({
                 title: "Evaluator",
                 id: "evaluator",
-                icon: <Speedometer size={14} className="text-[#758391]" />,
+                icon: <Speedometer size={14} className="text-[var(--ag-c-758391)]" />,
                 children: evaluatorNodes,
                 anchorId:
                     groupAnchorMap.get("annotations") ??
@@ -119,7 +119,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
         return {
             title: parentTitle,
             id: "evaluation",
-            icon: <TreeStructure size={14} className="text-[#758391]" />,
+            icon: <TreeStructure size={14} className="text-[var(--ag-c-758391)]" />,
             children,
             expanded: true,
         }
@@ -149,7 +149,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             getKey={(node) => node.id}
             getChildren={(node) => node.children}
             renderLabel={(node) => (
-                <div className="flex items-center gap-2 text-xs text-[#344054]">
+                <div className="flex items-center gap-2 text-xs text-[var(--ag-c-344054)]">
                     {node.icon}
                     <span className="truncate">{node.title}</span>
                 </div>

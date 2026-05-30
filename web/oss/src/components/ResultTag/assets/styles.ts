@@ -10,7 +10,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         padding: 0,
         cursor: "pointer",
         "& > span.value1": {
-            backgroundColor: "rgba(0, 0, 0, 0.02)",
+            backgroundColor: theme.colorFillQuaternary,
             flex: 1,
             padding: "0px 8px",
             borderRight: `1px solid ${theme.colorBorder}`,

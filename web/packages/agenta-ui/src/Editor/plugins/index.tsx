@@ -135,7 +135,7 @@ const EditorPlugins = ({
                     />
                 }
                 placeholder={
-                    <div className="editor-placeholder absolute pointer-events-none text-[#BDC7D1]">
+                    <div className="editor-placeholder absolute pointer-events-none text-[var(--ag-c-BDC7D1)]">
                         {placeholder}
                     </div>
                 }

@@ -438,7 +438,7 @@ const Auth = () => {
                         <Title level={2} className="font-bold">
                             Welcome to Agenta AI
                         </Title>
-                        <Text className="text-sm text-[#586673]">
+                        <Text className="text-sm text-[var(--ag-c-586673)]">
                             Your All-In-One LLM Development Platform. Collaborate on prompts,
                             evaluate, and monitor LLM apps with confidence
                         </Text>
@@ -652,10 +652,10 @@ const Auth = () => {
 
                         {/* Auth upgrade: show organization switch and sign out options */}
                         {isAuthUpgradeRequired && isAuthenticated && !hasInviteEmailMismatch && (
-                            <div className="flex flex-col gap-3 pt-2 border-t border-[#e5e7eb]">
+                            <div className="flex flex-col gap-3 pt-2 border-t border-[var(--ag-c-E5E7EB)]">
                                 {otherOrgs.length > 0 && (
                                     <div className="flex flex-col gap-2">
-                                        <Text className="text-sm text-[#586673]">
+                                        <Text className="text-sm text-[var(--ag-c-586673)]">
                                             Or switch to a different organization:
                                         </Text>
                                         <Select

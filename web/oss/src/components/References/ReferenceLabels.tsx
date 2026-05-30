@@ -392,7 +392,7 @@ export const VariantReferenceLabel = memo(
                     openExternally={openExternally}
                 />
                 {showVersionPill && resolvedVersion ? (
-                    <span className="rounded-md bg-[#F2F4F7] px-2 py-0.5 text-xs font-medium text-[#344054]">
+                    <span className="rounded-md bg-[var(--ag-c-F2F4F7)] px-2 py-0.5 text-xs font-medium text-[var(--ag-c-344054)]">
                         v{resolvedVersion}
                     </span>
                 ) : null}

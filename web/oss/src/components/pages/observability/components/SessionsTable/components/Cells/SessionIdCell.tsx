@@ -4,7 +4,7 @@ import {Tag} from "antd"
 export const SessionIdCell = ({sessionId}: {sessionId: string}) => {
     return (
         <TooltipWithCopyAction copyText={sessionId || ""} title="Copy session id">
-            <Tag className="font-mono bg-[#0517290F] w-fit truncate" bordered={false}>
+            <Tag className="font-mono bg-[var(--ag-c-0517290F)] w-fit truncate" bordered={false}>
                 # {sessionId}
             </Tag>
         </TooltipWithCopyAction>

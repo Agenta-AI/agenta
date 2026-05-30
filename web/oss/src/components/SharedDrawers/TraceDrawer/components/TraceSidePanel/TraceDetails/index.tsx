@@ -63,7 +63,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <Typography.Text className={classes.title}>Latency</Typography.Text>
                 <ResultTag
                     bordered={false}
-                    className="bg-[#0517290F]"
+                    className="bg-[var(--ag-c-0517290F)]"
                     value1={
                         <div className={classes.resultTag}>
                             <Timer size={14} /> {formattedLatency}
@@ -78,11 +78,11 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <ResultTag
                     value1={<div className={classes.resultTag}>Start - {traceStartTime}</div>}
                     bordered={false}
-                    className="bg-[#0517290F]"
+                    className="bg-[var(--ag-c-0517290F)]"
                 />
                 <ResultTag
                     bordered={false}
-                    className="bg-[#0517290F]"
+                    className="bg-[var(--ag-c-0517290F)]"
                     value1={
                         <div className={classes.resultTag}>
                             End {"  "}- {traceEndTime}
@@ -95,7 +95,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <Typography.Text className={classes.title}>Tokens & Cost</Typography.Text>
                 <ResultTag
                     bordered={false}
-                    className="bg-[#0517290F]"
+                    className="bg-[var(--ag-c-0517290F)]"
                     value1={
                         <div className={classes.resultTag}>
                             <PlusCircle size={14} />

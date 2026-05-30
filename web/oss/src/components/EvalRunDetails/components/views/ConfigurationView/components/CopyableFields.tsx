@@ -30,9 +30,9 @@ export const CopyableText = ({
     }
 
     const toneClass = {
-        default: "text-[#1D2939]",
-        secondary: "text-[#667085]",
-        muted: "text-[#98A2B3]",
+        default: "text-[var(--ag-c-1D2939)]",
+        secondary: "text-[var(--ag-c-667085)]",
+        muted: "text-[var(--ag-c-98A2B3)]",
     }[tone]
 
     return (
@@ -100,7 +100,7 @@ export const ReadOnlySkeleton = () => (
 export const CopyableBadge = ({label, copyValue}: {label: string; copyValue?: string}) => (
     <TooltipWithCopyAction title="Copy value" copyText={copyValue ?? label}>
         <span
-            className="inline-flex cursor-copy items-center rounded border border-[#D0D5DD] bg-[#F9FAFB] px-2 py-[2px] text-[#475467]"
+            className="inline-flex cursor-copy items-center rounded border border-[var(--ag-c-D0D5DD)] bg-[var(--ag-c-F9FAFB)] px-2 py-[2px] text-[var(--ag-c-475467)]"
             style={{fontSize: 12, lineHeight: "18px"}}
         >
             {label}

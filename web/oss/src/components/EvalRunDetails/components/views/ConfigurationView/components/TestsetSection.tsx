@@ -101,7 +101,7 @@ const TestsetCard = ({
                     <div className="flex flex-wrap items-center gap-4">
                         <div className="flex items-center gap-2">
                             <Text className="font-medium text-neutral-800">Test cases</Text>
-                            <Tag className="!m-0 !bg-[#EEF2FF] !border-[#E0EAFF] !text-[#344054]">
+                            <Tag className="!m-0 !bg-[var(--ag-c-EEF2FF)] !border-[var(--ag-c-E0EAFF)] !text-[var(--ag-c-344054)]">
                                 {testcaseCount ?? "—"}
                             </Tag>
                         </div>
@@ -114,13 +114,13 @@ const TestsetCard = ({
                                 {columnPreview.map((col) => (
                                     <Tag
                                         key={`${testsetId}-${col}`}
-                                        className="!m-0 !bg-[#F2F4F7] !border-[#E4E7EC] !text-[#344054]"
+                                        className="!m-0 !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-E4E7EC)] !text-[var(--ag-c-344054)]"
                                     >
                                         {col}
                                     </Tag>
                                 ))}
                                 {remainingColumnCount > 0 ? (
-                                    <Tag className="!m-0 !bg-[#F2F4F7] !border-[#E4E7EC] !text-[#344054]">
+                                    <Tag className="!m-0 !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-E4E7EC)] !text-[var(--ag-c-344054)]">
                                         +{remainingColumnCount} more
                                     </Tag>
                                 ) : null}

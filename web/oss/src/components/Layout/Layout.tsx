@@ -215,7 +215,7 @@ const AppWithVariants = memo(
                 </Modal>
                 {project?.is_demo && (
                     <>
-                        <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[#1c2c3d] text-white text-sm font-medium">
+                        <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[var(--ag-c-1C2C3D)] text-white text-sm font-medium">
                             You're viewing the demo workspace.
                             <button
                                 type="button"

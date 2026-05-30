@@ -21,7 +21,7 @@ export const useDrawerStyles = createUseStyles((theme: JSSTheme) => ({
             border: "none !important",
             borderRadius: "10px !important",
             overflow: "hidden",
-            backgroundColor: "#FFFFFF",
+            backgroundColor: theme.colorBgContainer,
             boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
         },
         "& .ant-collapse-item + .ant-collapse-item": {

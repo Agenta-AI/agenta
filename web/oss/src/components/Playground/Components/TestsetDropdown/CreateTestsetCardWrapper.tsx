@@ -131,7 +131,7 @@ export function CreateTestsetCardWrapper({
     // =====================================================================
     if (hasSelectedFile && selectedFile) {
         return (
-            <div className="mt-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col gap-3">
+            <div className="mt-3 rounded-2xl border border-gray-200 bg-[var(--ag-c-FFFFFF)] px-4 py-4 shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                     <Typography.Text className="font-medium text-sm">File selected</Typography.Text>
                     <Button
