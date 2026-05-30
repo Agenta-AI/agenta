@@ -162,19 +162,57 @@ def _extract_input_keys(parameters: Any) -> List[str]:
     return input_keys
 
 
+def _extract_input_names_from_schemas(schemas: Any) -> List[str]:
+    if hasattr(schemas, "model_dump"):
+        schemas = schemas.model_dump(mode="json", exclude_none=True)
+
+    if not isinstance(schemas, dict):
+        return []
+
+    inputs_schema = schemas.get("inputs") or {}
+    if not isinstance(inputs_schema, dict):
+        return []
+
+    properties = inputs_schema.get("properties") or {}
+    if not isinstance(properties, dict):
+        return []
+
+    return [key for key in properties.keys() if key != "messages"]
+
+
 def parse_legacy_inputs(
     datapoint: Any,
     parameters: Any,
+    schemas: Any = None,
     is_chat: Optional[bool] = None,
 ) -> Dict:
     if not isinstance(datapoint, dict):
         return {}
 
+    datapoint_keys = list(datapoint.keys())
     input_keys = _extract_input_keys(parameters)
     if input_keys:
         inputs = {key: datapoint.get(key, None) for key in input_keys}
+        log.debug(
+            "parse_legacy_inputs: filtered testcase row using parameter input_keys",
+            input_keys=input_keys,
+            datapoint_keys=datapoint_keys,
+        )
     else:
-        inputs = dict(datapoint)
+        schema_input_names = _extract_input_names_from_schemas(schemas)
+        if schema_input_names:
+            inputs = {key: datapoint.get(key, None) for key in schema_input_names}
+            log.debug(
+                "parse_legacy_inputs: filtered testcase row using input schema properties",
+                schema_input_names=schema_input_names,
+                datapoint_keys=datapoint_keys,
+            )
+        else:
+            inputs = dict(datapoint)
+            log.warning(
+                "parse_legacy_inputs: falling back to full testcase row because no input_keys or input schema properties were available",
+                datapoint_keys=datapoint_keys,
+            )
 
     if is_chat:
         inputs["messages"] = _parse_legacy_chat_messages(datapoint)
@@ -277,6 +315,7 @@ async def invoke_app(
     uri: str,
     datapoint: Any,
     parameters: Dict,
+    schemas: Optional[Dict[str, Any]],
     openapi_is_chat: Optional[bool],
     user_id: str,
     project_id: str,
@@ -303,6 +342,7 @@ async def invoke_app(
     inputs = parse_legacy_inputs(
         datapoint,
         parameters,
+        schemas=schemas,
         is_chat=openapi_is_chat,
     )
     request_body = build_invoke_request(
@@ -428,6 +468,7 @@ async def run_with_retry(
     uri: str,
     input_data: Any,
     parameters: Dict,
+    schemas: Optional[Dict[str, Any]],
     max_retry_count: int,
     retry_delay: int,
     openapi_is_chat: Optional[bool],
@@ -476,6 +517,7 @@ async def run_with_retry(
                 uri,
                 input_data,
                 parameters,
+                schemas,
                 openapi_is_chat,
                 user_id,
                 project_id,
@@ -550,6 +592,17 @@ async def batch_invoke(
         parameters=parameters,
         schemas=schemas,
         is_chat=is_chat,
+    )
+    log.debug(
+        "batch_invoke: resolved invocation metadata",
+        parameter_keys=(
+            list(effective_parameters.keys())
+            if isinstance(effective_parameters, dict)
+            else None
+        ),
+        schema_input_keys=_extract_input_names_from_schemas(effective_schemas),
+        is_chat=effective_is_chat,
+        batch_size=len(testset_data),
     )
 
     batch_size = rate_limit_config[
@@ -636,6 +689,7 @@ async def batch_invoke(
                     uri,
                     testset_data[index],
                     effective_parameters,
+                    effective_schemas,
                     max_retries,
                     retry_delay,
                     openapi_is_chat,
