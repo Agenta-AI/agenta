@@ -37,9 +37,24 @@ const SORT_PRESETS: SortPresetMeta[] = [
     {label: "all time"},
 ]
 
+const KNOWN_SORT_VALUES = new Set<SortOptionValue>([
+    ...SORT_PRESETS.map((preset) => preset.label),
+    "custom",
+])
+
+const isKnownSortValue = (preset?: string | null): preset is SortOptionValue =>
+    !!preset && KNOWN_SORT_VALUES.has(preset as SortOptionValue)
+
 const detectSortValue = (value: RangeValue): SortOptionValue => {
     if (!value || (!value.from && !value.to)) {
         return "all time"
+    }
+    // Prefer an explicit, recognized preset. Relative presets are stored with an
+    // open-ended upper bound (`to: null`) so the window always extends to "now";
+    // without this they'd fall into the `!value.to` branch below and mislabel as
+    // "custom".
+    if (isKnownSortValue(value.preset)) {
+        return value.preset
     }
     if (!value.from || !value.to) {
         return "custom"
@@ -93,7 +108,10 @@ interface QuickDateRangePickerProps {
 }
 
 const QuickDateRangePicker = ({value, onChange}: QuickDateRangePickerProps) => {
-    const defaultSortValue = useMemo(() => detectSortValue(value), [value?.from, value?.to])
+    const defaultSortValue = useMemo(
+        () => detectSortValue(value),
+        [value?.from, value?.to, value?.preset],
+    )
     const sortComponentKey = useMemo(() => {
         return `${defaultSortValue}:${value?.from ?? "null"}:${value?.to ?? "null"}`
     }, [defaultSortValue, value?.from, value?.to])
