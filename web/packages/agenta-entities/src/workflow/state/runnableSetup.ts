@@ -148,7 +148,7 @@ function buildWorkflowTraceReferences(
                     : {}),
             }
         }
-    } else if (!isDirty) {
+    } else if (!isLocal && !isDirty) {
         const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
         if (variantId) {
             references[`${entityKey}_variant`] = {
@@ -479,7 +479,9 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             const sourceRef = meta?.sourceRef as
                 | {type?: string; id?: string; slug?: string; version?: string}
                 | undefined
-            let references: Record<string, {id?: string; slug?: string}> | undefined = undefined
+            let references:
+                | Record<string, {id?: string; slug?: string; version?: string}>
+                | undefined = undefined
             // Only include references if the workflow has a real id or slug, and id is not a local draft or placeholder
             const idIsLocalDraft = sourceRef?.id && isLocalDraftId(sourceRef.id)
             const idIsPlaceholder = sourceRef?.id && isPlaceholderId(sourceRef.id)
@@ -495,6 +497,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
                     [refType]: {
                         ...(sourceRef.id ? {id: sourceRef.id} : {}),
                         ...(sourceRef.slug ? {slug: sourceRef.slug} : {}),
+                        ...(sourceRef.version ? {version: sourceRef.version} : {}),
                     },
                 }
             }

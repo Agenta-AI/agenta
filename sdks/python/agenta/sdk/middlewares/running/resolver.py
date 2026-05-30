@@ -132,7 +132,7 @@ def _merge_tracing_references(references: Optional[Dict[str, Any]]) -> None:
 
 
 def _merge_tracing_selector(selector: Optional[Dict[str, Any]]) -> None:
-    if selector is None:
+    if not selector:
         return
 
     tracing_ctx = TracingContext.get()
