@@ -101,7 +101,6 @@ export interface UpdateAnnotationPayload {
             evaluator_revision?: {id?: string; slug?: string; version?: string | number}
             testset?: {id?: string}
             testcase?: {id?: string}
-            evaluator_variant?: {id?: string; slug?: string}
         }
         links?: Record<string, {trace_id?: string; span_id?: string}>
     }
