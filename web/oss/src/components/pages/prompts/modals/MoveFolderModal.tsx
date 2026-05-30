@@ -2,9 +2,6 @@ import React from "react"
 
 import {Modal, Space, Tree} from "antd"
 import {DataNode} from "antd/es/tree"
-import {createUseStyles} from "react-jss"
-
-import {JSSTheme} from "@/oss/lib/Types"
 
 interface MoveFolderModalProps {
     itemName?: string | null
@@ -19,14 +16,6 @@ interface MoveFolderModalProps {
     disabledConfirm?: boolean
 }
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    treeClass: {
-        "& .ant-tree-treenode": {
-            marginBottom: 0,
-        },
-    },
-}))
-
 const MoveFolderModal = ({
     itemName,
     open,
@@ -39,7 +28,6 @@ const MoveFolderModal = ({
     isMoving,
     disabledConfirm,
 }: MoveFolderModalProps) => {
-    const classes = useStyles()
     return (
         <Modal
             title="Move to folder"
@@ -66,7 +54,7 @@ const MoveFolderModal = ({
                             selectedKeys={moveSelection ? [moveSelection] : []}
                             onSelect={(keys) => setMoveSelection((keys[0] as string) || null)}
                             defaultExpandAll
-                            className={classes.treeClass}
+                            className="[&_.ant-tree-treenode]:mb-0"
                         />
                     </div>
                 </Space>

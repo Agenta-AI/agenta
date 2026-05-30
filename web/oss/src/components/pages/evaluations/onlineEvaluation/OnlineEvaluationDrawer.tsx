@@ -39,7 +39,6 @@ import {
     toWindowingPayload,
 } from "./assets/helpers"
 import {onlineEvalFiltersAtom, resetOnlineEvalFiltersAtom} from "./assets/state"
-import {useDrawerStyles} from "./assets/styles"
 import EvaluatorDetailsPreview from "./components/EvaluatorDetailsPreview"
 import EvaluatorTypeTag from "./components/EvaluatorTypeTag"
 import SamplingRateControl from "./components/SamplingRateControl"
@@ -58,11 +57,13 @@ const {Text, Link: TypographyLink} = Typography
 const {RangePicker} = DatePicker
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 
+const collapseClass =
+    "[&_.ant-collapse-item]:!border-none [&_.ant-collapse-item]:!rounded-[10px] [&_.ant-collapse-item]:overflow-hidden [&_.ant-collapse-item]:bg-colorBgContainer [&_.ant-collapse-item]:shadow-[0_1px_2px_rgba(15,23,42,0.06)] [&_.ant-collapse-item+.ant-collapse-item]:mt-2 [&_.ant-collapse-header]:!bg-[var(--ag-c-FAFAFB)] [&_.ant-collapse-header]:!border-b [&_.ant-collapse-header]:!border-solid [&_.ant-collapse-header]:!border-[var(--ag-colorSplit)] [&_.ant-collapse-header]:!p-[12px_16px] [&_.ant-collapse-content]:!border-t-0 [&_.ant-collapse-content]:!rounded-[0_0_10px_10px] [&_.ant-collapse-content>.ant-collapse-content-box]:!p-4"
+
 const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawerProps) => {
     const baseEvaluatorTemplatesQuery = useAtomValue(evaluatorTemplatesQueryAtom)
     const baseEvaluators = useAtomValue(evaluatorTemplatesDataAtom) ?? []
     const queryClient = useAtomValue(queryClientAtom)
-    const classes = useDrawerStyles()
     const [form] = Form.useForm()
     const filterColumns = useMemo(() => getFilterColumns(), [])
     const [filters, setFilters] = useAtom(onlineEvalFiltersAtom)
@@ -472,7 +473,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 <Collapse
                     defaultActiveKey={["general", "query", "evaluator"]}
                     bordered={false}
-                    className={classes.collapse}
+                    className={collapseClass}
                     items={[
                         {
                             key: "general",

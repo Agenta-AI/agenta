@@ -9,15 +9,14 @@ import {useUserDisplayName} from "@agenta/entities/shared/user"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
 import {projectIdAtom} from "@agenta/shared/state"
 import {Button, Card, Divider, Space, Typography, notification} from "antd"
+import clsx from "clsx"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import {useAtomValue, useSetAtom} from "jotai"
 import debounce from "lodash/debounce"
-import {createUseStyles} from "react-jss"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
-import type {JSSTheme} from "@/oss/lib/Types"
 
 dayjs.extend(relativeTime)
 
@@ -91,85 +90,14 @@ const AuthorDisplay = ({authorId}: {authorId: string | null}) => {
 }
 
 // ============================================================================
-// STYLES
+// COMPONENT
 // ============================================================================
 
 const {Text} = Typography
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: {
-        display: "flex",
-        gap: 20,
-    },
-    historyItemsContainer: {
-        flex: 0.2,
-        backgroundColor: theme.isDark ? "#333" : "#FFFFFF",
-        border: theme.isDark ? "" : "1px solid #f0f0f0",
-        overflowY: "scroll",
-        padding: 10,
-        borderRadius: 10,
-        minWidth: 300,
-        height: "600px",
-    },
-    historyItems: {
-        display: "flex",
-        flexDirection: "column",
-        padding: "10px 20px",
-        margin: "20px 0",
-        borderRadius: 10,
-        cursor: "pointer",
-    },
-    promptHistoryInfo: {
-        flex: 0.8,
-        backgroundColor: theme.isDark ? "#333" : "#FFFFFF",
-        border: theme.isDark ? "" : "1px solid #f0f0f0",
-        padding: 20,
-        borderRadius: 10,
-    },
-    promptHistoryInfoHeader: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        "& h1": {
-            fontSize: 32,
-        },
-    },
-    emptyContainer: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        margin: "30px auto",
-        fontSize: 20,
-        fontWeight: "bold",
-    },
-    divider: {
-        margin: "10px 0",
-    },
-    historyItemsTitle: {
-        fontSize: 14,
-        "& span": {
-            color: theme.isDark ? "#f1f5f8" : "#656d76",
-        },
-    },
-    noParams: {
-        color: theme.colorTextDescription,
-        textAlign: "center",
-        marginTop: theme.marginLG,
-    },
-    loadingContainer: {
-        display: "grid",
-        placeItems: "center",
-        height: "100%",
-    },
-}))
-
-// ============================================================================
-// COMPONENT
-// ============================================================================
-
 const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, appId}) => {
     const {appTheme} = useAppTheme()
-    const classes = useStyles()
+    const isDark = appTheme === "dark"
     const projectId = useAtomValue(projectIdAtom)
 
     const entityEnv = useAtomValue(
@@ -331,8 +259,15 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
             {isLoading ? (
                 <ResultComponent status="info" title="Loading..." spinner={true} />
             ) : items.length > 0 ? (
-                <div className={classes.container}>
-                    <div className={classes.historyItemsContainer}>
+                <div className="flex gap-5">
+                    <div
+                        className={clsx(
+                            "flex-[0.2] overflow-y-scroll p-[10px] rounded-[10px] min-w-[300px] h-[600px]",
+                            isDark
+                                ? "bg-[#333]"
+                                : "bg-[#FFFFFF] border border-solid border-[#f0f0f0]",
+                        )}
+                    >
                         {items.map((item, index) => (
                             <div
                                 key={item.id}
@@ -352,14 +287,28 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                                                   appTheme === "dark" ? "transparent" : "#f0f0f0"
                                               }`,
                                 }}
-                                className={classes.historyItems}
+                                className="flex flex-col py-[10px] px-5 my-5 rounded-[10px] cursor-pointer"
                                 onClick={() => handleSelectItem(index)}
                             >
                                 <Space style={{justifyContent: "space-between"}}>
-                                    <Text className={classes.historyItemsTitle}>
+                                    <Text
+                                        className={clsx(
+                                            "text-sm",
+                                            isDark
+                                                ? "[&_span]:text-[#f1f5f8]"
+                                                : "[&_span]:text-[#656d76]",
+                                        )}
+                                    >
                                         <b>Deployment</b> <span>v{item.appDeploymentIndex}</span>
                                     </Text>
-                                    <Text className={classes.historyItemsTitle}>
+                                    <Text
+                                        className={clsx(
+                                            "text-sm",
+                                            isDark
+                                                ? "[&_span]:text-[#f1f5f8]"
+                                                : "[&_span]:text-[#656d76]",
+                                        )}
+                                    >
                                         <span style={{fontSize: 12}}>
                                             {item.created_at
                                                 ? dayjs(item.created_at).fromNow()
@@ -380,7 +329,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                                     </Text>
                                 )}
 
-                                <Divider className={classes.divider} />
+                                <Divider className="my-[10px]" />
 
                                 <Space>
                                     <div>
@@ -394,8 +343,15 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                         ))}
                     </div>
 
-                    <div className={classes.promptHistoryInfo}>
-                        <div className={classes.promptHistoryInfoHeader}>
+                    <div
+                        className={clsx(
+                            "flex-[0.8] p-5 rounded-[10px]",
+                            isDark
+                                ? "bg-[#333]"
+                                : "bg-[#FFFFFF] border border-solid border-[#f0f0f0]",
+                        )}
+                    >
+                        <div className="flex items-center justify-between [&_h1]:text-[32px]">
                             <h1>Information</h1>
 
                             {items.length > 1 && !isCurrentDeployment && (
@@ -415,12 +371,16 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                                 />
                             </Card>
                         ) : (
-                            <div className={classes.noParams}>No parameters to display</div>
+                            <div className="text-colorTextDescription text-center mt-6">
+                                No parameters to display
+                            </div>
                         )}
                     </div>
                 </div>
             ) : (
-                <div className={classes.emptyContainer}>No deployment history available</div>
+                <div className="flex items-center justify-center mx-auto my-[30px] text-[20px] font-bold">
+                    No deployment history available
+                </div>
             )}
         </>
     )

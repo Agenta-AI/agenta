@@ -1,53 +1,16 @@
 import {UploadOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, Typography, Upload} from "antd"
+import {Button, Collapse, Form, Input, Typography, Upload, theme} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
-import {createUseStyles} from "react-jss"
 
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import {useTestsetFileUpload} from "@/oss/hooks/useTestsetFileUpload"
 import useURL from "@/oss/hooks/useURL"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {JSSTheme} from "@/oss/lib/Types"
 import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
 
 const {Text} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    headerText: {
-        lineHeight: theme.lineHeightLG,
-        fontSize: theme.fontSizeHeading4,
-        fontWeight: theme.fontWeightStrong,
-    },
-    label: {
-        fontWeight: theme.fontWeightMedium,
-    },
-    uploadContainer: {
-        padding: theme.paddingXS,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        border: "1px solid",
-        borderColor: theme.colorBorder,
-        borderRadius: theme.borderRadiusLG,
-        position: "relative",
-        overflow: "hidden",
-    },
-    trashIcon: {
-        color: theme.colorTextSecondary,
-        cursor: "pointer",
-    },
-    progressBar: {
-        position: "absolute",
-        top: 0,
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: theme["cyan5"],
-        opacity: 0.3,
-    },
-}))
 
 interface Props {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -55,7 +18,9 @@ interface Props {
 }
 
 const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
-    const classes = useStyles()
+    const {
+        token: {cyan5},
+    } = theme.useToken()
     const router = useRouter()
     const {projectURL} = useURL()
     const [form] = Form.useForm()
@@ -103,14 +68,16 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     onClick={() => setCurrent(0)}
                 />
 
-                <Text className={classes.headerText}>Upload a testset</Text>
+                <Text className="leading-[1.5714285714285714] text-[16px] font-semibold">
+                    Upload a testset
+                </Text>
             </div>
 
             <div className="flex flex-col gap-6">
                 <Text>Upload your testset as CSV or JSON</Text>
 
                 <div className="grid gap-1">
-                    <Text className={classes.label}>Testset Name</Text>
+                    <Text className="font-medium">Testset Name</Text>
                     <Input
                         placeholder="Enter a name"
                         value={testsetName}
@@ -121,7 +88,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                         <div className="flex flex-col">
-                            <Text className={classes.label}>Upload your testset file</Text>
+                            <Text className="font-medium">Upload your testset file</Text>
                             <Text type="secondary" style={{fontSize: 11}}>
                                 CSV and JSON formats are supported
                             </Text>
@@ -156,11 +123,14 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     </div>
 
                     {fileProgress.name && (
-                        <div className={classes.uploadContainer}>
+                        <div className="p-2 flex items-center justify-between border border-solid border-colorBorder rounded-lg relative overflow-hidden">
                             {fileProgress.status == "uploading" && (
                                 <div
-                                    className={classes.progressBar}
-                                    style={{width: `${fileProgress.percent}%`}}
+                                    className="absolute inset-0 opacity-30"
+                                    style={{
+                                        width: `${fileProgress.percent}%`,
+                                        backgroundColor: cyan5,
+                                    }}
                                 ></div>
                             )}
                             <div className="flex items-center gap-2">
@@ -174,7 +144,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
 
                             <Trash
                                 size={22}
-                                className={classes.trashIcon}
+                                className="text-colorTextSecondary cursor-pointer"
                                 onClick={() => {
                                     form.resetFields()
                                     resetUpload()

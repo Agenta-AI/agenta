@@ -2,27 +2,9 @@ import {ReactNode} from "react"
 
 import {Button, Empty, Space, Tooltip, Typography} from "antd"
 import {BaseButtonProps} from "antd/es/button/button"
-import {createUseStyles} from "react-jss"
 
-import {JSSTheme} from "@/oss/lib/Types"
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    empty: {
-        "& .ant-empty-description": {
-            fontSize: 16,
-            marginBottom: "1.5rem",
-            color: theme.colorTextSecondary,
-        },
-        "& .ant-empty-image": {
-            "& img": {
-                filter: theme.isDark ? "invert(1)" : "none",
-            },
-            height: "auto",
-            marginBottom: "1.5rem",
-            color: theme.colorTextSecondary,
-        },
-    },
-}))
+const emptyClass =
+    "[&_.ant-empty-description]:text-base [&_.ant-empty-description]:mb-6 [&_.ant-empty-description]:text-colorTextSecondary [&_.ant-empty-image]:h-auto [&_.ant-empty-image]:mb-6 [&_.ant-empty-image]:text-colorTextSecondary [&_.ant-empty-image_img]:dark:invert"
 
 interface Cta {
     text: string
@@ -41,10 +23,8 @@ interface Props {
 }
 
 const EmptyComponent: React.FC<Props> = ({image, description, primaryCta, secondaryCta}) => {
-    const classes = useStyles()
-
     return (
-        <Empty className={classes.empty} description={description} image={image}>
+        <Empty className={emptyClass} description={description} image={image}>
             <Space orientation="vertical">
                 {primaryCta && (
                     <Tooltip title={primaryCta.tooltip}>

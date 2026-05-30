@@ -3,7 +3,6 @@ import {useState} from "react"
 import {CopyButton} from "@agenta/ui"
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Dropdown, MenuProps, Space, Typography} from "antd"
-import {createUseStyles} from "react-jss"
 
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
 import {LanguageItem} from "@/oss/lib/Types"
@@ -12,28 +11,7 @@ interface DynamicCodeBlockProps {
     codeSnippets: Record<string, string>
 }
 
-const useStyles = createUseStyles({
-    container: {
-        borderRadius: 10,
-        display: "flex",
-        flexDirection: "column",
-    },
-    header: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "flex-end",
-    },
-    headerText: {
-        fontSize: "1em",
-        marginRight: "10px",
-    },
-    copyBtn: {
-        marginLeft: "15px",
-    },
-})
-
 const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({codeSnippets}) => {
-    const classes = useStyles()
     const supportedLanguages: LanguageItem[] = [
         {displayName: "Python", languageKey: "python"},
         {displayName: "cURL", languageKey: "bash"},
@@ -54,9 +32,9 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({codeSnippets}) => {
     const {Text} = Typography
 
     return (
-        <div className={classes.container}>
-            <div className={classes.header}>
-                <div className={classes.headerText}>
+        <div className="rounded-[10px] flex flex-col">
+            <div className="flex items-center justify-end">
+                <div className="text-[1em] mr-[10px]">
                     <Text>Language:</Text>
                 </div>
 
@@ -74,7 +52,7 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({codeSnippets}) => {
                     type="primary"
                     size="small"
                     text={codeSnippets[selectedLanguage.displayName]}
-                    className={classes.copyBtn}
+                    className="ml-[15px]"
                 />
             </div>
 

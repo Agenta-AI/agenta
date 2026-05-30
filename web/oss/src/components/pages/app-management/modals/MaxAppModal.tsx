@@ -2,38 +2,13 @@ import {Phone, SlackLogo} from "@phosphor-icons/react"
 import {Button, Modal, Typography} from "antd"
 import Image from "next/image"
 import Link from "next/link"
-import {createUseStyles} from "react-jss"
-
-import {JSSTheme} from "@/oss/lib/Types"
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    modal: {
-        "& .ant-modal-content": {
-            borderRadius: 16,
-        },
-        "& .ant-modal-close": {
-            top: 17,
-        },
-    },
-    image: {
-        background: "linear-gradient(180deg, #1F2D43 0%, #3A547E 100%)",
-        borderRadius: theme.borderRadiusLG,
-        width: "100%",
-        height: 140,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-}))
 
 type Props = React.ComponentProps<typeof Modal> & {}
 
 const MaxAppModal: React.FC<Props> = ({...props}) => {
-    const classes = useStyles()
-
     return (
         <Modal
-            rootClassName={classes.modal}
+            rootClassName="[&_.ant-modal-content]:rounded-2xl [&_.ant-modal-close]:top-[17px]"
             centered
             footer={null}
             title="Unlock unlimited applications"
@@ -41,7 +16,7 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
             {...props}
         >
             <section className="flex flex-col mt-4">
-                <div className={classes.image}>
+                <div className="bg-[linear-gradient(180deg,#1F2D43_0%,#3A547E_100%)] rounded-lg w-full h-[140px] flex items-center justify-center">
                     <Image
                         src="/assets/Agenta-logo-full-dark-accent.png"
                         alt="aenta-ai"

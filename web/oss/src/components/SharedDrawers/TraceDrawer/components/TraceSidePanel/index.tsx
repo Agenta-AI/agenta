@@ -2,9 +2,7 @@ import {useMemo} from "react"
 
 import {Collapse, CollapseProps, Skeleton, Typography} from "antd"
 import clsx from "clsx"
-import {createUseStyles} from "react-jss"
 
-import {JSSTheme} from "@/oss/lib/Types"
 import {TracesWithAnnotations} from "@/oss/services/observability/types"
 
 import useTraceDrawer from "../../hooks/useTraceDrawer"
@@ -14,35 +12,7 @@ import TraceDetails from "./TraceDetails"
 import TraceLinkedSpans from "./TraceLinkedSpans"
 import TraceReferences from "./TraceReferences"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    title: {
-        fontWeight: theme.fontWeightMedium,
-        fontSize: theme.fontSizeLG,
-        lineHeight: theme.lineHeightLG,
-    },
-    collapseContainer: {
-        transition: "all 0.3s ease",
-        maxWidth: "100%",
-        overflow: "hidden",
-        opacity: 1,
-        borderRadius: 0,
-        border: 0,
-        "& .ant-collapse-content": {
-            borderColor: theme.colorSplit,
-            "& .ant-collapse-content-box": {
-                padding: theme.paddingSM,
-            },
-        },
-        "& .ant-collapse-item": {
-            borderColor: theme.colorSplit,
-        },
-    },
-    collapseItemLabel: {
-        fontSize: theme.fontSize,
-        fontWeight: theme.fontWeightMedium,
-        lineHeight: theme.lineHeight,
-    },
-}))
+const collapseItemLabelClass = "text-xs font-medium leading-[1.6666666666666667]"
 
 const TraceSidePanel = ({
     activeTrace,
@@ -53,7 +23,6 @@ const TraceSidePanel = ({
     activeTraceId?: string
     isLoading?: boolean
 }) => {
-    const classes = useStyles()
     const {getTraceById} = useTraceDrawer()
     const derived = activeTrace || getTraceById(activeTraceId)
 
@@ -110,7 +79,7 @@ const TraceSidePanel = ({
             {
                 key: "annotations",
                 label: (
-                    <Typography.Text className={classes.collapseItemLabel}>
+                    <Typography.Text className={collapseItemLabelClass}>
                         Annotations
                     </Typography.Text>
                 ),
@@ -119,25 +88,21 @@ const TraceSidePanel = ({
             {
                 key: "details",
                 label: (
-                    <Typography.Text className={classes.collapseItemLabel}>
-                        Trace info
-                    </Typography.Text>
+                    <Typography.Text className={collapseItemLabelClass}>Trace info</Typography.Text>
                 ),
                 children: detailsContent,
             },
             {
                 key: "references",
                 label: (
-                    <Typography.Text className={classes.collapseItemLabel}>
-                        References
-                    </Typography.Text>
+                    <Typography.Text className={collapseItemLabelClass}>References</Typography.Text>
                 ),
                 children: referencesContent,
             },
             {
                 key: "linked",
                 label: (
-                    <Typography.Text className={classes.collapseItemLabel}>
+                    <Typography.Text className={collapseItemLabelClass}>
                         Linked spans
                     </Typography.Text>
                 ),
@@ -151,7 +116,11 @@ const TraceSidePanel = ({
         <Collapse
             items={items}
             defaultActiveKey={["annotations", "details", "linked", "references"]}
-            className={clsx(classes.collapseContainer, "[&_.ant-collapse-header]:!py-[10.5px]")}
+            className={clsx(
+                "transition-all duration-300 ease-[ease] max-w-full overflow-hidden opacity-100 rounded-none border-0",
+                "[&_.ant-collapse-content]:border-[var(--ag-colorSplit)] [&_.ant-collapse-content_.ant-collapse-content-box]:p-3 [&_.ant-collapse-item]:border-[var(--ag-colorSplit)]",
+                "[&_.ant-collapse-header]:!py-[10.5px]",
+            )}
         />
     )
 }

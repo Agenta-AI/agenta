@@ -13,8 +13,10 @@ import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 
-import {useStyles} from "./assets/styles"
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
+
+const annotationPopoverClass =
+    "w-[300px] [&_.ant-popover-container]:!p-0 [&_.ant-popover-title]:p-2 [&_.ant-popover-title]:border-b [&_.ant-popover-title]:border-solid [&_.ant-popover-title]:border-[var(--ag-colorSplit)] [&_.ant-popover-content]:p-2 [&_.ant-popover-content]:max-h-[200px] [&_.ant-popover-content]:overflow-y-auto"
 
 interface TraceAnnotationsProps {
     annotations: AnnotationDto[]
@@ -35,7 +37,6 @@ interface AnnotationGroup {
 }
 
 const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
-    const classes = useStyles()
     const [isAnnotationsPopoverOpen, setIsAnnotationsPopoverOpen] = useState<string | null>(null)
     const getPopoverKey = (refId: string, key: string) => `${refId}-${key}`
     const evaluators = useAtomValue(evaluatorsListDataAtom)
@@ -210,7 +211,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                             return (
                                 <div key={key}>
                                     <Popover
-                                        overlayClassName={classes.annotationPopover}
+                                        overlayClassName={annotationPopoverClass}
                                         open={
                                             isAnnotationsPopoverOpen ===
                                             getPopoverKey(group.refId, key)

@@ -4,65 +4,24 @@ import {formatCompactNumber, formatCurrency, formatNumber} from "@agenta/shared/
 import {ChartLineIcon} from "@phosphor-icons/react"
 import {Spin} from "antd"
 import {useAtom} from "jotai"
-import {createUseStyles} from "react-jss"
 
 import Sort from "@/oss/components/Filters/Sort"
-import {JSSTheme} from "@/oss/lib/Types"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
 import CustomAreaChart from "./CustomAreaChart"
 import WidgetCard from "./widgetCard"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    emptyState: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        flex: 1,
-        minHeight: 140,
-        paddingBottom: 40,
-        color: theme.colorTextTertiary,
-        fontSize: 13,
-    },
-    statText: {
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-        fontSize: 13,
-        "& .label": {
-            color: theme.colorTextSecondary,
-            fontWeight: 400,
-        },
-        "& .value": {
-            color: theme.colorText,
-            fontWeight: 500,
-        },
-        "&.danger .value": {
-            color: theme.colorError,
-        },
-    },
-    gridLayout2: {
-        display: "grid",
-        gridTemplateColumns: "repeat(2, 1fr)",
-        gap: 20,
-        "@media (max-width: 768px)": {
-            gridTemplateColumns: "repeat(1, 1fr)",
-        },
-    },
-    gridLayout4: {
-        display: "grid",
-        gridTemplateColumns: "repeat(2, 1fr)",
-        gap: 20,
-        "@media (min-width: 1360px)": {
-            gridTemplateColumns: "repeat(4, 1fr)",
-        },
-        "@media (max-width: 850px)": {
-            gridTemplateColumns: "repeat(1, 1fr)",
-        },
-    },
-}))
+const emptyStateClass =
+    "flex items-center justify-center gap-2 flex-1 min-h-[140px] pb-10 text-colorTextTertiary text-[13px]"
+
+const statTextClass =
+    "flex items-center gap-1 text-[13px] [&_.label]:text-colorTextSecondary [&_.label]:font-normal [&_.value]:text-colorText [&_.value]:font-medium [&.danger_.value]:text-[var(--ant-color-error)]"
+
+const gridLayout2Class = "grid grid-cols-2 gap-5 [@media(max-width:768px)]:grid-cols-1"
+
+const gridLayout4Class =
+    "grid grid-cols-2 gap-5 [@media(min-width:1360px)]:grid-cols-4 [@media(max-width:850px)]:grid-cols-1"
 
 const EmptyChart = ({className}: {className: string}) => (
     <div className={className}>
@@ -76,7 +35,6 @@ interface AnalyticsDashboardProps {
 }
 
 const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
-    const classes = useStyles()
     const {data, loading, isFetching} = useObservabilityDashboard()
     const [timeRange, setTimeRange] = useAtom(observabilityDashboardTimeRangeAtom)
 
@@ -96,7 +54,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
         [chartData],
     )
 
-    const gridClassName = layout === "grid-4" ? classes.gridLayout4 : classes.gridLayout2
+    const gridClassName = layout === "grid-4" ? gridLayout4Class : gridLayout2Class
 
     return (
         <div>
@@ -114,7 +72,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                     <WidgetCard
                         title="Requests"
                         leftSubHeading={
-                            <div className={classes.statText}>
+                            <div className={statTextClass}>
                                 <span className="label">Total:</span>
                                 <span className="value">
                                     {data?.total_count ? formatNumber(data?.total_count) : "-"}
@@ -123,7 +81,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                         }
                         rightSubHeading={
                             (data?.failure_rate ?? 0) > 0 && (
-                                <div className={`${classes.statText} danger`}>
+                                <div className={`${statTextClass} danger`}>
                                     <span className="label">Failed:</span>
                                     <span className="value">
                                         {data?.failure_rate
@@ -144,14 +102,14 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                                 }
                             />
                         ) : (
-                            <EmptyChart className={classes.emptyState} />
+                            <EmptyChart className={emptyStateClass} />
                         )}
                     </WidgetCard>
 
                     <WidgetCard
                         title="Latency"
                         leftSubHeading={
-                            <div className={classes.statText}>
+                            <div className={statTextClass}>
                                 <span className="label">Avg:</span>
                                 <span className="value">
                                     {data?.avg_latency
@@ -168,14 +126,14 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                                 valueFormatter={(value) => `${formatCompactNumber(value)}ms`}
                             />
                         ) : (
-                            <EmptyChart className={classes.emptyState} />
+                            <EmptyChart className={emptyStateClass} />
                         )}
                     </WidgetCard>
 
                     <WidgetCard
                         title="Cost"
                         leftSubHeading={
-                            <div className={classes.statText}>
+                            <div className={statTextClass}>
                                 <span className="label">Total:</span>
                                 <span className="value">
                                     {data?.total_cost ? formatCurrency(data.total_cost) : "-"}
@@ -183,7 +141,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                             </div>
                         }
                         rightSubHeading={
-                            <div className={classes.statText}>
+                            <div className={statTextClass}>
                                 <span className="label">Avg:</span>
                                 <span className="value">
                                     {data?.total_cost ? formatCurrency(data.avg_cost) : "-"}
@@ -199,14 +157,14 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                                 valueFormatter={(value) => formatCurrency(value)}
                             />
                         ) : (
-                            <EmptyChart className={classes.emptyState} />
+                            <EmptyChart className={emptyStateClass} />
                         )}
                     </WidgetCard>
 
                     <WidgetCard
                         title="Tokens"
                         leftSubHeading={
-                            <div className={classes.statText}>
+                            <div className={statTextClass}>
                                 <span className="label">Total:</span>
                                 <span className="value">
                                     {data?.total_tokens ? formatNumber(data?.total_tokens) : "-"}
@@ -214,7 +172,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                             </div>
                         }
                         rightSubHeading={
-                            <div className={classes.statText}>
+                            <div className={statTextClass}>
                                 <span className="label">Avg:</span>
                                 <span className="value">
                                     {data?.avg_tokens ? formatNumber(data?.avg_tokens) : "-"}
@@ -229,7 +187,7 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
                                 colors={["cyan-600"]}
                             />
                         ) : (
-                            <EmptyChart className={classes.emptyState} />
+                            <EmptyChart className={emptyStateClass} />
                         )}
                     </WidgetCard>
                 </div>

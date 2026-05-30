@@ -14,28 +14,11 @@ import {ContentEditable} from "@lexical/react/LexicalContentEditable"
 import {LexicalErrorBoundary} from "@lexical/react/LexicalErrorBoundary"
 import {RichTextPlugin} from "@lexical/react/LexicalRichTextPlugin"
 import {EditorThemeClasses, $createTextNode, $getRoot} from "lexical"
-import {createUseStyles} from "react-jss"
 
 interface CodeBlockProps {
     language: string
     value: string
 }
-
-const useStyles = createUseStyles({
-    container: {margin: 0},
-    editor: {
-        fontFamily:
-            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-        fontSize: 13,
-        lineHeight: 1.55,
-        padding: 12,
-        borderRadius: 6,
-        overflowX: "auto",
-        background: "var(--ag-c-FAFAFA)",
-        outline: "none",
-        whiteSpace: "pre",
-    },
-})
 
 const onError = (error: Error) => {
     console.error(error)
@@ -104,8 +87,6 @@ const InitializeContentPlugin: FC<{language: string; value: string}> = ({languag
 }
 
 const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
-    const classes = useStyles()
-
     const lexicalLanguage = useMemo(() => resolveLexicalLanguage(language), [language])
 
     const editorConfig = useMemo(
@@ -124,10 +105,12 @@ const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
     const langs = useMemo(() => [shikiLang], [shikiLang])
 
     return (
-        <div className={classes.container}>
+        <div className="m-0">
             <LexicalComposer initialConfig={editorConfig}>
                 <RichTextPlugin
-                    contentEditable={<ContentEditable className={classes.editor} />}
+                    contentEditable={
+                        <ContentEditable className="font-mono text-[13px] leading-[1.55] p-3 rounded-md overflow-x-auto bg-[var(--ag-c-FAFAFA)] outline-none whitespace-pre" />
+                    }
                     placeholder={null}
                     ErrorBoundary={LexicalErrorBoundary}
                 />
