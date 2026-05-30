@@ -5,27 +5,15 @@ import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Input, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
-import {createUseStyles} from "react-jss"
 
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {JSSTheme, KeyValuePair, TestsetCreationMode} from "@/oss/lib/Types"
+import {KeyValuePair, TestsetCreationMode} from "@/oss/lib/Types"
 import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
 import {invalidateTestsetsListCache, type TestsetTableRow} from "@/oss/state/entities/testset"
 
 const {Text} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    headerText: {
-        lineHeight: theme.lineHeightLG,
-        fontSize: theme.fontSizeHeading4,
-        fontWeight: theme.fontWeightStrong,
-    },
-    label: {
-        fontWeight: theme.fontWeightMedium,
-    },
-}))
 
 interface Props {
     mode: TestsetCreationMode
@@ -44,7 +32,6 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     setCurrent,
     onCancel,
 }) => {
-    const classes = useStyles()
     const router = useRouter()
     const {projectURL} = useURL()
     const [testsetName, setTestsetName] = useState(
@@ -148,13 +135,13 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                     onClick={goBackToInitialStep}
                 />
 
-                <Text className={classes.headerText}>{getHeaderText}</Text>
+                <Text className="leading-normal text-xl font-semibold">{getHeaderText}</Text>
             </div>
 
             <Text>Create a new testset directly from the webUI</Text>
 
             <div className="grid gap-1">
-                <Text className={classes.label}>Testset Name</Text>
+                <Text className="font-medium">Testset Name</Text>
                 <Input
                     placeholder="Enter a name"
                     value={testsetName}

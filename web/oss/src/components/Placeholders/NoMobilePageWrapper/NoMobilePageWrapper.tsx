@@ -3,25 +3,16 @@ import {type PropsWithChildren, useState, useCallback} from "react"
 import {Typography, Button, theme} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
-import {createUseStyles} from "react-jss"
 
 import useResizeObserver from "@/oss/hooks/useResizeObserver"
-import {JSSTheme} from "@/oss/lib/Types"
 
 import {MOBILE_UNOPTIMIZED_APP_ROUTES} from "./assets/constants"
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    overlay: {
-        background: `${theme.colorBgContainer}`,
-    },
-}))
 
 const {useToken} = theme
 
 const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
     const [dismissed, setDismissed] = useState(false)
     const [shouldDisplay, setShouldDisplay] = useState(false)
-    const {overlay} = useStyles()
     const {pathname} = useRouter()
     const {token} = useToken()
 
@@ -53,7 +44,7 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
                 "fixed top-0 left-0 right-0 bottom-0", // overlay the entire screen
                 "flex flex-col items-center justify-center gap-4", // flex config
                 "z-[9999]",
-                overlay, // TODO: better theme connected tailwind color classes
+                "bg-colorBgContainer",
             ])}
         >
             <Typography.Text className="w-8/12 text-center leading-1 text-lg">

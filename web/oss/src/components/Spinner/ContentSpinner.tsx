@@ -1,5 +1,4 @@
 import {Spin} from "antd"
-import {createUseStyles} from "react-jss"
 
 interface Props {
     text?: string
@@ -11,36 +10,20 @@ interface Props {
     spinnerProps?: React.ComponentProps<typeof Spin>
 }
 
-const useStyles = createUseStyles({
-    container: {
-        width: "100%",
-        height: "100%",
-        flex: 1,
-        display: "grid",
-        placeItems: "center",
-    },
-    inner: {
-        display: "inline-block",
-        textAlign: "center",
-    },
-})
-
 const ContentSpinner: React.FC<Props> = ({
     text,
     containerProps,
     innerContainerProps,
     spinnerProps,
 }) => {
-    const classes = useStyles()
-
     return (
         <div
             {...containerProps}
-            className={`${classes.container} ${containerProps?.className || ""}`}
+            className={`w-full h-full flex-1 grid place-items-center ${containerProps?.className || ""}`}
         >
             <div
                 {...innerContainerProps}
-                className={`${classes.inner} ${innerContainerProps?.className || ""}`}
+                className={`inline-block text-center ${innerContainerProps?.className || ""}`}
             >
                 <Spin {...spinnerProps} tip={text} />
             </div>

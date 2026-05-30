@@ -15,7 +15,7 @@ import {linksAndReferencesAtom} from "@/oss/components/SharedDrawers/TraceDrawer
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {useStyles} from "../TraceDetails/assets/styles"
+const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
 
 const labelMap: Record<string, string> = {
     evaluator: "Evaluators",
@@ -26,7 +26,6 @@ const labelMap: Record<string, string> = {
 }
 
 const TraceReferences = () => {
-    const classes = useStyles()
     const linksAndReferences = useAtomValue(linksAndReferencesAtom)
     const {projectURL} = useURL()
     const projectId = useAtomValue(projectIdAtom)
@@ -151,7 +150,7 @@ const TraceReferences = () => {
                 if (!displayLabel) return null
                 return (
                     <Space key={key} orientation="vertical" size={6} className="w-full">
-                        <Typography.Text className={classes.title}>{displayLabel}</Typography.Text>
+                        <Typography.Text className={titleClass}>{displayLabel}</Typography.Text>
                         <div className="flex flex-col gap-1">
                             {refs?.map((ref, index) => {
                                 const tag = renderReferenceTag({
