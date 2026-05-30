@@ -394,3 +394,30 @@
     --ag-ref-environment-bg: var(--ant-cyan-1);
     --ag-ref-environment-border: var(--ant-cyan-3);
 }
+
+/* Deployment-environment tag tones — light = the exact hex from
+   environmentColors (unchanged), dark = the matching antd preset so the
+   pills adapt instead of staying bright. Border tracks bg in light (invisible
+   edge), preset-3 in dark (subtle edge). */
+:root {
+    --ag-env-production-text: #237804;
+    --ag-env-production-bg: #d9f7be;
+    --ag-env-production-border: #d9f7be;
+    --ag-env-staging-text: #fa541c;
+    --ag-env-staging-bg: #fff2e8;
+    --ag-env-staging-border: #fff2e8;
+    --ag-env-development-text: #722ed1;
+    --ag-env-development-bg: #f9f0ff;
+    --ag-env-development-border: #f9f0ff;
+}
+.dark {
+    --ag-env-production-text: var(--ant-green-7);
+    --ag-env-production-bg: var(--ant-green-1);
+    --ag-env-production-border: var(--ant-green-3);
+    --ag-env-staging-text: var(--ant-volcano-7);
+    --ag-env-staging-bg: var(--ant-volcano-1);
+    --ag-env-staging-border: var(--ant-volcano-3);
+    --ag-env-development-text: var(--ant-purple-7);
+    --ag-env-development-bg: var(--ant-purple-1);
+    --ag-env-development-border: var(--ant-purple-3);
+}

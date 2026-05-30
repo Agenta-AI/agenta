@@ -133,18 +133,21 @@ export interface EnvironmentTagProps {
 }
 
 export function EnvironmentTag({environment, className}: EnvironmentTagProps) {
-    const known = environmentColors[environment.toLowerCase() as EnvironmentName]
+    const name = environment.toLowerCase() as EnvironmentName
+    const known = environmentColors[name]
     const label = known?.label ?? (environment || "Unknown")
 
+    // Route through CSS variables (defined in theme-variables.css) so the tag
+    // adapts in dark mode instead of keeping its bright light-mode hex.
     return (
         <Tag
             className={`w-fit ${className ?? ""}`}
             style={
                 known
                     ? {
-                          backgroundColor: known.bgColor,
-                          color: known.textColor,
-                          borderColor: known.bgColor,
+                          backgroundColor: `var(--ag-env-${name}-bg)`,
+                          color: `var(--ag-env-${name}-text)`,
+                          borderColor: `var(--ag-env-${name}-border)`,
                       }
                     : undefined
             }
