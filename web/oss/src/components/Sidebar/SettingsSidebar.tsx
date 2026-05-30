@@ -57,13 +57,22 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             (requestedTab === "organization" && !canShowOrganization) ||
             (requestedTab === "billing" && !canShowUsageBilling) ||
             (requestedTab === "tools" && !canShowTools) ||
-            (requestedTab === "apiKeys" && !canViewApiKeys)
+            (requestedTab === "apiKeys" && !canViewApiKeys) ||
+            (requestedTab === "auditLog" && !canShowAuditLog)
         ) {
             return "workspace"
         }
 
         return requestedTab
-    }, [canShowUsageBilling, canShowOrganization, canShowTools, canViewApiKeys, settingsTab, tab])
+    }, [
+        canShowUsageBilling,
+        canShowOrganization,
+        canShowTools,
+        canViewApiKeys,
+        canShowAuditLog,
+        settingsTab,
+        tab,
+    ])
 
     useEffect(() => {
         if (tab && tab !== settingsTab) {
