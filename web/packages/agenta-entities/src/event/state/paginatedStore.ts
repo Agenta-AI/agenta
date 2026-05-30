@@ -23,9 +23,13 @@ import type {
 import {upsertEventsAtom} from "./selectors"
 
 const createDefaultTimestampRange = (): EventTimestampRange => {
-    const to = new Date()
-    const from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
-    return {from: from.toISOString(), to: to.toISOString(), preset: "24 hours"}
+    const from = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    // Open-ended upper bound: omit `to` so `windowing.newest` is left unset and
+    // every fetch/refresh queries up to "now". A fixed `to` captured here (at
+    // module init) would freeze the newest boundary, hiding events created after
+    // the page was opened until the user changes the date filter. The explicit
+    // Refresh action recomputes `from` from the preset (see AuditLogTable).
+    return {from: from.toISOString(), to: null, preset: "24 hours"}
 }
 
 // ============================================================================

@@ -55,15 +55,16 @@ const recomputeRelativeTimestampRange = (preset?: string | null) => {
     const config = RELATIVE_TIME_PRESETS[preset]
     if (!config) return null
 
-    const to = new Date()
     const multipliers = {
         minute: 60 * 1000,
         hour: 60 * 60 * 1000,
         day: 24 * 60 * 60 * 1000,
     }
-    const from = new Date(to.getTime() - config.amount * multipliers[config.unit])
+    const from = new Date(Date.now() - config.amount * multipliers[config.unit])
 
-    return {from: from.toISOString(), to: to.toISOString(), preset}
+    // Open-ended upper bound (no `to`) so the window always extends to "now" —
+    // consistent with the default range; only the relative `from` is recomputed.
+    return {from: from.toISOString(), to: null, preset}
 }
 
 const AuditLogTable = () => {
