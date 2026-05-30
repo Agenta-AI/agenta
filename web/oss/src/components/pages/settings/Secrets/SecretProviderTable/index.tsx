@@ -45,9 +45,9 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
             ...(!isCustom
                 ? [
                       {
-                          title: "Status",
-                          dataIndex: "status",
-                          key: "status",
+                          title: "API Key",
+                          dataIndex: "key",
+                          key: "apiKey",
                           onHeaderCell: () => ({
                               style: {minWidth: 160},
                           }),

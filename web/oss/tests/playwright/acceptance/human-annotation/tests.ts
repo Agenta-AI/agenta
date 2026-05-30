@@ -1,9 +1,10 @@
+import {randomUUID} from "crypto"
+
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {expect} from "@agenta/web-tests/utils"
 import type {EvaluationRunForKindDetection} from "@agenta/web-tests/utils/evaluationKind"
 import type {Locator, Page} from "@playwright/test"
-import {randomUUID} from "crypto"
 
 import type {HumanEvaluationConfig, HumanEvaluationFixtures} from "./assets/types"
 
@@ -261,19 +262,25 @@ const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | R
 }
 
 const getHumanEvaluationCreateButton = async (page: Page, timeout = 10000) => {
+    // Cache the button inside the poll to avoid a TOCTOU race where the poll
+    // succeeds but a subsequent call finds the button gone (e.g. mid re-render).
+    let foundButton: Awaited<ReturnType<typeof getVisibleButtonByLabels>> = null
+
     await expect
         .poll(
-            async () =>
-                Boolean(
-                    await getVisibleButtonByLabels(page, HUMAN_EVALUATION_CREATE_BUTTON_LABELS),
-                ),
+            async () => {
+                foundButton = await getVisibleButtonByLabels(
+                    page,
+                    HUMAN_EVALUATION_CREATE_BUTTON_LABELS,
+                )
+                return Boolean(foundButton)
+            },
             {timeout},
         )
         .toBe(true)
 
-    const createButton = await getVisibleButtonByLabels(page, HUMAN_EVALUATION_CREATE_BUTTON_LABELS)
-    if (createButton) {
-        return createButton
+    if (foundButton) {
+        return foundButton
     }
 
     throw new Error("Could not find a human evaluation create button.")

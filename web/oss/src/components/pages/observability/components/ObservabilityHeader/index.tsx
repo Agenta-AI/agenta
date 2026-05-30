@@ -1,12 +1,15 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {message} from "@agenta/ui/app-message"
+import type {SimpleQueue} from "@agenta/entities/simpleQueue"
+import {exportMatchingTraces} from "@agenta/entities/trace/etl"
+import {message, modal} from "@agenta/ui/app-message"
 import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
+import Papa from "papaparse"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
@@ -14,15 +17,13 @@ import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdow
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
-import {downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
 import {useObservability} from "@/oss/state/newObservability"
-import {
-    buildTraceQueryParams,
-    fetchAllTracesForExport,
-} from "@/oss/state/newObservability/atoms/queryHelpers"
+import {buildTraceQueryParams} from "@/oss/state/newObservability/atoms/queryHelpers"
+import {createAdaptiveTracePageFetcher} from "@/oss/state/newObservability/etl/adaptiveTracePageFetcher"
+import {createExportWriter, PICKER_CANCELLED} from "@/oss/state/newObservability/etl/exportWriter"
 import {getAgData} from "@/oss/state/newObservability/selectors/tracing"
 
 import {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "../../assets/exportUtils"
@@ -30,6 +31,8 @@ import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOpt
 import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
+
+import {useBatchAddTracesToQueue} from "./useBatchAddTracesToQueue"
 
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
@@ -131,6 +134,7 @@ const ObservabilityHeader = ({
         setAutoRefresh: hookSetAutoRefresh,
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
+    const runBatchAdd = useBatchAddTracesToQueue()
 
     // Use props if provided (sessions), otherwise use hook (traces)
     const autoRefresh = propsAutoRefresh ?? hookAutoRefresh
@@ -275,67 +279,110 @@ const ObservabilityHeader = ({
     const onExport = useCallback(async () => {
         const exportKey = "observability-export"
 
+        if (!canExportData) return
+        if (!traces.length) return
+
+        const {currentApp} = getAppValues()
+        const appId = currentApp?.id || ""
+        const filename = `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
+
+        const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
+            buildTraceQueryParams(filters, sort, traceTabs, undefined)
+
+        const headers =
+            columns
+                .map((col) => {
+                    if (col.title === "ID") return "Trace ID"
+                    return typeof col.title === "string" ? col.title : null
+                })
+                .filter((header): header is string => Boolean(header)) || []
+        const csvHeaders = headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS
+
+        // Open the native file picker BEFORE starting the scan when the
+        // browser supports `showSaveFilePicker` (Chromium). User-cancel of
+        // the picker bails before any request is fired. On Safari / Firefox
+        // this falls back to the buffered Blob path — same UX as before.
+        const writer = await createExportWriter({filename, headers: csvHeaders})
+        if (writer === PICKER_CANCELLED) return
+
+        const controller = new AbortController()
+        exportAbortRef.current = controller
+
+        setIsExporting(true)
+        message.loading({
+            content: "Preparing export",
+            key: exportKey,
+            duration: 0,
+        })
+
+        // Last reported row count — kept so a rate-limit pause can keep
+        // showing progress while the scan is paused for backoff.
+        let lastRowCount = 0
+
+        // Shared adaptive fetcher: bucket-aware proactive pacing + 429
+        // retry as the safety net. The queue scan uses the same helper —
+        // both pipelines now pace from the live bucket signal instead of
+        // an arbitrary constant.
+        const fetchPage = createAdaptiveTracePageFetcher({
+            params,
+            appId,
+            isHasAnnotationSelected,
+            hasAnnotationConditions,
+            hasAnnotationOperator,
+            signal: controller.signal,
+            onRateLimitPause: (delayMs) => {
+                message.loading({
+                    content:
+                        `Rate limited — pausing for ${Math.ceil(delayMs / 1000)}s` +
+                        ` (exported ${lastRowCount.toLocaleString()} rows so far)`,
+                    key: exportKey,
+                    duration: 0,
+                })
+            },
+        })
+
         try {
-            if (!canExportData) return
-            if (!traces.length) return
-
-            const {currentApp} = getAppValues()
-            const appId = currentApp?.id || ""
-            const filename = `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
-
-            const {
-                params,
-                hasAnnotationConditions,
-                hasAnnotationOperator,
-                isHasAnnotationSelected,
-            } = buildTraceQueryParams(filters, sort, traceTabs, undefined)
-
-            const headers =
-                columns
-                    .map((col) => {
-                        if (col.title === "ID") return "Trace ID"
-                        return typeof col.title === "string" ? col.title : null
-                    })
-                    .filter((header): header is string => Boolean(header)) || []
-
-            const controller = new AbortController()
-            exportAbortRef.current = controller
-
-            setIsExporting(true)
-            message.loading({
-                content: "Preparing export",
-                key: exportKey,
-                duration: 0,
-            })
-
-            const {csvParts, rowCount, limitReached} = await fetchAllTracesForExport({
-                params,
-                appId,
-                isHasAnnotationSelected,
-                hasAnnotationConditions,
-                hasAnnotationOperator,
-                formatRow: createTraceObject,
-                headers: headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS,
+            const {rowCount, limitReached} = await exportMatchingTraces({
+                fetchPage,
+                flushBatch: async (batch) => {
+                    const rows = batch.map(createTraceObject)
+                    // The writer streams to disk on Chromium and buffers in
+                    // memory on Safari / Firefox — at this seam they look
+                    // identical to the pipeline, so memory stays bounded by
+                    // one batch on supported browsers.
+                    await writer.write(
+                        "\r\n" +
+                            Papa.unparse(
+                                {fields: csvHeaders, data: rows},
+                                {header: false, escapeFormulae: true},
+                            ),
+                    )
+                },
                 signal: controller.signal,
-                onProgress: (count) => {
+                // All pacing is done inside `fetchPage` based on the live
+                // bucket state — disable the source-level fixed delay.
+                pageDelayMs: 0,
+                onProgress: ({rows}) => {
+                    lastRowCount = rows
                     message.loading({
-                        content: `Exporting ${count.toLocaleString()} rows`,
+                        content: `Exporting ${rows.toLocaleString()} rows`,
                         key: exportKey,
                         duration: 0,
                     })
                 },
             })
 
+            // `finalize(0)` aborts the streaming writable so no header-only
+            // file is left on disk, and is a no-op on the buffered path.
+            await writer.finalize(rowCount)
+
             if (!rowCount) {
                 message.info({
                     content: "No traces to export",
                     key: exportKey,
                 })
-
                 return
             }
-
-            downloadCsv(csvParts, filename)
 
             if (limitReached) {
                 message.warning({
@@ -350,6 +397,9 @@ const ObservabilityHeader = ({
                 })
             }
         } catch (error) {
+            // Discard any partial bytes already streamed to disk / buffered.
+            await writer.abort().catch(() => {})
+
             if ((error as Error).name === "AbortError") {
                 message.info({
                     content: "Export cancelled",
@@ -402,6 +452,53 @@ const ObservabilityHeader = ({
     const handleQueueItemsAdded = useCallback(() => {
         setSelectedRowKeys([])
     }, [setSelectedRowKeys])
+
+    // Filter-scoped queue add — gate the picker. With a filter active, go
+    // straight to it; with no filter, confirm (this queues the whole project).
+    const onAddAllMatchingBeforeOpen = useCallback(async () => {
+        if (filters.length > 0) return true
+        return await new Promise<boolean>((resolve) => {
+            modal.confirm({
+                title: "Add every trace to the queue?",
+                content:
+                    "No filter is active — this will queue every trace in the project. Continue?",
+                okText: "Continue",
+                cancelText: "Cancel",
+                onOk: () => resolve(true),
+                onCancel: () => resolve(false),
+            })
+        })
+    }, [filters])
+
+    // Filter-scoped queue add — the picked queue runs a background scan of
+    // every trace matching the current observability filter. The hook owns
+    // its own rate-limit toast UI, so we hand it the raw scan params and
+    // let it build the adaptive fetcher itself.
+    const onAddAllMatchingQueueSelected = useCallback(
+        (queue: SimpleQueue) => {
+            const {currentApp} = getAppValues()
+            const appId = currentApp?.id || ""
+            const {
+                params,
+                hasAnnotationConditions,
+                hasAnnotationOperator,
+                isHasAnnotationSelected,
+            } = buildTraceQueryParams(filters, sort, traceTabs, undefined)
+            const projectURL = window.location.pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
+            runBatchAdd({
+                queue,
+                scanConfig: {
+                    params,
+                    appId,
+                    isHasAnnotationSelected,
+                    hasAnnotationConditions,
+                    hasAnnotationOperator,
+                },
+                viewQueueUrl: projectURL ? `${projectURL}/annotations/${queue.id}` : undefined,
+            })
+        },
+        [filters, sort, traceTabs, runBatchAdd],
+    )
 
     const handleExportClick = useCallback(() => {
         if (isExporting) {
@@ -513,8 +610,18 @@ const ObservabilityHeader = ({
                                 queueAction={{
                                     itemType: "traces",
                                     itemIds: selectedTraceIds,
+                                    label:
+                                        selectedTraceIds.length > 0
+                                            ? `Add ${selectedTraceIds.length} selected to queue`
+                                            : "Add selected to queue",
                                     disabled: traces.length === 0 || selectedTraceIds.length === 0,
                                     onItemsAdded: handleQueueItemsAdded,
+                                }}
+                                queueAllMatchingAction={{
+                                    label: "Add all matching filter to queue",
+                                    disabled: traces.length === 0,
+                                    onBeforeOpen: onAddAllMatchingBeforeOpen,
+                                    onQueueSelected: onAddAllMatchingQueueSelected,
                                 }}
                             />
                         </Space>

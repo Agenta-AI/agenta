@@ -118,22 +118,6 @@ def infer_and_propagate_trace_type_by_trace(
         )
         trace_types_by_trace[trace_key] = inferred_trace_type
 
-        log.warning(
-            "[TRACE_TYPE] inferred",
-            trace_id=trace_key,
-            inferred=inferred_trace_type.value,
-            spans=[
-                {
-                    "span_id": str(span.span_id),
-                    "span_name": span.span_name,
-                    "links_type": type(span.links).__name__,
-                    "links_count": len(span.links) if span.links is not None else None,
-                    "links": span.links,
-                }
-                for span in trace_spans
-            ],
-        )
-
     for span in span_dtos:
         inferred_trace_type = trace_types_by_trace[str(span.trace_id)]
         span.trace_type = inferred_trace_type

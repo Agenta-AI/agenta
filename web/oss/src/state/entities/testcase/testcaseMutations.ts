@@ -2,7 +2,11 @@ import {atom} from "jotai"
 
 import {addColumnAtom, currentColumnsAtom} from "./columnState"
 import {testsetIdAtom} from "./queries"
-import {extractTestcaseUserData, type FlattenedTestcase} from "./schema"
+import {
+    applyTestcaseUserDataUpdates,
+    extractTestcaseUserData,
+    type FlattenedTestcase,
+} from "./schema"
 import {
     addNewEntityIdAtom,
     markDeletedAtom,
@@ -57,18 +61,21 @@ export interface AddTestcaseResult {
 
 /**
  * Write-only atom to add a new testcase
- * Creates a row with all current columns initialized to empty strings
+ * Creates a row without placeholder column values; columns are rendered from
+ * column metadata and values are written only after user edits.
  */
 export const addTestcaseAtom = atom(null, (get, set): AddTestcaseResult => {
     const testsetId = get(testsetIdAtom) || ""
-    const columns = get(currentColumnsAtom)
 
     const newRowId = `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-    const flattenedRow: FlattenedTestcase = {
-        id: newRowId,
-        testset_id: testsetId,
-        ...Object.fromEntries(columns.map((col) => [col.key, ""])),
-    }
+    const flattenedRow = applyTestcaseUserDataUpdates(
+        {
+            id: newRowId,
+            testset_id: testsetId,
+            data: {},
+        },
+        {},
+    )
 
     // Add to new entity IDs
     set(addNewEntityIdAtom, newRowId)
@@ -161,9 +168,10 @@ export const createTestcasesAtom = atom(
             for (const id of serverIds) {
                 const entity = get(testcaseEntityAtomFamily(id))
                 if (entity) {
+                    const userData = extractTestcaseUserData(entity) ?? {}
                     const dataOnly: Record<string, unknown> = {}
                     for (const col of columns) {
-                        dataOnly[col.key] = (entity as Record<string, unknown>)[col.key]
+                        dataOnly[col.key] = userData[col.key]
                     }
                     existingDataSet.add(JSON.stringify(dataOnly))
                 }
@@ -173,9 +181,10 @@ export const createTestcasesAtom = atom(
             for (const id of newIds) {
                 const draft = get(testcaseDraftAtomFamily(id))
                 if (draft) {
+                    const userData = extractTestcaseUserData(draft) ?? {}
                     const dataOnly: Record<string, unknown> = {}
                     for (const col of columns) {
-                        dataOnly[col.key] = (draft as Record<string, unknown>)[col.key]
+                        dataOnly[col.key] = userData[col.key]
                     }
                     existingDataSet.add(JSON.stringify(dataOnly))
                 }
@@ -214,11 +223,14 @@ export const createTestcasesAtom = atom(
             }
 
             const entityId = `${prefix}${timestamp}-${i}-${Math.random().toString(36).slice(2, 7)}`
-            const flattenedRow: FlattenedTestcase = {
-                id: entityId,
-                testset_id: testsetId,
-                ...rowData,
-            }
+            const flattenedRow = applyTestcaseUserDataUpdates(
+                {
+                    id: entityId,
+                    testset_id: testsetId,
+                    data: {},
+                },
+                rowData as Partial<FlattenedTestcase>,
+            )
 
             // Register and create draft
             set(addNewEntityIdAtom, entityId)

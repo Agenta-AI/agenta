@@ -55,6 +55,9 @@ Schema = Dict[str, FullJson]  # type: ignore
 Mappings = Dict[str, str]
 
 
+URL_SAFE_SLUG = r"^[a-zA-Z0-9_\-][a-zA-Z0-9_.\-]*$"
+
+
 class Lifecycle(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -87,7 +90,7 @@ class Slug(BaseModel):
     @field_validator("slug")
     def check_url_safety(cls, v):
         if v is not None:
-            if not match(r"^[a-zA-Z0-9_.\-]+$", v):
+            if not match(URL_SAFE_SLUG, v):
                 raise ValueError("'slug' must be URL-safe.")
         return v
 

@@ -15,7 +15,6 @@ import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
 import PlaygroundMainView from "./Components/MainLayout"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
-import PlaygroundTestcaseEditor from "./Components/PlaygroundTestcaseEditor"
 import {OSSPlaygroundShell} from "./OSSPlaygroundShell"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
 
@@ -75,7 +74,6 @@ const Playground: FC = () => {
             <GatewayToolAssistantActions {...props} onExecuteToolCall={executeToolCall} />
         ),
         renderSyncStateTag: PlaygroundSyncStateTag,
-        TestcaseEditor: PlaygroundTestcaseEditor,
     } as unknown as PlaygroundUIProviders
 
     return (

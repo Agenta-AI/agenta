@@ -21,6 +21,7 @@ import {
     PromptImageUpload,
     PromptDocumentUpload,
 } from "@agenta/ui/components/presentational"
+import type {ViewMode} from "@agenta/ui/drill-in"
 import type {UploadFile} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -187,7 +188,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const roleValue = msg?.role
     const computedText = useMemo(() => extractTextFromContent(msg?.content), [msg?.content])
 
-    const {editorText, isJsonContent} = useMemo(() => {
+    const editorText = useMemo(() => {
         const fallback = computedText
         const candidates: string[] = []
 
@@ -205,18 +206,18 @@ const TurnMessageAdapter: React.FC<Props> = ({
             try {
                 const parsed = JSON5.parse(candidate)
                 if (parsed !== null && typeof parsed === "object") {
-                    return {
-                        editorText: JSON.stringify(parsed, null, 2),
-                        isJsonContent: true,
-                    }
+                    return JSON.stringify(parsed, null, 2)
                 }
             } catch {
                 // ignore parse errors and fall back to plain text rendering
             }
         }
 
-        return {editorText: fallback, isJsonContent: false}
+        return fallback
     }, [computedText, msg])
+    const [viewMode, setViewMode] = useState<ViewMode>("text")
+    const isCodeMode = viewMode === "json" || viewMode === "yaml"
+    const editorLanguage = viewMode === "yaml" ? "yaml" : "json"
 
     const effectiveDisabled = Boolean(disabled)
     const isUserRole = kind === "user" && !isToolKind
@@ -650,12 +651,15 @@ const TurnMessageAdapter: React.FC<Props> = ({
                     >
                         <MessageEditor
                             id={editorIdRef.current}
+                            key={`${editorIdRef.current}-${viewMode}-${p.callId}`}
                             role={editorRole}
-                            isJSON={true}
-                            isTool
+                            isJSON={isCodeMode}
+                            isTool={isCodeMode}
+                            language={editorLanguage}
+                            markdownView={viewMode === "markdown"}
                             onFocusChange={handleEditorFocusChange}
                             text={p?.json}
-                            enableTokens={false}
+                            enableTokens={messageProps?.enableTokens ?? !isCodeMode}
                             disabled={effectiveDisabled}
                             className={clsx([className])}
                             editorClassName={editorClassName}
@@ -682,6 +686,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                     resultHashes={propsResultHashes ?? resultHashes}
                                     results={results}
                                     text={p?.json ?? editorText}
+                                    viewMode={viewMode}
+                                    onViewModeChange={setViewMode}
                                     collapsed={isMessageCollapsed}
                                     allowFileUpload={isUserRole && !effectiveDisabled}
                                     repetitionProps={
@@ -730,7 +736,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 >
                     <MessageEditor
                         id={editorIdRef.current}
-                        key={`${editorIdRef.current}-${isJsonContent}`}
+                        key={`${editorIdRef.current}-${viewMode}`}
                         role={editorRole}
                         text={editorText}
                         disabled={effectiveDisabled}
@@ -742,8 +748,10 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         onChangeRole={onChangeRole}
                         onChangeText={onChangeText}
                         state={editorState}
-                        isJSON={isJsonContent}
-                        enableTokens={messageProps?.enableTokens ?? !isJsonContent}
+                        isJSON={isCodeMode}
+                        language={editorLanguage}
+                        markdownView={viewMode === "markdown"}
+                        enableTokens={messageProps?.enableTokens ?? !isCodeMode}
                         headerRight={
                             <TurnMessageHeaderOptions
                                 {...messageOptionProps}
@@ -753,6 +761,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                 resultHashes={propsResultHashes ?? resultHashes}
                                 results={results}
                                 text={editorText}
+                                viewMode={viewMode}
+                                onViewModeChange={setViewMode}
                                 collapsed={isMessageCollapsed}
                                 allowFileUpload={isUserRole && !effectiveDisabled}
                                 repetitionProps={!isComparisonView ? repetitionProps : undefined}

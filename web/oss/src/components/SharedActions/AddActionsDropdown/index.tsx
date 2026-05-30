@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {DatabaseIcon, ListChecks, PlusIcon} from "@phosphor-icons/react"
+import {DatabaseIcon, ListChecks, ListPlus, PlusIcon} from "@phosphor-icons/react"
 import {Button, Dropdown, type MenuProps} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
@@ -12,6 +12,9 @@ const AddToQueuePopover = dynamic(
     {ssr: false},
 )
 
+/** Which queue action the (single) picker popover is serving. */
+type QueueScope = "selected" | "all-matching"
+
 const AddActionsDropdown = ({
     size = "middle",
     disabled = false,
@@ -22,9 +25,11 @@ const AddActionsDropdown = ({
     testsetAction,
     additionalActions,
     queueAction,
+    queueAllMatchingAction,
 }: AddActionsDropdownProps) => {
     const [dropdownOpen, setDropdownOpen] = useState(false)
-    const [queuePopoverOpen, setQueuePopoverOpen] = useState(false)
+    // `null` = picker closed; otherwise which queue action opened it.
+    const [queueScope, setQueueScope] = useState<QueueScope | null>(null)
     const suppressNextDropdownOpenRef = useRef(false)
 
     const actions = useMemo(
@@ -35,8 +40,11 @@ const AddActionsDropdown = ({
                     disabled: action.disabled ?? false,
                 })),
                 queueAction ? {disabled: queueAction.disabled ?? false} : null,
+                queueAllMatchingAction
+                    ? {disabled: queueAllMatchingAction.disabled ?? false}
+                    : null,
             ].filter(Boolean),
-        [additionalActions, queueAction, testsetAction],
+        [additionalActions, queueAction, queueAllMatchingAction, testsetAction],
     )
 
     const isButtonDisabled =
@@ -45,11 +53,11 @@ const AddActionsDropdown = ({
     const handleButtonClick = useCallback(() => {
         if (isButtonDisabled) return
 
-        if (queuePopoverOpen) {
+        if (queueScope !== null) {
             suppressNextDropdownOpenRef.current = true
-            setQueuePopoverOpen(false)
+            setQueueScope(null)
         }
-    }, [isButtonDisabled, queuePopoverOpen])
+    }, [isButtonDisabled, queueScope])
 
     const handleDropdownOpenChange = useCallback((nextOpen: boolean) => {
         if (suppressNextDropdownOpenRef.current && nextOpen) {
@@ -60,7 +68,7 @@ const AddActionsDropdown = ({
         setDropdownOpen(nextOpen)
     }, [])
 
-    const handleMenuClick = useCallback<MenuProps["onClick"]>(
+    const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
         ({key}) => {
             setDropdownOpen(false)
 
@@ -76,12 +84,27 @@ const AddActionsDropdown = ({
             }
 
             if (key === "queue" && queueAction && !(queueAction.disabled ?? false)) {
-                requestAnimationFrame(() => {
-                    setQueuePopoverOpen(true)
-                })
+                // rAF: let the dropdown finish closing before the popover opens.
+                requestAnimationFrame(() => setQueueScope("selected"))
+                return
+            }
+
+            if (
+                key === "queue-all" &&
+                queueAllMatchingAction &&
+                !(queueAllMatchingAction.disabled ?? false)
+            ) {
+                const {onBeforeOpen} = queueAllMatchingAction
+                // `onBeforeOpen` can gate the picker (e.g. a no-filter confirm).
+                void (async () => {
+                    const proceed = (await onBeforeOpen?.()) ?? true
+                    if (proceed) {
+                        requestAnimationFrame(() => setQueueScope("all-matching"))
+                    }
+                })()
             }
         },
-        [additionalActions, queueAction, testsetAction],
+        [additionalActions, queueAction, queueAllMatchingAction, testsetAction],
     )
 
     const menuItems = useMemo<NonNullable<MenuProps["items"]>>(() => {
@@ -108,14 +131,23 @@ const AddActionsDropdown = ({
         if (queueAction) {
             items.push({
                 key: "queue",
-                label: "Add annotation queue",
+                label: queueAction.label ?? "Add annotation queue",
                 icon: <ListChecks size={14} />,
                 disabled: queueAction.disabled ?? false,
             })
         }
 
+        if (queueAllMatchingAction) {
+            items.push({
+                key: "queue-all",
+                label: queueAllMatchingAction.label,
+                icon: <ListPlus size={14} />,
+                disabled: queueAllMatchingAction.disabled ?? false,
+            })
+        }
+
         return items
-    }, [additionalActions, queueAction, testsetAction])
+    }, [additionalActions, queueAction, queueAllMatchingAction, testsetAction])
 
     if (actions.length === 0) return null
 
@@ -146,16 +178,27 @@ const AddActionsDropdown = ({
         </Dropdown>
     )
 
+    const hasQueuePicker = Boolean(queueAction || queueAllMatchingAction)
+    // When the picker is closed `queueScope` is null — fall back to whichever
+    // action exists so the popover always has a coherent set of props.
+    const effectiveScope: QueueScope = queueScope ?? (queueAction ? "selected" : "all-matching")
+    const isAllMatching = effectiveScope === "all-matching"
+
     return (
         <div className={clsx("inline-flex", className)}>
-            {queueAction ? (
+            {hasQueuePicker ? (
                 <AddToQueuePopover
-                    itemType={queueAction.itemType}
-                    itemIds={queueAction.itemIds}
+                    itemType={isAllMatching ? "traces" : (queueAction?.itemType ?? "traces")}
+                    itemIds={isAllMatching ? undefined : (queueAction?.itemIds ?? [])}
+                    onItemsAdded={isAllMatching ? undefined : queueAction?.onItemsAdded}
+                    onQueueSelected={
+                        isAllMatching ? queueAllMatchingAction?.onQueueSelected : undefined
+                    }
                     disabled={isButtonDisabled}
-                    onItemsAdded={queueAction.onItemsAdded}
-                    open={queuePopoverOpen}
-                    onOpenChange={setQueuePopoverOpen}
+                    open={queueScope !== null}
+                    onOpenChange={(nextOpen) => {
+                        if (!nextOpen) setQueueScope(null)
+                    }}
                     toggleOnTriggerClick={false}
                 >
                     {dropdown}

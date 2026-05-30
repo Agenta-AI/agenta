@@ -34,6 +34,8 @@ import useScrollContainer from "../hooks/useScrollContainer"
 import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useTableKeyboardShortcuts from "../hooks/useTableKeyboardShortcuts"
 import useTableRowSelection from "../hooks/useTableRowSelection"
+import {useTypeChipColumns} from "../hooks/useTypeChipColumns"
+import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
 import type {InfiniteVirtualTableProps} from "../types"
 import {
@@ -71,6 +73,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     keyboardShortcuts,
     expandable,
     tableRef,
+    typeChips,
 }: InfiniteVirtualTableInnerProps<RecordType>) => {
     const generatedScopeId = useId()
     const resolvedScopeId = useMemo(
@@ -147,7 +150,24 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         [resizableProcessedColumns],
     )
 
-    const finalColumns = resizableProcessedColumns
+    const typeChipFeature = useTypeChipFeature(typeChips)
+    const typeChipColumns = useTypeChipColumns(
+        resizableProcessedColumns,
+        dataSource,
+        typeChipFeature.typeChips,
+    )
+
+    // Workaround for an AntD virtual-table layout quirk: after fast horizontal
+    // scrolling, header <th> widths can drift away from body cell widths until
+    // *something* forces a column-level re-render. We bump `layoutNudge` after
+    // horizontal scroll settles to produce fresh column object references in
+    // `finalColumns`, which is enough to make AntD rebuild its layout state.
+    const [layoutNudge, setLayoutNudge] = useState(0)
+
+    const finalColumns = useMemo(
+        () => (layoutNudge > 0 ? typeChipColumns.map((col) => ({...col})) : typeChipColumns),
+        [typeChipColumns, layoutNudge],
+    )
     const columnDescendantMap = useMemo(
         () => buildColumnDescendantMap(resizableProcessedColumns),
         [resizableProcessedColumns],
@@ -466,6 +486,31 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     useEffect(() => {
         visibilityRootRef.current = visibilityRoot ?? containerRef.current
     }, [visibilityRoot])
+
+    // Bump layoutNudge after horizontal scroll settles. We only react to
+    // changes in scrollLeft so vertical scrolling (the common case) doesn't
+    // trigger an extra re-render on every pause.
+    useEffect(() => {
+        if (!scrollContainer) return
+        let timer: ReturnType<typeof setTimeout> | null = null
+        let lastScrollLeft = scrollContainer.scrollLeft
+
+        const onScroll = () => {
+            if (scrollContainer.scrollLeft === lastScrollLeft) return
+            lastScrollLeft = scrollContainer.scrollLeft
+            if (timer) clearTimeout(timer)
+            timer = setTimeout(() => {
+                setLayoutNudge((prev) => prev + 1)
+                timer = null
+            }, 150)
+        }
+
+        scrollContainer.addEventListener("scroll", onScroll, {passive: true})
+        return () => {
+            scrollContainer.removeEventListener("scroll", onScroll)
+            if (timer) clearTimeout(timer)
+        }
+    }, [scrollContainer])
 
     const mergedComponents = useMemo(() => {
         if (!resizableHeaderComponents) {

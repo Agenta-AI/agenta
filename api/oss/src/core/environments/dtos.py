@@ -1,7 +1,7 @@
 from typing import Optional, Dict, List
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.shared.dtos import (
     sync_alias,
@@ -127,6 +127,8 @@ class EnvironmentRevisionData(BaseModel):
             ...
         }
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     references: Optional[Dict[str, Dict[str, Reference]]] = None
 

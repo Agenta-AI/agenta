@@ -20,6 +20,11 @@ from oss.src.core.workflows.dtos import (
     #
 )
 from oss.src.core.shared.dtos import Windowing, Reference
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+    validate_retrieve_refs_consistent,
+)
 from oss.src.core.workflows.service import WorkflowsService
 
 # Resolution is now handled by EmbedsService
@@ -552,6 +557,17 @@ class EvaluatorsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[EvaluatorRevision]:
+        validate_variant_refs_sufficient(
+            variant_ref=evaluator_variant_ref,
+            entity_type="evaluator",
+        )
+        validate_revision_refs_sufficient(
+            artifact_ref=evaluator_ref,
+            variant_ref=evaluator_variant_ref,
+            revision_ref=evaluator_revision_ref,
+            entity_type="evaluator",
+        )
+
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=project_id,
             #
@@ -617,9 +633,23 @@ class EvaluatorsService:
             if not evaluator_references:
                 return None, None
 
-            evaluator_ref = evaluator_references.get("evaluator")
-            evaluator_variant_ref = evaluator_references.get("evaluator_variant")
-            evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+            env_evaluator_ref = evaluator_references.get("evaluator")
+            env_evaluator_variant_ref = evaluator_references.get("evaluator_variant")
+            env_evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+
+            validate_retrieve_refs_consistent(
+                artifact_ref=evaluator_ref,
+                variant_ref=evaluator_variant_ref,
+                revision_ref=evaluator_revision_ref,
+                resolved_artifact_ref=env_evaluator_ref,
+                resolved_variant_ref=env_evaluator_variant_ref,
+                resolved_revision_ref=env_evaluator_revision_ref,
+                entity_type="evaluator",
+            )
+
+            evaluator_ref = env_evaluator_ref
+            evaluator_variant_ref = env_evaluator_variant_ref
+            evaluator_revision_ref = env_evaluator_revision_ref
 
         if resolve:
             result = await self.resolve_evaluator_revision(
@@ -784,6 +814,8 @@ class EvaluatorsService:
         user_id: UUID,
         #
         evaluator_revision_commit: EvaluatorRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[EvaluatorRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **evaluator_revision_commit.model_dump(
@@ -796,6 +828,10 @@ class EvaluatorsService:
             user_id=user_id,
             #
             workflow_revision_commit=workflow_revision_commit,
+            #
+            initial=initial,
+            #
+            emit=False,
         )
 
         if not workflow_revision:
@@ -810,10 +846,10 @@ class EvaluatorsService:
         # Write-action emission lives in the SERVICE layer (read actions live
         # in the router). Every caller of commit_evaluator_revision — direct
         # commit route, simple-service create/edit, etc. — therefore emits
-        # exactly one `evaluators.revisions.committed` event. See
+        # exactly one `workflows.revisions.committed` event. See
         # core/events/utils.py for the read-vs-write split rationale.
         await publish_revision_event(
-            domain="evaluator",
+            domain="workflow",
             action="commit",
             project_id=project_id,
             user_id=user_id,

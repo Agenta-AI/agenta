@@ -12,6 +12,7 @@ import {
     spanDataInputsAtomFamily,
     spanDataInternalsAtomFamily,
     spanDataOutputsAtomFamily,
+    spanDataParametersAtomFamily,
     spanExceptionAtomFamily,
     spanMetaConfigurationAtomFamily,
     spanNodeTypeAtomFamily,
@@ -30,10 +31,11 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const inputsFromSelectors = useAtomValue(spanDataInputsAtomFamily(activeTrace))
     const outputsFromSelectors = useAtomValue(spanDataOutputsAtomFamily(activeTrace))
     const internalsFromSelectors = useAtomValue(spanDataInternalsAtomFamily(activeTrace))
+    const parametersFromSelectors = useAtomValue(spanDataParametersAtomFamily(activeTrace))
     const nodeType = useAtomValue(spanNodeTypeAtomFamily(activeTrace))
     const exception = useAtomValue(spanExceptionAtomFamily(activeTrace))
 
-    const {inputs, outputs, internals} = useMemo(
+    const {inputs, outputs, internals, parameters} = useMemo(
         () => ({
             inputs:
                 entityWithDrillIn.drillIn.getValueAtPath(activeTrace, ["ag", "data", "inputs"]) ??
@@ -47,6 +49,12 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     "data",
                     "internals",
                 ]) ?? internalsFromSelectors,
+            parameters:
+                entityWithDrillIn.drillIn.getValueAtPath(activeTrace, [
+                    "ag",
+                    "data",
+                    "parameters",
+                ]) ?? parametersFromSelectors,
         }),
         [
             activeTrace,
@@ -54,8 +62,14 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             inputsFromSelectors,
             outputsFromSelectors,
             internalsFromSelectors,
+            parametersFromSelectors,
         ],
     )
+
+    const hasParameters =
+        parameters != null &&
+        typeof parameters === "object" &&
+        Object.keys(parameters as Record<string, unknown>).length > 0
     const spanEntityId =
         activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeTrace?.key
     const isEmbeddingSpan = activeTrace?.span_type === "embedding"
@@ -108,6 +122,28 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                             value={panels.inputs.value as any}
                             enableFormatSwitcher
                             viewModePreset={panels.inputs.hasMessages ? "message" : "default"}
+                        />
+                    )}
+                </div>
+            ) : null}
+
+            {hasParameters ? (
+                <div className="flex flex-col gap-2">
+                    {spanEntityId ? (
+                        <TraceSpanDrillInView
+                            spanId={spanEntityId}
+                            title="parameters"
+                            editable={false}
+                            rootScope="span"
+                            spanDataOverride={parameters}
+                            defaultCollapsed
+                        />
+                    ) : (
+                        <AccordionTreePanel
+                            label={"parameters"}
+                            value={parameters as any}
+                            enableFormatSwitcher
+                            defaultCollapsed
                         />
                     )}
                 </div>

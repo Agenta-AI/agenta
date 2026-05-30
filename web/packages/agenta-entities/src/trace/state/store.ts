@@ -21,10 +21,18 @@
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
-import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {createEntityDraftState, normalizeValueForComparison} from "../../shared"
+// Deep imports — the shared/index barrel re-exports React components
+// (UserAuthorLabel) and CSS-coupled paginated table helpers, which break
+// Node-side execution. Pure molecule utilities are Node-safe.
+// instrumentedAtomFamily wraps jotai-family's atomFamily with size/clear
+// visibility — see ../../shared/molecule/instrumentedAtomFamily.
+import {
+    createEntityDraftState,
+    normalizeValueForComparison,
+} from "../../shared/molecule/createEntityDraftState"
+import {instrumentedAtomFamily} from "../../shared/molecule/instrumentedAtomFamily"
 import {fetchAllPreviewTraces} from "../api"
 import {isSpansResponse} from "../api/helpers"
 import type {SpanRequest, TraceRequest, TracesApiResponse} from "../core"
@@ -150,9 +158,14 @@ const spanBatchFetcher = createBatchFetcher<
 
 /**
  * Batch fetcher that combines concurrent trace requests into a single API call
- * Uses the /tracing/spans/query endpoint with trace_id IN filter
+ * Uses the /spans/query endpoint with trace_id IN filter.
+ *
+ * Exported for use by `trace/state/prefetch.ts` and other entity-layer
+ * prefetch helpers. Consumers should prefer the higher-level
+ * `prefetchTracesByIds()` action which adds TanStack cache integration on
+ * top of the per-id coalescing this fetcher already does.
  */
-const traceBatchFetcher = createBatchFetcher<
+export const traceBatchFetcher = createBatchFetcher<
     TraceRequest,
     TracesApiResponse | null,
     Map<string, TracesApiResponse | null>
@@ -395,42 +408,44 @@ export class TraceNotFoundError extends Error {
  *
  * This provides the "server state" for each span entity.
  */
-export const spanQueryAtomFamily = atomFamily((spanId: string) =>
-    atomWithQuery((get) => {
-        const projectId = get(projectIdAtom)
-        const queryClient = get(queryClientAtom)
+export const spanQueryAtomFamily = instrumentedAtomFamily(
+    (spanId: string) =>
+        atomWithQuery((get) => {
+            const projectId = get(projectIdAtom)
+            const queryClient = get(queryClientAtom)
 
-        // Try to find in any cached trace data
-        const cachedData = spanId ? findSpanInCache(queryClient, spanId) : undefined
+            // Try to find in any cached trace data
+            const cachedData = spanId ? findSpanInCache(queryClient, spanId) : undefined
 
-        return {
-            queryKey: ["span", projectId, spanId],
-            queryFn: async (): Promise<TraceSpan | null> => {
-                if (!projectId || !spanId) return null
-                const result = await spanBatchFetcher({projectId, spanId})
-                // Throw if not found - triggers retry (span may not be ingested yet)
-                if (!result) {
-                    throw new SpanNotFoundError(spanId)
-                }
-                return result
-            },
-            // Use cached data as initial data - prevents fetch if already in cache
-            initialData: cachedData ?? undefined,
-            // Always fetch if we have projectId and spanId (cache redirect handles deduplication)
-            enabled: Boolean(get(sessionAtom) && projectId && spanId),
-            staleTime: 60_000, // 1 minute
-            gcTime: 5 * 60_000, // 5 minutes
-            // Retry configuration for spans not yet ingested
-            retry: (failureCount, error) => {
-                // Only retry SpanNotFoundError, not other errors
-                if (error instanceof SpanNotFoundError && failureCount < 3) {
-                    return true
-                }
-                return false
-            },
-            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 8000), // 1s, 2s, 4s
-        }
-    }),
+            return {
+                queryKey: ["span", projectId, spanId],
+                queryFn: async (): Promise<TraceSpan | null> => {
+                    if (!projectId || !spanId) return null
+                    const result = await spanBatchFetcher({projectId, spanId})
+                    // Throw if not found - triggers retry (span may not be ingested yet)
+                    if (!result) {
+                        throw new SpanNotFoundError(spanId)
+                    }
+                    return result
+                },
+                // Use cached data as initial data - prevents fetch if already in cache
+                initialData: cachedData ?? undefined,
+                // Always fetch if we have projectId and spanId (cache redirect handles deduplication)
+                enabled: Boolean(get(sessionAtom) && projectId && spanId),
+                staleTime: 60_000, // 1 minute
+                gcTime: 5 * 60_000, // 5 minutes
+                // Retry configuration for spans not yet ingested
+                retry: (failureCount, error) => {
+                    // Only retry SpanNotFoundError, not other errors
+                    if (error instanceof SpanNotFoundError && failureCount < 3) {
+                        return true
+                    }
+                    return false
+                },
+                retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 8000), // 1s, 2s, 4s
+            }
+        }),
+    {name: "trace.spanQueryAtomFamily"},
 )
 
 // ============================================================================
@@ -490,24 +505,26 @@ export const updateTraceSpanAtom = traceSpanDraftState.updateAtom
  *
  * Equivalent to testcaseEntityAtomFamily pattern
  */
-export const traceSpanEntityAtomFamily = atomFamily((spanId: string) =>
-    atom((get): TraceSpan | null => {
-        // Use query atom directly as single source of truth for server data
-        const queryState = get(spanQueryAtomFamily(spanId))
-        const serverState = queryState.data ?? null
-        const draftAttrs = get(traceSpanDraftAtomFamily(spanId))
+export const traceSpanEntityAtomFamily = instrumentedAtomFamily(
+    (spanId: string) =>
+        atom((get): TraceSpan | null => {
+            // Use query atom directly as single source of truth for server data
+            const queryState = get(spanQueryAtomFamily(spanId))
+            const serverState = queryState.data ?? null
+            const draftAttrs = get(traceSpanDraftAtomFamily(spanId))
 
-        if (draftAttrs && serverState) {
-            // Merge draft attributes into server state
-            return {
-                ...serverState,
-                attributes: {...serverState.attributes, ...draftAttrs},
+            if (draftAttrs && serverState) {
+                // Merge draft attributes into server state
+                return {
+                    ...serverState,
+                    attributes: {...serverState.attributes, ...draftAttrs},
+                }
             }
-        }
 
-        // Return server state (or null if not loaded)
-        return serverState
-    }),
+            // Return server state (or null if not loaded)
+            return serverState
+        }),
+    {name: "trace.traceSpanEntityAtomFamily"},
 )
 
 // ============================================================================
@@ -518,33 +535,39 @@ export const traceSpanEntityAtomFamily = atomFamily((spanId: string) =>
  * Atom family to extract inputs from a span by ID
  * Usage: const inputs = useAtomValue(spanInputsAtomFamily(spanId))
  */
-export const spanInputsAtomFamily = atomFamily((spanId: string) =>
-    atom((get) => {
-        const span = get(traceSpanEntityAtomFamily(spanId))
-        return extractInputs(span)
-    }),
+export const spanInputsAtomFamily = instrumentedAtomFamily(
+    (spanId: string) =>
+        atom((get) => {
+            const span = get(traceSpanEntityAtomFamily(spanId))
+            return extractInputs(span)
+        }),
+    {name: "trace.spanInputsAtomFamily"},
 )
 
 /**
  * Atom family to extract outputs from a span by ID
  * Usage: const outputs = useAtomValue(spanOutputsAtomFamily(spanId))
  */
-export const spanOutputsAtomFamily = atomFamily((spanId: string) =>
-    atom((get) => {
-        const span = get(traceSpanEntityAtomFamily(spanId))
-        return extractOutputs(span)
-    }),
+export const spanOutputsAtomFamily = instrumentedAtomFamily(
+    (spanId: string) =>
+        atom((get) => {
+            const span = get(traceSpanEntityAtomFamily(spanId))
+            return extractOutputs(span)
+        }),
+    {name: "trace.spanOutputsAtomFamily"},
 )
 
 /**
  * Atom family to extract all ag.data from a span by ID
  * Usage: const agData = useAtomValue(spanAgDataAtomFamily(spanId))
  */
-export const spanAgDataAtomFamily = atomFamily((spanId: string) =>
-    atom((get) => {
-        const span = get(traceSpanEntityAtomFamily(spanId))
-        return extractAgData(span)
-    }),
+export const spanAgDataAtomFamily = instrumentedAtomFamily(
+    (spanId: string) =>
+        atom((get) => {
+            const span = get(traceSpanEntityAtomFamily(spanId))
+            return extractAgData(span)
+        }),
+    {name: "trace.spanAgDataAtomFamily"},
 )
 
 // ============================================================================
@@ -564,56 +587,62 @@ export const spanAgDataAtomFamily = atomFamily((spanId: string) =>
  * Uses batch fetching to combine multiple concurrent trace requests into a single API call.
  * Usage: const traceQuery = useAtomValue(traceEntityAtomFamily(traceId))
  */
-export const traceEntityAtomFamily = atomFamily((traceId: string | null) =>
-    atomWithQuery((get) => {
-        const projectId = get(projectIdAtom)
-        const queryClient = get(queryClientAtom)
+export const traceEntityAtomFamily = instrumentedAtomFamily(
+    (traceId: string | null) =>
+        atomWithQuery((get) => {
+            const projectId = get(projectIdAtom)
+            const queryClient = get(queryClientAtom)
 
-        return {
-            queryKey: ["trace-entity", projectId, traceId ?? "none"],
-            enabled: Boolean(get(sessionAtom) && traceId && projectId),
-            staleTime: 60_000,
-            gcTime: 5 * 60_000,
-            refetchOnWindowFocus: false,
-            structuralSharing: true,
-            queryFn: async () => {
-                if (!traceId || !projectId) return null
+            return {
+                queryKey: ["trace-entity", projectId, traceId ?? "none"],
+                enabled: Boolean(get(sessionAtom) && traceId && projectId),
+                staleTime: 60_000,
+                gcTime: 5 * 60_000,
+                refetchOnWindowFocus: false,
+                structuralSharing: true,
+                queryFn: async () => {
+                    if (!traceId || !projectId) return null
 
-                // Use batch fetcher to combine concurrent trace requests
-                // Returns the same format as fetchPreviewTrace: { traces: { [traceId]: { spans: {...} } } }
-                const response = await traceBatchFetcher({projectId, traceId})
+                    // Use batch fetcher to combine concurrent trace requests
+                    // Returns the same format as fetchPreviewTrace: { traces: { [traceId]: { spans: {...} } } }
+                    const response = await traceBatchFetcher({projectId, traceId})
 
-                // Throw if not found - triggers retry (trace may not be ingested yet)
-                if (!response || !response.traces || Object.keys(response.traces).length === 0) {
-                    throw new TraceNotFoundError(traceId)
-                }
-
-                // Extract all spans from the trace response and populate query cache
-                Object.values(response.traces).forEach((traceEntry) => {
-                    if (traceEntry?.spans) {
-                        Object.values(traceEntry.spans).forEach((spanData) => {
-                            const span = traceSpanSchema.safeParse(spanData)
-                            if (span.success) {
-                                const queryKey = ["span", projectId, span.data.span_id]
-                                queryClient.setQueryData(queryKey, span.data)
-                            }
-                        })
+                    // Throw if not found - triggers retry (trace may not be ingested yet)
+                    if (
+                        !response ||
+                        !response.traces ||
+                        Object.keys(response.traces).length === 0
+                    ) {
+                        throw new TraceNotFoundError(traceId)
                     }
-                })
 
-                return response
-            },
-            // Retry configuration for traces not yet ingested
-            retry: (failureCount, error) => {
-                // Only retry TraceNotFoundError, not other errors
-                if (error instanceof TraceNotFoundError && failureCount < 5) {
-                    return true
-                }
-                return false
-            },
-            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // 1s, 2s, 4s, 8s, 10s
-        }
-    }),
+                    // Extract all spans from the trace response and populate query cache
+                    Object.values(response.traces).forEach((traceEntry) => {
+                        if (traceEntry?.spans) {
+                            Object.values(traceEntry.spans).forEach((spanData) => {
+                                const span = traceSpanSchema.safeParse(spanData)
+                                if (span.success) {
+                                    const queryKey = ["span", projectId, span.data.span_id]
+                                    queryClient.setQueryData(queryKey, span.data)
+                                }
+                            })
+                        }
+                    })
+
+                    return response
+                },
+                // Retry configuration for traces not yet ingested
+                retry: (failureCount, error) => {
+                    // Only retry TraceNotFoundError, not other errors
+                    if (error instanceof TraceNotFoundError && failureCount < 5) {
+                        return true
+                    }
+                    return false
+                },
+                retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // 1s, 2s, 4s, 8s, 10s
+            }
+        }),
+    {name: "trace.traceEntityAtomFamily"},
 )
 
 // ============================================================================
@@ -662,12 +691,14 @@ const findRootSpanFromResponse = (
  *
  * Usage: const rootSpan = useAtomValue(traceRootSpanAtomFamily(traceId))
  */
-export const traceRootSpanAtomFamily = atomFamily((traceId: string | null) =>
-    atom((get): TraceSpan | null => {
-        if (!traceId) return null
-        const traceQuery = get(traceEntityAtomFamily(traceId))
-        return findRootSpanFromResponse(traceQuery.data, traceId)
-    }),
+export const traceRootSpanAtomFamily = instrumentedAtomFamily(
+    (traceId: string | null) =>
+        atom((get): TraceSpan | null => {
+            if (!traceId) return null
+            const traceQuery = get(traceEntityAtomFamily(traceId))
+            return findRootSpanFromResponse(traceQuery.data, traceId)
+        }),
+    {name: "trace.traceRootSpanAtomFamily"},
 )
 
 /**
@@ -675,11 +706,13 @@ export const traceRootSpanAtomFamily = atomFamily((traceId: string | null) =>
  *
  * Usage: const inputs = useAtomValue(traceInputsAtomFamily(traceId))
  */
-export const traceInputsAtomFamily = atomFamily((traceId: string | null) =>
-    atom((get) => {
-        const rootSpan = get(traceRootSpanAtomFamily(traceId))
-        return extractInputs(rootSpan)
-    }),
+export const traceInputsAtomFamily = instrumentedAtomFamily(
+    (traceId: string | null) =>
+        atom((get) => {
+            const rootSpan = get(traceRootSpanAtomFamily(traceId))
+            return extractInputs(rootSpan)
+        }),
+    {name: "trace.traceInputsAtomFamily"},
 )
 
 /**
@@ -687,9 +720,11 @@ export const traceInputsAtomFamily = atomFamily((traceId: string | null) =>
  *
  * Usage: const outputs = useAtomValue(traceOutputsAtomFamily(traceId))
  */
-export const traceOutputsAtomFamily = atomFamily((traceId: string | null) =>
-    atom((get) => {
-        const rootSpan = get(traceRootSpanAtomFamily(traceId))
-        return extractOutputs(rootSpan)
-    }),
+export const traceOutputsAtomFamily = instrumentedAtomFamily(
+    (traceId: string | null) =>
+        atom((get) => {
+            const rootSpan = get(traceRootSpanAtomFamily(traceId))
+            return extractOutputs(rootSpan)
+        }),
+    {name: "trace.traceOutputsAtomFamily"},
 )

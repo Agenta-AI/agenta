@@ -21,6 +21,11 @@ from oss.src.core.workflows.dtos import (
     #
 )
 from oss.src.core.shared.dtos import Windowing, Reference
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+    validate_retrieve_refs_consistent,
+)
 from oss.src.core.workflows.service import WorkflowsService
 
 # Resolution is now handled by EmbedsService
@@ -549,6 +554,17 @@ class ApplicationsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[ApplicationRevision]:
+        validate_variant_refs_sufficient(
+            variant_ref=application_variant_ref,
+            entity_type="application",
+        )
+        validate_revision_refs_sufficient(
+            artifact_ref=application_ref,
+            variant_ref=application_variant_ref,
+            revision_ref=application_revision_ref,
+            entity_type="application",
+        )
+
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=project_id,
             #
@@ -614,11 +630,27 @@ class ApplicationsService:
             if not application_references:
                 return None, None
 
-            application_ref = application_references.get("application")
-            application_variant_ref = application_references.get("application_variant")
-            application_revision_ref = application_references.get(
+            env_application_ref = application_references.get("application")
+            env_application_variant_ref = application_references.get(
+                "application_variant"
+            )
+            env_application_revision_ref = application_references.get(
                 "application_revision"
             )
+
+            validate_retrieve_refs_consistent(
+                artifact_ref=application_ref,
+                variant_ref=application_variant_ref,
+                revision_ref=application_revision_ref,
+                resolved_artifact_ref=env_application_ref,
+                resolved_variant_ref=env_application_variant_ref,
+                resolved_revision_ref=env_application_revision_ref,
+                entity_type="application",
+            )
+
+            application_ref = env_application_ref
+            application_variant_ref = env_application_variant_ref
+            application_revision_ref = env_application_revision_ref
 
         if resolve:
             result = await self.resolve_application_revision(
@@ -783,6 +815,8 @@ class ApplicationsService:
         user_id: UUID,
         #
         application_revision_commit: ApplicationRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[ApplicationRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **application_revision_commit.model_dump(
@@ -795,6 +829,10 @@ class ApplicationsService:
             user_id=user_id,
             #
             workflow_revision_commit=workflow_revision_commit,
+            #
+            initial=initial,
+            #
+            emit=False,
         )
 
         if not workflow_revision:
@@ -809,10 +847,10 @@ class ApplicationsService:
         # Write-action emission lives in the SERVICE layer (read actions live
         # in the router). Every caller of commit_application_revision — direct
         # commit route, simple-service create/edit, deploy paths — therefore
-        # emits exactly one `applications.revisions.committed` event. See
+        # emits exactly one `workflows.revisions.committed` event. See
         # core/events/utils.py for the read-vs-write split rationale.
         await publish_revision_event(
-            domain="application",
+            domain="workflow",
             action="commit",
             project_id=project_id,
             user_id=user_id,
