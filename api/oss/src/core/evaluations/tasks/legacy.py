@@ -49,7 +49,6 @@ from oss.src.core.evaluations.utils import (
     select_traces_for_reuse,
 )
 
-logger = get_module_logger(__name__)
 
 
 def _serialize_references(references: Dict[str, Any]) -> Dict[str, Any]:
