@@ -40,6 +40,11 @@
     --ag-colorFillQuaternary: rgba(5, 23, 41, 0.02);
     --ag-colorSplit: rgba(5, 23, 41, 0.06);
     --ag-colorPrimary: #1c2c3d;
+    --ag-colorPrimaryText: #1c2c3d;
+    --ag-colorSuccess: #389e0d;
+    --ag-colorWarning: #faad14;
+    --ag-colorWarningText: #faad14;
+    --ag-colorErrorText: #d61010;
     --ag-colorWhite: #ffffff;
 
     /* zinc — brand monochrome ramp (light = antd-tailwind.json zinc) */
@@ -109,6 +114,11 @@
     --ag-colorFillQuaternary: var(--ant-color-fill-quaternary);
     --ag-colorSplit: var(--ant-color-split);
     --ag-colorPrimary: var(--ant-color-primary);
+    --ag-colorPrimaryText: var(--ant-color-primary-text);
+    --ag-colorSuccess: var(--ant-color-success);
+    --ag-colorWarning: var(--ant-color-warning);
+    --ag-colorWarningText: var(--ant-color-warning-text);
+    --ag-colorErrorText: var(--ant-color-error-text);
     --ag-colorWhite: var(--ant-color-white);
 
     /* zinc — role-inverted: low index = dark surface, high index = light text */

@@ -74,6 +74,11 @@ const themeAwareColors = {
     colorFillQuaternary: v("colorFillQuaternary"),
     colorSplit: v("colorSplit"),
     colorPrimary: v("colorPrimary"),
+    colorPrimaryText: v("colorPrimaryText"),
+    colorSuccess: v("colorSuccess"),
+    colorWarning: v("colorWarning"),
+    colorWarningText: v("colorWarningText"),
+    colorErrorText: v("colorErrorText"),
     colorWhite: v("colorWhite"),
 }
 
