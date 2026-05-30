@@ -83,9 +83,13 @@ const convertSortResultToRange = (result: SortResult): RangeValue => {
             return null
         }
         const from = dayjs.utc(result.sorted).toISOString()
-        const to = dayjs().utc().toISOString()
-        const range = {from, to}
-        return {...range, preset: detectSortValue(range)}
+        // Derive the preset label from a concrete window, then drop the upper
+        // bound. Relative presets are stored open-ended (`to: null`) so the window
+        // always extends to "now" — matching the default range and Refresh. A
+        // fixed `to` captured here would freeze the upper bound at selection time,
+        // hiding events created afterward until a manual refresh.
+        const preset = detectSortValue({from, to: dayjs().utc().toISOString()})
+        return {from, to: null, preset}
     }
 
     const from = result.customRange?.startTime
