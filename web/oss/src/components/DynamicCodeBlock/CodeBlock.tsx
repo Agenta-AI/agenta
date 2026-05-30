@@ -15,6 +15,8 @@ import {LexicalErrorBoundary} from "@lexical/react/LexicalErrorBoundary"
 import {RichTextPlugin} from "@lexical/react/LexicalRichTextPlugin"
 import {EditorThemeClasses, $createTextNode, $getRoot} from "lexical"
 
+import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+
 interface CodeBlockProps {
     language: string
     value: string
@@ -88,6 +90,7 @@ const InitializeContentPlugin: FC<{language: string; value: string}> = ({languag
 
 const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
     const lexicalLanguage = useMemo(() => resolveLexicalLanguage(language), [language])
+    const {appTheme} = useAppTheme()
 
     const editorConfig = useMemo(
         () => ({
@@ -100,13 +103,16 @@ const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
         [],
     )
 
-    const shikiTheme = "github-light"
+    // Shiki tokens carry inline colors from the theme, so a light theme in dark
+    // mode renders unreadable/boxed tokens — pick the theme that matches the app.
+    const shikiTheme = appTheme === ThemeMode.Dark ? "github-dark" : "github-light"
     const shikiLang = lexicalLanguage
     const langs = useMemo(() => [shikiLang], [shikiLang])
 
     return (
         <div className="m-0">
-            <LexicalComposer initialConfig={editorConfig}>
+            {/* Re-key on theme so Shiki re-tokenizes with the matching palette. */}
+            <LexicalComposer key={shikiTheme} initialConfig={editorConfig}>
                 <RichTextPlugin
                     contentEditable={
                         <ContentEditable className="font-mono text-[13px] leading-[1.55] p-3 rounded-md overflow-x-auto bg-[var(--ag-c-FAFAFA)] outline-none whitespace-pre" />
