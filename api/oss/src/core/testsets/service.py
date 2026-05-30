@@ -944,6 +944,8 @@ class TestsetsService:
         #
         testset_revision_commit: TestsetRevisionCommit,
         #
+        initial: bool = False,
+        #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         if testset_revision_commit.delta and not testset_revision_commit.data:
@@ -988,6 +990,8 @@ class TestsetsService:
             user_id=user_id,
             #
             revision_commit=revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:
@@ -1300,7 +1304,7 @@ class SimpleTestsetsService:
 
         testset_revision_slug = uuid4().hex[-12:]
 
-        testset_revision_create = TestsetRevisionCreate(
+        testset_revision_commit = TestsetRevisionCommit(
             slug=testset_revision_slug,
             #
             name=simple_testset_create.name,
@@ -1310,17 +1314,21 @@ class SimpleTestsetsService:
             tags=simple_testset_create.tags,
             meta=simple_testset_create.meta,
             #
+            data=None,
+            #
+            message="Initial commit",
+            #
             testset_id=testset.id,
             testset_variant_id=testset_variant.id,
         )
 
         testset_revision: Optional[
             TestsetRevision
-        ] = await self.testsets_service.create_testset_revision(
+        ] = await self.testsets_service.commit_testset_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            testset_revision_create=testset_revision_create,
+            testset_revision_commit=testset_revision_commit,
         )
 
         if testset_revision is None:

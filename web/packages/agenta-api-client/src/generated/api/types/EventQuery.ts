@@ -3,7 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EventQuery {
-    request_id?: (string | null) | undefined;
     request_type?: (AgentaApi.RequestType | null) | undefined;
+    request_id?: (string | null) | undefined;
     event_type?: (AgentaApi.EventType | null) | undefined;
+    event_id?: (string | null) | undefined;
 }

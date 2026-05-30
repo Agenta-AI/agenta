@@ -15,7 +15,7 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.git.utils import build_retrieval_info
-from oss.src.core.queries.dtos import QueryRevision
+from oss.src.core.queries.dtos import QueryRevision, QueryRevisionCommit
 from oss.src.core.queries.service import (
     QueriesService,
     SimpleQueriesService,
@@ -688,6 +688,7 @@ class QueriesRouter:
     # QUERY REVISIONS ----------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_query_revision(
         self,
         request: Request,
@@ -702,11 +703,19 @@ class QueriesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        query_revision = await self.queries_service.create_query_revision(
+        query_revision = await self.queries_service.commit_query_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            query_revision_create=query_revision_create_request.query_revision,
+            query_revision_commit=QueryRevisionCommit(
+                **query_revision_create_request.query_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         query_revision_response = QueryRevisionResponse(
