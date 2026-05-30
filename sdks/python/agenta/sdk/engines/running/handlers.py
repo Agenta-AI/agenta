@@ -1425,9 +1425,14 @@ def auto_json_diff_v0(
             path=correct_answer_key, expected=["dict", "str"], got=correct_answer
         )
 
-    correct_answer_dict = (
-        correct_answer if isinstance(correct_answer, dict) else loads(correct_answer)
-    )
+    correct_answer_dict = correct_answer
+    if isinstance(correct_answer, str):
+        try:
+            correct_answer_dict = loads(correct_answer)
+        except json.JSONDecodeError as e:
+            raise InvalidInputV0Error(
+                path=correct_answer_key, expected="dict", got=correct_answer
+            ) from e
 
     if not isinstance(outputs, str) and not isinstance(outputs, dict):
         raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
