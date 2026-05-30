@@ -73,6 +73,7 @@ const renderEventTypePath = (labels: string[]) => (
 
 /** Debounce (ms) before committing the free-text id filter. */
 const ID_DEBOUNCE_MS = 400
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface AuditLogFiltersProps {
     onRefresh: () => void
@@ -95,7 +96,16 @@ const AuditLogFilters = ({onRefresh}: AuditLogFiltersProps) => {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            setEventId(eventIdDraft.trim() || null)
+            const trimmed = eventIdDraft.trim()
+            if (!trimmed) {
+                setEventId(null)
+                return
+            }
+            if (UUID_PATTERN.test(trimmed)) {
+                setEventId(trimmed)
+                return
+            }
+            setEventId(null)
         }, ID_DEBOUNCE_MS)
         return () => clearTimeout(timer)
     }, [eventIdDraft, setEventId])

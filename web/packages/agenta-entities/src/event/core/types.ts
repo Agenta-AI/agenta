@@ -77,6 +77,7 @@ export interface EventPaginatedMeta {
 export interface EventTimestampRange {
     from?: string | null
     to?: string | null
+    preset?: string | null
 }
 
 /** Params for a single page fetch. */

@@ -11,6 +11,7 @@ import {type CSSProperties, useCallback, useMemo, useRef} from "react"
 import {
     clearEventsCacheAtom,
     eventsPaginatedStore,
+    eventTimestampRangeFilterAtom,
     type EventTableRow,
 } from "@agenta/entities/event"
 import {
@@ -21,7 +22,7 @@ import {
 import {Eye} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
 import type {ColumnsType} from "antd/es/table"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {AUDIT_LOG_PAGE_SIZE, AUDIT_LOG_ROW_HEIGHT, AUDIT_LOG_SCOPE_ID} from "../assets/constants"
@@ -38,11 +39,40 @@ import AuditLogFilters from "./AuditLogFilters"
 
 const SkeletonCell = () => <Skeleton.Input active size="small" className="w-full" />
 
+const RELATIVE_TIME_PRESETS: Record<string, {amount: number; unit: "minute" | "hour" | "day"}> = {
+    "30 mins": {amount: 30, unit: "minute"},
+    "1 hour": {amount: 1, unit: "hour"},
+    "6 hours": {amount: 6, unit: "hour"},
+    "24 hours": {amount: 24, unit: "hour"},
+    "3 days": {amount: 3, unit: "day"},
+    "7 days": {amount: 7, unit: "day"},
+    "14 days": {amount: 14, unit: "day"},
+}
+
+const recomputeRelativeTimestampRange = (preset?: string | null) => {
+    if (!preset || preset === "custom" || preset === "all time") return null
+
+    const config = RELATIVE_TIME_PRESETS[preset]
+    if (!config) return null
+
+    const to = new Date()
+    const multipliers = {
+        minute: 60 * 1000,
+        hour: 60 * 60 * 1000,
+        day: 24 * 60 * 60 * 1000,
+    }
+    const from = new Date(to.getTime() - config.amount * multipliers[config.unit])
+
+    return {from: from.toISOString(), to: to.toISOString(), preset}
+}
+
 const AuditLogTable = () => {
     const setSelectedEventId = useSetAtom(selectedEventIdAtom)
     const setDrawerOpen = useSetAtom(auditDrawerOpenAtom)
     const refreshEvents = useSetAtom(eventsPaginatedStore.actions.refresh)
     const clearEventsCache = useSetAtom(clearEventsCacheAtom)
+    const timestampRange = useAtomValue(eventTimestampRangeFilterAtom)
+    const setTimestampRange = useSetAtom(eventTimestampRangeFilterAtom)
     const resetPagesRef = useRef<(() => void) | null>(null)
     const globalStore = useMemo(() => getDefaultStore(), [])
 
@@ -55,10 +85,15 @@ const AuditLogTable = () => {
     )
 
     const refreshTable = useCallback(() => {
+        const refreshedRange = recomputeRelativeTimestampRange(timestampRange?.preset)
         clearEventsCache()
         resetPagesRef.current?.()
+        if (refreshedRange) {
+            setTimestampRange(refreshedRange)
+            return
+        }
         refreshEvents()
-    }, [clearEventsCache, refreshEvents])
+    }, [clearEventsCache, refreshEvents, setTimestampRange, timestampRange?.preset])
 
     const columns = useMemo<ColumnsType<EventTableRow>>(
         () => [

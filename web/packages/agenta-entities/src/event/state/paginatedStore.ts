@@ -25,7 +25,7 @@ import {upsertEventsAtom} from "./selectors"
 const createDefaultTimestampRange = (): EventTimestampRange => {
     const to = new Date()
     const from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
-    return {from: from.toISOString(), to: to.toISOString()}
+    return {from: from.toISOString(), to: to.toISOString(), preset: "24 hours"}
 }
 
 // ============================================================================

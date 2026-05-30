@@ -3,7 +3,7 @@ import {useCallback, useMemo} from "react"
 import Sort, {type SortResult} from "@/oss/components/Filters/Sort"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 
-type RangeValue = {from?: string | null; to?: string | null} | null
+type RangeValue = {from?: string | null; to?: string | null; preset?: string | null} | null
 
 type SortOptionValue =
     | "30 mins"
@@ -69,7 +69,8 @@ const convertSortResultToRange = (result: SortResult): RangeValue => {
         }
         const from = dayjs.utc(result.sorted).toISOString()
         const to = dayjs().utc().toISOString()
-        return {from, to}
+        const range = {from, to}
+        return {...range, preset: detectSortValue(range)}
     }
 
     const from = result.customRange?.startTime
@@ -83,7 +84,7 @@ const convertSortResultToRange = (result: SortResult): RangeValue => {
         return null
     }
 
-    return {from, to}
+    return {from, to, preset: "custom"}
 }
 
 interface QuickDateRangePickerProps {
