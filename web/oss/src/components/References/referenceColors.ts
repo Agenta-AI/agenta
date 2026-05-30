@@ -6,36 +6,41 @@ export interface ReferenceToneColors {
     border: string
 }
 
+// Backed by antd preset-palette CSS variables (emitted via ConfigProvider's
+// cssVar mode). Each tone uses {text: -7, background: -1, border: -3}, so the
+// chips adapt to light/dark automatically — antd swaps the palette under the
+// active algorithm. (Previously bespoke Untitled-UI hex that stayed light in
+// dark mode.)
 const REFERENCE_TONE_COLORS: Record<ReferenceTone, ReferenceToneColors> = {
     app: {
-        text: "#175CD3",
-        background: "#EFF8FF",
-        border: "#B2DDFF",
+        text: "var(--ant-blue-7)",
+        background: "var(--ant-blue-1)",
+        border: "var(--ant-blue-3)",
     },
     variant: {
-        text: "#027A48",
-        background: "#ECFDF3",
-        border: "#ABEFC6",
+        text: "var(--ant-green-7)",
+        background: "var(--ant-green-1)",
+        border: "var(--ant-green-3)",
     },
     testset: {
-        text: "#5925DC",
-        background: "#F4EBFF",
-        border: "#D6BBFB",
+        text: "var(--ant-purple-7)",
+        background: "var(--ant-purple-1)",
+        border: "var(--ant-purple-3)",
     },
     query: {
-        text: "#B93815",
-        background: "#FEF6EE",
-        border: "#F9DBAF",
+        text: "var(--ant-volcano-7)",
+        background: "var(--ant-volcano-1)",
+        border: "var(--ant-volcano-3)",
     },
     evaluator: {
-        text: "#C01048",
-        background: "#FFF1F3",
-        border: "#FCCEEE",
+        text: "var(--ant-magenta-7)",
+        background: "var(--ant-magenta-1)",
+        border: "var(--ant-magenta-3)",
     },
     environment: {
-        text: "#0F766E",
-        background: "#ECFDF3",
-        border: "#99F6E4",
+        text: "var(--ant-cyan-7)",
+        background: "var(--ant-cyan-1)",
+        border: "var(--ant-cyan-3)",
     },
 }
 

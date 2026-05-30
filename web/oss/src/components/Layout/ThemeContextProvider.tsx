@@ -93,10 +93,15 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     }, [themeMode])
 
     // Toggle the `.dark` class on <html> so the CSS-variable token layer (and any
-    // Tailwind `dark:` variants) reflect the active theme.
+    // Tailwind `dark:` variants) reflect the active theme. Also add antd's cssVar
+    // key class (`agenta`) so the global `--ant-*` design-token variables (emitted
+    // by ConfigProvider's `cssVar: {key: "agenta"}` option under the `.agenta`
+    // selector) resolve everywhere — including plain elements outside antd
+    // component subtrees, so Tailwind/CSS can alias them.
     useEffect(() => {
         const root = document.documentElement
         root.classList.toggle("dark", appTheme === ThemeMode.Dark)
+        root.classList.add("agenta")
         root.style.colorScheme = appTheme === ThemeMode.Dark ? "dark" : "light"
     }, [appTheme])
 
@@ -111,6 +116,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         if (isDark) {
             return {
                 algorithm: theme.darkAlgorithm,
+                cssVar: {key: "agenta"},
                 token: {
                     ...baseToken,
                     ...stripColors(antdTokens.token),
@@ -124,6 +130,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         // are both spread into `token`, matching the prior ConfigProvider shape.
         return {
             algorithm: theme.defaultAlgorithm,
+            cssVar: {key: "agenta"},
             token: {
                 ...baseToken,
                 ...antdTokens.token,
