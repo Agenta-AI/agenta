@@ -50,7 +50,6 @@ from oss.src.core.evaluations.utils import (
 )
 
 
-
 def _serialize_references(references: Dict[str, Any]) -> Dict[str, Any]:
     """Serialize Reference objects and UUIDs to JSON-compatible dicts."""
     from uuid import UUID
