@@ -12,9 +12,21 @@ import {atom, getDefaultStore, type Atom} from "jotai"
 import {createPaginatedEntityStore} from "../../shared/paginated"
 import type {InfiniteTableFetchResult} from "../../shared/tableTypes"
 import {fetchEventsPage} from "../api/api"
-import type {EventPaginatedMeta, EventTableRow, EventType, RequestType} from "../core/types"
+import type {
+    EventPaginatedMeta,
+    EventTableRow,
+    EventTimestampRange,
+    EventType,
+    RequestType,
+} from "../core/types"
 
 import {upsertEventsAtom} from "./selectors"
+
+const createDefaultTimestampRange = (): EventTimestampRange => {
+    const to = new Date()
+    const from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
+    return {from: from.toISOString(), to: to.toISOString()}
+}
 
 // ============================================================================
 // FILTER ATOMS
@@ -29,6 +41,14 @@ export const requestTypeFilterAtom = atom<RequestType | null>(null)
 /** Exact request-id filter (maps to `EventQuery.request_id`). */
 export const requestIdFilterAtom = atom<string | null>(null)
 
+/** Exact event-id filter (maps to `EventQuery.event_id`). */
+export const eventIdFilterAtom = atom<string | null>(null)
+
+/** Timestamp range filter (maps to `Windowing.oldest/newest`). */
+export const eventTimestampRangeFilterAtom = atom<EventTimestampRange | null>(
+    createDefaultTimestampRange(),
+)
+
 // ============================================================================
 // META ATOM
 // ============================================================================
@@ -39,6 +59,8 @@ export const eventsPaginatedMetaAtom: Atom<EventPaginatedMeta> = atom((get) => (
     eventType: get(eventTypeFilterAtom),
     requestType: get(requestTypeFilterAtom),
     requestId: get(requestIdFilterAtom),
+    eventId: get(eventIdFilterAtom),
+    timestampRange: get(eventTimestampRangeFilterAtom),
 }))
 
 // ============================================================================
@@ -71,7 +93,7 @@ async function fetchEventsWindow({
     limit: number
     cursor?: string | null
 }): Promise<InfiniteTableFetchResult<FetchedRowIdentity>> {
-    const {projectId, eventType, requestType, requestId} = meta
+    const {projectId, eventType, requestType, requestId, eventId, timestampRange} = meta
 
     if (!projectId) {
         return {
@@ -87,7 +109,7 @@ async function fetchEventsWindow({
     try {
         const page = await fetchEventsPage({
             projectId,
-            filters: {eventType, requestType, requestId},
+            filters: {eventType, requestType, requestId, eventId, timestampRange},
             cursor: cursor || undefined,
             limit,
         })
@@ -149,4 +171,6 @@ export const eventFilters = {
     eventType: eventTypeFilterAtom,
     requestType: requestTypeFilterAtom,
     requestId: requestIdFilterAtom,
+    eventId: eventIdFilterAtom,
+    timestampRange: eventTimestampRangeFilterAtom,
 }
