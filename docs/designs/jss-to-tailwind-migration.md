@@ -82,3 +82,14 @@ Branch: fe-feat/ui-dark-mode · generated 2026-05-30
 - antd-deep overrides: 28 · prop-based: 11 · use theme tokens: 47
 
 **Recommended sequencing:** Tier 1 first (mechanical, low risk), then Tier 2 by area, Tier 3 last (each its own PR, with visual QA). None blocks dark mode.
+
+## Migration status
+
+- Tier 1: 15/16 migrated. Still skipped: `CustomTreeComponent/assets/styles.ts`
+  (`::before` tree-connector pseudo-elements).
+- Tier 2: 27/28 migrated. The 4 previously-skipped var-gated files (SetupTracingModal,
+  NewEvaluation, auth, DeploymentCard styles) are now migrated — this required adding 5 missing
+  `--ag-*` token vars (`colorBgContainerDisabled`, `colorInfoBg`, `controlItemBgActive`,
+  `colorError`, `colorErrorBorder`) plus a var-backed `boxShadowTertiary` (`shadow-tertiary`).
+  Still skipped: `app-management/assets/styles.ts` (prop-driven non-token pair).
+- Tier 3: not started (10 files) — each warrants its own PR with per-file visual QA.

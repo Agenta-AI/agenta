@@ -5,8 +5,12 @@ import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
-import {useStyles} from "./assets/styles"
 import type {NewEvaluationModalGenericProps} from "./types"
+
+const modalContainerClass =
+    "overflow-y-hidden [&>div]:h-full [&_.ant-modal-content]:h-full [&_.ant-modal-content]:flex " +
+    "[&_.ant-modal-content]:flex-col [&_.ant-modal-body]:overflow-y-auto [&_.ant-modal-body]:flex-1 " +
+    "[&_.ant-modal-body]:py-4"
 
 const NewEvaluationModalInner = dynamic(() => import("./Components/NewEvaluationModalInner"), {
     ssr: false,
@@ -27,7 +31,6 @@ const NewEvaluationModal = <Preview extends boolean = true>({
     preSelectedAppId,
     ...props
 }: NewEvaluationModalGenericProps<Preview>) => {
-    const classes = useStyles()
     const [submitLoading, setSubmitLoading] = useState(false)
 
     const handleSubmitStateChange = useCallback((loading: boolean) => {
@@ -48,7 +51,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             okText="Start Evaluation"
             maskClosable={false}
             width={1200}
-            className={classes.modalContainer}
+            className={modalContainerClass}
             confirmLoading={submitLoading}
             okButtonProps={{"data-tour": "run-eval-confirm"}}
             closeIcon={

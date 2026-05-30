@@ -6,7 +6,11 @@ import {Button, ModalProps, Typography} from "antd"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
-import {useStyles} from "@/oss/components/pages/app-management/modals/SetupTracingModal/assets/styles"
+import {
+    modalBodyClass,
+    modalContainerClass,
+    modalHeaderClass,
+} from "@/oss/components/pages/app-management/modals/SetupTracingModal"
 import {TracingCodeComponent} from "@/oss/components/pages/app-management/modals/SetupTracingModal/components/TracingCodeComponent"
 
 const {Text, Title} = Typography
@@ -70,18 +74,12 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())`
 
-const SetupEvaluationModalContent = ({
-    classes,
-    onCancel,
-}: {
-    classes: ReturnType<typeof useStyles>
-    onCancel: ModalProps["onCancel"]
-}) => {
+const SetupEvaluationModalContent = ({onCancel}: {onCancel: ModalProps["onCancel"]}) => {
     const [apiKeyValue, setApiKeyValue] = useState("")
 
     return (
         <div className="h-full flex flex-col">
-            <div className={classes.modalHeader}>
+            <div className={modalHeaderClass}>
                 <Button
                     onClick={() => onCancel?.({} as any)}
                     type="text"
@@ -106,7 +104,7 @@ const SetupEvaluationModalContent = ({
                     </Button>
                 </div>
             </div>
-            <div className={classes.modalBody}>
+            <div className={modalBodyClass}>
                 <div className="flex flex-col gap-1 mb-4">
                     <Title style={{margin: 0}}>Evaluate from SDK</Title>
                     <Text>
@@ -138,13 +136,11 @@ const SetupEvaluationModalContent = ({
 }
 
 const SetupEvaluationModal = (props: ModalProps) => {
-    const classes = useStyles()
-
     return (
         <EnhancedModal
             footer={null}
             title={null}
-            className={classes.modalContainer}
+            className={modalContainerClass}
             width={720}
             closeIcon={null}
             styles={{
@@ -154,7 +150,7 @@ const SetupEvaluationModal = (props: ModalProps) => {
             }}
             {...props}
         >
-            <SetupEvaluationModalContent classes={classes} onCancel={props.onCancel} />
+            <SetupEvaluationModalContent onCancel={props.onCancel} />
         </EnhancedModal>
     )
 }

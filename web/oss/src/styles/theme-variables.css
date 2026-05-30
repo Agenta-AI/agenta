@@ -45,7 +45,15 @@
     --ag-colorWarning: #faad14;
     --ag-colorWarningText: #faad14;
     --ag-colorErrorText: #d61010;
+    --ag-colorError: #d61010;
+    --ag-colorErrorBorder: #ef9f9f;
+    --ag-colorBgContainerDisabled: rgba(5, 23, 41, 0.04);
+    --ag-colorInfoBg: #f5f7fa;
+    --ag-controlItemBgActive: #f5f7fa;
     --ag-colorWhite: #ffffff;
+    --ag-boxShadowTertiary:
+        0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02),
+        0 2px 4px 0 rgba(0, 0, 0, 0.02);
 
     /* zinc — brand monochrome ramp (light = antd-tailwind.json zinc) */
     --ag-zinc-1: #f5f7fa;
@@ -119,7 +127,13 @@
     --ag-colorWarning: var(--ant-color-warning);
     --ag-colorWarningText: var(--ant-color-warning-text);
     --ag-colorErrorText: var(--ant-color-error-text);
+    --ag-colorError: var(--ant-color-error);
+    --ag-colorErrorBorder: var(--ant-color-error-border);
+    --ag-colorBgContainerDisabled: var(--ant-color-bg-container-disabled);
+    --ag-colorInfoBg: var(--ant-color-info-bg);
+    --ag-controlItemBgActive: var(--ant-control-item-bg-active);
     --ag-colorWhite: var(--ant-color-white);
+    --ag-boxShadowTertiary: var(--ant-box-shadow-tertiary);
 
     /* zinc — role-inverted: low index = dark surface, high index = light text */
     --ag-zinc-1: var(--ant-color-bg-elevated);

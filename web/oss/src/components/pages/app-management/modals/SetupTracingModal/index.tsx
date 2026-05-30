@@ -10,9 +10,27 @@ import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {generateCodeBlocks} from "./assets/generateCodeBlocks"
-import {useStyles} from "./assets/styles"
 
-export {useStyles}
+export const modalContainerClass =
+    "[transition:width_0.3s_ease] [&>div]:h-full [&_.ant-modal-container]:p-0 " +
+    "[&_h1.ant-typography]:text-xl [&_h1.ant-typography]:leading-[1.4] [&_h1.ant-typography]:font-medium " +
+    "[&_span.ant-typography]:text-sm [&_span.ant-typography]:leading-[1.5714285714285714] " +
+    "[&_.ant-modal-content]:h-full [&_.ant-modal-content]:overflow-y-hidden [&_.ant-modal-content]:rounded-2xl " +
+    "[&_.ant-modal-content]:p-0 [&_.ant-modal-body]:h-full"
+
+export const modalHeaderClass =
+    "flex items-center gap-3 py-4 px-6 [border-bottom:1px_solid_var(--ag-colorBorderSecondary)] " +
+    "[&_.ant-typography]:flex-1 [&_.ant-typography]:text-sm [&_.ant-typography]:leading-[1.5714285714285714] " +
+    "[&_.ant-typography]:font-medium"
+
+export const modalBodyClass =
+    "flex flex-col h-full overflow-y-auto gap-3 py-3 px-6 [&_.ant-tabs-tab-btn]:flex " +
+    "[&_.ant-tabs-tab-btn]:items-center [&_.ant-tabs-tab-btn]:gap-0 [&_.ant-tabs-tab-icon]:flex " +
+    "[&_.ant-tabs-tab-icon]:mr-0 [&_.ant-tabs-tab]:p-0 [&_.ant-tabs-tab]:mr-0"
+
+const tabsClass =
+    "h-full overflow-y-auto [&_.ant-tabs-tab-btn]:mb-3 [&_.ant-tabs-content-holder]:h-full " +
+    "[&_.ant-tabs-content-holder]:overflow-y-auto"
 
 const TracingTabContent = dynamic(
     () => import("./components/TracingTabContent").then((m) => m.TracingTabContent),
@@ -24,12 +42,10 @@ const TracingTabContent = dynamic(
 const {Text, Title} = Typography
 
 export const SetupTracingModalContent = ({
-    classes,
     isModal = true,
     isPostLogin = false,
     ...props
 }: {
-    classes: any
     isModal?: boolean
     onCancel: ModalProps["onCancel"]
     isPostLogin?: boolean
@@ -130,7 +146,7 @@ export const SetupTracingModalContent = ({
     return (
         <div className="h-full flex flex-col">
             {isModal && (
-                <div className={classes.modalHeader}>
+                <div className={modalHeaderClass}>
                     <Button
                         onClick={() => props.onCancel?.({} as any)}
                         type="text"
@@ -156,7 +172,7 @@ export const SetupTracingModalContent = ({
                     </div>
                 </div>
             )}
-            <div className={classes.modalBody}>
+            <div className={modalBodyClass}>
                 <div className={clsx("flex flex-col gap-1", isPostLogin && "mb-8")}>
                     <div className="flex justify-between items-center">
                         <Title style={{margin: 0}}>Setup Tracing</Title>
@@ -183,20 +199,18 @@ export const SetupTracingModalContent = ({
                         Debug effectively, bootstrap testsets, monitor and compare app versions
                     </Text>
                 </div>
-                <Tabs defaultActiveKey="openai" items={items} className={classes.tabs} />
+                <Tabs defaultActiveKey="openai" items={items} className={tabsClass} />
             </div>
         </div>
     )
 }
 
 const SetupTracingModal = (props: ModalProps) => {
-    const classes = useStyles()
-
     return (
         <EnhancedModal
             footer={null}
             title={null}
-            className={classes.modalContainer}
+            className={modalContainerClass}
             width={720}
             closeIcon={null}
             styles={{
@@ -206,7 +220,7 @@ const SetupTracingModal = (props: ModalProps) => {
             }}
             {...props}
         >
-            <SetupTracingModalContent classes={classes} onCancel={props.onCancel} />
+            <SetupTracingModalContent onCancel={props.onCancel} />
         </EnhancedModal>
     )
 }

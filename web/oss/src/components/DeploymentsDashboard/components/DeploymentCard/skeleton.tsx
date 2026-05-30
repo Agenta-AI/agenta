@@ -1,7 +1,7 @@
 import {EnvironmentTag, environmentColors} from "@agenta/ui"
 import {Card, Skeleton, Space, Typography} from "antd"
 
-import {useDeploymentCardStyles} from "./styles"
+import {deploymentCardClass} from "./styles"
 
 export const DEPLOYMENT_SKELETON_ENVIRONMENTS = ["Development", "Staging", "Production"]
 
@@ -11,13 +11,12 @@ interface DeploymentCardSkeletonProps {
 }
 
 const DeploymentCardSkeleton = ({envName, isSelected}: DeploymentCardSkeletonProps) => {
-    const classes = useDeploymentCardStyles()
     const borderColor =
         environmentColors[envName.toLowerCase() as keyof typeof environmentColors]?.textColor
 
     return (
         <Card
-            className={classes.deploymentCard}
+            className={deploymentCardClass}
             style={{
                 borderColor: isSelected ? borderColor : undefined,
                 // @ts-ignore -- custom CSS variable consumed in styles

@@ -79,6 +79,11 @@ const themeAwareColors = {
     colorWarning: v("colorWarning"),
     colorWarningText: v("colorWarningText"),
     colorErrorText: v("colorErrorText"),
+    colorError: v("colorError"),
+    colorErrorBorder: v("colorErrorBorder"),
+    colorBgContainerDisabled: v("colorBgContainerDisabled"),
+    colorInfoBg: v("colorInfoBg"),
+    controlItemBgActive: v("controlItemBgActive"),
     colorWhite: v("colorWhite"),
 }
 
@@ -172,6 +177,8 @@ export const createConfig = (content: string[] = []): Config => {
                     },
                 },
                 boxShadow: {
+                    // theme-aware (var-backed, flips under .dark)
+                    tertiary: "var(--ag-boxShadowTertiary)",
                     // light
                     "tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
                     "tremor-card": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
