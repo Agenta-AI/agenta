@@ -71,7 +71,7 @@ async def test_retrieve_workflow_revision_direct_builds_retrieval_info():
     assert retrieval_info.references["workflow"].id == artifact_id
     assert retrieval_info.references["workflow_variant"].id == variant_id
     assert retrieval_info.references["workflow_revision"].id == revision_id
-    assert retrieval_info.key is None
+    assert retrieval_info.selector is None
 
 
 @pytest.mark.asyncio
@@ -142,7 +142,7 @@ async def test_retrieve_workflow_revision_env_backed_merges_env_references():
         retrieval_info.references["environment_revision"].id == environment_revision_id
     )
     assert retrieval_info.references["workflow_revision"].id == revision_id
-    assert retrieval_info.key == "demo.revision"
+    assert retrieval_info.selector == {"key": "demo.revision"}
 
 
 @pytest.mark.asyncio

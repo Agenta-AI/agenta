@@ -354,6 +354,15 @@ class instrument:  # pylint: disable=invalid-name
                     name=f"ag.refs.{k}", value=str(v), context=otel_ctx
                 )
 
+        # Propagate the selector key alongside the references so downstream
+        # spans record which environment slot selected the resolved revision.
+        if context.selector and context.selector.get("key") is not None:
+            otel_ctx = set_baggage(
+                name="ag.selector.key",
+                value=str(context.selector["key"]),
+                context=otel_ctx,
+            )
+
         # Attach once so we can reliably detach later.
         return attach(otel_ctx)
 

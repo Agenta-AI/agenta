@@ -32,6 +32,7 @@ def testset_fixture(authed_api):
                 "testset_id": tid,
                 "testset_variant_id": vid,
                 "message": "Initial",
+                "data": {"testcases": []},
             }
         },
     )
@@ -72,4 +73,4 @@ class TestTestsetRetrievalInfo:
         assert refs["testset"]["id"] == testset_fixture["testset_id"]
         assert refs["testset_variant"]["id"] == testset_fixture["variant_id"]
         assert refs["testset_revision"]["id"] == testset_fixture["revision_id"]
-        assert info.get("key") is None
+        assert info.get("selector") is None

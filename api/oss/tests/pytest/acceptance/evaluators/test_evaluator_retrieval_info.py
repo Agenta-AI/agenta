@@ -68,7 +68,7 @@ class TestEvaluatorRetrievalInfo:
         assert refs["evaluator"]["id"] == evaluator_fixture["evaluator_id"]
         assert refs["evaluator_variant"]["id"] == evaluator_fixture["variant_id"]
         assert refs["evaluator_revision"]["id"] == evaluator_fixture["revision_id"]
-        assert info.get("key") is None
+        assert info.get("selector") is None
 
     def test_resolve_retrieve_emits_retrieval_info(self, authed_api, evaluator_fixture):
         r = authed_api(
@@ -218,7 +218,7 @@ class TestEvaluatorRetrievalInfoEnvBacked:
         assert refs["evaluator"]["id"] == f["evaluator_id"]
         assert refs["evaluator_variant"]["id"] == f["variant_id"]
         assert refs["evaluator_revision"]["id"] == f["revision_id"]
-        assert info["key"] == f["selector_key"]
+        assert info["selector"] == {"key": f["selector_key"]}
 
     def test_env_backed_retrieve_missing_key_returns_404(
         self, authed_api, env_backed_evaluator_fixture

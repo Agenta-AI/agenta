@@ -78,7 +78,7 @@ class TestEnvironmentRetrievalInfo:
         assert refs["environment"]["id"] == environment_fixture["environment_id"]
         assert refs["environment_variant"]["id"] == environment_fixture["variant_id"]
         assert refs["environment_revision"]["id"] == environment_fixture["revision_id"]
-        assert info.get("key") is None
+        assert info.get("selector") is None
 
     def test_resolve_retrieve_emits_retrieval_info(
         self, authed_api, environment_fixture

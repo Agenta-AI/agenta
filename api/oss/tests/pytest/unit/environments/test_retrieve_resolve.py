@@ -56,7 +56,7 @@ async def test_retrieve_environment_revision_builds_retrieval_info():
     assert retrieval_info.references["environment_variant"].id == variant_id
     assert retrieval_info.references["environment_revision"].id == revision_id
     assert retrieval_info.references["environment_revision"].version == "3"
-    assert retrieval_info.key is None
+    assert retrieval_info.selector is None
 
 
 @pytest.mark.asyncio

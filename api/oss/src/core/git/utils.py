@@ -84,4 +84,7 @@ def build_retrieval_info(
     )
     if not references and not selector_key:
         return None
-    return RetrievalInfo(references=references, key=selector_key)
+
+    selector = {"key": selector_key} if selector_key else None
+
+    return RetrievalInfo(references=references, selector=selector)

@@ -68,7 +68,7 @@ async def test_retrieve_application_revision_direct_builds_retrieval_info():
     assert retrieval_info.references["application"].id == artifact_id
     assert retrieval_info.references["application_variant"].id == variant_id
     assert retrieval_info.references["application_revision"].id == revision_id
-    assert retrieval_info.key is None
+    assert retrieval_info.selector is None
 
 
 @pytest.mark.asyncio
@@ -138,7 +138,7 @@ async def test_retrieve_application_revision_env_backed_merges_env_references():
     assert retrieval_info is not None
     assert retrieval_info.references["environment"].id == environment_id
     assert retrieval_info.references["application_revision"].id == revision_id
-    assert retrieval_info.key == "demo-app.revision"
+    assert retrieval_info.selector == {"key": "demo-app.revision"}
 
 
 @pytest.mark.asyncio

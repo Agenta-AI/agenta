@@ -65,7 +65,7 @@ def test_build_retrieval_info_with_selector_key_only_returns_info():
         selector_key="demo.revision",
     )
     assert info is not None
-    assert info.key == "demo.revision"
+    assert info.selector == {"key": "demo.revision"}
     assert info.references == {}
 
 
@@ -84,7 +84,7 @@ def test_build_retrieval_info_direct_emits_typed_refs():
     )
 
     assert info is not None
-    assert info.key is None
+    assert info.selector is None
     assert info.references["workflow"].id == artifact_id
     assert info.references["workflow_variant"].id == variant_id
     assert info.references["workflow_revision"].id == revision_id
@@ -114,7 +114,7 @@ def test_build_retrieval_info_merges_environment_references():
     )
 
     assert info is not None
-    assert info.key == "demo.revision"
+    assert info.selector == {"key": "demo.revision"}
     # Environment refs preserved
     assert info.references["environment"].id == environment_id
     assert info.references["environment_revision"].id == environment_revision_id
