@@ -6,41 +6,39 @@ export interface ReferenceToneColors {
     border: string
 }
 
-// Backed by antd preset-palette CSS variables (emitted via ConfigProvider's
-// cssVar mode). Each tone uses {text: -7, background: -1, border: -3}, so the
-// chips adapt to light/dark automatically — antd swaps the palette under the
-// active algorithm. (Previously bespoke Untitled-UI hex that stayed light in
-// dark mode.)
+// Backed by per-tone CSS variables (see styles/theme-variables.css): light =
+// the exact original Untitled-UI hex (unchanged), dark = the matching antd
+// preset. So reference chips are light-lossless yet adapt automatically in dark.
 const REFERENCE_TONE_COLORS: Record<ReferenceTone, ReferenceToneColors> = {
     app: {
-        text: "var(--ant-blue-7)",
-        background: "var(--ant-blue-1)",
-        border: "var(--ant-blue-3)",
+        text: "var(--ag-ref-app-text)",
+        background: "var(--ag-ref-app-bg)",
+        border: "var(--ag-ref-app-border)",
     },
     variant: {
-        text: "var(--ant-green-7)",
-        background: "var(--ant-green-1)",
-        border: "var(--ant-green-3)",
+        text: "var(--ag-ref-variant-text)",
+        background: "var(--ag-ref-variant-bg)",
+        border: "var(--ag-ref-variant-border)",
     },
     testset: {
-        text: "var(--ant-purple-7)",
-        background: "var(--ant-purple-1)",
-        border: "var(--ant-purple-3)",
+        text: "var(--ag-ref-testset-text)",
+        background: "var(--ag-ref-testset-bg)",
+        border: "var(--ag-ref-testset-border)",
     },
     query: {
-        text: "var(--ant-volcano-7)",
-        background: "var(--ant-volcano-1)",
-        border: "var(--ant-volcano-3)",
+        text: "var(--ag-ref-query-text)",
+        background: "var(--ag-ref-query-bg)",
+        border: "var(--ag-ref-query-border)",
     },
     evaluator: {
-        text: "var(--ant-magenta-7)",
-        background: "var(--ant-magenta-1)",
-        border: "var(--ant-magenta-3)",
+        text: "var(--ag-ref-evaluator-text)",
+        background: "var(--ag-ref-evaluator-bg)",
+        border: "var(--ag-ref-evaluator-border)",
     },
     environment: {
-        text: "var(--ant-cyan-7)",
-        background: "var(--ant-cyan-1)",
-        border: "var(--ant-cyan-3)",
+        text: "var(--ag-ref-environment-text)",
+        background: "var(--ag-ref-environment-bg)",
+        border: "var(--ag-ref-environment-border)",
     },
 }
 

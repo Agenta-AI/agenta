@@ -326,3 +326,47 @@
     --ag-c-C7D7FE: #2e3f63;
     --ag-c-1D3A8A: #8fb4ff;
 }
+
+/* Reference-tag tones — light = exact Untitled-UI hex (unchanged), dark = the
+   matching antd preset so the chips stay light-lossless yet adapt in dark.
+   Per-tone (not per-hex) because some light hexes are shared across tones. */
+:root {
+    --ag-ref-app-text: #175cd3;
+    --ag-ref-app-bg: #eff8ff;
+    --ag-ref-app-border: #b2ddff;
+    --ag-ref-variant-text: #027a48;
+    --ag-ref-variant-bg: #ecfdf3;
+    --ag-ref-variant-border: #abefc6;
+    --ag-ref-testset-text: #5925dc;
+    --ag-ref-testset-bg: #f4ebff;
+    --ag-ref-testset-border: #d6bbfb;
+    --ag-ref-query-text: #b93815;
+    --ag-ref-query-bg: #fef6ee;
+    --ag-ref-query-border: #f9dbaf;
+    --ag-ref-evaluator-text: #c01048;
+    --ag-ref-evaluator-bg: #fff1f3;
+    --ag-ref-evaluator-border: #fcceee;
+    --ag-ref-environment-text: #0f766e;
+    --ag-ref-environment-bg: #ecfdf3;
+    --ag-ref-environment-border: #99f6e4;
+}
+.dark {
+    --ag-ref-app-text: var(--ant-blue-7);
+    --ag-ref-app-bg: var(--ant-blue-1);
+    --ag-ref-app-border: var(--ant-blue-3);
+    --ag-ref-variant-text: var(--ant-green-7);
+    --ag-ref-variant-bg: var(--ant-green-1);
+    --ag-ref-variant-border: var(--ant-green-3);
+    --ag-ref-testset-text: var(--ant-purple-7);
+    --ag-ref-testset-bg: var(--ant-purple-1);
+    --ag-ref-testset-border: var(--ant-purple-3);
+    --ag-ref-query-text: var(--ant-volcano-7);
+    --ag-ref-query-bg: var(--ant-volcano-1);
+    --ag-ref-query-border: var(--ant-volcano-3);
+    --ag-ref-evaluator-text: var(--ant-magenta-7);
+    --ag-ref-evaluator-bg: var(--ant-magenta-1);
+    --ag-ref-evaluator-border: var(--ant-magenta-3);
+    --ag-ref-environment-text: var(--ant-cyan-7);
+    --ag-ref-environment-bg: var(--ant-cyan-1);
+    --ag-ref-environment-border: var(--ant-cyan-3);
+}

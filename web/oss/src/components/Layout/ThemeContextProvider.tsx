@@ -52,14 +52,30 @@ const isColorValue = (val: unknown): boolean =>
 const stripColors = <T extends Record<string, unknown>>(obj: T): Partial<T> =>
     Object.fromEntries(Object.entries(obj).filter(([, val]) => !isColorValue(val))) as Partial<T>
 
-// Brand seed for dark mode: the light brand primary (#1c2c3d navy) is invisible on
-// dark surfaces, so the primary accent becomes the Agenta brand yellow (logo color).
-const DARK_PRIMARY = "#f2f25c"
-const darkSeed = {
-    colorPrimary: DARK_PRIMARY,
+// ============================================================================
+// DARK THEME TUNING — single source of truth for the dark color schema.
+//
+// antd's `darkAlgorithm` computes the full dark token set; we only override the
+// tokens below. Because cssVar mode is on (see themeConfig) and our Tailwind/CSS
+// layer aliases antd's `--ant-*` tokens (see styles/theme-variables.css), editing
+// a value here flows app-wide — antd components AND Tailwind/CSS/JSS colors.
+//
+// To fine-tune the dark palette, change or uncomment a token below. Light mode is
+// unaffected (it uses antd-themeConfig.json + defaultAlgorithm).
+// ============================================================================
+const DARK_TOKEN_OVERRIDES = {
+    // Brand accent — the light navy primary (#1c2c3d) is invisible on dark, so the
+    // accent becomes the Agenta brand yellow (logo color).
+    colorPrimary: "#f2f25c",
     colorSuccess: "#52c41a",
     colorWarning: "#faad14",
     colorError: "#ff4d4f",
+    // Surfaces / text / border come from darkAlgorithm by default. Uncomment to tune:
+    // colorBgContainer: "#141414",
+    // colorBgElevated: "#1f1f1f",
+    // colorBgLayout: "#000000",
+    // colorText: "rgba(255, 255, 255, 0.85)",
+    // colorBorder: "#424242",
 }
 // On a bright yellow primary, antd's default light-solid (#fff) label is unreadable —
 // force dark text on primary-colored buttons in dark mode.
@@ -120,7 +136,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 token: {
                     ...baseToken,
                     ...stripColors(antdTokens.token),
-                    ...darkSeed,
+                    ...DARK_TOKEN_OVERRIDES,
                 },
                 components: darkComponents,
             }

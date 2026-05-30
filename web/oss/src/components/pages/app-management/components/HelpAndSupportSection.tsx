@@ -17,6 +17,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         border: `1px solid ${theme.colorBorderSecondary}`,
         borderRadius: theme.borderRadius,
         padding: theme.paddingSM,
+        // These cards are <a> tags; without an explicit color the text + icons
+        // inherit antd's colorLink (blue in dark). Use neutral text color so the
+        // cards read as content, not links.
+        color: theme.colorText,
         "& span.ant-typography": {
             overflow: "hidden",
             textOverflow: "ellipsis",
