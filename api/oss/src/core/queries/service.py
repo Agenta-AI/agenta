@@ -885,6 +885,8 @@ class QueriesService:
         user_id: UUID,
         #
         query_revision_commit: QueryRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[QueryRevision]:
         if not query_revision_commit.slug:
             query_revision_commit.slug = uuid4().hex[-12:]
@@ -917,6 +919,8 @@ class QueriesService:
             user_id=user_id,
             #
             revision_commit=_revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:
@@ -1053,7 +1057,7 @@ class SimpleQueriesService:
         # ----------------------------------------------------------------------
         placeholder_revision_slug = uuid4().hex[-12:]
 
-        _query_revision_create = QueryRevisionCreate(
+        _query_revision_commit = QueryRevisionCommit(
             slug=placeholder_revision_slug,
             #
             name=simple_query_create.name,
@@ -1063,15 +1067,19 @@ class SimpleQueriesService:
             tags=simple_query_create.tags,
             meta=simple_query_create.meta,
             #
+            data=None,
+            #
+            message="Initial commit",
+            #
             query_id=query.id,
             query_variant_id=query_variant.id,
         )
 
-        placeholder_revision = await self.queries_service.create_query_revision(
+        placeholder_revision = await self.queries_service.commit_query_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            query_revision_create=_query_revision_create,
+            query_revision_commit=_query_revision_commit,
         )
 
         if placeholder_revision is None:

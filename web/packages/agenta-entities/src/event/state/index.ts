@@ -4,6 +4,8 @@ export {
     eventTypeFilterAtom,
     requestTypeFilterAtom,
     requestIdFilterAtom,
+    eventIdFilterAtom,
+    eventTimestampRangeFilterAtom,
     eventFilters,
 } from "./paginatedStore"
 

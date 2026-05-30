@@ -16,6 +16,7 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.environments.dtos import (
     EnvironmentFlags,
     EnvironmentEdit,
+    EnvironmentRevisionCommit,
     EnvironmentRevisionData,
     #
     SimpleEnvironment,
@@ -846,6 +847,7 @@ class EnvironmentsRouter:
         return environment_revision_resolve_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_environment_revision(
         self,
         request: Request,
@@ -860,11 +862,19 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revision = await self.environments_service.create_environment_revision(
+        environment_revision = await self.environments_service.commit_environment_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            environment_revision_create=environment_revision_create_request.environment_revision,
+            environment_revision_commit=EnvironmentRevisionCommit(
+                **environment_revision_create_request.environment_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         return EnvironmentRevisionResponse(

@@ -969,17 +969,19 @@ class TestsetsRouter:
     # TESTSET REVISIONS --------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_testset_revision(
         self,
         request: Request,
         *,
         testset_revision_create_request: TestsetRevisionCreateRequest,
     ) -> TestsetRevisionResponse:
-        """Create a new revision on an existing variant.
+        """Create and commit the initial revision for a testset variant.
 
-        Creates a revision row without committing content. Most callers
-        instead use `/testsets/revisions/commit`, which writes the
-        testcases and the revision together.
+        Most callers instead use `/testsets/revisions/commit`, which writes
+        the testcases and the revision together. This endpoint commits an
+        initial revision with the `initial` guard, preventing duplicate
+        initial revisions for the same variant.
         """
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -989,12 +991,20 @@ class TestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        testset_revision = await self.testsets_service.create_testset_revision(
+        testset_revision = await self.testsets_service.commit_testset_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            testset_revision_create=testset_revision_create_request.testset_revision,
+            testset_revision_commit=TestsetRevisionCommit(
+                **testset_revision_create_request.testset_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
             include_testcases=testset_revision_create_request.include_testcases,
+            #
+            initial=True,
         )
 
         testset_revision_response = TestsetRevisionResponse(

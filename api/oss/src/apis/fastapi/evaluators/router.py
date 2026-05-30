@@ -15,6 +15,7 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
+    EvaluatorRevisionCommit,
     EvaluatorRevisionData,
     #
     SimpleEvaluatorQuery,
@@ -1398,7 +1399,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="retrieve",
             revision=evaluator_revision_response.evaluator_revision,
             count=evaluator_revision_response.count,
@@ -1407,17 +1408,18 @@ class EvaluatorsRouter:
         return evaluator_revision_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_evaluator_revision(
         self,
         request: Request,
         *,
         evaluator_revision_create_request: EvaluatorRevisionCreateRequest,
     ) -> EvaluatorRevisionResponse:
-        """Create a new revision on an evaluator variant.
+        """Create and commit the initial revision for an evaluator variant.
 
         Prefer `/evaluators/revisions/commit` for the standard commit
-        flow. This endpoint exists for internal create paths that need
-        to insert a revision without the commit semantics.
+        flow. This endpoint commits an initial revision with the `initial`
+        guard, preventing duplicate initial revisions for the same variant.
         """
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1427,11 +1429,19 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        evaluator_revision = await self.evaluators_service.create_evaluator_revision(
+        evaluator_revision = await self.evaluators_service.commit_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_revision_create=evaluator_revision_create_request.evaluator_revision,
+            evaluator_revision_commit=EvaluatorRevisionCommit(
+                **evaluator_revision_create_request.evaluator_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         return EvaluatorRevisionResponse(
@@ -1475,7 +1485,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="fetch",
             revision=response.evaluator_revision,
             count=response.count,
@@ -1644,7 +1654,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="query",
             revisions=response.evaluator_revisions or [],
             count=response.count,
@@ -1723,7 +1733,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="log",
             revisions=revisions_response.evaluator_revisions or [],
             count=revisions_response.count,

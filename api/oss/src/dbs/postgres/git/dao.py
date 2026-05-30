@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.core.git.types import is_identifying
+from oss.src.core.git.types import is_identifying, InitialRevisionConflict
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import VariantForkError
@@ -1548,7 +1548,7 @@ class GitDAO(GitDAOInterface):
 
     # --------------------------------------------------------------------------
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[InitialRevisionConflict])
     async def commit_revision(
         self,
         *,
@@ -1556,6 +1556,8 @@ class GitDAO(GitDAOInterface):
         user_id: UUID,
         #
         revision_commit: RevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[Revision]:
         now = datetime.now(timezone.utc)
         revision = Revision(
@@ -1590,8 +1592,32 @@ class GitDAO(GitDAOInterface):
 
         try:
             async with engine.core_session() as session:
-                session.add(revision_dbe)
+                if initial and revision_commit.variant_id:
+                    # Lock the variant row so concurrent initial commits queue up rather
+                    # than racing through the count check below.
+                    await session.execute(
+                        select(self.VariantDBE)  # type: ignore
+                        .where(
+                            self.VariantDBE.project_id == project_id,  # type: ignore
+                            self.VariantDBE.id == revision_commit.variant_id,  # type: ignore
+                        )
+                        .with_for_update()
+                    )
+                    guard_stmt = (
+                        select(func.count())  # pylint: disable=not-callable
+                        .select_from(self.RevisionDBE)  # type: ignore
+                        .where(
+                            self.RevisionDBE.project_id == project_id,  # type: ignore
+                            self.RevisionDBE.variant_id == revision_commit.variant_id,  # type: ignore
+                        )
+                    )
+                    guard_result = await session.execute(guard_stmt)
+                    if guard_result.scalar_one() > 0:
+                        raise InitialRevisionConflict(
+                            "An initial revision already exists for this variant."
+                        )
 
+                session.add(revision_dbe)
                 await session.commit()
 
                 await session.refresh(
