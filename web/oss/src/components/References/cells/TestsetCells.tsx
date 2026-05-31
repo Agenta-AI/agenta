@@ -124,7 +124,7 @@ const PreviewTestsetCellContent = ({
         <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap">
             <span className="text-ellipsis overflow-hidden">{label}</span>
             {versionDisplay && (
-                <Tag className="bg-[rgba(5,23,41,0.06)]" variant="filled">
+                <Tag className="bg-[var(--ag-colorFillSecondary)]" variant="filled">
                     {versionDisplay}
                 </Tag>
             )}

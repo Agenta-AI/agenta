@@ -12,7 +12,7 @@ type CustomAntdTagProps = {
 
 const CustomAntdTag = ({value, className, ...props}: CustomAntdTagProps) => {
     return (
-        <Tag className={clsx([className, "bg-[rgba(5,23,41,0.06)]"])} {...props}>
+        <Tag className={clsx([className, "bg-[var(--ag-colorFillSecondary)]"])} {...props}>
             {getStringOrJson(value)}
         </Tag>
     )

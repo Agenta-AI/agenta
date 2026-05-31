@@ -76,7 +76,10 @@ export function createTestsetsColumns(
                                 {record.name}
                             </span>
                             {version !== null && version !== undefined && (
-                                <Tag className="bg-[rgba(5,23,41,0.06)] shrink-0" variant="filled">
+                                <Tag
+                                    className="bg-[var(--ag-colorFillSecondary)] shrink-0"
+                                    variant="filled"
+                                >
                                     v{version}
                                 </Tag>
                             )}

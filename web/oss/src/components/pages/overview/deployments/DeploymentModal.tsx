@@ -68,7 +68,7 @@ const DeploymentModal = ({
                 <div className="flex flex-col gap-4">
                     <div>
                         You are about to deploy {selectedVariant.name}{" "}
-                        <span className="bg-[rgba(5,23,41,0.06)] px-2 !text-xs">
+                        <span className="bg-[var(--ag-colorFillSecondary)] px-2 !text-xs">
                             {selectedVariant.version}
                         </span>{" "}
                         to {selectedEnvironment.name} environment. This will overwrite the existing
