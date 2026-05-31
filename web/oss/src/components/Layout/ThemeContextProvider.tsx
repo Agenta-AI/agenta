@@ -99,7 +99,7 @@ const darkComponents = {
 }
 
 const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
-    const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>("agenta-theme", ThemeMode.Light)
+    const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>("agenta-theme", ThemeMode.System)
     const [appTheme, setAppTheme] = useState<ThemeType>(getAppTheme(themeMode))
 
     useEffect(() => {
