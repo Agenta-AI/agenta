@@ -3,6 +3,7 @@ import {TraceSpanNode} from "@/oss/services/tracing/types"
 type TraceSpanNodeWithRawViewFields = TraceSpanNode & {
     spans?: unknown
     aggregatedEvaluatorMetrics?: unknown
+    annotations?: unknown
 }
 
 export const getRawTraceSpanData = (span: TraceSpanNode) => {
@@ -12,6 +13,7 @@ export const getRawTraceSpanData = (span: TraceSpanNode) => {
         key: _key,
         invocationIds: _invocationIds,
         aggregatedEvaluatorMetrics: _aggregatedEvaluatorMetrics,
+        annotations: _annotations,
         ...rawSpan
     } = span as TraceSpanNodeWithRawViewFields
 
