@@ -89,10 +89,21 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
         evaluationKind: EvaluationRunKind
     } | null>(null)
 
-    const activeTab = useMemo<AppTabKey>(() => {
+    // `kindParam` comes from the in-flight route's query, which Next updates at
+    // `routeChangeStart` — before this page unmounts. Navigating away drops the
+    // `kind` param, which would snap the active tab back to "all" (a visible tab
+    // flip) and cascade into a type-filter change that reloads the runs table.
+    // Freeze the tab while a navigation that leaves /evaluations is in flight;
+    // same-page tab switches keep "/evaluations" in the URL, so they still update.
+    const rawTab = useMemo<AppTabKey>(() => {
         const value = Array.isArray(kindParam) ? kindParam[0] : kindParam
         return (value as AppTabKey) ?? "all"
     }, [kindParam])
+    const navigatingAwayRef = useRef(false)
+    const [activeTab, setActiveTab] = useState<AppTabKey>(rawTab)
+    useEffect(() => {
+        if (!navigatingAwayRef.current) setActiveTab(rawTab)
+    }, [rawTab])
 
     useEffect(() => {
         if (activeTab === displayedTab || isPending) return
@@ -138,12 +149,18 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
 
     useEffect(() => {
         const handleStart = (url: string) => {
-            if (!url.includes("/evaluations")) {
+            const leaving = !url.includes("/evaluations")
+            // Set the ref synchronously so the `activeTab` freeze sees it before
+            // the query snapshot (and `rawTab`) update in the same navigation.
+            navigatingAwayRef.current = leaving
+            if (leaving) {
                 setIsNavigatingAway(true)
             }
         }
         const handleFinish = (url: string) => {
-            setIsNavigatingAway(!url?.includes?.("/evaluations"))
+            const leaving = !url?.includes?.("/evaluations")
+            navigatingAwayRef.current = leaving
+            setIsNavigatingAway(leaving)
         }
         router.events.on("routeChangeStart", handleStart)
         router.events.on("routeChangeComplete", handleFinish)
