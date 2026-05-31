@@ -438,3 +438,13 @@
     --ag-c-B91C1C: #ff7875;
     --ag-c-F87171: #a8353a;
 }
+
+/* Sidebar chrome surface — light = #fff (unchanged, was --ag-c-FFFFFF), dark =
+   one step darker than the content surface (#141414) so the nav rail recedes
+   and reads as distinct chrome instead of merging into a single flat panel. */
+:root {
+    --ag-sidebar-bg: #ffffff;
+}
+.dark {
+    --ag-sidebar-bg: #0d0d0d;
+}
