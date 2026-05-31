@@ -578,7 +578,7 @@ const MetricPopoverContent = ({
         ) : null
 
     return (
-        <div className="flex w-[320px] max-w-[360px] flex-col gap-4 rounded-2xl bg-[var(--ag-c-FFFFFF)] p-4 text-xs text-colorTextSecondary">
+        <div className="flex w-[320px] max-w-[360px] flex-col gap-4 rounded-2xl bg-[var(--ag-colorBgElevated)] p-4 text-xs text-colorTextSecondary">
             <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-colorText">
