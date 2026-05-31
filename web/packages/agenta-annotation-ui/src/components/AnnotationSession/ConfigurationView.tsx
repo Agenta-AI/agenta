@@ -465,8 +465,8 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                                     className="!m-0"
                                                     bordered={false}
                                                     style={{
-                                                        backgroundColor: "#F2F4F7",
-                                                        color: "#475467",
+                                                        backgroundColor: "var(--ag-c-F2F4F7)",
+                                                        color: "var(--ag-c-475467)",
                                                     }}
                                                 >
                                                     Optional

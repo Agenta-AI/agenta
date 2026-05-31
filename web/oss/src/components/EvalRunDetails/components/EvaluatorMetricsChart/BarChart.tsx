@@ -215,7 +215,7 @@ const BarChart = ({
                                                     style={{
                                                         flex: 1,
                                                         fontSize: 12,
-                                                        color: "#475467",
+                                                        color: "var(--ag-c-475467)",
                                                     }}
                                                 >
                                                     {entryLabel}

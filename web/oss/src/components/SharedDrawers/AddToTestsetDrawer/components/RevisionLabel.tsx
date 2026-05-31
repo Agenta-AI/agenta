@@ -52,7 +52,7 @@ export function buildSelectedRevisionLabel(
             <span
                 style={{
                     padding: "2px 6px",
-                    backgroundColor: "#f0f0f0",
+                    backgroundColor: "var(--ag-c-F0F0F0)",
                     borderRadius: 4,
                     fontSize: 12,
                     fontWeight: 500,

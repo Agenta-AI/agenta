@@ -525,6 +525,22 @@
     --ag-rgba-fff-78: rgba(20, 20, 20, 0.82);
 }
 
+/* Compare-runs status-row tints (inline-styled in CompareRunsMenu). Light =
+   exact pastel hex; dark = matching antd preset bg so the status rows stay
+   tinted instead of bright. */
+:root {
+    --ag-c-ECFDF3: #ecfdf3;
+    --ag-c-FEF3F2: #fef3f2;
+    --ag-c-EFF8FF: #eff8ff;
+    --ag-c-FFFAEB: #fffaeb;
+}
+.dark {
+    --ag-c-ECFDF3: var(--ant-green-1);
+    --ag-c-FEF3F2: var(--ant-red-1);
+    --ag-c-EFF8FF: var(--ant-blue-1);
+    --ag-c-FFFAEB: var(--ant-gold-1);
+}
+
 /* Tailwind neutral/slate scales — unlike gray/zinc/ag-gray these weren't
    theme-aware, so text-neutral and bg-slate utilities stayed fixed and broke on
    dark. Light = the exact Tailwind v3 hex (unchanged); dark = the same

@@ -404,11 +404,11 @@ type StatusTone = "success" | "error" | "processing" | "warning" | "default"
 type StatusFilterOption = StatusTone | "all" | "other"
 
 const STATUS_COLOR_MAP: Record<StatusTone, {background: string; text: string}> = {
-    success: {background: "#ECFDF3", text: "#027A48"},
-    error: {background: "#FEF3F2", text: "#B42318"},
-    processing: {background: "#EFF8FF", text: "#175CD3"},
-    warning: {background: "#FFFAEB", text: "#B54708"},
-    default: {background: "#F2F4F7", text: "#344054"},
+    success: {background: "var(--ag-c-ECFDF3)", text: "#027A48"},
+    error: {background: "var(--ag-c-FEF3F2)", text: "#B42318"},
+    processing: {background: "var(--ag-c-EFF8FF)", text: "#175CD3"},
+    warning: {background: "var(--ag-c-FFFAEB)", text: "#B54708"},
+    default: {background: "var(--ag-c-F2F4F7)", text: "#344054"},
 }
 
 const normalizeStatusLabel = (value: string) =>
