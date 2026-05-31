@@ -90,6 +90,27 @@ const DARK_TOKEN_OVERRIDES = {
     colorLink: "#58a6ff",
     colorLinkHover: "#79b8ff",
     colorLinkActive: "#3b8eea",
+    // Overlay elevation. antd's default drop-shadows are invisible on a dark
+    // surface, so popovers/dropdowns/selects/tooltips/modals blended into the
+    // page with no depth. Lead every elevation shadow with a 1px light ring
+    // (the visible "edge" on dark) plus deeper drops for depth. These tokens are
+    // the shared root for ALL antd overlays: boxShadowSecondary drives
+    // Popover/Dropdown/Select/Tooltip/Cascader/DatePicker/Menu popups, boxShadow
+    // drives Modal/Drawer, boxShadowTertiary drives smaller raised surfaces.
+    // The 1px light ring is the visible "edge" on dark (black drops alone are
+    // imperceptible against #141414). 8% white was too faint to register against
+    // the barely-elevated overlay surface, so overlays read as flat/blended —
+    // lead with a stronger hairline ring so every popup has a defined floating edge.
+    boxShadow:
+        "0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
+    boxShadowSecondary:
+        "0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
+    boxShadowTertiary:
+        "0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 1px 6px -1px rgba(0, 0, 0, 0.20), 0 2px 4px 0 rgba(0, 0, 0, 0.20)",
+    // Lift the overlay surface a touch more above the page so popups read as a
+    // distinct layer, not just a ring (container is ~#141414; default elevated
+    // ~#1f1f1f is only marginally lighter).
+    colorBgElevated: "#242424",
     // Surfaces / text / border come from darkAlgorithm by default. Uncomment to tune:
     // colorBgContainer: "#141414",
     // colorBgElevated: "#1f1f1f",
