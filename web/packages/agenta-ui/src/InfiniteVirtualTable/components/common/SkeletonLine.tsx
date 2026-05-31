@@ -12,7 +12,7 @@ interface SkeletonLineProps {
 }
 
 const SkeletonLine = memo(({width = "60%", center = true}: SkeletonLineProps) => {
-    const bar = <div className="h-3 rounded bg-neutral-200/80 animate-pulse" style={{width}} />
+    const bar = <div className="h-3 rounded bg-neutral-200 animate-pulse" style={{width}} />
     return center ? <div className="flex h-full items-center">{bar}</div> : bar
 })
 

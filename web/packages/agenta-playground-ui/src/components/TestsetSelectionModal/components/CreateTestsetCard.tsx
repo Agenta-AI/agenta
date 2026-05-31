@@ -11,7 +11,7 @@ export interface CreateTestsetCardProps {
 
 export function CreateTestsetCard({onFileUpload, onBuildInUI}: CreateTestsetCardProps) {
     return (
-        <div className="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/70 px-3 py-3 flex flex-col gap-3">
+        <div className="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3 flex flex-col gap-3">
             <Typography.Text className="font-medium">Create a new testset</Typography.Text>
             <Upload.Dragger
                 accept=".csv,.json"

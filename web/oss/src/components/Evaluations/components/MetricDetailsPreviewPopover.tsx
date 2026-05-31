@@ -94,9 +94,9 @@ const Section = ({title, children}: {title: string; children: ReactNode}) => (
 
 const DistributionSkeleton = () => (
     <div className="flex flex-col gap-3">
-        <div className="h-3 w-24 rounded-full bg-neutral-200/80 animate-pulse" />
+        <div className="h-3 w-24 rounded-full bg-neutral-200 animate-pulse" />
         <div className="relative h-[160px] w-full overflow-hidden rounded-2xl border border-colorBorderSecondary bg-neutral-50">
-            <div className="h-full w-full animate-pulse bg-gradient-to-r from-neutral-100 via-neutral-200/80 to-neutral-100" />
+            <div className="h-full w-full animate-pulse bg-gradient-to-r from-neutral-100 via-neutral-200 to-neutral-100" />
         </div>
     </div>
 )
@@ -592,7 +592,7 @@ const MetricPopoverContent = ({
                 <>
                     {showScenarioValue ? (
                         <Section title="Scenario value">
-                            <div className="h-3 w-3/4 rounded-full bg-neutral-200/70 animate-pulse" />
+                            <div className="h-3 w-3/4 rounded-full bg-neutral-200 animate-pulse" />
                         </Section>
                     ) : null}
                     <Section title="Distribution">

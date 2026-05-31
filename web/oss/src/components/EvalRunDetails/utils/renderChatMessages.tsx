@@ -140,7 +140,7 @@ export function renderChatMessages({
                         </div>
                     ) : null}
                     {showDivider ? (
-                        <div className="h-px w-full bg-slate-200/90 dark:bg-slate-700/60 rounded-full" />
+                        <div className="h-px w-full bg-slate-200 dark:bg-slate-700 rounded-full" />
                     ) : null}
                 </section>
             )
@@ -286,7 +286,7 @@ export function renderChatMessages({
                 )}
 
                 {showDivider ? (
-                    <div className="h-px w-full bg-slate-200/90 dark:bg-slate-700/60 rounded-full" />
+                    <div className="h-px w-full bg-slate-200 dark:bg-slate-700 rounded-full" />
                 ) : null}
             </section>
         )
