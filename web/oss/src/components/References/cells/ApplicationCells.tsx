@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {SkeletonLine} from "@agenta/ui/table"
 import {getDefaultStore, useAtomValue} from "jotai"
 
 import {
@@ -11,7 +12,6 @@ import {
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 

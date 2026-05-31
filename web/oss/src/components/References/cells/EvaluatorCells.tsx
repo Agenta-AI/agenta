@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {SkeletonLine} from "@agenta/ui/table"
+
 import {
     useRunRowReferences,
     useRunRowSummary,
@@ -7,7 +9,6 @@ import {
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {humanizeEvaluatorName} from "@/oss/lib/evaluations/utils/metrics"
 
 import useEvaluatorReference from "../hooks/useEvaluatorReference"
