@@ -261,11 +261,13 @@
 
 .dark {
     --ag-c-051729: #229eff;
-    --ag-c-05172905: rgba(5, 23, 41, 0.02);
-    --ag-c-0517290A: rgba(5, 23, 41, 0.039);
-    --ag-c-0517290F: rgba(5, 23, 41, 0.059);
-    --ag-c-05172916: rgba(5, 23, 41, 0.086);
-    --ag-c-0517291A: rgba(5, 23, 41, 0.102);
+    /* navy-alpha fills: invert to white-alpha so they're visible on dark
+       (the codemod left these as navy, i.e. invisible — e.g. evaluator Tags chips) */
+    --ag-c-05172905: rgba(255, 255, 255, 0.04);
+    --ag-c-0517290A: rgba(255, 255, 255, 0.06);
+    --ag-c-0517290F: rgba(255, 255, 255, 0.08);
+    --ag-c-05172916: rgba(255, 255, 255, 0.1);
+    --ag-c-0517291A: rgba(255, 255, 255, 0.12);
     --ag-c-0A2540: #2a9cff;
     --ag-c-0B1F3F: var(--ant-color-text);
     --ag-c-101828: var(--ant-color-text);
