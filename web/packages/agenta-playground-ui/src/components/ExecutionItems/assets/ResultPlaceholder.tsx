@@ -21,7 +21,7 @@ export const ClickRunPlaceholder: FC<{className?: string; variant?: "block" | "i
         return (
             <div
                 className={clsx(
-                    "rounded-md bg-[var(--ag-c-FAFAFA)] text-gray-600 border border-solid border-[rgba(5,23,41,0.06)] px-2 py-1 text-[12px] leading-4",
+                    "rounded-md bg-[var(--ag-c-FAFAFA)] text-gray-600 border border-solid border-[var(--ag-rgba-051729-06)] px-2 py-1 text-[12px] leading-4",
                     className,
                 )}
             >

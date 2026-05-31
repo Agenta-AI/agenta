@@ -278,12 +278,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         >
                                             {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
                                             <span className="flex-1">{displayName}</span>
-                                            <span className="text-[rgba(0,0,0,0.45)] text-xs">
+                                            <span className="text-[var(--ag-rgba-000-45)] text-xs">
                                                 {group.options.length}
                                             </span>
                                             <CaretRight
                                                 size={12}
-                                                className="text-[rgba(0,0,0,0.45)]"
+                                                className="text-[var(--ag-rgba-000-45)]"
                                             />
                                         </div>
                                     </Popover>

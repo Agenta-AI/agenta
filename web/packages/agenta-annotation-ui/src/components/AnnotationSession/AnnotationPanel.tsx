@@ -210,7 +210,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
     }, [evaluators, metrics, handleFieldChange])
 
     const panelHeader = (
-        <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+        <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
             <div className="flex items-center gap-1">
                 <Typography.Text className="font-medium">Annotations</Typography.Text>
                 {queueDescription && (
@@ -330,7 +330,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
 
             {/* Mark completed button (drawer mode) */}
             {showMarkComplete && (
-                <div className="shrink-0 border-0 border-t border-solid border-[rgba(5,23,41,0.06)] px-3 py-3">
+                <div className="shrink-0 border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] px-3 py-3">
                     <Button
                         type="primary"
                         block

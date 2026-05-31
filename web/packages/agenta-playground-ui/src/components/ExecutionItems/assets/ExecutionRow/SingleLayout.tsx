@@ -907,7 +907,7 @@ const SingleView = ({
                     <div
                         className={clsx([
                             "w-full flex flex-col gap-3 pb-2 relative group/output",
-                            "border-0 border-t border-solid border-[rgba(5,23,41,0.06)] pt-3",
+                            "border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] pt-3",
                         ])}
                     >
                         {/* Primary node */}

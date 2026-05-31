@@ -88,9 +88,9 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
     return (
         <div className="flex h-full min-h-0 flex-1">
             {/* Left Panel - Instructions */}
-            <div className="flex min-h-0 w-1/2 flex-col border-r border-[rgba(5,23,41,0.06)]">
+            <div className="flex min-h-0 w-1/2 flex-col border-r border-[var(--ag-rgba-051729-06)]">
                 {/* Left Header */}
-                <div className="border-b border-[rgba(5,23,41,0.06)] px-4 py-3">
+                <div className="border-b border-[var(--ag-rgba-051729-06)] px-4 py-3">
                     <Typography.Text strong className="text-[13px]">
                         Instructions
                     </Typography.Text>
@@ -112,7 +112,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
             {/* Right Panel - Preview */}
             <div className="flex min-h-0 w-1/2 flex-col">
                 {/* Right Header */}
-                <div className="flex items-center justify-between border-b border-[rgba(5,23,41,0.06)] px-4 py-3">
+                <div className="flex items-center justify-between border-b border-[var(--ag-rgba-051729-06)] px-4 py-3">
                     <Typography.Text strong className="text-[13px]">
                         Refine prompt
                     </Typography.Text>
@@ -154,7 +154,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                 </div>
 
                 {/* Right Footer */}
-                <div className="flex items-center justify-end gap-2 border-t border-[rgba(5,23,41,0.06)] px-4 py-3">
+                <div className="flex items-center justify-end gap-2 border-t border-[var(--ag-rgba-051729-06)] px-4 py-3">
                     <Button size="small" type="text" onClick={onClose}>
                         Cancel
                     </Button>

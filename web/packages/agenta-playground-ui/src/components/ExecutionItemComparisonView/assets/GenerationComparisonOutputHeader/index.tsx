@@ -28,7 +28,7 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
             )}
         >
             <Typography>{data?.name ?? null}</Typography>
-            <Tag color="default" variant="filled" className="bg-[rgba(5,23,41,0.06)]">
+            <Tag color="default" variant="filled" className="bg-[var(--ag-rgba-051729-06)]">
                 {label}
             </Tag>
         </div>

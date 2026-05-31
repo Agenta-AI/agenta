@@ -124,7 +124,7 @@ const SharedEditor = ({
                     "border-[var(--ag-c-BDC7D1)]": editorType === "border",
                     "hover:border-[var(--ag-c-394857)] focus:border-[var(--ag-c-BDC7D1)]":
                         editorType === "border",
-                    "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
+                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
                     "hover:border-[394857] focus:border-[394857]":
                         state === "filled" && editorType === "border",
@@ -132,7 +132,7 @@ const SharedEditor = ({
                 {
                     "border-[transparent] hover:!border-[var(--ag-c-BDC7D1)] focus:border-[var(--ag-c-BDC7D1)]":
                         editorType === "borderless",
-                    "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
+                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "borderless",
                     "hover:border-[transparent] focus:border-[transparent]":
                         state === "filled" && editorType === "borderless",

@@ -175,7 +175,7 @@ const EvaluatorCard = ({
         <Form layout="vertical" requiredMark={false}>
             <SectionCard className="!gap-0 !p-0 overflow-hidden">
                 <div
-                    className="flex h-10 items-center justify-between gap-2 bg-[rgba(5,23,41,0.02)] px-3"
+                    className="flex h-10 items-center justify-between gap-2 bg-[var(--ag-rgba-051729-02)] px-3"
                     style={{
                         borderBottom:
                             "var(--Components-Collapse-Global-lineWidth, 1px) solid var(--Colors-Neutral-Border-colorSplit, rgba(5, 23, 41, 0.06))",

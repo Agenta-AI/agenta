@@ -138,7 +138,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
             {/* Conversation area */}
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
                 {!hasContent ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-[rgba(5,23,41,0.45)]">
+                    <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-[var(--ag-rgba-051729-45)]">
                         <div>
                             <p className="mb-1 text-[12px]">
                                 Describe how you want to refine your prompt
@@ -165,7 +165,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
 
                 {/* Loading indicator */}
                 {isLoading ? (
-                    <div className="mt-3 flex items-center gap-2 text-[rgba(5,23,41,0.45)]">
+                    <div className="mt-3 flex items-center gap-2 text-[var(--ag-rgba-051729-45)]">
                         <Spin size="small" />
                         <span className="text-[11px]">Refining prompt…</span>
                     </div>
@@ -173,7 +173,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
             </div>
 
             {/* Predefined prompts + Sender input */}
-            <div className="border-t border-[rgba(5,23,41,0.06)] px-3 pb-3 pt-2">
+            <div className="border-t border-[var(--ag-rgba-051729-06)] px-3 pb-3 pt-2">
                 {/* Predefined prompts */}
                 <div className="mb-2">
                     <Prompts

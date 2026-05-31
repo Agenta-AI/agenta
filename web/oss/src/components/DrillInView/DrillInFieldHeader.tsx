@@ -221,14 +221,14 @@ function ViewModeDropdown({
         label: (
             <div
                 className={`flex min-h-[34px] items-center justify-between gap-4 rounded-lg px-3.5 py-1.5 ${
-                    option.value === value ? "bg-[rgba(5,23,41,0.04)]" : ""
+                    option.value === value ? "bg-[var(--ag-rgba-051729-04)]" : ""
                 }`}
             >
                 <span className="text-[13px] font-medium text-[var(--ag-c-051729)]">
                     {option.label}
                 </span>
                 {option.value === value ? (
-                    <span className="text-[11px] text-[rgba(5,23,41,0.55)]">default</span>
+                    <span className="text-[11px] text-[var(--ag-rgba-051729-55)]">default</span>
                 ) : null}
             </div>
         ),
@@ -243,13 +243,13 @@ function ViewModeDropdown({
             overlayClassName="[&_.ant-dropdown-menu]:min-w-[220px] [&_.ant-dropdown-menu]:rounded-xl [&_.ant-dropdown-menu]:p-2.5 [&_.ant-dropdown-menu]:shadow-[0_12px_32px_rgba(5,23,41,0.16)]"
         >
             <Button type="text" size="small" className="inline-flex items-center gap-1 px-2 h-6">
-                <span className="text-[12px] text-[rgba(5,23,41,0.55)]">
+                <span className="text-[12px] text-[var(--ag-rgba-051729-55)]">
                     View as{" "}
                     <span className="font-semibold text-[var(--ag-c-051729)]">
                         {selectedOption?.label ?? value}
                     </span>
                 </span>
-                <CaretDown size={12} className="text-[rgba(5,23,41,0.55)]" />
+                <CaretDown size={12} className="text-[var(--ag-rgba-051729-55)]" />
             </Button>
         </Dropdown>
     )
@@ -302,7 +302,7 @@ const DrillInFieldHeader = memo(
         const showCopyButton = alwaysShowCopy || isCollapsed || expandable
 
         return (
-            <div className="drill-in-field-header flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
+            <div className="drill-in-field-header flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[var(--ag-rgba-051729-06)]">
                 <div className="flex items-center gap-2">
                     {showCollapseToggle ? (
                         <>

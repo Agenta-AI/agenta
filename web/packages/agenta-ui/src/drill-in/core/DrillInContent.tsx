@@ -538,7 +538,7 @@ export function DrillInContent({
     const outerWrapperClass = isFlatVariant ? "flex flex-col" : "flex flex-col gap-2"
     const fieldsWrapperClass = isFlatVariant ? "flex flex-col" : "flex flex-col gap-2"
     const fieldWrapperClass = isFlatVariant
-        ? "flex flex-col border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
+        ? "flex flex-col border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
         : "flex flex-col gap-2"
     const fieldBodyClass = isFlatVariant ? "px-4 pb-2 pt-2" : "px-4 pt-2"
 

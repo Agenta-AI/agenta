@@ -395,7 +395,7 @@ const SharedEditor = ({
                     "border-[var(--ag-c-BDC7D1)]": editorType === "border",
                     "hover:border-[var(--ag-c-394857)] focus:border-[var(--ag-c-BDC7D1)]":
                         editorType === "border",
-                    "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
+                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
                     "hover:border-[394857] focus:border-[394857]":
                         state === "filled" && editorType === "border",
@@ -403,7 +403,7 @@ const SharedEditor = ({
                 {
                     "border-[transparent] hover:!border-[var(--ag-c-BDC7D1)] focus:border-[var(--ag-c-BDC7D1)]":
                         editorType === "borderless",
-                    "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
+                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "borderless",
                     "hover:border-[transparent] focus:border-[transparent]":
                         state === "filled" && editorType === "borderless",
@@ -456,9 +456,9 @@ const SharedEditor = ({
             {header}
 
             {isHandlingLargePaste ? (
-                <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-[rgba(255,255,255,0.78)] backdrop-blur-[1px]">
+                <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-[var(--ag-rgba-fff-78)] backdrop-blur-[1px]">
                     <Spin size="small" />
-                    <span className="text-[13px] text-[rgba(5,23,41,0.72)]">
+                    <span className="text-[13px] text-[var(--ag-rgba-051729-72)]">
                         Pasting large content…
                     </span>
                 </div>

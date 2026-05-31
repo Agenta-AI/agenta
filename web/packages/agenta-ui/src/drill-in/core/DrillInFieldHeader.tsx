@@ -418,11 +418,11 @@ const DrillInFieldHeader = memo(
         // Whole header is a click target for collapse — gives users a generous
         // hit area instead of the small caret icon.
         const headerInteractive = shouldShowCollapse
-            ? "cursor-pointer hover:bg-[rgba(5,23,41,0.04)] transition-colors"
+            ? "cursor-pointer hover:bg-[var(--ag-rgba-051729-04)] transition-colors"
             : ""
         const headerClassName = isFlat
             ? `flex items-center justify-between py-1 px-3 bg-[var(--ag-c-FFFFFF)] ${headerInteractive}`
-            : `flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)] ${headerInteractive}`
+            : `flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[var(--ag-rgba-051729-06)] ${headerInteractive}`
 
         // Mapping popover content
         const mappingContent = onMapToColumn && (
@@ -482,7 +482,7 @@ const DrillInFieldHeader = memo(
                         </span>
                     ) : null}
                     {itemCount ? (
-                        <span className="text-xs text-[rgba(5,23,41,0.45)]">{itemCount}</span>
+                        <span className="text-xs text-[var(--ag-rgba-051729-45)]">{itemCount}</span>
                     ) : null}
                 </div>
                 {/* Right-side controls stop click bubbling so they don't toggle collapse */}

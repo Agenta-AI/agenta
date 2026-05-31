@@ -484,3 +484,43 @@
     --ag-cmp-tint-3: rgba(16, 185, 129, 0.14);
     --ag-cmp-tint-4: rgba(236, 72, 153, 0.14);
 }
+
+/* Arbitrary rgba() Tailwind classes the hex codemod couldn't reach (it only
+   handled [#hex], not [rgba(...)]). Light = the exact original rgba (unchanged);
+   dark = the same alpha on white (fills/borders → subtle light overlay; text →
+   light text), so navy/black-on-white chrome inverts to white-on-dark instead of
+   staying dark-on-dark. Routed via sed: [rgba(...)] -> [var(--ag-rgba-...)]. */
+:root {
+    --ag-rgba-051729-02: rgba(5, 23, 41, 0.02);
+    --ag-rgba-051729-04: rgba(5, 23, 41, 0.04);
+    --ag-rgba-051729-06: rgba(5, 23, 41, 0.06);
+    --ag-rgba-051729-08: rgba(5, 23, 41, 0.08);
+    --ag-rgba-051729-10: rgba(5, 23, 41, 0.1);
+    --ag-rgba-051729-14: rgba(5, 23, 41, 0.14);
+    --ag-rgba-051729-18: rgba(5, 23, 41, 0.18);
+    --ag-rgba-051729-45: rgba(5, 23, 41, 0.45);
+    --ag-rgba-051729-55: rgba(5, 23, 41, 0.55);
+    --ag-rgba-051729-65: rgba(5, 23, 41, 0.65);
+    --ag-rgba-051729-72: rgba(5, 23, 41, 0.72);
+    --ag-rgba-000-02: rgba(0, 0, 0, 0.02);
+    --ag-rgba-000-06: rgba(0, 0, 0, 0.06);
+    --ag-rgba-000-45: rgba(0, 0, 0, 0.45);
+    --ag-rgba-fff-78: rgba(255, 255, 255, 0.78);
+}
+.dark {
+    --ag-rgba-051729-02: rgba(255, 255, 255, 0.04);
+    --ag-rgba-051729-04: rgba(255, 255, 255, 0.06);
+    --ag-rgba-051729-06: rgba(255, 255, 255, 0.08);
+    --ag-rgba-051729-08: rgba(255, 255, 255, 0.1);
+    --ag-rgba-051729-10: rgba(255, 255, 255, 0.12);
+    --ag-rgba-051729-14: rgba(255, 255, 255, 0.16);
+    --ag-rgba-051729-18: rgba(255, 255, 255, 0.2);
+    --ag-rgba-051729-45: rgba(255, 255, 255, 0.45);
+    --ag-rgba-051729-55: rgba(255, 255, 255, 0.6);
+    --ag-rgba-051729-65: rgba(255, 255, 255, 0.7);
+    --ag-rgba-051729-72: rgba(255, 255, 255, 0.78);
+    --ag-rgba-000-02: rgba(255, 255, 255, 0.04);
+    --ag-rgba-000-06: rgba(255, 255, 255, 0.08);
+    --ag-rgba-000-45: rgba(255, 255, 255, 0.45);
+    --ag-rgba-fff-78: rgba(20, 20, 20, 0.82);
+}

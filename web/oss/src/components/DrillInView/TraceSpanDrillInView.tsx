@@ -468,7 +468,7 @@ export const TraceSpanDrillInView = memo(
             return (
                 <div className="rounded-md overflow-hidden bg-[var(--ag-c-FFFFFF)]">
                     <div
-                        className={`drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FFFFFF)] border border-solid border-[rgba(5,23,41,0.06)] ${allowSpanCollapse ? "cursor-pointer" : ""}`}
+                        className={`drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FFFFFF)] border border-solid border-[var(--ag-rgba-051729-06)] ${allowSpanCollapse ? "cursor-pointer" : ""}`}
                         onClick={allowSpanCollapse ? toggleCollapsed : undefined}
                     >
                         <div className="flex items-center gap-2 text-gray-700 font-medium min-h-[16px]">
@@ -511,7 +511,7 @@ export const TraceSpanDrillInView = memo(
                     {(!allowSpanCollapse || !isCollapsed) && (
                         <div className="relative overflow-hidden">
                             {isSearchOpen && isCodeMode && (
-                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[rgba(5,23,41,0.14)] bg-[var(--ag-c-FFFFFF)] px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
+                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[var(--ag-rgba-051729-14)] bg-[var(--ag-c-FFFFFF)] px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
                                     <Input
                                         className="w-[180px] min-w-[80px]"
                                         placeholder="Search..."

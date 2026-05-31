@@ -76,7 +76,7 @@ const EvaluatorPlaygroundHeader: React.FC<EvaluatorPlaygroundHeaderProps> = ({
     const hasAppSelected = nodes.some((n) => n.depth === 0 && n.entityId !== evaluatorEntityId)
 
     return (
-        <div className="flex items-center justify-between gap-4 px-2.5 py-2 bg-[rgba(0,0,0,0.02)] border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+        <div className="flex items-center justify-between gap-4 px-2.5 py-2 bg-[var(--ag-rgba-000-02)] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
             <div className="flex shrink-0 items-center gap-2 pl-2">
                 <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
                     {evaluatorName}

@@ -236,14 +236,14 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
                     </div>
 
                     {/* Annotation panel */}
-                    <div className="w-full md:w-[300px] lg:w-[400px] xl:w-[450px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-[var(--ag-c-FFFFFF)] flex flex-col">
+                    <div className="w-full md:w-[300px] lg:w-[400px] xl:w-[450px] shrink-0 border border-solid border-[var(--ag-rgba-051729-06)] rounded-lg overflow-hidden bg-[var(--ag-c-FFFFFF)] flex flex-col">
                         <AnnotationPanel scenarioId={currentScenarioId ?? ""} />
                     </div>
                 </div>
             </div>
 
             {/* Footer navigation bar */}
-            <div className="shrink-0 bg-[var(--ag-c-FFFFFF)] border-0 border-t border-solid border-[rgba(5,23,41,0.06)] px-4 h-[55px] flex items-center">
+            <div className="shrink-0 bg-[var(--ag-c-FFFFFF)] border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] px-4 h-[55px] flex items-center">
                 <SessionNavigation
                     scenarioId={currentScenarioId ?? ""}
                     queueId={queueId}

@@ -738,7 +738,7 @@ const FocusSectionHeader = ({
         <div
             className={clsx(
                 "flex items-center justify-between py-1 px-3 h-10 sticky top-0 bg-zinc-1 z-20 cursor-pointer",
-                "border-b border-b-[rgba(5,23,41,0.06)]",
+                "border-b border-b-[var(--ag-rgba-051729-06)]",
             )}
             style={{borderBottomStyle: "solid"}}
             role="button"
