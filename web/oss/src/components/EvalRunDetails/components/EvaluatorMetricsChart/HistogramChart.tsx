@@ -123,8 +123,8 @@ const HistogramChart = ({
                         }}
                         cursor={false}
                         contentStyle={{
-                            backgroundColor: "white",
-                            border: "1px solid #d9d9d9",
+                            backgroundColor: "var(--ag-colorBgElevated)",
+                            border: "1px solid var(--ag-colorBorderSecondary)",
                             borderRadius: "4px",
                             padding: "4px 8px",
                             fontSize: 12,

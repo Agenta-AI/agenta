@@ -14,12 +14,15 @@ export const MAX_COMPARISON_RUNS = 4
  * - solid: Full color for charts, badges, accents
  * - tint: Light background color for table rows
  */
+// `tint` routes through CSS vars (see theme-variables.css --ag-cmp-tint-*) so the
+// light pastel row backgrounds become a subtle dark wash in dark mode instead of
+// bright light bands. `solid` colors work on either theme as-is.
 export const RUN_COMPARISON_PALETTE = [
-    {solid: "#3B82F6", tint: "#EFF6FF"}, // Blue
-    {solid: "#F97316", tint: "#FFF7ED"}, // Orange
-    {solid: "#8B5CF6", tint: "#F5F3FF"}, // Purple
-    {solid: "#10B981", tint: "#ECFDF5"}, // Green
-    {solid: "#EC4899", tint: "#FDF2F8"}, // Pink
+    {solid: "#3B82F6", tint: "var(--ag-cmp-tint-0)"}, // Blue
+    {solid: "#F97316", tint: "var(--ag-cmp-tint-1)"}, // Orange
+    {solid: "#8B5CF6", tint: "var(--ag-cmp-tint-2)"}, // Purple
+    {solid: "#10B981", tint: "var(--ag-cmp-tint-3)"}, // Green
+    {solid: "#EC4899", tint: "var(--ag-cmp-tint-4)"}, // Pink
 ]
 
 /** Light background colors for table row distinction */

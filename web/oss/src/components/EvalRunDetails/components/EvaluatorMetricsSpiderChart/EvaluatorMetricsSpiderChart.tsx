@@ -177,6 +177,11 @@ const EvaluatorMetricsSpiderChart = ({
                     />
                     <PolarRadiusAxis angle={30} domain={[0, 100]} axisLine={false} tick={false} />
                     <Tooltip
+                        contentStyle={{
+                            backgroundColor: "var(--ag-colorBgElevated)",
+                            border: "1px solid var(--ag-colorBorderSecondary)",
+                            borderRadius: 8,
+                        }}
                         labelStyle={{color: "var(--ag-colorText)"}}
                         formatter={(val: any, name: any, payload: any) => {
                             try {
