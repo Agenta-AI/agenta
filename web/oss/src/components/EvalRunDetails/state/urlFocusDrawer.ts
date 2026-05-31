@@ -102,6 +102,9 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
             compareMode: currentState.compareMode,
             testcaseId: currentState.testcaseId,
             scenarioIndex: currentState.scenarioIndex,
+            // Not URL-serialized — preserve the in-memory ids across shallow
+            // route changes so compare outputs survive a router callback.
+            compareScenarioIds: currentState.compareScenarioIds,
         }
 
         const alreadyOpen =
@@ -158,6 +161,7 @@ export const patchFocusDrawerQueryParams = (target: FocusTarget) => {
             compareMode: target.compareMode,
             testcaseId: target.testcaseId,
             scenarioIndex: target.scenarioIndex,
+            compareScenarioIds: target.compareScenarioIds,
         }
         store.set(applyFocusDrawerStateAtom, {
             ...nextTarget,
