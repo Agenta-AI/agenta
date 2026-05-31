@@ -421,3 +421,20 @@
     --ag-env-development-bg: var(--ant-purple-1);
     --ag-env-development-border: var(--ant-purple-3);
 }
+
+/* Editor variable-token chip tones — TokenNode.ts paints the placeholder chips
+   via inline JS style, so the hex codemod can't reach them. Define the missing
+   hexes here (the others — E2E8F0/1677FF/6B7280 — already have codemod vars).
+   Light = exact original hex; dark = adapted for a dark chip surface. */
+:root {
+    --ag-c-A855F7: #a855f7;
+    --ag-c-FEF2F2: #fef2f2;
+    --ag-c-B91C1C: #b91c1c;
+    --ag-c-F87171: #f87171;
+}
+.dark {
+    --ag-c-A855F7: #c084fc;
+    --ag-c-FEF2F2: #2a1215;
+    --ag-c-B91C1C: #ff7875;
+    --ag-c-F87171: #a8353a;
+}
