@@ -966,11 +966,12 @@ export class TestsetsClient {
     }
 
     /**
-     * Create a new revision on an existing variant.
+     * Create and commit the initial revision for a testset variant.
      *
-     * Creates a revision row without committing content. Most callers
-     * instead use `/testsets/revisions/commit`, which writes the
-     * testcases and the revision together.
+     * Most callers instead use `/testsets/revisions/commit`, which writes
+     * the testcases and the revision together. This endpoint commits an
+     * initial revision with the `initial` guard, preventing duplicate
+     * initial revisions for the same variant.
      *
      * @param {AgentaApi.TestsetRevisionCreateRequest} request
      * @param {TestsetsClient.RequestOptions} requestOptions - Request-specific configuration.

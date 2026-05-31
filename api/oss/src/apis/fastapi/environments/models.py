@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.environments.dtos import (
     Environment,
     EnvironmentCreate,
@@ -168,6 +169,7 @@ class EnvironmentRevisionResponse(BaseModel):
     count: int = 0
     environment_revision: Optional[EnvironmentRevision] = None
     resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
+    retrieval_info: Optional[RetrievalInfo] = None
 
 
 class EnvironmentRevisionsResponse(BaseModel):
@@ -223,3 +225,4 @@ class EnvironmentRevisionResolveResponse(BaseModel):
     count: int = 0
     environment_revision: Optional[EnvironmentRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
+    retrieval_info: Optional[RetrievalInfo] = None

@@ -78,6 +78,7 @@ from oss.src.core.evaluations.utils import (
     make_hash,
     select_traces_for_reuse,
 )
+from oss.src.core.git.utils import revision_references
 
 
 log = get_module_logger(__name__)
@@ -607,8 +608,17 @@ async def evaluate_live_query(
 
                     step_status = EvaluationStatus.SUCCESS
 
+                    evaluator_revision = evaluator_revisions[annotation_step_key]
+                    query_revision = query_revisions[query_step_key]
                     references: Dict[str, Any] = {
-                        **evaluator_references[annotation_step_key],
+                        **revision_references(
+                            revision=query_revision,
+                            entity_type="query",
+                        ),
+                        **revision_references(
+                            revision=evaluator_revision,
+                            entity_type="evaluator",
+                        ),
                     }
                     links: Dict[str, Any] = {
                         query_step_key: dict(
@@ -618,8 +628,6 @@ async def evaluate_live_query(
                     }
 
                     # invoke annotation workflow -------------------------------
-                    evaluator_revision = evaluator_revisions[annotation_step_key]
-
                     _revision = evaluator_revision.model_dump(
                         mode="json",
                         exclude_none=True,

@@ -7,11 +7,11 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface ApplicationRevisionRetrieveRequest {
-    /** Application reference. When only an application is supplied, the latest revision of its default variant is returned. */
+    /** Application artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the application's default variant. */
     application_ref?: AgentaApi.Reference | null;
-    /** Variant reference. Returns the latest revision on that variant. */
+    /** Application variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant. */
     application_variant_ref?: AgentaApi.Reference | null;
-    /** Revision reference. Returns that exact revision. */
+    /** Application revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `application_variant_ref`. Sending only `version` without a variant ref returns HTTP 400. */
     application_revision_ref?: AgentaApi.Reference | null;
     /** Environment reference. Returns the revision currently deployed to that environment under the given `key`. */
     environment_ref?: AgentaApi.Reference | null;

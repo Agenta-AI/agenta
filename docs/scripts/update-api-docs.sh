@@ -19,19 +19,21 @@ log() {
 usage() {
   cat <<'EOF'
 Usage:
-  update-api-docs.sh [--live] [--local] [--file FILE]
+  update-api-docs.sh [--live] [--local] [--file FILE] [--url URL]
 
 Modes (pick one):
   (default)  Fetch from https://cloud.agenta.ai/api/openapi.json
   --live     Fetch from https://cloud.agenta.ai/api/openapi.json
   --local    Fetch from http://localhost/api/openapi.json
   --file     Use an explicit local file path
+  --url      Fetch from an arbitrary URL
 
 Examples:
   ./docs/scripts/update-api-docs.sh
   ./docs/scripts/update-api-docs.sh --live
   ./docs/scripts/update-api-docs.sh --local
   ./docs/scripts/update-api-docs.sh --file /path/to/openapi.json
+  ./docs/scripts/update-api-docs.sh --url http://staging.example.com/api/openapi.json
 EOF
 }
 
@@ -50,6 +52,11 @@ while [[ $# -gt 0 ]]; do
     --file)
       OPENAPI_FILE="${2:-}"
       OPENAPI_URL=""
+      shift 2
+      ;;
+    --url)
+      OPENAPI_URL="${2:-}"
+      OPENAPI_FILE=""
       shift 2
       ;;
     -h|--help)

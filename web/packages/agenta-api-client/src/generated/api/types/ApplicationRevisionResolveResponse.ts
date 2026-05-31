@@ -12,4 +12,6 @@ export interface ApplicationRevisionResolveResponse {
     application_revision?: (AgentaApi.ApplicationRevision | null) | undefined;
     /** Diagnostic info about which references were resolved. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    /** References (artifact / variant / revision) actually used to retrieve this revision. */
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }
