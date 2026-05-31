@@ -517,6 +517,9 @@ const OnboardingWidgetContent = () => {
                 "fixed bottom-6 right-6 z-[900] w-[330px] max-w-[calc(100vw-32px)]",
                 "overflow-hidden rounded-xl bg-[var(--ag-c-FFFFFF)]",
                 "shadow-[0px_6px_16px_0px_rgba(0,0,0,0.08),0px_3px_6px_-4px_rgba(0,0,0,0.12),0px_9px_28px_8px_rgba(0,0,0,0.05)]",
+                // On dark the shadow is invisible, so the panel merges into the
+                // page — add a border to give it a defined floating edge.
+                "dark:border dark:border-solid dark:border-colorBorder",
             )}
         >
             <Collapse
