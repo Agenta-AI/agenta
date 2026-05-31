@@ -141,13 +141,16 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     }, [rawView])
     useEffect(() => {
         const onStart = (url: string) => {
-            navigatingAwayRef.current = !url.includes(runId)
+            navigatingAwayRef.current = typeof url === "string" && !url.includes(runId)
         }
-        const onSettle = (url: string) => {
+        // routeChangeComplete passes (url); routeChangeError passes (err, url) —
+        // so the first arg isn't always the URL string. Guard before calling
+        // string methods on it.
+        const onSettle = (urlOrErr: unknown) => {
             navigatingAwayRef.current = false
             // Adopt whatever the committed route asks for once navigation settles
             // (covers landing back on this run via a route with no `view` param).
-            if (url.includes(runId)) setActiveView(rawView)
+            if (typeof urlOrErr === "string" && urlOrErr.includes(runId)) setActiveView(rawView)
         }
         Router.events.on("routeChangeStart", onStart)
         Router.events.on("routeChangeComplete", onSettle)
