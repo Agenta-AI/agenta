@@ -14,11 +14,7 @@ import type {
 } from "../types"
 import {buildReferencePayload} from "../utils/referencePayload"
 
-import {
-    computeContextSignature,
-    evaluationRunsMetaContextSliceAtom,
-    evaluationRunsTableFetchEnabledAtom,
-} from "./context"
+import {computeContextSignature, evaluationRunsMetaContextSliceAtom} from "./context"
 import {fetchEvaluationRunsWindow} from "./fetchAutoEvaluationRuns"
 
 import type {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/index"
@@ -165,7 +161,6 @@ export const evaluationRunsTableMetaAtom = atom<
         const context = get(evaluationRunsMetaContextSliceAtom)
         const signature = computeContextSignature(context)
         const state = get(evaluationRunsMetaStateAtomFamily(signature))
-        const isEnabled = get(evaluationRunsTableFetchEnabledAtom)
         const refreshTrigger = get(evaluationRunsRefreshTriggerAtom)
 
         const previewFlags = state.previewFlags ?? context.derivedPreviewFlags
@@ -187,8 +182,14 @@ export const evaluationRunsTableMetaAtom = atom<
         const dateRange = state.dateRange ?? null
 
         const meta: EvaluationRunsTableMeta = {
-            projectId: isEnabled ? context.projectId : null,
-            appIds: isEnabled ? context.effectiveAppIds : [],
+            // Keep projectId/appIds stable regardless of the fetch-enabled flag.
+            // These are part of the query key; nulling them on `routeChangeStart`
+            // (when `setFetchEnabled(false)` fires while navigating away) switched
+            // react-query to a cold `projectId: null` cache entry, blanking the
+            // visible rows to skeletons mid-navigation. The query naturally pauses
+            // when the table unmounts; pausing via key mutation only caused the flash.
+            projectId: context.projectId,
+            appIds: context.effectiveAppIds,
             includePreview: context.includePreview,
             previewFlags,
             previewReferences,
