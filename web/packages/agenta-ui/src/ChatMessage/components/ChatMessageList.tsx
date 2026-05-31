@@ -12,17 +12,22 @@ import {
 } from "@agenta/shared/utils"
 import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
+import {useSetAtom} from "jotai"
 
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
+import {ViewModeDropdown} from "../../drill-in/core/ViewModeDropdown"
+import {getViewOptions, type ViewMode} from "../../drill-in/utils/getViewOptions"
+import {markdownViewAtom} from "../../Editor/state/assets/atoms"
 import {message, modal} from "../../utils/appMessageContext"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 import {createSnippetPdfAttachment} from "../utils/snippetAttachment"
 
 import AttachmentButton from "./AttachmentButton"
 import ChatMessageEditor from "./ChatMessageEditor"
-import MarkdownToggleButton from "./MarkdownToggleButton"
 import MessageAttachments from "./MessageAttachments"
 import ToolMessageHeader from "./ToolMessageHeader"
+
+type ChatViewMode = Extract<ViewMode, "text" | "markdown" | "json" | "yaml">
 
 const ChatMessageItem: React.FC<{
     msg: SimpleChatMessage
@@ -81,6 +86,9 @@ const ChatMessageItem: React.FC<{
     onToggleMinimize,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null)
+    const [viewMode, setViewMode] = useState<ChatViewMode>("text")
+    const isCodeMode = viewMode === "json" || viewMode === "yaml"
+    const editorLanguage: "json" | "yaml" = viewMode === "yaml" ? "yaml" : "json"
 
     const isToolResponse = msg.role === "tool"
     const hasToolCalls = Boolean(msg.tool_calls && msg.tool_calls.length > 0)
@@ -89,6 +97,21 @@ const ChatMessageItem: React.FC<{
         : extractTextFromContent(msg.content ?? null)
     const attachments = getAttachments(msg.content ?? null)
     const hasAttachmentsFlag = attachments.length > 0
+
+    // Mirror TurnMessageAdapter: sync Lexical's `markdownView` atom from the
+    // parent-owned viewMode so the editor's CSS class flips when the dropdown
+    // moves into/out of "markdown". The `key={editorId-viewMode}` on the
+    // editor remounts it on every switch so the markdown plugin re-evaluates
+    // on a fresh instance — no manual command dispatch needed.
+    const setMarkdownView = useSetAtom(markdownViewAtom(editorId))
+    useEffect(() => {
+        setMarkdownView(viewMode === "markdown")
+    }, [setMarkdownView, viewMode])
+
+    const viewOptions = useMemo(
+        () => getViewOptions(textContent) as {value: ChatViewMode; label: string}[],
+        [textContent],
+    )
 
     const handleCreateSnippetFromPaste = useCallback(
         ({
@@ -145,6 +168,7 @@ const ChatMessageItem: React.FC<{
         >
             <ChatMessageEditor
                 id={editorId}
+                key={`${editorId}-${viewMode}`}
                 role={msg.role}
                 text={textContent}
                 disabled={disabled}
@@ -152,7 +176,9 @@ const ChatMessageItem: React.FC<{
                 placeholder={placeholder}
                 onChangeRole={(role) => onRoleChange(index, role)}
                 onChangeText={(text) => onTextChange(index, text)}
-                enableTokens={enableTokens}
+                isJSON={isCodeMode}
+                language={editorLanguage}
+                enableTokens={enableTokens && !isCodeMode}
                 templateFormat={templateFormat}
                 tokens={tokens}
                 loadingFallback={loadingFallback}
@@ -173,7 +199,11 @@ const ChatMessageItem: React.FC<{
                             "invisible group-hover/item:visible",
                         )}
                     >
-                        <MarkdownToggleButton id={editorId} />
+                        <ViewModeDropdown<ChatViewMode>
+                            value={viewMode}
+                            options={viewOptions}
+                            onChange={setViewMode}
+                        />
                         {allowFileUpload && !disabled && (
                             <AttachmentButton
                                 onAddImage={(url) => onAddImage(index, url)}

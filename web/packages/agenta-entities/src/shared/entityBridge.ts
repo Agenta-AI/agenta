@@ -85,7 +85,11 @@ export interface BaseMolecule {
         update: OpaqueWritableAtom
         /** Discard entity draft */
         discard: OpaqueWritableAtom
-        [key: string]: OpaqueWritableAtom
+        // Molecules also expose non-atom helpers here (e.g. prefetchByIds:
+        // an async function, not a WritableAtom). The index signature accepts
+        // anything so the heterogeneous bag stays expressible without forcing
+        // every molecule into the OpaqueWritableAtom shape.
+        [key: string]: unknown
     }
 }
 

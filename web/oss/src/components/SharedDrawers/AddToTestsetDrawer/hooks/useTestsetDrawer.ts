@@ -9,6 +9,7 @@ import {getYamlOrJson} from "@/oss/lib/helpers/utils"
 import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {projectIdAtom} from "@/oss/state/project"
 
+import {getColumnNameForTraceMappingPath} from "../assets/chatTestsetMapping"
 import {createMappingId, Mapping, TestsetColumn, TestsetTraceData} from "../assets/types"
 import {onCascaderChangeAtom} from "../atoms/actions"
 import {
@@ -187,7 +188,7 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
                     id: createMappingId(),
                     data: path,
                     column: "create",
-                    newColumn: path.split(".").pop() || path,
+                    newColumn: getColumnNameForTraceMappingPath(path),
                 })),
             )
         }
