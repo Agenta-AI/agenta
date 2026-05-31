@@ -36,6 +36,14 @@ body {
     text-decoration: none;
 }
 
+/* Authenticated pages paint their own surface via the app Layout, but bare
+   routes (auth, callback, onboarding) render straight on <body>. Without a
+   dark body background those pages show white behind dark antd controls in
+   dark mode. Light mode is unaffected (rule is scoped to .dark). */
+.dark body {
+    background-color: var(--ag-colorBgContainer);
+}
+
 .evaluationContainer {
     &:not(.human-eval) {
         margin-bottom: 200px;

@@ -21,6 +21,7 @@ import {signOut} from "supertokens-auth-react/recipe/session"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 import {useLocalStorage} from "usehooks-ts"
 
+import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
@@ -47,6 +48,8 @@ const {Text, Title} = Typography
 const LAST_SSO_ORG_SLUG_KEY = "lastSsoOrgSlug"
 
 const Auth = () => {
+    const {appTheme} = useAppTheme()
+    const isDark = appTheme === ThemeMode.Dark
     const [isAuthLoading, setIsAuthLoading] = useState(false)
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
@@ -421,13 +424,22 @@ const Auth = () => {
         >
             <section
                 className={clsx(
-                    "h-screen overflow-y-auto flex items-start justify-center rounded-tr-[1.5rem] rounded-br-[1.5rem] shadow-[15px_0px_80px_0px_rgba(214,222,230,0.5)]",
+                    "h-screen overflow-y-auto flex items-start justify-center rounded-tr-[1.5rem] rounded-br-[1.5rem]",
+                    // Light: pale grey edge glow. Dark: a deeper, neutral shadow —
+                    // the light glow reads as a halo against a dark surface.
+                    isDark
+                        ? "shadow-[15px_0px_80px_0px_rgba(0,0,0,0.45)]"
+                        : "shadow-[15px_0px_80px_0px_rgba(214,222,230,0.5)]",
                     "w-full lg:w-1/2",
                     "px-4 lg:px-0",
                 )}
             >
                 <Image
-                    src="/assets/Agenta-logo-full-light.png"
+                    src={
+                        isDark
+                            ? "/assets/Agenta-logo-full-dark-accent.png"
+                            : "/assets/Agenta-logo-full-light.png"
+                    }
                     alt="agenta-ai"
                     width={114}
                     height={39}
