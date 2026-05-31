@@ -1942,7 +1942,12 @@ export interface CreateEphemeralWorkflowParams {
     inputs: Record<string, unknown>
     outputs: unknown
     parameters: Record<string, unknown>
-    sourceRef?: {type: "application" | "evaluator"; id: string; slug?: string}
+    sourceRef?: {
+        type: "application" | "evaluator"
+        id: string
+        slug?: string
+        version?: string
+    }
     /** When true, entity.flags.is_evaluator is set and evaluator selectors engage. */
     isEvaluator?: boolean
     /** Workflow URI (e.g. "agenta:builtin:auto_ai_critique:v0"). Required for evaluators. */

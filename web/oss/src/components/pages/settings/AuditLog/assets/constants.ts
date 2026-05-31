@@ -5,4 +5,4 @@ export const AUDIT_LOG_SCOPE_ID = "audit-log"
 export const AUDIT_LOG_PAGE_SIZE = 50
 
 /** Fixed row height (px) for the audit-log table. */
-export const AUDIT_LOG_ROW_HEIGHT = 44
+export const AUDIT_LOG_ROW_HEIGHT = 40
