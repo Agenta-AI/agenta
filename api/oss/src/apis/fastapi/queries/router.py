@@ -14,6 +14,7 @@ from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.queries.dtos import QueryRevision, QueryRevisionCommit
 from oss.src.core.queries.service import (
     QueriesService,
@@ -1029,8 +1030,16 @@ class QueriesRouter:
             else None
         )
 
-        if not query_revision:
-            query_revision = await self.queries_service.fetch_query_revision(
+        if query_revision:
+            retrieval_info = build_retrieval_info(
+                revision=query_revision,
+                entity_type="query",
+            )
+        else:
+            (
+                query_revision,
+                retrieval_info,
+            ) = await self.queries_service.retrieve_query_revision(
                 project_id=UUID(request.state.project_id),
                 #
                 query_ref=query_revision_retrieve_request.query_ref,
@@ -1055,6 +1064,7 @@ class QueriesRouter:
         query_revision_response = QueryRevisionResponse(
             count=1 if query_revision else 0,
             query_revision=query_revision,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(

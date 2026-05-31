@@ -10,6 +10,7 @@ from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.events.utils import publish_revision_event
 
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
@@ -1190,6 +1191,7 @@ class ApplicationsRouter:
         (
             target_environment_revision,
             _,
+            _,
         ) = await self.environments_service.retrieve_environment_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1383,6 +1385,7 @@ class ApplicationsRouter:
         (
             application_revision,
             resolution_info,
+            retrieval_info,
         ) = await self.applications_service.retrieve_application_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1408,6 +1411,7 @@ class ApplicationsRouter:
             count=1 if application_revision else 0,
             application_revision=application_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(
@@ -1816,6 +1820,10 @@ class ApplicationsRouter:
             count=1,
             application_revision=application_revision,
             resolution_info=resolution_info,
+            retrieval_info=build_retrieval_info(
+                revision=application_revision,
+                entity_type="application",
+            ),
         )
 
 

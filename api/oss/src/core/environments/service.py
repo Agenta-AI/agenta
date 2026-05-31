@@ -39,6 +39,7 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    RetrievalInfo,
     RevisionCommit,
     #
     RevisionCreate,
@@ -50,6 +51,7 @@ from oss.src.core.git.dtos import (
     VariantQuery,
 )
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
@@ -801,7 +803,11 @@ class EnvironmentsService:
         environment_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
-    ) -> tuple[Optional[EnvironmentRevision], Optional[ResolutionInfo]]:
+    ) -> tuple[
+        Optional[EnvironmentRevision],
+        Optional[ResolutionInfo],
+        Optional[RetrievalInfo],
+    ]:
         """Retrieve the latest environment revision, resolving slug/id refs.
 
         Delegates to fetch_environment_revision so the same insufficient/
@@ -822,10 +828,15 @@ class EnvironmentsService:
         )
 
         if not environment_revision:
-            return None, None
+            return None, None, None
+
+        retrieval_info = build_retrieval_info(
+            revision=environment_revision,
+            entity_type="environment",
+        )
 
         if not resolve:
-            return environment_revision, None
+            return environment_revision, None, retrieval_info
 
         # Resolve embeds in revision data
         if not self.embeds_service:
@@ -844,12 +855,7 @@ class EnvironmentsService:
         if environment_revision.data:
             environment_revision.data = EnvironmentRevisionData(**resolved_config)
 
-        # log.info(
-        #     "retrieve_environment_revision: resolved resolution_info=%r",
-        #     resolution_info,
-        # )
-
-        return environment_revision, resolution_info
+        return environment_revision, resolution_info, retrieval_info
 
     async def edit_environment_revision(
         self,

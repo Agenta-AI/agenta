@@ -1,4 +1,4 @@
-from typing import List, Dict, Union, Optional
+from typing import List, Dict, Union, Optional, Any
 
 from datetime import datetime
 from enum import Enum
@@ -297,7 +297,11 @@ class SimpleTraceReferences(BaseModel):
     evaluator: Optional[Reference] = None
     evaluator_variant: Optional[Reference] = None
     evaluator_revision: Optional[Reference] = None
+    environment: Optional[Reference] = None
+    environment_variant: Optional[Reference] = None
+    environment_revision: Optional[Reference] = None
     testcase: Optional[Reference] = None
+    selector: Optional[Dict[str, Any]] = None
 
 
 SimpleTraceLinks = Union[Dict[str, Link], List[Link]]
