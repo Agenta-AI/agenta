@@ -111,6 +111,12 @@ const DARK_TOKEN_OVERRIDES = {
     // distinct layer, not just a ring (container is ~#141414; default elevated
     // ~#1f1f1f is only marginally lighter).
     colorBgElevated: "#242424",
+    // Placeholder text. darkAlgorithm derives colorTextPlaceholder at 25% white,
+    // which is barely legible against the dark input surface. Lift it to 38% so
+    // placeholders read clearly everywhere (Input/Select/TextArea/DatePicker/
+    // AutoComplete) while staying dimmer than real text (85%). Root token — fixes
+    // all placeholders in one place instead of per-input patches.
+    colorTextPlaceholder: "rgba(255, 255, 255, 0.38)",
     // Surfaces / text / border come from darkAlgorithm by default. Uncomment to tune:
     // colorBgContainer: "#141414",
     // colorBgElevated: "#1f1f1f",
