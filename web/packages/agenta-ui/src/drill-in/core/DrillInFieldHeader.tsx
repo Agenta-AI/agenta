@@ -574,7 +574,7 @@ const DrillInFieldHeader = memo(
                                     />
                                 </Tooltip>
                                 {popoverOpen && (
-                                    <div className="absolute right-0 top-full mt-1 bg-[var(--ag-c-FFFFFF)] rounded-md shadow-lg border border-gray-200 z-50">
+                                    <div className="absolute right-0 top-full mt-1 bg-[var(--ant-color-bg-elevated)] rounded-md shadow-lg border border-gray-200 dark:shadow-none dark:border-[rgba(255,255,255,0.16)] z-50">
                                         {mappingContent}
                                     </div>
                                 )}
