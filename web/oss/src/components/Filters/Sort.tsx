@@ -63,6 +63,11 @@ export type SortTypes =
     | "all time"
     | "custom"
     | ""
+interface SortPresetMeta {
+    label: SortTypes
+    amount?: number
+    unit?: dayjs.ManipulateType
+}
 interface CustomTimeRange {
     startTime: Dayjs | null
     endTime: Dayjs | null
@@ -74,6 +79,19 @@ interface Props {
     disabled?: boolean
     exclude?: SortTypes[]
 }
+
+const SORT_PRESETS: SortPresetMeta[] = [
+    {label: "30 mins", amount: 30, unit: "minute"},
+    {label: "1 hour", amount: 1, unit: "hour"},
+    {label: "6 hours", amount: 6, unit: "hour"},
+    {label: "24 hours", amount: 24, unit: "hour"},
+    {label: "3 days", amount: 3, unit: "day"},
+    {label: "7 days", amount: 7, unit: "day"},
+    {label: "14 days", amount: 14, unit: "day"},
+    {label: "1 month", amount: 1, unit: "month"},
+    {label: "3 months", amount: 3, unit: "month"},
+    {label: "all time"},
+]
 
 const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, exclude}) => {
     const classes = useStyles()
@@ -94,16 +112,12 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, e
     }) => {
         let sortedTime
         const customRangeTime: {startTime?: string; endTime?: string} = {}
+        const preset = SORT_PRESETS.find((item) => item.label === sortData)
 
-        if (sortData && sortData !== "custom" && sortData !== "all time") {
+        if (preset?.amount && preset.unit) {
             const now = dayjs().utc()
 
-            // Split the value into number and unit (e.g., "30 minutes" becomes ["30", "minutes"])
-            const [amount, unit] = (sortData as SortTypes).split(" ")
-            sortedTime = now
-                .subtract(parseInt(amount), unit as dayjs.ManipulateType)
-                .toISOString()
-                .split(".")[0]
+            sortedTime = now.subtract(preset.amount, preset.unit).toISOString().split(".")[0]
         } else if (sortData === "custom" && (customRange?.startTime || customRange?.endTime)) {
             if (customRange.startTime) {
                 customRangeTime.startTime = dayjs(customRange.startTime)
@@ -150,18 +164,10 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, e
         }
     }
 
-    const options: SelectProps["options"] = [
-        {value: "30 minutes", label: "30 mins"},
-        {value: "1 hour", label: "1 hour"},
-        {value: "6 hours", label: "6 hours"},
-        {value: "24 hours", label: "24 hours"},
-        {value: "3 days", label: "3 days"},
-        {value: "7 days", label: "7 days"},
-        {value: "14 days", label: "14 days"},
-        {value: "1 month", label: "1 month"},
-        {value: "3 months", label: "3 months"},
-        {value: "all time", label: "All time"},
-    ]
+    const options: SelectProps["options"] = SORT_PRESETS.map((preset) => ({
+        value: preset.label,
+        label: preset.label === "all time" ? "All time" : preset.label,
+    }))
 
     return (
         <>

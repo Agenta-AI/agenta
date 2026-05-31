@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
@@ -16,6 +17,7 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    RetrievalInfo,
     #
     VariantCreate,
     VariantEdit,
@@ -742,6 +744,40 @@ class TestsetsService:
 
         return testset_revision
 
+    async def retrieve_testset_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        testset_ref: Optional[Reference] = None,
+        testset_variant_ref: Optional[Reference] = None,
+        testset_revision_ref: Optional[Reference] = None,
+        #
+        include_testcase_ids: Optional[bool] = None,
+        include_testcases: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> tuple[Optional[TestsetRevision], Optional[RetrievalInfo]]:
+        testset_revision = await self.fetch_testset_revision(
+            project_id=project_id,
+            #
+            testset_ref=testset_ref,
+            testset_variant_ref=testset_variant_ref,
+            testset_revision_ref=testset_revision_ref,
+            #
+            include_testcase_ids=include_testcase_ids,
+            include_testcases=include_testcases,
+            #
+            windowing=windowing,
+        )
+
+        retrieval_info = build_retrieval_info(
+            revision=testset_revision,
+            entity_type="testset",
+        )
+
+        return testset_revision, retrieval_info
+
     async def edit_testset_revision(
         self,
         *,
@@ -908,6 +944,8 @@ class TestsetsService:
         #
         testset_revision_commit: TestsetRevisionCommit,
         #
+        initial: bool = False,
+        #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         if testset_revision_commit.delta and not testset_revision_commit.data:
@@ -952,6 +990,8 @@ class TestsetsService:
             user_id=user_id,
             #
             revision_commit=revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:
@@ -1264,7 +1304,7 @@ class SimpleTestsetsService:
 
         testset_revision_slug = uuid4().hex[-12:]
 
-        testset_revision_create = TestsetRevisionCreate(
+        testset_revision_commit = TestsetRevisionCommit(
             slug=testset_revision_slug,
             #
             name=simple_testset_create.name,
@@ -1274,17 +1314,21 @@ class SimpleTestsetsService:
             tags=simple_testset_create.tags,
             meta=simple_testset_create.meta,
             #
+            data=None,
+            #
+            message="Initial commit",
+            #
             testset_id=testset.id,
             testset_variant_id=testset_variant.id,
         )
 
         testset_revision: Optional[
             TestsetRevision
-        ] = await self.testsets_service.create_testset_revision(
+        ] = await self.testsets_service.commit_testset_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            testset_revision_create=testset_revision_create,
+            testset_revision_commit=testset_revision_commit,
         )
 
         if testset_revision is None:

@@ -5,4 +5,5 @@ import type * as AgentaApi from "../index.js";
 export interface QueryRevisionResponse {
     count?: number | undefined;
     query_revision?: (AgentaApi.QueryRevision | null) | undefined;
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

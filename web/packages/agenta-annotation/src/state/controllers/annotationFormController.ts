@@ -1048,8 +1048,8 @@ function buildEvaluatorMaps(resolvedRefs: ResolvedEvaluatorRef[]): EvaluatorMaps
 }
 
 interface StepRefs {
-    evaluator_revision?: {id?: string; slug?: string}
     evaluator_variant?: {id?: string; slug?: string}
+    evaluator_revision?: {id?: string; slug?: string; version?: string | number}
 }
 
 /**
@@ -1067,6 +1067,7 @@ function buildStepReferences(annotationSteps: EvaluationRunDataStep[]): Map<stri
                     ? {
                           id: step.references.evaluator_revision.id ?? undefined,
                           slug: step.references.evaluator_revision.slug ?? undefined,
+                          version: step.references.evaluator_revision.version ?? undefined,
                       }
                     : undefined,
                 evaluator_variant: step.references?.evaluator_variant
@@ -1451,6 +1452,9 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                                                         .id,
                                                     slug: existingAnn.references.evaluator_revision
                                                         .slug,
+                                                    version:
+                                                        existingAnn.references.evaluator_revision
+                                                            .version,
                                                 },
                                             }
                                           : {}),
@@ -1488,6 +1492,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 const evalWorkflowId =
                     workflowIdBySlug.get(slug) ?? evaluator.workflow_id ?? evaluator.id
                 const stepRefs = stepRefsByEvalId.get(evalWorkflowId)
+                const evaluatorSlug = evaluator.slug ?? slug
 
                 let createPayload: CreateAnnotationPayload
 
@@ -1496,9 +1501,13 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                         data: {outputs},
                         references: {
                             evaluator: {
-                                id: evalWorkflowId,
+                                ...(evalWorkflowId ? {id: evalWorkflowId} : {}),
+                                ...(evaluatorSlug ? {slug: evaluatorSlug} : {}),
                             },
-                            ...(stepRefs?.evaluator_revision?.id
+                            ...(stepRefs?.evaluator_variant
+                                ? {evaluator_variant: stepRefs.evaluator_variant}
+                                : {}),
+                            ...(stepRefs?.evaluator_revision
                                 ? {evaluator_revision: stepRefs.evaluator_revision}
                                 : {}),
                             testcase: {id: traceSpan.testcaseId},
@@ -1533,9 +1542,13 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                         data: {outputs},
                         references: {
                             evaluator: {
-                                id: evalWorkflowId,
+                                ...(evalWorkflowId ? {id: evalWorkflowId} : {}),
+                                ...(evaluatorSlug ? {slug: evaluatorSlug} : {}),
                             },
-                            ...(stepRefs?.evaluator_revision?.id
+                            ...(stepRefs?.evaluator_variant
+                                ? {evaluator_variant: stepRefs.evaluator_variant}
+                                : {}),
+                            ...(stepRefs?.evaluator_revision
                                 ? {evaluator_revision: stepRefs.evaluator_revision}
                                 : {}),
                         },

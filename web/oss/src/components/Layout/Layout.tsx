@@ -62,7 +62,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     // Scoped to the `tab` query param so other settings tabs keep the default
     // (content-flow) layout.
     const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab
-    const isAuditLog = pathname.includes("/settings") && tab === "audit-log"
+    const isAuditLog = pathname.includes("/settings") && tab === "auditLog"
 
     return {
         isAuthRoute:

@@ -488,11 +488,12 @@ class TestsetsClient:
     
     def create_testset_revision(self, *, testset_revision: TestsetRevisionCreate, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
         """
-        Create a new revision on an existing variant.
+        Create and commit the initial revision for a testset variant.
         
-        Creates a revision row without committing content. Most callers
-        instead use `/testsets/revisions/commit`, which writes the
-        testcases and the revision together.
+        Most callers instead use `/testsets/revisions/commit`, which writes
+        the testcases and the revision together. This endpoint commits an
+        initial revision with the `initial` guard, preventing duplicate
+        initial revisions for the same variant.
         
         Parameters
         ----------
@@ -797,13 +798,13 @@ class TestsetsClient:
         Parameters
         ----------
         testset_ref : typing.Optional[Reference]
-            Testset reference. If only the testset is provided, the latest revision on its default variant is returned.
+            Testset artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of an arbitrary variant of this testset.
         
         testset_variant_ref : typing.Optional[Reference]
-            Variant reference. Returns the latest revision on that variant.
+            Testset variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         testset_revision_ref : typing.Optional[Reference]
-            Revision reference. Returns that specific revision.
+            Testset revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with a `testset_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         include_testcase_ids : typing.Optional[bool]
             Include the ordered list of testcase IDs. Defaults to true (opt-out).
@@ -1706,11 +1707,12 @@ class AsyncTestsetsClient:
     
     async def create_testset_revision(self, *, testset_revision: TestsetRevisionCreate, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
         """
-        Create a new revision on an existing variant.
+        Create and commit the initial revision for a testset variant.
         
-        Creates a revision row without committing content. Most callers
-        instead use `/testsets/revisions/commit`, which writes the
-        testcases and the revision together.
+        Most callers instead use `/testsets/revisions/commit`, which writes
+        the testcases and the revision together. This endpoint commits an
+        initial revision with the `initial` guard, preventing duplicate
+        initial revisions for the same variant.
         
         Parameters
         ----------
@@ -2087,13 +2089,13 @@ class AsyncTestsetsClient:
         Parameters
         ----------
         testset_ref : typing.Optional[Reference]
-            Testset reference. If only the testset is provided, the latest revision on its default variant is returned.
+            Testset artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of an arbitrary variant of this testset.
         
         testset_variant_ref : typing.Optional[Reference]
-            Variant reference. Returns the latest revision on that variant.
+            Testset variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         testset_revision_ref : typing.Optional[Reference]
-            Revision reference. Returns that specific revision.
+            Testset revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with a `testset_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         include_testcase_ids : typing.Optional[bool]
             Include the ordered list of testcase IDs. Defaults to true (opt-out).
