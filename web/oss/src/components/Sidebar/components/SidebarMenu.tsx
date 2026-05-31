@@ -119,6 +119,10 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
             }}
             className={clsx([
                 "!overflow-x-hidden",
+                // The menu shouldn't paint its own surface — let it inherit the
+                // sidebar background so it doesn't read as a lighter band in dark
+                // mode (no-op in light, where the sidebar is already white).
+                "!bg-transparent [&_.ant-menu-sub]:!bg-transparent",
                 "[&_.ant-menu-item]:flex [&_.ant-menu-item]:items-center",
                 "[&_.ant-menu-submenu-title]:flex [&_.ant-menu-submenu-title]:items-center",
                 "[&_.ant-menu-item-icon]:!shrink-0",
