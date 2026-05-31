@@ -524,3 +524,57 @@
     --ag-rgba-000-45: rgba(255, 255, 255, 0.45);
     --ag-rgba-fff-78: rgba(20, 20, 20, 0.82);
 }
+
+/* Tailwind neutral/slate scales — unlike gray/zinc/ag-gray these weren't
+   theme-aware, so text-neutral and bg-slate utilities stayed fixed and broke on
+   dark. Light = the exact Tailwind v3 hex (unchanged); dark = the same
+   role-inverted ramp gray uses (low index = dark surface, high index = light
+   text). The config points the neutral/slate scales at these (tailwind.config.ts). */
+:root {
+    --ag-neutral-50: #fafafa;
+    --ag-neutral-100: #f5f5f5;
+    --ag-neutral-200: #e5e5e5;
+    --ag-neutral-300: #d4d4d4;
+    --ag-neutral-400: #a3a3a3;
+    --ag-neutral-500: #737373;
+    --ag-neutral-600: #525252;
+    --ag-neutral-700: #404040;
+    --ag-neutral-800: #262626;
+    --ag-neutral-900: #171717;
+    --ag-neutral-950: #0a0a0a;
+    --ag-slate-50: #f8fafc;
+    --ag-slate-100: #f1f5f9;
+    --ag-slate-200: #e2e8f0;
+    --ag-slate-300: #cbd5e1;
+    --ag-slate-400: #94a3b8;
+    --ag-slate-500: #64748b;
+    --ag-slate-600: #475569;
+    --ag-slate-700: #334155;
+    --ag-slate-800: #1e293b;
+    --ag-slate-900: #0f172a;
+    --ag-slate-950: #020617;
+}
+.dark {
+    --ag-neutral-50: #1a1a1a;
+    --ag-neutral-100: var(--ant-color-bg-elevated);
+    --ag-neutral-200: #2a2a2a;
+    --ag-neutral-300: #383838;
+    --ag-neutral-400: #5c5c5c;
+    --ag-neutral-500: #8c8c8c;
+    --ag-neutral-600: rgba(255, 255, 255, 0.55);
+    --ag-neutral-700: var(--ant-color-text-secondary);
+    --ag-neutral-800: rgba(255, 255, 255, 0.75);
+    --ag-neutral-900: var(--ant-color-text);
+    --ag-neutral-950: rgba(255, 255, 255, 0.92);
+    --ag-slate-50: #1a1a1a;
+    --ag-slate-100: var(--ant-color-bg-elevated);
+    --ag-slate-200: #2a2a2a;
+    --ag-slate-300: #383838;
+    --ag-slate-400: #5c5c5c;
+    --ag-slate-500: #8c8c8c;
+    --ag-slate-600: rgba(255, 255, 255, 0.55);
+    --ag-slate-700: var(--ant-color-text-secondary);
+    --ag-slate-800: rgba(255, 255, 255, 0.75);
+    --ag-slate-900: var(--ant-color-text);
+    --ag-slate-950: rgba(255, 255, 255, 0.92);
+}
