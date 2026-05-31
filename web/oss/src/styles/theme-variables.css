@@ -301,8 +301,13 @@
     --ag-c-7839EE: #ca60ff;
     --ag-c-888: var(--ant-color-border);
     --ag-c-9254DE: #bf6eff;
-    --ag-c-94A3B8: #2f2f2f;
-    --ag-c-98A2B3: #2f2f2f;
+    /* slate-400 / gray-400 — used exclusively as a muted secondary TEXT color
+       (e.g. the uppercase OUTPUTS / WITH-REASONING section labels in the eval
+       scenario drawer). The codemod flattened them to #2f2f2f (a dark surface),
+       which is near-invisible on the #141414 drawer. Map to the muted-text token
+       so they read as quiet-but-legible labels, matching their light-mode intent. */
+    --ag-c-94A3B8: var(--ant-color-text-tertiary);
+    --ag-c-98A2B3: var(--ant-color-text-tertiary);
     --ag-c-98C379: #98c379;
     --ag-c-9D4EDD: #d168ff;
     --ag-c-B42318: #ff4b34;
