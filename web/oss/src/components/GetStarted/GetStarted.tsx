@@ -214,7 +214,11 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
                 </>
             )}
 
-            <Button type="link" onClick={navigateToDestination}>
+            <Button
+                type="link"
+                onClick={navigateToDestination}
+                className="!text-colorTextSecondary hover:!text-colorText"
+            >
                 Skip
             </Button>
         </div>
