@@ -255,16 +255,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                 <Typography.Text className="text-xs font-medium uppercase text-gray-500">
                     Visibility
                 </Typography.Text>
-                {/* Default antd buttons use colorBgContainer (#141414), darker than the
-                    elevated popover (#242424) in dark, so they read as heavy recessed boxes.
-                    Flush their bg to the popover surface so they render as clean outlined
-                    buttons in dark — matching light, where the button bg equals the popover
-                    bg. Light is unaffected. */}
-                <Space
-                    size={[6, 6]}
-                    wrap
-                    className="dark:[&_.ant-btn]:!bg-transparent dark:[&_.ant-btn:hover]:!bg-[var(--ag-rgba-051729-04)]"
-                >
+                <Space size={[6, 6]} wrap>
                     <Button size="small" onClick={handleExpandAll}>
                         Expand all
                     </Button>

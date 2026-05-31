@@ -129,6 +129,18 @@ const DARK_TOKEN_OVERRIDES = {
 const darkComponents = {
     Button: {
         primaryColor: "#141414",
+        // Default (and dashed) button surface. antd derives defaultBg from
+        // colorBgContainer (#141414), which is DARKER than most card/elevated
+        // surfaces in dark, so default buttons read as heavy recessed boxes
+        // wherever they sit on a raised surface (cards, popovers, modals). In
+        // light it works because the button bg equals the surface (#fff), so the
+        // button is flush and defined by its border. Make the dark default button
+        // flush too — transparent fill so it shows the surface behind it + border,
+        // with subtle white-alpha hover/active feedback. Foundational fix for the
+        // whole default-button variant; replaces per-component bg overrides.
+        defaultBg: "transparent",
+        defaultHoverBg: "rgba(255, 255, 255, 0.04)",
+        defaultActiveBg: "rgba(255, 255, 255, 0.08)",
     },
     // Drawer body surface. In LIGHT mode colorBgContainer and colorBgElevated are both
     // #fff, so a drawer body matches the base surface its content (e.g. the drill-in's
