@@ -451,3 +451,17 @@
 .dark {
     --ag-sidebar-bg: #0d0d0d;
 }
+
+/* Evaluations "Application" cell (app name + variant slug + version chip). The
+   slug/row/chip were hardcoded navy rgba in evaluations.css → near-invisible on
+   dark. Light = the exact prior rgba (unchanged); dark = adapted tokens. */
+:root {
+    --ag-app-variant-row: rgba(15, 23, 42, 0.55);
+    --ag-app-variant-label: rgba(15, 23, 42, 0.85);
+    --ag-app-variant-chip-bg: rgba(5, 23, 41, 0.08);
+}
+.dark {
+    --ag-app-variant-row: var(--ant-color-text-secondary);
+    --ag-app-variant-label: var(--ant-color-text);
+    --ag-app-variant-chip-bg: var(--ant-color-fill-secondary);
+}

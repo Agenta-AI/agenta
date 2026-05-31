@@ -43,7 +43,7 @@ const VariantDetails = ({
                 revision !== null &&
                 revision !== "" &&
                 (showRevisionAsTag ? (
-                    <Tag className={`bg-[rgba(5,23,41,0.06)]`} variant="filled">
+                    <Tag className={`bg-[var(--ag-colorFillSecondary)]`} variant="filled">
                         v{revision}
                     </Tag>
                 ) : (
