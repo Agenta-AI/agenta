@@ -18,20 +18,8 @@ import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
 
-interface WorkflowRevision {
-    id: string
-    workflow_id?: string | null
-    version?: number | null
-}
-
-interface WorkflowRevisionsResponse {
-    workflow_revisions: WorkflowRevision[]
-    count?: number
-}
-
 interface PromptRegistryApiHelpers {
     getApp: (slug: string) => Promise<{id: string}>
-    waitForApiResponse: <T>(options: {route: string; method: string}) => Promise<T>
 }
 
 interface PromptRegistryUiHelpers {
@@ -62,67 +50,41 @@ const getCompletionAppId = async (apiHelpers: {
 const openWorkflowRevisionsPage = async (
     page: Page,
     uiHelpers: PromptRegistryUiHelpers,
-    apiHelpers: PromptRegistryApiHelpers,
     appId: string,
 ) => {
     const basePath = getProjectScopedBasePath(page)
-    const revisionsResponsePromise = apiHelpers.waitForApiResponse<WorkflowRevisionsResponse>({
-        route: "/api/workflows/revisions/query",
-        method: "POST",
-    })
 
     await page.goto(`${basePath}/apps/${appId}/variants`, {
         waitUntil: "domcontentloaded",
     })
     await uiHelpers.expectPath(`/apps/${appId}/variants`)
 
-    return await revisionsResponsePromise
+    const revisionsRadio = page.getByRole("radio", {name: "Revisions"})
+    const revisionsControl = page
+        .locator(".ant-radio-button-wrapper")
+        .filter({hasText: "Revisions"})
+        .first()
+    await expect(revisionsControl).toBeVisible({timeout: 15000})
+    if (!(await revisionsRadio.isChecked())) {
+        await revisionsControl.click()
+    }
 }
 
-const openFirstPublishedWorkflowRevision = async (
-    page: Page,
-    revisionsResponse: WorkflowRevisionsResponse,
-) => {
-    const revisions = revisionsResponse.workflow_revisions.filter(
-        (revision) => (revision.version ?? 0) > 0,
+const openFirstPublishedWorkflowRevision = async (page: Page, appId: string) => {
+    const versionLabel = page.getByText(/^v[1-9]\d*$/).first()
+    await expect(versionLabel).toBeVisible({timeout: 30000})
+    await versionLabel.click()
+
+    await page.waitForURL(
+        (url) =>
+            url.pathname.endsWith(`/apps/${appId}/variants`) &&
+            Boolean(url.searchParams.get("revisionId")),
+        {timeout: 15000},
     )
 
-    test.skip(revisions.length === 0, "No workflow revisions found in registry")
-
-    // The app may accumulate revisions across test runs, and the table uses
-    // virtual scrolling — so a specific revision ID from the API response may
-    // not be rendered if it is scrolled out of the viewport. Instead poll for
-    // ANY visible published revision row and click whichever appears first.
-    const publishedRevisionIds = new Set(revisions.map((r) => r.id))
-    let foundRevisionId: string | null = null
-
-    await expect
-        .poll(
-            async () => {
-                const rows = page.locator("[data-row-key]")
-                const count = await rows.count()
-                for (let i = 0; i < count; i++) {
-                    const row = rows.nth(i)
-                    const key = await row.getAttribute("data-row-key").catch(() => null)
-                    if (
-                        key &&
-                        publishedRevisionIds.has(key) &&
-                        (await row.isVisible().catch(() => false))
-                    ) {
-                        foundRevisionId = key
-                        return true
-                    }
-                }
-                return false
-            },
-            {timeout: 30000},
-        )
-        .toBe(true)
-
-    const row = page.locator(`[data-row-key="${foundRevisionId}"]`).first()
-    await row.click()
-
-    return foundRevisionId!
+    const revisionId = new URL(page.url()).searchParams.get("revisionId")
+    expect(revisionId).toBeTruthy()
+    return revisionId!
 }
 
 const expectWorkflowRevisionDrawer = async (page: Page, appId: string, revisionId: string) => {
@@ -176,7 +138,6 @@ const promptRegistryTests = () => {
         async ({page, uiHelpers, apiHelpers}) => {
             let appId = ""
             let revisionId = ""
-            let revisionsResponse: WorkflowRevisionsResponse | null = null
             let workflowRevisionDrawer: ReturnType<typeof page.locator> | null = null
 
             await scenarios.given("the user is authenticated", async () => {
@@ -190,19 +151,14 @@ const promptRegistryTests = () => {
             await scenarios.and(
                 "the user is on the workflow revisions page for that app",
                 async () => {
-                    revisionsResponse = await openWorkflowRevisionsPage(
-                        page,
-                        uiHelpers,
-                        apiHelpers,
-                        appId,
-                    )
+                    await openWorkflowRevisionsPage(page, uiHelpers, appId)
                 },
             )
 
             await scenarios.when(
                 "the user opens the first published workflow revision",
                 async () => {
-                    revisionId = await openFirstPublishedWorkflowRevision(page, revisionsResponse!)
+                    revisionId = await openFirstPublishedWorkflowRevision(page, appId)
                 },
             )
 
