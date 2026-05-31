@@ -23,13 +23,18 @@ from oss.src.core.shared.dtos import Link  # noqa: E402
 @pytest.mark.asyncio
 async def test_edit_returns_updated_references_and_links():
     evaluators_service = AsyncMock()
-    evaluators_service.fetch_evaluator_revision.return_value = SimpleNamespace(
+    evaluator_revision = SimpleNamespace(
         evaluator_id=uuid4(),
         evaluator_variant_id=uuid4(),
         id=uuid4(),
         slug="eval-rev",
         version="v2",
         data=SimpleNamespace(schemas=SimpleNamespace(outputs={})),
+    )
+    evaluators_service.retrieve_evaluator_revision.return_value = (
+        evaluator_revision,
+        None,  # environment_references
+        None,  # retrieval_info
     )
 
     service = AnnotationsService(

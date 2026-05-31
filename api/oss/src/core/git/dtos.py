@@ -1,8 +1,8 @@
-from typing import Optional, List
+from typing import Dict, Optional, List
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.shared.dtos import (
     Identifier,
@@ -14,6 +14,7 @@ from oss.src.core.shared.dtos import (
     Data,
     Commit,
     FolderScope,
+    Reference,
 )
 
 
@@ -126,6 +127,23 @@ class VariantFork(Slug, Header, Metadata):
 class ArtifactFork(RevisionsLog):
     variant: Optional[VariantFork] = None
     revision: Optional[RevisionFork] = None
+
+
+# retrieval --------------------------------------------------------------------
+
+
+class RetrievalInfo(BaseModel):
+    """References actually used to retrieve a revision.
+
+    For direct retrievals, `references` carries the artifact / variant / revision
+    that was fetched. For environment-backed retrievals, it additionally carries
+    the environment + environment_variant + environment_revision used to look
+    the target up, and `selector` is {the key: path} map inside the environment's
+    references map that selected the target.
+    """
+
+    references: Dict[str, Reference] = Field(default_factory=dict)
+    selector: Optional[Dict[str, str]] = None
 
 
 # ------------------------------------------------------------------------------

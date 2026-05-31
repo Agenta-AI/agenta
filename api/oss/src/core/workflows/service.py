@@ -29,6 +29,7 @@ from oss.src.core.git.dtos import (
     ArtifactEdit,
     ArtifactQuery,
     ArtifactFork,
+    RetrievalInfo,
     #
     VariantCreate,
     VariantEdit,
@@ -40,6 +41,7 @@ from oss.src.core.git.dtos import (
     RevisionCommit,
     RevisionsLog,
 )
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.workflows.dtos import (
     JsonSchemas,
     WorkflowArtifactFlags,
@@ -531,14 +533,14 @@ class WorkflowsService:
                 if workflow_ref and workflow_ref.slug
                 else None
             )
-            workflow_revision, _ = await self.retrieve_workflow_revision(
+            workflow_revision, _, _ = await self.retrieve_workflow_revision(
                 project_id=project_id,
                 environment_ref=refs["environment"],
                 key=key,
             )
 
         elif "workflow_revision" in refs or "workflow" in refs:
-            workflow_revision, _ = await self.retrieve_workflow_revision(
+            workflow_revision, _, _ = await self.retrieve_workflow_revision(
                 project_id=project_id,
                 workflow_ref=workflow_ref,
                 workflow_variant_ref=refs.get("workflow_variant"),
@@ -1197,15 +1199,25 @@ class WorkflowsService:
         workflow_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
-    ) -> tuple[Optional[WorkflowRevision], Optional[ResolutionInfo]]:
-        if environment_ref or environment_variant_ref or environment_revision_ref:
+    ) -> tuple[
+        Optional[WorkflowRevision],
+        Optional[ResolutionInfo],
+        Optional[RetrievalInfo],
+    ]:
+        environment_retrieval_info: Optional[RetrievalInfo] = None
+        is_environment_backed = bool(
+            environment_ref or environment_variant_ref or environment_revision_ref
+        )
+
+        if is_environment_backed:
             if not self.environments_service:
                 log.warning("retrieve_workflow_revision: no environments_service")
-                return None, None
+                return None, None, None
 
             (
-                env_revision,
+                environment_revision,
                 _,
+                environment_retrieval_info,
             ) = await self.environments_service.retrieve_environment_revision(
                 project_id=project_id,
                 #
@@ -1215,8 +1227,8 @@ class WorkflowsService:
             )
 
             references_by_key = (
-                env_revision.data.references
-                if env_revision and env_revision.data
+                environment_revision.data.references
+                if environment_revision and environment_revision.data
                 else None
             )
             workflow_references = (
@@ -1224,7 +1236,7 @@ class WorkflowsService:
             )
 
             if not workflow_references:
-                return None, None
+                return None, None, None
 
             env_workflow_ref = workflow_references.get("workflow")
             env_workflow_variant_ref = workflow_references.get("workflow_variant")
@@ -1252,16 +1264,36 @@ class WorkflowsService:
                 workflow_variant_ref=workflow_variant_ref,
                 workflow_revision_ref=workflow_revision_ref,
             )
-            return result if result else (None, None)
+            workflow_revision, resolution_info = result if result else (None, None)
+        else:
+            workflow_revision = await self.fetch_workflow_revision(
+                project_id=project_id,
+                #
+                workflow_ref=workflow_ref,
+                workflow_variant_ref=workflow_variant_ref,
+                workflow_revision_ref=workflow_revision_ref,
+            )
+            resolution_info = None
 
-        workflow_revision = await self.fetch_workflow_revision(
-            project_id=project_id,
-            #
-            workflow_ref=workflow_ref,
-            workflow_variant_ref=workflow_variant_ref,
-            workflow_revision_ref=workflow_revision_ref,
-        )
-        return workflow_revision, None
+        if is_environment_backed:
+            environment_references = (
+                environment_retrieval_info.references
+                if environment_retrieval_info
+                else None
+            )
+            retrieval_info = build_retrieval_info(
+                revision=workflow_revision,
+                entity_type="workflow",
+                environment_references=environment_references,
+                selector_key=key,
+            )
+        else:
+            retrieval_info = build_retrieval_info(
+                revision=workflow_revision,
+                entity_type="workflow",
+            )
+
+        return workflow_revision, resolution_info, retrieval_info
 
     async def edit_workflow_revision(
         self,

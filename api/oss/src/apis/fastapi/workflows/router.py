@@ -12,6 +12,7 @@ from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.workflows.service import (
     WorkflowsService,
@@ -1744,6 +1745,7 @@ class WorkflowsRouter:
         (
             workflow_revision,
             resolution_info,
+            retrieval_info,
         ) = await self.workflows_service.retrieve_workflow_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1777,6 +1779,7 @@ class WorkflowsRouter:
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
         return workflow_revision_response
@@ -1839,6 +1842,10 @@ class WorkflowsRouter:
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
             resolution_info=resolution_info,
+            retrieval_info=build_retrieval_info(
+                revision=workflow_revision,
+                entity_type="workflow",
+            ),
         )
 
         return workflow_revision_resolve_response

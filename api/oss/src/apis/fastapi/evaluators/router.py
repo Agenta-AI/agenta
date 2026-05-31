@@ -10,6 +10,7 @@ from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.events.utils import publish_revision_event
 
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
@@ -1370,6 +1371,7 @@ class EvaluatorsRouter:
         (
             evaluator_revision,
             resolution_info,
+            retrieval_info,
         ) = await self.evaluators_service.retrieve_evaluator_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1395,6 +1397,7 @@ class EvaluatorsRouter:
             count=1 if evaluator_revision else 0,
             evaluator_revision=evaluator_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(
@@ -1787,6 +1790,10 @@ class EvaluatorsRouter:
             count=1,
             evaluator_revision=evaluator_revision,
             resolution_info=resolution_info,
+            retrieval_info=build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+            ),
         )
 
 

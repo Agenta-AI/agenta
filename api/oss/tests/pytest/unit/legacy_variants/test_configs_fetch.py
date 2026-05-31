@@ -63,7 +63,7 @@ def _applications_service(application_id, variant_id, revision):
         slug="main",
         application_id=application_id,
     )
-    service.retrieve_application_revision.return_value = (revision, None)
+    service.retrieve_application_revision.return_value = (revision, None, None)
     return service
 
 
@@ -110,8 +110,8 @@ async def test_configs_fetch_variant_id_falls_back_from_revision_to_variant():
     revision = _revision(application_id, variant_id)
     applications_service = _applications_service(application_id, variant_id, revision)
     applications_service.retrieve_application_revision.side_effect = [
-        (None, None),
-        (revision, None),
+        (None, None, None),
+        (revision, None, None),
     ]
 
     router = LegacyVariantsRouter(
@@ -156,6 +156,7 @@ async def test_configs_fetch_by_environment_ref():
     environments_service.retrieve_environment_revision.return_value = (
         environment_revision,
         None,
+        None,
     )
 
     router = LegacyVariantsRouter(
@@ -190,7 +191,7 @@ async def test_configs_fetch_defaults_to_production_environment():
     revision = _revision(application_id, variant_id)
     applications_service = _applications_service(application_id, variant_id, revision)
     environments_service = AsyncMock()
-    environments_service.retrieve_environment_revision.return_value = (None, None)
+    environments_service.retrieve_environment_revision.return_value = (None, None, None)
 
     router = LegacyVariantsRouter(
         applications_service=applications_service,
@@ -215,7 +216,7 @@ async def test_configs_fetch_defaults_to_production_environment():
 async def test_configs_fetch_not_found_raises_404():
     project_id = uuid4()
     applications_service = AsyncMock()
-    applications_service.retrieve_application_revision.return_value = (None, None)
+    applications_service.retrieve_application_revision.return_value = (None, None, None)
 
     router = LegacyVariantsRouter(
         applications_service=applications_service,
