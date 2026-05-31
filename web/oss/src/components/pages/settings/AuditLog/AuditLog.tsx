@@ -4,14 +4,19 @@
  * Lists platform events from `POST /events/query` in a paginated table with a
  * right-side detail drawer.
  *
- * Entitlement: in EE the audit log is gated by `Flag.AUDIT` (Business /
- * Enterprise). In OSS the backend skips the entitlement check entirely, so the
- * tab is always available — the EE-only `useEntitlements()` query is therefore
- * not even mounted in OSS.
+ * Two-gate access model:
+ *   - Tab VISIBILITY is a permission check (`view_events`), handled by the
+ *     settings sidebar / page (`canViewEvents`).
+ *   - Page CONTENT is gated by the `Flag.AUDIT` entitlement: with it, the table
+ *     renders; without it, an UpgradePrompt CTA is shown instead.
+ *
+ * In OSS the backend skips the entitlement check entirely, so the content is
+ * always available — the EE-only `useEntitlements()` query is not mounted in OSS.
  */
 
-import {Result, Spin} from "antd"
+import {Spin} from "antd"
 
+import {UpgradePrompt} from "@/oss/components/pages/settings/Organization/UpgradePrompt"
 import {isEE} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 
@@ -26,10 +31,9 @@ const AuditLogContent = () => (
 )
 
 const NotEntitled = () => (
-    <Result
-        status="info"
+    <UpgradePrompt
         title="Audit Log is not available on your plan"
-        subTitle="Upgrade to a Business or Enterprise plan to query the full history of platform events."
+        description="Query the full history of platform events — who did what, and when — across your organization."
     />
 )
 

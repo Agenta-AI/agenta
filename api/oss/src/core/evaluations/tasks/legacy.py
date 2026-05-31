@@ -35,6 +35,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequestData,
     WorkflowServiceRequest,
 )
+from oss.src.core.git.utils import revision_references
 
 
 from oss.src.core.evaluations.utils import (
@@ -47,6 +48,24 @@ from oss.src.core.evaluations.utils import (
     required_traces_for_step,
     select_traces_for_reuse,
 )
+
+
+def _serialize_references(references: Dict[str, Any]) -> Dict[str, Any]:
+    """Serialize Reference objects and UUIDs to JSON-compatible dicts."""
+    from uuid import UUID
+
+    def _deep_serialize(obj: Any) -> Any:
+        if isinstance(obj, UUID):
+            return str(obj)
+        elif isinstance(obj, Reference):
+            return obj.model_dump(exclude_none=True)
+        elif isinstance(obj, dict):
+            return {k: _deep_serialize(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [_deep_serialize(item) for item in obj]
+        return obj
+
+    return {k: _deep_serialize(v) for k, v in references.items()}
 
 
 log = get_module_logger(__name__)
@@ -203,10 +222,12 @@ async def _resolve_testset_input_specs(
             {
                 "step_key": input_step.key,
                 "testset": testset,
+                "testset_variant": testset_variant,
                 "testset_revision": testset_revision,
                 "testcases": testcases,
                 "testcases_data": [
-                    {**testcase.data, "id": str(testcase.id)} for testcase in testcases
+                    {**testcase.data, "testcase_id": str(testcase.id)}
+                    for testcase in testcases
                 ],
             }
         )
@@ -528,7 +549,6 @@ async def evaluate_batch_testset(
             scenario_spec = scenario_specs[idx]
             testcase = scenario_spec["testcase"]
             testcase_data = scenario_spec["testcase_data"]
-            testset = scenario_spec["testset"]
             testset_revision = scenario_spec["testset_revision"]
 
             scenario_has_errors = 0
@@ -536,12 +556,14 @@ async def evaluate_batch_testset(
             scenario_status = EvaluationStatus.SUCCESS
             application_references = {
                 "testcase": {"id": str(testcase.id)},
-                "testset": {"id": str(testset.id)},
-                "testset_variant": {"id": str(testset_revision.variant_id)},
-                "testset_revision": {"id": str(testset_revision.id)},
-                "application": {"id": str(application.id)},
-                "application_variant": {"id": str(application_variant.id)},
-                "application_revision": {"id": str(application_revision.id)},
+                **revision_references(
+                    revision=testset_revision,
+                    entity_type="testset",
+                ),
+                **revision_references(
+                    revision=application_revision,
+                    entity_type="application",
+                ),
             }
 
             application_hash_id = make_hash(
@@ -585,7 +607,7 @@ async def evaluate_batch_testset(
                     uri=uri,
                     rate_limit_config=run_config,
                     application_id=str(application.id),
-                    references=application_references,
+                    references=_serialize_references(application_references),
                     scenarios=[
                         scenario.model_dump(
                             mode="json",
@@ -777,11 +799,15 @@ async def evaluate_batch_testset(
                 )
 
                 base_references: Dict[str, Any] = {
-                    **evaluator_references[annotation_step_key],
                     "testcase": {"id": str(testcase.id)},
-                    "testset": {"id": str(testset.id)},
-                    "testset_variant": {"id": str(testset_revision.variant_id)},
-                    "testset_revision": {"id": str(testset_revision.id)},
+                    **revision_references(
+                        revision=testset_revision,
+                        entity_type="testset",
+                    ),
+                    **revision_references(
+                        revision=evaluator_revision,
+                        entity_type="evaluator",
+                    ),
                 }
 
                 evaluator_results_create = []
@@ -1453,16 +1479,17 @@ async def evaluate_batch_invocation(
             scenario_spec = scenario_specs[idx]
             testcase = scenario_spec["testcase"]
             testcase_data = scenario_spec["testcase_data"]
-            testset = scenario_spec["testset"]
             testset_revision = scenario_spec["testset_revision"]
             references = {
                 "testcase": {"id": str(testcase.id)},
-                "testset": {"id": str(testset.id)},
-                "testset_variant": {"id": str(testset_revision.variant_id)},
-                "testset_revision": {"id": str(testset_revision.id)},
-                "application": {"id": str(application.id)},
-                "application_variant": {"id": str(application_variant.id)},
-                "application_revision": {"id": str(application_revision.id)},
+                **revision_references(
+                    revision=testset_revision,
+                    entity_type="testset",
+                ),
+                **revision_references(
+                    revision=application_revision,
+                    entity_type="application",
+                ),
             }
             hash_id = make_hash(references=references, links=None)
             cached_traces = []
@@ -1500,7 +1527,7 @@ async def evaluate_batch_invocation(
                     uri=uri,
                     rate_limit_config=run_config,
                     application_id=str(application.id),
-                    references=references,
+                    references=_serialize_references(references),
                     scenarios=[
                         scenario.model_dump(
                             mode="json",

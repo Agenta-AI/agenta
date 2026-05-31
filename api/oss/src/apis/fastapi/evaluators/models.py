@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.evaluators.dtos import (
     Evaluator,
     EvaluatorCreate,
@@ -393,6 +394,10 @@ class EvaluatorRevisionResponse(BaseModel):
         default=None,
         description="Embed-resolution metadata. Populated when `resolve=true` was requested.",
     )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References used to retrieve the top-level revision.",
+    )
 
 
 class EvaluatorRevisionsResponse(BaseModel):
@@ -523,6 +528,10 @@ class EvaluatorRevisionResolveResponse(BaseModel):
     resolution_info: Optional[ResolutionInfo] = Field(
         default=None,
         description="Diagnostic information about the resolution pass (depth, embed count, errors).",
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References (artifact / variant / revision) actually used to retrieve this revision.",
     )
 
 

@@ -13,9 +13,11 @@ from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.environments.dtos import (
     EnvironmentFlags,
     EnvironmentEdit,
+    EnvironmentRevisionCommit,
     EnvironmentRevisionData,
     #
     SimpleEnvironment,
@@ -760,6 +762,7 @@ class EnvironmentsRouter:
         (
             environment_revision,
             resolution_info,
+            retrieval_info,
         ) = await self.environments_service.retrieve_environment_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -774,6 +777,7 @@ class EnvironmentsRouter:
             count=1 if environment_revision else 0,
             environment_revision=environment_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(
@@ -841,11 +845,16 @@ class EnvironmentsRouter:
             count=1 if environment_revision else 0,
             environment_revision=environment_revision,
             resolution_info=resolution_info,
+            retrieval_info=build_retrieval_info(
+                revision=environment_revision,
+                entity_type="environment",
+            ),
         )
 
         return environment_revision_resolve_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_environment_revision(
         self,
         request: Request,
@@ -860,11 +869,19 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revision = await self.environments_service.create_environment_revision(
+        environment_revision = await self.environments_service.commit_environment_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            environment_revision_create=environment_revision_create_request.environment_revision,
+            environment_revision_commit=EnvironmentRevisionCommit(
+                **environment_revision_create_request.environment_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         return EnvironmentRevisionResponse(

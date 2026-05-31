@@ -470,6 +470,7 @@ export const generateNewAnnotationPayloadData = ({
         const references: Record<string, any> = {
             evaluator: {
                 id: evaluator.id,
+                ...(evaluator.slug ? {slug: evaluator.slug} : {}),
             },
         }
         if (testsetId) references.testset = {id: testsetId}
@@ -492,7 +493,7 @@ export const generateNewAnnotationPayloadData = ({
                     span_id: traceSpanIds.spanId,
                 },
             }
-            // Compose backend-compatible references (id only for testset/testcase/evaluator)
+            // Compose backend-compatible references for hash material.
             // const hashReferences = {
             //     evaluator: references.evaluator,
             //     testset: references.testset,

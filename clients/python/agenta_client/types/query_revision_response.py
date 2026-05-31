@@ -7,11 +7,13 @@ import typing
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
 from .query_revision import QueryRevision
+from .retrieval_info import RetrievalInfo
 
 
 class QueryRevisionResponse(UniversalBaseModel):
     count: typing.Optional[int] = None
     query_revision: typing.Optional[QueryRevision] = None
+    retrieval_info: typing.Optional[RetrievalInfo] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

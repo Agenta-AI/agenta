@@ -17,13 +17,14 @@ log() {
 usage() {
   cat <<'EOF'
 Usage:
-  generate.sh [--language python|typescript|all] [--live] [--local] [--file FILE]
+  generate.sh [--language python|typescript|all] [--live] [--local] [--file FILE] [--url URL]
 
 Modes (pick one):
   (default)  Fetch from http://localhost/api/openapi.json
   --live     Fetch from https://eu.cloud.agenta.ai/api/openapi.json
   --local    Fetch from http://localhost/api/openapi.json
   --file     Use an explicit local file path
+  --url      Fetch from an arbitrary URL
 
 Examples:
   ./clients/scripts/generate.sh
@@ -31,6 +32,7 @@ Examples:
   ./clients/scripts/generate.sh --live
   ./clients/scripts/generate.sh --local
   ./clients/scripts/generate.sh --file /path/to/openapi.json
+  ./clients/scripts/generate.sh --url http://staging.example.com/api/openapi.json
 EOF
 }
 
@@ -53,6 +55,11 @@ while [[ $# -gt 0 ]]; do
     --file)
       OPENAPI_FILE="${2:-}"
       OPENAPI_URL=""
+      shift 2
+      ;;
+    --url)
+      OPENAPI_URL="${2:-}"
+      OPENAPI_FILE=""
       shift 2
       ;;
     -h|--help)

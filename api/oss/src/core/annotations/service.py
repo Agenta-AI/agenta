@@ -90,7 +90,11 @@ class AnnotationsService:
             is_evaluator=True,
         )
 
-        evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+        (
+            evaluator_revision,
+            _,
+            retrieval_info,
+        ) = await self.evaluators_service.retrieve_evaluator_revision(
             project_id=project_id,
             #
             evaluator_ref=annotation_create.references.evaluator,
@@ -128,12 +132,14 @@ class AnnotationsService:
             )
 
             if simple_evaluator:
-                evaluator_revision = (
-                    await self.evaluators_service.fetch_evaluator_revision(
-                        project_id=project_id,
-                        #
-                        evaluator_ref=Reference(id=simple_evaluator.id),
-                    )
+                (
+                    evaluator_revision,
+                    _,
+                    retrieval_info,
+                ) = await self.evaluators_service.retrieve_evaluator_revision(
+                    project_id=project_id,
+                    #
+                    evaluator_ref=Reference(id=simple_evaluator.id),
                 )
         elif evaluator_revision.evaluator_id:
             simple_evaluator = await self.simple_evaluators_service.fetch(
@@ -153,30 +159,6 @@ class AnnotationsService:
             else {},
         )
 
-        annotation_create.references.evaluator = Reference(
-            id=evaluator_revision.evaluator_id,
-            slug=(
-                annotation_create.references.evaluator.slug
-                if annotation_create.references.evaluator
-                else None
-            ),
-        )
-
-        annotation_create.references.evaluator_variant = Reference(
-            id=evaluator_revision.evaluator_variant_id,
-            slug=(
-                annotation_create.references.evaluator_variant.slug
-                if annotation_create.references.evaluator_variant
-                else None
-            ),
-        )
-
-        annotation_create.references.evaluator_revision = Reference(
-            id=evaluator_revision.id,
-            slug=evaluator_revision.slug,
-            version=evaluator_revision.version,
-        )
-
         annotation_flags = AnnotationFlags(
             is_evaluator=True,
             is_custom=annotation_create.origin == AnnotationOrigin.CUSTOM,
@@ -186,8 +168,15 @@ class AnnotationsService:
             is_evaluation=annotation_create.kind == AnnotationKind.EVAL,
         )
 
+        reference_dict = annotation_create.references.model_dump()
+        if retrieval_info:
+            if retrieval_info.references:
+                reference_dict.update(retrieval_info.references)
+            if retrieval_info.selector:
+                reference_dict["selector"] = retrieval_info.selector
+
         annotation_references = AnnotationReferences(
-            **annotation_create.references.model_dump(),
+            **reference_dict,
         )
 
         annotation_link = await self._create_annotation(
@@ -310,7 +299,11 @@ class AnnotationsService:
             is_evaluator=True,
         )
 
-        evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+        (
+            evaluator_revision,
+            _,
+            retrieval_info,
+        ) = await self.evaluators_service.retrieve_evaluator_revision(
             project_id=project_id,
             #
             evaluator_ref=annotation.references.evaluator,
@@ -348,12 +341,14 @@ class AnnotationsService:
             )
 
             if simple_evaluator:
-                evaluator_revision = (
-                    await self.evaluators_service.fetch_evaluator_revision(
-                        project_id=project_id,
-                        #
-                        evaluator_ref=Reference(id=simple_evaluator.id),
-                    )
+                (
+                    evaluator_revision,
+                    _,
+                    retrieval_info,
+                ) = await self.evaluators_service.retrieve_evaluator_revision(
+                    project_id=project_id,
+                    #
+                    evaluator_ref=Reference(id=simple_evaluator.id),
                 )
 
         if not evaluator_revision or not evaluator_revision.data:
@@ -366,41 +361,23 @@ class AnnotationsService:
             else {},
         )
 
-        annotation_references = (
-            AnnotationReferences(**annotation_edit.references.model_dump())
+        reference_dict = (
+            annotation_edit.references.model_dump()
             if annotation_edit.references
-            else annotation.references
+            else annotation.references.model_dump()
         )
+        if retrieval_info:
+            if retrieval_info.references:
+                reference_dict.update(retrieval_info.references)
+            if retrieval_info.selector:
+                reference_dict["selector"] = retrieval_info.selector
+
+        annotation_references = AnnotationReferences(**reference_dict)
         annotation_links = (
             annotation_edit.links
             if annotation_edit.links is not None
             else annotation.links
         )
-
-        if evaluator_revision:
-            annotation_references.evaluator = Reference(
-                id=evaluator_revision.evaluator_id,
-                slug=(
-                    annotation_references.evaluator.slug
-                    if annotation_references.evaluator
-                    else None
-                ),
-            )
-
-            annotation_references.evaluator_variant = Reference(
-                id=evaluator_revision.evaluator_variant_id,
-                slug=(
-                    annotation_references.evaluator_variant.slug
-                    if annotation_references.evaluator_variant
-                    else None
-                ),
-            )
-
-            annotation_references.evaluator_revision = Reference(
-                id=evaluator_revision.id,
-                slug=evaluator_revision.slug,
-                version=evaluator_revision.version,
-            )
 
         annotation_flags = AnnotationFlags(
             is_evaluator=True,
