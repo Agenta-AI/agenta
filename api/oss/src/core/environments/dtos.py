@@ -20,11 +20,13 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    ArtifactFork,
     #
     Variant,
     VariantCreate,
     VariantEdit,
     VariantQuery,
+    VariantFork,
     #
     Revision,
     RevisionsLog,
@@ -32,6 +34,7 @@ from oss.src.core.git.dtos import (
     RevisionEdit,
     RevisionQuery,
     RevisionCommit,
+    RevisionFork,
 )
 
 
@@ -230,6 +233,48 @@ class EnvironmentRevisionEdit(RevisionEdit):
 
 class EnvironmentRevisionQuery(RevisionQuery):
     pass
+
+
+class EnvironmentRevisionFork(RevisionFork):
+    data: Optional[EnvironmentRevisionData] = None
+
+
+class EnvironmentVariantFork(VariantFork):
+    pass
+
+
+class EnvironmentVariantForkAlias(AliasConfig):
+    environment_variant: Optional[EnvironmentVariantFork] = None
+
+    variant: Optional[VariantFork] = Field(
+        default=None,
+        exclude=True,
+        alias="environment_variant",
+    )
+
+
+class EnvironmentRevisionForkAlias(AliasConfig):
+    environment_revision: Optional[EnvironmentRevisionFork] = None
+
+    revision: Optional[RevisionFork] = Field(
+        default=None,
+        exclude=True,
+        alias="environment_revision",
+    )
+
+
+class EnvironmentFork(
+    ArtifactFork,
+    EnvironmentVariantIdAlias,
+    EnvironmentRevisionIdAlias,
+    EnvironmentVariantForkAlias,
+    EnvironmentRevisionForkAlias,
+):
+    def model_post_init(self, __context) -> None:
+        sync_alias("environment_variant", "variant", self)
+        sync_alias("environment_revision", "revision", self)
+        sync_alias("environment_variant_id", "variant_id", self)
+        sync_alias("environment_revision_id", "revision_id", self)
 
 
 class EnvironmentRevisionCommit(

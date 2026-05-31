@@ -51,7 +51,7 @@ from oss.src.core.queries.dtos import (
     QueryCreate,
     QueryEdit,
     QueryQuery,
-    QueryFork,
+    QueryVariantFork,
     #
     QueryVariant,
     QueryVariantCreate,
@@ -583,10 +583,14 @@ class QueriesService:
         project_id: UUID,
         user_id: UUID,
         #
-        query_fork: QueryFork,
+        query_variant_fork: QueryVariantFork,
+        query_variant_ref: Reference,
+        query_revision_ref: Optional[Reference] = None,
     ) -> Optional[QueryVariant]:
         _artifact_fork = ArtifactFork(
-            **query_fork.model_dump(mode="json"),
+            variant_id=query_variant_ref.id,
+            revision_id=query_revision_ref.id if query_revision_ref else None,
+            variant=query_variant_fork,
         )
 
         variant = await self.queries_dao.fork_variant(

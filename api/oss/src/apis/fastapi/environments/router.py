@@ -18,8 +18,6 @@ from oss.src.core.environments.dtos import (
     EnvironmentFlags,
     EnvironmentEdit,
     EnvironmentRevisionCommit,
-    EnvironmentRevisionData,
-    #
     SimpleEnvironment,
 )
 from oss.src.core.embeds.dtos import ErrorPolicy
@@ -31,6 +29,7 @@ from oss.src.core.environments.service import (
 from oss.src.apis.fastapi.environments.models import (
     EnvironmentCreateRequest,
     EnvironmentEditRequest,
+    EnvironmentVariantForkRequest,
     EnvironmentQueryRequest,
     EnvironmentRevisionsLogRequest,
     EnvironmentResponse,
@@ -218,6 +217,16 @@ class EnvironmentsRouter:
             operation_id="query_environment_variants",
             status_code=status.HTTP_200_OK,
             response_model=EnvironmentVariantsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/variants/fork",
+            self.fork_environment_variant,
+            methods=["POST"],
+            operation_id="fork_environment_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=EnvironmentVariantResponse,
             response_model_exclude_none=True,
         )
 
@@ -741,6 +750,42 @@ class EnvironmentsRouter:
 
         return environment_variants_response
 
+    @intercept_exceptions()
+    @handle_git_exceptions()
+    async def fork_environment_variant(
+        self,
+        request: Request,
+        *,
+        environment_fork_request: EnvironmentVariantForkRequest,
+    ) -> EnvironmentVariantResponse:
+        """Fork an existing environment variant into a new variant.
+
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `environment_revision_id` is provided). Provide
+        `slug` and `name` in the fork body to identify the new variant.
+        """
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        environment_variant = await self.environments_service.fork_environment_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            environment_variant_fork=environment_fork_request.environment_variant,
+            environment_variant_ref=environment_fork_request.environment_variant_ref,
+            environment_revision_ref=environment_fork_request.environment_revision_ref,
+        )
+
+        return EnvironmentVariantResponse(
+            count=1 if environment_variant else 0,
+            environment_variant=environment_variant,
+        )
+
     # ENVIRONMENT REVISIONS ------------------------------------------------
 
     @intercept_exceptions()
@@ -820,6 +865,8 @@ class EnvironmentsRouter:
             environment_ref=environment_revision_resolve_request.environment_ref,
             environment_variant_ref=environment_revision_resolve_request.environment_variant_ref,
             environment_revision_ref=environment_revision_resolve_request.environment_revision_ref,
+            #
+            environment_revision=environment_revision_resolve_request.environment_revision,
             #
             max_depth=environment_revision_resolve_request.max_depth or 10,
             max_embeds=environment_revision_resolve_request.max_embeds or 100,
@@ -1072,29 +1119,12 @@ class EnvironmentsRouter:
             environment_variant_refs=environment_revision_query_request.environment_variant_refs,
             environment_revision_refs=environment_revision_query_request.environment_revision_refs,
             #
-            application_refs=environment_revision_query_request.application_refs,
+            references=environment_revision_query_request.references,
             #
             include_archived=environment_revision_query_request.include_archived,
             #
             windowing=environment_revision_query_request.windowing,
         )
-
-        # Optionally resolve embeds for all revisions if requested
-        if environment_revisions and environment_revision_query_request.resolve:
-            embeds_service = self.environments_service.embeds_service
-
-            for revision in environment_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = EnvironmentRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
 
         response = EnvironmentRevisionsResponse(
             count=len(environment_revisions),
@@ -1126,7 +1156,7 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        commit = environment_revision_commit_request.environment_revision_commit
+        commit = environment_revision_commit_request.environment_revision
         has_data = commit.data is not None
         has_delta = commit.delta is not None
 
@@ -1153,7 +1183,7 @@ class EnvironmentsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            environment_revision_commit=environment_revision_commit_request.environment_revision_commit,
+            environment_revision_commit=environment_revision_commit_request.environment_revision,
         )
 
         return EnvironmentRevisionResponse(
@@ -1179,7 +1209,7 @@ class EnvironmentsRouter:
         environment_revisions = await self.environments_service.log_environment_revisions(
             project_id=UUID(request.state.project_id),
             #
-            environment_revisions_log=environment_revisions_log_request.environment_revisions_log,
+            environment_revisions_log=environment_revisions_log_request.environment_revisions,
         )
 
         revisions_response = EnvironmentRevisionsResponse(

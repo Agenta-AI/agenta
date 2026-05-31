@@ -26,7 +26,7 @@ def query_fixture(authed_api):
         "POST",
         "/queries/revisions/commit",
         json={
-            "query_revision_commit": {
+            "query_revision": {
                 "slug": f"{slug}-v0",
                 "query_id": qid,
                 "query_variant_id": vid,
@@ -39,7 +39,7 @@ def query_fixture(authed_api):
         "POST",
         "/queries/revisions/commit",
         json={
-            "query_revision_commit": {
+            "query_revision": {
                 "slug": f"{slug}-v1",
                 "query_id": qid,
                 "query_variant_id": vid,

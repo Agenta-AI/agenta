@@ -55,7 +55,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
-    WorkflowFork,
+    WorkflowVariantFork,
     WorkflowRevisionsLog,
     #
     WorkflowVariant,
@@ -962,10 +962,14 @@ class WorkflowsService:
         project_id: UUID,
         user_id: UUID,
         #
-        workflow_fork: WorkflowFork,
+        workflow_variant_fork: WorkflowVariantFork,
+        workflow_variant_ref: Reference,
+        workflow_revision_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowVariant]:
         _artifact_fork = ArtifactFork(
-            **workflow_fork.model_dump(mode="json"),
+            variant_id=workflow_variant_ref.id,
+            revision_id=workflow_revision_ref.id if workflow_revision_ref else None,
+            variant=workflow_variant_fork,
         )
 
         variant = await self.workflows_dao.fork_variant(

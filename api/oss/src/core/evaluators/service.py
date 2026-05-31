@@ -6,7 +6,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
-    WorkflowFork,
+    WorkflowVariantFork,
     #
     WorkflowVariantCreate,
     WorkflowVariantEdit,
@@ -46,7 +46,7 @@ from oss.src.core.evaluators.dtos import (
     EvaluatorRevisionsLog,
     EvaluatorCreate,
     EvaluatorEdit,
-    EvaluatorFork,
+    EvaluatorVariantFork,
     #
     EvaluatorVariant,
     EvaluatorVariantCreate,
@@ -488,19 +488,21 @@ class EvaluatorsService:
         project_id: UUID,
         user_id: UUID,
         #
-        evaluator_fork: EvaluatorFork,
+        evaluator_variant_fork: EvaluatorVariantFork,
+        evaluator_variant_ref: Reference,
+        evaluator_revision_ref: Optional[Reference] = None,
     ) -> Optional[EvaluatorVariant]:
-        workflow_fork = WorkflowFork(
-            **evaluator_fork.model_dump(
-                mode="json",
-            )
+        workflow_variant_fork = WorkflowVariantFork(
+            **evaluator_variant_fork.model_dump(mode="json"),
         )
 
         workflow_variant = await self.workflows_service.fork_workflow_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            workflow_fork=workflow_fork,
+            workflow_variant_fork=workflow_variant_fork,
+            workflow_variant_ref=evaluator_variant_ref,
+            workflow_revision_ref=evaluator_revision_ref,
         )
 
         if not workflow_variant:
@@ -937,6 +939,8 @@ class EvaluatorsService:
         evaluator_variant_ref: Optional[Reference] = None,
         evaluator_revision_ref: Optional[Reference] = None,
         #
+        evaluator_revision: Optional["EvaluatorRevision"] = None,
+        #
         max_depth: int = 10,
         max_embeds: int = 100,
         error_policy: str = "exception",
@@ -946,25 +950,29 @@ class EvaluatorsService:
         """
         Fetch and resolve an evaluator revision with embedded references.
 
-        Evaluators are workflows with is_evaluator=True. This method
-        delegates to WorkflowsService.resolve_workflow_revision and converts
-        the result to Evaluator types for backward compatibility.
-
-        Args:
-            project_id: Project scope
-            user_id: User performing resolution
-            evaluator_ref: Evaluator reference
-            evaluator_variant_ref: Variant reference
-            evaluator_revision_ref: Revision reference
-            max_depth: Maximum nesting depth for embeds
-            max_embeds: Maximum total embeds allowed
-            error_policy: How to handle errors (exception, placeholder, keep)
-            include_archived: Include archived entities
-
-        Returns:
-            Tuple of (EvaluatorRevision with resolved configuration, ResolutionInfo metadata)
+        When `evaluator_revision` is provided, resolves its data inline without
+        fetching from DB. Only `data` is used; id and metadata are ignored.
         """
-        # Fetch the evaluator revision
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        if evaluator_revision is not None:
+            if not evaluator_revision.data:
+                return None
+            (
+                resolved_data,
+                resolution_info,
+            ) = await self.embeds_service.resolve_configuration(
+                project_id=project_id,
+                configuration=evaluator_revision.data.model_dump(mode="json"),
+                max_depth=max_depth,
+                max_embeds=max_embeds,
+                error_policy=ErrorPolicy(error_policy),
+                include_archived=include_archived,
+            )
+            evaluator_revision.data = EvaluatorRevisionData(**resolved_data)
+            return (evaluator_revision, resolution_info)
+
         revision = await self.fetch_evaluator_revision(
             project_id=project_id,
             #
@@ -978,10 +986,6 @@ class EvaluatorsService:
         if not revision or not revision.data:
             return None
 
-        # Use embeds service for resolution
-        if not self.embeds_service:
-            raise RuntimeError("EmbedsService not initialized")
-
         (
             revision_data,
             resolution_info,
@@ -994,7 +998,6 @@ class EvaluatorsService:
             include_archived=include_archived,
         )
 
-        # Update revision with resolved configuration
         revision.data = EvaluatorRevisionData(**revision_data)
 
         return (revision, resolution_info)

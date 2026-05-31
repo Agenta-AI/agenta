@@ -137,7 +137,7 @@ def _create_application_stack(authed_api):
         "POST",
         "/applications/revisions/commit",
         json={
-            "application_revision_commit": {
+            "application_revision": {
                 "application_id": app["id"],
                 "application_variant_id": variant["id"],
                 "data": {"parameters": {"model": "test-model"}},
@@ -204,7 +204,7 @@ def _create_evaluator_stack(authed_api):
         "POST",
         "/evaluators/revisions/commit",
         json={
-            "evaluator_revision_commit": {
+            "evaluator_revision": {
                 "evaluator_id": evaluator["id"],
                 "evaluator_variant_id": variant["id"],
                 "data": {"parameters": {"model": "test-model"}},
@@ -269,7 +269,7 @@ def _create_testset_stack(authed_api):
         "POST",
         "/testsets/revisions/commit",
         json={
-            "testset_revision_commit": {
+            "testset_revision": {
                 "testset_id": testset["id"],
                 "testset_variant_id": variant["id"],
                 "data": {"testcases": []},
@@ -327,7 +327,7 @@ def _create_query_stack(authed_api):
         "POST",
         "/queries/revisions/commit",
         json={
-            "query_revision_commit": {
+            "query_revision": {
                 "query_id": query["id"],
                 "query_variant_id": query["variant_id"],
                 "data": {"windowing": {"limit": 50}},
@@ -393,7 +393,7 @@ def _create_environment_stack(authed_api):
         "POST",
         "/environments/revisions/commit",
         json={
-            "environment_revision_commit": {
+            "environment_revision": {
                 "environment_id": environment["id"],
                 "environment_variant_id": variant["id"],
                 "data": {"references": {}},

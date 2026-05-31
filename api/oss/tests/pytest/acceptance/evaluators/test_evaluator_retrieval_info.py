@@ -22,7 +22,7 @@ def evaluator_fixture(authed_api):
         "POST",
         "/evaluators/revisions/commit",
         json={
-            "evaluator_revision_commit": {
+            "evaluator_revision": {
                 "slug": f"{slug}-v0",
                 "evaluator_id": eid,
                 "evaluator_variant_id": vid,
@@ -35,7 +35,7 @@ def evaluator_fixture(authed_api):
         "POST",
         "/evaluators/revisions/commit",
         json={
-            "evaluator_revision_commit": {
+            "evaluator_revision": {
                 "slug": f"{slug}-v1",
                 "evaluator_id": eid,
                 "evaluator_variant_id": vid,
@@ -108,7 +108,7 @@ def env_backed_evaluator_fixture(authed_api):
         "POST",
         "/evaluators/revisions/commit",
         json={
-            "evaluator_revision_commit": {
+            "evaluator_revision": {
                 "slug": f"{slug}-v0",
                 "evaluator_id": eid,
                 "evaluator_variant_id": vid,
@@ -121,7 +121,7 @@ def env_backed_evaluator_fixture(authed_api):
         "POST",
         "/evaluators/revisions/commit",
         json={
-            "evaluator_revision_commit": {
+            "evaluator_revision": {
                 "slug": f"{slug}-v1",
                 "evaluator_id": eid,
                 "evaluator_variant_id": vid,
@@ -152,7 +152,7 @@ def env_backed_evaluator_fixture(authed_api):
         "POST",
         "/environments/revisions/commit",
         json={
-            "environment_revision_commit": {
+            "environment_revision": {
                 "slug": f"{env_slug}-r0",
                 "environment_id": env_id,
                 "environment_variant_id": env_variant_id,
@@ -167,7 +167,7 @@ def env_backed_evaluator_fixture(authed_api):
         "POST",
         "/environments/revisions/commit",
         json={
-            "environment_revision_commit": {
+            "environment_revision": {
                 "slug": f"{env_slug}-r1",
                 "environment_id": env_id,
                 "environment_variant_id": env_variant_id,

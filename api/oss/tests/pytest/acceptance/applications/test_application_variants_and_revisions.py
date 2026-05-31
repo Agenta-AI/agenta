@@ -144,7 +144,7 @@ class TestApplicationVariantsAndRevisions:
             "POST",
             "/applications/revisions/commit",
             json={
-                "application_revision_commit": {
+                "application_revision": {
                     "application_id": application["id"],
                     "application_variant_id": variant["id"],
                     "data": {"parameters": {"model": "test-model"}},

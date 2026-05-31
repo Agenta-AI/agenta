@@ -17,6 +17,7 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    ArtifactFork,
     RetrievalInfo,
     #
     VariantCreate,
@@ -33,6 +34,7 @@ from oss.src.core.testsets.dtos import (
     TestsetEdit,
     TestsetQuery,
     TestsetRevisionsLog,
+    TestsetVariantFork,
     #
     TestsetVariant,
     TestsetVariantCreate,
@@ -484,6 +486,36 @@ class TestsetsService:
         )
 
         return testset_variant
+
+    async def fork_testset_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        testset_variant_fork: TestsetVariantFork,
+        testset_variant_ref: Reference,
+        testset_revision_ref: Optional[Reference] = None,
+    ) -> Optional[TestsetVariant]:
+        _artifact_fork = ArtifactFork(
+            variant_id=testset_variant_ref.id,
+            revision_id=testset_revision_ref.id if testset_revision_ref else None,
+            variant=testset_variant_fork,
+        )
+
+        variant = await self.testsets_dao.fork_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            artifact_fork=_artifact_fork,
+        )
+
+        if not variant:
+            return None
+
+        return TestsetVariant(
+            **variant.model_dump(mode="json"),
+        )
 
     async def archive_testset_variant(
         self,

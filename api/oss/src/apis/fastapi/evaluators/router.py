@@ -17,8 +17,6 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     EvaluatorRevisionCommit,
-    EvaluatorRevisionData,
-    #
     SimpleEvaluatorQuery,
     SimpleEvaluatorQueryFlags,
 )
@@ -38,7 +36,7 @@ from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorCreateRequest,
     EvaluatorEditRequest,
     EvaluatorQueryRequest,
-    EvaluatorForkRequest,
+    EvaluatorVariantForkRequest,
     EvaluatorRevisionsLogRequest,
     EvaluatorResponse,
     EvaluatorsResponse,
@@ -1067,7 +1065,7 @@ class EvaluatorsRouter:
         *,
         evaluator_variant_id: Optional[UUID] = None,
         #
-        evaluator_variant_fork_request: EvaluatorForkRequest,
+        evaluator_variant_fork_request: EvaluatorVariantForkRequest,
     ):
         """Fork an evaluator variant into a new variant.
 
@@ -1084,23 +1082,23 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        fork_request = evaluator_variant_fork_request.evaluator
-
+        evaluator_variant_ref = evaluator_variant_fork_request.evaluator_variant_ref
         if evaluator_variant_id:
             if (
-                fork_request.evaluator_variant_id
-                and fork_request.evaluator_variant_id != evaluator_variant_id
+                evaluator_variant_ref.id
+                and evaluator_variant_ref.id != evaluator_variant_id
             ):
                 return EvaluatorVariantResponse()
-
-            if not fork_request.evaluator_variant_id:
-                fork_request.evaluator_variant_id = evaluator_variant_id
+            if not evaluator_variant_ref.id:
+                evaluator_variant_ref = Reference(id=evaluator_variant_id)
 
         evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_fork=fork_request,
+            evaluator_variant_fork=evaluator_variant_fork_request.evaluator_variant,
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_variant_fork_request.evaluator_revision_ref,
         )
 
         evaluator_variant_response = EvaluatorVariantResponse(
@@ -1608,8 +1606,7 @@ class EvaluatorsRouter:
 
         Returns revision payloads. Use `evaluator_refs`,
         `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
-        the query. Pass `resolve=true` to expand embedded references on
-        each revision's `data`.
+        the query.
         """
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1632,23 +1629,6 @@ class EvaluatorsRouter:
             #
             windowing=evaluator_revision_query_request.windowing,
         )
-
-        # Optionally resolve embeds for all revisions if requested
-        if evaluator_revisions and evaluator_revision_query_request.resolve:
-            embeds_service = self.evaluators_service.embeds_service
-
-            for revision in evaluator_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = EvaluatorRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
 
         response = EvaluatorRevisionsResponse(
             count=len(evaluator_revisions),
@@ -1690,7 +1670,7 @@ class EvaluatorsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision_commit,
+            evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision,
         )
 
         response = EvaluatorRevisionResponse(
@@ -1726,7 +1706,7 @@ class EvaluatorsRouter:
         evaluator_revisions = await self.evaluators_service.log_evaluator_revisions(
             project_id=UUID(request.state.project_id),
             #
-            evaluator_revisions_log=evaluator_revisions_log_request.evaluator_revisions_log,
+            evaluator_revisions_log=evaluator_revisions_log_request.evaluator_revisions,
         )
 
         revisions_response = EvaluatorRevisionsResponse(
@@ -1773,6 +1753,8 @@ class EvaluatorsRouter:
             evaluator_ref=evaluator_revision_resolve_request.evaluator_ref,
             evaluator_variant_ref=evaluator_revision_resolve_request.evaluator_variant_ref,
             evaluator_revision_ref=evaluator_revision_resolve_request.evaluator_revision_ref,
+            #
+            evaluator_revision=evaluator_revision_resolve_request.evaluator_revision,
             #
             max_depth=evaluator_revision_resolve_request.max_depth or 10,
             max_embeds=evaluator_revision_resolve_request.max_embeds or 100,

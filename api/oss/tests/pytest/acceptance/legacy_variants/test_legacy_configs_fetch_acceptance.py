@@ -44,7 +44,7 @@ def _create_application_config(authed_api):
             "POST",
             "/applications/revisions/commit",
             json={
-                "application_revision_commit": {
+                "application_revision": {
                     "slug": f"{app_slug}-v0",
                     "application_id": app_id,
                     "application_variant_id": variant_id,
@@ -59,7 +59,7 @@ def _create_application_config(authed_api):
             "POST",
             "/applications/revisions/commit",
             json={
-                "application_revision_commit": {
+                "application_revision": {
                     "slug": f"{app_slug}-v1",
                     "application_id": app_id,
                     "application_variant_id": variant_id,
@@ -124,7 +124,7 @@ def _deploy_config_to_environment(authed_api, config):
             "POST",
             "/environments/revisions/commit",
             json={
-                "environment_revision_commit": {
+                "environment_revision": {
                     "slug": uuid4().hex[-12:],
                     "environment_id": env_id,
                     "environment_variant_id": env_variant_id,
@@ -140,7 +140,7 @@ def _deploy_config_to_environment(authed_api, config):
             "POST",
             "/environments/revisions/commit",
             json={
-                "environment_revision_commit": {
+                "environment_revision": {
                     "slug": f"{env_slug}-v1",
                     "environment_id": env_id,
                     "environment_variant_id": env_variant_id,

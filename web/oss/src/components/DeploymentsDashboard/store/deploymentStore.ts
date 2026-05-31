@@ -213,7 +213,7 @@ export const deploymentPaginatedStore = createPaginatedEntityStore<
 
         // Filter out v0 revisions (auto-created initial revisions) and revisions
         // that don't contain a reference for the current app (client-side safety net
-        // in case the backend doesn't filter by application_refs)
+        // in case the backend doesn't filter by `references`)
         const withAppRef = response.environment_revisions
             .filter((r) => (r.version ?? 0) > 0)
             .filter((r) => {

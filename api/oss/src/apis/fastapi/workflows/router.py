@@ -32,7 +32,7 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowCreateRequest,
     WorkflowEditRequest,
     WorkflowQueryRequest,
-    WorkflowForkRequest,
+    WorkflowVariantForkRequest,
     WorkflowResponse,
     WorkflowsResponse,
     #
@@ -1153,7 +1153,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        workflow_fork_request: WorkflowForkRequest,
+        workflow_fork_request: WorkflowVariantForkRequest,
     ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1167,7 +1167,9 @@ class WorkflowsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            workflow_fork=workflow_fork_request.workflow,
+            workflow_variant_fork=workflow_fork_request.workflow_variant,
+            workflow_variant_ref=workflow_fork_request.workflow_variant_ref,
+            workflow_revision_ref=workflow_fork_request.workflow_revision_ref,
         )
 
         # Invalidate legacy caches so the registry page reflects the forked variant
@@ -1450,7 +1452,7 @@ class WorkflowsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if workflow_variant_id is not None and str(workflow_variant_id) != str(
-            workflow_revision_commit_request.workflow_revision_commit.workflow_variant_id
+            workflow_revision_commit_request.workflow_revision.workflow_variant_id
         ):
             return WorkflowRevisionResponse()
 
@@ -1458,7 +1460,7 @@ class WorkflowsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            workflow_revision_commit=workflow_revision_commit_request.workflow_revision_commit,
+            workflow_revision_commit=workflow_revision_commit_request.workflow_revision,
         )
 
         # Invalidate legacy caches so the registry page reflects the new revision
@@ -1490,7 +1492,7 @@ class WorkflowsRouter:
         workflow_revisions = await self.workflows_service.log_workflow_revisions(
             project_id=UUID(request.state.project_id),
             #
-            workflow_revisions_log=workflow_revisions_log_request.workflow_revisions_log,
+            workflow_revisions_log=workflow_revisions_log_request.workflow_revisions,
         )
 
         await publish_revision_event(

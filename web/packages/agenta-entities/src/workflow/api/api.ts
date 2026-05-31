@@ -797,7 +797,7 @@ export async function createWorkflow(
         await axios.post(
             `${getAgentaApiUrl()}/workflows/revisions/commit`,
             {
-                workflow_revision_commit: {
+                workflow_revision: {
                     workflow_id: workflowId,
                     workflow_variant_id: variantId,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
@@ -813,7 +813,7 @@ export async function createWorkflow(
         const commitResponse = await axios.post(
             `${getAgentaApiUrl()}/workflows/revisions/commit`,
             {
-                workflow_revision_commit: {
+                workflow_revision: {
                     workflow_id: workflowId,
                     workflow_variant_id: variantId,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
@@ -962,7 +962,7 @@ export async function updateWorkflow(
         const commitResponse = await axios.post(
             `${getAgentaApiUrl()}/workflows/revisions/commit`,
             {
-                workflow_revision_commit: {
+                workflow_revision: {
                     workflow_id: payload.id,
                     workflow_variant_id: payload.variantId ?? undefined,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
@@ -1019,7 +1019,7 @@ export async function commitWorkflowRevisionApi(
     const commitResponse = await axios.post(
         `${getAgentaApiUrl()}/workflows/revisions/commit`,
         {
-            workflow_revision_commit: {
+            workflow_revision: {
                 workflow_id: payload.workflowId,
                 workflow_variant_id: payload.variantId ?? undefined,
                 slug: payload.slug ?? generateId().replace(/-/g, "").slice(0, 12),

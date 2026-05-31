@@ -57,7 +57,7 @@ def _create_environment_with_deployment(authed_api, *, key, payload):
         "POST",
         "/environments/revisions/commit",
         json={
-            "environment_revision_commit": {
+            "environment_revision": {
                 "slug": f"envr-{slug}-init",
                 "environment_id": env["id"],
                 "environment_variant_id": env_variant["id"],
@@ -72,7 +72,7 @@ def _create_environment_with_deployment(authed_api, *, key, payload):
         "POST",
         "/environments/revisions/commit",
         json={
-            "environment_revision_commit": {
+            "environment_revision": {
                 "slug": f"envr-{slug}",
                 "environment_id": env["id"],
                 "environment_variant_id": env_variant["id"],
@@ -241,7 +241,7 @@ def _create_application_stack(authed_api):
         "POST",
         "/applications/revisions/commit",
         json={
-            "application_revision_commit": {
+            "application_revision": {
                 "application_id": app["id"],
                 "application_variant_id": variant["id"],
                 "data": {"parameters": {"model": "test-model"}},
@@ -367,7 +367,7 @@ def _create_evaluator_stack(authed_api):
         "POST",
         "/evaluators/revisions/commit",
         json={
-            "evaluator_revision_commit": {
+            "evaluator_revision": {
                 "evaluator_id": evaluator["id"],
                 "evaluator_variant_id": variant["id"],
                 "data": {"parameters": {"threshold": 0.5}},

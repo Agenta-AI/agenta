@@ -81,7 +81,7 @@ def mock_data(authed_api):
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision_commit": {
+            "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-initial",
                 "name": f"Workflow Revision Initial {workflow_revision_slug}",
                 "description": "Workflow Revision Initial Description",
@@ -99,7 +99,7 @@ def mock_data(authed_api):
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision_commit": {
+            "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}",
                 "name": f"Workflow Revision {workflow_revision_slug}",
                 "description": "Workflow Revision Description",
@@ -134,7 +134,7 @@ def mock_data(authed_api):
         "POST",
         "/workflows/revisions/commit",
         json={
-            "workflow_revision_commit": {
+            "workflow_revision": {
                 "slug": f"workflow-Revision-{workflow_revision_slug}",
                 "name": f"Workflow Revision {workflow_revision_slug}",
                 "description": "Workflow Revision Description",
