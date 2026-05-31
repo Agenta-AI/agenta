@@ -240,7 +240,9 @@ function HoverableRow({
             className={clsx(
                 "w-full border-none bg-transparent [font:inherit] text-left cursor-pointer",
                 "flex items-center gap-2 px-2 py-1.5 rounded-md",
-                active ? "bg-zinc-100" : "hover:bg-zinc-50",
+                active
+                    ? "bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)]"
+                    : "hover:bg-zinc-50 dark:hover:bg-[var(--ag-rgba-051729-04)]",
             )}
         >
             <div className="min-w-0 flex-1">{left}</div>
@@ -276,7 +278,7 @@ function GatewayConnectionRowWithHook({
                             className="w-4 h-4 rounded object-contain shrink-0"
                         />
                     ) : (
-                        <div className="w-4 h-4 rounded bg-zinc-100 shrink-0" />
+                        <div className="w-4 h-4 rounded bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)] shrink-0" />
                     )}
                     <div className="min-w-0 flex flex-col leading-tight">
                         <span className="text-xs truncate">{label}</span>
@@ -318,7 +320,7 @@ function GatewayConnectionRowFallback({
                             className="w-4 h-4 rounded object-contain shrink-0"
                         />
                     ) : (
-                        <div className="w-4 h-4 rounded bg-zinc-100 shrink-0" />
+                        <div className="w-4 h-4 rounded bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)] shrink-0" />
                     )}
                     <div className="min-w-0 flex flex-col leading-tight">
                         <span className="text-xs truncate">{label}</span>
@@ -447,7 +449,9 @@ function BuiltinToolsPane({
                             className={clsx(
                                 "w-full border-none bg-transparent [font:inherit] cursor-pointer",
                                 "flex items-center gap-2 px-2 py-1.5 rounded-md text-left",
-                                selected ? "bg-zinc-100" : "hover:bg-zinc-50",
+                                selected
+                                    ? "bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)]"
+                                    : "hover:bg-zinc-50 dark:hover:bg-[var(--ag-rgba-051729-04)]",
                             )}
                         >
                             <span className="min-w-0 flex-1 text-xs truncate">
@@ -666,7 +670,9 @@ function GatewayActionsPane({
                                             "w-full border-none bg-transparent [font:inherit]",
                                             "flex items-center gap-2 px-2 py-1.5 rounded-md text-left cursor-pointer",
                                             isPending && "opacity-70 cursor-wait",
-                                            selected ? "bg-zinc-100" : "hover:bg-zinc-50",
+                                            selected
+                                                ? "bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)]"
+                                                : "hover:bg-zinc-50 dark:hover:bg-[var(--ag-rgba-051729-04)]",
                                         )}
                                     >
                                         <span className="min-w-0 flex-1 flex flex-col leading-tight">

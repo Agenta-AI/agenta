@@ -118,7 +118,7 @@ function AnnotationQueuesSearchEmptyState({
 }) {
     return (
         <div className="px-4 py-6">
-            <div className="mx-auto flex min-h-[220px] max-w-2xl items-center justify-center rounded-[24px] border border-dashed border-zinc-200 bg-zinc-50/70 px-6 py-8">
+            <div className="mx-auto flex min-h-[220px] max-w-2xl items-center justify-center rounded-[24px] border border-dashed border-zinc-200 bg-zinc-50/70 dark:border-[var(--ag-rgba-051729-06)] dark:bg-[var(--ag-rgba-051729-04)] px-6 py-8">
                 <div className="flex max-w-lg flex-col items-center text-center">
                     <Typography.Title
                         level={4}
@@ -518,6 +518,11 @@ const AnnotationQueuesView = ({
                 exportOptions={exportOptions}
                 enableExport={canExportData}
                 autoHeight
+                // Fill the flex-column parent so the table's scroll container has a
+                // definite height to measure on mount (matches the evaluators/
+                // evaluations tables). Without it the shell sizes to content and the
+                // table mounts at the ~360px fallback height before growing.
+                className="flex-1 min-h-0"
                 store={getDefaultStore()}
             />
             <CreateQueueDrawer
