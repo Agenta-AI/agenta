@@ -632,10 +632,13 @@ class RawEnvironmentsClient:
         Parameters
         ----------
         environment_ref : typing.Optional[Reference]
+            Environment artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of an arbitrary variant of this environment.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Environment revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `environment_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         resolve : typing.Optional[bool]
         
@@ -2094,10 +2097,13 @@ class AsyncRawEnvironmentsClient:
         Parameters
         ----------
         environment_ref : typing.Optional[Reference]
+            Environment artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of an arbitrary variant of this environment.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Environment revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `environment_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         resolve : typing.Optional[bool]
         

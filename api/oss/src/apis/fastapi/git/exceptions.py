@@ -19,10 +19,19 @@ from functools import wraps
 from fastapi import HTTPException
 
 from oss.src.core.git.types import (
+    InitialRevisionConflict,
     RetrieveRefsInconsistent,
     RetrieveRefsInsufficient,
     VariantForkError,
 )
+
+
+class InitialRevisionConflictException(HTTPException):
+    def __init__(
+        self,
+        message: str = "An initial revision already exists for this variant.",
+    ):
+        super().__init__(status_code=409, detail=message)
 
 
 class VariantForkErrorException(HTTPException):
@@ -52,6 +61,8 @@ def handle_git_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except InitialRevisionConflict as e:
+                raise InitialRevisionConflictException(message=e.message) from e
             except VariantForkError as e:
                 raise VariantForkErrorException(message=e.message) from e
             except RetrieveRefsInsufficient as e:
