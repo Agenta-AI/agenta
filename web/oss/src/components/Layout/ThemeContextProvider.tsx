@@ -83,6 +83,13 @@ const DARK_TOKEN_OVERRIDES = {
     colorSuccess: "#52c41a",
     colorWarning: "#faad14",
     colorError: "#ff4d4f",
+    // Links: light uses the navy primary, but in dark the seed is stripped and
+    // darkAlgorithm falls back to a harsh default blue. Pin a softer, dark-tuned
+    // link blue (GitHub-style) so every antd link (Typography.Link, type="link",
+    // anchors) reads as a clickable affordance without the jarring tone.
+    colorLink: "#58a6ff",
+    colorLinkHover: "#79b8ff",
+    colorLinkActive: "#3b8eea",
     // Surfaces / text / border come from darkAlgorithm by default. Uncomment to tune:
     // colorBgContainer: "#141414",
     // colorBgElevated: "#1f1f1f",
