@@ -499,7 +499,7 @@ const ConfigurationSectionRow = memo(
                     )}
                     style={{
                         top: "40px",
-                        borderBottom: "1px solid #EAEFF5",
+                        borderBottom: "1px solid var(--ag-c-EAEFF5)",
                     }}
                     role="button"
                     tabIndex={0}

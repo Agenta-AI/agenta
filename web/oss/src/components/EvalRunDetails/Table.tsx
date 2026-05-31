@@ -1094,7 +1094,7 @@ const EvalRunDetailsTable = ({
                                               ? record.compareIndex
                                               : 0,
                                       )
-                                    : "#fff"
+                                    : "var(--ag-colorBgContainer)"
 
                                 return {
                                     onClick: (event) => {
