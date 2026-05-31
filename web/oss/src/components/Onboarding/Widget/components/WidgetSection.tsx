@@ -73,8 +73,8 @@ const WidgetSection = memo(function WidgetSection({
                         <Progress
                             percent={sectionStats.percent}
                             showInfo={true}
-                            strokeColor="#1c2c3d"
-                            trailColor="rgba(5, 23, 41, 0.15)"
+                            strokeColor="var(--ag-colorPrimary)"
+                            trailColor="var(--ag-colorFill)"
                             size="small"
                             className="w-[90%] absolute bottom-3 left-[50%] right-[50%] translate-x-[-50%]"
                         />

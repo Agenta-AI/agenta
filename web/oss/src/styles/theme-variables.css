@@ -130,7 +130,10 @@
     --ag-colorError: var(--ant-color-error);
     --ag-colorErrorBorder: var(--ant-color-error-border);
     --ag-colorBgContainerDisabled: var(--ant-color-bg-container-disabled);
-    --ag-colorInfoBg: var(--ant-color-info-bg);
+    /* The project repurposes colorInfoBg as a neutral grey (#f5f7fa ≈ zinc-1, see
+       agenta-ui/utils/styles.ts), not a blue info tint — so keep it neutral in
+       dark (bg-elevated) instead of antd's blue --ant-color-info-bg. */
+    --ag-colorInfoBg: var(--ant-color-bg-elevated);
     --ag-controlItemBgActive: var(--ant-control-item-bg-active);
     --ag-colorWhite: var(--ant-color-white);
     --ag-boxShadowTertiary: var(--ant-box-shadow-tertiary);
