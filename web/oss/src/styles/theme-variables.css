@@ -333,7 +333,15 @@
     --ag-c-F6F8FA: var(--ant-color-bg-elevated);
     --ag-c-F8FAFC: var(--ant-color-bg-elevated);
     --ag-c-F9FAFB: var(--ant-color-bg-elevated);
-    --ag-c-FAFAFA: var(--ant-color-bg-elevated);
+    /* Near-white "raised band" surface (drill-in field headers + root toolbar,
+       playground Outputs header, code blocks, result placeholders). In light it's
+       #fafafa — a faint band a touch off the white base. The codemod collapsed its
+       dark value onto colorBgElevated (#242424), which is the SAME token the drawer/
+       modal/popover body uses, so the band had zero surface contrast against the
+       drawer behind it (only a faint hairline). Use a translucent white overlay so
+       the band always renders ~6% lighter than whatever backdrop it sits on — a real
+       raised step on the drawer (#242424 -> ~#313131) and on a plain page alike. */
+    --ag-c-FAFAFA: rgba(255, 255, 255, 0.06);
     --ag-c-FAFAFB: var(--ant-color-bg-elevated);
     --ag-c-FAFBFC: var(--ant-color-bg-elevated);
     --ag-c-FCE7F6: var(--ant-color-bg-elevated);

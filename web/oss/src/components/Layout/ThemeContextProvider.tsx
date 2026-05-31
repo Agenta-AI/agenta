@@ -130,6 +130,18 @@ const darkComponents = {
     Button: {
         primaryColor: "#141414",
     },
+    // Drawer body surface. In LIGHT mode colorBgContainer and colorBgElevated are both
+    // #fff, so a drawer body matches the base surface its content (e.g. the drill-in's
+    // flat field headers, which use colorBgContainer) is authored against. darkAlgorithm
+    // splits those tokens (#141414 vs our #242424 elevated), so by default the drawer
+    // chrome renders LIGHTER than its own content — the flat #141414 headers read as
+    // dark sunken strips on a lighter drawer. A full-height side drawer is a page-like
+    // panel, not a floating overlay, so pin its body back to the container surface to
+    // restore the light-mode relationship. True overlays (Modal/Popover/Dropdown/Select)
+    // keep the lighter #242424 elevated surface.
+    Drawer: {
+        colorBgElevated: "#141414",
+    },
 }
 
 const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
