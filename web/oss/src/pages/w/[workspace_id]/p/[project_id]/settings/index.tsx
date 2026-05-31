@@ -58,7 +58,7 @@ const Settings: React.FC = () => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
     const tab = tabQuery ?? settingsTab ?? "workspace"
-    const {canViewApiKeys} = useProjectPermissions()
+    const {canViewApiKeys, canViewEvents} = useProjectPermissions()
     const canShowOrganization = isEE()
     const {user} = useProfileData()
     const {selectedOrg} = useOrgData()
@@ -70,7 +70,10 @@ const Settings: React.FC = () => {
         (tab === "organization" && !canShowOrganization) ||
         (tab === "billing" && !canShowBilling) ||
         (tab === "tools" && !canShowTools) ||
-        (tab === "apiKeys" && !canViewApiKeys)
+        (tab === "apiKeys" && !canViewApiKeys) ||
+        // Audit Log tab requires the `view_events` permission. Content (table vs
+        // upgrade CTA) is gated separately by the `Flag.AUDIT` entitlement.
+        (tab === "auditLog" && !canViewEvents)
             ? "workspace"
             : tab
     const {project} = useProjectData()
@@ -101,13 +104,12 @@ const Settings: React.FC = () => {
     }, [selectedOrg?.default_workspace?.id])
 
     const breadcrumbs = useMemo(() => {
-        const organizationLabel = isEE() ? "Organization" : "Agenta"
         return {
             settings: {
                 label: (() => {
                     switch (resolvedTab) {
                         case "organization":
-                            return organizationLabel
+                            return "Access & Security"
                         case "workspace":
                             return "Members"
                         case "projects":
@@ -120,7 +122,7 @@ const Settings: React.FC = () => {
                             return "API Keys"
                         case "automations":
                             return "Automations"
-                        case "audit-log":
+                        case "auditLog":
                             return "Audit Log"
                         case "billing":
                             return billingEnabled ? "Usage & Billing" : "Usage"
@@ -137,21 +139,22 @@ const Settings: React.FC = () => {
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
     const {content, title} = useMemo(() => {
-        const organizationLabel = isEE() ? "Organization" : "Agenta"
         switch (resolvedTab) {
             case "organization":
                 return {
                     content: <Organization />,
                     title: (
                         <div className="flex items-center gap-2">
-                            <span>{organizationLabel}</span>
-                            <Tooltip title={isOrgIdCopied ? "Copied!" : "Click to copy ID"}>
+                            <span>Access & Security</span>
+                            <Tooltip
+                                title={isOrgIdCopied ? "Copied!" : "Click to copy organization ID"}
+                            >
                                 <Tag
                                     className="cursor-pointer flex items-center gap-1"
                                     onClick={handleCopyOrgId}
                                 >
                                     <Link size={14} weight="bold" />
-                                    <span>ID</span>
+                                    <span>Organization ID</span>
                                 </Tag>
                             </Tooltip>
                             {isDemoOrg && (
@@ -173,7 +176,7 @@ const Settings: React.FC = () => {
                 }
             case "automations":
                 return {content: <Automations />, title: "Automations"}
-            case "audit-log":
+            case "auditLog":
                 return {content: <AuditLog />, title: "Audit Log"}
             case "projects":
                 return {content: <ProjectsSettings />, title: "Projects"}
@@ -201,7 +204,7 @@ const Settings: React.FC = () => {
             // The Audit Log tab hosts a full-height InfiniteVirtualTable, which
             // needs a bounded parent so it scrolls internally instead of growing
             // the page. Other tabs keep PageLayout's default `min-h-full` flow.
-            className={resolvedTab === "audit-log" ? "h-full min-h-0" : undefined}
+            className={resolvedTab === "auditLog" ? "h-full min-h-0" : undefined}
         >
             {content}
         </PageLayout>

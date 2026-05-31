@@ -410,6 +410,20 @@ class TracingRouter:
             traces=traces,
         )
 
+        if spans:
+            _trace_ids = list(
+                dict.fromkeys(s.trace_id for s in spans if getattr(s, "trace_id", None))
+            )
+        elif traces:
+            _trace_ids = list(traces.keys())
+        else:
+            _trace_ids = []
+        await publish_trace_queried(
+            request=request,
+            count=len(_trace_ids),
+            trace_ids=_trace_ids,
+        )
+
         return spans_response
 
     @intercept_exceptions()
@@ -662,6 +676,11 @@ class TracingRouter:
             return OTelTracingResponse()
 
         traces = traces_to_trace_map([trace])
+        await publish_trace_fetched(
+            request=request,
+            count=1,
+            trace_id=trace_id,
+        )
         return OTelTracingResponse(
             count=len(traces.keys()),
             traces=traces,
@@ -1118,6 +1137,15 @@ class SpansRouter:
                     detail="You have reached your trace retrieval quota for this period.",
                 )
 
+        trace_ids = list(
+            dict.fromkeys(s.trace_id for s in spans if getattr(s, "trace_id", None))
+        )
+        await publish_trace_queried(
+            request=request,
+            count=len(trace_ids),
+            trace_ids=trace_ids,
+        )
+
         return SpansResponse(
             count=len(spans),
             spans=spans,
@@ -1184,6 +1212,15 @@ class SpansRouter:
                     detail="You have reached your trace retrieval quota for this period.",
                 )
 
+        fetched_trace_ids = list(
+            dict.fromkeys(s.trace_id for s in spans if getattr(s, "trace_id", None))
+        )
+        await publish_trace_fetched(
+            request=request,
+            count=len(fetched_trace_ids),
+            trace_ids=fetched_trace_ids,
+        )
+
         return SpansResponse(
             count=len(spans),
             spans=spans,
@@ -1232,6 +1269,12 @@ class SpansRouter:
                     status_code=429,
                     detail="You have reached your trace retrieval quota for this period.",
                 )
+
+        await publish_trace_fetched(
+            request=request,
+            count=1 if span else 0,
+            trace_id=trace_id,
+        )
 
         return SpanResponse(
             count=1 if span else 0,

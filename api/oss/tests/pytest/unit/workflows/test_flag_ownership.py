@@ -193,12 +193,18 @@ async def test_retrieve_workflow_revision_injects_builtin_runtime_url():
         flags=WorkflowArtifactFlags(is_application=True),
     )
 
-    revision, resolution_info = await service.retrieve_workflow_revision(
+    (
+        revision,
+        resolution_info,
+        retrieval_info,
+    ) = await service.retrieve_workflow_revision(
         project_id=uuid4(),
         workflow_variant_ref=Reference(id=variant_id),
     )
 
     assert resolution_info is None
+    assert retrieval_info is not None
+    assert retrieval_info.references["workflow_revision"].id == revision_id
     assert revision is not None
     assert revision.data is not None
     assert revision.data.url is not None

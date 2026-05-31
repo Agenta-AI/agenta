@@ -158,7 +158,7 @@ const spanBatchFetcher = createBatchFetcher<
 
 /**
  * Batch fetcher that combines concurrent trace requests into a single API call
- * Uses the /tracing/spans/query endpoint with trace_id IN filter.
+ * Uses the /spans/query endpoint with trace_id IN filter.
  *
  * Exported for use by `trace/state/prefetch.ts` and other entity-layer
  * prefetch helpers. Consumers should prefer the higher-level
