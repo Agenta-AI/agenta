@@ -7,11 +7,22 @@ import type {EvaluationRunTableRow} from "../../types"
 
 const CELL_CLASS = "flex h-full w-full min-w-0 items-center gap-2 px-2"
 
-const KIND_TONES: Record<string, string> = {
-    auto: "geekblue",
-    human: "purple",
-    online: "green",
-    custom: "magenta",
+// Use the antd preset palette explicitly (bg = -1, text = -7, border = -3) — the
+// same recipe as the entity reference chips — so the kind chip stays legible and
+// color-coded in dark mode instead of antd's heavy filled-preset block.
+const KIND_TONES: Record<string, {bg: string; text: string; border: string}> = {
+    auto: {bg: "var(--ant-blue-1)", text: "var(--ant-blue-7)", border: "var(--ant-blue-3)"},
+    human: {
+        bg: "var(--ant-purple-1)",
+        text: "var(--ant-purple-7)",
+        border: "var(--ant-purple-3)",
+    },
+    online: {bg: "var(--ant-green-1)", text: "var(--ant-green-7)", border: "var(--ant-green-3)"},
+    custom: {
+        bg: "var(--ant-magenta-1)",
+        text: "var(--ant-magenta-7)",
+        border: "var(--ant-magenta-3)",
+    },
 }
 
 /**
@@ -56,10 +67,22 @@ export const PreviewKindCell = ({record}: {record: EvaluationRunTableRow}) => {
         )
     }
     const label = EVALUATION_KIND_LABELS[kind] ?? "—"
-    const color = KIND_TONES[kind] ?? "#e5e7eb"
+    const tone = KIND_TONES[kind]
     return (
         <div className={CELL_CLASS}>
-            <Tag color={color}>{label}</Tag>
+            <Tag
+                style={
+                    tone
+                        ? {
+                              backgroundColor: tone.bg,
+                              color: tone.text,
+                              borderColor: tone.border,
+                          }
+                        : undefined
+                }
+            >
+                {label}
+            </Tag>
         </div>
     )
 }
