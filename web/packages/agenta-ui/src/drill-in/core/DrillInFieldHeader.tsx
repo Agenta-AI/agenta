@@ -311,7 +311,7 @@ const MappingPopoverContent = memo(
                     <Button
                         type="text"
                         size="small"
-                        className="justify-start text-blue-600"
+                        className="justify-start text-blue-600 dark:text-[#58a6ff]"
                         onClick={() => setShowNewColumnInput(true)}
                     >
                         + Create new column
@@ -472,11 +472,11 @@ const DrillInFieldHeader = memo(
                         </>
                     )}
                     {mappedColumn ? (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                             mapped to {mappedColumn}
                         </span>
                     ) : nestedMappingCount > 0 ? (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                             contains {nestedMappingCount} mapping
                             {nestedMappingCount > 1 ? "s" : ""}
                         </span>
@@ -516,7 +516,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
                                 icon={codeIcon}
                                 onClick={onToggleRawMode}
                             />
@@ -527,7 +527,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
                                 icon={isMarkdownView ? textIcon : markdownIcon}
                                 onClick={onToggleMarkdownView}
                             />

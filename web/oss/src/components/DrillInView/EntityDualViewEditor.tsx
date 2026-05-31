@@ -219,7 +219,7 @@ function EntityDualViewEditorInner<TEntity>({
                 <div className="flex items-center gap-2">
                     {headerContent}
                     {showDirtyBadge && isDirty && (
-                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                        <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-[var(--ant-blue-2)] dark:text-[var(--ant-blue-8)] px-1.5 py-0.5 rounded font-medium">
                             edited
                         </span>
                     )}

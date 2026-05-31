@@ -260,7 +260,13 @@
 }
 
 .dark {
-    --ag-c-051729: #229eff;
+    /* Brand navy #051729 — used predominantly as a near-black TEXT color (drill-in
+       toolbar titles, field-header names, "View as" dropdowns, "Outputs" label).
+       The codemod mapped it to a saturated blue (#229eff), which made all that text
+       read as blue links in dark. Map it to the standard dark text color instead so
+       navy-as-text becomes light-as-text. (The few fill usages — e.g. the annotation
+       EmptyQueueState primary button — carry their own dark override.) */
+    --ag-c-051729: rgba(255, 255, 255, 0.88);
     /* navy-alpha fills: invert to white-alpha so they're visible on dark
        (the codemod left these as navy, i.e. invisible — e.g. evaluator Tags chips) */
     --ag-c-05172905: rgba(255, 255, 255, 0.04);
