@@ -751,13 +751,13 @@ class ApplicationsClient:
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
-            Application reference. When only an application is supplied, the latest revision of its default variant is returned.
+            Application artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the application's default variant.
         
         application_variant_ref : typing.Optional[Reference]
-            Variant reference. Returns the latest revision on that variant.
+            Application variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         application_revision_ref : typing.Optional[Reference]
-            Revision reference. Returns that exact revision.
+            Application revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `application_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment reference. Returns the revision currently deployed to that environment under the given `key`.
@@ -852,7 +852,7 @@ class ApplicationsClient:
     
     def create_application_revision(self, *, application_revision: ApplicationRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResponse:
         """
-        Create a revision row directly, without the commit workflow.
+        Create and commit the initial revision for an application variant.
         
         Advanced use only. For normal development loops prefer
         `POST /applications/revisions/commit`, which commits the new revision
@@ -2276,13 +2276,13 @@ class AsyncApplicationsClient:
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
-            Application reference. When only an application is supplied, the latest revision of its default variant is returned.
+            Application artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the application's default variant.
         
         application_variant_ref : typing.Optional[Reference]
-            Variant reference. Returns the latest revision on that variant.
+            Application variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         application_revision_ref : typing.Optional[Reference]
-            Revision reference. Returns that exact revision.
+            Application revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `application_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment reference. Returns the revision currently deployed to that environment under the given `key`.
@@ -2393,7 +2393,7 @@ class AsyncApplicationsClient:
     
     async def create_application_revision(self, *, application_revision: ApplicationRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResponse:
         """
-        Create a revision row directly, without the commit workflow.
+        Create and commit the initial revision for an application variant.
         
         Advanced use only. For normal development loops prefer
         `POST /applications/revisions/commit`, which commits the new revision

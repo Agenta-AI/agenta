@@ -6,4 +6,5 @@ export interface EnvironmentRevisionResolveResponse {
     count?: number | undefined;
     environment_revision?: (AgentaApi.EnvironmentRevision | null) | undefined;
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

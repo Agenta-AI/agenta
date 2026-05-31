@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.workflows.dtos import (
     #
     WorkflowCatalogType,
@@ -381,6 +382,10 @@ class WorkflowRevisionResponse(BaseModel):
         default=None,
         description="Reference-resolution metadata; populated when `resolve=true` on retrieve.",
     )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References used to retrieve the top-level revision.",
+    )
 
 
 class WorkflowRevisionsResponse(BaseModel):
@@ -449,6 +454,10 @@ class WorkflowRevisionResolveResponse(BaseModel):
     resolution_info: Optional[ResolutionInfo] = Field(
         default=None,
         description="Metadata describing which references were resolved, depth reached, and errors.",
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References (artifact / variant / revision) actually used to retrieve this revision.",
     )
 
 

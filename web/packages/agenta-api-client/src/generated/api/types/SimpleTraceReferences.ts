@@ -15,5 +15,9 @@ export interface SimpleTraceReferences {
     evaluator?: (AgentaApi.Reference | null) | undefined;
     evaluator_variant?: (AgentaApi.Reference | null) | undefined;
     evaluator_revision?: (AgentaApi.Reference | null) | undefined;
+    environment?: (AgentaApi.Reference | null) | undefined;
+    environment_variant?: (AgentaApi.Reference | null) | undefined;
+    environment_revision?: (AgentaApi.Reference | null) | undefined;
     testcase?: (AgentaApi.Reference | null) | undefined;
+    selector?: (Record<string, unknown> | null) | undefined;
 }
