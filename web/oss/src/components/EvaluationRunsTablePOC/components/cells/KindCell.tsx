@@ -7,21 +7,32 @@ import type {EvaluationRunTableRow} from "../../types"
 
 const CELL_CLASS = "flex h-full w-full min-w-0 items-center gap-2 px-2"
 
-// Use the antd preset palette explicitly (bg = -1, text = -7, border = -3) — the
-// same recipe as the entity reference chips — so the kind chip stays legible and
-// color-coded in dark mode instead of antd's heavy filled-preset block.
-const KIND_TONES: Record<string, {bg: string; text: string; border: string}> = {
-    auto: {bg: "var(--ant-blue-1)", text: "var(--ant-blue-7)", border: "var(--ant-blue-3)"},
-    human: {
-        bg: "var(--ant-purple-1)",
-        text: "var(--ant-purple-7)",
-        border: "var(--ant-purple-3)",
+// Light keeps antd's preset filled tag (unchanged). Only dark mode overrides the
+// colors — antd's filled-preset block reads as a muddy, low-contrast block on a
+// dark surface, so in dark we render the tag with the antd preset palette
+// explicitly (bg = -1, text = -7, border = -3), the same recipe as the entity
+// reference chips. `dark:!` so the overrides only apply in dark and beat antd's
+// own preset classes.
+const KIND_TONES: Record<string, {preset: string; darkClass: string}> = {
+    auto: {
+        preset: "geekblue",
+        darkClass:
+            "dark:!bg-[var(--ant-blue-1)] dark:!text-[var(--ant-blue-7)] dark:!border-[var(--ant-blue-3)]",
     },
-    online: {bg: "var(--ant-green-1)", text: "var(--ant-green-7)", border: "var(--ant-green-3)"},
+    human: {
+        preset: "purple",
+        darkClass:
+            "dark:!bg-[var(--ant-purple-1)] dark:!text-[var(--ant-purple-7)] dark:!border-[var(--ant-purple-3)]",
+    },
+    online: {
+        preset: "green",
+        darkClass:
+            "dark:!bg-[var(--ant-green-1)] dark:!text-[var(--ant-green-7)] dark:!border-[var(--ant-green-3)]",
+    },
     custom: {
-        bg: "var(--ant-magenta-1)",
-        text: "var(--ant-magenta-7)",
-        border: "var(--ant-magenta-3)",
+        preset: "magenta",
+        darkClass:
+            "dark:!bg-[var(--ant-magenta-1)] dark:!text-[var(--ant-magenta-7)] dark:!border-[var(--ant-magenta-3)]",
     },
 }
 
@@ -70,17 +81,7 @@ export const PreviewKindCell = ({record}: {record: EvaluationRunTableRow}) => {
     const tone = KIND_TONES[kind]
     return (
         <div className={CELL_CLASS}>
-            <Tag
-                style={
-                    tone
-                        ? {
-                              backgroundColor: tone.bg,
-                              color: tone.text,
-                              borderColor: tone.border,
-                          }
-                        : undefined
-                }
-            >
+            <Tag color={tone?.preset} className={tone?.darkClass}>
                 {label}
             </Tag>
         </div>
