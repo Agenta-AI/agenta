@@ -34,7 +34,13 @@ const PageLayout = ({
             {title ? (
                 <div
                     className={clsx(
-                        "flex items-center justify-between gap-3 h-11",
+                        // shrink-0 keeps the header at exactly h-11 in the flex column.
+                        // Without it, a title-only header (little intrinsic content) gets
+                        // compressed below 44px while a tabbed header resists shrinking
+                        // (tabs have a taller min-content height) — producing different
+                        // header heights and a layout shift when navigating between
+                        // tabbed and non-tabbed full-screen table pages.
+                        "flex shrink-0 items-center justify-between gap-3 h-11",
                         headerClassName,
                     )}
                 >
