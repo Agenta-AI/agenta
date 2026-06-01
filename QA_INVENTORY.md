@@ -80,7 +80,7 @@ separate path.
 
 ---
 
-## 3. 🔴 Mustache form: can't add a second sub-path after the first
+## 3. 🟢 Mustache form: can't add a second sub-path after the first
 
 **Slack ts:** 1780309942.897139
 **No attachment** — text description only
