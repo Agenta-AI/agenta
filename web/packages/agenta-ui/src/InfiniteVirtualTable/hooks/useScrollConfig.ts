@@ -44,13 +44,6 @@ const useScrollConfig = <RecordType>({
                     : containerWidth > 0
                       ? containerWidth
                       : undefined
-            // TEMP DIAGNOSTIC — remove.
-            console.warn("[IVT-scrollY]", {
-                path: "bodyHeight",
-                bodyHeight,
-                containerHeight,
-                resolvedY: bodyHeight,
-            })
             return {x: resolvedX, y: bodyHeight}
         }
 
@@ -87,19 +80,6 @@ const useScrollConfig = <RecordType>({
         if (resolvedY <= 0) {
             resolvedY = 360
         }
-
-        // TEMP DIAGNOSTIC — remove. Shows how the table viewport height is resolved.
-        console.warn("[IVT-scrollY]", {
-            bodyHeight,
-            containerHeight,
-            containerWidth,
-            tableHeaderHeight,
-            resolvedY,
-            path:
-                typeof bodyHeight === "number" && Number.isFinite(bodyHeight)
-                    ? "bodyHeight"
-                    : "container",
-        })
 
         const nextConfig: ScrollConfig = {
             x: resolvedX,
