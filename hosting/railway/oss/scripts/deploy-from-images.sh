@@ -8,6 +8,8 @@ TMP_DIR="$(mktemp -d)"
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+install_error_trap
+
 cleanup() {
     rm -rf "$TMP_DIR"
 }

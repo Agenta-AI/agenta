@@ -7,6 +7,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+install_error_trap
+
 PROJECT_NAME="${RAILWAY_PROJECT_NAME:-agenta-oss-railway}"
 ENV_NAME="${RAILWAY_ENVIRONMENT_NAME:-staging}"
 SOURCE_COMPOSE_FILE="${RAILWAY_SOURCE_COMPOSE_FILE:-$(railway_source_compose_file "$ROOT_DIR")}"

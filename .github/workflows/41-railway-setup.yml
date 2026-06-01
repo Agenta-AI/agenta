@@ -73,9 +73,44 @@ jobs:
           chmod +x hosting/railway/oss/scripts/*.sh
           # shellcheck source=/dev/null
           source hosting/railway/oss/scripts/preview-resolve-env.sh
-          hosting/railway/oss/scripts/bootstrap.sh
+
+          # Persist the full bootstrap output so the "Upload setup log" step can
+          # publish it as an artifact, regardless of live-log truncation.
+          log_file="${GITHUB_WORKSPACE:-$PWD}/railway-setup-${PR_NUMBER:-unknown}.log"
+
+          set +e
+          hosting/railway/oss/scripts/bootstrap.sh 2>&1 | tee "$log_file"
+          setup_status=${PIPESTATUS[0]}
+          set -e
+
           echo "project_name=${RAILWAY_PROJECT_NAME}" >> "$GITHUB_OUTPUT"
           echo "environment_name=${RAILWAY_ENVIRONMENT_NAME}" >> "$GITHUB_OUTPUT"
+
+          if [ "$setup_status" -ne 0 ]; then
+            {
+              echo "### Railway Preview Setup — Failed"
+              echo
+              echo "<details><summary>Setup log (last 100 lines)</summary>"
+              echo
+              echo '```'
+              tail -n 100 "$log_file" 2>/dev/null
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$setup_status"
+          fi
+
+      - name: Upload setup log
+        if: always()
+        # Diagnostics only: a failed/duplicate upload must never fail the job.
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: railway-setup-log-${{ inputs.pr_number }}
+          path: railway-setup-*.log
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
 
       - name: Summary
         run: |
