@@ -9,6 +9,22 @@ features stopped working, citing a post-merge regression.
 
 Legend: 🔴 not started · 🟡 in progress · 🟢 fixed · ⚪ deferred
 
+## Summary
+
+| # | Issue | Status | Commit / next step |
+|---|---|---|---|
+| 1 | Tracing broken in playground | ⚪ deferred | Backend (JP-owned) — needs trace pipeline investigation |
+| 2 | Variables "closing" after first letter in mustache | ⚪ deferred | Likely resolved by #7's regex fix — needs Mahmoud re-test |
+| 3 | Mustache form: can't add second sub-field | 🟢 fixed | `e26ca33a47` |
+| 4 | Text/markdown swapped in messages dropdown | ⚪ deferred | Needs video or repro to identify the actual swap |
+| 5 | Chat: `messages` in unused-columns footer | 🟢 fixed | `e08cb4e772` |
+| 6 | Chat multi-testcase regression | 🟢 fixed | `e08cb4e772` |
+| 7 | Autocomplete broken (post-merge regression) | 🟢 fixed | `693ac2457e` |
+
+**4 fixed and pushed · 3 deferred.** Next QA pass should start by re-testing
+#2 against the post-#7 branch, then asking JP for repro details on #4 and
+backend triage on #1.
+
 ---
 
 ## 1. 🔴 Tracing not working in the playground
