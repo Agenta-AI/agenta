@@ -41,7 +41,7 @@ import type {SimpleChatMessage} from "@agenta/ui/chat-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
-import {CopySimple, Database, Info, Warning} from "@phosphor-icons/react"
+import {CaretDown, CaretRight, CopySimple, Database, Info, Warning} from "@phosphor-icons/react"
 import {Alert, Button, Input, InputNumber, Switch, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
@@ -62,11 +62,22 @@ interface ShapeConflict {
     expectedShape: unknown
 }
 
+/** A nested key that exists in the value but not in the schema — captured
+ *  at the depth where it was first dropped from the rendered shape. `path`
+ *  is dotted relative to the variable root (e.g. `"a.y"` for the variable
+ *  `obj`'s stashed key `obj.a.y`); `value` is the entire sub-tree the key
+ *  carried, which can itself be a primitive or a deeply nested object. */
+interface StashedPath {
+    path: string
+    value: unknown
+}
+
 /** Walks `skel` (schema-derived empty shape) and `val` (current value) in
  *  parallel, building a render shape that contains ONLY the keys the schema
  *  declares — at every depth. Keys present in `val` but absent from `skel`
- *  are dropped from the rendered output; the caller's write-back path
- *  (`mergeEditWithStash` below) restores them when persisting edits.
+ *  are dropped from the rendered output and collected into `stashed`; the
+ *  caller's write-back path (`mergeEditWithStash` below) restores them when
+ *  persisting edits.
  *
  *  This is the recursive counterpart to the previous top-level-only logic.
  *  Without recursion, a rename like `{{obj.a.y}}` → `{{obj.a.t}}` would still
@@ -76,15 +87,16 @@ function buildSchemaStrictShape(
     skel: unknown,
     val: unknown,
     pathPrefix: string,
-): {merged: unknown; conflicts: ShapeConflict[]} {
+): {merged: unknown; conflicts: ShapeConflict[]; stashed: StashedPath[]} {
     const skelIsObject = skel !== null && typeof skel === "object" && !Array.isArray(skel)
     const valIsObject = val !== null && typeof val === "object" && !Array.isArray(val)
-    if (!skelIsObject || !valIsObject) return {merged: val, conflicts: []}
+    if (!skelIsObject || !valIsObject) return {merged: val, conflicts: [], stashed: []}
 
     const skelRec = skel as Record<string, unknown>
     const valRec = val as Record<string, unknown>
     const merged: Record<string, unknown> = {}
     const conflicts: ShapeConflict[] = []
+    const stashed: StashedPath[] = []
 
     for (const [k, skelV] of Object.entries(skelRec)) {
         const path = pathPrefix ? `${pathPrefix}.${k}` : k
@@ -100,6 +112,7 @@ function buildSchemaStrictShape(
                 const sub = buildSchemaStrictShape(skelV, valV, path)
                 merged[k] = sub.merged
                 conflicts.push(...sub.conflicts)
+                stashed.push(...sub.stashed)
             } else {
                 merged[k] = valV
             }
@@ -107,7 +120,19 @@ function buildSchemaStrictShape(
             merged[k] = skelV
         }
     }
-    return {merged, conflicts}
+
+    // Value-only keys at THIS level — captured AFTER the schema walk so
+    // stash entries from deeper levels (descended via recursion) come
+    // first in the list. Display order: deepest first, then shallow,
+    // which keeps the footer's `obj.a.y` entries grouped together when
+    // multiple branches are affected.
+    for (const [k, v] of Object.entries(valRec)) {
+        if (!(k in skelRec)) {
+            stashed.push({path: pathPrefix ? `${pathPrefix}.${k}` : k, value: v})
+        }
+    }
+
+    return {merged, conflicts, stashed}
 }
 
 /** Walks `edit` (the FormView / JSON-editor output) and `original` (the
@@ -309,26 +334,28 @@ export function VariableCard({
     // See `buildEmptyShapeFromSchema` for the shape-derivation rules
     // (prefers `_pathHints` over `properties`), and `buildSchemaStrictShape`
     // above for the recursion logic.
-    const {seedShape, shapeConflicts} = useMemo<{
+    const {seedShape, shapeConflicts, stashedPaths} = useMemo<{
         seedShape: unknown
         shapeConflicts: ShapeConflict[]
+        stashedPaths: StashedPath[]
     }>(() => {
-        if (!expectedSchema) return {seedShape: null, shapeConflicts: []}
+        if (!expectedSchema) return {seedShape: null, shapeConflicts: [], stashedPaths: []}
         const skeleton = buildEmptyShapeFromSchema(expectedSchema)
-        if (skeleton === null) return {seedShape: null, shapeConflicts: []}
+        if (skeleton === null) return {seedShape: null, shapeConflicts: [], stashedPaths: []}
 
         const isEmpty = value === undefined || value === null || value === ""
-        if (isEmpty) return {seedShape: skeleton, shapeConflicts: []}
+        if (isEmpty) return {seedShape: skeleton, shapeConflicts: [], stashedPaths: []}
 
         // Only merge when both sides are plain objects. Arrays / primitives
         // fall through to the value directly.
         const isObject = value !== null && typeof value === "object" && !Array.isArray(value)
         const skelIsObject =
             skeleton !== null && typeof skeleton === "object" && !Array.isArray(skeleton)
-        if (!isObject || !skelIsObject) return {seedShape: null, shapeConflicts: []}
+        if (!isObject || !skelIsObject)
+            return {seedShape: null, shapeConflicts: [], stashedPaths: []}
 
-        const {merged, conflicts} = buildSchemaStrictShape(skeleton, value, "")
-        return {seedShape: merged, shapeConflicts: conflicts}
+        const {merged, conflicts, stashed} = buildSchemaStrictShape(skeleton, value, "")
+        return {seedShape: merged, shapeConflicts: conflicts, stashedPaths: stashed}
     }, [value, expectedSchema])
 
     // Skeleton kept in scope so `handleValueChange` can run the same deep
@@ -513,8 +540,84 @@ export function VariableCard({
                     templateFormat={templateFormat}
                 />
             </div>
+            {/* Stashed (value-only) nested keys footer. Mirrors the
+             *  top-level `UnreferencedColumnsFooter` pattern inside the
+             *  card: collapsed by default, click to reveal which sub-paths
+             *  the prompt no longer references. The `key` prop re-mounts
+             *  the footer when the path set changes, so a new stashed
+             *  entry doesn't quietly appear inside an already-expanded
+             *  disclosure (same anti-leak as top-level). */}
+            <StashedPathsFooter
+                key={stashedPaths.map((p) => p.path).join("|")}
+                variableName={name}
+                paths={stashedPaths}
+            />
         </div>
     )
+}
+
+/* ── Stashed-paths disclosure ───────────────────────────────────────── */
+
+interface StashedPathsFooterProps {
+    variableName: string
+    paths: StashedPath[]
+}
+
+/** Collapsed-by-default footer listing nested keys that exist on the
+ *  testcase value but aren't referenced by the prompt anymore. Mirrors
+ *  the top-level `UnreferencedColumnsFooter` but scoped to ONE variable's
+ *  internal stash — paths are dotted (relative to the variable root) and
+ *  the values are inert references (read-only, no edit). Re-adding
+ *  `{{variableName.path}}` to the prompt promotes the stashed value back
+ *  into the rendered form with its data intact. */
+function StashedPathsFooter({variableName, paths}: StashedPathsFooterProps) {
+    const [expanded, setExpanded] = useState(false)
+    if (paths.length === 0) return null
+
+    const noun = `nested key${paths.length === 1 ? "" : "s"}`
+    const summary = expanded
+        ? `${paths.length} unused ${noun} (not referenced by the prompt)`
+        : `${paths.length} unused ${noun} hidden because the prompt does not reference them.`
+
+    return (
+        <div className="agenta-stashed-paths mt-1 flex flex-col gap-1">
+            <Button
+                type="text"
+                size="small"
+                icon={expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                onClick={() => setExpanded((prev) => !prev)}
+                aria-expanded={expanded}
+                className="self-start !px-1 text-[12px] !text-[rgba(5,23,41,0.55)]"
+            >
+                {summary}
+            </Button>
+            {expanded ? (
+                <div className="flex flex-col gap-1 pl-2 border-l-2 border-solid border-[#e4e4e7]">
+                    {paths.map((p) => (
+                        <div key={p.path} className="flex items-baseline gap-2 text-[12px] py-0.5">
+                            <code className="font-mono text-[11px] text-[#1677FF] shrink-0">
+                                {variableName}.{p.path}
+                            </code>
+                            <span className="text-[rgba(5,23,41,0.55)] truncate font-mono text-[11px]">
+                                {previewValue(p.value)}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    )
+}
+
+/** Render-only preview of a stashed value. Primitives stringify; objects
+ *  show as compact JSON, truncated so long blobs don't blow out the row. */
+function previewValue(value: unknown): string {
+    if (value === undefined) return "undefined"
+    if (value === null) return "null"
+    if (typeof value === "string") return value || '""'
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    const json = JSON.stringify(value)
+    return json.length > 80 ? `${json.slice(0, 77)}…` : json
 }
 
 /* ── Body switcher ──────────────────────────────────────────────────── */
