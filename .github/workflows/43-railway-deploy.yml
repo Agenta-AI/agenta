@@ -182,7 +182,10 @@ jobs:
           # this job so the root cause (e.g. a Postgres crash-loop) is visible
           # here instead of only in the Railway dashboard.
           if [ "$deploy_failed" = "true" ]; then
-            dump_railway_logs
+            # Tee into the persisted log so the uploaded artifact and the
+            # step-summary tail include the Railway service logs too, not just
+            # the (possibly truncated) live Actions log.
+            dump_railway_logs 2>&1 | tee -a "$log_file"
           fi
 
           status_label="Deployed"
