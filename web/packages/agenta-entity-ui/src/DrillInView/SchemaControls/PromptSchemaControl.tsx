@@ -549,44 +549,6 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                 </div>
             )}
 
-            {/* One-way migration warning for legacy formats. Surfaces ONLY
-             *  while the user has:
-             *    1. an original (server-persisted) format of `curly` or
-             *       `fstring` — the two legacy formats hidden from the
-             *       picker for new prompts, and
-             *    2. picked a non-legacy alternative in the dropdown
-             *       (`localTemplateFormat !== original`), and
-             *    3. not yet committed the draft (the original ref is
-             *       sticky for the lifetime of THIS revision — once the
-             *       draft commits, a new revision is loaded and the ref
-             *       resets to the now-persisted non-legacy format,
-             *       legitimately dropping curly/fstring from the picker).
-             *
-             *  So the banner is the actionable window: "you can still
-             *  bail by discarding". Once committed, it disappears with
-             *  the legacy option itself. */}
-            {!disabled &&
-                (originalTemplateFormatRef.current === "curly" ||
-                    originalTemplateFormatRef.current === "fstring") &&
-                localTemplateFormat !== originalTemplateFormatRef.current && (
-                    <Alert
-                        type="info"
-                        showIcon
-                        icon={<Info size={14} />}
-                        className="!py-1 !px-2 !rounded-md"
-                        message={
-                            <span className="text-[12px]">
-                                Switching from{" "}
-                                <code className="font-mono text-[11px] bg-[#e6f4ff] px-1 rounded">
-                                    {originalTemplateFormatRef.current}
-                                </code>{" "}
-                                is permanent — once you commit, you won&apos;t be able to switch
-                                back. Discard the draft to revert.
-                            </span>
-                        }
-                    />
-                )}
-
             {/* Action bar - Message, Tool, Output type, Template format */}
             {!disabled && (
                 <div className="flex flex-wrap gap-1">
@@ -653,6 +615,49 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                     />
                 </div>
             )}
+
+            {/* One-way migration warning for legacy formats. Surfaces ONLY
+             *  while the user has:
+             *    1. an original (server-persisted) format of `curly` or
+             *       `fstring` — the two legacy formats hidden from the
+             *       picker for new prompts, and
+             *    2. picked a non-legacy alternative in the dropdown
+             *       (`localTemplateFormat !== original`), and
+             *    3. not yet committed the draft (the original ref is
+             *       sticky for the lifetime of THIS revision — once the
+             *       draft commits, a new revision is loaded and the ref
+             *       resets to the now-persisted non-legacy format,
+             *       legitimately dropping curly/fstring from the picker).
+             *
+             *  Placed BELOW the action bar so toggling visibility doesn't
+             *  push the action-bar buttons downward — users picking the
+             *  format wouldn't lose their click target as the banner
+             *  appears/disappears.
+             *
+             *  So the banner is the actionable window: "you can still
+             *  bail by discarding". Once committed, it disappears with
+             *  the legacy option itself. */}
+            {!disabled &&
+                (originalTemplateFormatRef.current === "curly" ||
+                    originalTemplateFormatRef.current === "fstring") &&
+                localTemplateFormat !== originalTemplateFormatRef.current && (
+                    <Alert
+                        type="info"
+                        showIcon
+                        icon={<Info size={14} />}
+                        className="!py-1 !px-2 !rounded-md"
+                        message={
+                            <span className="text-[12px]">
+                                Switching from{" "}
+                                <code className="font-mono text-[11px] bg-[#e6f4ff] px-1 rounded">
+                                    {originalTemplateFormatRef.current}
+                                </code>{" "}
+                                is permanent — once you commit, you won&apos;t be able to switch
+                                back. Discard the draft to revert.
+                            </span>
+                        }
+                    />
+                )}
         </div>
     )
 })
