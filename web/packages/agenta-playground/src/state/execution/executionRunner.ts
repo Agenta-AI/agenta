@@ -443,8 +443,12 @@ export async function executeStepForSessionWithExecutionItems(
                                   nodeResults,
                               })
                             : undefined
+
+                    const isEvaluatorStage =
+                        node.depth > 0 &&
+                        get(workflowMolecule.selectors.isEvaluator(node.entity.id as string))
                     const stageReferences =
-                        node.depth > 0
+                        node.depth > 0 && !isEvaluatorStage
                             ? buildUpstreamReferences({
                                   get,
                                   incomingConnection: allConnections.find(

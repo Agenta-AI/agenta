@@ -3,7 +3,7 @@ import {useCallback, useMemo} from "react"
 import Sort, {type SortResult} from "@/oss/components/Filters/Sort"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 
-type RangeValue = {from?: string | null; to?: string | null} | null
+type RangeValue = {from?: string | null; to?: string | null; preset?: string | null} | null
 
 type SortOptionValue =
     | "30 mins"
@@ -37,9 +37,24 @@ const SORT_PRESETS: SortPresetMeta[] = [
     {label: "all time"},
 ]
 
+const KNOWN_SORT_VALUES = new Set<SortOptionValue>([
+    ...SORT_PRESETS.map((preset) => preset.label),
+    "custom",
+])
+
+const isKnownSortValue = (preset?: string | null): preset is SortOptionValue =>
+    !!preset && KNOWN_SORT_VALUES.has(preset as SortOptionValue)
+
 const detectSortValue = (value: RangeValue): SortOptionValue => {
     if (!value || (!value.from && !value.to)) {
         return "all time"
+    }
+    // Prefer an explicit, recognized preset. Relative presets are stored with an
+    // open-ended upper bound (`to: null`) so the window always extends to "now";
+    // without this they'd fall into the `!value.to` branch below and mislabel as
+    // "custom".
+    if (isKnownSortValue(value.preset)) {
+        return value.preset
     }
     if (!value.from || !value.to) {
         return "custom"
@@ -68,8 +83,13 @@ const convertSortResultToRange = (result: SortResult): RangeValue => {
             return null
         }
         const from = dayjs.utc(result.sorted).toISOString()
-        const to = dayjs().utc().toISOString()
-        return {from, to}
+        // Derive the preset label from a concrete window, then drop the upper
+        // bound. Relative presets are stored open-ended (`to: null`) so the window
+        // always extends to "now" — matching the default range and Refresh. A
+        // fixed `to` captured here would freeze the upper bound at selection time,
+        // hiding events created afterward until a manual refresh.
+        const preset = detectSortValue({from, to: dayjs().utc().toISOString()})
+        return {from, to: null, preset}
     }
 
     const from = result.customRange?.startTime
@@ -83,7 +103,7 @@ const convertSortResultToRange = (result: SortResult): RangeValue => {
         return null
     }
 
-    return {from, to}
+    return {from, to, preset: "custom"}
 }
 
 interface QuickDateRangePickerProps {
@@ -92,7 +112,10 @@ interface QuickDateRangePickerProps {
 }
 
 const QuickDateRangePicker = ({value, onChange}: QuickDateRangePickerProps) => {
-    const defaultSortValue = useMemo(() => detectSortValue(value), [value?.from, value?.to])
+    const defaultSortValue = useMemo(
+        () => detectSortValue(value),
+        [value?.from, value?.to, value?.preset],
+    )
     const sortComponentKey = useMemo(() => {
         return `${defaultSortValue}:${value?.from ?? "null"}:${value?.to ?? "null"}`
     }, [defaultSortValue, value?.from, value?.to])

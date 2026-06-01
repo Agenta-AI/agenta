@@ -7,11 +7,11 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface TestsetRevisionRetrieveRequest {
-    /** Testset reference. If only the testset is provided, the latest revision on its default variant is returned. */
+    /** Testset artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of an arbitrary variant of this testset. */
     testset_ref?: AgentaApi.Reference | null;
-    /** Variant reference. Returns the latest revision on that variant. */
+    /** Testset variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant. */
     testset_variant_ref?: AgentaApi.Reference | null;
-    /** Revision reference. Returns that specific revision. */
+    /** Testset revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with a `testset_variant_ref`. Sending only `version` without a variant ref returns HTTP 400. */
     testset_revision_ref?: AgentaApi.Reference | null;
     /** Include the ordered list of testcase IDs. Defaults to true (opt-out). */
     include_testcase_ids?: boolean | null;

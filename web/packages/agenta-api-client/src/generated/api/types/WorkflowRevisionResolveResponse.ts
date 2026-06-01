@@ -9,4 +9,6 @@ export interface WorkflowRevisionResolveResponse {
     workflow_revision?: (AgentaApi.WorkflowRevisionOutput | null) | undefined;
     /** Metadata describing which references were resolved, depth reached, and errors. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    /** References (artifact / variant / revision) actually used to retrieve this revision. */
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }
