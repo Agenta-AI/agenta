@@ -10,14 +10,12 @@
  *   - Page CONTENT is gated by the `Flag.AUDIT` entitlement: with it, the table
  *     renders; without it, an UpgradePrompt CTA is shown instead.
  *
- * In OSS the backend skips the entitlement check entirely, so the content is
- * always available — the EE-only `useEntitlements()` query is not mounted in OSS.
+ * This component lives in EE because audit event querying is an EE feature.
  */
 
 import {Spin} from "antd"
 
 import {UpgradePrompt} from "@/oss/components/pages/settings/Organization/UpgradePrompt"
-import {isEE} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 
 import AuditEventDrawer from "./components/AuditEventDrawer"
@@ -52,10 +50,6 @@ const AuditLogGated = () => {
     return hasAudit ? <AuditLogContent /> : <NotEntitled />
 }
 
-const AuditLog = () => {
-    // `isEE()` is env-derived and stable for the session, so branching the
-    // component tree on it (rather than a conditional hook) is safe.
-    return isEE() ? <AuditLogGated /> : <AuditLogContent />
-}
+const AuditLog = () => <AuditLogGated />
 
 export default AuditLog
