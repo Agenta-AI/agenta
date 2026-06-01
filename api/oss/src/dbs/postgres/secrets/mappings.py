@@ -1,5 +1,6 @@
 import uuid
 import json
+from datetime import datetime, timezone
 
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.dtos import (
@@ -30,8 +31,13 @@ def map_secrets_dto_to_dbe(
 
 
 def map_secrets_dto_to_dbe_update(
-    secrets_dbe: SecretsDBE, update_secret_dto: UpdateSecretDTO
+    secrets_dbe: SecretsDBE,
+    update_secret_dto: UpdateSecretDTO,
+    user_id=None,
 ) -> None:
+    secrets_dbe.updated_at = datetime.now(timezone.utc)
+    secrets_dbe.updated_by_id = user_id
+
     if update_secret_dto.header:
         for key, value in update_secret_dto.header.model_dump(
             exclude_none=True

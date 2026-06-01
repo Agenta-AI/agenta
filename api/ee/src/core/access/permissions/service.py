@@ -10,16 +10,17 @@ from oss.src.models.db_models import (
     WorkspaceDB,
     ProjectDB,
 )
-from ee.src.models.shared_models import (
-    Permission,
-    WorkspaceRole,
-)
-from ee.src.core.entitlements.controls import get_role, get_role_permissions
+from ee.src.core.access.permissions.types import Permission, RequiredRole
+from ee.src.core.access.controls import get_role, get_role_permissions
 
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee
-from ee.src.utils.entitlements import check_entitlements, scope_from, Flag
-from ee.src.services.selectors import get_user_org_and_workspace_id
+from ee.src.core.access.entitlements.service import (
+    check_entitlements,
+    scope_from,
+    Flag,
+)
+from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
 
 
 log = get_module_logger(__name__)
@@ -65,12 +66,12 @@ def _project_is_owner(
 ) -> bool:
     """True if the user is OWNER in the project."""
     role = _get_project_member_role(user_id, members)
-    return role == WorkspaceRole.OWNER
+    return role == RequiredRole.OWNER
 
 
 def _project_has_role(
     user_id: str,
-    role_to_check: WorkspaceRole,
+    role_to_check: RequiredRole,
     members: Sequence[Any],
 ) -> bool:
     """True if the user's role exactly matches role_to_check."""

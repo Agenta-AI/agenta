@@ -17,8 +17,8 @@ from oss.src.core.secrets.dtos import (
 )
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import check_action_access
 
 
 log = get_module_logger(__name__)
@@ -185,6 +185,7 @@ class VaultRouter:
             project_id=UUID(request.state.project_id),
             secret_id=UUID(secret_id),
             update_secret_dto=body,
+            user_id=UUID(request.state.user_id),
         )
         if secrets_dto is None:
             raise HTTPException(

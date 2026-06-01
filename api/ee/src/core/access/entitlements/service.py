@@ -8,7 +8,7 @@ from oss.src.utils.context import get_auth_scope
 
 from fastapi.responses import JSONResponse
 from ee.src.core.subscriptions.service import SubscriptionsService
-from ee.src.core.entitlements.types import (
+from ee.src.core.access.entitlements.types import (
     Tracker,
     Flag,
     Counter,
@@ -16,7 +16,7 @@ from ee.src.core.entitlements.types import (
     Period,
     Scope,
 )
-from ee.src.core.entitlements.controls import get_plan_entitlements
+from ee.src.core.access.controls import get_plan_entitlements
 from ee.src.core.meters.service import MetersService
 from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 
@@ -86,7 +86,6 @@ def bootstrap_entitlements_services(
     if subscriptions_service is None:
         subscriptions_service = SubscriptionsService(
             subscriptions_dao=SubscriptionsDAO(),
-            meters_service=meters_service,
         )
 
     register_entitlements_services(
@@ -408,12 +407,6 @@ async def _check_entitlements(
 
         check = flags[flag]
 
-        if flag.name != "RBAC":
-            # TODO: remove this line
-            log.info(
-                f"[METERS] adjusting: {organization_id} |         | {'allow' if check else 'deny '} | {flag.name}"
-            )
-
         return check is True, None, None
 
     # -------------------------------------------------------------- #
@@ -561,18 +554,5 @@ async def _check_entitlements(
             namespace="entitlements:meters",
             key=cache_key,
         )
-
-    # TODO: remove this line
-    log.info(
-        f"[METERS] adjusting: {_scope.organization_id} | "
-        f"{_scope.workspace_id} | "
-        f"{_scope.project_id} | "
-        f"{_scope.user_id} | "
-        f"{(meter.year if meter.year else '    ')}-"
-        f"{(meter.month if meter.month else '  ')}-"
-        f"{(meter.day if meter.day else '  ')} | "
-        f"{'allow' if check else 'deny '} | "
-        f"{meter.key}: {(meter.value or 0) - (meter.synced or 0)} [{meter.value}]"
-    )
 
     return check is True, meter, _

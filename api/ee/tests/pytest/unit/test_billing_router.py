@@ -6,7 +6,7 @@ import pytest
 
 from ee.src.apis.fastapi.billing import router as billing_router_module
 from ee.src.apis.fastapi.billing.router import BillingRouter
-from ee.src.core.entitlements.types import DefaultPlan
+from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.subscriptions.types import Event
 
 

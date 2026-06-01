@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 class DefaultPlan(str, Enum):
     """Code-default plan slugs.
 
-    Runtime plan slugs come from `ee.src.core.entitlements.controls.get_plans()`
+    Runtime plan slugs come from `ee.src.core.access.controls.get_plans()`
     (env-overridable). This enum is only the default-fallback identifier set,
     used as keys for `DEFAULT_ENTITLEMENTS` / `DEFAULT_CATALOG` and as fallback
     in `get_default_plan()` / `get_free_plan()` / `get_trial_plan()`.
@@ -21,24 +21,9 @@ class DefaultPlan(str, Enum):
     SELF_HOSTED_ENTERPRISE = "self_hosted_enterprise"
 
 
-class DefaultRole(str, Enum):
-    """Required role slugs per scope.
-
-    `owner` and `viewer` must exist in every scope (organization, workspace,
-    project) — they are merged in by the access-controls builder regardless of
-    `AGENTA_ACCESS_ROLES` content, so application code can depend on these
-    two slugs being valid in any scope.
-
-    Env overrides may customize the permissions of these roles or add
-    additional roles, but cannot remove them.
-    """
-
-    OWNER = "owner"
-    VIEWER = "viewer"
-
-
 # Permission slugs that the OWNER role always implies. `"*"` is the wildcard
-# permission recognized by `permissions.py`.
+# permission recognized by `permissions.py`. The `RequiredRole` enum itself now
+# lives in `ee.src.core.access.permissions.types`.
 OWNER_PERMISSIONS: list[str] = ["*"]
 
 
@@ -186,7 +171,7 @@ ENDPOINTS = {
         (Method.POST, "/tracing/spans/analytics"),  # LEGACY
     ],
     Category.SERVICES_FAST: [
-        (Method.ANY, "/permissions/verify"),
+        (Method.ANY, "/access/permissions/check"),
     ],
     Category.SERVICES_SLOW: [
         # None defined yet

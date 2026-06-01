@@ -17,8 +17,8 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.entitlements.controls import get_plans
-from ee.src.core.entitlements.types import (
+from ee.src.core.access.controls import get_plans
+from ee.src.core.access.entitlements.types import (
     DEFAULT_CATALOG,
     DefaultPlan,
 )
@@ -124,7 +124,7 @@ def _normalize_pricing_entry(slug: str, entry: Any) -> Dict[str, Any]:
     plus an optional `"quantity"` (default `1` when omitted).
 
     The internal `Counter` / `Gauge` slug → Stripe-side slot name map lives
-    in `ee.src.core.entitlements.types.STRIPE_METER_NAMES`. The runtime in
+    in `ee.src.core.access.entitlements.types.STRIPE_METER_NAMES`. The runtime in
     `ee.src.core.meters.service` resolves the internal slug through that
     map before looking up the price ID here; that is why the operator's
     pricing JSON uses Stripe-side names (matching their Stripe dashboard)

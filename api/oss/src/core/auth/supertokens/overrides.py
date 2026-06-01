@@ -1,9 +1,8 @@
 from typing import Dict, Any, List, Optional, Union
 from urllib.parse import urlparse
 
-import posthog
-
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.lazy import _load_posthog
 
 from supertokens_python.recipe.thirdparty.provider import (
     ProviderInput,
@@ -65,7 +64,7 @@ from oss.src.core.auth.turnstile import (
 )
 from oss.src.services import db_manager
 
-from oss.src.services.exceptions import UnauthorizedException
+from oss.src.utils.exceptions import UnauthorizedException
 from oss.src.services.db_manager import (
     get_user_with_email,
     check_if_user_invitation_exists,
@@ -234,7 +233,7 @@ async def _create_account(email: str, uid: str) -> bool:
             organization_db = await get_oss_organization()
             if not organization_db:
                 raise UnauthorizedException(
-                    detail="No organization found. Please contact the administrator."
+                    message="No organization found. Please contact the administrator."
                 )
 
             # Verify user can join (invitation check)
@@ -244,7 +243,7 @@ async def _create_account(email: str, uid: str) -> bool:
             )
             if not user_invitation_exists:
                 raise UnauthorizedException(
-                    detail="You need to be invited by the organization owner to gain access."
+                    message="You need to be invited by the organization owner to gain access."
                 )
 
             payload["organization_id"] = str(organization_db.id)
@@ -252,6 +251,9 @@ async def _create_account(email: str, uid: str) -> bool:
 
     if env.posthog.enabled and env.posthog.api_key:
         try:
+            posthog = _load_posthog()
+            if posthog is None:
+                return True
             posthog.capture(
                 distinct_id=auth_info.email,
                 event="user_signed_up_v1",
@@ -263,8 +265,11 @@ async def _create_account(email: str, uid: str) -> bool:
                     "$set": {"email": auth_info.email},
                 },
             )
-        except Exception:
-            log.error("[AUTH] Failed to capture PostHog signup event", exc_info=True)
+        except Exception as exc:
+            log.warning(
+                "[AUTH] PostHog signup event capture skipped",
+                reason=str(exc),
+            )
     log.info("[AUTH] _create_account done", email=auth_info.email, uid=uid)
     return True
 

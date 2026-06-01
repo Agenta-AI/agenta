@@ -14,7 +14,7 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import acquire_lock, release_lock, renew_lock
 from oss.src.utils.env import env
 
-from ee.src.utils.entitlements import period_from, scope_from
+from ee.src.core.access.entitlements.service import period_from, scope_from
 from ee.src.core.meters.types import Meters, MeterPeriod
 from oss.src.utils.context import get_auth_scope
 
@@ -24,10 +24,10 @@ from oss.src.services.db_manager import (
 )
 
 from ee.src.services import db_manager_ee
-from ee.src.utils.permissions import check_action_access
-from ee.src.models.shared_models import Permission
-from ee.src.core.entitlements.types import Tracker, Quota, Period, Scope
-from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
+from ee.src.core.access.permissions.service import check_action_access
+from ee.src.core.access.permissions.types import Permission
+from ee.src.core.access.entitlements.types import Tracker, Quota, Period, Scope
+from ee.src.core.access.controls import get_plan_entitlements, get_plans
 from ee.src.core.subscriptions.settings import (
     get_catalog,
     get_pricing_plan,
