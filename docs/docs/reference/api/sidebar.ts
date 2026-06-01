@@ -1660,12 +1660,6 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/fetch-default-queue",
-          label: "Fetch Default Queue",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
           id: "reference/api/create-scenarios",
           label: "Create Scenarios",
           className: "api-method post",
@@ -1819,18 +1813,6 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/delete-queue",
           label: "Delete Queue",
           className: "api-method delete",
-        },
-        {
-          type: "doc",
-          id: "reference/api/archive-queue",
-          label: "Archive Queue",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
-          id: "reference/api/unarchive-queue",
-          label: "Unarchive Queue",
-          className: "api-method post",
         },
         {
           type: "doc",
@@ -2426,8 +2408,8 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/check-permissions",
-          label: "Check Permissions",
+          id: "reference/api/verify-permissions",
+          label: "Verify Permissions",
           className: "api-method get",
         },
       ],

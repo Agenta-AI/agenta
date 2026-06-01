@@ -417,34 +417,6 @@ class EvaluationsClient:
         _response = self._raw_client.open_run(run_id, request_options=request_options)
         return _response.data
     
-    def fetch_default_queue(self, run_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluationQueueResponse:
-        """
-        Parameters
-        ----------
-        run_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        EvaluationQueueResponse
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.evaluations.fetch_default_queue(
-            run_id="run_id",
-        )
-        """
-        _response = self._raw_client.fetch_default_queue(run_id, request_options=request_options)
-        return _response.data
-    
     def create_scenarios(self, *, scenarios: typing.Sequence[EvaluationScenarioCreate], request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
         """
         Parameters
@@ -1198,62 +1170,6 @@ class EvaluationsClient:
         )
         """
         _response = self._raw_client.edit_queue(queue_id, queue=queue, request_options=request_options)
-        return _response.data
-    
-    def archive_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluationQueueResponse:
-        """
-        Parameters
-        ----------
-        queue_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        EvaluationQueueResponse
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.evaluations.archive_queue(
-            queue_id="queue_id",
-        )
-        """
-        _response = self._raw_client.archive_queue(queue_id, request_options=request_options)
-        return _response.data
-    
-    def unarchive_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluationQueueResponse:
-        """
-        Parameters
-        ----------
-        queue_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        EvaluationQueueResponse
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.evaluations.unarchive_queue(
-            queue_id="queue_id",
-        )
-        """
-        _response = self._raw_client.unarchive_queue(queue_id, request_options=request_options)
         return _response.data
     
     def query_evaluation_queue_scenarios(self, queue_id: str, *, queue: typing.Optional[EvaluationQueueScenariosQuery] = OMIT, scenario: typing.Optional[EvaluationScenarioQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
@@ -2177,42 +2093,6 @@ class AsyncEvaluationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.open_run(run_id, request_options=request_options)
-        return _response.data
-    
-    async def fetch_default_queue(self, run_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluationQueueResponse:
-        """
-        Parameters
-        ----------
-        run_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        EvaluationQueueResponse
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.evaluations.fetch_default_queue(
-                run_id="run_id",
-            )
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.fetch_default_queue(run_id, request_options=request_options)
         return _response.data
     
     async def create_scenarios(self, *, scenarios: typing.Sequence[EvaluationScenarioCreate], request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
@@ -3176,78 +3056,6 @@ class AsyncEvaluationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_queue(queue_id, queue=queue, request_options=request_options)
-        return _response.data
-    
-    async def archive_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluationQueueResponse:
-        """
-        Parameters
-        ----------
-        queue_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        EvaluationQueueResponse
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.evaluations.archive_queue(
-                queue_id="queue_id",
-            )
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.archive_queue(queue_id, request_options=request_options)
-        return _response.data
-    
-    async def unarchive_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> EvaluationQueueResponse:
-        """
-        Parameters
-        ----------
-        queue_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        EvaluationQueueResponse
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.evaluations.unarchive_queue(
-                queue_id="queue_id",
-            )
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.unarchive_queue(queue_id, request_options=request_options)
         return _response.data
     
     async def query_evaluation_queue_scenarios(self, queue_id: str, *, queue: typing.Optional[EvaluationQueueScenariosQuery] = OMIT, scenario: typing.Optional[EvaluationScenarioQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:

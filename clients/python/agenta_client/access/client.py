@@ -63,7 +63,7 @@ class AccessClient:
         verbatim from access-controls, including the `"*"` wildcard for
         `owner` — callers that need to render the full permission list
         should expand the wildcard themselves (see
-        `ee.src.services.db_manager_ee._expand_permissions`).
+        `ee.src.services.converters._expand_permissions`).
         
         Parameters
         ----------
@@ -229,7 +229,7 @@ class AccessClient:
         _response = self._raw_client.sso_callback_redirect(organization_slug, provider_slug, request_options=request_options)
         return _response.data
     
-    def check_permissions(self, *, action: typing.Optional[str] = None, scope_type: typing.Optional[str] = None, scope_id: typing.Optional[str] = None, resource_type: typing.Optional[str] = None, resource_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def verify_permissions(self, *, action: typing.Optional[str] = None, scope_type: typing.Optional[str] = None, scope_id: typing.Optional[str] = None, resource_type: typing.Optional[str] = None, resource_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -258,9 +258,9 @@ class AccessClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.access.check_permissions()
+        client.access.verify_permissions()
         """
-        _response = self._raw_client.check_permissions(action=action, scope_type=scope_type, scope_id=scope_id, resource_type=resource_type, resource_id=resource_id, request_options=request_options)
+        _response = self._raw_client.verify_permissions(action=action, scope_type=scope_type, scope_id=scope_id, resource_type=resource_type, resource_id=resource_id, request_options=request_options)
         return _response.data
 class AsyncAccessClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
@@ -324,7 +324,7 @@ class AsyncAccessClient:
         verbatim from access-controls, including the `"*"` wildcard for
         `owner` — callers that need to render the full permission list
         should expand the wildcard themselves (see
-        `ee.src.services.db_manager_ee._expand_permissions`).
+        `ee.src.services.converters._expand_permissions`).
         
         Parameters
         ----------
@@ -530,7 +530,7 @@ class AsyncAccessClient:
         _response = await self._raw_client.sso_callback_redirect(organization_slug, provider_slug, request_options=request_options)
         return _response.data
     
-    async def check_permissions(self, *, action: typing.Optional[str] = None, scope_type: typing.Optional[str] = None, scope_id: typing.Optional[str] = None, resource_type: typing.Optional[str] = None, resource_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def verify_permissions(self, *, action: typing.Optional[str] = None, scope_type: typing.Optional[str] = None, scope_id: typing.Optional[str] = None, resource_type: typing.Optional[str] = None, resource_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -564,10 +564,10 @@ class AsyncAccessClient:
         
         
         async def main() -> None:
-            await client.access.check_permissions()
+            await client.access.verify_permissions()
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.check_permissions(action=action, scope_type=scope_type, scope_id=scope_id, resource_type=resource_type, resource_id=resource_id, request_options=request_options)
+        _response = await self._raw_client.verify_permissions(action=action, scope_type=scope_type, scope_id=scope_id, resource_type=resource_type, resource_id=resource_id, request_options=request_options)
         return _response.data

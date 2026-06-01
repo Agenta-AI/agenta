@@ -8,7 +8,6 @@ export interface EvaluationQueueQuery {
     meta?: (Record<string, AgentaApi.FullJsonInput | null> | null) | undefined;
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
-    include_archived?: (boolean | null) | undefined;
     user_id?: (string | null) | undefined;
     user_ids?: (string[] | null) | undefined;
     run_id?: (string | null) | undefined;

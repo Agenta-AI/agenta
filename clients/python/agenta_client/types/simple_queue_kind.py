@@ -2,4 +2,4 @@
 
 import typing
 
-SimpleQueueKind = typing.Union[typing.Literal["queries", "testsets", "traces", "testcases"], typing.Any]
+SimpleQueueKind = typing.Union[typing.Literal["traces", "testcases"], typing.Any]

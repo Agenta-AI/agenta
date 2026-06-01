@@ -15,8 +15,6 @@ class EvaluationRunFlags(UniversalBaseModel):
     is_split: typing.Optional[bool] = None
     has_queries: typing.Optional[bool] = None
     has_testsets: typing.Optional[bool] = None
-    has_traces: typing.Optional[bool] = None
-    has_testcases: typing.Optional[bool] = None
     has_evaluators: typing.Optional[bool] = None
     has_custom: typing.Optional[bool] = None
     has_human: typing.Optional[bool] = None

@@ -4,7 +4,6 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .evaluation_run_data_concurrency import EvaluationRunDataConcurrency
 from .evaluation_run_data_mapping import EvaluationRunDataMapping
 from .evaluation_run_data_step import EvaluationRunDataStep
 
@@ -12,7 +11,6 @@ from .evaluation_run_data_step import EvaluationRunDataStep
 class EvaluationRunData(UniversalBaseModel):
     steps: typing.Optional[typing.List[EvaluationRunDataStep]] = None
     repeats: typing.Optional[int] = None
-    concurrency: typing.Optional[EvaluationRunDataConcurrency] = None
     mappings: typing.Optional[typing.List[EvaluationRunDataMapping]] = None
     
     if IS_PYDANTIC_V2:

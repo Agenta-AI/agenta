@@ -5,6 +5,5 @@ import type * as AgentaApi from "../index.js";
 export interface EvaluationRunData {
     steps?: (AgentaApi.EvaluationRunDataStep[] | null) | undefined;
     repeats?: (number | null) | undefined;
-    concurrency?: (AgentaApi.EvaluationRunDataConcurrency | null) | undefined;
     mappings?: (AgentaApi.EvaluationRunDataMapping[] | null) | undefined;
 }

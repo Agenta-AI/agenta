@@ -161,7 +161,6 @@ export * from "./EvaluationResultsResponse.js";
 export * from "./EvaluationRun.js";
 export * from "./EvaluationRunCreate.js";
 export * from "./EvaluationRunData.js";
-export * from "./EvaluationRunDataConcurrency.js";
 export * from "./EvaluationRunDataMapping.js";
 export * from "./EvaluationRunDataMappingColumn.js";
 export * from "./EvaluationRunDataMappingStep.js";
