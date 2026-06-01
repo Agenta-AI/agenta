@@ -419,13 +419,18 @@ export function VariableCard({
                         // message slot with a flex container so the button
                         // either sits inline (short text) or wraps to the
                         // next line (long text) without overlapping.
-                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        //
+                        // Code chip uses a contrasting white bg with a thin
+                        // amber border — the previous `bg-[#fff7e6]` was the
+                        // SAME color as the warning Alert background, making
+                        // the chip invisible (Arda screenshot 2026-06-01).
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                             <span className="text-[12px]">
                                 The prompt now expects nested fields at{" "}
                                 {shapeConflicts.map((c, i) => (
                                     <span key={c.key}>
                                         {i > 0 ? ", " : ""}
-                                        <code className="font-mono text-[11px] bg-[#fff7e6] px-1 rounded">
+                                        <code className="font-mono text-[11px] bg-white border border-solid border-[#FFD591] text-[#874D00] px-1 rounded">
                                             {c.key}
                                         </code>
                                     </span>
@@ -435,9 +440,8 @@ export function VariableCard({
                             </span>
                             <Button
                                 size="small"
-                                type="link"
                                 onClick={handleAdoptPromptShape}
-                                className="!px-0 !h-auto !text-[12px] shrink-0"
+                                className="shrink-0"
                             >
                                 Use prompt shape
                             </Button>
