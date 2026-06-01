@@ -20,12 +20,10 @@ from oss.src.core.evaluations.types import (
     #
     EvaluationResult,
     EvaluationResultCreate,
-    EvaluationResultEdit,
     EvaluationResultQuery,
     #
     EvaluationMetrics,
     EvaluationMetricsCreate,
-    EvaluationMetricsEdit,
     EvaluationMetricsQuery,
     EvaluationMetricsRefresh,
     #
@@ -199,16 +197,8 @@ class EvaluationScenarioIdsResponse(BaseModel):
 # - EVALUATION RESULTS ---------------------------------------------------------
 
 
-class EvaluationResultsCreateRequest(BaseModel):
+class EvaluationResultsSetRequest(BaseModel):
     results: List[EvaluationResultCreate]
-
-
-class EvaluationResultEditRequest(BaseModel):
-    result: EvaluationResultEdit
-
-
-class EvaluationResultsEditRequest(BaseModel):
-    results: List[EvaluationResultEdit]
 
 
 class EvaluationResultQueryRequest(BaseModel):
@@ -244,12 +234,8 @@ class EvaluationResultIdsResponse(BaseModel):
 # - EVALUATION METRICS ---------------------------------------------------------
 
 
-class EvaluationMetricsCreateRequest(BaseModel):
+class EvaluationMetricsSetRequest(BaseModel):
     metrics: List[EvaluationMetricsCreate]
-
-
-class EvaluationMetricsEditRequest(BaseModel):
-    metrics: List[EvaluationMetricsEdit]
 
 
 class EvaluationMetricsQueryRequest(BaseModel):

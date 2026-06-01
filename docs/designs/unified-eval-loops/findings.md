@@ -5,6 +5,7 @@ Review scope: full `feat/unified-eval-loops` branch diff against `main`, with em
 Sources:
 
 - Fresh deep scan of code, docs, tests, and migrations on the active checkout.
+- 2026-06-01 deep scan of the current `feat/unified-eval-loops` checkout, focused on the new `TensorSlice` execution path (`runtime/tensor.py` -> `tasks/processor.py` -> SDK runtime planner/logger).
 - User-provided full pytest failure output from the API suite: 41 failed, 1344 passed, 8 skipped.
 - Full reread of every document in `docs/designs/unified-eval-loops/` during the current applicability audit.
 - Targeted local checks:
@@ -14,6 +15,15 @@ Sources:
 - Design references: `docs/designs/unified-eval-loops/{proposal,plan,gap,research,step-removal-semantics}.md`.
 - Extension references: `docs/designs/unify-evals-and-queues/{proposal,plan,gap,unify-evals-extension-synthesis,unify-evals-extension-verbatim,research}.md`.
 - Existing closed findings (UEL-001..UEL-006) retained below for history; reviewed only after the independent pass.
+
+## Summary
+
+- Status: 2 open findings from the current 2026-06-01 scan.
+- Highest severity: `P1` (`UEL-032`).
+- Focus area: the newly wired `TensorSlice` re-execution path for existing scenarios.
+- New findings:
+  - `UEL-032`: existing-scenario slice re-execution still uses insert-only result logging, so reruns collide with the `evaluation_results` uniqueness constraint instead of replacing or reusing cells.
+  - `UEL-033`: slice targeting is incomplete; the processor derives scenario scope from already-existing addressed cells and ignores `repeat_idxs` when planning, so "fill missing cells" / partial-repeat execution silently no-op or over-execute.
 
 ## Notes
 
@@ -32,7 +42,88 @@ Sources:
 
 ## Open Findings
 
-None. (UEL-015 was the last open finding; closed 2026-05-22 — see below.)
+### [OPEN] UEL-032: Existing-scenario `process(slice)` still writes through insert-only result logging, so reruns collide on duplicate result keys
+
+- ID: `UEL-032`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The new `BackendSliceProcessor` is explicitly framed as re-executing EXISTING scenarios, but it delegates all cell writes to `BackendResultLogger`, which writes result cells through the result-setter path. `evaluation_results` remains unique on `(project_id, run_id, scenario_id, step_key, repeat_idx)`, so any slice rerun that touches an already-populated cell needs explicit overwrite/fill-missing semantics. The collision happens immediately for input cells because the SDK planner always includes them for the bound scenario.
+- Evidence:
+  - `api/oss/src/core/evaluations/tasks/processor.py:325-337` re-executes a `TensorSlice` against `_ExistingScenario(scenario_id)`, i.e. it intentionally targets the original scenario rather than creating a new one.
+  - `api/oss/src/core/evaluations/runtime/adapters.py:178-205` shows `BackendResultLogger.log()` writing through `evaluations_service.set_results(...)`.
+  - `api/oss/src/dbs/postgres/evaluations/dbes.py:135-141` keeps the uniqueness constraint on `(project_id, run_id, scenario_id, step_key, repeat_idx)`.
+  - `sdks/python/agenta/sdk/evaluations/runtime/planner.py:84-119` always plans input cells for every repeat, so even a slice that only intends to rerun one evaluator still attempts to insert duplicate input rows for the reused scenario.
+  - `api/oss/src/core/evaluations/service.py` now exposes `set_results(...)`; this finding tracks whether its overwrite semantics are correctly scoped for rerun vs fill-missing.
+- Impact:
+  - `TensorSliceOperations.process()` cannot safely support retry/re-run on an already-populated scenario, which is the core contract it was added to provide.
+  - The failure is deterministic for common rerun cases, not edge-case timing: any addressed cell that already exists becomes a unique-key conflict.
+  - Because the write path is shared with the SDK loop adapter, callers can get a hard failure after doing the expensive rehydration and planning work.
+- Files:
+  - `api/oss/src/core/evaluations/tasks/processor.py`
+  - `api/oss/src/core/evaluations/runtime/adapters.py`
+  - `api/oss/src/dbs/postgres/evaluations/dbes.py`
+  - `sdks/python/agenta/sdk/evaluations/runtime/planner.py`
+- Cause: The branch correctly introduced an "existing scenario" execution adapter, but it still needs explicit execution-mode semantics at the result persistence boundary.
+- Explanation: The design split between ingest (`new scenario`) and rerun (`existing scenario`) was only applied at the scenario factory seam. It was not applied at the result persistence seam, so the processor now mixes "reuse scenario id" with "insert brand-new result rows".
+- Suggested Fix:
+  - Keep two explicit slice execution modes:
+    - default `fill-missing`: create only missing addressed cells and leave existing ones untouched
+    - explicit `force`/`rerun`: re-execute addressed cells even when they already exist
+  - Implement the force path with coordinate-aware overwrite semantics on `(run_id, scenario_id, step_key, repeat_idx)` while preserving the same uniqueness invariant.
+  - Restrict both modes to the addressed slice so reruns remain explicit and do not mutate unrelated cells.
+  - Add focused coverage for both behaviors: one test that fill-missing leaves an existing cell unchanged, and one test that force-rerun updates an existing addressed cell without raising `EntityCreationConflict`.
+- Alternatives:
+  - Replace existing addressed cells with a delete-then-create flow before rerun logging. Simpler than a true upsert, but it loses result row identity and makes partial failure handling trickier.
+- User Direction (2026-06-01):
+  - Preferred path is dual behavior, e.g. a `force`/`rerun` flag for overwrite semantics while keeping fill-missing as the default.
+- Sources:
+  - `api/oss/src/core/evaluations/tasks/processor.py`
+  - `api/oss/src/core/evaluations/runtime/adapters.py`
+  - `api/oss/src/dbs/postgres/evaluations/dbes.py`
+  - `sdks/python/agenta/sdk/evaluations/runtime/planner.py`
+  - `api/oss/src/core/evaluations/service.py`
+  - `api/oss/src/dbs/postgres/evaluations/dao.py`
+  - `api/oss/src/core/evaluations/types.py`
+
+### [OPEN] UEL-033: `BackendSliceProcessor` silently drops missing-cell scenarios and ignores `repeat_idxs` when planning reruns
+
+- ID: `UEL-033`
+- Origin: `scan`
+- Lens: `verification`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: The slice processor claims to support "retry / fill-missing / re-run-one-evaluator", but it derives its working `scenario_ids` from already-existing cells inside the addressed slice and then passes the run's full `repeats` count into the SDK planner. That means a slice aimed at missing cells returns early with `ProcessSummary()` if those target cells do not exist yet, and a slice aimed at a specific repeat still plans every repeat for the scenario.
+- Evidence:
+  - `api/oss/src/core/evaluations/tasks/processor.py:233-250` queries existing cells using the incoming `scenario_ids`/`step_keys`/`repeat_idxs`, then replaces the requested scenario scope with `scenario_ids = sorted({cell.scenario_id ...})`; if the addressed cells are missing, `scenario_ids` becomes empty and the processor returns immediately.
+  - `api/oss/src/core/evaluations/tasks/processor.py:263-264` records `requested_repeats`, but the only later use is logging; it is never enforced in planning or result filtering.
+  - `api/oss/src/core/evaluations/tasks/processor.py:325-329` calls the SDK runtime with `repeats=run.data.repeats`, not the requested subset from `tensor_slice.repeat_idxs`.
+  - `sdks/python/agenta/sdk/evaluations/runtime/planner.py:84-119` expands `repeats` into `range(count)` and plans cells for each repeat index; there is no repeat-subset input at that seam.
+- Impact:
+  - The documented "fill missing cells" behavior is broken for the common case where the missing cells are exactly what the slice is targeting.
+  - Partial reruns such as "rerun repeat 1 only" over-execute by planning all repeats for the scenario.
+  - Together with UEL-032, this means the branch currently supports neither safe rerun nor safe fill-missing semantics for `process(slice)`.
+- Files:
+  - `api/oss/src/core/evaluations/tasks/processor.py`
+  - `sdks/python/agenta/sdk/evaluations/runtime/planner.py`
+- Cause: The backend adapter reused the ingest-time SDK contract without adding a slice-aware planning layer for existing scenario coordinates.
+- Explanation: `TensorSlice` is an output-coordinate API (`scenario_ids x step_keys x repeat_idxs`), but the processor rebuilds execution from "whatever cells already exist" plus "full run repeat count". That is sufficient for broad scenario reruns, not for the precise sparse-slice semantics the new API advertises.
+- Suggested Fix:
+  - Preserve the caller-provided `tensor_slice.scenario_ids` as the authoritative scenario scope; use existing-cell probes only to recover source bindings, not to decide whether the scenario should execute.
+  - Add a repeat-aware planning seam for reruns, either by teaching the SDK planner/processor to accept a repeat subset or by filtering the generated plan before any logging/execution occurs.
+  - Add tests for two cases: processing a missing evaluator cell on an existing scenario, and rerunning only `repeat_idx=1` while `repeat_idx=0` remains untouched.
+- Alternatives:
+  - Narrow the contract and document that `process(slice)` only supports whole-scenario reruns against already-populated repeats. That would still require validating and rejecting unsupported sparse slices instead of silently returning success.
+- User Direction (2026-06-01):
+  - Fix this behavior; do not narrow the contract.
+- Sources:
+  - `api/oss/src/core/evaluations/tasks/processor.py`
+  - `sdks/python/agenta/sdk/evaluations/runtime/planner.py`
 
 ## Closed Findings
 
@@ -305,7 +396,7 @@ None. (UEL-015 was the last open finding; closed 2026-05-22 — see below.)
   - The 3 run routes (`create_runs`, `edit_runs`, `edit_run`) additionally lacked `@handle_evaluation_closed_exception()`, so even once the DAO raised, `edit_run` returned a generic 500.
 - Worker hazard (why a blanket fix was unsafe): `process_evaluation_source_slice` calls `edit_run`/`edit_scenario` at finalization **without** checking `is_closed`. If a user closes a run mid-flight, making those raise would turn benign finalization into a crash/FAILURE.
 - Resolution (2026-05-21) — harden user-facing, keep worker soft:
-  - Added `EvaluationClosedConflict` to the `exclude` of the 20 user-facing mutation DAO methods that raise it (edit_run/edit_runs, create/edit/delete scenario(s)/result(s), edit/delete metrics, create/edit queue(s)); `create_metrics` already had no suppression so it propagates. Now the decorated routes return 409.
+  - Added `EvaluationClosedConflict` to the `exclude` of the 20 user-facing mutation DAO methods that raise it (edit_run/edit_runs, create/edit/delete scenario(s)/result(s), edit/delete metrics, create/edit queue(s)); the metric setter path already had no suppression so it propagates. Now the decorated routes return 409.
   - Added `@handle_evaluation_closed_exception()` to the `create_runs`/`edit_runs`/`edit_run` routes (`api/oss/src/apis/fastapi/evaluations/router.py`).
   - Made the worker tolerant: `process_evaluation_source_slice` wraps its finalization `edit_run` and per-item `edit_scenario` in `try/except EvaluationClosedConflict` (log + skip) — closing is a lock, not a failure.
 - Files:
@@ -681,7 +772,7 @@ None. (UEL-015 was the last open finding; closed 2026-05-22 — see below.)
 - Summary: `docs/designs/unified-eval-loops/step-removal-semantics.md` chose **destructive** `remove_step` + `prune` as the lifecycle policy and listed `add_step`, `remove_step`, `add_scenario`, `remove_scenario`, `probe(slice)`, `populate(slice, results)`, `prune(slice)`, `process(slice)`, `refresh_metrics`, `set_flag` as the canonical operation surface (`proposal.md:367-381`). None of these exist in the API or service.
 - Evidence:
   - `api/oss/src/apis/fastapi/evaluations/router.py` (verified through subagent map) has no `add_step`, `remove_step`, `probe`, `prune`, `populate`, `process`, `set_flag` route. The closest in-process method is `TensorSliceOperations` (see UEL-015).
-  - `api/oss/src/core/evaluations/service.py` exposes `create_results`, `query_results`, `delete_results`, `refresh_metrics`, run/queue CRUD, but no graph-mutation API.
+  - `api/oss/src/core/evaluations/service.py` exposes `set_results`, `query_results`, `delete_results`, `refresh_metrics`, run/queue CRUD, but no graph-mutation API.
   - `docs/designs/unified-eval-loops/step-removal-semantics.md:1-20` declares destructive remove+prune as the chosen model.
 - Impact: Without the operation surface, graph evolution still requires recreating runs or in-place edits without prune cascades, which is the very fragmentation the design was meant to resolve. UI/API affordances for managing steps after creation cannot be built.
 - Files:

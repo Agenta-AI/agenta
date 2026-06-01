@@ -34,12 +34,10 @@ from oss.src.core.evaluations.types import (
     # EVALUATION RESULT
     EvaluationResult,
     EvaluationResultCreate,
-    EvaluationResultEdit,
     EvaluationResultQuery,
     # EVALUATION METRICS
     EvaluationMetrics,
     EvaluationMetricsCreate,
-    EvaluationMetricsEdit,
     EvaluationMetricsQuery,
     EvaluationMetricsRefresh,
     # EVALUATION QUEUE
@@ -1049,7 +1047,7 @@ class EvaluationsService:
             result=result,
         )
 
-    async def create_results(
+    async def set_results(
         self,
         *,
         project_id: UUID,
@@ -1060,7 +1058,7 @@ class EvaluationsService:
         for result in results:
             result.version = CURRENT_VERSION
 
-        return await self.evaluations_dao.create_results(
+        return await self.evaluations_dao.set_results(
             project_id=project_id,
             user_id=user_id,
             #
@@ -1091,41 +1089,6 @@ class EvaluationsService:
             project_id=project_id,
             #
             result_ids=result_ids,
-        )
-
-    async def edit_result(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        result: EvaluationResultEdit,
-    ) -> Optional[EvaluationResult]:
-        result.version = CURRENT_VERSION
-
-        return await self.evaluations_dao.edit_result(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            result=result,
-        )
-
-    async def edit_results(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        results: List[EvaluationResultEdit],
-    ) -> List[EvaluationResult]:
-        for result in results:
-            result.version = CURRENT_VERSION
-
-        return await self.evaluations_dao.edit_results(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            results=results,
         )
 
     async def delete_result(
@@ -1173,7 +1136,7 @@ class EvaluationsService:
 
     # - EVALUATION METRIC ------------------------------------------------------
 
-    async def create_metrics(
+    async def set_metrics(
         self,
         *,
         project_id: UUID,
@@ -1184,7 +1147,7 @@ class EvaluationsService:
         for metric in metrics:
             metric.version = CURRENT_VERSION
 
-        return await self.evaluations_dao.create_metrics(
+        return await self.evaluations_dao.set_metrics(
             project_id=project_id,
             user_id=user_id,
             #
@@ -1202,24 +1165,6 @@ class EvaluationsService:
             project_id=project_id,
             #
             metrics_ids=metrics_ids,
-        )
-
-    async def edit_metrics(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        metrics: List[EvaluationMetricsEdit],
-    ) -> List[EvaluationMetrics]:
-        for metric in metrics:
-            metric.version = CURRENT_VERSION
-
-        return await self.evaluations_dao.edit_metrics(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            metrics=metrics,
         )
 
     async def delete_metrics(
@@ -1608,7 +1553,7 @@ class EvaluationsService:
             )
         ]
 
-        metrics = await self.create_metrics(
+        metrics = await self.set_metrics(
             project_id=project_id,
             user_id=user_id,
             #

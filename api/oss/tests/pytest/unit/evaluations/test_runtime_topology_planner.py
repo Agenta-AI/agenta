@@ -830,7 +830,7 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     )
     evaluations_service = SimpleNamespace(
         query_results=AsyncMock(return_value=[result]),
-        create_results=AsyncMock(return_value=[result]),
+        set_results=AsyncMock(return_value=[result]),
         delete_results=AsyncMock(return_value=[result_id]),
         refresh_metrics=AsyncMock(return_value=[]),
     )
@@ -869,7 +869,7 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     assert populated == [result]
     assert pruned == [result_id]
     assert evaluations_service.query_results.await_count == 2
-    assert evaluations_service.create_results.await_count == 1
+    assert evaluations_service.set_results.await_count == 1
     assert evaluations_service.delete_results.await_count == 1
     # probe/populate/prune operate on results only — none of them refresh
     # metrics. Metrics are the separate `refresh` op.

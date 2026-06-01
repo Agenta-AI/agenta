@@ -43,7 +43,7 @@ class TestEvaluationMetricsBasics:
         assert response["count"] == 1
         # ----------------------------------------------------------------------
 
-    def test_edit_evaluation_metrics(self, authed_api):
+    def test_upsert_evaluation_metrics(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
             {"name": "test_edit_evaluation_metrics"},
@@ -89,7 +89,7 @@ class TestEvaluationMetricsBasics:
         metrics[0]["data"]["boolean_metric"] = False
 
         response = authed_api(
-            "PATCH",
+            "POST",
             "/evaluations/metrics/",
             json={"metrics": metrics},
         )
@@ -239,7 +239,7 @@ class TestEvaluationMetricsBasics:
         assert matched["data"]["boolean_metric"] is True
         # ----------------------------------------------------------------------
 
-    def test_edit_evaluation_metric(self, authed_api):
+    def test_upsert_evaluation_metric(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
             {"name": "test_edit_evaluation_metric"},
@@ -286,7 +286,7 @@ class TestEvaluationMetricsBasics:
         metric["data"]["boolean_metric"] = False
 
         response = authed_api(
-            "PATCH",
+            "POST",
             "/evaluations/metrics/",
             json={"metrics": [metric]},
         )

@@ -140,7 +140,7 @@ class TestEvaluationResultsBasics:
         assert step_key_3 in step_keys
         # ----------------------------------------------------------------------
 
-    def test_edit_evaluation_results(self, authed_api, mock_data):
+    def test_upsert_evaluation_results(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         scenario_id = mock_data["scenarios"][0]["id"]
@@ -181,7 +181,6 @@ class TestEvaluationResultsBasics:
         assert response["count"] == 3
 
         results = response["results"]
-        result_ids = [r["id"] for r in results]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -190,7 +189,7 @@ class TestEvaluationResultsBasics:
         results[2]["status"] = "cancelled"
 
         response = authed_api(
-            "PATCH",
+            "POST",
             "/evaluations/results/",
             json={"results": results},
         )
@@ -200,10 +199,10 @@ class TestEvaluationResultsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 3
-        patched = {r["id"]: r for r in response["results"]}
-        assert patched[result_ids[0]]["status"] == "success"
-        assert patched[result_ids[1]]["status"] == "failure"
-        assert patched[result_ids[2]]["status"] == "cancelled"
+        patched = {r["step_key"]: r for r in response["results"]}
+        assert patched[step_key_1]["status"] == "success"
+        assert patched[step_key_2]["status"] == "failure"
+        assert patched[step_key_3]["status"] == "cancelled"
         # ----------------------------------------------------------------------
 
     def test_delete_evaluation_results(self, authed_api, mock_data):
@@ -310,7 +309,7 @@ class TestEvaluationResultsBasics:
         assert response["result"]["id"] == result_id
         # ----------------------------------------------------------------------
 
-    def test_edit_evaluation_result(self, authed_api, mock_data):
+    def test_upsert_single_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         authed_api("POST", f"/evaluations/runs/{run_id}/open")
@@ -345,9 +344,9 @@ class TestEvaluationResultsBasics:
         result["status"] = "success"
 
         response = authed_api(
-            "PATCH",
-            f"/evaluations/results/{result_id}",
-            json={"result": result},
+            "POST",
+            "/evaluations/results/",
+            json={"results": [result]},
         )
         # ----------------------------------------------------------------------
 
@@ -355,8 +354,8 @@ class TestEvaluationResultsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["result"]["id"] == result_id
-        assert response["result"]["status"] == "success"
+        assert response["results"][0]["id"] == result_id
+        assert response["results"][0]["status"] == "success"
         # ----------------------------------------------------------------------
 
     def test_delete_evaluation_result(self, authed_api, mock_data):

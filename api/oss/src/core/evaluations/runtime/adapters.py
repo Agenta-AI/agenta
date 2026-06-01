@@ -177,7 +177,7 @@ class BackendResultLogger:
 
     async def log(self, request: ResultLogRequest) -> Any:
         cell = request.cell
-        results = await self.evaluations_service.create_results(
+        results = await self.evaluations_service.set_results(
             project_id=self.project_id,
             user_id=self.user_id,
             results=[

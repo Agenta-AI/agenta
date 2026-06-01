@@ -46,9 +46,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationScenarioIdResponse,
     EvaluationScenarioIdsResponse,
     # EVALUATION RESULTS
-    EvaluationResultsCreateRequest,
-    EvaluationResultEditRequest,
-    EvaluationResultsEditRequest,
+    EvaluationResultsSetRequest,
     EvaluationResultQueryRequest,
     EvaluationResultIdsRequest,
     EvaluationResultResponse,
@@ -56,8 +54,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationResultIdResponse,
     EvaluationResultIdsResponse,
     # EVALUATION METRICS
-    EvaluationMetricsCreateRequest,
-    EvaluationMetricsEditRequest,
+    EvaluationMetricsSetRequest,
     EvaluationMetricsQueryRequest,
     EvaluationMetricsIdsRequest,
     EvaluationMetricsResponse,
@@ -345,20 +342,10 @@ class EvaluationsRouter:
         self.router.add_api_route(
             path="/results/",
             methods=["POST"],
-            endpoint=self.create_results,
+            endpoint=self.set_results,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
-            operation_id="create_results",
-        )
-
-        # PATCH /api/evaluations/results/
-        self.router.add_api_route(
-            path="/results/",
-            methods=["PATCH"],
-            endpoint=self.edit_results,
-            response_model=EvaluationResultsResponse,
-            response_model_exclude_none=True,
-            operation_id="edit_results",
+            operation_id="set_results",
         )
 
         # DELETE /api/evaluations/results/
@@ -391,16 +378,6 @@ class EvaluationsRouter:
             operation_id="fetch_result",
         )
 
-        # PATCH /api/evaluations/results/{result_id}
-        self.router.add_api_route(
-            path="/results/{result_id}",
-            methods=["PATCH"],
-            endpoint=self.edit_result,
-            response_model=EvaluationResultResponse,
-            response_model_exclude_none=True,
-            operation_id="edit_result",
-        )
-
         # DELETE /api/evaluations/results/{result_id}
         self.router.add_api_route(
             path="/results/{result_id}",
@@ -427,20 +404,10 @@ class EvaluationsRouter:
         self.router.add_api_route(
             path="/metrics/",
             methods=["POST"],
-            endpoint=self.create_metrics,
+            endpoint=self.set_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
-            operation_id="create_metrics",
-        )
-
-        # PATCH /api/evaluations/metrics/
-        self.router.add_api_route(
-            path="/metrics/",
-            methods=["PATCH"],
-            endpoint=self.edit_metrics,
-            response_model=EvaluationMetricsResponse,
-            response_model_exclude_none=True,
-            operation_id="edit_metrics",
+            operation_id="set_metrics",
         )
 
         # DELETE /api/evaluations/metrics/
@@ -1226,11 +1193,11 @@ class EvaluationsRouter:
     # POST /evaluations/results/
     @intercept_exceptions()
     @handle_evaluation_closed_exception()
-    async def create_results(
+    async def set_results(
         self,
         request: Request,
         *,
-        results_create_request: EvaluationResultsCreateRequest,
+        results_set_request: EvaluationResultsSetRequest,
     ) -> EvaluationResultsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1240,42 +1207,11 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        results = await self.evaluations_service.create_results(
+        results = await self.evaluations_service.set_results(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            results=results_create_request.results,
-        )
-
-        results_response = EvaluationResultsResponse(
-            count=len(results),
-            results=results,
-        )
-
-        return results_response
-
-    # PATCH /evaluations/results/
-    @intercept_exceptions()
-    @handle_evaluation_closed_exception()
-    async def edit_results(
-        self,
-        request: Request,
-        *,
-        results_edit_request: EvaluationResultsEditRequest,
-    ) -> EvaluationResultsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        results = await self.evaluations_service.edit_results(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            results=results_edit_request.results,
+            results=results_set_request.results,
         )
 
         results_response = EvaluationResultsResponse(
@@ -1377,42 +1313,6 @@ class EvaluationsRouter:
 
         return result_response
 
-    # PATCH /evaluations/results/{result_id}
-    @intercept_exceptions()
-    @handle_evaluation_closed_exception()
-    async def edit_result(
-        self,
-        request: Request,
-        *,
-        result_id: UUID,
-        #
-        result_edit_request: EvaluationResultEditRequest,
-    ) -> EvaluationResultResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        if str(result_id) != str(result_edit_request.result.id):
-            return EvaluationResultResponse()
-
-        result = await self.evaluations_service.edit_result(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            result=result_edit_request.result,
-        )
-
-        result_response = EvaluationResultResponse(
-            count=1 if result else 0,
-            result=result,
-        )
-
-        return result_response
-
     # DELETE /evaluations/results/{result_id}
     @intercept_exceptions()
     @handle_evaluation_closed_exception()
@@ -1479,11 +1379,11 @@ class EvaluationsRouter:
     # POST /evaluations/metrics/
     @intercept_exceptions()
     @handle_evaluation_closed_exception()
-    async def create_metrics(
+    async def set_metrics(
         self,
         request: Request,
         *,
-        metrics_create_request: EvaluationMetricsCreateRequest,
+        metrics_set_request: EvaluationMetricsSetRequest,
     ) -> EvaluationMetricsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1493,42 +1393,11 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        metrics = await self.evaluations_service.create_metrics(
+        metrics = await self.evaluations_service.set_metrics(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            metrics=metrics_create_request.metrics,
-        )
-
-        metrics_response = EvaluationMetricsResponse(
-            count=len(metrics),
-            metrics=metrics,
-        )
-
-        return metrics_response
-
-    # PATCH /evaluations/metrics/
-    @intercept_exceptions()
-    @handle_evaluation_closed_exception()
-    async def edit_metrics(
-        self,
-        request: Request,
-        *,
-        metrics_edit_request: EvaluationMetricsEditRequest,
-    ) -> EvaluationMetricsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        metrics = await self.evaluations_service.edit_metrics(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            metrics=metrics_edit_request.metrics,
+            metrics=metrics_set_request.metrics,
         )
 
         metrics_response = EvaluationMetricsResponse(

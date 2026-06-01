@@ -102,7 +102,7 @@ class TensorSliceOperations:
         if not results:
             return []
 
-        return await self.evaluations_service.create_results(
+        return await self.evaluations_service.set_results(
             project_id=project_id,
             user_id=user_id,
             results=results,

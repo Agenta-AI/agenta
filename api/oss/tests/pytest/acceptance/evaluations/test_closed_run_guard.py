@@ -2,7 +2,7 @@
 Closed-run mutation guard.
 
 Closing a run (`POST /runs/{id}/close`) locks it: subsequent content mutations
-(edit run, create scenario/result, edit/refresh metrics) raise
+(edit run, create scenario/result, create/refresh metrics) raise
 `EvaluationClosedConflict`, surfaced as HTTP 409. Opening the run again
 (`POST /runs/{id}/open`) lifts the lock.
 

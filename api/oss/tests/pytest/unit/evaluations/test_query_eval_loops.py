@@ -189,7 +189,7 @@ async def test_process_query_source_run_marks_human_steps_pending(monkeypatch):
     create_scenarios = AsyncMock(
         return_value=[SimpleNamespace(id=scenario_id, tags=None, meta=None)]
     )
-    create_results = AsyncMock(return_value=[SimpleNamespace(id=uuid4())])
+    set_results = AsyncMock(return_value=[SimpleNamespace(id=uuid4())])
     edit_scenario = AsyncMock(
         side_effect=lambda **kwargs: SimpleNamespace(
             id=kwargs["scenario"].id,
@@ -205,7 +205,7 @@ async def test_process_query_source_run_marks_human_steps_pending(monkeypatch):
         SimpleNamespace(
             fetch_run=fetch_run,
             create_scenarios=create_scenarios,
-            create_results=create_results,
+            set_results=set_results,
             edit_scenario=edit_scenario,
             refresh_metrics=refresh_metrics,
         ),
@@ -252,9 +252,9 @@ async def test_process_query_source_run_marks_human_steps_pending(monkeypatch):
         run_id=run_id,
     )
 
-    assert create_results.await_count == 1
+    assert set_results.await_count == 1
     result_step_keys = [
-        result.step_key for result in create_results.await_args.kwargs["results"]
+        result.step_key for result in set_results.await_args.kwargs["results"]
     ]
     assert result_step_keys == ["query-live"]
 
