@@ -105,19 +105,33 @@ _railway_redact() {
         -e 's#(://[A-Za-z0-9._~-]+:)[^@[:space:]/]+@#\1***REDACTED***@#g'
 }
 
-# railway_call: Run a railway CLI command, retrying on rate-limit responses.
+# railway_call: Run a railway CLI command with smart, context-aware retries.
 #
-# Railway returns "You are being ratelimited. Please try again later" on
-# HTTP 429. This wrapper detects that message and backs off with exponential
-# backoff before retrying.
+# Railway's GraphQL API (backboard.railway.com) intermittently rate-limits
+# (HTTP 429) and, far more often for us, times out write mutations such as
+# `variable set` ("operation timed out" / "error sending request"). This
+# wrapper retries the cases that are safe + useful to retry, and fails fast on
+# the rest:
 #
-# Usage:
-#   railway_call [railway args...]
+#   - rate-limit          -> always retried. A 429 is a clean rejection: the
+#                            request was not processed, so a retry cannot
+#                            duplicate work.
+#   - transient network   -> retried ONLY for idempotent commands. A timed-out
+#     (timeout/5xx/reset)    mutation may have already succeeded server-side, so
+#                            we do NOT blind-retry non-idempotent creates
+#                            (`init`, `add`, `environment new`, `volume add`):
+#                            that risks duplicate projects/services/volumes.
+#                            `variable set` (our actual offender) is an
+#                            idempotent upsert, so it is retried.
+#   - anything else       -> not retried. Deterministic errors ("not found",
+#                            "unauthorized", "No service linked") fail fast
+#                            instead of burning the backoff budget.
+#
+# Backoff is exponential. Failure output is redacted (see _railway_redact).
 #
 # Environment variables:
-#   RAILWAY_RETRY_MAX     Max retry attempts (default: 5)
-#   RAILWAY_RETRY_DELAY   Initial delay in seconds (default: 10)
-#
+#   RAILWAY_RETRY_MAX     Max attempts (default: 5)
+#   RAILWAY_RETRY_DELAY   Initial backoff delay in seconds (default: 10)
 railway_call() {
     local max_attempts="${RAILWAY_RETRY_MAX:-5}"
     local delay="${RAILWAY_RETRY_DELAY:-10}"
@@ -125,36 +139,61 @@ railway_call() {
     local output
     local exit_code
 
+    # Is this a non-idempotent create? If so, an ambiguous timeout must not be
+    # blind-retried (the resource may already exist). Rate-limit retries are
+    # still safe because a 429 is rejected before any work is done.
+    local idempotent=1
+    case "$1" in
+        init | add) idempotent=0 ;;
+        environment) [ "${2:-}" = "new" ] && idempotent=0 ;;
+        volume) [ "${2:-}" = "add" ] && idempotent=0 ;;
+    esac
+
     while [ "$attempt" -le "$max_attempts" ]; do
         # `set +Ee` inside the subshell so a non-zero exit from `railway`
         # neither trips errexit nor fires an inherited ERR trap. This wrapper
-        # handles rate-limit retries and reports failures itself.
+        # handles retries and reports failures itself.
         output="$(set +Ee; railway "$@" 2>&1)" && exit_code=0 || exit_code=$?
 
-        if printf "%s" "$output" | grep -qi "ratelimit\|rate.limit\|rate limit"; then
-            if [ "$attempt" -eq "$max_attempts" ]; then
-                printf "railway %s: rate-limited after %d attempts\n" \
-                    "$(printf '%s' "$*" | _railway_redact)" "$max_attempts" >&2
-                printf "%s\n" "$output" | _railway_redact >&2
-                return 1
-            fi
-            printf "railway %s: rate-limited, retrying in %ds (attempt %d/%d)\n" \
-                "$1" "$delay" "$attempt" "$max_attempts" >&2
+        # Success: emit on stdout so callers can capture the output.
+        if [ "$exit_code" -eq 0 ]; then
+            printf "%s\n" "$output"
+            return 0
+        fi
+
+        # Classify the failure to decide whether a retry is safe + useful.
+        local kind="error"
+        if printf "%s" "$output" | grep -qiE "ratelimit|rate.?limit"; then
+            kind="rate-limit"
+        elif printf "%s" "$output" | grep -qiE "timed out|error sending request|failed to fetch|error trying to connect|connection (reset|refused|closed|error)|temporarily unavailable|service unavailable|bad gateway|gateway time-?out|broken pipe|unexpected eof|tls handshake"; then
+            kind="transient"
+        fi
+
+        local retryable=0
+        case "$kind" in
+            rate-limit) retryable=1 ;;
+            transient) [ "$idempotent" -eq 1 ] && retryable=1 ;;
+        esac
+
+        if [ "$retryable" -eq 1 ] && [ "$attempt" -lt "$max_attempts" ]; then
+            printf "railway %s: %s, retrying in %ds (attempt %d/%d)\n" \
+                "$1" "$kind" "$delay" "$attempt" "$max_attempts" >&2
             sleep "$delay"
             delay=$((delay * 2))
             attempt=$((attempt + 1))
             continue
         fi
 
-        # Not a rate-limit error.
-        if [ "$exit_code" -eq 0 ]; then
-            # Success: emit on stdout so callers can capture the output.
-            printf "%s\n" "$output"
-        else
-            # Failure: emit on stderr (redacted) so callers that redirect
-            # stdout to /dev/null still surface the underlying railway error.
-            [ -n "$output" ] && printf "%s\n" "$output" | _railway_redact >&2
+        # Give up: not retryable, attempts exhausted, or an ambiguous timeout
+        # on a non-idempotent create. Surface the (redacted) railway error.
+        if [ "$retryable" -eq 1 ]; then
+            printf "railway %s: %s — giving up after %d attempts\n" \
+                "$1" "$kind" "$attempt" >&2
+        elif [ "$kind" = "transient" ] && [ "$idempotent" -eq 0 ]; then
+            printf "railway %s: %s on non-idempotent command — not retrying (may have partially succeeded)\n" \
+                "$1" "$kind" >&2
         fi
+        [ -n "$output" ] && printf "%s\n" "$output" | _railway_redact >&2
         return "$exit_code"
     done
 }
