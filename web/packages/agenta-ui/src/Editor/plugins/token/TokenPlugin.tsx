@@ -30,16 +30,48 @@ function buildRegexes(templateFormat: TemplateFormat) {
         return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
     }
     if (templateFormat === "mustache") {
-        // Match only variable-like Mustache tags.
-        // Excluded control tags stay plain text:
-        // - sections / inverted sections / closing tags, e.g. {{#items}}, {{^items}}, {{/items}}
-        // - comments, e.g. {{! hidden note }}
-        // - partials, e.g. {{> user_card}}
-        // - delimiter swaps, e.g. {{=<% %>=}}
-        // - unescaped variables, e.g. {{{html}}} or {{& html}}
-        const full = /\{\{\s*(?![#^/!=&>{])(?=[^{}\s])[^{}]*\}\}/
-        const input = /\{\{[^{}]*$/
-        const exact = /^\{\{\s*(?![#^/!=&>{])(?=[^{}\s])[^{}]*\}\}$/
+        // Match variable-bearing Mustache tags. Three classes of token text:
+        //
+        //   - Plain variables: `{{name}}`, `{{ name }}`, `{{country.a}}`,
+        //     `{{$.country}}` — first char after `{{\s*` is part of the
+        //     variable name itself.
+        //   - Variables with a single-character prefix sigil that still
+        //     reference a name:
+        //       · `#` section opener (`{{#items}}` — iterable / truthy)
+        //       · `^` inverted section opener (`{{^empty}}`)
+        //       · `&` unescaped variable (`{{&html}}`)
+        //     Our mustache typeahead anchors on `$isTokenNode` and adds
+        //     suggestions specifically for `#` / `^` section openers (see
+        //     `TokenTypeaheadPlugin`'s section + inverted-section modes),
+        //     so these MUST tokenize, otherwise the resulting text gets
+        //     stuck as a TokenInputNode (yellow-dashed "in progress") and
+        //     no typeahead can fire on subsequent edits.
+        //   - Triple-stash `{{{html}}}` — also unescaped variable. We
+        //     deliberately reject this here via the `(?<!{)` lookbehind
+        //     to avoid splitting the outer braces; users can write `{{&
+        //     html}}` for the same semantics.
+        //
+        // Pure-structural control tags STAY plain text — they don't
+        // reference a variable:
+        //   · `/` section closer (`{{/items}}`)
+        //   · `!` comment (`{{! hidden note }}`)
+        //   · `=` delimiter swap (`{{=<% %>=}}`)
+        //   · `>` partial (`{{> user_card}}`)
+        //
+        // Empty `{{}}` / `{{ }}` rejected via the `(?=[^{}\s])` post-
+        // whitespace lookahead.
+        //
+        // Background: regex initially landed in JP's `web regex fix`
+        // (commit `17df11cca3`, 2026-06-01) excluded ALL non-alphanumeric
+        // sigils. That tore down our mustache section-opener typeahead
+        // because `{{#items}}` no longer promoted to a TokenNode → no
+        // anchor → no typeahead → Mahmoud's QA report on the same day
+        // ("all autocomplete features for mustache don't work for me").
+        // This refinement keeps the structural excludes JP added but
+        // re-includes the three sigils that still carry a variable name.
+        const full = /(?<!\{)\{\{\s*(?![/!=>])(?=[^{}\s])[^{}]*\}\}/
+        const input = /(?<!\{)\{\{[^{}]*$/
+        const exact = /^\{\{\s*(?![/!=>])(?=[^{}\s])[^{}]*\}\}$/
         return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
     }
     // Default: {{ }} variable tokens only. Covers "curly" and "mustache" —
