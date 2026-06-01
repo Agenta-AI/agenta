@@ -14,18 +14,17 @@ Legend: 🔴 not started · 🟡 in progress · 🟢 fixed · ⚪ deferred
 | # | Issue | Reporter | Status | Commit / next step |
 |---|---|---|---|---|
 | 1 | Tracing broken in playground | Mahmoud | ⚪ deferred | Backend (JP-owned) — trace pipeline investigation |
-| 2 | Variables "closing" after first letter (mustache) | Mahmoud | ⚪ deferred | Probably same root cause as #8 — see below |
+| 2 | Variables "closing" after first letter (mustache) | Mahmoud | 🟢 fixed | (commit pending) — TokenPlugin cursor-jump-out, same fix as #8 |
 | 3 | Mustache form: can't add second sub-field | Mahmoud | 🟢 fixed | `e26ca33a47` |
-| 4 | Text/markdown swapped in messages dropdown | Mahmoud | 🟢 fixed | (commit pending) — long-string heuristic was flipping option order |
+| 4 | Text/markdown swapped in messages dropdown | Mahmoud | 🟢 fixed | `1e6dfa92ee` + `c1c1a8efda` |
 | 5 | Chat: `messages` in unused-columns footer | Mahmoud | 🟢 fixed | `e08cb4e772` |
 | 6 | Chat multi-testcase regression | Mahmoud | 🟢 fixed | `e08cb4e772` + `577da0e741` (radio rows) |
 | 7 | Autocomplete broken (post-merge regression) | Mahmoud | 🟢 fixed | `693ac2457e` |
-| 8 | Cursor jumps outside `{{...}}` after first char (mustache) | Kaosiso | ⚪ deferred | Cleaner description of #2 — re-test post-#7 |
-| 9 | `curly` option disappears from picker after switching away | Kaosiso | 🟢 fixed | (commit pending) — sticky original-format ref + 6 new tests |
+| 8 | Cursor jumps outside `{{...}}` after first char (mustache) | Kaosiso | 🟢 fixed | (commit pending) — TokenPlugin cursor-jump-out, same fix as #2 |
+| 9 | `curly` option disappears from picker after switching away | Kaosiso | 🟢 fixed | `3731ac9d49` + `909ba25129` |
 
-**6 fixed and pushed · 3 outstanding.** Next QA pass should:
-1. Re-test #2 + #8 against the post-#7 fix (likely both resolved by the regex change)
-2. Hand off #1 to JP for backend triage
+**8 fixed and pushed · 1 outstanding (backend).** Next QA pass should:
+1. Hand off #1 (tracing) to JP for backend triage
 
 ---
 
