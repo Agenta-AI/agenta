@@ -16,17 +16,16 @@ Legend: 🔴 not started · 🟡 in progress · 🟢 fixed · ⚪ deferred
 | 1 | Tracing broken in playground | Mahmoud | ⚪ deferred | Backend (JP-owned) — trace pipeline investigation |
 | 2 | Variables "closing" after first letter (mustache) | Mahmoud | ⚪ deferred | Probably same root cause as #8 — see below |
 | 3 | Mustache form: can't add second sub-field | Mahmoud | 🟢 fixed | `e26ca33a47` |
-| 4 | Text/markdown swapped in messages dropdown | Mahmoud | ⚪ deferred | Needs video or repro to identify the actual swap |
+| 4 | Text/markdown swapped in messages dropdown | Mahmoud | 🟢 fixed | (commit pending) — long-string heuristic was flipping option order |
 | 5 | Chat: `messages` in unused-columns footer | Mahmoud | 🟢 fixed | `e08cb4e772` |
 | 6 | Chat multi-testcase regression | Mahmoud | 🟢 fixed | `e08cb4e772` + `577da0e741` (radio rows) |
 | 7 | Autocomplete broken (post-merge regression) | Mahmoud | 🟢 fixed | `693ac2457e` |
 | 8 | Cursor jumps outside `{{...}}` after first char (mustache) | Kaosiso | ⚪ deferred | Cleaner description of #2 — re-test post-#7 |
 | 9 | `curly` option disappears from picker after switching away | Kaosiso | 🟢 fixed | (commit pending) — sticky original-format ref + 6 new tests |
 
-**5 fixed and pushed · 4 outstanding.** Next QA pass should:
+**6 fixed and pushed · 3 outstanding.** Next QA pass should:
 1. Re-test #2 + #8 against the post-#7 fix (likely both resolved by the regex change)
-2. Ask Mahmoud for video timestamp / repro on #4
-3. Hand off #1 to JP for backend triage
+2. Hand off #1 to JP for backend triage
 
 ---
 
@@ -145,7 +144,7 @@ If the second sub-path isn't surfacing, plausible causes:
 
 ---
 
-## 4. 🟡 "Text" and "markdown" swapped in messages view-mode dropdown — needs video
+## 4. 🟢 "Text" and "markdown" swapped in messages view-mode dropdown
 
 **Slack ts:** 1780310000.836319 · video: `F0B7ARBJ7RT`
 
