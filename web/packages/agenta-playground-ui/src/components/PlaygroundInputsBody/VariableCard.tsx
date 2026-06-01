@@ -41,8 +41,8 @@ import type {SimpleChatMessage} from "@agenta/ui/chat-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
-import {CopySimple, Database, Info} from "@phosphor-icons/react"
-import {Button, Input, InputNumber, Switch, Tag, Tooltip, Typography, message} from "antd"
+import {CopySimple, Database, Info, Warning} from "@phosphor-icons/react"
+import {Alert, Button, Input, InputNumber, Switch, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
@@ -51,6 +51,15 @@ import {variableViewModeAtomFamily} from "./viewModeAtoms"
 const {TextArea} = Input
 
 const {Text: AntText} = Typography
+
+/** A schema-vs-value structural conflict at a single top-level key —
+ *  schema expects a nested object/array, value carries a scalar. Surfaced
+ *  to the user as a banner with a "Use prompt shape" affordance. */
+interface ShapeConflict {
+    key: string
+    currentValue: unknown
+    expectedShape: unknown
+}
 
 interface VariableCardProps {
     /** Stable identifier for the generation row this variable lives in. */
@@ -158,57 +167,104 @@ export function VariableCard({
         return inferLogicalType(value) as ChipVariant
     }, [value, expectedType])
 
-    // Render-only seed used by Form / JSON / YAML modes. Two flavours:
+    // Render-only seed + shape-conflict detection used by Form / JSON / YAML
+    // modes. Three outputs:
     //
-    //   1. Pure seed (value still empty): the full schema-derived skeleton.
-    //      Until the user actually edits a field, onChange never fires; the
-    //      testcase value stays untouched.
+    //   1. `seedShape` — the merged shape to render. Two flavours:
+    //      a. Pure seed (value still empty): the full schema-derived skeleton.
+    //         Until the user actually edits a field, onChange never fires;
+    //         the testcase value stays untouched.
+    //      b. Merged seed (value already non-empty AND schema has
+    //         additional top-level keys the value doesn't carry yet): a
+    //         shallow merge of the schema-derived skeleton UNDER the user's
+    //         authored value. User keys win; schema-only keys appear as
+    //         empty fields the user can fill in. Handles Mahmoud's "I added
+    //         `{{country.b}}` after already authoring `country.a`" case
+    //         (2026-06-01) — without the merge the new sub-path stays
+    //         invisible because FormView renders only what's in the value.
     //
-    //   2. Merged seed (value already non-empty AND schema has additional
-    //      keys the value doesn't carry yet): a shallow merge of the
-    //      schema-derived skeleton UNDER the user's authored value. User
-    //      keys win; schema-only keys appear as empty fields the user can
-    //      fill in. This handles the "I added `{{country.b}}` after
-    //      already authoring `country.a`" case Mahmoud reported on
-    //      2026-06-01 — without the merge the new sub-path stays invisible
-    //      because FormView renders only what's in the value.
+    //   2. `shapeConflicts` — keys where the user's value is a SCALAR but
+    //      the schema now expects a nested OBJECT / ARRAY. Example: prompt
+    //      was `{{country.x}}` (user typed `x: "foo"`), now it's
+    //      `{{country.x.y}}` (schema expects `x: {y: ""}`). My merge keeps
+    //      `x: "foo"` (don't lose data) but the user can't access `y`. We
+    //      surface a banner letting them adopt the new shape.
     //
     // Arrays don't get the merge — schema only tells us the container
     // shape, not the row count.
     //
     // See `buildEmptyShapeFromSchema` for the shape-derivation rules
     // (prefers `_pathHints` over `properties`).
-    const seedShape = useMemo<unknown>(() => {
-        if (!expectedSchema) return null
+    const {seedShape, shapeConflicts} = useMemo<{
+        seedShape: unknown
+        shapeConflicts: ShapeConflict[]
+    }>(() => {
+        if (!expectedSchema) return {seedShape: null, shapeConflicts: []}
         const skeleton = buildEmptyShapeFromSchema(expectedSchema)
-        if (skeleton === null) return null
+        if (skeleton === null) return {seedShape: null, shapeConflicts: []}
 
         const isEmpty = value === undefined || value === null || value === ""
-        if (isEmpty) return skeleton
+        if (isEmpty) return {seedShape: skeleton, shapeConflicts: []}
 
         // Only merge when both sides are plain objects. Arrays / primitives
         // fall through to the value directly.
         const isObject = value !== null && typeof value === "object" && !Array.isArray(value)
         const skelIsObject =
             skeleton !== null && typeof skeleton === "object" && !Array.isArray(skeleton)
-        if (!isObject || !skelIsObject) return null
+        if (!isObject || !skelIsObject) return {seedShape: null, shapeConflicts: []}
 
         const valueRec = value as Record<string, unknown>
         const skelRec = skeleton as Record<string, unknown>
 
-        // Add ONLY the keys the schema declares that the value doesn't
-        // already carry. Don't touch keys the user has authored — even if
-        // they typed an empty string, that's an intentional value.
         let added = false
         const merged: Record<string, unknown> = {...valueRec}
+        const conflicts: ShapeConflict[] = []
         for (const [k, v] of Object.entries(skelRec)) {
             if (!(k in merged)) {
                 merged[k] = v
                 added = true
+                continue
+            }
+            // Key exists — check for a structural mismatch. We only flag
+            // it when the schema expects nested (object/array) but the
+            // user's value is a scalar; the opposite direction (schema
+            // says scalar but value is object) is left alone because the
+            // user's data is structurally richer than the schema knows.
+            const skelIsNested = v !== null && typeof v === "object"
+            const valueIsScalar = merged[k] === null || typeof merged[k] !== "object"
+            if (skelIsNested && valueIsScalar) {
+                conflicts.push({key: k, currentValue: merged[k], expectedShape: v})
             }
         }
-        return added ? merged : null
+        // Emit the merged shape when EITHER we added new fields OR there's
+        // a conflict to surface (the banner needs a stable render target).
+        // Otherwise return null so CardBody falls through to the value
+        // directly.
+        const shouldEmitShape = added || conflicts.length > 0
+        return {
+            seedShape: shouldEmitShape ? merged : null,
+            shapeConflicts: conflicts,
+        }
     }, [value, expectedSchema])
+
+    // "Use prompt shape" — overwrite the user's scalar at each conflicting
+    // key with the schema's expected nested skeleton, preserving every
+    // other key. Loses the scalar value (e.g. "foo") because we can't pick
+    // which sub-key it belongs to (e.g. `x.y` vs `x.z`) without a UI
+    // prompt. Follow-up: when the new schema has a single sub-key, drop
+    // the scalar into that slot automatically; when multiple, surface a
+    // small picker so the user chooses.
+    const handleAdoptPromptShape = useCallback(() => {
+        if (shapeConflicts.length === 0) return
+        const valueIsObject = value !== null && typeof value === "object" && !Array.isArray(value)
+        if (!valueIsObject) return
+        const valueRec = value as Record<string, unknown>
+        const next: Record<string, unknown> = {...valueRec}
+        for (const conflict of shapeConflicts) {
+            next[conflict.key] = conflict.expectedShape
+        }
+        onValueChange(name, next)
+    }, [shapeConflicts, value, onValueChange, name])
 
     // Copy the value as text. Primitives stringify naturally; structured
     // values pretty-print as JSON. Drafts (no value yet) copy as empty
@@ -294,6 +350,41 @@ export function VariableCard({
                     />
                 </div>
             </div>
+            {shapeConflicts.length > 0 && editable ? (
+                <Alert
+                    type="warning"
+                    showIcon
+                    icon={<Warning size={14} />}
+                    className="!py-1.5 !px-2 !rounded-md"
+                    message={
+                        <span className="text-[12px]">
+                            {shapeConflicts.length === 1
+                                ? `The prompt now expects nested fields at `
+                                : `The prompt now expects nested fields at `}
+                            {shapeConflicts.map((c, i) => (
+                                <span key={c.key}>
+                                    {i > 0 ? ", " : ""}
+                                    <code className="font-mono text-[11px] bg-[#fff7e6] px-1 rounded">
+                                        {c.key}
+                                    </code>
+                                </span>
+                            ))}
+                            . Adopting the new shape will discard your current scalar value
+                            {shapeConflicts.length > 1 ? "s" : ""}.
+                        </span>
+                    }
+                    action={
+                        <Button
+                            size="small"
+                            type="link"
+                            onClick={handleAdoptPromptShape}
+                            className="!px-2"
+                        >
+                            Use prompt shape
+                        </Button>
+                    }
+                />
+            ) : null}
             <div className="block">
                 <CardBody
                     mode={mode}
