@@ -12,7 +12,7 @@ import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
-import {ChartDonutIcon, ListChecksIcon, Tray} from "@phosphor-icons/react"
+import {ArrowLeft, ChartDonutIcon, ListChecksIcon, Tray} from "@phosphor-icons/react"
 import {Button, Input, Space} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -426,6 +426,24 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
         [searchTerm, setSearchTerm],
     )
 
+    const archivedTitle = useMemo(() => {
+        if (!isArchived) return undefined
+
+        return (
+            <span className="inline-flex items-center gap-2">
+                <Button
+                    type="text"
+                    size="small"
+                    icon={<ArrowLeft size={16} />}
+                    onClick={() => router.push(`${projectURL}/evaluators`)}
+                    className="!px-1"
+                    aria-label="Back to evaluators"
+                />
+                <span>Archived Evaluators</span>
+            </span>
+        )
+    }, [isArchived, projectURL, router])
+
     const primaryActions = useMemo(() => {
         if (isArchived) return undefined
 
@@ -460,9 +478,9 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
 
     return (
         <PageLayout
-            title={isArchived ? undefined : "Evaluators"}
+            title={isArchived ? archivedTitle : "Evaluators"}
             headerTabsProps={isArchived ? undefined : headerTabsProps}
-            className={isArchived ? "h-full grow !min-h-0 overflow-hidden !pl-0" : "grow min-h-0"}
+            className="grow min-h-0"
         >
             <EvaluatorsTable
                 mode={isArchived ? "archived" : "active"}
