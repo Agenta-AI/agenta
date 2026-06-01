@@ -52,13 +52,116 @@ const {TextArea} = Input
 
 const {Text: AntText} = Typography
 
-/** A schema-vs-value structural conflict at a single top-level key —
- *  schema expects a nested object/array, value carries a scalar. Surfaced
- *  to the user as a banner with a "Use prompt shape" affordance. */
+/** A schema-vs-value structural conflict at a single key (possibly nested
+ *  — `key` is a dotted path, e.g. `"obj.a"`). Schema expects a nested
+ *  object/array, value carries a scalar. Surfaced to the user as a banner
+ *  with a "Use prompt shape" affordance. */
 interface ShapeConflict {
     key: string
     currentValue: unknown
     expectedShape: unknown
+}
+
+/** Walks `skel` (schema-derived empty shape) and `val` (current value) in
+ *  parallel, building a render shape that contains ONLY the keys the schema
+ *  declares — at every depth. Keys present in `val` but absent from `skel`
+ *  are dropped from the rendered output; the caller's write-back path
+ *  (`mergeEditWithStash` below) restores them when persisting edits.
+ *
+ *  This is the recursive counterpart to the previous top-level-only logic.
+ *  Without recursion, a rename like `{{obj.a.y}}` → `{{obj.a.t}}` would still
+ *  show `y` in the form because the top-level loop copied `valueRec.obj`
+ *  verbatim without descending into `obj.a`. */
+function buildSchemaStrictShape(
+    skel: unknown,
+    val: unknown,
+    pathPrefix: string,
+): {merged: unknown; conflicts: ShapeConflict[]} {
+    const skelIsObject = skel !== null && typeof skel === "object" && !Array.isArray(skel)
+    const valIsObject = val !== null && typeof val === "object" && !Array.isArray(val)
+    if (!skelIsObject || !valIsObject) return {merged: val, conflicts: []}
+
+    const skelRec = skel as Record<string, unknown>
+    const valRec = val as Record<string, unknown>
+    const merged: Record<string, unknown> = {}
+    const conflicts: ShapeConflict[] = []
+
+    for (const [k, skelV] of Object.entries(skelRec)) {
+        const path = pathPrefix ? `${pathPrefix}.${k}` : k
+        if (k in valRec) {
+            const valV = valRec[k]
+            const skelVIsNested =
+                skelV !== null && typeof skelV === "object" && !Array.isArray(skelV)
+            const valVIsScalar = valV === null || typeof valV !== "object"
+            if (skelVIsNested && valVIsScalar) {
+                conflicts.push({key: path, currentValue: valV, expectedShape: skelV})
+                merged[k] = valV
+            } else if (skelVIsNested) {
+                const sub = buildSchemaStrictShape(skelV, valV, path)
+                merged[k] = sub.merged
+                conflicts.push(...sub.conflicts)
+            } else {
+                merged[k] = valV
+            }
+        } else {
+            merged[k] = skelV
+        }
+    }
+    return {merged, conflicts}
+}
+
+/** Walks `edit` (the FormView / JSON-editor output) and `original` (the
+ *  testcase's current value) in parallel against `skel`. At every depth:
+ *  - Keys in `original` that aren't in `skel` (the "stash") are preserved.
+ *  - Keys in `skel` are taken from `edit` (recursing if nested).
+ *
+ *  This is the inverse of `buildSchemaStrictShape`: the user only sees /
+ *  edits schema keys, but the underlying value keeps the stash so that
+ *  re-adding `{{obj.a.y}}` to the prompt later restores `y`'s value
+ *  without data loss. Mirrors the existing top-level "removed variable's
+ *  column persists" behaviour, scoped to every depth. */
+function mergeEditWithStash(edit: unknown, original: unknown, skel: unknown): unknown {
+    const skelIsObject = skel !== null && typeof skel === "object" && !Array.isArray(skel)
+    if (!skelIsObject) return edit
+    const editIsObject = edit !== null && typeof edit === "object" && !Array.isArray(edit)
+    if (!editIsObject) return edit
+
+    const originalIsObject =
+        original !== null && typeof original === "object" && !Array.isArray(original)
+    const skelRec = skel as Record<string, unknown>
+    const editRec = edit as Record<string, unknown>
+    const originalRec = originalIsObject ? (original as Record<string, unknown>) : {}
+
+    const result: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(originalRec)) {
+        if (!(k in skelRec)) result[k] = v
+    }
+    for (const [k, skelV] of Object.entries(skelRec)) {
+        if (k in editRec) {
+            result[k] = mergeEditWithStash(editRec[k], originalRec[k], skelV)
+        }
+    }
+    return result
+}
+
+/** Set a value at a dotted path, returning a new object. Used by the
+ *  "Use prompt shape" affordance for conflicts at nested paths (e.g.
+ *  `obj.a` when `{{obj.a.t}}` is added while `obj.a` was a scalar). */
+function setAtPath(
+    obj: Record<string, unknown>,
+    path: string,
+    value: unknown,
+): Record<string, unknown> {
+    const dot = path.indexOf(".")
+    if (dot === -1) return {...obj, [path]: value}
+    const head = path.slice(0, dot)
+    const tail = path.slice(dot + 1)
+    const child = obj[head]
+    const childRec =
+        child !== null && typeof child === "object" && !Array.isArray(child)
+            ? (child as Record<string, unknown>)
+            : {}
+    return {...obj, [head]: setAtPath(childRec, tail, value)}
 }
 
 interface VariableCardProps {
@@ -163,163 +266,114 @@ export function VariableCard({
     }, [value, expectedType])
 
     // Render-only seed + shape-conflict detection used by Form / JSON / YAML
-    // modes. Four outputs:
+    // modes. Two outputs:
     //
-    //   1. `seedShape` — the merged shape to render. SCHEMA-STRICT:
-    //      iterates over the SCHEMA's keys (not the value's). Keys the
-    //      value has but the schema no longer declares are EXCLUDED from
-    //      the render, matching how removed top-level variables disappear
-    //      from the main panel. Existing key values are preserved when
-    //      present; schema-only keys appear as empty fields.
+    //   1. `seedShape` — the merged shape to render. SCHEMA-STRICT at
+    //      every depth: iterates over the SCHEMA's keys (not the value's),
+    //      recursing into nested objects. Keys the value has but the
+    //      schema no longer declares are EXCLUDED from the render, matching
+    //      how removed top-level variables disappear from the main panel.
+    //      Existing key values are preserved when present; schema-only keys
+    //      appear as empty fields.
     //
-    //      Examples:
+    //      Examples (top-level):
     //        - Empty value, schema {a, c}: seedShape = {a: "", c: ""}.
-    //        - Value {a, b: {y}, c}, schema {a, c} (b removed from prompt):
+    //        - Value {a, b, c}, schema {a, c} (b removed from prompt):
     //          seedShape = {a, c} — b dropped from render, kept in the
     //          underlying value (see `handleValueChange` below).
     //        - Value {a}, schema {a, b}: seedShape = {a, b: ""} —
     //          missing b added so the user can fill it (Mahmoud's case).
     //
-    //   2. `shapeConflicts` — keys where the user's value is a SCALAR but
-    //      the schema now expects a nested OBJECT / ARRAY. Example: prompt
-    //      was `{{country.x}}` (user typed `x: "foo"`), now it's
-    //      `{{country.x.y}}` (schema expects `x: {y: ""}`). My merge keeps
-    //      `x: "foo"` (don't lose data) but the user can't access `y`. We
-    //      surface a banner letting them adopt the new shape.
+    //      Examples (nested — Arda screenshot 2026-06-01):
+    //        - Value {obj: {a: {y}}}, schema {obj: {a: {t}}}: seedShape =
+    //          {obj: {a: {t: ""}}} — `y` dropped from render, kept in the
+    //          underlying value. Top-level-only logic missed this case
+    //          because it copied `valueRec.obj` verbatim.
     //
-    //   3. `unreferencedNested` — keys that the value carries but the
-    //      schema no longer declares. These were referenced by an earlier
-    //      version of the prompt but are not anymore. We DON'T render
-    //      them in the form (FormView would expose them), but we keep
-    //      them in the underlying value so re-adding `{{obj.<key>}}` to
-    //      the prompt restores the data. Mirrors the top-level
-    //      "unreferenced testcase columns" handling, scoped to one level
-    //      below an object variable.
+    //   2. `shapeConflicts` — paths where the user's value is a SCALAR
+    //      but the schema now expects a nested OBJECT / ARRAY. Example:
+    //      prompt was `{{country.x}}` (user typed `x: "foo"`), now it's
+    //      `{{country.x.y}}` (schema expects `x: {y: ""}`). Merge keeps
+    //      `x: "foo"` (don't lose data) but the user can't access `y`.
+    //      Surfaced as a banner with "Use prompt shape" affordance. Paths
+    //      are dotted (e.g. `"obj.a"`) for nested conflicts.
     //
     // Arrays don't get the merge — schema only tells us the container
     // shape, not the row count.
     //
+    // The unreferenced-key stash is NOT tracked separately anymore — it's
+    // recovered inline by `mergeEditWithStash` (used in handleValueChange
+    // below), which walks the original value alongside the edit and
+    // restores any value-only keys at every depth.
+    //
     // See `buildEmptyShapeFromSchema` for the shape-derivation rules
-    // (prefers `_pathHints` over `properties`).
-    const {seedShape, shapeConflicts, unreferencedNested} = useMemo<{
+    // (prefers `_pathHints` over `properties`), and `buildSchemaStrictShape`
+    // above for the recursion logic.
+    const {seedShape, shapeConflicts} = useMemo<{
         seedShape: unknown
         shapeConflicts: ShapeConflict[]
-        unreferencedNested: string[]
     }>(() => {
-        if (!expectedSchema) return {seedShape: null, shapeConflicts: [], unreferencedNested: []}
+        if (!expectedSchema) return {seedShape: null, shapeConflicts: []}
         const skeleton = buildEmptyShapeFromSchema(expectedSchema)
-        if (skeleton === null) return {seedShape: null, shapeConflicts: [], unreferencedNested: []}
+        if (skeleton === null) return {seedShape: null, shapeConflicts: []}
 
         const isEmpty = value === undefined || value === null || value === ""
-        if (isEmpty) return {seedShape: skeleton, shapeConflicts: [], unreferencedNested: []}
+        if (isEmpty) return {seedShape: skeleton, shapeConflicts: []}
 
         // Only merge when both sides are plain objects. Arrays / primitives
         // fall through to the value directly.
         const isObject = value !== null && typeof value === "object" && !Array.isArray(value)
         const skelIsObject =
             skeleton !== null && typeof skeleton === "object" && !Array.isArray(skeleton)
-        if (!isObject || !skelIsObject)
-            return {seedShape: null, shapeConflicts: [], unreferencedNested: []}
+        if (!isObject || !skelIsObject) return {seedShape: null, shapeConflicts: []}
 
-        const valueRec = value as Record<string, unknown>
-        const skelRec = skeleton as Record<string, unknown>
-
-        const conflicts: ShapeConflict[] = []
-        // Build the rendered shape by iterating the SCHEMA's keys. Keys
-        // present in the value but not in the schema are tracked separately
-        // (unreferencedNested) and excluded from the render.
-        const merged: Record<string, unknown> = {}
-        for (const [k, v] of Object.entries(skelRec)) {
-            if (k in valueRec) {
-                merged[k] = valueRec[k]
-                // Check for a structural mismatch. We only flag it when
-                // the schema expects nested (object/array) but the user's
-                // value is a scalar; the opposite direction (schema says
-                // scalar but value is object) is left alone because the
-                // user's data is structurally richer than the schema knows.
-                const skelIsNested = v !== null && typeof v === "object"
-                const valueIsScalar = valueRec[k] === null || typeof valueRec[k] !== "object"
-                if (skelIsNested && valueIsScalar) {
-                    conflicts.push({key: k, currentValue: valueRec[k], expectedShape: v})
-                }
-            } else {
-                merged[k] = v
-            }
-        }
-
-        // Track value-only keys (in value but not in schema). These are
-        // "unreferenced nested fields" — the prompt no longer mentions
-        // them. We don't render them; `handleValueChange` below restores
-        // them when the user edits the rendered shape so the data isn't
-        // lost.
-        const unreferencedKeys: string[] = []
-        for (const k of Object.keys(valueRec)) {
-            if (!(k in skelRec)) unreferencedKeys.push(k)
-        }
-
-        // Emit a fresh shape whenever it differs from the raw value:
-        //   - schema-only keys were added, OR
-        //   - value-only keys were filtered out, OR
-        //   - a conflict needs surfacing (banner needs a stable render).
-        const shouldEmitShape =
-            Object.keys(merged).length !== Object.keys(valueRec).length ||
-            unreferencedKeys.length > 0 ||
-            conflicts.length > 0
-        return {
-            seedShape: shouldEmitShape ? merged : null,
-            shapeConflicts: conflicts,
-            unreferencedNested: unreferencedKeys,
-        }
+        const {merged, conflicts} = buildSchemaStrictShape(skeleton, value, "")
+        return {seedShape: merged, shapeConflicts: conflicts}
     }, [value, expectedSchema])
 
+    // Skeleton kept in scope so `handleValueChange` can run the same deep
+    // merge against it without re-derivation per write.
+    const skeletonRef = useMemo<unknown>(
+        () => (expectedSchema ? buildEmptyShapeFromSchema(expectedSchema) : null),
+        [expectedSchema],
+    )
+
     // "Use prompt shape" — overwrite the user's scalar at each conflicting
-    // key with the schema's expected nested skeleton, preserving every
-    // other key. Loses the scalar value (e.g. "foo") because we can't pick
-    // which sub-key it belongs to (e.g. `x.y` vs `x.z`) without a UI
-    // prompt. Follow-up: when the new schema has a single sub-key, drop
-    // the scalar into that slot automatically; when multiple, surface a
-    // small picker so the user chooses.
+    // path (dotted, e.g. `obj.a`) with the schema's expected nested
+    // skeleton, preserving every other key. Loses the scalar value
+    // (e.g. "foo") because we can't pick which sub-key it belongs to
+    // (e.g. `x.y` vs `x.z`) without a UI prompt. Follow-up: when the new
+    // schema has a single sub-key, drop the scalar into that slot
+    // automatically; when multiple, surface a small picker so the user
+    // chooses.
     const handleAdoptPromptShape = useCallback(() => {
         if (shapeConflicts.length === 0) return
         const valueIsObject = value !== null && typeof value === "object" && !Array.isArray(value)
         if (!valueIsObject) return
-        const valueRec = value as Record<string, unknown>
-        const next: Record<string, unknown> = {...valueRec}
+        let next = value as Record<string, unknown>
         for (const conflict of shapeConflicts) {
-            next[conflict.key] = conflict.expectedShape
+            next = setAtPath(next, conflict.key, conflict.expectedShape)
         }
         onValueChange(name, next)
     }, [shapeConflicts, value, onValueChange, name])
 
-    // Write changes back to the testcase. Restores any
-    // `unreferencedNested` keys that were filtered out of the rendered
-    // shape — the form only shows what the schema declares, but the
-    // testcase value KEEPS the dropped keys so re-adding `{{obj.<key>}}`
-    // to the prompt restores them without data loss. Mirrors the top-
-    // level "removed variable's testcase column persists" behaviour.
+    // Write changes back to the testcase. Walks the original value
+    // alongside the edit against the schema skeleton, preserving any
+    // value-only keys (the "stash") at every depth — the form only shows
+    // what the schema declares, but the testcase value KEEPS the dropped
+    // keys so re-adding `{{obj.<path>}}` to the prompt restores them
+    // without data loss. Mirrors the top-level "removed variable's
+    // testcase column persists" behaviour, scoped to every depth.
     const handleValueChange = useCallback(
         (next: unknown) => {
-            if (
-                unreferencedNested.length > 0 &&
-                next !== null &&
-                typeof next === "object" &&
-                !Array.isArray(next) &&
-                value !== null &&
-                typeof value === "object" &&
-                !Array.isArray(value)
-            ) {
-                const nextRec = next as Record<string, unknown>
-                const valueRec = value as Record<string, unknown>
-                const restored: Record<string, unknown> = {...nextRec}
-                for (const k of unreferencedNested) {
-                    restored[k] = valueRec[k]
-                }
-                onValueChange(name, restored)
+            if (skeletonRef === null) {
+                onValueChange(name, next)
                 return
             }
-            onValueChange(name, next)
+            const restored = mergeEditWithStash(next, value, skeletonRef)
+            onValueChange(name, restored)
         },
-        [onValueChange, name, value, unreferencedNested],
+        [onValueChange, name, value, skeletonRef],
     )
 
     // Copy the value as text. Primitives stringify naturally; structured
