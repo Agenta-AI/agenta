@@ -126,27 +126,43 @@ If the second sub-path isn't surfacing, plausible causes:
 
 ---
 
-## 4. 🔴 "Text" and "markdown" swapped in messages view-mode dropdown
+## 4. 🟡 "Text" and "markdown" swapped in messages view-mode dropdown — needs video
 
 **Slack ts:** 1780310000.836319 · video: `F0B7ARBJ7RT`
 
 > Text and markdown are incorrectly swapped for messages
 
-**Likely cause (unverified):** Mapping bug in the chat-mode option
-list. Probably one of:
-- `getViewOptionsForExpectedType` returns `["markdown", "text", ...]`
-  for chat messages but the labels are mapped backwards.
-- `ViewTypeSelect` renders the labels in reversed order vs. the value
-  map.
+**Investigation so far:** Read all the relevant code paths — they look
+correct by inspection:
 
-**Investigation next steps:**
-1. Watch the video to confirm whether the bug is in (a) the labels
-   shown to user, or (b) the underlying behaviour (selecting "Text"
-   renders markdown).
-2. Check `@agenta/entity-ui/view-types/viewTypes.ts` for chat-message
-   options.
+- `getViewOptions` in `viewTypes.ts:109-111` returns `[{value: "text",
+  label: "String"}, {value: "markdown", label: "Markdown"}]` for
+  strings. Labels match values.
+- `ChatMessageList.tsx:92` initialises `viewMode = "text"`.
+- `ChatMessageList.tsx:176` wires `markdownView={viewMode ===
+  "markdown"}`. Selecting "Markdown" → `markdownView=true` →
+  `SET_MARKDOWN_VIEW` dispatched → editor swaps to markdown source.
+- `MarkdownToggleButton.tsx:25-29` shows the OPPOSITE of current
+  state as the offered action (standard toggle UX). Not "swapped".
 
-**Scope:** Small, contained mapping fix.
+**Hypotheses I can't disambiguate without the video:**
+1. The default ("String") actually renders as markdown — meaning the
+   underlying `markdownViewAtom` is sticky from a previous session
+   and overrides the freshly-mounted dropdown.
+2. The labels themselves are inverted somewhere I haven't found
+   (unlikely — `VIEW_LABELS` in `ViewTypeSelect.tsx:34-41` matches).
+3. The dropdown OPTIONS list renders in reversed order in the chat
+   header (some CSS or ordering layer).
+
+**Investigation next steps (deferred):**
+1. Launch playground locally with chat app + mustache; observe the
+   dropdown's label-to-behaviour mapping live.
+2. If 1 isn't tractable, ask Arda/Mahmoud for one screenshot of:
+   (a) what the dropdown shows when "Markdown" is selected vs. (b)
+   what the editor body actually renders.
+
+**Why deferred:** All code paths I can read look right. Without
+reproduction I'd be patching at random.
 
 ---
 
@@ -282,7 +298,7 @@ gate was lost.
 
 ---
 
-## 7. 🔴 [META] Autocomplete + frontend mustache features broken — possible post-merge regression
+## 7. 🟢 Autocomplete + frontend mustache features broken — post-merge regression
 
 **Slack ts:** 1780310445.880499
 **Playground URL:** [staging.preview.agenta.dev/.../playground](https://staging.preview.agenta.dev/w/019315dc-a34f-7742-bfd4-51b18cf132c9/p/019315dc-a367-7b9d-8491-e1a092f49ddc/apps/0199713c-8dcc-7d01-b282-d2ecf149c513/playground?revisions=0199713c-9142-72f2-80fb-e1c3102e7bc7)
