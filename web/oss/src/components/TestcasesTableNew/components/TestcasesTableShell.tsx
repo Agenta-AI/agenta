@@ -3,12 +3,13 @@ import {useCallback, useMemo, useState} from "react"
 import {
     ColumnVisibilityMenuTrigger,
     defaultHeaderVariant,
+    detectColumnTypes,
     InfiniteVirtualTableFeatureShell,
     type TableScopeConfig,
     type TypeChipConfig,
     useTypeChipFeature,
 } from "@agenta/ui/table"
-import {TypeChip} from "@agenta/ui/type-chip"
+import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Skeleton, Tooltip} from "antd"
 import type {MenuProps} from "antd"
@@ -16,7 +17,7 @@ import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {getDefaultStore} from "jotai/vanilla"
 
-import {testcase} from "@/oss/state/entities/testcase"
+import {extractTestcaseUserData, testcaseEntityAtomFamily} from "@/oss/state/entities/testcase"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 
 import {testcasesDatasetStore, type TestcaseTableRow} from "../atoms/tableStore"
@@ -28,6 +29,38 @@ import {TestcaseCell} from "./TestcaseCell"
 import TestcaseCellContent from "./TestcaseCellContent"
 import TestcaseRowActionsDropdown from "./TestcaseRowActionsDropdown"
 import TestcaseSelectionCell from "./TestcaseSelectionCell"
+
+function getNativeColumnValue(
+    record: Record<string, unknown> | null | undefined,
+    columnKey: string,
+): unknown {
+    if (!record) return undefined
+
+    const directValue = record[columnKey]
+    if (directValue !== undefined) return directValue
+
+    const parts = columnKey.split(".")
+    if (parts.length === 1) return undefined
+
+    let current: unknown = record
+
+    for (const part of parts) {
+        if (current === null || current === undefined) return undefined
+
+        if (Array.isArray(current)) {
+            const index = Number(part)
+            if (!Number.isInteger(index) || String(index) !== part) return undefined
+            current = current[index]
+            continue
+        }
+
+        if (typeof current !== "object") return undefined
+
+        current = (current as Record<string, unknown>)[part]
+    }
+
+    return current
+}
 
 function GroupToggleButton({
     isCollapsed,
@@ -176,17 +209,22 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
 
         return parents
     }, [table.columns])
+    const parentColumnKeysList = useMemo(() => Array.from(parentColumnKeys), [parentColumnKeys])
 
-    // Default `getRowValue` reads cell values from the testcase entity layer.
+    // Default `getRowValue` reads native values from the testcase entity layer.
     // Lives in the shell so every consumer (testsets page, modal preview,
     // add-to-testset drawer preview) gets type chips out of the box, instead
     // of each call site having to duplicate the wiring.
+    //
+    // Keep chip sampling on the runtime value as-is: stringified JSON is still
+    // a string and must not be treated as a nested object.
     const defaultGetRowValue = useCallback(
         (record: TestcaseTableRow, columnKey: string): unknown => {
             const rowId = record.id ?? String(record.key)
-            return getDefaultStore().get(testcase.selectors.cell({id: rowId, column: columnKey}))
+            const entity = globalStore.get(testcaseEntityAtomFamily(rowId))
+            return getNativeColumnValue(extractTestcaseUserData(entity), columnKey)
         },
-        [],
+        [globalStore],
     )
 
     const defaultTypeChips = useMemo<TypeChipConfig<TestcaseTableRow>>(
@@ -215,6 +253,47 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
 
     const typeChipFeature = useTypeChipFeature(tableTypeChipsConfig)
     const showTypeChips = typeChipFeature.enabled
+
+    const rowsForTypeChips = dataSource ?? table.rowRefs
+
+    const groupHeaderTypeVariants = useMemo(() => {
+        const variants = new Map<string, ChipVariant>()
+        const resolvedTypeChips = typeChipFeature.typeChips
+
+        if (!showTypeChips || !resolvedTypeChips || parentColumnKeysList.length === 0) {
+            return variants
+        }
+
+        const sample = rowsForTypeChips
+            .filter((record) => !record.__isSkeleton)
+            .slice(0, 30) as TestcaseTableRow[]
+        if (sample.length === 0) return variants
+
+        const rows = sample.map((record) => {
+            const row: Record<string, unknown> = {}
+            for (const key of parentColumnKeysList) {
+                row[key] = resolvedTypeChips.getRowValue(record, key)
+            }
+            return row
+        })
+        const columnTypes = detectColumnTypes(rows, parentColumnKeysList)
+
+        for (const key of parentColumnKeysList) {
+            const typeInfo = columnTypes.get(key)
+            const variant = effectiveTypeChips.resolveHeaderVariant
+                ? effectiveTypeChips.resolveHeaderVariant(key, typeInfo)
+                : defaultHeaderVariant(key, typeInfo)
+            if (variant) variants.set(key, variant)
+        }
+
+        return variants
+    }, [
+        effectiveTypeChips,
+        parentColumnKeysList,
+        rowsForTypeChips,
+        showTypeChips,
+        typeChipFeature.typeChips,
+    ])
 
     const settingsMenuItems = useMemo<MenuProps["items"]>(
         () => rowHeight.menuItems,
@@ -472,6 +551,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             const displayName = groupPath.includes(".")
                 ? groupPath.substring(groupPath.lastIndexOf(".") + 1)
                 : groupPath
+            const typeChipVariant = groupHeaderTypeVariants.get(groupPath)
 
             return {
                 key: groupPath,
@@ -493,7 +573,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                                 inlineActionsMinWidth={80}
                             />
                         </div>
-                        {showTypeChips && <TypeChip variant="json-object" />}
+                        {showTypeChips && typeChipVariant && <TypeChip variant={typeChipVariant} />}
                     </div>
                 ),
                 width: 200,
@@ -518,7 +598,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                     }
                     const rowId = record.id || String(record.key)
                     if (rowId) {
-                        // Show the parent column (full JSON object)
+                        // Show the parent column value.
                         return (
                             <TestcaseCell
                                 key={`${rowId}-${groupPath}`}
@@ -541,6 +621,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             const displayName = groupPath.includes(".")
                 ? groupPath.substring(groupPath.lastIndexOf(".") + 1)
                 : groupPath
+            const typeChipVariant = groupHeaderTypeVariants.get(groupPath)
 
             return (
                 <div className="flex items-center gap-1.5 w-full max-w-full overflow-hidden">
@@ -559,7 +640,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                             inlineActionsMinWidth={80}
                         />
                     </div>
-                    {showTypeChips && <TypeChip variant="json-object" />}
+                    {showTypeChips && typeChipVariant && <TypeChip variant={typeChipVariant} />}
                     <span className="text-gray-400 text-xs flex-shrink-0">({childCount})</span>
                 </div>
             )
@@ -648,6 +729,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         handleGroupRename,
         handleGroupDelete,
         showTypeChips,
+        groupHeaderTypeVariants,
     ])
 
     // Delete action
