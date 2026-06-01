@@ -413,31 +413,35 @@ export function VariableCard({
                     icon={<Warning size={14} />}
                     className="!py-1.5 !px-2 !rounded-md"
                     message={
-                        <span className="text-[12px]">
-                            {shapeConflicts.length === 1
-                                ? `The prompt now expects nested fields at `
-                                : `The prompt now expects nested fields at `}
-                            {shapeConflicts.map((c, i) => (
-                                <span key={c.key}>
-                                    {i > 0 ? ", " : ""}
-                                    <code className="font-mono text-[11px] bg-[#fff7e6] px-1 rounded">
-                                        {c.key}
-                                    </code>
-                                </span>
-                            ))}
-                            . Adopting the new shape will discard your current scalar value
-                            {shapeConflicts.length > 1 ? "s" : ""}.
-                        </span>
-                    }
-                    action={
-                        <Button
-                            size="small"
-                            type="link"
-                            onClick={handleAdoptPromptShape}
-                            className="!px-2"
-                        >
-                            Use prompt shape
-                        </Button>
+                        // Custom flex layout — antd's `action` prop renders
+                        // alongside `message` but doesn't reflow cleanly when
+                        // the text wraps. We render text + button inside the
+                        // message slot with a flex container so the button
+                        // either sits inline (short text) or wraps to the
+                        // next line (long text) without overlapping.
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                            <span className="text-[12px]">
+                                The prompt now expects nested fields at{" "}
+                                {shapeConflicts.map((c, i) => (
+                                    <span key={c.key}>
+                                        {i > 0 ? ", " : ""}
+                                        <code className="font-mono text-[11px] bg-[#fff7e6] px-1 rounded">
+                                            {c.key}
+                                        </code>
+                                    </span>
+                                ))}
+                                . Adopting the new shape will discard your current scalar value
+                                {shapeConflicts.length > 1 ? "s" : ""}.
+                            </span>
+                            <Button
+                                size="small"
+                                type="link"
+                                onClick={handleAdoptPromptShape}
+                                className="!px-0 !h-auto !text-[12px] shrink-0"
+                            >
+                                Use prompt shape
+                            </Button>
+                        </div>
                     }
                 />
             ) : null}
