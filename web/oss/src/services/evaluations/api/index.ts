@@ -1,13 +1,8 @@
+import type {EvaluationConcurrencySettings} from "@/oss/components/pages/evaluations/NewEvaluation/types"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {calcEvalDuration} from "@/oss/lib/evaluations/legacy"
 import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
-import {
-    EvaluationStatus,
-    KeyValuePair,
-    LLMRunRateLimit,
-    _Evaluation,
-    _EvaluationScenario,
-} from "@/oss/lib/Types"
+import {EvaluationStatus, KeyValuePair, _Evaluation, _EvaluationScenario} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
@@ -150,18 +145,16 @@ export type CreateEvaluationData =
           testset_revision_id?: string
           variant_ids?: string[]
           evaluator_revision_ids: string[]
-          rate_limit: LLMRunRateLimit
+          concurrency?: EvaluationConcurrencySettings
           lm_providers_keys?: KeyValuePair
-          correct_answer_column: string
       }
     | {
           testset_id: string
           testset_revision_id?: string
           revisions_ids?: string[]
           evaluator_revision_ids: string[]
-          rate_limit: LLMRunRateLimit
+          concurrency?: EvaluationConcurrencySettings
           lm_providers_keys?: KeyValuePair
-          correct_answer_column: string
           name: string
       }
 export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
@@ -194,6 +187,7 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
                     (acc, id) => ({...acc, [id]: "auto"}),
                     {} as Record<string, "auto">,
                 ),
+                concurrency: evaluation.concurrency ?? undefined,
             },
             flags: {
                 is_live: false,

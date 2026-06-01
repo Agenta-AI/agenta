@@ -14,8 +14,8 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, scope_from
-    from ee.src.core.entitlements.types import Counter
+    from ee.src.core.access.entitlements.service import check_entitlements, scope_from
+    from ee.src.core.access.entitlements.types import Counter
 
 if TYPE_CHECKING:
     from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher

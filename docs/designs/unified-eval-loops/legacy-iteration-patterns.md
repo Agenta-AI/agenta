@@ -1,5 +1,12 @@
 # Evaluation Iteration Patterns
 
+> **Status: Frozen legacy analysis (2026-02-16).** Moved here from the now-removed
+> `docs/designs/eval-loops/`. The canonical unified design lives in
+> [`proposal.md`](./proposal.md) and [`plan.md`](./plan.md); naming here (e.g.
+> `repeat_target` enum, 8 `has_*` flags) predates and is superseded by those docs.
+> Retained because the legacy loop-family nesting analysis below is not replicated
+> elsewhere and is useful for assessing migration risk.
+
 **Created:** 2026-02-16
 **Purpose:** Document the iteration patterns used to execute evaluation graphs and populate evaluation tensors across API and SDK
 

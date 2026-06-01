@@ -27,7 +27,7 @@ from oss.src.utils.context import (
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
 from oss.src.services import api_key_service
-from oss.src.services.exceptions import (
+from oss.src.utils.exceptions import (
     UnauthorizedException,
     InternalServerErrorException,
     GatewayTimeoutException,
@@ -127,7 +127,7 @@ def _log_bearer_auth_denied(
     )
 
 
-async def authentication_middleware(request: Request, call_next):
+async def auth_middleware(request: Request, call_next):
     """
     Middleware function for authentication.
 
@@ -438,7 +438,7 @@ async def verify_bearer_token(
                 log.error("Timeout: get_user_from_supertokens()")
 
                 raise GatewayTimeoutException(
-                    detail="Failed to reach auth provider. Please try again later.",
+                    message="Failed to reach auth provider. Please try again later.",
                 ) from e
 
             if not user_info:
