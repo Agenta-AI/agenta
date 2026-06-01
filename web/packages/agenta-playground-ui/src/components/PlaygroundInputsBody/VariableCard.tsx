@@ -145,11 +145,6 @@ export function VariableCard({
         [setExplicitMode, onViewModeChange, name],
     )
 
-    const handleValueChange = useCallback(
-        (next: unknown) => onValueChange(name, next),
-        [onValueChange, name],
-    )
-
     const chipVariant = useMemo<ChipVariant>(() => {
         if (isChatMessagesArray(value)) return "messages"
         // For drafts (empty value), let the declared port type drive the
@@ -168,20 +163,22 @@ export function VariableCard({
     }, [value, expectedType])
 
     // Render-only seed + shape-conflict detection used by Form / JSON / YAML
-    // modes. Three outputs:
+    // modes. Four outputs:
     //
-    //   1. `seedShape` — the merged shape to render. Two flavours:
-    //      a. Pure seed (value still empty): the full schema-derived skeleton.
-    //         Until the user actually edits a field, onChange never fires;
-    //         the testcase value stays untouched.
-    //      b. Merged seed (value already non-empty AND schema has
-    //         additional top-level keys the value doesn't carry yet): a
-    //         shallow merge of the schema-derived skeleton UNDER the user's
-    //         authored value. User keys win; schema-only keys appear as
-    //         empty fields the user can fill in. Handles Mahmoud's "I added
-    //         `{{country.b}}` after already authoring `country.a`" case
-    //         (2026-06-01) — without the merge the new sub-path stays
-    //         invisible because FormView renders only what's in the value.
+    //   1. `seedShape` — the merged shape to render. SCHEMA-STRICT:
+    //      iterates over the SCHEMA's keys (not the value's). Keys the
+    //      value has but the schema no longer declares are EXCLUDED from
+    //      the render, matching how removed top-level variables disappear
+    //      from the main panel. Existing key values are preserved when
+    //      present; schema-only keys appear as empty fields.
+    //
+    //      Examples:
+    //        - Empty value, schema {a, c}: seedShape = {a: "", c: ""}.
+    //        - Value {a, b: {y}, c}, schema {a, c} (b removed from prompt):
+    //          seedShape = {a, c} — b dropped from render, kept in the
+    //          underlying value (see `handleValueChange` below).
+    //        - Value {a}, schema {a, b}: seedShape = {a, b: ""} —
+    //          missing b added so the user can fill it (Mahmoud's case).
     //
     //   2. `shapeConflicts` — keys where the user's value is a SCALAR but
     //      the schema now expects a nested OBJECT / ARRAY. Example: prompt
@@ -190,60 +187,88 @@ export function VariableCard({
     //      `x: "foo"` (don't lose data) but the user can't access `y`. We
     //      surface a banner letting them adopt the new shape.
     //
+    //   3. `unreferencedNested` — keys that the value carries but the
+    //      schema no longer declares. These were referenced by an earlier
+    //      version of the prompt but are not anymore. We DON'T render
+    //      them in the form (FormView would expose them), but we keep
+    //      them in the underlying value so re-adding `{{obj.<key>}}` to
+    //      the prompt restores the data. Mirrors the top-level
+    //      "unreferenced testcase columns" handling, scoped to one level
+    //      below an object variable.
+    //
     // Arrays don't get the merge — schema only tells us the container
     // shape, not the row count.
     //
     // See `buildEmptyShapeFromSchema` for the shape-derivation rules
     // (prefers `_pathHints` over `properties`).
-    const {seedShape, shapeConflicts} = useMemo<{
+    const {seedShape, shapeConflicts, unreferencedNested} = useMemo<{
         seedShape: unknown
         shapeConflicts: ShapeConflict[]
+        unreferencedNested: string[]
     }>(() => {
-        if (!expectedSchema) return {seedShape: null, shapeConflicts: []}
+        if (!expectedSchema) return {seedShape: null, shapeConflicts: [], unreferencedNested: []}
         const skeleton = buildEmptyShapeFromSchema(expectedSchema)
-        if (skeleton === null) return {seedShape: null, shapeConflicts: []}
+        if (skeleton === null) return {seedShape: null, shapeConflicts: [], unreferencedNested: []}
 
         const isEmpty = value === undefined || value === null || value === ""
-        if (isEmpty) return {seedShape: skeleton, shapeConflicts: []}
+        if (isEmpty) return {seedShape: skeleton, shapeConflicts: [], unreferencedNested: []}
 
         // Only merge when both sides are plain objects. Arrays / primitives
         // fall through to the value directly.
         const isObject = value !== null && typeof value === "object" && !Array.isArray(value)
         const skelIsObject =
             skeleton !== null && typeof skeleton === "object" && !Array.isArray(skeleton)
-        if (!isObject || !skelIsObject) return {seedShape: null, shapeConflicts: []}
+        if (!isObject || !skelIsObject)
+            return {seedShape: null, shapeConflicts: [], unreferencedNested: []}
 
         const valueRec = value as Record<string, unknown>
         const skelRec = skeleton as Record<string, unknown>
 
-        let added = false
-        const merged: Record<string, unknown> = {...valueRec}
         const conflicts: ShapeConflict[] = []
+        // Build the rendered shape by iterating the SCHEMA's keys. Keys
+        // present in the value but not in the schema are tracked separately
+        // (unreferencedNested) and excluded from the render.
+        const merged: Record<string, unknown> = {}
         for (const [k, v] of Object.entries(skelRec)) {
-            if (!(k in merged)) {
+            if (k in valueRec) {
+                merged[k] = valueRec[k]
+                // Check for a structural mismatch. We only flag it when
+                // the schema expects nested (object/array) but the user's
+                // value is a scalar; the opposite direction (schema says
+                // scalar but value is object) is left alone because the
+                // user's data is structurally richer than the schema knows.
+                const skelIsNested = v !== null && typeof v === "object"
+                const valueIsScalar = valueRec[k] === null || typeof valueRec[k] !== "object"
+                if (skelIsNested && valueIsScalar) {
+                    conflicts.push({key: k, currentValue: valueRec[k], expectedShape: v})
+                }
+            } else {
                 merged[k] = v
-                added = true
-                continue
-            }
-            // Key exists — check for a structural mismatch. We only flag
-            // it when the schema expects nested (object/array) but the
-            // user's value is a scalar; the opposite direction (schema
-            // says scalar but value is object) is left alone because the
-            // user's data is structurally richer than the schema knows.
-            const skelIsNested = v !== null && typeof v === "object"
-            const valueIsScalar = merged[k] === null || typeof merged[k] !== "object"
-            if (skelIsNested && valueIsScalar) {
-                conflicts.push({key: k, currentValue: merged[k], expectedShape: v})
             }
         }
-        // Emit the merged shape when EITHER we added new fields OR there's
-        // a conflict to surface (the banner needs a stable render target).
-        // Otherwise return null so CardBody falls through to the value
-        // directly.
-        const shouldEmitShape = added || conflicts.length > 0
+
+        // Track value-only keys (in value but not in schema). These are
+        // "unreferenced nested fields" — the prompt no longer mentions
+        // them. We don't render them; `handleValueChange` below restores
+        // them when the user edits the rendered shape so the data isn't
+        // lost.
+        const unreferencedKeys: string[] = []
+        for (const k of Object.keys(valueRec)) {
+            if (!(k in skelRec)) unreferencedKeys.push(k)
+        }
+
+        // Emit a fresh shape whenever it differs from the raw value:
+        //   - schema-only keys were added, OR
+        //   - value-only keys were filtered out, OR
+        //   - a conflict needs surfacing (banner needs a stable render).
+        const shouldEmitShape =
+            Object.keys(merged).length !== Object.keys(valueRec).length ||
+            unreferencedKeys.length > 0 ||
+            conflicts.length > 0
         return {
             seedShape: shouldEmitShape ? merged : null,
             shapeConflicts: conflicts,
+            unreferencedNested: unreferencedKeys,
         }
     }, [value, expectedSchema])
 
@@ -265,6 +290,37 @@ export function VariableCard({
         }
         onValueChange(name, next)
     }, [shapeConflicts, value, onValueChange, name])
+
+    // Write changes back to the testcase. Restores any
+    // `unreferencedNested` keys that were filtered out of the rendered
+    // shape — the form only shows what the schema declares, but the
+    // testcase value KEEPS the dropped keys so re-adding `{{obj.<key>}}`
+    // to the prompt restores them without data loss. Mirrors the top-
+    // level "removed variable's testcase column persists" behaviour.
+    const handleValueChange = useCallback(
+        (next: unknown) => {
+            if (
+                unreferencedNested.length > 0 &&
+                next !== null &&
+                typeof next === "object" &&
+                !Array.isArray(next) &&
+                value !== null &&
+                typeof value === "object" &&
+                !Array.isArray(value)
+            ) {
+                const nextRec = next as Record<string, unknown>
+                const valueRec = value as Record<string, unknown>
+                const restored: Record<string, unknown> = {...nextRec}
+                for (const k of unreferencedNested) {
+                    restored[k] = valueRec[k]
+                }
+                onValueChange(name, restored)
+                return
+            }
+            onValueChange(name, next)
+        },
+        [onValueChange, name, value, unreferencedNested],
+    )
 
     // Copy the value as text. Primitives stringify naturally; structured
     // values pretty-print as JSON. Drafts (no value yet) copy as empty
