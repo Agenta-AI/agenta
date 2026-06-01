@@ -82,6 +82,7 @@ import {
     newTestcaseCountAtom,
     newTestcaseDataHashAtom,
 } from "../execution/selectors"
+import {pruneDanglingConnections} from "../helpers/connectionGraph"
 import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessages"
 import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
@@ -412,8 +413,17 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
         label: entity.label,
     }
 
-    set(playgroundNodesAtom, [updatedNode, ...nodes.slice(1)])
-    set(outputConnectionsAtom, [])
+    const nextNodes = [updatedNode, ...nodes.slice(1)]
+    set(playgroundNodesAtom, nextNodes)
+
+    // Preserve downstream connections instead of clearing them. The primary
+    // node is updated in place, so its `id` is unchanged and any chain sourced
+    // from it (e.g. app → evaluator) stays valid. Clearing unconditionally
+    // orphaned the downstream evaluator on app-revision re-selection:
+    // connectDownstreamNode then no-ops because the evaluator node is still
+    // present, so the edge was never recreated and the evaluator silently
+    // stopped running. Only drop connections whose endpoints no longer exist.
+    set(outputConnectionsAtom, pruneDanglingConnections(get(outputConnectionsAtom), nextNodes))
 
     // Update local testset name if not connected to a remote testset
     const currentTestset = get(connectedTestsetAtom)
