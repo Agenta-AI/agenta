@@ -13,7 +13,7 @@ no module-level state; this module owns the singleton.
 
 Code defaults live in the domain `types.py` modules; env overrides come from
 `AGENTA_ACCESS_PLANS`, `AGENTA_ACCESS_ROLES`, `AGENTA_ACCESS_ROLES_OVERLAY`, and
-`AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` (raw JSON exposed via `env.access_controls`).
+`AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` (raw JSON exposed via `env.agenta.access`).
 """
 
 import hashlib

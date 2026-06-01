@@ -418,8 +418,8 @@ def build_role_controls() -> tuple[Dict[str, List[Dict[str, Any]]], str]:
     Returns ``(roles, source_label)`` where ``source_label`` is a short string
     for startup logging (e.g. ``"roles=defaults roles_overlay=none"``).
     """
-    roles_payload = env.access_controls.roles
-    roles_overlay_payload = env.access_controls.roles_overlay
+    roles_payload = env.agenta.access.roles
+    roles_overlay_payload = env.agenta.access.roles_overlay
 
     if roles_payload is not None:
         roles = _parse_roles_override(roles_payload)
