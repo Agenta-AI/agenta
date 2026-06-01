@@ -416,6 +416,7 @@ export const playgroundInputsAtomFamily = atomFamily(
     ({testcaseId, downstreamKey = ""}: PlaygroundInputsAtomKey) =>
         atom((get) => {
             const referencedKeys = get(referencedVariableKeysAtomFamily(downstreamKey))
+            const isChat = get(isChatModeAtom) === true
             // `testcaseMolecule.data(id)` returns the testcase ENTITY
             // (`{id, data, flags, tags, meta, ...}`), not the row data
             // dict. The actual column values live at `entity.data` — see
@@ -427,9 +428,20 @@ export const playgroundInputsAtomFamily = atomFamily(
 
             // Strip system fields up-front so the unused-columns footer
             // doesn't expose `__id__` and friends to the user.
+            //
+            // In chat mode we ALSO strip `messages` and `outputs` — those are
+            // implicitly used by the chat UI (`messageIdsAtomFamily`) and the
+            // run-output panel respectively, not by a `{{messages}}` template
+            // token. `referencedVariableKeysAtomFamily` filters them out of
+            // `referencedKeys` (so they don't render as input cards), but the
+            // testcase entity still carries them as data, so without this
+            // strip they leak into the unreferenced-columns footer ("1 unused
+            // testcase column hidden — `messages`"). Mahmoud reported this
+            // confusion in QA on 2026-06-01.
             const testcaseData: Record<string, unknown> = {}
             for (const [key, value] of Object.entries(raw)) {
                 if (isSystemField(key)) continue
+                if (isChat && (key === "messages" || key === "outputs")) continue
                 testcaseData[key] = value
             }
 
