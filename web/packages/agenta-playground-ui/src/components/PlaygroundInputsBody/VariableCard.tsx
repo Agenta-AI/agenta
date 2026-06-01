@@ -158,15 +158,56 @@ export function VariableCard({
         return inferLogicalType(value) as ChipVariant
     }, [value, expectedType])
 
-    // Render-only seed used by Form / JSON / YAML modes when the variable is
-    // a draft. The testcase value stays untouched — until the user actually
-    // edits a field, onChange never fires. See `buildEmptyShapeFromSchema`
-    // for the shape-derivation rules (prefers `_pathHints` over `properties`).
+    // Render-only seed used by Form / JSON / YAML modes. Two flavours:
+    //
+    //   1. Pure seed (value still empty): the full schema-derived skeleton.
+    //      Until the user actually edits a field, onChange never fires; the
+    //      testcase value stays untouched.
+    //
+    //   2. Merged seed (value already non-empty AND schema has additional
+    //      keys the value doesn't carry yet): a shallow merge of the
+    //      schema-derived skeleton UNDER the user's authored value. User
+    //      keys win; schema-only keys appear as empty fields the user can
+    //      fill in. This handles the "I added `{{country.b}}` after
+    //      already authoring `country.a`" case Mahmoud reported on
+    //      2026-06-01 — without the merge the new sub-path stays invisible
+    //      because FormView renders only what's in the value.
+    //
+    // Arrays don't get the merge — schema only tells us the container
+    // shape, not the row count.
+    //
+    // See `buildEmptyShapeFromSchema` for the shape-derivation rules
+    // (prefers `_pathHints` over `properties`).
     const seedShape = useMemo<unknown>(() => {
         if (!expectedSchema) return null
+        const skeleton = buildEmptyShapeFromSchema(expectedSchema)
+        if (skeleton === null) return null
+
         const isEmpty = value === undefined || value === null || value === ""
-        if (!isEmpty) return null
-        return buildEmptyShapeFromSchema(expectedSchema)
+        if (isEmpty) return skeleton
+
+        // Only merge when both sides are plain objects. Arrays / primitives
+        // fall through to the value directly.
+        const isObject = value !== null && typeof value === "object" && !Array.isArray(value)
+        const skelIsObject =
+            skeleton !== null && typeof skeleton === "object" && !Array.isArray(skeleton)
+        if (!isObject || !skelIsObject) return null
+
+        const valueRec = value as Record<string, unknown>
+        const skelRec = skeleton as Record<string, unknown>
+
+        // Add ONLY the keys the schema declares that the value doesn't
+        // already carry. Don't touch keys the user has authored — even if
+        // they typed an empty string, that's an intentional value.
+        let added = false
+        const merged: Record<string, unknown> = {...valueRec}
+        for (const [k, v] of Object.entries(skelRec)) {
+            if (!(k in merged)) {
+                merged[k] = v
+                added = true
+            }
+        }
+        return added ? merged : null
     }, [value, expectedSchema])
 
     // Copy the value as text. Primitives stringify naturally; structured
@@ -295,12 +336,14 @@ function CardBody({
 }: CardBodyProps): ReactNode {
     const originalType = useMemo<LogicalType>(() => inferLogicalType(value), [value])
 
-    // For structured modes (form / json / yaml), prefer the schema-derived
-    // seed when the testcase value is still empty so the user sees the
-    // expected fields. Other modes (text / markdown / chat) get the raw
-    // value — seeding wouldn't help there.
-    const valueIsEmpty = value === undefined || value === null || value === ""
-    const renderValue = valueIsEmpty && seedShape != null ? seedShape : value
+    // For structured modes (form / json / yaml), use the schema-derived
+    // seed whenever it's available:
+    //   - value empty   → seed is the pure skeleton
+    //   - value object  → seed is value ⊕ schema-only keys (merged in
+    //                       VariableCard above)
+    // Either way, `seedShape != null` means "use the seed". Other modes
+    // (text / markdown / chat) get the raw value — seeding wouldn't help.
+    const renderValue = seedShape != null ? seedShape : value
 
     if (mode === "form") {
         // FormView expects an object record. If the value is an array, wrap
