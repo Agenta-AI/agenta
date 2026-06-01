@@ -115,6 +115,14 @@ export function TestsetDropdown() {
         ),
     ) as boolean
 
+    // ── Chat-mode flag ─────────────────────────────────────────────────────
+    // The chat playground can only sync ONE testcase at a time — see the
+    // chat single-row gate in `playgroundController.connectToTestsetAtom`.
+    // Reflect that here by switching the selection modal into single-select
+    // mode so the user doesn't pick five rows and have four silently
+    // dropped on confirm.
+    const isChatPlayground = useAtomValue(isChatModeAtom) === true
+
     // ── Actions ────────────────────────────────────────────────────────────
     const connectToTestset = useSetAtom(playgroundController.actions.connectToTestset)
     const importTestcases = useSetAtom(playgroundController.actions.importTestcases)
@@ -535,6 +543,7 @@ export function TestsetDropdown() {
                     loadableId={loadableId}
                     connectedRevisionId={revisionId ?? undefined}
                     mode="load"
+                    selectionMode={isChatPlayground ? "single" : "multiple"}
                     canExportData={canExportData}
                     onConfirm={handleLoadConfirm}
                     onCancel={handleSelectionCancel}
@@ -553,6 +562,7 @@ export function TestsetDropdown() {
                     loadableId={loadableId}
                     connectedRevisionId={revisionId ?? undefined}
                     mode="edit"
+                    selectionMode={isChatPlayground ? "single" : "multiple"}
                     canExportData={canExportData}
                     onConfirm={handleEditConfirm}
                     onCancel={handleSelectionCancel}
