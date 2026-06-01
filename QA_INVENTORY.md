@@ -13,7 +13,7 @@ Legend: 🔴 not started · 🟡 in progress · 🟢 fixed · ⚪ deferred
 
 | # | Issue | Reporter | Status | Commit / next step |
 |---|---|---|---|---|
-| 1 | Tracing broken in playground | Mahmoud | ⚪ deferred | Backend (JP-owned) — trace pipeline investigation |
+| 1 | Tracing broken in playground | Mahmoud | 🟢 resolved | Transient at QA time — Arda confirmed traces work locally 2026-06-01 on a synced branch |
 | 2 | Variables "closing" after first letter (mustache) | Mahmoud | 🟢 fixed | (commit pending) — TokenPlugin cursor-jump-out, same fix as #8 |
 | 3 | Mustache form: can't add second sub-field | Mahmoud | 🟢 fixed | `e26ca33a47` |
 | 4 | Text/markdown swapped in messages dropdown | Mahmoud | 🟢 fixed | `1e6dfa92ee` + `c1c1a8efda` |
@@ -23,8 +23,12 @@ Legend: 🔴 not started · 🟡 in progress · 🟢 fixed · ⚪ deferred
 | 8 | Cursor jumps outside `{{...}}` after first char (mustache) | Kaosiso | 🟢 fixed | (commit pending) — TokenPlugin cursor-jump-out, same fix as #2 |
 | 9 | `curly` option disappears from picker after switching away | Kaosiso | 🟢 fixed | `3731ac9d49` + `909ba25129` |
 
-**8 fixed and pushed · 1 outstanding (backend).** Next QA pass should:
-1. Hand off #1 (tracing) to JP for backend triage
+**9 of 9 fixed and pushed.** Mahmoud's tracing report (#1) was transient
+— our branch's FE tracing code is byte-identical to main, all of JP's
+PR #4491 tracing fixes are integrated, and Arda confirmed traces work
+locally on the synced branch. Likely a staging-deploy timing issue at
+QA time (FE post-#4469 deployed but backend pre-#4491, or similar
+state mismatch).
 
 ---
 
