@@ -3,7 +3,7 @@
 Walks ``projects ⋈ subscriptions`` to find projects on a given plan, then
 deletes events older than a cutoff from the ``events`` table. Lives in EE
 because the project-to-plan join goes through the EE ``SubscriptionDBE``
-table — same reason ``ee.src.dbs.postgres.tracing.dao.TracingDAO`` is
+table — same reason ``ee.src.dbs.postgres.tracing.dao.TracingRetentionDAO`` is
 EE-side.
 
 The OSS counterpart (``oss.src.dbs.postgres.events.dao.EventsDAO``) owns
@@ -31,12 +31,11 @@ from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 log = get_module_logger(__name__)
 
 
-class EventsDAO:
+class EventsRetentionDAO:
     """EE events DAO (retention).
 
-    Same-name OSS class exists at ``oss.src.dbs.postgres.events.dao.EventsDAO``
-    for ingest/query — both are imported by their full path so they never
-    collide. Matches the EE/OSS tracing pattern.
+    ``oss.src.dbs.postgres.events.dao.EventsDAO`` owns ingest/query; this class
+    owns retention only.
     """
 
     async def fetch_projects_with_plan(

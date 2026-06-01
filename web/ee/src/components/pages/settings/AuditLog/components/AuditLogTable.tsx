@@ -248,7 +248,7 @@ const AuditLogTable = () => {
 
     return (
         <InfiniteVirtualTableFeatureShell<EventTableRow>
-            datasetStore={eventsPaginatedStore.store}
+            datasetStore={eventsPaginatedStore.store as never}
             tableScope={tableScope}
             columns={columns}
             rowKey="key"

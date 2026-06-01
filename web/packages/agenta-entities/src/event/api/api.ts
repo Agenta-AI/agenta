@@ -57,12 +57,12 @@ export async function fetchEventsPage(params: EventListParams): Promise<EventsPa
         return {events: [], count: 0, nextCursor: null, hasMore: false}
     }
 
-    const event: AgentaApi.EventQuery = {
+    const event = {
         request_type: filters.requestType || null,
         request_id: filters.requestId || null,
         event_type: filters.eventType || null,
         event_id: filters.eventId || null,
-    }
+    } as AgentaApi.EventQuery
 
     const windowing: AgentaApi.Windowing = {
         limit,

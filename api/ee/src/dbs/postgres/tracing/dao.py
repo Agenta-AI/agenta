@@ -69,7 +69,7 @@ TRACING_DELETE_SQL = text(
 )
 
 
-class TracingDAO:
+class TracingRetentionDAO:
     # ---------------- #
     # Raw-SQL versions
     # ---------------- #
