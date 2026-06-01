@@ -235,7 +235,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.needs_deployment == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Wait for deployed web and API
         env:
@@ -294,6 +294,14 @@ jobs:
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         working-directory: web
         run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
+
+      - name: Cache Playwright browser
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('web/tests/package.json') }}
+          restore-keys: playwright-chromium-${{ runner.os }}-
 
       - name: Install Playwright browser
         if: steps.auth_bootstrap.outputs.enabled == 'true'
