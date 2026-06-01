@@ -26,28 +26,25 @@ The full branch touches 595 files, but the biggest bucket is generated output:
 - `docs/docs/reference/api/**`: 291 files
 - Fern / generated clients: large follow-on churn across `clients/` and `web/packages/agenta-api-client/`
 
-What remains is still a substantial branch centered on six real code streams:
+What remains is still a substantial branch centered on four real code streams:
 
-1. OSS evaluation runtime and evaluation API
-2. Python SDK runtime parity and tests
-3. Default-queue model and migrations
-4. Access-control refactor and scope/auth wiring
-5. EE admin/org/events follow-ons
-6. Small web UI and local infra adjustments
+1. Unified eval loops core: OSS runtime, evaluation API/persistence, and Python SDK parity
+2. Access-control refactor and scope/auth wiring
+3. EE admin/org/events follow-ons
+4. Small web UI and local infra adjustments
 
-## Chunk 1 — OSS evaluation runtime rewrite
+## Chunk 1 — Unified eval loops core: OSS runtime, evaluation API, persistence, and SDK parity
 
 This is the core of the branch.
 
 The old evaluation execution path is replaced with a new runtime-oriented
-structure under `api/oss/src/core/evaluations/runtime/` plus a new task
-processing split under `api/oss/src/core/evaluations/tasks/`. The big signal in
-the diff is the deletion of the legacy evaluation task code and the addition of
-planner/topology/tensor/source-resolution modules.
+structure in the OSS API, the evaluation domain model and queue semantics are
+reworked around that runtime, and the Python SDK gains a parallel runtime so
+local `evaluate()` and server-side execution use the same concepts.
 
 What actually changed:
 
-- New runtime package:
+- OSS runtime package:
   - `api/oss/src/core/evaluations/runtime/models.py`
   - `api/oss/src/core/evaluations/runtime/topology.py`
   - `api/oss/src/core/evaluations/runtime/planner.py`
@@ -74,23 +71,6 @@ What actually changed:
 - Worker wiring updated:
   - `api/oss/src/tasks/taskiq/evaluations/worker.py`
   - `api/entrypoints/worker_evaluations.py`
-
-Review note:
-This chunk is much larger than a normal PR. If it ever needs splitting, the
-cleanest internal seam is:
-
-- Runtime primitives: `runtime/*`
-- Task dispatch and service integration: `tasks/*`, `service.py`, worker wiring
-
-## Chunk 2 — Evaluation API, queue semantics, and persistence changes
-
-The runtime rewrite is not isolated. The branch also changes the evaluation
-domain model, queue behavior, run lifecycle, and evaluation query surface.
-
-This is where most of the product-facing behavior lives.
-
-What actually changed:
-
 - Evaluation API layer:
   - `api/oss/src/apis/fastapi/evaluations/models.py`
   - `api/oss/src/apis/fastapi/evaluations/router.py`
@@ -139,20 +119,6 @@ Tests backing this cluster:
 - `api/oss/tests/pytest/unit/evaluations/test_queue_dao_serialization.py`
 - `api/oss/tests/pytest/unit/evaluations/test_run_flag_matrix.py`
 - `api/oss/tests/pytest/unit/evaluations/test_run_flags.py`
-
-Review note:
-This chunk is tightly coupled to Chunk 1. In practice they review as one feature
-stream even if the runtime internals and API/persistence edges are described
-separately.
-
-## Chunk 3 — Python SDK evaluation runtime parity
-
-The branch mirrors the evaluation runtime in the Python SDK so local
-`evaluate()` execution and server-side execution share the same concepts and
-mostly the same planning/orchestration model.
-
-What actually changed:
-
 - New SDK runtime package:
   - `sdks/python/agenta/sdk/evaluations/runtime/__init__.py`
   - `sdks/python/agenta/sdk/evaluations/runtime/models.py`
@@ -186,10 +152,15 @@ Tests added or expanded:
 - `sdks/python/oss/tests/pytest/acceptance/integrations/test_vault_secrets.py`
 
 Review note:
-This is not just SDK cleanup. It is part of the feature architecture. The API
-and SDK runtimes should be treated as paired changes.
+This is not three independent chunks. The OSS runtime, evaluation API/queue
+behavior, and SDK runtime are one feature stream and should be reviewed
+together. If anyone ever needs to split it further, the only sensible seam is:
 
-## Chunk 4 — Access-control refactor and scope/auth wiring
+- runtime internals and task orchestration
+- product-facing evaluation API/persistence semantics
+- SDK parity and test coverage
+
+## Chunk 2 — Access-control refactor and scope/auth wiring
 
 Separate from evaluations, the branch also refactors access control and pushes
 more explicit scope/auth wiring through OSS and EE.
@@ -254,7 +225,7 @@ Review note:
 This stream can be reviewed independently from unified eval loops, but the branch
 interleaves it with the evaluation work.
 
-## Chunk 5 — EE org/events/admin cleanup and service-layer drift correction
+## Chunk 3 — EE org/events/admin cleanup and service-layer drift correction
 
 There is a smaller EE-focused stream that cleans up admin/event/organization
 paths and updates some legacy service code while the branch was open.
@@ -295,7 +266,7 @@ This is the noisiest non-evaluation chunk because it mixes cleanup, naming,
 deletions, and parity fixes. It is better described as branch hygiene plus EE
 admin follow-ons than as a single intentional feature.
 
-## Chunk 6 — Local infra, worker, and web follow-ons
+## Chunk 4 — Local infra, worker, and web follow-ons
 
 The branch also includes a set of supporting changes that are real but smaller.
 
@@ -352,20 +323,17 @@ not as evidence of the implementation split:
 If someone needs to review this branch as it exists today, this is the least
 confusing order:
 
-1. Chunk 1: OSS evaluation runtime rewrite
-2. Chunk 2: Evaluation API, queue semantics, and persistence changes
-3. Chunk 3: Python SDK evaluation runtime parity
-4. Chunk 4: Access-control refactor and scope/auth wiring
-5. Chunk 5: EE org/events/admin cleanup and service-layer drift correction
-6. Chunk 6: Local infra, worker, and web follow-ons
-7. Design docs
+1. Chunk 1: Unified eval loops core
+2. Chunk 2: Access-control refactor and scope/auth wiring
+3. Chunk 3: EE org/events/admin cleanup and service-layer drift correction
+4. Chunk 4: Local infra, worker, and web follow-ons
+5. Design docs
 
 ## Bottom line
 
 The branch is mostly not “many small independent features.” It is:
 
-- one large evaluation-runtime/evaluation-API feature stream
-- one medium SDK-parity stream
+- one large unified-eval-loops stream spanning OSS runtime, evaluation API/persistence, and SDK parity
 - one medium access-control/scope stream
 - one smaller EE/admin cleanup stream
 - one thin frontend/infra follow-on stream
