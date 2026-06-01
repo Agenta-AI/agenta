@@ -8,18 +8,22 @@ export interface ViewOption {
 /**
  * Returns the ordered view-mode options for a value.
  *
- * Order convention is consistent regardless of content: kind-specific
- * modes first (Text → Markdown for strings, Form for objects), JSON and
- * YAML always at the bottom. A previous heuristic flipped the string
- * options to "Markdown first" for "long" strings (>100 chars OR
- * containing `\n`) on the theory that long multi-line text is more
- * likely markdown — but Kaosiso reported on 2026-06-01 that "Text and
- * markdown are incorrectly swapped" in the chat message editor, and
- * Arda confirmed the order must be consistent across content. Reordering
- * based on heuristics confuses users: pick the SAME option, get it in a
- * different slot depending on what you happened to type. The default
- * MODE (what the dropdown shows initially) can still be markdown-leaning
- * elsewhere; the option ORDER stays put.
+ * Order convention is fixed: kind-specific modes first (Text → Markdown
+ * for strings, Form for objects), JSON and YAML always at the bottom.
+ * No content-based heuristics — every string gets the same options in
+ * the same order, regardless of length, newlines, or what the user
+ * has typed. Arda directive on 2026-06-01 (after Kaosiso reported
+ * "text and markdown are incorrectly swapped" in the chat message
+ * editor): "no more 'long' string logic in the playground variables
+ * / inputs". A prior implementation flipped the string branch to
+ * "Markdown first" when the value exceeded 100 chars OR contained a
+ * `\n`; that's gone now.
+ *
+ * Default mode selection (the dropdown's initial pick) is decoupled
+ * from this — callers either hard-set it (`useState("text")` in
+ * `ChatMessageList`) or derive it from the first option of this list
+ * (`getDefaultViewForValue` in `@agenta/entity-ui/view-types`). Since
+ * Text is always first, Text is always the default for strings.
  */
 export function getViewOptions(value: unknown, enableFormView = false): ViewOption[] {
     const jsonYaml: ViewOption[] = [
