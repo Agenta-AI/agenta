@@ -515,6 +515,26 @@ class EvaluationsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def archive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def unarchive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
     async def delete_queue(
         self,
         *,

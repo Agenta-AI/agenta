@@ -42,6 +42,9 @@ class EvaluationRunFlags(BaseModel):
     is_live: bool = False  # Indicates if the run has live queries
     is_active: bool = False  # Indicates if the run is currently active
     is_closed: bool = False  # Indicates if the run is modifiable
+    is_queue: bool = False  # Indicates this run belongs to an annotation queue
+    is_cached: bool = False  # Indicates the run should reuse traces by hash
+    is_split: bool = False  # Indicates repeats fan out at the application step
     #
     has_queries: bool = False  # Indicates if the run has queries
     has_testsets: bool = False  # Indicates if the run has testsets
@@ -86,9 +89,10 @@ class EvaluationResult(BaseModel):
     run_id: UUID
     scenario_id: UUID
     step_key: str
+    repeat_idx: Optional[int] = 0
 
     testcase_id: Optional[UUID] = None
-    trace_id: Optional[UUID] = None
+    trace_id: Optional[Union[UUID, str]] = None
     error: Optional[dict] = None
 
     flags: Optional[Dict[str, Any]] = None

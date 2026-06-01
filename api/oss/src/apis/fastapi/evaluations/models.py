@@ -81,6 +81,28 @@ class EvaluationClosedException(HTTPException):
         self.queue_id = queue_id
 
 
+class DefaultQueueDataInvalidException(HTTPException):
+    """Raised when a default queue carries scenario/step/assignment/batch filters."""
+
+    def __init__(self, message: str, queue_id: Optional[UUID] = None):
+        details = dict(message=message)
+        if queue_id:
+            details["queue_id"] = str(queue_id)
+        super().__init__(status_code=422, detail=details)
+        self.queue_id = queue_id
+
+
+class DefaultQueueEditingForbiddenException(HTTPException):
+    """Raised when demoting or hard-deleting a default queue is attempted."""
+
+    def __init__(self, message: str, queue_id: Optional[UUID] = None):
+        details = dict(message=message)
+        if queue_id:
+            details["queue_id"] = str(queue_id)
+        super().__init__(status_code=409, detail=details)
+        self.queue_id = queue_id
+
+
 # EVALUATION RUNS --------------------------------------------------------------
 
 

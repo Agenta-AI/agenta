@@ -47,7 +47,10 @@ from oss.src.core.evaluations.types import (
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.evaluations.utils import (
     create_run_references,
     edit_run_references,
@@ -74,8 +77,10 @@ log = get_module_logger(__name__)
 
 
 class EvaluationsDAO(EvaluationsDAOInterface):
-    def __init__(self):
-        pass
+    def __init__(self, engine: TransactionsEngine = None):
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     # - EVALUATION RUN ---------------------------------------------------------
 
@@ -113,7 +118,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(run_dbe)
 
                 await session.commit()
@@ -172,7 +177,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             run_dbes.append(run_dbe)
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add_all(run_dbes)
 
                 await session.commit()
@@ -200,7 +205,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_id: UUID,
     ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -233,7 +238,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_ids: List[UUID],
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -258,7 +263,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _runs
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_run(
         self,
         *,
@@ -267,7 +272,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run: EvaluationRunEdit,
     ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -309,6 +314,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 references=run_references,
             )
 
+            # `status` is a VARCHAR column but `edit_dbe_from_dto` dumps the DTO
+            # without `mode="json"`, leaving an EvaluationStatus enum that does
+            # not persist reliably. Write the serialized value explicitly (same
+            # as `close_run`) so terminal statuses from the slice are saved.
+            if run.status is not None:
+                run_dbe.status = run.status.value  # type: ignore
+                flag_modified(run_dbe, "status")
+
             if run.data:
                 run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
 
@@ -321,7 +334,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _run
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_runs(
         self,
         *,
@@ -332,7 +345,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationRun]:
         run_ids = [run.id for run in runs]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -406,7 +419,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_id: UUID,
     ) -> Optional[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -438,7 +451,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_ids: List[UUID],
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -478,7 +491,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         status: Optional[EvaluationStatus] = None,
     ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id == run_id,
@@ -526,7 +539,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_ids: List[UUID],
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id.in_(run_ids),
@@ -576,7 +589,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_id: UUID,
     ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id == run_id,
@@ -620,7 +633,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_ids: List[UUID],
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id.in_(run_ids),
@@ -671,7 +684,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -704,11 +717,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationRunDBE.tags.contains(run.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if run.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationRunDBE.meta.contains(run.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if run.status is not None:
                     stmt = stmt.filter(
@@ -759,7 +768,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         *,
         windowing: Optional[Windowing] = None,
     ) -> List[Tuple[UUID, EvaluationRun]]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE)
 
             stmt = stmt.filter(
@@ -806,7 +815,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION SCENARIO ----------------------------------------------------
 
-    @suppress_exceptions(exclude=[EntityCreationConflict])
+    @suppress_exceptions(exclude=[EntityCreationConflict, EvaluationClosedConflict])
     async def create_scenario(
         self,
         *,
@@ -841,7 +850,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(scenario_dbe)
 
                 await session.commit()
@@ -858,7 +867,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             raise
 
-    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
+    @suppress_exceptions(
+        default=[], exclude=[EntityCreationConflict, EvaluationClosedConflict]
+    )
     async def create_scenarios(
         self,
         *,
@@ -900,7 +911,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         ]
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add_all(scenario_dbes)
 
                 await session.commit()
@@ -928,7 +939,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_id: UUID,
     ) -> Optional[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -961,7 +972,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_ids: List[UUID],
     ) -> List[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -986,7 +997,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _scenarios
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_scenario(
         self,
         *,
@@ -995,7 +1006,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario: EvaluationScenarioEdit,
     ) -> Optional[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1041,7 +1052,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _scenario
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_scenarios(
         self,
         *,
@@ -1052,7 +1063,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationScenario]:
         scenario_ids = [scenario.id for scenario in scenarios]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1108,7 +1119,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _scenarios
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def delete_scenario(
         self,
         *,
@@ -1116,7 +1127,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_id: UUID,
     ) -> Optional[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1152,7 +1163,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return scenario_id
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def delete_scenarios(
         self,
         *,
@@ -1160,7 +1171,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_ids: List[UUID],
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1207,7 +1218,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario: Optional[EvaluationScenarioQuery] = None,
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE.id).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1254,7 +1265,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1305,11 +1316,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationScenarioDBE.tags.contains(scenario.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if scenario.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationScenarioDBE.meta.contains(scenario.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if scenario.status is not None:
                     stmt = stmt.filter(
@@ -1346,7 +1353,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION RESULT ------------------------------------------------------
 
-    @suppress_exceptions(exclude=[EntityCreationConflict])
+    @suppress_exceptions(exclude=[EntityCreationConflict, EvaluationClosedConflict])
     async def create_result(
         self,
         *,
@@ -1381,7 +1388,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(result_dbe)
 
                 await session.commit()
@@ -1398,7 +1405,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             raise
 
-    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
+    @suppress_exceptions(
+        default=[], exclude=[EntityCreationConflict, EvaluationClosedConflict]
+    )
     async def create_results(
         self,
         *,
@@ -1418,7 +1427,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=result.run_id,
                 )
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             _results = [
                 EvaluationResult(
                     **result.model_dump(
@@ -1462,7 +1471,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result_id: UUID,
     ) -> Optional[EvaluationResult]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1495,7 +1504,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result_ids: List[UUID],
     ) -> List[EvaluationResult]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1520,7 +1529,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _results
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_result(
         self,
         *,
@@ -1529,7 +1538,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result: EvaluationResultEdit,
     ) -> Optional[EvaluationResult]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1576,7 +1585,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _result
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_results(
         self,
         *,
@@ -1587,7 +1596,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationResult]:
         result_ids = [result.id for result in results]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1644,7 +1653,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _results
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def delete_result(
         self,
         *,
@@ -1652,7 +1661,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result_id: UUID,
     ) -> Optional[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1689,7 +1698,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return result_id
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def delete_results(
         self,
         *,
@@ -1697,7 +1706,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result_ids: List[UUID],
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1745,7 +1754,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationResult]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1826,11 +1835,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationResultDBE.tags.contains(result.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if result.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationResultDBE.meta.contains(result.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if result.status is not None:
                     stmt = stmt.filter(
@@ -1926,7 +1931,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         ]
 
         # Classify metrics into 3 groups based on NULL pattern, then batch upsert
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             returned_metric_dbes = []
             # Convert DBE instances to dicts using SQLAlchemy's inspection
             mapper = inspect(EvaluationMetricsDBE)
@@ -2059,7 +2064,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         metrics_ids: List[UUID],
     ) -> List[EvaluationMetrics]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationMetricsDBE).filter(
                 EvaluationMetricsDBE.project_id == project_id,
             )
@@ -2084,7 +2089,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _metrics
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_metrics(
         self,
         *,
@@ -2095,7 +2100,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationMetrics]:
         metrics_ids = [metric.id for metric in metrics]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationMetricsDBE).filter(
                 EvaluationMetricsDBE.project_id == project_id,
             )
@@ -2152,7 +2157,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _metrics
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def delete_metrics(
         self,
         *,
@@ -2160,7 +2165,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         metrics_ids: Optional[List[UUID]] = None,
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             if metrics_ids is None:
                 return []
 
@@ -2211,7 +2216,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationMetrics]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationMetricsDBE).filter(
                 EvaluationMetricsDBE.project_id == project_id,
             )
@@ -2284,11 +2289,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationMetricsDBE.tags.contains(metric.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if metric.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationMetricsDBE.meta.contains(metric.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if metric.status is not None:
                     stmt = stmt.filter(
@@ -2325,7 +2326,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION QUEUE -------------------------------------------------------
 
-    @suppress_exceptions(exclude=[EntityCreationConflict])
+    @suppress_exceptions(exclude=[EntityCreationConflict, EvaluationClosedConflict])
     async def create_queue(
         self,
         *,
@@ -2344,6 +2345,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 run_id=queue.run_id,
             )
 
+        # At most one ACTIVE default queue per run. This is enforced by the
+        # partial unique index ux_evaluation_queues_default_per_run; the insert
+        # below surfaces a duplicate as EntityCreationConflict via
+        # check_entity_creation_conflict, so no separate pre-check is needed.
         _queue = EvaluationQueue(
             **queue.model_dump(
                 mode="json",
@@ -2366,7 +2371,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(queue_dbe)
 
                 await session.commit()
@@ -2379,11 +2384,13 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 return _queue
 
         except Exception as e:
-            check_entity_creation_conflict(e)
+            check_entity_creation_conflict(e, entity="Evaluation queue")
 
             raise
 
-    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
+    @suppress_exceptions(
+        default=[], exclude=[EntityCreationConflict, EvaluationClosedConflict]
+    )
     async def create_queues(
         self,
         *,
@@ -2422,7 +2429,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add_all(queue_dbes)
 
                 await session.commit()
@@ -2450,7 +2457,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue_id: UUID,
     ) -> Optional[EvaluationQueue]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2483,7 +2490,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue_ids: List[UUID],
     ) -> List[EvaluationQueue]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2508,7 +2515,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _queues
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_queue(
         self,
         *,
@@ -2517,7 +2524,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue: EvaluationQueueEdit,
     ) -> Optional[EvaluationQueue]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2569,7 +2576,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _queue
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def edit_queues(
         self,
         *,
@@ -2579,7 +2586,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationQueue]:
         queue_ids = [queue.id for queue in queues]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2642,6 +2649,63 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             return _queues
 
     @suppress_exceptions()
+    async def archive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(EvaluationQueueDBE)
+                .filter(
+                    EvaluationQueueDBE.project_id == project_id,
+                    EvaluationQueueDBE.id == queue_id,
+                )
+                .limit(1)
+            )
+            queue_dbe = (await session.execute(stmt)).scalars().first()
+            if queue_dbe is None:
+                return None
+
+            now = datetime.now(timezone.utc)
+            queue_dbe.deleted_at = now
+            queue_dbe.deleted_by_id = user_id
+            queue_dbe.updated_at = now
+            queue_dbe.updated_by_id = user_id
+            await session.commit()
+            return create_dto_from_dbe(DTO=EvaluationQueue, dbe=queue_dbe)
+
+    @suppress_exceptions()
+    async def unarchive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(EvaluationQueueDBE)
+                .filter(
+                    EvaluationQueueDBE.project_id == project_id,
+                    EvaluationQueueDBE.id == queue_id,
+                )
+                .limit(1)
+            )
+            queue_dbe = (await session.execute(stmt)).scalars().first()
+            if queue_dbe is None:
+                return None
+
+            queue_dbe.deleted_at = None
+            queue_dbe.deleted_by_id = None
+            queue_dbe.updated_at = datetime.now(timezone.utc)
+            queue_dbe.updated_by_id = user_id
+            await session.commit()
+            return create_dto_from_dbe(DTO=EvaluationQueue, dbe=queue_dbe)
+
+    @suppress_exceptions()
     async def delete_queue(
         self,
         *,
@@ -2649,7 +2713,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue_id: UUID,
     ) -> Optional[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2681,7 +2745,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue_ids: List[UUID],
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2716,10 +2780,13 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationQueue]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
+
+            if not queue or not queue.include_archived:
+                stmt = stmt.filter(EvaluationQueueDBE.deleted_at.is_(None))
 
             if queue is not None:
                 if queue.ids is not None:
@@ -2763,11 +2830,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationQueueDBE.tags.contains(queue.tags),
                     )
 
-                # meta is JSON (not JSONB) — containment (@>) is not supported
-                # if queue.meta is not None:
-                #     stmt = stmt.filter(
-                #         EvaluationQueueDBE.meta.contains(queue.meta),
-                #     )
+                # meta is JSON (not JSONB) — containment (@>) filtering unsupported
 
                 if queue.name is not None:
                     stmt = stmt.filter(
@@ -2812,7 +2875,8 @@ async def _get_run_flags(
     session: Optional[AsyncSession] = None,
 ) -> dict:
     if session is None:
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+        async with engine.session() as session:
             return await _get_run_flags(
                 project_id=project_id,
                 run_id=run_id,

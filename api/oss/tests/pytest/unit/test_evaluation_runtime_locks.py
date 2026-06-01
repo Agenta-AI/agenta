@@ -85,8 +85,10 @@ async def fake_redis():
             return False
         return bool(await client.delete(lock_key))
 
+    cache_engine = pytest.importorskip("oss.src.dbs.redis.shared.engine")
+
     with (
-        patch("oss.src.utils.caching.r_lock", client),
+        patch.object(cache_engine._cache_engine, "get_r_lock", return_value=client),
         patch(
             "oss.src.utils.caching.renew_lock",
             _renew_lock_for_tests,
@@ -116,22 +118,22 @@ def _job_id() -> str:
 
 def _genson_patch():
     module = types.ModuleType("genson")
-    live_module = types.ModuleType("oss.src.core.evaluations.tasks.live")
+    query_module = types.ModuleType("oss.src.core.evaluations.tasks.query")
 
     class SchemaBuilder: ...
 
-    async def evaluate_live_query(*args, **kwargs):
+    async def process_query_source_run(*args, **kwargs):
         return None
 
     module.SchemaBuilder = SchemaBuilder
-    live_module.evaluate_live_query = evaluate_live_query
+    query_module.process_query_source_run = process_query_source_run
     stack = ExitStack()
     stack.enter_context(
         patch.dict(
             sys.modules,
             {
                 "genson": module,
-                "oss.src.core.evaluations.tasks.live": live_module,
+                "oss.src.core.evaluations.tasks.query": query_module,
             },
         )
     )
@@ -473,7 +475,7 @@ async def test_with_job_lock_releases_on_exception(fake_redis):
 
 @pytest.mark.asyncio
 async def test_refresh_worker_heartbeat_preserves_created_at_without_fakeredis():
-    from oss.src.core.evaluations.runtime import locks
+    import oss.src.core.evaluations.runtime.locks as locks
 
     class DummyRedis:
         def __init__(self):
@@ -487,9 +489,10 @@ async def test_refresh_worker_heartbeat_preserves_created_at_without_fakeredis()
             return True
 
     dummy = DummyRedis()
+    cache_engine = pytest.importorskip("oss.src.dbs.redis.shared.engine")
 
     with (
-        patch("oss.src.utils.caching.r_lock", dummy),
+        patch.object(cache_engine._cache_engine, "get_r_lock", return_value=dummy),
         patch(
             "oss.src.core.evaluations.runtime.locks._now_iso",
             side_effect=["2026-03-25T10:00:00Z", "2026-03-25T10:01:00Z"],
@@ -506,7 +509,7 @@ async def test_refresh_worker_heartbeat_preserves_created_at_without_fakeredis()
 
 @pytest.mark.asyncio
 async def test_run_job_heartbeat_fails_after_missing_renew_deadline():
-    from oss.src.core.evaluations.runtime import locks
+    import oss.src.core.evaluations.runtime.locks as locks
 
     clock = {"now": 0.0}
 
