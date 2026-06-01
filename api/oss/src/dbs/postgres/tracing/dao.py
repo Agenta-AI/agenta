@@ -30,7 +30,7 @@ from oss.src.core.tracing.dtos import (
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import AnalyticsEngine, get_analytics_engine
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
 from oss.src.dbs.postgres.tracing.mappings import (
     map_span_dbe_to_link_dto,
@@ -67,8 +67,10 @@ log = get_module_logger(__name__)
 
 
 class TracingDAO(TracingDAOInterface):
-    def __init__(self):
-        pass
+    def __init__(self, engine: AnalyticsEngine = None):
+        if engine is None:
+            engine = get_analytics_engine()
+        self.engine = engine
 
     ### SPANS
 
@@ -85,7 +87,7 @@ class TracingDAO(TracingDAOInterface):
         if not span_dtos:
             return []
 
-        async with engine.tracing_session() as session:
+        async with self.engine.session() as session:
             link_dtos: List[OTelLink] = []
 
             for span_dto in span_dtos:
@@ -158,7 +160,7 @@ class TracingDAO(TracingDAOInterface):
         # ---------
 
         try:
-            async with engine.tracing_session() as session:
+            async with self.engine.session() as session:
                 # TIMEOUT
                 await session.execute(TIMEOUT_STMT)
                 # -------
@@ -413,7 +415,7 @@ class TracingDAO(TracingDAOInterface):
         # log.trace(str(statistics_stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
         # ---------
 
-        async with engine.tracing_session() as session:
+        async with self.engine.session() as session:
             await session.execute(TIMEOUT_STMT)
 
             rows = (await session.execute(select(statistics_stmt))).mappings().all()
@@ -544,7 +546,7 @@ class TracingDAO(TracingDAOInterface):
         ) = parse_windowing(query.windowing)
 
         try:
-            async with engine.tracing_session() as session:
+            async with self.engine.session() as session:
                 await session.execute(TIMEOUT_STMT)
 
                 # BASE QUERY HELPERS
@@ -747,7 +749,7 @@ class TracingDAO(TracingDAOInterface):
         if not trace_ids and not span_ids:
             return []
 
-        async with engine.tracing_session() as session:
+        async with self.engine.session() as session:
             stmt = select(SpanDBE).filter(SpanDBE.project_id == project_id)
 
             if trace_ids:
@@ -785,7 +787,7 @@ class TracingDAO(TracingDAOInterface):
         if not trace_ids:
             return []
 
-        async with engine.tracing_session() as session:
+        async with self.engine.session() as session:
             stmt = select(SpanDBE).filter(
                 SpanDBE.project_id == project_id,
                 SpanDBE.trace_id.in_(trace_ids),
@@ -874,7 +876,7 @@ class TracingDAO(TracingDAOInterface):
             realtime: If True, use last_active (mutable, shows recent activity but unstable cursors).
                      If False/None, use first_active (immutable, stable cursors but doesn't reflect new activity).
         """
-        async with engine.tracing_session() as session:
+        async with self.engine.session() as session:
             # TIMEOUT
             await session.execute(TIMEOUT_STMT)
 

@@ -23,7 +23,7 @@ class SpansRetentionRouter:
         self,
         tracing_retention_service: TracingRetentionService,
     ):
-        self.tracing_retention_service = tracing_retention_service
+        self.tracing_service = tracing_retention_service
 
         self.admin_router = APIRouter()
 
@@ -60,7 +60,7 @@ class SpansRetentionRouter:
 
             try:
                 log.info("[flush-spans] [endpoint] Retention started")
-                await self.tracing_retention_service.flush_spans()
+                await self.tracing_service.flush_spans()
                 log.info("[flush-spans] [endpoint] Retention completed")
 
                 return JSONResponse(

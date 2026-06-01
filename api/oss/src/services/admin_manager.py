@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.services import db_manager
 
 from oss.src.models.db_models import UserDB
@@ -98,7 +98,7 @@ class ProjectRequest(BaseModel):
 
 # Role slugs are dynamic at runtime (env-overridable via AGENTA_ACCESS_ROLES);
 # validation against the effective per-scope catalog happens at the handler
-# boundary via `ee.src.core.entitlements.controls.get_role`.
+# boundary via `ee.src.core.access.controls.get_role`.
 class OrganizationMembershipRequest(BaseModel):
     role: str
     is_demo: bool
@@ -132,7 +132,9 @@ async def legacy_create_organization(
     return_org_wrk: bool = False,
     return_org_wrk_prj: bool = False,
 ) -> Union[OrganizationDB, WorkspaceDB]:
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         create_org_data = payload.model_dump(exclude_unset=True)
         create_org_data.pop("is_demo", None)
 
@@ -235,7 +237,9 @@ async def user_exists(user_email: str) -> bool:
 async def check_user(
     request: UserRequest,
 ) -> Optional[UserRequest]:
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(UserDB).filter_by(
                 email=request.email,
@@ -252,7 +256,9 @@ async def check_user(
 async def create_user(
     request: UserRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         user_db = UserDB(
             # id=uuid7()  # use default
             #
@@ -279,7 +285,9 @@ async def create_organization(
     request: OrganizationRequest,
     created_by_id: uuid.UUID,
 ) -> Reference:
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         organization_db = OrganizationDB(
             name=request.name,
             description=request.description,
@@ -305,7 +313,9 @@ async def create_organization(
 async def create_workspace(
     request: WorkspaceRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         workspace_db = WorkspaceDB(
             # id=uuid7()  # use default
             #
@@ -334,7 +344,9 @@ async def create_workspace(
 async def create_project(
     request: ProjectRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         project_db = ProjectDB(
             # id=uuid7()  # use default
             #
