@@ -112,7 +112,10 @@ railway_call() {
     local exit_code
 
     while [ "$attempt" -le "$max_attempts" ]; do
-        output="$(railway "$@" 2>&1)" && exit_code=0 || exit_code=$?
+        # `set +Ee` inside the subshell so a non-zero exit from `railway`
+        # neither trips errexit nor fires an inherited ERR trap. This wrapper
+        # handles rate-limit retries and reports failures itself.
+        output="$(set +Ee; railway "$@" 2>&1)" && exit_code=0 || exit_code=$?
 
         if printf "%s" "$output" | grep -qi "ratelimit\|rate.limit\|rate limit"; then
             if [ "$attempt" -eq "$max_attempts" ]; then
@@ -128,8 +131,79 @@ railway_call() {
             continue
         fi
 
-        # Not a rate-limit error. Print output and return the original exit code.
-        printf "%s\n" "$output"
+        # Not a rate-limit error.
+        if [ "$exit_code" -eq 0 ]; then
+            # Success: emit on stdout so callers can capture the output.
+            printf "%s\n" "$output"
+        else
+            # Failure: emit on stderr so callers that redirect stdout to
+            # /dev/null still surface the underlying railway error.
+            [ -n "$output" ] && printf "%s\n" "$output" >&2
+        fi
         return "$exit_code"
     done
+}
+
+# install_error_trap: Turn a bare "exit 1" into a diagnostic that names the
+# failing command and prints a short call stack. Call once near the top of a
+# script, after sourcing this file. Enables errtrace (set -E) so the trap also
+# fires for failures inside functions.
+#
+# railway_call disables errtrace inside its own command substitution, so
+# tolerated failures (callers using `|| true`) do not reach this trap.
+_railway_on_error() {
+    # The same failure can unwind through several stack frames; report once.
+    [ -n "${_RAILWAY_ERR_HANDLED:-}" ] && return 0
+    _RAILWAY_ERR_HANDLED=1
+
+    local exit_code="$1"
+    local cmd="$2"
+
+    printf '\n[railway][FAIL] command failed (exit %s): %s\n' "$exit_code" "$cmd" >&2
+
+    local i
+    for ((i = 1; i < ${#FUNCNAME[@]}; i++)); do
+        printf '    at %s (%s:%s)\n' \
+            "${FUNCNAME[i]}" "${BASH_SOURCE[i]}" "${BASH_LINENO[i - 1]}" >&2
+    done
+
+    # Surface a GitHub Actions annotation when running in CI.
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        printf '::error::[railway] command failed (exit %s): %s\n' "$exit_code" "$cmd" >&2
+    fi
+}
+
+install_error_trap() {
+    set -E
+    trap '_railway_on_error "$?" "$BASH_COMMAND"' ERR
+}
+
+# dump_railway_logs: Best-effort snapshot of Railway service logs, for CI
+# debugging. Uses --lines (non-streaming) and --latest (works even when a
+# deployment failed or is crash-looping), wrapped in a hard timeout so it can
+# never hang or fail the caller. Requires a linked project/environment.
+#
+# Usage: dump_railway_logs [service ...]   (defaults to the core infra set)
+#
+# Environment variables:
+#   RAILWAY_LOG_TAIL      Lines to fetch per service (default: 50)
+#   RAILWAY_LOG_TIMEOUT   Per-service timeout in seconds (default: 30)
+dump_railway_logs() {
+    local services=("$@")
+    if [ "${#services[@]}" -eq 0 ]; then
+        services=(Postgres redis alembic api supertokens web)
+    fi
+
+    local lines="${RAILWAY_LOG_TAIL:-50}"
+    local timeout_s="${RAILWAY_LOG_TIMEOUT:-30}"
+    local svc
+
+    for svc in "${services[@]}"; do
+        printf '\n===== railway logs (last %s lines): %s =====\n' "$lines" "$svc" >&2
+        timeout "$timeout_s" \
+            railway logs --service "$svc" --lines "$lines" --latest >&2 2>&1 \
+            || printf '(no logs available for service: %s)\n' "$svc" >&2
+    done
+
+    return 0
 }
