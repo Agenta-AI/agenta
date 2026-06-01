@@ -37,19 +37,74 @@ Legend: 🔴 not started · 🟡 in progress · 🟢 fixed · ⚪ deferred
 > you make a call from the playground. Invoke returns a trace_id but it
 > is nowhere to be found.
 
-**Likely cause (unverified):** Backend-side. Tracing pipeline issue
-between invoke and the traces store. JP-owned domain — not a FE-only
-fix. Need backend logs from the invoke call to confirm whether the
-trace is being emitted at all or just not landing in the destination.
+**Context (2026-06-01 Arda DM):** Tracing broke after PR #4469 was
+merged into main. JP's follow-up PR #4491
+(`fix/broken-tracing-and-workflow-events`) fixed it on main. Arda
+suspects the regression is local to our branch — i.e., something in
+our merge of `feat/add-mustache-rendering` interacts badly with the
+post-#4469 tracing fixes.
 
-**Investigation next steps:**
-1. Reproduce a playground invocation, capture the returned `trace_id`.
-2. Query the traces backend directly for that id.
-3. If absent: workflow service is not emitting → backend bug.
-4. If present: read pipeline is filtering it out → tracing service /
-   indexing bug.
+**Static-analysis findings (no code-level regression visible):**
 
-**Owner candidate:** JP (backend).
+All tracing-related FE files are BYTE-IDENTICAL to main:
+- `web/packages/agenta-entities/src/workflow/state/runnableSetup.ts`
+  (where `references` for trace attribution is built)
+- `web/oss/src/services/tracing/api/index.ts` (trace fetch endpoints)
+- `web/packages/agenta-entities/src/trace/api/api.ts` (trace fetch
+  endpoints)
+- `executionItems.ts` references-passing block (lines 1080-1084)
+- `workflow/state/store.ts` (sourceRef setter)
+
+All tracing-fix commits from PR #4491 are reachable from branch HEAD:
+- `b1b5b899df` [fix] Resolve broken tracing events
+- `83495a340a` Add workflow events, fix web endpoints
+- `601c9de468` cleanup related web/tracing files
+- `69379a9f04` back to legacy endpoints (`/tracing/spans/query` etc.)
+- `301f74f65f` fix: comment out unused event types
+- `92be0a87e2` Merge PR #4491
+
+Our branch's actual diff vs main is concentrated in mustache token
+plugin, playground inputs body, visibility rule, template format
+picker, schema-aware seeding, view-type ordering, chat single-
+testcase gate, and the native-vs-stringified input transport change.
+NONE of these touch the trace pipeline, references building,
+sourceRef construction, or tracing endpoints.
+
+**Plausible hypotheses (need verification):**
+
+1. **Premise re-check.** "Main playground traces work" may need
+   re-verification on the latest main HEAD (`d7c60c14e6`). If main
+   is also broken with the same repro, the regression isn't
+   branch-specific — it's something missing in main itself.
+
+2. **Indirect effect from native-input transport.** The only
+   semantically meaningful difference that touches the request body
+   is `executionItems.ts` switching variable values from
+   `Record<string, string>` to `Record<string, unknown>` (gap-04
+   fix). If the backend's trace-saving pipeline serializes the
+   `inputs` field for storage and chokes on nested-object inputs,
+   the trace_id would be generated but the trace would fail to
+   persist. Low-probability but the only code-level hypothesis I
+   can construct.
+
+3. **Environmental.** Staging deploy state mismatch, build cache,
+   or env var. Not code-related.
+
+**Recommended next steps:**
+
+1. Confirm the premise — re-test the same repro on the LATEST main
+   HEAD. If broken there too → hand off to JP for backend
+   investigation (this isn't a branch regression).
+2. If main is genuinely working: capture the request body sent
+   on our branch vs main during an invoke, diff the wire format.
+   Possible places to look: `request.inputs` shape, `request.
+   references` content, `request.ag_config` template_format value.
+3. Failing both, hand off to JP with the trace_id Mahmoud captured
+   plus the staging URL — he owns the backend trace pipeline and
+   can read the server-side logs that the FE can't.
+
+**Owner candidate:** JP (backend) once a confirmed branch-vs-main
+delta is captured, OR me (FE) if step 2 reveals a wire-format gap.
 
 ---
 
