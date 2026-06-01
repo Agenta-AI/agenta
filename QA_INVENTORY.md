@@ -3,27 +3,31 @@
 Slack thread: https://agentagroup.slack.com/archives/C0B4K2KFUJF/p1780309601153369
 Branch: `fe-feat/mustache-support` · Latest commit at QA time: `d9066e6c2f`
 
-Tracking the seven issues Mahmoud flagged on the morning of 2026-06-01.
-Mahmoud stopped QA after item 7 because autocomplete and other FE
-features stopped working, citing a post-merge regression.
+Tracking nine QA issues from the 2026-06-01 thread — Mahmoud reported
+seven (10:26-10:40Z), Kaosiso added two more later (11:38Z, 12:19Z).
+Mahmoud stopped his pass after item 7 citing a post-merge regression.
 
 Legend: 🔴 not started · 🟡 in progress · 🟢 fixed · ⚪ deferred
 
 ## Summary
 
-| # | Issue | Status | Commit / next step |
-|---|---|---|---|
-| 1 | Tracing broken in playground | ⚪ deferred | Backend (JP-owned) — needs trace pipeline investigation |
-| 2 | Variables "closing" after first letter in mustache | ⚪ deferred | Likely resolved by #7's regex fix — needs Mahmoud re-test |
-| 3 | Mustache form: can't add second sub-field | 🟢 fixed | `e26ca33a47` |
-| 4 | Text/markdown swapped in messages dropdown | ⚪ deferred | Needs video or repro to identify the actual swap |
-| 5 | Chat: `messages` in unused-columns footer | 🟢 fixed | `e08cb4e772` |
-| 6 | Chat multi-testcase regression | 🟢 fixed | `e08cb4e772` + `577da0e741` (radio rows) |
-| 7 | Autocomplete broken (post-merge regression) | 🟢 fixed | `693ac2457e` |
+| # | Issue | Reporter | Status | Commit / next step |
+|---|---|---|---|---|
+| 1 | Tracing broken in playground | Mahmoud | ⚪ deferred | Backend (JP-owned) — trace pipeline investigation |
+| 2 | Variables "closing" after first letter (mustache) | Mahmoud | ⚪ deferred | Probably same root cause as #8 — see below |
+| 3 | Mustache form: can't add second sub-field | Mahmoud | 🟢 fixed | `e26ca33a47` |
+| 4 | Text/markdown swapped in messages dropdown | Mahmoud | ⚪ deferred | Needs video or repro to identify the actual swap |
+| 5 | Chat: `messages` in unused-columns footer | Mahmoud | 🟢 fixed | `e08cb4e772` |
+| 6 | Chat multi-testcase regression | Mahmoud | 🟢 fixed | `e08cb4e772` + `577da0e741` (radio rows) |
+| 7 | Autocomplete broken (post-merge regression) | Mahmoud | 🟢 fixed | `693ac2457e` |
+| 8 | Cursor jumps outside `{{...}}` after first char (mustache) | Kaosiso | ⚪ deferred | Cleaner description of #2 — re-test post-#7 |
+| 9 | `curly` option disappears from picker after switching away | Kaosiso | 🔴 not started | TemplateFormatPicker keeps legacy option only when prompt is on it |
 
-**4 fixed and pushed · 3 deferred.** Next QA pass should start by re-testing
-#2 against the post-#7 branch, then asking JP for repro details on #4 and
-backend triage on #1.
+**4 fixed and pushed · 5 outstanding.** Next QA pass should:
+1. Re-test #2 + #8 against the post-#7 fix (likely both resolved by the regex change)
+2. Hit #9 next (UX-clear, scope contained to `templateFormatOptions.ts`)
+3. Ask Mahmoud for video timestamp / repro on #4
+4. Hand off #1 to JP for backend triage
 
 ---
 
@@ -337,6 +341,83 @@ broke autocomplete and other token-related features.
 
 **Note:** Solving #7 likely unblocks Mahmoud to resume QA on the
 remaining issues. Highest leverage to fix first.
+
+---
+
+## 8. ⚪ Cursor jumps outside `{{...}}` after first character (mustache only)
+
+**Slack ts:** 1780313900.071979 (Kaosiso, 2026-06-01 11:38Z)
+**Attachment:** `F0B7CFEJMNJ` (screen recording)
+
+> When using Mustache prompt syntax, typing inside a variable placeholder
+> causes the cursor to unexpectedly jump outside the curly braces after
+> entering the first character. This issue only occurs with Mustache
+> syntax. The same behavior is not observed with Jinja2 or Curly prompt
+> syntaxes.
+
+**Relationship to #2:** Kaosiso's description is a cleaner version of
+what Mahmoud called "variables keep closing automatically after the
+first letter". Same conditions (mustache only, first character),
+likely same root cause — caret position is being relocated outside the
+token by some re-render in the token plugin.
+
+**Hypothesis:** the `693ac2457e` regex fix (re-include `#`/`^`/`&`
+sigils as token-bearing) may already resolve this — before the fix,
+`{{x` got promoted to `TokenInputNode`, then typing `}}` produced
+`{{x}}` which (depending on the order) might trigger transient
+remounting between `TokenInputNode` → `TokenNode` → … and lose caret
+position. With the wider regex, that path stabilises.
+
+If still broken post-fix: investigate `TokenPlugin`'s `$transformNode`
+caret-restoration logic (around lines 130-145) — when it splits text
+nodes to extract a token, it computes a new cursor offset but the
+mustache-specific code path may not handle the in-token caret case.
+
+**Investigation next steps:**
+1. Reproduce on the post-`693ac2457e` branch. If resolved → close
+   both #2 and #8 as duplicates of #7.
+2. If still broken: profile each keystroke in React DevTools to find
+   the remount, walk the caret-restoration code.
+
+## 9. 🔴 `curly` picker option disappears after switching away in old apps
+
+**Slack ts:** 1780316376.172399 (Kaosiso, 2026-06-01 12:19Z)
+**Attachments:** `F0B7ES3EP8A`, `F0B78EZKTV1` (before/after screenshots)
+
+> For old apps, after changing the prompt syntax from `curly` to
+> `mustache` or `jinja2`, the `curly` option is removed from the
+> dropdown. This means users cannot switch back to `curly`.
+
+**Root cause (high confidence — by reading):** `templateFormatOptions.ts`
+in `@agenta/entity-ui` (the picker's option builder) conditionally
+includes `curly` and `fstring` ONLY when the current `template_format`
+value already matches them — they're hidden from the picker for new
+prompts. The intent (per the original PR #4393 design) is:
+"`mustache` and `jinja2` for new prompts; legacy `curly` / `fstring`
+stay selectable for prompts that already use them, no silent
+coercion."
+
+But the gate uses the CURRENT value, not the ORIGINAL value. So:
+
+  - Prompt loads at `curly` → picker shows `[curly, mustache, jinja2]`
+  - User picks `mustache` → value becomes `mustache`
+  - Picker rebuilds → no longer shows `curly` (current value isn't `curly`)
+  - User now stuck on `mustache`/`jinja2`, can't go back
+
+**Fix outline:** track the ORIGINAL `template_format` (the one stored
+when the prompt was loaded) and include it in the picker options
+regardless of the current value, so users can revert their choice
+within the same session.
+
+Implementation locations:
+- `@agenta/entity-ui/template-format/templateFormatOptions.ts`
+  (or wherever `buildTemplateFormatOptions` lives) — accept an
+  `originalFormat` param alongside `currentFormat`.
+- Caller in `PromptSchemaControl` — pass `originalFormat` derived
+  from the loaded prompt's first-seen `template_format`.
+
+Scope: ~30-50 lines net, plus a unit test pinning the "originally
+curly → curly stays selectable after switching" behaviour.
 
 ---
 
