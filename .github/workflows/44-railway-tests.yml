@@ -235,7 +235,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.needs_deployment == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Wait for deployed web and API
         env:
@@ -306,7 +306,11 @@ jobs:
       - name: Install Playwright browser
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         working-directory: web/tests
-        run: pnpm exec playwright install --with-deps chromium
+        # Intentionally omit --with-deps: the ubuntu-latest runner already has
+        # Chromium's core runtime libraries. --with-deps runs apt-get for ~200
+        # X11/font/GTK packages and adds 25+ minutes on a cold run. The auth
+        # bootstrap (login form + save cookies) doesn't need those extras.
+        run: pnpm exec playwright install chromium
 
       - name: Bootstrap auth with global setup
         if: steps.auth_bootstrap.outputs.enabled == 'true'
