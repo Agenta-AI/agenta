@@ -91,6 +91,20 @@ require_compose_redis_image() {
     printf "%s" "$image"
 }
 
+# _railway_redact: Mask secret values before they are logged. Reads stdin and
+# writes redacted text to stdout. Masks the value of any KEY=VALUE token whose
+# (uppercase) key contains PASSWORD/TOKEN/SECRET/KEY, plus the password segment
+# of any scheme://user:password@host URL. Keeps diagnostic output safe to print
+# and to upload as a CI artifact even when a failing command echoes its args.
+#
+# Applied only to failure/diagnostic output, never to the success path that
+# callers parse (e.g. `variable list -k` results).
+_railway_redact() {
+    sed -E \
+        -e 's/([A-Z0-9_]*(PASSWORD|TOKEN|SECRET|KEY)[A-Z0-9_]*[[:space:]]*=[[:space:]]*)[^[:space:]]+/\1***REDACTED***/g' \
+        -e 's#(://[A-Za-z0-9._~-]+:)[^@[:space:]/]+@#\1***REDACTED***@#g'
+}
+
 # railway_call: Run a railway CLI command, retrying on rate-limit responses.
 #
 # Railway returns "You are being ratelimited. Please try again later" on
@@ -119,8 +133,9 @@ railway_call() {
 
         if printf "%s" "$output" | grep -qi "ratelimit\|rate.limit\|rate limit"; then
             if [ "$attempt" -eq "$max_attempts" ]; then
-                printf "railway %s: rate-limited after %d attempts\n" "$*" "$max_attempts" >&2
-                printf "%s\n" "$output" >&2
+                printf "railway %s: rate-limited after %d attempts\n" \
+                    "$(printf '%s' "$*" | _railway_redact)" "$max_attempts" >&2
+                printf "%s\n" "$output" | _railway_redact >&2
                 return 1
             fi
             printf "railway %s: rate-limited, retrying in %ds (attempt %d/%d)\n" \
@@ -136,9 +151,9 @@ railway_call() {
             # Success: emit on stdout so callers can capture the output.
             printf "%s\n" "$output"
         else
-            # Failure: emit on stderr so callers that redirect stdout to
-            # /dev/null still surface the underlying railway error.
-            [ -n "$output" ] && printf "%s\n" "$output" >&2
+            # Failure: emit on stderr (redacted) so callers that redirect
+            # stdout to /dev/null still surface the underlying railway error.
+            [ -n "$output" ] && printf "%s\n" "$output" | _railway_redact >&2
         fi
         return "$exit_code"
     done
@@ -157,7 +172,10 @@ _railway_on_error() {
     _RAILWAY_ERR_HANDLED=1
 
     local exit_code="$1"
-    local cmd="$2"
+    # Redact secrets: $BASH_COMMAND can contain secret-bearing args (e.g.
+    # `railway variable set ... AGENTA_AUTH_KEY=...`).
+    local cmd
+    cmd="$(printf '%s' "$2" | _railway_redact)"
 
     printf '\n[railway][FAIL] command failed (exit %s): %s\n' "$exit_code" "$cmd" >&2
 
@@ -197,12 +215,17 @@ dump_railway_logs() {
     local lines="${RAILWAY_LOG_TAIL:-50}"
     local timeout_s="${RAILWAY_LOG_TIMEOUT:-30}"
     local svc
+    local logs
 
     for svc in "${services[@]}"; do
         printf '\n===== railway logs (last %s lines): %s =====\n' "$lines" "$svc" >&2
-        timeout "$timeout_s" \
-            railway logs --service "$svc" --lines "$lines" --latest >&2 2>&1 \
-            || printf '(no logs available for service: %s)\n' "$svc" >&2
+        # Capture first so the exit status reflects railway/timeout (not the
+        # redactor), then print redacted (service logs may embed DB URIs).
+        if logs="$(timeout "$timeout_s" railway logs --service "$svc" --lines "$lines" --latest 2>&1)"; then
+            printf '%s\n' "$logs" | _railway_redact >&2
+        else
+            printf '(no logs available for service: %s)\n' "$svc" >&2
+        fi
     done
 
     return 0
