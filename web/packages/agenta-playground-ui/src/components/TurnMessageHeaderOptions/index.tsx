@@ -1,6 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {MarkdownToggleButton} from "@agenta/ui/chat-message"
+import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
 import {
     ArrowClockwise,
     ArrowsOutLineHorizontal,
@@ -30,9 +30,10 @@ export interface TurnMessageHeaderOptionsProps {
     allowFileUpload?: boolean
     uploadCount?: number
     documentCount?: number
-    hideMarkdownToggle?: boolean
     hideAddToTestset?: boolean
     viewOnly?: boolean
+    viewMode?: ViewMode
+    onViewModeChange?: (viewMode: ViewMode) => void
     resultHashes?: string[]
     results?: unknown[]
     repetitionProps?: RepetitionNavProps
@@ -88,7 +89,6 @@ export const getTextContent = (content: unknown) => {
 }
 
 const TurnMessageHeaderOptions = ({
-    id,
     className,
     messageId,
     text,
@@ -98,11 +98,12 @@ const TurnMessageHeaderOptions = ({
     allowFileUpload = false,
     uploadCount,
     documentCount,
-    hideMarkdownToggle,
     resultHashes,
     results,
     children,
     hideAddToTestset = false,
+    viewMode = "text",
+    onViewModeChange,
     repetitionProps,
     onViewAllRepeats,
     actions,
@@ -181,93 +182,95 @@ const TurnMessageHeaderOptions = ({
 
     const testsetDisabled =
         (!results || results.length === 0) && (!resultHashes || resultHashes.length === 0)
+    const viewOptions = useMemo(() => getViewOptions(getTextContent(text || "")), [text])
 
     return (
-        <div
-            className={clsx(
-                "flex items-center gap-1 relative invisible group-hover/item:visible",
-                className,
-            )}
-        >
-            {repetitionProps && renderRepetitionNav && renderRepetitionNav(repetitionProps)}
+        <div className={clsx("flex items-center gap-1 relative", className)}>
+            <div className="flex items-center gap-1 invisible group-hover/item:visible group-focus-within/item:visible focus-within:visible">
+                <ViewModeDropdown
+                    value={viewMode}
+                    options={viewOptions}
+                    onChange={(nextViewMode) => onViewModeChange?.(nextViewMode)}
+                />
 
-            {onViewAllRepeats && (
-                <Tooltip title="Expand results">
+                {repetitionProps && renderRepetitionNav && renderRepetitionNav(repetitionProps)}
+
+                {onViewAllRepeats && (
+                    <Tooltip title="Expand results">
+                        <Button
+                            icon={<ArrowsOutLineHorizontal size={12} />}
+                            size="small"
+                            type="text"
+                            onClick={onViewAllRepeats}
+                            disabled={!resultHashes || resultHashes.length === 0}
+                        />
+                    </Tooltip>
+                )}
+
+                {onRerun ? (
+                    <Tooltip title="Re-run">
+                        <Button
+                            icon={<ArrowClockwise size={14} />}
+                            type="text"
+                            onClick={onRerun}
+                            disabled={disabled}
+                        />
+                    </Tooltip>
+                ) : null}
+
+                {!hideAddToTestset &&
+                    renderTestsetButton &&
+                    renderTestsetButton({
+                        messageId,
+                        results,
+                        resultHashes,
+                        onClickTestsetDrawer,
+                        disabled: testsetDisabled,
+                    })}
+
+                {attachmentMenuItems.length > 0 ? (
+                    <Dropdown
+                        trigger={["click"]}
+                        placement="bottomRight"
+                        menu={{
+                            items: attachmentMenuItems,
+                            onClick: handleAttachmentMenuClick,
+                        }}
+                        disabled={attachmentButtonDisabled}
+                    >
+                        <span className="inline-flex">
+                            <Tooltip title="Add attachment">
+                                <Button
+                                    icon={<Paperclip size={14} />}
+                                    type="text"
+                                    disabled={attachmentButtonDisabled}
+                                />
+                            </Tooltip>
+                        </span>
+                    </Dropdown>
+                ) : null}
+
+                <Tooltip title={isCopied ? "Copied" : "Copy"}>
                     <Button
-                        icon={<ArrowsOutLineHorizontal size={12} />}
-                        size="small"
+                        icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
                         type="text"
-                        onClick={onViewAllRepeats}
-                        disabled={!resultHashes || resultHashes.length === 0}
+                        onClick={onCopyText}
                     />
                 </Tooltip>
-            )}
 
-            {onRerun ? (
-                <Tooltip title="Re-run">
+                <Tooltip title="Remove">
                     <Button
-                        icon={<ArrowClockwise size={14} />}
+                        icon={<MinusCircle size={14} />}
                         type="text"
-                        onClick={onRerun}
-                        disabled={disabled}
+                        onClick={onDelete}
+                        disabled={!onDelete}
                     />
                 </Tooltip>
-            ) : null}
 
-            {!hideAddToTestset &&
-                renderTestsetButton &&
-                renderTestsetButton({
-                    messageId,
-                    results,
-                    resultHashes,
-                    onClickTestsetDrawer,
-                    disabled: testsetDisabled,
-                })}
+                <CollapseToggleButton collapsed={isCollapsed} onToggle={handleToggleCollapse} />
 
-            {attachmentMenuItems.length > 0 ? (
-                <Dropdown
-                    trigger={["click"]}
-                    placement="bottomRight"
-                    menu={{
-                        items: attachmentMenuItems,
-                        onClick: handleAttachmentMenuClick,
-                    }}
-                    disabled={attachmentButtonDisabled}
-                >
-                    <span className="inline-flex">
-                        <Tooltip title="Add attachment">
-                            <Button
-                                icon={<Paperclip size={14} />}
-                                type="text"
-                                disabled={attachmentButtonDisabled}
-                            />
-                        </Tooltip>
-                    </span>
-                </Dropdown>
-            ) : null}
-
-            <Tooltip title={isCopied ? "Copied" : "Copy"}>
-                <Button
-                    icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
-                    type="text"
-                    onClick={onCopyText}
-                />
-            </Tooltip>
-
-            {!hideMarkdownToggle && <MarkdownToggleButton id={id} />}
-
-            <Tooltip title="Remove">
-                <Button
-                    icon={<MinusCircle size={14} />}
-                    type="text"
-                    onClick={onDelete}
-                    disabled={!onDelete}
-                />
-            </Tooltip>
-
-            <CollapseToggleButton collapsed={isCollapsed} onToggle={handleToggleCollapse} />
-
-            {children}
+                {children}
+            </div>
         </div>
     )
 }

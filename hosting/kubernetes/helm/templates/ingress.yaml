@@ -1,0 +1,54 @@
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $ingress := default dict $values.ingress -}}
+{{- $apiEnabled := eq (include "agenta.api.enabled" .) "true" -}}
+{{- $servicesEnabled := eq (include "agenta.services.enabled" .) "true" -}}
+{{- $webEnabled := eq (include "agenta.web.enabled" .) "true" -}}
+{{- if and (eq (include "agenta.ingress.enabled" .) "true") (or $apiEnabled $servicesEnabled $webEnabled) }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "agenta.fullname" . }}
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+  {{- with $ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ include "agenta.ingress.className" . }}
+  {{- with $ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ include "agenta.ingress.host" . }}
+      http:
+        paths:
+          {{- if eq (include "agenta.api.enabled" .) "true" }}
+          - path: {{ include "agenta.ingress.paths.api.path" . }}
+            pathType: {{ include "agenta.ingress.paths.api.pathType" . }}
+            backend:
+              service:
+                name: {{ include "agenta.fullname" . }}-api
+                port:
+                  name: http
+          {{- end }}
+          {{- if eq (include "agenta.services.enabled" .) "true" }}
+          - path: {{ include "agenta.ingress.paths.services.path" . }}
+            pathType: {{ include "agenta.ingress.paths.services.pathType" . }}
+            backend:
+              service:
+                name: {{ include "agenta.fullname" . }}-services
+                port:
+                  name: http
+          {{- end }}
+          {{- if eq (include "agenta.web.enabled" .) "true" }}
+          - path: {{ include "agenta.ingress.paths.web.path" . }}
+            pathType: {{ include "agenta.ingress.paths.web.pathType" . }}
+            backend:
+              service:
+                name: {{ include "agenta.fullname" . }}-web
+                port:
+                  name: http
+          {{- end }}
+{{- end }}

@@ -69,13 +69,16 @@ from agenta.sdk.engines.running.errors import (
 log = get_module_logger(__name__)
 
 _WEBHOOK_RESPONSE_MAX_BYTES = 1 * 1024 * 1024.0  # 1 MB
-_WEBHOOK_ALLOW_INSECURE = (
-    os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
+_HOOK_ALLOW_INSECURE = (
+    os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
+    or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
+    or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
+    or "true"
 ).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
-    if _WEBHOOK_ALLOW_INSECURE:
+    if _HOOK_ALLOW_INSECURE:
         return False
     return (
         ip.is_private
@@ -95,7 +98,7 @@ def _validate_webhook_url(url: str) -> None:
     scheme = parsed.scheme.lower()
     if scheme not in {"http", "https"}:
         raise ValueError("Webhook URL must use http or https.")
-    if scheme == "http" and not _WEBHOOK_ALLOW_INSECURE:
+    if scheme == "http" and not _HOOK_ALLOW_INSECURE:
         raise ValueError("Webhook URL must use https.")
     if not parsed.netloc:
         raise ValueError("Webhook URL must include a host.")
@@ -105,10 +108,7 @@ def _validate_webhook_url(url: str) -> None:
     hostname = (parsed.hostname or "").lower()
     if not hostname:
         raise ValueError("Webhook URL must include a valid hostname.")
-    if (
-        hostname in {"localhost", "localhost.localdomain"}
-        and not _WEBHOOK_ALLOW_INSECURE
-    ):
+    if hostname in {"localhost", "localhost.localdomain"} and not _HOOK_ALLOW_INSECURE:
         raise ValueError("Webhook URL hostname is not allowed.")
 
     try:
@@ -1402,9 +1402,14 @@ def auto_json_diff_v0(
             path=correct_answer_key, expected=["dict", "str"], got=correct_answer
         )
 
-    correct_answer_dict = (
-        correct_answer if isinstance(correct_answer, dict) else loads(correct_answer)
-    )
+    correct_answer_dict = correct_answer
+    if isinstance(correct_answer, str):
+        try:
+            correct_answer_dict = loads(correct_answer)
+        except json.JSONDecodeError as e:
+            raise InvalidInputV0Error(
+                path=correct_answer_key, expected="dict", got=correct_answer
+            ) from e
 
     if not isinstance(outputs, str) and not isinstance(outputs, dict):
         raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)

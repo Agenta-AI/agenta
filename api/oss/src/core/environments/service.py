@@ -39,6 +39,7 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    RetrievalInfo,
     RevisionCommit,
     #
     RevisionCreate,
@@ -50,6 +51,13 @@ from oss.src.core.git.dtos import (
     VariantQuery,
 )
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.utils import build_retrieval_info
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+    needs_default_variant_resolution,
+    validate_retrieve_refs_consistent,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 
 from oss.src.utils.logging import get_module_logger
@@ -168,6 +176,82 @@ class EnvironmentsService:
             else None
         )
         return _normalize_environment_references(previous_references)
+
+    async def _normalize_references_from_lineage(
+        self,
+        *,
+        project_id: UUID,
+        references: Optional[Dict[str, Dict[str, Reference]]],
+    ) -> Optional[Dict[str, Dict[str, Reference]]]:
+        """Repair stale artifact/variant/revision ref slugs from the revision row.
+
+        Callers historically sent the entity *name* or the wrong slug at the
+        artifact/variant levels. The revision id is the one value always sent
+        reliably, so for each app-key ref group we resolve the workflow revision
+        by id and rewrite each level's slug from that single lineage —
+        guaranteeing the stored refs are mutually consistent and pass the
+        retrieve consistency check.
+
+        Mirrors the backfill migration's contract: only the ``slug`` of a level
+        that already carries one is rewritten; ``id``/``version`` and slug-less
+        levels are left as-is. Groups whose revision id does not resolve are
+        left untouched.
+        """
+
+        if not references:
+            return references
+
+        if not self.embeds_service or not self.embeds_service.workflows_service:
+            return references
+
+        workflows_service = self.embeds_service.workflows_service
+
+        normalized: Dict[str, Dict[str, Reference]] = {}
+
+        for key, group in references.items():
+            # application/evaluator/workflow all persist into the workflow_*
+            # tables (applications & evaluators reuse workflow persistence), so a
+            # single revision-lineage lookup is authoritative for every family.
+            prefix = next(
+                (
+                    family
+                    for family in ("application", "evaluator", "workflow")
+                    if f"{family}_revision" in group
+                ),
+                None,
+            )
+
+            revision_ref = group.get(f"{prefix}_revision") if prefix else None
+
+            if not prefix or not revision_ref or not revision_ref.id:
+                normalized[key] = group
+                continue
+
+            revision = await workflows_service.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_revision_ref=Reference(id=revision_ref.id),
+            )
+
+            if not revision:
+                normalized[key] = group
+                continue
+
+            authoritative_slug = {
+                prefix: revision.artifact_slug,
+                f"{prefix}_variant": revision.variant_slug,
+                f"{prefix}_revision": revision.slug,
+            }
+
+            normalized[key] = {
+                ref_type: (
+                    ref.model_copy(update={"slug": authoritative_slug[ref_type]})
+                    if ref_type in authoritative_slug and ref.slug is not None
+                    else ref
+                )
+                for ref_type, ref in group.items()
+            }
+
+        return normalized
 
     # environments ---------------------------------------------------------
 
@@ -409,6 +493,10 @@ class EnvironmentsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[EnvironmentVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=environment_variant_ref,
+            entity_type="environment",
+        )
         variant = await self.environments_dao.fetch_variant(
             project_id=project_id,
             #
@@ -613,10 +701,25 @@ class EnvironmentsService:
         ):
             return None
 
-        if (
-            environment_ref
-            and not environment_variant_ref
-            and not environment_revision_ref
+        validate_variant_refs_sufficient(
+            variant_ref=environment_variant_ref,
+            entity_type="environment",
+        )
+
+        validate_revision_refs_sufficient(
+            artifact_ref=environment_ref,
+            variant_ref=environment_variant_ref,
+            revision_ref=environment_revision_ref,
+            entity_type="environment",
+        )
+
+        _original_environment_ref = environment_ref
+        _original_environment_variant_ref = environment_variant_ref
+
+        if needs_default_variant_resolution(
+            artifact_ref=environment_ref,
+            variant_ref=environment_variant_ref,
+            revision_ref=environment_revision_ref,
         ):
             environment = await self.fetch_environment(
                 project_id=project_id,
@@ -662,6 +765,26 @@ class EnvironmentsService:
         if not revision:
             return None
 
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_environment_ref,
+            variant_ref=_original_environment_variant_ref,
+            revision_ref=environment_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="environment",
+        )
+
         environment_revision = EnvironmentRevision(
             **revision.model_dump(
                 mode="json",
@@ -680,75 +803,40 @@ class EnvironmentsService:
         environment_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
-    ) -> tuple[Optional[EnvironmentRevision], Optional[ResolutionInfo]]:
+    ) -> tuple[
+        Optional[EnvironmentRevision],
+        Optional[ResolutionInfo],
+        Optional[RetrievalInfo],
+    ]:
         """Retrieve the latest environment revision, resolving slug/id refs.
 
-        Uses fetch_environment to resolve the environment artifact (supports slug),
-        then fetches the default variant and latest revision.
-        Optionally resolves embedded references when resolve=True.
+        Delegates to fetch_environment_revision so the same insufficient/
+        inconsistent-ref validations run on the retrieve path. Optionally
+        resolves embedded references when resolve=True.
         """
-        # log.info(
-        #     "retrieve_environment_revision: environment_ref=%r environment_variant_ref=%r environment_revision_ref=%r resolve=%r",
-        #     environment_ref,
-        #     environment_variant_ref,
-        #     environment_revision_ref,
-        #     resolve,
-        # )
+        validate_variant_refs_sufficient(
+            variant_ref=environment_variant_ref,
+            entity_type="environment",
+        )
 
-        if (
-            not environment_ref
-            and not environment_variant_ref
-            and not environment_revision_ref
-        ):
-            return None, None
-
-        # Resolve environment artifact → variant → revision
-        if (
-            environment_ref
-            and not environment_variant_ref
-            and not environment_revision_ref
-        ):
-            environment = await self.fetch_environment(
-                project_id=project_id,
-                environment_ref=environment_ref,
-            )
-            # log.info(
-            #     "retrieve_environment_revision: environment=%r",
-            #     environment and environment.id,
-            # )
-
-            if not environment:
-                return None, None
-
-            environment_variant = await self.fetch_environment_variant(
-                project_id=project_id,
-                environment_ref=Reference(id=environment.id),
-            )
-            # log.info(
-            #     "retrieve_environment_revision: environment_variant=%r",
-            #     environment_variant and environment_variant.id,
-            # )
-
-            if not environment_variant:
-                return None, None
-
-            environment_variant_ref = Reference(id=environment_variant.id)
-
-        revision = await self.environments_dao.fetch_revision(
+        environment_revision = await self.fetch_environment_revision(
             project_id=project_id,
             #
-            variant_ref=environment_variant_ref,
-            revision_ref=environment_revision_ref,
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
         )
-        # log.info("retrieve_environment_revision: revision=%r", revision and revision.id)
 
-        if not revision:
-            return None, None
+        if not environment_revision:
+            return None, None, None
 
-        environment_revision = EnvironmentRevision(**revision.model_dump(mode="json"))
+        retrieval_info = build_retrieval_info(
+            revision=environment_revision,
+            entity_type="environment",
+        )
 
         if not resolve:
-            return environment_revision, None
+            return environment_revision, None, retrieval_info
 
         # Resolve embeds in revision data
         if not self.embeds_service:
@@ -767,12 +855,7 @@ class EnvironmentsService:
         if environment_revision.data:
             environment_revision.data = EnvironmentRevisionData(**resolved_config)
 
-        # log.info(
-        #     "retrieve_environment_revision: resolved resolution_info=%r",
-        #     resolution_info,
-        # )
-
-        return environment_revision, resolution_info
+        return environment_revision, resolution_info, retrieval_info
 
     async def edit_environment_revision(
         self,
@@ -922,6 +1005,10 @@ class EnvironmentsService:
         user_id: UUID,
         #
         environment_revision_commit: EnvironmentRevisionCommit,
+        #
+        initial: bool = False,
+        #
+        _normalize_references: bool = True,
     ) -> Optional[EnvironmentRevision]:
         # Route to delta handler if delta provided without data
         if (
@@ -943,6 +1030,21 @@ class EnvironmentsService:
             environment_variant_id=environment_variant_id,
         )
 
+        # Repopulate embedded ref slugs from the revision lineage so the persisted
+        # references are always self-consistent regardless of what the caller sent.
+        # The delta path normalizes only its changed keys upstream and passes
+        # _normalize_references=False, so untouched keys aren't re-resolved.
+        if _normalize_references and environment_revision_commit.data:
+            environment_revision_commit.data.references = (
+                await self._normalize_references_from_lineage(
+                    project_id=project_id,
+                    references=environment_revision_commit.data.references,
+                )
+            )
+
+        if not environment_revision_commit.slug:
+            environment_revision_commit.slug = uuid4().hex[-12:]
+
         dumped = environment_revision_commit.model_dump(
             mode="json",
             exclude_none=True,
@@ -955,6 +1057,8 @@ class EnvironmentsService:
             user_id=user_id,
             #
             revision_commit=revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:
@@ -1042,9 +1146,15 @@ class EnvironmentsService:
                     base_references = dict(rev.data.references)
                     break
 
-        # Apply delta operations
+        # Apply delta operations. Normalize only the changed keys here — the
+        # base keys came from an already-committed (already-normalized) revision,
+        # so re-resolving all of them would be an O(keys) query fan-out per deploy.
         if delta.set:
-            base_references.update(delta.set)
+            normalized_set = await self._normalize_references_from_lineage(
+                project_id=project_id,
+                references=delta.set,
+            )
+            base_references.update(normalized_set or delta.set)
 
         if delta.remove:
             for key in delta.remove:
@@ -1065,11 +1175,12 @@ class EnvironmentsService:
             ),
         )
 
-        # Re-enter with full data
+        # Re-enter with full data; references were already normalized above.
         return await self.commit_environment_revision(
             project_id=project_id,
             user_id=user_id,
             environment_revision_commit=environment_revision_commit,
+            _normalize_references=False,
         )
 
     async def log_environment_revisions(

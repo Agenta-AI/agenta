@@ -52,6 +52,7 @@ type AccordionTreePanelProps = {
     fullEditorHeight?: boolean
     enableSearch?: boolean
     viewModePreset?: "default" | "message"
+    defaultCollapsed?: boolean
 } & React.ComponentProps<typeof Collapse>
 
 /**
@@ -260,6 +261,7 @@ const AccordionTreePanel = ({
     fullEditorHeight = false,
     enableSearch = false,
     viewModePreset = "default",
+    defaultCollapsed = false,
     ...props
 }: AccordionTreePanelProps) => {
     const {token} = theme.useToken()
@@ -474,7 +476,7 @@ const AccordionTreePanel = ({
             )}
             <Collapse
                 {...props}
-                defaultActiveKey={[label]}
+                defaultActiveKey={defaultCollapsed ? [] : [label]}
                 items={[
                     {
                         key: label,

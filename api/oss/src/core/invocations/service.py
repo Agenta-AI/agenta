@@ -83,8 +83,21 @@ class InvocationsService:
 
         simple_application = None
 
-        application_revision = await self.applications_service.fetch_application_revision(
+        (
+            application_revision,
+            _,
+            retrieval_info,
+        ) = await self.applications_service.retrieve_application_revision(
             project_id=project_id,
+            #
+            environment_ref=invocation_create.references.environment,
+            environment_variant_ref=invocation_create.references.environment_variant,
+            environment_revision_ref=invocation_create.references.environment_revision,
+            key=(
+                invocation_create.references.selector.get("key")
+                if invocation_create.references.selector
+                else None
+            ),
             #
             application_ref=invocation_create.references.application,
             application_variant_ref=invocation_create.references.application_variant,
@@ -108,41 +121,18 @@ class InvocationsService:
             )
 
             if simple_application:
-                application_revision = (
-                    await self.applications_service.fetch_application_revision(
-                        project_id=project_id,
-                        #
-                        application_ref=Reference(id=simple_application.id),
-                    )
+                (
+                    application_revision,
+                    _,
+                    retrieval_info,
+                ) = await self.applications_service.retrieve_application_revision(
+                    project_id=project_id,
+                    #
+                    application_ref=Reference(id=simple_application.id),
                 )
 
         if not application_revision or not application_revision.data:
             return None
-
-        if application_revision:
-            invocation_create.references.application = Reference(
-                id=application_revision.application_id,
-                slug=(
-                    invocation_create.references.application.slug
-                    if invocation_create.references.application
-                    else None
-                ),
-            )
-
-            invocation_create.references.application_variant = Reference(
-                id=application_revision.application_variant_id,
-                slug=(
-                    invocation_create.references.application_variant.slug
-                    if invocation_create.references.application_variant
-                    else None
-                ),
-            )
-
-            invocation_create.references.application_revision = Reference(
-                id=application_revision.id,
-                slug=application_revision.slug,
-                version=application_revision.version,
-            )
 
         invocation_flags = InvocationFlags(
             is_sdk=invocation_create.channel == InvocationChannel.SDK,
@@ -150,8 +140,15 @@ class InvocationsService:
             is_evaluation=invocation_create.kind == InvocationKind.EVAL,
         )
 
+        reference_dict = invocation_create.references.model_dump()
+        if retrieval_info:
+            if retrieval_info.references:
+                reference_dict.update(retrieval_info.references)
+            if retrieval_info.selector:
+                reference_dict["selector"] = retrieval_info.selector
+
         invocation_references = InvocationReferences(
-            **invocation_create.references.model_dump(),
+            **reference_dict,
         )
 
         invocation_link = await self._create_invocation(

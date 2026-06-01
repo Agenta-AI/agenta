@@ -4,7 +4,10 @@ import type {ColumnsType, ColumnType, ColumnGroupType, TableProps} from "antd/es
 import type {Getter} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
+import type {ChipVariant} from "../type-chip/TypeChip"
+
 import type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
+import type {ColumnTypeInfo} from "./utils/detectColumnTypes"
 
 // ============================================================================
 // EXTENDED COLUMN TYPES
@@ -310,6 +313,37 @@ export interface ExpandableRowConfig<RecordType, ChildType = unknown> {
     showExpandIconInCell?: boolean
 }
 
+export interface TypeChipConfig<RecordType> {
+    /**
+     * Controlled visibility. When omitted, visibility is managed internally.
+     */
+    enabled?: boolean
+    /** Callback fired when the built-in settings menu toggles chip visibility. */
+    onEnabledChange?: (enabled: boolean) => void
+    /** Initial visibility for uncontrolled mode. Defaults to true when typeChips is provided. */
+    defaultEnabled?: boolean
+    /** LocalStorage key for persisting uncontrolled visibility. */
+    storageKey?: string
+    /**
+     * Returns the raw value for a cell given a row record and column key.
+     * Called on the first sampled rows to detect column types.
+     * Must be referentially stable.
+     */
+    getRowValue: (record: RecordType, columnKey: string) => unknown
+    /**
+     * Custom variant resolver for the column header chip.
+     * Return undefined to skip chip rendering for a column.
+     */
+    resolveHeaderVariant?: (
+        columnKey: string,
+        typeInfo: ColumnTypeInfo | undefined,
+    ) => ChipVariant | undefined
+    /** Show Axis 2 render-hint chips alongside Axis 1. Default false. */
+    enableRenderHints?: boolean
+    /** Show Axis 3 state/correctness chips. Default false. */
+    enableStateChips?: boolean
+}
+
 export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unknown> {
     columns: ColumnsType<RecordType>
     dataSource: RecordType[]
@@ -347,4 +381,10 @@ export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unkno
     tableRef?: React.RefObject<{
         scrollTo: (config: {index: number; align?: "top" | "bottom" | "auto"}) => void
     } | null>
+    /**
+     * Configuration for type chip rendering on column headers.
+     * When enabled, the table samples rows via `getRowValue`, detects column types,
+     * and adds TypeChip nodes to leaf column titles.
+     */
+    typeChips?: TypeChipConfig<RecordType>
 }

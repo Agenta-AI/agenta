@@ -302,6 +302,13 @@ const getMessageContentDisplay = (
         if (textPart) textParts.push(textPart)
     }
 
+    // Nothing recognizable inside the parsed parts (e.g. a tool message whose
+    // content is a JSON array of `{response: ...}` envelopes we don't know).
+    // Fall back to the raw payload so the bubble isn't empty.
+    if (textParts.length === 0 && structuredParts.length === 0) {
+        return {text: getMessageText(content), structuredParts: []}
+    }
+
     return {text: textParts.join("\n"), structuredParts}
 }
 

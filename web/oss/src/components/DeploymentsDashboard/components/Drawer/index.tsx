@@ -106,7 +106,7 @@ const DeploymentsDrawerContent = ({
 
         const refs = env.data?.references ?? {}
         const currentAppId = currentApp?.id
-        const currentAppSlug = currentApp?.name || currentApp?.slug
+        const currentAppSlug = currentApp?.slug
 
         // Find the reference entry that belongs to the current app
         for (const appRef of Object.values(refs)) {
@@ -121,7 +121,7 @@ const DeploymentsDrawerContent = ({
         }
 
         return null
-    }, [envName, entityEnvironments.data, currentApp?.id, currentApp?.name, currentApp?.slug])
+    }, [envName, entityEnvironments.data, currentApp?.id, currentApp?.slug])
 
     const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
     const handleOpenSelectDeployVariantModal = () => openSelectDeployVariantModal({envName})

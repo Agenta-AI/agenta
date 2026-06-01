@@ -1,6 +1,6 @@
 [project]
 name = "agenta"
-version = "0.100.2"
+version = "0.100.9"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -24,7 +24,7 @@ dependencies = [
     "structlog>=25,<26",
     "opentelemetry-api>=1,<2",
     "opentelemetry-sdk>=1,<2",
-    "opentelemetry-instrumentation>=0.62b1,<0.63",
+    "opentelemetry-instrumentation>=0.63b1,<0.64",
     "opentelemetry-exporter-otlp-proto-http>=1,<2",
     "fastapi>=0.136,<0.137",
     "pyyaml>=6,<7",
@@ -33,7 +33,7 @@ dependencies = [
     "jinja2>=3,<4",
     "orjson>=3,<4",
     "python-jsonpath>=2,<3",
-    "daytona>=0.176,<0.177",
+    "daytona>=0.181,<0.182",
 ]
 
 [project.urls]

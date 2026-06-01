@@ -599,7 +599,7 @@ const GeneralSection = memo(function GeneralSection({queueId}: {queueId: string}
                         handleChange={handleDescriptionChange}
                         editorProps={{
                             showToolbar: false,
-                            showMarkdownToggleButton: true,
+                            showMarkdownToggleButton: false,
                             enableTokens: false,
                         }}
                     />

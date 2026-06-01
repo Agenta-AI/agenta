@@ -216,7 +216,7 @@ def _create_testset_with_variant(authed_api):
             }
         },
     )
-    assert response.status_code == 200, response.text
+    assert response.status_code in (200, 201), response.text
     return testset, response.json()["testset_variant"]
 
 

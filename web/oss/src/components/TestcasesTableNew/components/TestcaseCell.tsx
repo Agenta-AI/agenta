@@ -78,5 +78,5 @@ export const TestcaseCell = memo(function TestcaseCell({
     }
 
     // Default: use TestcaseCellContent for smart rendering
-    return <TestcaseCellContent value={value} maxLines={maxLines} />
+    return <TestcaseCellContent value={value} columnKey={columnKey} maxLines={maxLines} />
 })

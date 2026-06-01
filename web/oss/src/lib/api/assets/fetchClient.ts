@@ -58,14 +58,31 @@ export async function getAuthToken(): Promise<string | undefined> {
     return safeGetJWT()
 }
 
-export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> {
+/** Successful return shape from `fetchJsonWithMeta`. */
+export interface FetchJsonResult {
+    /** Parsed JSON body (or raw text for non-JSON responses). */
+    data: any
+    /** Response headers — exposed so callers can read `X-RateLimit-*` etc. */
+    headers: Headers
+}
+
+/**
+ * Variant of `fetchJson` that also returns the response headers. Use this
+ * when you need to read server-driven signals (e.g. `X-RateLimit-Remaining`
+ * for adaptive request pacing). `fetchJson` is a thin wrapper that strips
+ * the headers off this function's result.
+ */
+export async function fetchJsonWithMeta(
+    url: URL,
+    init: RequestInit = {},
+): Promise<FetchJsonResult> {
     const jwt = await getAuthToken()
     try {
         const store = getDefaultStore()
         const authFlow = store.get(authFlowAtom)
         const allowDuringAuthing = (init as any)?._allowDuringAuthing
         if (authFlow === "authing" && !allowDuringAuthing) {
-            return undefined
+            return {data: undefined, headers: new Headers()}
         }
     } catch {
         // ignore store access failures
@@ -172,6 +189,15 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
         throw error
     }
 
-    if (contentType.includes("application/json")) return res.json()
-    return res.text()
+    const data = contentType.includes("application/json") ? await res.json() : await res.text()
+    return {data, headers: res.headers}
+}
+
+/**
+ * Make a JSON request and return the parsed body. Thin wrapper over
+ * `fetchJsonWithMeta` — use this when you don't need the response headers.
+ */
+export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> {
+    const {data} = await fetchJsonWithMeta(url, init)
+    return data
 }

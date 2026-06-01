@@ -834,7 +834,7 @@ export const setRowValueWithContextAtom = atom(
  */
 export const setTestcaseCellValueAtom = atom(
     null,
-    (_get, set, payload: {testcaseId: string; column: string; value: string}) => {
+    (_get, set, payload: {testcaseId: string; column: string; value: unknown}) => {
         if (!payload.testcaseId || !payload.column) return
         set(testcaseMolecule.actions.update, payload.testcaseId, {
             data: {[payload.column]: payload.value},

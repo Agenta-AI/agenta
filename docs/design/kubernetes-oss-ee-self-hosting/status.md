@@ -14,7 +14,7 @@ We have aligned on a 3-PR approach.
 
 ### Validation done
 
-- `helm lint hosting/helm/agenta-oss`
+- `helm lint hosting/kubernetes/helm`
 - `helm template` confirmed both new worker deployments render
 - isolated OSS install attempted in namespace `agenta-pr1`
 - isolated OSS smoke install succeeded in namespace `agenta-pr1-smoke` with `cron.enabled=false`
@@ -26,7 +26,7 @@ We have aligned on a 3-PR approach.
 - Use isolated Kubernetes namespaces/releases for testing
 - Split the work into 3 PRs
 - Use `AGENTA_LICENSE` for the OSS/EE switch in PR 3
-- Add curated `values-oss.example.yaml` and `values-ee.example.yaml`
+- Add curated `values.oss.example.yaml` and `values.ee.example.yaml`
 - Keep billing and Cloudflare Turnstile unset by default for self-hosted EE
 - Add docs updates in each PR, not only at the end
 

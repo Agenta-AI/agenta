@@ -2,7 +2,13 @@ import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 
 import {SortResult} from "@/oss/components/Filters/Sort"
-import {ensureAppId, ensureProjectId, fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
+import {
+    ensureAppId,
+    ensureProjectId,
+    fetchJson,
+    fetchJsonWithMeta,
+    getBaseUrl,
+} from "@/oss/lib/api/assets/fetchClient"
 import {getProjectValues} from "@/oss/state/project"
 
 import {calculateIntervalFromDuration, tracingToGeneration} from "../lib/helpers"
@@ -46,6 +52,82 @@ export const fetchAllPreviewTraces = async (
         body: JSON.stringify(payload),
         signal,
     })
+}
+
+/**
+ * Bucket state for adaptive pacing. `null` when the backend didn't return
+ * the corresponding header (OSS deployments without EE throttling, errors
+ * before headers, etc.).
+ */
+export interface PreviewTracesRateLimit {
+    /** `X-RateLimit-Remaining` — tokens left in the throttle bucket. */
+    remaining: number | null
+    /** `X-RateLimit-Limit` — bucket capacity. Only set on 429 responses. */
+    limit: number | null
+}
+
+/** Successful return shape from `fetchAllPreviewTracesWithMeta`. */
+export interface PreviewTracesWithMetaResult {
+    data: any
+    rateLimit: PreviewTracesRateLimit
+}
+
+const parseRateLimitHeader = (headers: Headers, name: string): number | null => {
+    const raw = headers.get(name)
+    if (!raw) return null
+    const n = Number.parseInt(raw, 10)
+    return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Variant of `fetchAllPreviewTraces` that also returns the throttling bucket
+ * state via `X-RateLimit-*` headers. Used by the bulk export to pace requests
+ * adaptively without depending on knowing the user's plan tier — the server
+ * tells us how much headroom is left on every successful response.
+ */
+export const fetchAllPreviewTracesWithMeta = async (
+    params: Record<string, any> = {},
+    appId: string,
+    signal?: AbortSignal,
+): Promise<PreviewTracesWithMetaResult> => {
+    const base = getBaseUrl()
+    const projectId = ensureProjectId()
+    const applicationId = ensureAppId(appId)
+
+    const url = new URL(`${base}/tracing/spans/query`)
+    if (projectId) url.searchParams.set("project_id", projectId)
+    if (applicationId) url.searchParams.set("application_id", applicationId)
+
+    const payload: Record<string, any> = {}
+    Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null) return
+        if (key === "size") {
+            payload.limit = Number(value)
+        } else if (key === "filter" && typeof value === "string") {
+            try {
+                payload.filter = JSON.parse(value)
+            } catch {
+                payload.filter = value
+            }
+        } else {
+            payload[key] = value
+        }
+    })
+
+    const {data, headers} = await fetchJsonWithMeta(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+        signal,
+    })
+
+    return {
+        data,
+        rateLimit: {
+            remaining: parseRateLimitHeader(headers, "x-ratelimit-remaining"),
+            limit: parseRateLimitHeader(headers, "x-ratelimit-limit"),
+        },
+    }
 }
 
 export const fetchPreviewTrace = async (traceId: string) => {

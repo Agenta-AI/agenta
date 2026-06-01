@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from oss.src.core.tracing.service import TracingService
 
 
-MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
+MAX_OTLP_BATCH_SIZE = env.agenta.otlp.max_batch_bytes
 MAX_OTLP_BATCH_SIZE_MB = MAX_OTLP_BATCH_SIZE // (1024 * 1024)
 
 

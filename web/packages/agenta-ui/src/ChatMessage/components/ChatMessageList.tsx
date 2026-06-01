@@ -14,15 +14,18 @@ import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
+import {ViewModeDropdown} from "../../drill-in/core/ViewModeDropdown"
+import {getViewOptions, type ViewMode} from "../../drill-in/utils/getViewOptions"
 import {message, modal} from "../../utils/appMessageContext"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 import {createSnippetPdfAttachment} from "../utils/snippetAttachment"
 
 import AttachmentButton from "./AttachmentButton"
 import ChatMessageEditor from "./ChatMessageEditor"
-import MarkdownToggleButton from "./MarkdownToggleButton"
 import MessageAttachments from "./MessageAttachments"
 import ToolMessageHeader from "./ToolMessageHeader"
+
+type ChatViewMode = Extract<ViewMode, "text" | "markdown" | "json" | "yaml">
 
 const ChatMessageItem: React.FC<{
     msg: SimpleChatMessage
@@ -41,6 +44,10 @@ const ChatMessageItem: React.FC<{
     tokens?: string[]
     loadingFallback: "skeleton" | "none" | "static"
     maxPasteChars?: number
+    /** Restrict the view-mode dropdown to a subset (e.g. ["text", "markdown"]
+     *  for config messages where JSON/YAML modes are noise). When omitted,
+     *  the dropdown shows whatever getViewOptions returns for the content. */
+    viewModes?: ChatViewMode[]
     ImagePreview?: React.ComponentType<{
         src: string
         alt: string
@@ -71,6 +78,7 @@ const ChatMessageItem: React.FC<{
     tokens,
     loadingFallback,
     maxPasteChars,
+    viewModes,
     ImagePreview,
     onRoleChange,
     onTextChange,
@@ -81,6 +89,9 @@ const ChatMessageItem: React.FC<{
     onToggleMinimize,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null)
+    const [viewMode, setViewMode] = useState<ChatViewMode>("text")
+    const isCodeMode = viewMode === "json" || viewMode === "yaml"
+    const editorLanguage: "json" | "yaml" = viewMode === "yaml" ? "yaml" : "json"
 
     const isToolResponse = msg.role === "tool"
     const hasToolCalls = Boolean(msg.tool_calls && msg.tool_calls.length > 0)
@@ -89,6 +100,13 @@ const ChatMessageItem: React.FC<{
         : extractTextFromContent(msg.content ?? null)
     const attachments = getAttachments(msg.content ?? null)
     const hasAttachmentsFlag = attachments.length > 0
+
+    const viewOptions = useMemo(() => {
+        const all = getViewOptions(textContent) as {value: ChatViewMode; label: string}[]
+        if (!viewModes || viewModes.length === 0) return all
+        const allowed = new Set(viewModes)
+        return all.filter((opt) => allowed.has(opt.value))
+    }, [textContent, viewModes])
 
     const handleCreateSnippetFromPaste = useCallback(
         ({
@@ -145,6 +163,7 @@ const ChatMessageItem: React.FC<{
         >
             <ChatMessageEditor
                 id={editorId}
+                key={`${editorId}-${viewMode}`}
                 role={msg.role}
                 text={textContent}
                 disabled={disabled}
@@ -152,7 +171,10 @@ const ChatMessageItem: React.FC<{
                 placeholder={placeholder}
                 onChangeRole={(role) => onRoleChange(index, role)}
                 onChangeText={(text) => onTextChange(index, text)}
-                enableTokens={enableTokens}
+                isJSON={isCodeMode}
+                language={editorLanguage}
+                markdownView={viewMode === "markdown"}
+                enableTokens={enableTokens && !isCodeMode}
                 templateFormat={templateFormat}
                 tokens={tokens}
                 loadingFallback={loadingFallback}
@@ -173,7 +195,11 @@ const ChatMessageItem: React.FC<{
                             "invisible group-hover/item:visible",
                         )}
                     >
-                        <MarkdownToggleButton id={editorId} />
+                        <ViewModeDropdown<ChatViewMode>
+                            value={viewMode}
+                            options={viewOptions}
+                            onChange={setViewMode}
+                        />
                         {allowFileUpload && !disabled && (
                             <AttachmentButton
                                 onAddImage={(url) => onAddImage(index, url)}
@@ -270,6 +296,10 @@ export interface ChatMessageListProps {
     loadingFallback?: "skeleton" | "none" | "static"
     /** Block paste operations that would make a message exceed this many characters. */
     maxPasteChars?: number
+    /** Restrict the per-message view-mode dropdown to a subset. Pass
+     *  ["text", "markdown"] for plain-text config messages where JSON/YAML
+     *  modes are noise. When omitted, all four modes are offered. */
+    viewModes?: ChatViewMode[]
 }
 
 /**
@@ -300,6 +330,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     defaultMinimized = false,
     loadingFallback = "skeleton",
     maxPasteChars,
+    viewModes,
 }) => {
     const listInstanceIdRef = useRef(generateKey())
     // Maintain stable React keys for each message position.
@@ -446,6 +477,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                         tokens={tokens}
                         loadingFallback={loadingFallback}
                         maxPasteChars={maxPasteChars}
+                        viewModes={viewModes}
                         ImagePreview={ImagePreview}
                         onRoleChange={handleRoleChange}
                         onTextChange={handleTextChange}

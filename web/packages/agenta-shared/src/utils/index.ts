@@ -66,6 +66,8 @@ export {
     getAttachmentInfo,
     getAttachments,
     hasAttachments,
+    isChatMessageObject,
+    isChatMessagesArray,
     messageHasContent,
     messageHasToolCalls,
     normalizeMessagesFromField,
@@ -88,6 +90,7 @@ export {keyToString, stringToKeyPath} from "./keyUtils"
 // JSON detection utilities
 export {
     canExpandAsJson,
+    inferLogicalType,
     isJsonArray,
     isJsonObject,
     isJsonString,
@@ -97,7 +100,7 @@ export {
     tryParseJson,
     tryParseJsonValue,
 } from "./jsonDetection"
-export type {JsonParseResult} from "./jsonDetection"
+export type {JsonParseResult, LogicalType} from "./jsonDetection"
 
 // Editor language detection utilities
 export {

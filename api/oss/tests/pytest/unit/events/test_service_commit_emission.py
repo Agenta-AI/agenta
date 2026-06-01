@@ -117,16 +117,17 @@ async def test_applications_service_commit_emits_event_once():
     msg = captured[0]
     assert msg["project_id"] == project_id
     event = msg["event"]
-    assert event.event_type == EventType.APPLICATIONS_REVISIONS_COMMITTED
+    # Applications now emit as workflow events (domain="workflow")
+    assert event.event_type == EventType.WORKFLOWS_REVISIONS_COMMITTED
     assert event.attributes["user_id"] == str(user_id)
     assert event.attributes["message"] == "Commit changes"
     refs = event.attributes["references"]
-    assert refs["application"] == {"id": str(artifact_id), "slug": "artifact-slug"}
-    assert refs["application_variant"] == {
+    assert refs["workflow"] == {"id": str(artifact_id), "slug": "artifact-slug"}
+    assert refs["workflow_variant"] == {
         "id": str(variant_id),
         "slug": "variant-slug",
     }
-    assert refs["application_revision"]["id"] == str(revision_id)
+    assert refs["workflow_revision"]["id"] == str(revision_id)
 
 
 # ---------------------------------------------------------------------------
@@ -301,15 +302,16 @@ async def test_evaluators_service_commit_emits_event_once():
     assert result is not None
     assert len(captured) == 1
     event = captured[0]["event"]
-    assert event.event_type == EventType.EVALUATORS_REVISIONS_COMMITTED
+    # Evaluators now emit as workflow events (domain="workflow")
+    assert event.event_type == EventType.WORKFLOWS_REVISIONS_COMMITTED
     assert event.attributes["message"] == "Commit eval"
     refs = event.attributes["references"]
-    assert refs["evaluator"] == {"id": str(artifact_id), "slug": "artifact-slug"}
-    assert refs["evaluator_variant"] == {
+    assert refs["workflow"] == {"id": str(artifact_id), "slug": "artifact-slug"}
+    assert refs["workflow_variant"] == {
         "id": str(variant_id),
         "slug": "variant-slug",
     }
-    assert refs["evaluator_revision"]["id"] == str(revision_id)
+    assert refs["workflow_revision"]["id"] == str(revision_id)
 
 
 # ---------------------------------------------------------------------------

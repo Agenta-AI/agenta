@@ -1,4 +1,5 @@
 from typing import Dict, Any, Tuple, List
+from json import loads, JSONDecodeError
 import re
 
 from oss.src.apis.fastapi.otlp.extractors.base_adapter import BaseAdapter
@@ -101,8 +102,9 @@ OPENINFERENCE_ATTRIBUTES_PREFIX: List[Tuple[str, str]] = [
     ("llm.output_messages", "ag.data.outputs.completion"),
     # Embeddings List (e.g., embedding.embeddings.0.vector -> ag.data.embeddings.0.vector)
     ("embedding.embeddings", "ag.data.inputs.embeddings"),
-    # LLM Tools List (e.g., llm.tools.0.tool.name -> ag.data.inputs.tools.0.tool.name)
-    ("llm.tools", "ag.data.inputs.tools"),
+    # NOTE: `llm.tools.{i}.tool.json_schema` is handled separately in
+    # `_extract_tools`, which parses the JSON string into a structured tool
+    # object. A plain prefix rename would leave it as `{tool: {json_schema}}`.
     # Document Lists for Reranker/Retrieval
     ("reranker.input_documents", "ag.data.inputs.reranker.input_documents"),
     ("reranker.output_documents", "ag.data.outputs.reranker.output_documents"),
@@ -116,16 +118,64 @@ OPENINFERENCE_ATTRIBUTES_PREFIX: List[Tuple[str, str]] = [
 class OpenInferenceAdapter(BaseAdapter):
     feature_name = None  # Results are merged into the main features dictionary
 
+    _TOOL_JSON_SCHEMA_PATTERN = re.compile(r"^llm\.tools\.(\d+)\.tool\.json_schema$")
+
     def __init__(self):
         self._exact_map = {otel: ag for otel, ag in OPENINFERENCE_ATTRIBUTES_EXACT}
         self._prefix_map = {otel: ag for otel, ag in OPENINFERENCE_ATTRIBUTES_PREFIX}
+
+    def _extract_tools(self, span_attributes: Dict[str, Any]) -> Dict[str, Any]:
+        """Map OpenInference tool definitions to structured `ag.data` objects.
+
+        OpenInference encodes each tool as `llm.tools.{i}.tool.json_schema`, a
+        JSON string holding the full OpenAI tool object
+        (`{"type": "function", "function": {...}}`). We parse it and place the
+        object directly at `ag.data.inputs.tools.{i}` so consumers can read
+        `tool.type` and `tool.function` without unwrapping a
+        `{tool: {json_schema: "..."}}` envelope.
+
+        The raw `llm.tools.*` attributes stay on the span, so no data is lost.
+        If the schema cannot be parsed, the raw string is kept under
+        `ag.data.inputs.tools.{i}.tool.json_schema` to preserve it.
+        """
+        transformed: Dict[str, Any] = {}
+
+        for key, value in span_attributes.items():
+            match = self._TOOL_JSON_SCHEMA_PATTERN.match(key)
+            if not match:
+                continue
+
+            index = match.group(1)
+            parsed = None
+            if isinstance(value, str):
+                try:
+                    parsed = loads(value)
+                except (JSONDecodeError, TypeError):
+                    parsed = None
+
+            if isinstance(parsed, (dict, list)):
+                transformed[f"ag.data.inputs.tools.{index}"] = parsed
+            else:
+                transformed[f"ag.data.inputs.tools.{index}.tool.json_schema"] = value
+
+        return transformed
 
     def process(self, bag: CanonicalAttributes, features: SpanFeatures) -> None:
         transformed_attributes: Dict[str, Any] = {}
         has_data = False
         # node_type is determined from openinference.span.kind and stored in transformed_attributes["ag.type.node"]
 
+        # Tools need parsing before the generic mapping (see _extract_tools).
+        tool_attributes = self._extract_tools(bag.span_attributes)
+        if tool_attributes:
+            transformed_attributes.update(tool_attributes)
+            has_data = True
+
         for key, value in bag.span_attributes.items():
+            # Tool definitions are handled by _extract_tools above.
+            if key.startswith("llm.tools."):
+                continue
+
             # 0. Special handling for openinference.span.kind
             if key == "openinference.span.kind":
                 if isinstance(value, str):

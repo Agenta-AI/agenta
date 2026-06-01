@@ -16,7 +16,7 @@ _turnstile_disabled_reason_logged = False
 
 
 def is_turnstile_enabled() -> bool:
-    return is_ee() and env.auth.turnstile_enabled
+    return is_ee() and env.cloudflare.turnstile.enabled
 
 
 def get_client_ip(request: BaseRequest) -> str | None:
@@ -40,7 +40,7 @@ def _get_turnstile_disabled_reason() -> str | None:
     if not is_ee():
         return "not_ee"
 
-    if not env.auth.turnstile_enabled:
+    if not env.cloudflare.turnstile.enabled:
         return "missing_keys"
 
     return None
@@ -73,7 +73,7 @@ async def verify_turnstile_or_raise(
         raise UnauthorizedException(message="Please complete the security check.")
 
     payload = {
-        "secret": env.auth.turnstile_secret_key or "",
+        "secret": env.cloudflare.turnstile.secret_key or "",
         "response": token,
     }
 
@@ -97,7 +97,7 @@ async def verify_turnstile_or_raise(
 
     if verification_result.get("success") is True:
         actual_hostname = _normalize_hostname(verification_result.get("hostname"))
-        expected_hostnames = env.auth.turnstile_allowed_hostnames
+        expected_hostnames = env.cloudflare.turnstile.allowed_hostnames
 
         if expected_hostnames and actual_hostname not in expected_hostnames:
             log.warning(

@@ -4,6 +4,8 @@
  * Pure functions with no external dependencies - safe to use in both package and OSS.
  */
 
+import {isChatMessageObject} from "@agenta/shared/utils"
+
 import type {DataType, PropertyType} from "../coreTypes"
 
 /**
@@ -52,21 +54,10 @@ export function propertyTypeToDataType(propType: PropertyType): DataType {
 export function isExpandable(value: unknown): boolean {
     if (value === null || value === undefined) return false
 
-    if (typeof value === "string") {
-        try {
-            const parsed = JSON.parse(value)
-            return (
-                (typeof parsed === "object" && parsed !== null) ||
-                (Array.isArray(parsed) && parsed.length > 0)
-            )
-        } catch {
-            return false
-        }
-    }
+    if (typeof value === "string") return false
 
-    return (
-        (typeof value === "object" && value !== null) || (Array.isArray(value) && value.length > 0)
-    )
+    if (Array.isArray(value)) return value.length > 0
+    return typeof value === "object" && value !== null && Object.keys(value).length > 0
 }
 
 /**
@@ -75,17 +66,7 @@ export function isExpandable(value: unknown): boolean {
 export function getItemCount(value: unknown): number {
     if (value === null || value === undefined) return 0
 
-    if (typeof value === "string") {
-        try {
-            const parsed = JSON.parse(value)
-            if (Array.isArray(parsed)) return parsed.length
-            if (typeof parsed === "object" && parsed !== null) {
-                return Object.keys(parsed).length
-            }
-        } catch {
-            return 0
-        }
-    }
+    if (typeof value === "string") return 0
 
     if (Array.isArray(value)) return value.length
     if (typeof value === "object") return Object.keys(value).length
@@ -183,51 +164,50 @@ export function canToggleRawMode(dataType: DataType): boolean {
     )
 }
 
+function detectParsedDataType(parsed: unknown): DataType {
+    if (parsed === null) return "null"
+    if (Array.isArray(parsed)) {
+        if (parsed.length > 0 && parsed.every(isChatMessageObject)) {
+            return "messages"
+        }
+        return "json-array"
+    }
+    if (typeof parsed === "object") {
+        // Detect a single chat message object (e.g. an LLM `outputs` field
+        // with one assistant reply) so it renders through the messages widget
+        // instead of as raw JSON. parseMessages already wraps single objects.
+        if (isChatMessageObject(parsed)) return "messages"
+        return "json-object"
+    }
+    if (typeof parsed === "boolean") return "boolean"
+    if (typeof parsed === "number") return "number"
+    return "string"
+}
+
 /**
- * Detect the data type from a string value
+ * Detect the data type from a native value. In legacy string mode, callers can
+ * opt into parsing the JSON-encoded storage string.
  */
-export function detectDataType(value: string): DataType {
-    if (!value || value === "") return "string"
-
-    // Try to parse as JSON
-    try {
-        const parsed = JSON.parse(value)
-
-        // Check for boolean
-        if (typeof parsed === "boolean") return "boolean"
-
-        // Check for number
-        if (typeof parsed === "number") return "number"
-
-        // Check for array
-        if (Array.isArray(parsed)) {
-            // Check if it looks like messages array
-            if (
-                parsed.length > 0 &&
-                parsed.every(
-                    (item) =>
-                        typeof item === "object" &&
-                        item !== null &&
-                        "role" in item &&
-                        "content" in item,
-                )
-            ) {
-                return "messages"
-            }
-            return "json-array"
+export function detectDataType(
+    value: unknown,
+    valueMode: "native" | "string" = "native",
+): DataType {
+    if (valueMode === "string") {
+        if (typeof value !== "string" || !value.trim()) return "string"
+        try {
+            return detectParsedDataType(JSON.parse(value))
+        } catch {
+            return "string"
         }
-
-        // Check for object
-        if (typeof parsed === "object" && parsed !== null) {
-            // Check if it looks like a single message
-            if ("role" in parsed && "content" in parsed) {
-                return "json-object"
-            }
-            return "json-object"
-        }
-    } catch {
-        // Not valid JSON, treat as string
     }
 
+    if (value === null) return "null"
+    if (Array.isArray(value)) return detectParsedDataType(value)
+    if (typeof value === "object") {
+        if (isChatMessageObject(value)) return "messages"
+        return "json-object"
+    }
+    if (typeof value === "boolean") return "boolean"
+    if (typeof value === "number") return "number"
     return "string"
 }

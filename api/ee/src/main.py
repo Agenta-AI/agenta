@@ -8,6 +8,8 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
 )
+from oss.src.dbs.postgres.events.dao import EventsDAO
+from oss.src.core.events.service import EventsService
 
 from ee.src.routers import (
     workspace_router,
@@ -15,20 +17,20 @@ from ee.src.routers import (
 )
 
 from ee.src.dbs.postgres.meters.dao import MetersDAO
-from ee.src.dbs.postgres.tracing.dao import TracingDAO
+from ee.src.dbs.postgres.tracing.dao import TracingRetentionDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
-from ee.src.dbs.postgres.events.dao import EventsDAO
+from ee.src.dbs.postgres.events.dao import EventsRetentionDAO
 
 from ee.src.core.meters.service import MetersService
-from ee.src.core.tracing.service import TracingService
+from ee.src.core.tracing.service import TracingRetentionService
 from ee.src.core.subscriptions.service import SubscriptionsService
-from ee.src.core.events.service import EventsService
+from ee.src.core.events.service import EventsRetentionService
 
 from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
-from ee.src.apis.fastapi.spans.router import SpansRouter
-from ee.src.apis.fastapi.events.router import EventsRouter
+from ee.src.apis.fastapi.spans.router import SpansRetentionRouter
+from ee.src.apis.fastapi.events.router import EventsRouter, EventsRetentionRouter
 from ee.src.apis.fastapi.organizations.router import (
     router as organization_router,
 )
@@ -42,7 +44,7 @@ _analytics_engine = get_analytics_engine()
 
 meters_dao = MetersDAO(engine=_transactions_engine)
 
-tracing_dao = TracingDAO(
+tracing_retention_dao = TracingRetentionDAO(
     transactions_engine=_transactions_engine,
     analytics_engine=_analytics_engine,
 )
@@ -51,7 +53,11 @@ subscriptions_dao = SubscriptionsDAO(engine=_transactions_engine)
 
 organization_domains_dao = OrganizationDomainsDAO(engine=_transactions_engine)
 
-events_dao = EventsDAO()
+events_dao = EventsDAO(engine=_analytics_engine)
+events_retention_dao = EventsRetentionDAO(
+    transactions_engine=_transactions_engine,
+    analytics_engine=_analytics_engine,
+)
 
 # CORE -------------------------------------------------------------------------
 
@@ -59,12 +65,16 @@ meters_service = MetersService(
     meters_dao=meters_dao,
 )
 
-tracing_service = TracingService(
-    tracing_dao=tracing_dao,
+tracing_retention_service = TracingRetentionService(
+    tracing_retention_dao=tracing_retention_dao,
 )
 
 events_service = EventsService(
     events_dao=events_dao,
+)
+
+events_retention_service = EventsRetentionService(
+    events_retention_dao=events_retention_dao,
 )
 
 subscription_service = SubscriptionsService(
@@ -87,12 +97,16 @@ billing_router = BillingRouter(
     meters_service=meters_service,
 )
 
-spans_router = SpansRouter(
-    tracing_service=tracing_service,
+spans_retention_router = SpansRetentionRouter(
+    tracing_retention_service=tracing_retention_service,
 )
 
 events_router = EventsRouter(
     events_service=events_service,
+)
+
+events_retention_router = EventsRetentionRouter(
+    events_retention_service=events_retention_service,
 )
 
 
@@ -122,17 +136,23 @@ def extend_main(app: FastAPI):
     )
 
     app.include_router(
-        router=spans_router.admin_router,
+        router=spans_retention_router.admin_router,
         prefix="/admin/spans",
         tags=["Admin"],
         include_in_schema=False,
     )
 
     app.include_router(
-        router=events_router.admin_router,
+        router=events_retention_router.admin_router,
         prefix="/admin/events",
         tags=["Admin"],
         include_in_schema=False,
+    )
+
+    app.include_router(
+        router=events_router.router,
+        prefix="/events",
+        tags=["Events"],
     )
 
     # ROUTES (more) ------------------------------------------------------------

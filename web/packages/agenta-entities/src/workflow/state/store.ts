@@ -25,6 +25,7 @@ import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
 import type {InspectWorkflowResponse, InterfaceSchemasResponse, AppOpenApiSchemas} from "../api"
 import {
+    extractDefaultsFromSchema,
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
     fetchWorkflowAppOpenApiSchema,
@@ -1435,12 +1436,42 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
                 resolvedInputs = resolvedInputs ?? appSchemas.inputs
                 resolvedOutputs = resolvedOutputs ?? appSchemas.outputs
                 resolvedParameters = resolvedParameters ?? appSchemas.parameters
+                // Seed initial parameter values from the openapi schema's
+                // `default` values. The playground's config form iterates
+                // parameter VALUES (not schema properties), so without this
+                // step the form renders empty for custom URL workflows even
+                // when the schema is fully defined.
+                //
+                // Lifecycle: these seeded values are only in the merged
+                // atom (in memory). They are not persisted. On every
+                // playground open before the first save, the form
+                // re-renders with the openapi defaults. The first save
+                // commits them as a real revision; from then on the
+                // merge guard below sees stored parameters and the
+                // seeding becomes a no-op, so subsequent opens read the
+                // saved values directly. This mirrors how catalog
+                // templates pre-fill their forms via
+                // `extractDefaultsFromSchema` at create time, except for
+                // custom URL apps we do it lazily on first open instead.
+                if (!resolvedParams && appSchemas.parameters) {
+                    const defaults = extractDefaultsFromSchema(
+                        appSchemas.parameters as Record<string, unknown>,
+                    )
+                    if (Object.keys(defaults).length > 0) {
+                        resolvedParams = defaults
+                    }
+                }
             }
         }
 
         // Merge resolved schemas into entity (server data takes precedence)
         const hasResolvedSchemas = resolvedInputs || resolvedOutputs || resolvedParameters
-        const hasResolvedParams = resolvedParams && !serverData.data?.parameters
+        // Treat an empty params object the same as "no params" so the seeded
+        // defaults still apply if any future code path ever stores `{}`
+        // instead of leaving parameters undefined.
+        const storedParams = serverData.data?.parameters as Record<string, unknown> | undefined
+        const hasStoredParams = !!storedParams && Object.keys(storedParams).length > 0
+        const hasResolvedParams = resolvedParams && !hasStoredParams
 
         if (hasResolvedSchemas || hasResolvedParams) {
             merged = {
@@ -1706,6 +1737,24 @@ export const updateWorkflowDraftAtom = atom(
                 : undefined
         const incomingParameters =
             topLevelParameters !== undefined ? topLevelParameters : nestedParameters
+
+        if (incomingParameters !== undefined && !current) {
+            const updateKeys = Object.keys(rawUpdates).filter(
+                (key) => key !== "parameters" && key !== "data",
+            )
+            const dataKeys = rawUpdatedData ? Object.keys(rawUpdatedData) : []
+            const isParametersOnlyUpdate =
+                updateKeys.length === 0 &&
+                (!rawUpdatedData || dataKeys.every((key) => key === "parameters"))
+
+            if (
+                isParametersOnlyUpdate &&
+                isEqual(incomingParameters, serverData?.data?.parameters ?? null)
+            ) {
+                return
+            }
+        }
+
         const flags = serverData?.flags ?? current?.flags
         const shouldSyncPromptInputKeys =
             !!flags && !flags.is_custom && !flags.is_evaluator && !flags.is_feedback
@@ -1893,7 +1942,12 @@ export interface CreateEphemeralWorkflowParams {
     inputs: Record<string, unknown>
     outputs: unknown
     parameters: Record<string, unknown>
-    sourceRef?: {type: "application" | "evaluator"; id: string; slug?: string}
+    sourceRef?: {
+        type: "application" | "evaluator"
+        id: string
+        slug?: string
+        version?: string
+    }
     /** When true, entity.flags.is_evaluator is set and evaluator selectors engage. */
     isEvaluator?: boolean
     /** Workflow URI (e.g. "agenta:builtin:auto_ai_critique:v0"). Required for evaluators. */

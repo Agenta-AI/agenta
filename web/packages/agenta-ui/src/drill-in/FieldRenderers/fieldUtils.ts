@@ -6,7 +6,7 @@
  */
 
 import type {SimpleChatMessage, MessageContent} from "@agenta/shared/types"
-import {tryParseAsObject, tryParseAsArray} from "@agenta/shared/utils"
+import {isChatMessageObject} from "@agenta/shared/utils"
 
 import type {DataType} from "../coreTypes"
 
@@ -53,39 +53,13 @@ export function canExpandAsArray(value: unknown): boolean {
 }
 
 /**
- * Check if a value can be expanded (is a non-array object OR an array with items)
+ * Check if a native value can be expanded.
  */
-export function canExpand(value: string): boolean {
-    const obj = tryParseAsObject(value)
-    if (obj !== null && Object.keys(obj).length > 0) {
-        return true
-    }
-    const arr = tryParseAsArray(value)
-    if (arr !== null && arr.length > 0) {
-        return true
-    }
-    return false
+export function canExpand(value: unknown): boolean {
+    return canExpandValue(value) || canExpandAsArray(value)
 }
 
-/**
- * Check if a single object looks like a chat message
- */
-export function isChatMessageObject(item: unknown): boolean {
-    if (!item || typeof item !== "object") return false
-    const obj = item as Record<string, unknown>
-    const hasRole =
-        typeof obj.role === "string" ||
-        typeof obj.sender === "string" ||
-        typeof obj.author === "string"
-    // Content can be present, or tool_calls for assistant messages, or function_call for legacy
-    const hasContent =
-        obj.content !== undefined ||
-        obj.text !== undefined ||
-        obj.message !== undefined ||
-        Array.isArray(obj.tool_calls) ||
-        obj.function_call !== undefined
-    return hasRole && hasContent
-}
+export {isChatMessageObject} from "@agenta/shared/utils"
 
 /**
  * Check if a value is an array of messages (not a single object)
@@ -156,53 +130,63 @@ export function parseMessages(value: string): SimpleChatMessage[] {
     }
 }
 
-/**
- * Detect the data type of a field value
- */
-export function detectDataType(value: string): DataType {
-    // Empty or whitespace-only is treated as string
-    if (!value || !value.trim()) return "string"
-
-    try {
-        const parsed = JSON.parse(value)
-
-        // If it parses to a string, the underlying data is a string
-        if (typeof parsed === "string") return "string"
-
-        // Check for boolean type
-        if (typeof parsed === "boolean") return "boolean"
-
-        // Check for number type
-        if (typeof parsed === "number") return "number"
-
-        // Check if it's messages format - only arrays of messages, not single objects
-        if (Array.isArray(parsed)) {
-            if (parsed.length > 0 && parsed.every(isChatMessageObject)) {
-                return "messages"
-            }
-            // Non-message array is a json-array
-            return "json-array"
+function detectParsedDataType(parsed: unknown): DataType {
+    if (typeof parsed === "string") return "string"
+    if (typeof parsed === "boolean") return "boolean"
+    if (typeof parsed === "number") return "number"
+    if (Array.isArray(parsed)) {
+        if (parsed.length > 0 && parsed.every(isChatMessageObject)) {
+            return "messages"
         }
-
-        // null type
-        if (parsed === null) return "null"
-
-        // Single message objects are treated as json-object to show all properties
-        // (provider_specific_fields, annotations, etc.)
-        if (typeof parsed === "object" && parsed !== null) return "json-object"
-
-        return "string"
-    } catch {
-        // Not valid JSON - it's a plain string
-        return "string"
+        return "json-array"
     }
+    if (parsed === null) return "null"
+    if (typeof parsed === "object") {
+        // Single chat message objects (e.g. an LLM `outputs` field with one
+        // assistant reply) should render through the messages widget too —
+        // parseMessages already wraps them into a one-item array.
+        if (isChatMessageObject(parsed)) return "messages"
+        return "json-object"
+    }
+    return "string"
+}
+
+/**
+ * Detect the data type of a native field value. In legacy string mode, callers
+ * can opt into parsing the JSON-encoded storage string.
+ */
+export function detectDataType(
+    value: unknown,
+    valueMode: "native" | "string" = "native",
+): DataType {
+    if (valueMode === "string") {
+        if (typeof value !== "string" || !value.trim()) return "string"
+        try {
+            return detectParsedDataType(JSON.parse(value))
+        } catch {
+            return "string"
+        }
+    }
+
+    if (value === null) return "null"
+    if (Array.isArray(value)) return detectParsedDataType(value)
+    if (typeof value === "object") {
+        if (isChatMessageObject(value)) return "messages"
+        return "json-object"
+    }
+    if (typeof value === "boolean") return "boolean"
+    if (typeof value === "number") return "number"
+    return "string"
 }
 
 /**
  * Check if a field can be shown in text mode (not locked to raw-only)
  */
-export function canShowTextMode(value: string): boolean {
-    const dataType = detectDataType(value)
+export function canShowTextMode(
+    value: unknown,
+    valueMode: "native" | "string" = "native",
+): boolean {
+    const dataType = detectDataType(value, valueMode)
     // JSON objects (non-message) can only be shown in raw mode
     return dataType !== "json-object"
 }
@@ -212,7 +196,9 @@ export function canShowTextMode(value: string): boolean {
  * For strings: show the string content without outer quotes
  * For messages: handled separately by ChatMessageList
  */
-export function getTextModeValue(value: string): string {
+export function getTextModeValue(value: string, valueMode: "native" | "string" = "native"): string {
+    if (valueMode === "native") return value
+
     try {
         const parsed = JSON.parse(value)
         // If it's a string, return the parsed string (removes outer quotes)
@@ -229,22 +215,15 @@ export function getTextModeValue(value: string): string {
  * Convert text mode input back to storage format
  * In text mode, user enters plain text which gets stored as a JSON string
  */
-export function textModeToStorageValue(textValue: string, originalValue: string): string {
-    const dataType = detectDataType(originalValue)
-    // If original was a JSON string, wrap the new text as JSON string
-    if (dataType === "string") {
-        try {
-            // Check if original was a JSON-encoded string
-            const parsed = JSON.parse(originalValue)
-            if (typeof parsed === "string") {
-                // Store as JSON string
-                return JSON.stringify(textValue)
-            }
-        } catch {
-            // Original wasn't JSON, store as plain text
-        }
+export function textModeToStorageValue(
+    textValue: string,
+    originalValue: string,
+    valueMode: "native" | "string" = "native",
+): string {
+    if (valueMode === "string" && detectDataType(originalValue, valueMode) === "string") {
+        return JSON.stringify(textValue)
     }
-    // For plain text or other cases, store as-is
+
     return textValue
 }
 

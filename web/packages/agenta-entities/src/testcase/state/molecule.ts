@@ -30,16 +30,22 @@ import {
     getItemsAtPath,
     type DataPath,
 } from "@agenta/shared/utils"
+import type {PathItem} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import {createMolecule, extendMolecule, createControllerAtomFamily} from "../../shared"
-import type {StoreOptions, PathItem, LoadableRow, LoadableColumn} from "../../shared"
+// Deep-import from shared/molecule to bypass the contaminated shared barrel.
+import type {LoadableRow, LoadableColumn} from "../../shared/entityBridge"
+import {createControllerAtomFamily} from "../../shared/molecule/createControllerAtomFamily"
+import {createMolecule} from "../../shared/molecule/createMolecule"
+import {extendMolecule} from "../../shared/molecule/extendMolecule"
+import type {StoreOptions} from "../../shared/molecule/types"
 import type {Column, Testcase} from "../core"
 import {createLocalTestcase} from "../core"
 
 import {testcasesRevisionIdAtom, initializeEmptyRevisionAtom} from "./paginatedStore"
+import {evictTestcasesByIds, prefetchTestcasesByIds} from "./prefetch"
 import {
     // Query and entity atoms
     testcaseQueryAtomFamily,
@@ -892,6 +898,25 @@ export const testcaseMolecule = {
         discardSelectionDraft: discardSelectionDraftAtom,
         /** Initialize empty revision with default testcase (for "create from scratch" flow) */
         initializeEmptyRevision: initializeEmptyRevisionAtom,
+        /**
+         * Cache-aware bulk prefetch by testcase ID list. Same shape as
+         * `evaluationResultMolecule.actions.prefetchByScenarioIds` and
+         * `evaluationMetricMolecule.actions.prefetchByScenarioIds` —
+         * makes the prefetch surface symmetric across the 4 ETL-hydrated
+         * entity types. Writes to the shared TanStack cache at
+         * `["testcase", projectId, testcaseId]`.
+         *
+         * Wraps the existing `prefetchTestcasesByIds` standalone function
+         * (kept for backwards compatibility with non-molecule consumers).
+         */
+        prefetchByIds: prefetchTestcasesByIds,
+        /**
+         * Cache-aware bulk eviction by testcase ID list — the per-chunk
+         * counterpart of `prefetchByIds`. An ETL chunk-release hook calls
+         * this once the sink has consumed a chunk so heap stays bounded
+         * by chunk size. Wraps `evictTestcasesByIds`.
+         */
+        evictByIds: evictTestcasesByIds,
     },
 
     /**

@@ -48,7 +48,7 @@ async def _retrieve_evaluator(
         "evaluator_ref": (
             {
                 "id": str(evaluator_id) if evaluator_id else None,
-                "slug": str(evaluator_slug),
+                "slug": evaluator_slug,
             }
             if evaluator_id or evaluator_slug
             else None
@@ -63,8 +63,6 @@ async def _retrieve_evaluator(
         ),
         "resolve": resolve,
     }
-
-    # print(" --- payload:", payload)
 
     response = authed_api()(
         method="POST",

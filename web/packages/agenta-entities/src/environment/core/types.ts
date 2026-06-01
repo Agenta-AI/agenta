@@ -122,9 +122,9 @@ export interface DeployToEnvironmentParams {
     appKey: string
     /** References to deploy */
     references: {
-        application: {id: string; slug?: string}
-        application_variant: {id: string; slug?: string}
-        application_revision: {id: string; slug?: string; version?: string}
+        application: {id?: string; slug?: string; version?: string}
+        application_variant: {id?: string; slug?: string; version?: string}
+        application_revision: {id?: string; slug?: string; version?: string}
     }
     message?: string
 }

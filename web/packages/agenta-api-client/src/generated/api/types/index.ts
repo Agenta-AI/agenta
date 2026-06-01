@@ -318,6 +318,7 @@ export * from "./ReferenceRequestModelInput.js";
 export * from "./ReferenceRequestModelOutput.js";
 export * from "./RequestType.js";
 export * from "./ResolutionInfo.js";
+export * from "./RetrievalInfo.js";
 export * from "./RevisionFork.js";
 export * from "./SecretDto.js";
 export * from "./SecretKind.js";

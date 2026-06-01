@@ -74,7 +74,7 @@ TRACING_DELETE_SQL = text(
 )
 
 
-class TracingDAO:
+class TracingRetentionDAO:
     def __init__(
         self,
         transactions_engine: TransactionsEngine = None,

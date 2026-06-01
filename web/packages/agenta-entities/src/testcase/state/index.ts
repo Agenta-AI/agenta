@@ -8,6 +8,14 @@
 // Molecule (primary API)
 export {testcaseMolecule, type TestcaseMolecule, type CreateTestcasesOptions} from "./molecule"
 
+// Cache-aware bulk prefetch (reads TanStack cache, fetches misses)
+export {
+    prefetchTestcasesByIds,
+    invalidateTestcase,
+    type PrefetchTestcasesArgs,
+    type PrefetchTestcasesOutcome,
+} from "./prefetch"
+
 // Store atoms (for advanced use cases)
 export {
     // Context

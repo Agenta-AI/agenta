@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from ee.src.apis.fastapi.events.router import EventsRouter
-from ee.src.apis.fastapi.spans.router import SpansRouter
+from ee.src.apis.fastapi.events.router import EventsRetentionRouter
+from ee.src.apis.fastapi.spans.router import SpansRetentionRouter
 
 
 @pytest.mark.asyncio
@@ -34,14 +34,14 @@ async def test_spans_admin_flush_acquires_lock_and_calls_service(monkeypatch):
         "ee.src.apis.fastapi.spans.router.release_lock", fake_release_lock
     )
 
-    tracing_service = SimpleNamespace(flush_spans=AsyncMock())
-    router = SpansRouter(tracing_service=tracing_service)
+    tracing_retention_service = SimpleNamespace(flush_spans=AsyncMock())
+    router = SpansRetentionRouter(tracing_retention_service=tracing_retention_service)
 
     response = await router.flush()
 
     assert response.status_code == 200
     assert loads(response.body) == {"status": "success"}
-    tracing_service.flush_spans.assert_awaited_once()
+    tracing_retention_service.flush_spans.assert_awaited_once()
     assert acquire_calls[0]["namespace"] == "spans:flush"
     assert release_calls[0]["namespace"] == "spans:flush"
 
@@ -66,14 +66,14 @@ async def test_events_admin_flush_acquires_lock_and_calls_service(monkeypatch):
         "ee.src.apis.fastapi.events.router.release_lock", fake_release_lock
     )
 
-    events_service = SimpleNamespace(flush_events=AsyncMock())
-    router = EventsRouter(events_service=events_service)
+    events_retention_service = SimpleNamespace(flush_events=AsyncMock())
+    router = EventsRetentionRouter(events_retention_service=events_retention_service)
 
     response = await router.flush()
 
     assert response.status_code == 200
     assert loads(response.body) == {"status": "success"}
-    events_service.flush_events.assert_awaited_once()
+    events_retention_service.flush_events.assert_awaited_once()
     assert acquire_calls[0]["namespace"] == "events:flush"
     assert release_calls[0]["namespace"] == "events:flush"
 
@@ -93,14 +93,14 @@ async def test_events_admin_flush_skips_when_lock_busy(monkeypatch):
         "ee.src.apis.fastapi.events.router.release_lock", fake_release_lock
     )
 
-    events_service = SimpleNamespace(flush_events=AsyncMock())
-    router = EventsRouter(events_service=events_service)
+    events_retention_service = SimpleNamespace(flush_events=AsyncMock())
+    router = EventsRetentionRouter(events_retention_service=events_retention_service)
 
     response = await router.flush()
 
     assert response.status_code == 200
     assert loads(response.body) == {"status": "skipped"}
-    events_service.flush_events.assert_not_called()
+    events_retention_service.flush_events.assert_not_called()
 
 
 @pytest.mark.asyncio

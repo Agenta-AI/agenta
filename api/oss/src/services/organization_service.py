@@ -48,6 +48,25 @@ async def check_existing_invitation(project_id: str, email: str):
     return None, None
 
 
+async def check_existing_organization_invitation(organization_id: str, email: str):
+    """
+    Checks if there is an existing invitation for a given organization and email.
+    """
+
+    invitation = await db_manager.get_project_invitation_by_organization_and_email(
+        organization_id=organization_id, email=email
+    )
+    if invitation is None or invitation.used or invitation.email != email:
+        return None, None
+
+    if invitation.expiration_date > datetime.now(timezone.utc):
+        return invitation, None
+
+    role = invitation.role
+    await db_manager.delete_invitation(str(invitation.id))
+    return None, role
+
+
 async def check_valid_invitation(project_id: str, email: str, token: str):
     """
     Check if a project invitation is valid for a given user and token.
@@ -67,6 +86,31 @@ async def check_valid_invitation(project_id: str, email: str, token: str):
     )
     if invitation is not None and invitation.expiration_date > datetime.now(
         timezone.utc
+    ):
+        return invitation
+
+    return None
+
+
+async def check_valid_organization_invitation(
+    organization_id: str,
+    email: str,
+    token: str,
+):
+    """
+    Check if an organization invitation is valid, regardless of the project
+    that held the invitation row.
+    """
+
+    invitation = (
+        await db_manager.get_project_invitation_by_organization_token_and_email(
+            organization_id=organization_id, token=token, email=email
+        )
+    )
+    if (
+        invitation is not None
+        and not invitation.used
+        and invitation.expiration_date > datetime.now(timezone.utc)
     ):
         return invitation
 
@@ -160,6 +204,7 @@ async def invite_user_to_organization(
     payload: InviteRequest,
     project_id: str,
     user_id: str,
+    organization_id: str | None = None,
 ):
     """
     Invite a user to a workspace.
@@ -183,9 +228,17 @@ async def invite_user_to_organization(
         )
 
     # Check if the user is already a member of the workspace
-    existing_invitation, existing_role = await check_existing_invitation(
-        project_id=project_id, email=payload.email
-    )
+    if organization_id:
+        (
+            existing_invitation,
+            existing_role,
+        ) = await check_existing_organization_invitation(
+            organization_id=organization_id, email=payload.email
+        )
+    else:
+        existing_invitation, existing_role = await check_existing_invitation(
+            project_id=project_id, email=payload.email
+        )
     if existing_invitation or existing_role:
         raise HTTPException(
             status_code=400,
@@ -224,6 +277,7 @@ async def resend_user_organization_invite(
     payload: ResendInviteRequest,
     project_id: str,
     user_id: str,
+    organization_id: str | None = None,
 ):
     """
     Resend an invitation to a user to an organization.
@@ -238,9 +292,17 @@ async def resend_user_organization_invite(
     user_performing_action = await db_manager.get_user_with_id(user_id=user_id)
 
     # Check if the email address already has a valid, unused invitation for the workspace
-    existing_invitation, existing_role = await check_existing_invitation(
-        project_id, payload.email
-    )
+    if organization_id:
+        (
+            existing_invitation,
+            existing_role,
+        ) = await check_existing_organization_invitation(
+            organization_id=organization_id, email=payload.email
+        )
+    else:
+        existing_invitation, existing_role = await check_existing_invitation(
+            project_id, payload.email
+        )
     if existing_invitation:
         invitation = existing_invitation
     elif existing_role:
@@ -302,19 +364,11 @@ async def accept_organization_invitation(
         if user_exists is None:
             raise HTTPException(status_code=400, detail="User does not exist")
 
-        # Use the default-project lookup so invitations always resolve
-        # against the OSS singleton's true default project, never an
-        # ephemeral per-account project that may have been created later.
-        project_db = await db_manager.get_default_project_by_organization_id(
-            organization_id=organization_id
+        invitation = await check_valid_organization_invitation(
+            organization_id=organization_id,
+            email=email,
+            token=token,
         )
-        if not project_db:
-            raise HTTPException(
-                status_code=400,
-                detail="Default project not found for organization invitation was sent to.",
-            )
-
-        invitation = await check_valid_invitation(str(project_db.id), email, token)
         if invitation is not None:
             await db_manager.update_invitation(
                 str(invitation.id), values_to_update={"used": True}

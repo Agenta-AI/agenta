@@ -16,3 +16,6 @@ export type {DrillInFieldHeaderProps} from "./DrillInFieldHeader"
 
 export {DrillInContent} from "./DrillInContent"
 export type {DrillInContentWithRenderersProps} from "./DrillInContent"
+
+export {DrillInRootToolbar} from "./DrillInRootToolbar"
+export type {DrillInRootToolbarProps, RootViewMode} from "./DrillInRootToolbar"

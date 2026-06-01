@@ -164,8 +164,8 @@ The compose stack runs these services:
 | `worker-events` | `agenta-api-ee` | Processes async events |
 | `cron` | `agenta-api-ee` | Scheduled tasks (cleanup, metering) |
 | `alembic` | `agenta-api-ee` | Runs database migrations on startup |
-| `postgres` | `postgres:17` | PostgreSQL (three databases: core, tracing, supertokens) |
+| `postgres` | `postgres:18` | PostgreSQL (three databases: core, tracing, supertokens) |
 | `redis-volatile` | `redis:8` | Cache with LRU eviction |
 | `redis-durable` | `redis:8` | Persistent queues with append-only file |
 | `traefik` | `traefik:2` | Reverse proxy and routing |
-| `supertokens` | `supertokens-postgresql` | Authentication |
+| `supertokens` | `supertokens/supertokens-postgresql:11` | Authentication |

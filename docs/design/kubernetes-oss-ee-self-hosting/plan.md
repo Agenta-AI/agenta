@@ -58,8 +58,8 @@ Use one chart for OSS and EE with a clean user-facing setup path.
   - Alembic runner/config
   - bundled Postgres DB names
 - Add curated example files:
-  - `values-oss.example.yaml`
-  - `values-ee.example.yaml`
+  - `values.oss.example.yaml`
+  - `values.ee.example.yaml`
 - Test both OSS and EE installs in isolated namespaces
 - Update Kubernetes docs for the unified OSS/EE path
 - Open a dedicated PR

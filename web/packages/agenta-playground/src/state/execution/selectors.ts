@@ -329,7 +329,7 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
             }
         }
         if (!isChat) return merged
-        return merged.filter((key) => key !== "messages")
+        return merged.filter((key) => key !== "messages" && key !== "outputs")
     }),
 )
 

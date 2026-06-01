@@ -1,12 +1,11 @@
 from typing import Optional, Any
 
-from uuid import UUID, uuid5
+from uuid import UUID, uuid5, NAMESPACE_DNS
 from enum import Enum
 from datetime import date
 
 from pydantic import BaseModel, model_validator
 
-from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.access.entitlements.types import Counter, Gauge
@@ -16,9 +15,9 @@ from ee.src.core.subscriptions.types import SubscriptionDTO
 log = get_module_logger(__name__)
 
 
-# Frozen at import time. Tests that mock `env.agenta.uuid_namespace` must do
-# so before this module is imported, or reload it after the mock is in place.
-AGENTA_METERS_NAMESPACE_UUID = uuid5(env.agenta.uuid_namespace, "meters")
+# Frozen at import time. The namespace is the stable project-wide root
+# (uuid5(NAMESPACE_DNS, "agenta")) sub-namespaced under "meters".
+AGENTA_METERS_NAMESPACE_UUID = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "meters")
 
 
 class Meters(str, Enum):

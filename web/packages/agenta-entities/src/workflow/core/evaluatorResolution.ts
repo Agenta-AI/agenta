@@ -14,6 +14,7 @@
 import {resolveSchemaRef} from "../../runnable/portHelpers"
 
 import {resolveOutputSchema, resolveOutputSchemaProperties} from "./schema"
+import {resolveSchemaType} from "./schemaType"
 
 // ============================================================================
 // TYPES
@@ -135,7 +136,7 @@ export const extractMetrics = (evaluator: {
             kind: "metric" as const,
             path: key,
             stepKey: evaluator.slug || evaluator.id || "metric",
-            metricType: typeof schema?.type === "string" ? schema.type : METRIC_TYPE_FALLBACK,
+            metricType: resolveSchemaType(schema) ?? METRIC_TYPE_FALLBACK,
             displayLabel: typeof schema?.title === "string" ? schema.title : titleize(key),
             description: typeof schema?.description === "string" ? schema.description : undefined,
         }

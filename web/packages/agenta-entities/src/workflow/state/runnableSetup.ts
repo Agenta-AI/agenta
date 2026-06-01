@@ -28,7 +28,7 @@
  */
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
@@ -39,12 +39,13 @@ import {
 import type {RequestPayloadData} from "../../runnable/types"
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {StoreOptions} from "../../shared"
-import {isLocalDraftId, parseRevisionUri} from "../../shared"
+import {isLocalDraftId, isPlaceholderId, parseRevisionUri} from "../../shared"
 import {
     resolveInputSchema,
     resolveOutputSchema,
     resolveParameters,
     resolveParametersSchema,
+    type Workflow,
 } from "../core/schema"
 
 import {buildServiceUrlFromUri, resolveBuiltinAppServiceUrl} from "./helpers"
@@ -93,6 +94,80 @@ function extractInputKeysFromConfigInputKeys(agConfig: Record<string, unknown>):
         }
     }
     return variables
+}
+
+function toReferenceVersion(value: unknown): string | undefined {
+    if (typeof value === "number" && Number.isFinite(value)) return String(value)
+    if (typeof value === "string" && value.trim().length > 0) return value
+    return undefined
+}
+
+function buildWorkflowTraceReferences(
+    get: Getter,
+    workflowId: string,
+    entity: Workflow,
+    entityKey: "application" | "evaluator",
+    options?: {
+        includeVariantAndRevisionForLocalDraft?: boolean
+    },
+): Record<string, Record<string, string | undefined>> | undefined {
+    const workflowIdRef = entity.workflow_id ?? null
+    const workflowSlug = entity.workflow_slug ?? entity.artifact_slug ?? undefined
+    const workflowVariantSlug = entity.workflow_variant_slug ?? entity.variant_slug ?? undefined
+    const isLocal = isLocalDraftId(workflowId)
+    const isDirty = get(workflowIsDirtyAtomFamily(workflowId))
+    const references: Record<string, Record<string, string | undefined>> = {}
+
+    if (workflowIdRef) {
+        references[entityKey] = {
+            id: workflowIdRef,
+            ...(workflowSlug ? {slug: workflowSlug} : {}),
+        }
+    }
+
+    if (isLocal && options?.includeVariantAndRevisionForLocalDraft !== false) {
+        const localData = get(workflowLocalServerDataAtomFamily(workflowId)) as
+            | (Record<string, unknown> & {_sourceRevisionId?: string})
+            | null
+        const sourceRevisionId = localData?._sourceRevisionId
+        const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+        if (variantId) {
+            references[`${entityKey}_variant`] = {
+                id: variantId,
+                ...(workflowVariantSlug ? {slug: workflowVariantSlug} : {}),
+            }
+        }
+        if (sourceRevisionId) {
+            references[`${entityKey}_revision`] = {
+                id: sourceRevisionId,
+                ...(typeof localData?.slug === "string" && localData.slug.length > 0
+                    ? {slug: localData.slug}
+                    : {}),
+                ...(toReferenceVersion(localData?.version)
+                    ? {version: toReferenceVersion(localData?.version)}
+                    : {}),
+            }
+        }
+    } else if (!isLocal && !isDirty) {
+        const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+        if (variantId) {
+            references[`${entityKey}_variant`] = {
+                id: variantId,
+                ...(workflowVariantSlug ? {slug: workflowVariantSlug} : {}),
+            }
+        }
+        if (entity.id) {
+            references[`${entityKey}_revision`] = {
+                id: entity.id,
+                ...(entity.slug ? {slug: entity.slug} : {}),
+                ...(toReferenceVersion(entity.version)
+                    ? {version: toReferenceVersion(entity.version)}
+                    : {}),
+            }
+        }
+    }
+
+    return Object.keys(references).length > 0 ? references : undefined
 }
 
 // ============================================================================
@@ -281,10 +356,14 @@ export const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 
 /**
  * Workflow configuration (parameters).
+ *
+ * Reads from `workflowEntityAtomFamily` (the merged atom) so that parameter
+ * values seeded from inspect/openapi schema defaults flow into consumers.
+ * The base atom skips schema resolution and would hide those seeded values.
  */
 export const configurationAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
-        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        const entity = get(workflowEntityAtomFamily(workflowId))
         return resolveParameters(entity?.data) ?? null
     }),
 )
@@ -395,19 +474,34 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
                 }
             }
 
-            // Build references from meta.sourceRef for trace attribution
+            // Build references from meta.sourceRef for trace attribution, but only if this is not an ephemeral (pre-creation) workflow
             const meta = entity.meta as Record<string, unknown> | null | undefined
             const sourceRef = meta?.sourceRef as
-                | {type?: string; id?: string; slug?: string}
+                | {type?: string; id?: string; slug?: string; version?: string}
                 | undefined
-            const references: Record<string, {id?: string; slug?: string}> = {}
-            if (sourceRef?.id) {
+            let references:
+                | Record<string, {id?: string; slug?: string; version?: string}>
+                | undefined = undefined
+            // Only include references if the workflow has a real id or slug, and id is not a local draft or placeholder
+            const idIsLocalDraft = sourceRef?.id && isLocalDraftId(sourceRef.id)
+            const idIsPlaceholder = sourceRef?.id && isPlaceholderId(sourceRef.id)
+            if (
+                sourceRef &&
+                (sourceRef.id || sourceRef.slug) &&
+                sourceRef.id &&
+                !idIsLocalDraft &&
+                !idIsPlaceholder
+            ) {
                 const refType = sourceRef.type ?? "application"
-                references[refType] = {
-                    id: sourceRef.id,
-                    ...(sourceRef.slug ? {slug: sourceRef.slug} : {}),
+                references = {
+                    [refType]: {
+                        ...(sourceRef.id ? {id: sourceRef.id} : {}),
+                        ...(sourceRef.slug ? {slug: sourceRef.slug} : {}),
+                        ...(sourceRef.version ? {version: sourceRef.version} : {}),
+                    },
                 }
             }
+            // If id is a local draft, placeholder, or missing, or both id and slug are missing, treat as ephemeral and do not include references
 
             return {
                 ag_config: params,
@@ -420,7 +514,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
                 routePath: undefined,
                 isCustom: false,
                 appId: sourceRef?.id ?? null,
-                references: Object.keys(references).length > 0 ? references : undefined,
+                references,
             } satisfies RequestPayloadData
         }
 
@@ -443,41 +537,9 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             // Only include interface when invoking by URI (not when using data.url directly)
             const iface = uri && !url ? {uri} : undefined
 
-            // Build trace-attribution references. Mirrors the app-workflow branch
-            // below so a standalone evaluator run (depth-0 in the playground)
-            // produces traces that the Observability page can filter by
-            // "Application ID" — the workflow's artifact id is what the filter
-            // matches against (`references.application.id`). Without this the
-            // trace lands with `references: undefined` and the user sees an
-            // empty Observability page for their evaluator.
-            const evaluatorWorkflowId = entity.workflow_id ?? null
-            const isLocal = isLocalDraftId(workflowId)
-            const isDirty = get(workflowIsDirtyAtomFamily(workflowId))
-            const references: Record<string, Record<string, string | undefined>> = {}
-            if (evaluatorWorkflowId) {
-                references.application = {id: evaluatorWorkflowId}
-            }
-            if (isLocal) {
-                const localData = get(workflowLocalServerDataAtomFamily(workflowId)) as
-                    | (Record<string, unknown> & {_sourceRevisionId?: string})
-                    | null
-                const sourceRevisionId = localData?._sourceRevisionId
-                const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
-                if (variantId) {
-                    references.application_variant = {id: variantId}
-                }
-                if (sourceRevisionId) {
-                    references.application_revision = {id: sourceRevisionId}
-                }
-            } else if (!isDirty) {
-                const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
-                if (variantId) {
-                    references.application_variant = {id: variantId}
-                }
-                if (entity.id) {
-                    references.application_revision = {id: entity.id}
-                }
-            }
+            const references = entity.workflow_id
+                ? buildWorkflowTraceReferences(get, workflowId, entity, "evaluator")
+                : undefined
 
             return {
                 __rawBody: true,
@@ -487,7 +549,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
                     outputs: {},
                     parameters,
                 },
-                references: Object.keys(references).length > 0 ? references : undefined,
+                references,
             }
         }
 
@@ -524,34 +586,9 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         // For server-backed revisions: only include refs when clean (no uncommitted
         // draft changes), since dirty params don't match the committed revision.
         const appId = entity.workflow_id ?? null
-        const isLocal = isLocalDraftId(workflowId)
-        const isDirty = get(workflowIsDirtyAtomFamily(workflowId))
-        const references: Record<string, Record<string, string | undefined>> = {}
-        if (appId) {
-            references.application = {id: appId}
-        }
-        if (isLocal) {
-            // Local draft: use the source revision's variant/revision IDs
-            const localData = get(workflowLocalServerDataAtomFamily(workflowId)) as
-                | (Record<string, unknown> & {_sourceRevisionId?: string})
-                | null
-            const sourceRevisionId = localData?._sourceRevisionId
-            const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
-            if (variantId) {
-                references.application_variant = {id: variantId}
-            }
-            if (sourceRevisionId) {
-                references.application_revision = {id: sourceRevisionId}
-            }
-        } else if (!isDirty) {
-            const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
-            if (variantId) {
-                references.application_variant = {id: variantId}
-            }
-            if (entity.id) {
-                references.application_revision = {id: entity.id}
-            }
-        }
+        const references = buildWorkflowTraceReferences(get, workflowId, entity, "application", {
+            includeVariantAndRevisionForLocalDraft: false,
+        })
 
         // Only include interface when invoking by URI (not when using data.url directly,
         // since the URL is already encoded in the invocation endpoint).
@@ -569,7 +606,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
                 inputs: {},
                 parameters: agConfig && Object.keys(agConfig).length > 0 ? agConfig : undefined,
             },
-            references: Object.keys(references).length > 0 ? references : undefined,
+            references,
             // Pass through metadata needed by execution pipeline
             __meta: {
                 isChat,

@@ -9,7 +9,11 @@ import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {safeParseWithLogging} from "../../shared"
+// Import from the pure zodSchema source rather than the shared barrel. The
+// shared barrel transitively re-exports paginated/table helpers that depend on
+// agenta-ui (CSS modules), which breaks Node-side execution (scripts, tests,
+// ETL adapters). The api layer must stay Node-safe.
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {testcasesResponseSchema, type Testcase, type TestcasesResponse} from "../core"
 import type {
     TestcaseDetailParams,
@@ -97,6 +101,19 @@ export async function fetchTestcasesBatch(
         if (validatedResponse) {
             for (const testcase of validatedResponse.testcases) {
                 results.set(testcase.id, testcase)
+            }
+            // Populate the TanStack cache so subsequent reads via
+            // `testcaseMolecule.get.data(id)` and `prefetchTestcasesByIds`
+            // hit cache. Matches the cache-write behaviour of
+            // `fetchTestcasesPage` — the two batch fetchers now consistent.
+            try {
+                const store = getDefaultStore()
+                const queryClient = store.get(queryClientAtom)
+                for (const tc of validatedResponse.testcases) {
+                    queryClient.setQueryData(["testcase", projectId, tc.id], tc)
+                }
+            } catch {
+                // Silently ignore if query client not available (SSR, scripts).
             }
         }
     } catch (error) {

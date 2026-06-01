@@ -100,12 +100,14 @@ class EventsDAO(EventsDAOInterface):
 
             # FILTERING
             if event:
-                if event.request_id is not None:
-                    stmt = stmt.where(EventDBE.request_id == event.request_id)
                 if event.request_type is not None:
                     stmt = stmt.where(EventDBE.request_type == event.request_type)
+                if event.request_id is not None:
+                    stmt = stmt.where(EventDBE.request_id == event.request_id)
                 if event.event_type is not None:
                     stmt = stmt.where(EventDBE.event_type == event.event_type)
+                if event.event_id is not None:
+                    stmt = stmt.where(EventDBE.event_id == event.event_id)
 
             # WINDOWING
             if windowing:

@@ -109,8 +109,7 @@ export const formattedTestsetDataAtom = atom((get) => {
         duplicateColumns.forEach((dataPaths, columnName) => {
             const values = dataPaths
                 .map((path) => {
-                    const keys = path.split(".")
-                    const value = keys.reduce((acc: any, key) => acc?.[key], item)
+                    const value = getValueAtPath(item, path)
                     // Preserve objects/arrays as-is, only convert null/undefined to empty string
                     return value === undefined || value === null ? "" : value
                 })
@@ -240,8 +239,7 @@ export const convertTraceDataAtom = atom(
             duplicateColumns.forEach((dataPaths, columnName) => {
                 const values = dataPaths
                     .map((path) => {
-                        const keys = path.split(".")
-                        const value = keys.reduce((acc: any, key) => acc?.[key], item)
+                        const value = getValueAtPath(item, path)
                         // Preserve objects/arrays as-is, only convert null/undefined to empty string
                         return value === undefined || value === null ? "" : value
                     })

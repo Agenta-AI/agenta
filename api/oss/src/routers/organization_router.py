@@ -273,10 +273,22 @@ async def invite_user_to_organization(
             )
             return invite_user
 
+        project_db = await db_manager.get_default_project_by_organization_id(
+            organization_id=organization_id
+        )
+        if not project_db:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "detail": "Default project not found for organization invitation."
+                },
+            )
+
         invitation_response = await organization_service.invite_user_to_organization(
             payload=payload[0],
-            project_id=request.state.project_id,
+            project_id=str(project_db.id),
             user_id=request.state.user_id,
+            organization_id=organization_id,
         )
         return invitation_response
     except Exception:
@@ -336,10 +348,22 @@ async def resend_user_invitation_to_organization(
         )
         return invite_user
 
+    project_db = await db_manager.get_default_project_by_organization_id(
+        organization_id=organization_id
+    )
+    if not project_db:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": "Default project not found for organization invitation."
+            },
+        )
+
     invite_user = await organization_service.resend_user_organization_invite(
         payload,
-        project_id=request.state.project_id,
+        project_id=str(project_db.id),
         user_id=request.state.user_id,
+        organization_id=organization_id,
     )
     return invite_user
 

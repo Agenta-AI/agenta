@@ -359,6 +359,7 @@ if typing.TYPE_CHECKING:
     from .reference_request_model_output import ReferenceRequestModelOutput
     from .request_type import RequestType
     from .resolution_info import ResolutionInfo
+    from .retrieval_info import RetrievalInfo
     from .revision_fork import RevisionFork
     from .secret_dto import SecretDto
     from .secret_dto_data import SecretDtoData

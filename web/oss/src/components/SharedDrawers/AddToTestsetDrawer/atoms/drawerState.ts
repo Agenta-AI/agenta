@@ -13,6 +13,10 @@ import {
     selectedRevisionIdAtom as sharedSelectedRevisionIdAtom,
 } from "@/oss/state/testsetSelection"
 
+import {
+    getCanonicalTraceMappingPaths,
+    getColumnNameForTraceMappingPath,
+} from "../assets/chatTestsetMapping"
 import {MAX_TRACE_ANALYSIS_SAMPLE_SIZE} from "../assets/constants"
 import {createMappingId, type Mapping, type TestsetTraceData} from "../assets/types"
 
@@ -642,30 +646,20 @@ export const allTracePathsSelectOptionsAtom = atom((get) => {
 })
 
 /**
- * Derived: Canonical auto-mapping paths — `data.inputs` and `data.outputs`
- * if present in any sampled trace.
- *
- * A testcase is a snapshot of one workflow invocation's envelope, so the
- * default mapping is exactly the envelope's two top-level slots. Users can
- * still manually select deeper paths via the AutoComplete dropdown
- * (`allTracePathsAtom`), but we never auto-suggest leaf expansions — that
- * shreds the envelope and breaks replay.
+ * Derived: Canonical auto-mapping paths. Non-chat traces keep the invocation
+ * envelope (`data.inputs`, `data.outputs`), while chat-like traces split
+ * variable inputs from message history so replay can hydrate both surfaces.
  */
 export const canonicalTracePathsAtom = atom((get) => {
     const traceData = get(traceDataFromEntitiesAtom)
     const sampledTraceData = traceData.slice(0, MAX_TRACE_ANALYSIS_SAMPLE_SIZE)
 
-    const hasInputs = sampledTraceData.some(
-        (item) => item?.data && (item.data as Record<string, unknown>).inputs !== undefined,
-    )
-    const hasOutputs = sampledTraceData.some(
-        (item) => item?.data && (item.data as Record<string, unknown>).outputs !== undefined,
-    )
+    const paths = new Set<string>()
+    sampledTraceData.forEach((item) => {
+        getCanonicalTraceMappingPaths(item?.data).forEach((path) => paths.add(path))
+    })
 
-    const paths: string[] = []
-    if (hasInputs) paths.push("data.inputs")
-    if (hasOutputs) paths.push("data.outputs")
-    return paths
+    return Array.from(paths)
 })
 
 /**
@@ -704,7 +698,7 @@ export const autoMappingSuggestionsAtom = atom((get) => {
     // Generate suggestions using trace entity utilities
     const suggestions = dataPaths.map((path) => ({
         data: path,
-        suggestedColumn: path.split(".").pop() || path,
+        suggestedColumn: getColumnNameForTraceMappingPath(path),
     }))
 
     // Match with existing columns
@@ -737,7 +731,7 @@ export const computedMappingSuggestionsAtom = atom((get) => {
     // Generate suggestions
     const suggestions = dataPaths.map((path) => ({
         data: path,
-        suggestedColumn: path.split(".").pop() || path,
+        suggestedColumn: getColumnNameForTraceMappingPath(path),
     }))
 
     // Match with columns

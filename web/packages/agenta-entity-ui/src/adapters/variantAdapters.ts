@@ -7,6 +7,7 @@
  * Commit context reads from workflowMolecule selectors.
  * Commits are handled via the playground's onSubmit handler (workflow endpoint).
  */
+import {syncPromptInputKeysInParameters} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {workflowMolecule, type Workflow} from "@agenta/entities/workflow"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
@@ -62,8 +63,14 @@ function buildGenericCommitContext(
     const currentVersion = version ?? 0
     const targetVersion = currentVersion + 1
 
+    const normalizedCurrentConfig =
+        (syncPromptInputKeysInParameters(currentConfig) as Record<string, unknown> | null) ??
+        currentConfig
+
     const original = stableStringify({parameters: stripAgentaMetadataDeep(serverConfig ?? {})})
-    const modified = stableStringify({parameters: stripAgentaMetadataDeep(currentConfig ?? {})})
+    const modified = stableStringify({
+        parameters: stripAgentaMetadataDeep(normalizedCurrentConfig ?? {}),
+    })
     const hasDiff = original !== modified
 
     const descriptions: string[] = []

@@ -889,8 +889,24 @@ function InsertInitialCodeBlockPlugin({
         let needsDispatch = languageChanged
         let forceUpdate = false
         editor.getEditorState().read(() => {
+            const hasCodeBlock = $getRoot().getChildren().some($isCodeBlockNode)
             const currentEditorContent = $getEditorCodeAsString()
             const hasExistingContent = !!currentEditorContent
+
+            if (!hasCodeBlock) {
+                needsDispatch = true
+                return
+            }
+
+            // Fast path: when the user is typing, the typed content flows
+            // through onChange → parent state → back here as `initialValue`.
+            // The Lexical state already matches byte-for-byte. Skip the
+            // O(n) parse-and-deep-compare on every keystroke — it was the
+            // dominant cost during JSON-mode typing and could lock the tab
+            // for large payloads (jsonrepair on invalid JSON is expensive).
+            if (currentEditorContent === initialValue) {
+                return
+            }
 
             if (language === "json") {
                 const currentParsed = safeJson5Parse(currentEditorContent)

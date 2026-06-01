@@ -13,7 +13,7 @@ import {
     resetColumnsAtom,
 } from "../testcase/columnState"
 import {currentRevisionIdAtom} from "../testcase/queries"
-import {unflattenTestcase} from "../testcase/schema"
+import {extractTestcaseUserData, unflattenTestcase} from "../testcase/schema"
 import {
     clearDeletedIdsAtom,
     clearNewEntityIdsAtom,
@@ -317,11 +317,12 @@ export const saveNewTestsetAtom = atom(
                 .map((id) => {
                     const draft = get(testcaseDraftAtomFamily(id))
                     if (!draft) return null
+                    const userData = extractTestcaseUserData(draft) ?? {}
                     // Filter to only include current columns
                     const filteredData: Record<string, unknown> = {}
-                    for (const key of Object.keys(draft)) {
+                    for (const key of Object.keys(userData)) {
                         if (currentColumnKeys.has(key)) {
-                            filteredData[key] = draft[key]
+                            filteredData[key] = userData[key]
                         }
                     }
                     return filteredData

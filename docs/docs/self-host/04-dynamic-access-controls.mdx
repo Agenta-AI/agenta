@@ -22,6 +22,21 @@ restart **all** API and worker processes — they each load the controls into
 memory and will otherwise enforce different limits.
 :::
 
+:::tip Docker Compose vs Kubernetes
+Docker Compose users set these as environment variables in the env file passed
+with `--env-file`. Kubernetes users should set the matching Helm values under
+`agenta.access` in `values.yaml`; the chart renders them into backend
+environment variables for the API, workers, cron, and Alembic job.
+
+| Helm value | Environment variable |
+|------------|----------------------|
+| `agenta.access.plans` | `AGENTA_ACCESS_PLANS` |
+| `agenta.access.roles` | `AGENTA_ACCESS_ROLES` |
+| `agenta.access.rolesOverlay` | `AGENTA_ACCESS_ROLES_OVERLAY` |
+| `agenta.access.defaultPlan` | `AGENTA_ACCESS_DEFAULT_PLAN` |
+| `agenta.access.defaultPlanOverlay` | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` |
+:::
+
 :::tip Validation is strict
 If any override var is set, validation runs at startup:
 

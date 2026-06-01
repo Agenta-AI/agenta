@@ -1517,6 +1517,10 @@ function PlaygroundConfigSection({
     }
 
     // ========== RENDER ==========
+    const hasTopLevelObjectSection = Object.values(parameters).some(
+        (value) => value !== null && typeof value === "object" && !Array.isArray(value),
+    )
+
     return (
         <div className={clsx("flex flex-col", className)}>
             {viewMode !== "form" ? (
@@ -1558,20 +1562,27 @@ function PlaygroundConfigSection({
                     )}
                 </div>
             ) : (
-                <MoleculeDrillInView
-                    key={`form-${discardVersionRef.current}`}
-                    entityId={revisionId}
-                    molecule={drillInAdapter}
-                    editable={!disabled && !useServerData}
-                    rootTitle="Configuration"
-                    showBreadcrumb={false}
-                    collapsible={false}
-                    slots={{
-                        fieldHeader: fieldHeaderSlot,
-                        fieldActions: fieldActionsSlot,
-                        fieldContent: fieldContentSlot,
-                    }}
-                />
+                <>
+                    {!hasTopLevelObjectSection && (
+                        <div className="flex items-center w-full px-3 py-2 bg-[#FAFAFB] sticky top-[48px] z-[2]">
+                            <span className="capitalize font-medium text-sm">Config</span>
+                        </div>
+                    )}
+                    <MoleculeDrillInView
+                        key={`form-${discardVersionRef.current}`}
+                        entityId={revisionId}
+                        molecule={drillInAdapter}
+                        editable={!disabled && !useServerData}
+                        rootTitle="Configuration"
+                        showBreadcrumb={false}
+                        collapsible={false}
+                        slots={{
+                            fieldHeader: fieldHeaderSlot,
+                            fieldActions: fieldActionsSlot,
+                            fieldContent: fieldContentSlot,
+                        }}
+                    />
+                </>
             )}
         </div>
     )

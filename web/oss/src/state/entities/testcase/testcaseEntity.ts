@@ -6,27 +6,26 @@ import {
     parsePath,
     setValueAtPath,
 } from "@agenta/shared/utils"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
-import {get} from "lodash"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-import {createEntityDraftState, normalizeValueForComparison} from "../shared/createEntityDraftState"
+import {createEntityDraftState} from "../shared/createEntityDraftState"
 
 import {atomFamilyRegistry} from "./atomCleanup"
-import {
-    pendingAddedColumnsAtom,
-    pendingColumnRenamesAtom,
-    pendingDeletedColumnsAtom,
-} from "./columnState"
+import {buildDeleteColumnValueUpdates, getColumnValueFromRecord} from "./columnPathUtils"
+import {pendingColumnRenamesAtom, pendingDeletedColumnsAtom} from "./columnState"
 import {currentRevisionIdAtom} from "./queries"
 import {
+    applyTestcaseUserDataUpdates,
+    extractTestcaseUserData,
     flattenTestcase,
+    hasTestcaseUserDataChanges,
     normalizeToFlattenedTestcase,
     testcaseSchema,
     type FlattenedTestcase,
@@ -435,6 +434,14 @@ const DIRTY_EXCLUDE_FIELDS = new Set([
     "testcase_dedup_id",
 ])
 
+function isTestcaseDraftDirty(
+    currentData: FlattenedTestcase,
+    originalData: FlattenedTestcase,
+    _context: {get: Getter; id: string},
+): boolean {
+    return hasTestcaseUserDataChanges(currentData, originalData)
+}
+
 /**
  * Create draft state management for testcases
  * Uses shared factory with testcase-specific dirty detection
@@ -453,97 +460,7 @@ const testcaseDraftState = createEntityDraftState<FlattenedTestcase, FlattenedTe
     mergeDraft: (testcase, draft) => ({...testcase, ...draft}),
 
     // Complex dirty detection logic with pending column changes
-    isDirty: (currentData, originalData, {get, id}) => {
-        const draft = get(testcaseDraftAtomFamily(id))
-        // Use query atom directly (single source of truth for server data)
-        const queryState = get(testcaseQueryAtomFamily(id))
-        const serverState = normalizeToFlattenedTestcase(queryState.data) ?? null
-
-        // Check if pending column changes affect this entity (even without draft)
-        if (!draft && serverState) {
-            const serverRecord = serverState as Record<string, unknown>
-
-            // Check pending renames
-            const pendingRenames = get(pendingColumnRenamesAtom)
-            for (const oldKey of pendingRenames.keys()) {
-                if (oldKey in serverRecord) {
-                    return true // Server has old column that needs renaming
-                }
-            }
-
-            // Check pending deletions
-            const pendingDeleted = get(pendingDeletedColumnsAtom)
-            for (const columnKey of pendingDeleted) {
-                if (columnKey in serverRecord) {
-                    const value = serverRecord[columnKey]
-                    if (value !== undefined && value !== null && value !== "") {
-                        return true // Server has column with data that needs deleting
-                    }
-                }
-            }
-
-            // Check pending additions (server doesn't have the column yet)
-            const pendingAdded = get(pendingAddedColumnsAtom)
-            for (const columnKey of pendingAdded) {
-                if (!(columnKey in serverRecord)) {
-                    return true // Server doesn't have this added column
-                }
-            }
-
-            return false
-        }
-
-        if (!draft) return false // No draft and no pending changes = not dirty
-
-        if (!serverState) {
-            // New entity (no server state) - dirty if has any data
-            for (const [key, value] of Object.entries(draft)) {
-                if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
-                if (value !== undefined && value !== null && value !== "") {
-                    return true
-                }
-            }
-            return false
-        }
-
-        // Compare draft vs server state field by field
-        const draftRecord = currentData as Record<string, unknown>
-        const serverRecord = originalData as Record<string, unknown>
-
-        // Check draft keys against server
-        for (const key of Object.keys(draftRecord)) {
-            if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
-
-            // Check if this is a new column (draft has it, server doesn't)
-            if (!(key in serverRecord)) {
-                // Draft has a key that server doesn't have - this is an added column
-                return true
-            }
-
-            const draftValue = draftRecord[key]
-            const serverValue = serverRecord[key]
-            // Normalize values for comparison - handles object vs string JSON comparison
-            const normalizedDraft = normalizeValueForComparison(draftValue)
-            const normalizedServer = normalizeValueForComparison(serverValue)
-            if (normalizedDraft !== normalizedServer) {
-                return true
-            }
-        }
-
-        // Check server keys not in draft (deleted columns)
-        for (const key of Object.keys(serverRecord)) {
-            if (DIRTY_EXCLUDE_FIELDS.has(key)) continue
-            if (!(key in draftRecord)) {
-                // Server has key that draft doesn't - check if server value is non-empty
-                const serverValue = serverRecord[key]
-                if (serverValue !== undefined && serverValue !== null && serverValue !== "") {
-                    return true
-                }
-            }
-        }
-
-        return false
-    },
+    isDirty: isTestcaseDraftDirty,
 
     excludeFields: DIRTY_EXCLUDE_FIELDS,
 })
@@ -555,20 +472,10 @@ export const testcaseIsDirtyAtomFamily = testcaseDraftState.isDirtyAtomFamily
 
 // Note: updateTestcaseAtom and discardDraftAtom are exported later after entity atom definition
 
-const applyTopLevelUpdates = (
+const applyUserDataUpdates = (
     record: FlattenedTestcase,
     updates: Partial<FlattenedTestcase>,
-): FlattenedTestcase => {
-    const next = {...record, ...updates}
-
-    for (const [key, value] of Object.entries(updates)) {
-        if (value === undefined) {
-            delete next[key]
-        }
-    }
-
-    return next
-}
+): FlattenedTestcase => applyTestcaseUserDataUpdates(record, updates)
 
 const isEmptyObjectLike = (value: unknown): boolean => {
     if (!value || typeof value !== "object") {
@@ -668,34 +575,7 @@ const buildDeleteUpdates = (
     record: Record<string, unknown>,
     columnKey: string,
 ): Partial<FlattenedTestcase> | null => {
-    if (!columnKey) {
-        return null
-    }
-
-    if (columnKey in record) {
-        return {
-            [columnKey]: undefined,
-        } as Partial<FlattenedTestcase>
-    }
-
-    if (!columnKey.includes(".")) {
-        return null
-    }
-
-    const path = parsePath(columnKey)
-    if (path.length < 2 || getValueAtStringPath(record, columnKey) === undefined) {
-        return null
-    }
-
-    const updatedRecord = pruneEmptyAncestorPaths(
-        deleteValueAtPath(record, path) as Record<string, unknown>,
-        path,
-    )
-    const rootKey = String(path[0])
-
-    return {
-        [rootKey]: updatedRecord[rootKey],
-    } as Partial<FlattenedTestcase>
+    return buildDeleteColumnValueUpdates(record, columnKey) as Partial<FlattenedTestcase> | null
 }
 
 const buildAddUpdates = (
@@ -740,9 +620,8 @@ const applyPendingColumnChanges = (
     data: FlattenedTestcase,
     renames: Map<string, string>,
     deletedColumns: Set<string>,
-    addedColumns: Set<string>,
 ): FlattenedTestcase => {
-    if (renames.size === 0 && deletedColumns.size === 0 && addedColumns.size === 0) {
+    if (renames.size === 0 && deletedColumns.size === 0) {
         return data
     }
 
@@ -751,27 +630,20 @@ const applyPendingColumnChanges = (
 
     // Apply renames
     for (const [oldKey, newKey] of renames.entries()) {
-        const renameUpdates = buildRenameUpdates(result, oldKey, newKey)
+        const userData = extractTestcaseUserData(result)
+        const renameUpdates = userData ? buildRenameUpdates(userData, oldKey, newKey) : null
         if (renameUpdates) {
-            result = applyTopLevelUpdates(result, renameUpdates)
+            result = applyUserDataUpdates(result, renameUpdates)
             hasChanges = true
         }
     }
 
     // Apply deletions (remove column from data)
     for (const columnKey of deletedColumns) {
-        const deleteUpdates = buildDeleteUpdates(result, columnKey)
+        const userData = extractTestcaseUserData(result)
+        const deleteUpdates = userData ? buildDeleteUpdates(userData, columnKey) : null
         if (deleteUpdates) {
-            result = applyTopLevelUpdates(result, deleteUpdates)
-            hasChanges = true
-        }
-    }
-
-    // Apply additions (add empty column)
-    for (const columnKey of addedColumns) {
-        const addUpdates = buildAddUpdates(result, columnKey)
-        if (addUpdates) {
-            result = applyTopLevelUpdates(result, addUpdates)
+            result = applyUserDataUpdates(result, deleteUpdates)
             hasChanges = true
         }
     }
@@ -800,9 +672,8 @@ export const testcaseEntityAtomFamily = atomFamily((testcaseId: string) =>
         if (data) {
             const pendingRenames = get(pendingColumnRenamesAtom)
             const pendingDeleted = get(pendingDeletedColumnsAtom)
-            const pendingAdded = get(pendingAddedColumnsAtom)
-            if (pendingRenames.size > 0 || pendingDeleted.size > 0 || pendingAdded.size > 0) {
-                return applyPendingColumnChanges(data, pendingRenames, pendingDeleted, pendingAdded)
+            if (pendingRenames.size > 0 || pendingDeleted.size > 0) {
+                return applyPendingColumnChanges(data, pendingRenames, pendingDeleted)
             }
         }
 
@@ -827,16 +698,12 @@ export const updateTestcaseAtom = atom(
         const current = get(testcaseEntityAtomFamily(id))
         if (!current) return
 
-        // Start with current data
-        const updated = {...current}
+        const updated = applyUserDataUpdates(current, updates)
+        const original = normalizeToFlattenedTestcase(get(testcaseQueryAtomFamily(id)).data)
 
-        // Apply updates - undefined values delete the key
-        for (const [key, value] of Object.entries(updates)) {
-            if (value === undefined) {
-                delete updated[key]
-            } else {
-                updated[key] = value
-            }
+        if (original && !isTestcaseDraftDirty(updated, original, {get, id})) {
+            set(testcaseDraftAtomFamily(id), null)
+            return
         }
 
         set(testcaseDraftAtomFamily(id), updated)
@@ -895,13 +762,7 @@ export const batchUpdateTestcasesSyncAtom = atom(
 
             if (!current) continue
 
-            // Merge updates, then delete keys that are explicitly set to undefined
-            const updated = {...current, ...entityUpdates}
-            for (const [key, value] of Object.entries(entityUpdates)) {
-                if (value === undefined) {
-                    delete (updated as Record<string, unknown>)[key]
-                }
-            }
+            const updated = applyUserDataUpdates(current, entityUpdates)
             draftsToSet.push({id, data: updated})
         }
 
@@ -937,7 +798,8 @@ export const renameColumnInTestcasesAtom = atom(
             // First check if there's a draft
             const draft = get(testcaseDraftAtomFamily(id))
             if (draft) {
-                const renameUpdates = buildRenameUpdates(draft, oldKey, newKey)
+                const userData = extractTestcaseUserData(draft)
+                const renameUpdates = userData ? buildRenameUpdates(userData, oldKey, newKey) : null
                 if (renameUpdates) {
                     updates.push({id, updates: renameUpdates})
                 }
@@ -949,7 +811,10 @@ export const renameColumnInTestcasesAtom = atom(
             if (rowDataMap) {
                 const rowData = rowDataMap.get(id)
                 if (rowData) {
-                    const renameUpdates = buildRenameUpdates(rowData, oldKey, newKey)
+                    const userData = extractTestcaseUserData(rowData)
+                    const renameUpdates = userData
+                        ? buildRenameUpdates(userData, oldKey, newKey)
+                        : null
                     if (renameUpdates) {
                         updates.push({id, updates: renameUpdates})
                     }
@@ -978,7 +843,8 @@ export const deleteColumnFromTestcasesAtom = atom(null, (get, set, columnKey: st
         const entity = get(testcaseEntityAtomFamily(id))
         if (!entity) continue
 
-        const deleteUpdates = buildDeleteUpdates(entity, columnKey)
+        const userData = extractTestcaseUserData(entity)
+        const deleteUpdates = userData ? buildDeleteUpdates(userData, columnKey) : null
         if (deleteUpdates) {
             updates.push({id, updates: deleteUpdates})
         }
@@ -1006,7 +872,8 @@ export const addColumnToTestcasesAtom = atom(
             const entity = get(testcaseEntityAtomFamily(id))
             if (!entity) continue
 
-            const addUpdates = buildAddUpdates(entity, columnKey, defaultValue)
+            const userData = extractTestcaseUserData(entity)
+            const addUpdates = userData ? buildAddUpdates(userData, columnKey, defaultValue) : null
             if (addUpdates) {
                 updates.push({id, updates: addUpdates})
             }
@@ -1060,45 +927,7 @@ export const testcaseCellAtomFamily = atomFamily(
                     return undefined
                 }
 
-                // First, try direct key access (handles flat keys with dots like "agents.md")
-                // This is important because column names can legitimately contain dots
-                const directValue = (entity as Record<string, unknown>)[column]
-                if (directValue !== undefined) {
-                    return directValue
-                }
-
-                // Handle nested paths (e.g., "VMs_previous_RFP.event")
-                // We need to parse JSON strings for nested access
-                const parts = column.split(".")
-
-                if (parts.length === 1) {
-                    // Simple top-level access - already tried above, return undefined
-                    return get(entity, column)
-                }
-
-                // Nested path - need to parse JSON strings along the way
-                let current: any = entity
-                for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i]
-                    current = current?.[part]
-
-                    // If we got a JSON string and there are more parts to traverse, parse it
-                    if (i < parts.length - 1 && typeof current === "string") {
-                        const trimmed = current.trim()
-                        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-                            try {
-                                current = JSON.parse(trimmed)
-                            } catch {
-                                return undefined
-                            }
-                        } else {
-                            // String but not JSON - can't traverse further
-                            return undefined
-                        }
-                    }
-                }
-
-                return current
+                return getColumnValueFromRecord(extractTestcaseUserData(entity), column)
             },
             cellValueEquals,
         )

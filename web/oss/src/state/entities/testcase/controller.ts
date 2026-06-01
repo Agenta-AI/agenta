@@ -99,7 +99,7 @@ import {
     setDebouncedSearchTermAtom,
     testcasesFetchingAtom,
 } from "./paginatedStore"
-import type {FlattenedTestcase} from "./schema"
+import {extractTestcaseUserData, type FlattenedTestcase} from "./schema"
 import {
     discardDraftAtom,
     testcaseCellAtomFamily,
@@ -167,7 +167,7 @@ const baseController = createEntityController<FlattenedTestcase>({
     // Drill-in capability for path-based navigation and editing
     drillIn: {
         // Entire testcase entity is the root data (column-based structure)
-        getRootData: (entity) => entity,
+        getRootData: (entity) => extractTestcaseUserData(entity) ?? {},
 
         // Convert updated data back to entity update
         // For testcases, extract only the top-level field that changed
@@ -184,11 +184,12 @@ const baseController = createEntityController<FlattenedTestcase>({
         getRootItems: (entity: FlattenedTestcase | null, ...args: unknown[]): PathItem[] => {
             const columns = args[0] as TestcaseColumn[] | undefined
             if (!entity || !columns) return []
+            const userData = extractTestcaseUserData(entity) ?? {}
             return columns.map((col) => ({
                 key: col.key,
                 name: col.name,
                 // Use nullish coalescing to preserve falsy values like false and 0
-                value: (entity as Record<string, unknown>)[col.key] ?? "",
+                value: userData[col.key] ?? "",
                 isColumn: true, // Prevents deletion of column
             }))
         },

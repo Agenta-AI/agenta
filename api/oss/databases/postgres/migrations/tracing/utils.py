@@ -118,7 +118,7 @@ def run_alembic_migration():
         pending_migration_head = asyncio.run(get_pending_migration_head())
         FIRST_TIME_USER = True if "alembic_version" in pending_migration_head else False
 
-        if FIRST_TIME_USER or env.agenta.auto_migrations:
+        if FIRST_TIME_USER or env.alembic.auto_migrations:
             command.upgrade(alembic_cfg, "head")
             click.echo(
                 click.style(

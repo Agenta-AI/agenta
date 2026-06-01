@@ -415,7 +415,8 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     const appMatchesType = (app: ListAppsItem) => {
         if (type === "chat") return !!app.flags?.is_chat
         if (type === "custom") return !!app.flags?.is_custom
-        return !app.flags?.is_chat && !app.flags?.is_custom
+        // completion: exclude evaluator apps, which also lack is_chat/is_custom
+        return !app.flags?.is_chat && !app.flags?.is_custom && !app.flags?.is_evaluator
     }
 
     let targetApp

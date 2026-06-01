@@ -41,25 +41,36 @@ function mergeQueuesById(...queueLists: SimpleQueue[][]): SimpleQueue[] {
 
 interface AddToQueuePopoverProps {
     itemType: "traces" | "testcases"
-    itemIds: string[]
+    /** Item ids for the default add path. Omit when `onQueueSelected` is set. */
+    itemIds?: string[]
     children: React.ReactNode
     disabled?: boolean
     onItemsAdded?: () => void
     open?: boolean
     onOpenChange?: (open: boolean) => void
     toggleOnTriggerClick?: boolean
+    /**
+     * Picker mode: when set, selecting a queue calls this instead of the
+     * built-in `addTraces` / `addTestcases` path — the caller owns the add
+     * (e.g. a filter-scoped background scan). The "New queue" button stays
+     * available so a user with no matching queues can create one, then reopen
+     * the picker.
+     */
+    onQueueSelected?: (queue: SimpleQueue) => void
 }
 
 const QueueListContent = ({
     itemType,
-    itemIds,
+    itemIds = [],
     onClose,
     onItemsAdded,
+    onQueueSelected,
 }: {
     itemType: "traces" | "testcases"
-    itemIds: string[]
+    itemIds?: string[]
     onClose: () => void
     onItemsAdded?: () => void
+    onQueueSelected?: (queue: SimpleQueue) => void
 }) => {
     const navigation = useAnnotationNavigationSafe()
     const navigateToQueue = navigation?.navigateToQueue
@@ -97,6 +108,12 @@ const QueueListContent = ({
 
     const handleSelect = useCallback(
         async (queue: SimpleQueue) => {
+            // Picker mode — the caller owns the add (e.g. a background scan).
+            if (onQueueSelected) {
+                onQueueSelected(queue)
+                onClose()
+                return
+            }
             if (itemIds.length === 0) return
             setSubmittingId(queue.id)
             try {
@@ -132,7 +149,16 @@ const QueueListContent = ({
                 setSubmittingId(null)
             }
         },
-        [itemIds, itemType, addTraces, addTestcases, onClose, onItemsAdded, navigateToQueue],
+        [
+            itemIds,
+            itemType,
+            addTraces,
+            addTestcases,
+            onClose,
+            onItemsAdded,
+            navigateToQueue,
+            onQueueSelected,
+        ],
     )
 
     const handleNewQueue = useCallback(
@@ -236,6 +262,7 @@ const AddToQueuePopover = ({
     open: controlledOpen,
     onOpenChange,
     toggleOnTriggerClick = true,
+    onQueueSelected,
 }: AddToQueuePopoverProps) => {
     const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
     const isControlled = controlledOpen !== undefined
@@ -270,6 +297,7 @@ const AddToQueuePopover = ({
                         itemIds={itemIds}
                         onClose={handleClose}
                         onItemsAdded={onItemsAdded}
+                        onQueueSelected={onQueueSelected}
                     />
                 ) : null
             }

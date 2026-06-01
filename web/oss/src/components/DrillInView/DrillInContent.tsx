@@ -10,6 +10,15 @@ import {
 
 import {ChatMessageEditor, ChatMessageList} from "@agenta/ui"
 import {
+    detectDataType,
+    getTextModeValue,
+    isChatMessageObject,
+    isMessagesArray,
+    parseMessages,
+    textModeToStorageValue,
+    type DataType,
+} from "@agenta/ui/drill-in"
+import {
     DrillInProvider,
     EditorProvider,
     markdownViewAtom,
@@ -20,16 +29,6 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
-
-import {
-    detectDataType,
-    getTextModeValue,
-    isChatMessageObject,
-    isMessagesArray,
-    parseMessages,
-    textModeToStorageValue,
-    type DataType,
-} from "@/oss/components/TestcasesTableNew/components/TestcaseEditDrawer/fieldUtils"
 
 import DrillInBreadcrumb from "./DrillInBreadcrumb"
 import {DrillInControls, type PropertyType} from "./DrillInControls"
@@ -67,7 +66,7 @@ function MarkdownViewSync({isMarkdownView}: {isMarkdownView: boolean}) {
     return null
 }
 
-type FieldViewMode = "json" | "yaml" | "rendered-json" | "text" | "markdown" | "raw"
+type FieldViewMode = "json" | "yaml" | "rendered-json" | "text" | "markdown" | "raw" | "form"
 
 const VIEW_MODE_LABELS: Record<FieldViewMode, string> = {
     json: "JSON",
@@ -76,6 +75,7 @@ const VIEW_MODE_LABELS: Record<FieldViewMode, string> = {
     text: "Text",
     markdown: "Markdown",
     raw: "Raw",
+    form: "Form",
 }
 
 export interface PathItem {
@@ -137,6 +137,29 @@ export interface DrillInContentProps {
     onPathChange?: (path: string[]) => void
     /** Enables explicit view mode selector for field content (JSON/YAML/Rendered JSON/Text/Markdown) */
     enableFieldViewModes?: boolean
+    /** Optional callback to resolve available view modes for a field */
+    getFieldViewModeOptions?: (params: {
+        value: unknown
+        dataType: DataType
+        item: PathItem
+        fieldKey: string
+        fullPath: string[]
+    }) => {value: string; label: string}[]
+    /** Optional callback to select the default view mode for a field */
+    getDefaultFieldViewMode?: (params: {
+        value: unknown
+        dataType: DataType
+        item: PathItem
+        fieldKey: string
+        fullPath: string[]
+        options: string[]
+    }) => string
+    /** Optional callback to render a TypeChip for each field header */
+    getFieldTypeChip?: (value: unknown) => ReactNode
+    /** Increment this value to collapse all visible fields in the current drill-in level */
+    collapseSignal?: number
+    /** Change this value to clear field-level view mode overrides without remounting the view */
+    viewModeResetSignal?: string | number
     /** Hide breadcrumb row (useful when parent already handles navigation layout) */
     hideBreadcrumb?: boolean
     /** Hide all field headers and render only the editor content blocks */
@@ -200,6 +223,11 @@ export function DrillInContent({
     initialPath,
     onPathChange,
     enableFieldViewModes = false,
+    getFieldViewModeOptions: getExternalFieldViewModeOptions,
+    getDefaultFieldViewMode: getExternalDefaultFieldViewMode,
+    getFieldTypeChip,
+    collapseSignal,
+    viewModeResetSignal,
     hideBreadcrumb = false,
     hideFieldHeaders = false,
     hideSingleFieldHeader = false,
@@ -223,6 +251,8 @@ export function DrillInContent({
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
     const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
     const [viewModes, setViewModes] = useState<Record<string, FieldViewMode>>({})
+    const lastCollapseSignalRef = useRef(collapseSignal)
+    const lastViewModeResetSignalRef = useRef(viewModeResetSignal)
 
     // Track markdown toggle functions per field (registered by EditorMarkdownToggleExposer)
     const markdownToggleFnsRef = useRef<Map<string, () => void>>(new Map())
@@ -411,57 +441,12 @@ export function DrillInContent({
         if (typeof value === "object") {
             return Object.keys(value)
                 .sort()
-                .map((key) => {
-                    const childValue = (value as Record<string, unknown>)[key]
-                    return {
-                        key,
-                        name: key,
-                        value: childValue,
-                        isColumn: false,
-                        // If child is a string containing JSON, preserve it for Raw mode
-                        originalStringValue:
-                            typeof childValue === "string" ? childValue : undefined,
-                    }
-                })
-        }
-
-        // Check if string value contains JSON (stringified JSON in native mode)
-        if (typeof value === "string") {
-            try {
-                const parsed = JSON.parse(value)
-                if (Array.isArray(parsed)) {
-                    const parentKey = currentPath[currentPath.length - 1] || ""
-                    const singularName = parentKey.endsWith("s")
-                        ? parentKey.slice(0, -1)
-                        : parentKey || "Item"
-                    const displayName = singularName.charAt(0).toUpperCase() + singularName.slice(1)
-
-                    return parsed.map((item, index) => ({
-                        key: String(index),
-                        name: `${displayName} ${index + 1}`,
-                        value: item,
-                        isColumn: false,
-                        // Preserve original string for Raw mode
-                        originalStringValue: typeof item === "string" ? item : JSON.stringify(item),
-                    }))
-                } else if (typeof parsed === "object" && parsed !== null) {
-                    return Object.keys(parsed)
-                        .sort()
-                        .map((key) => ({
-                            key,
-                            name: key,
-                            value: parsed[key],
-                            isColumn: false,
-                            // Preserve original string for Raw mode
-                            originalStringValue:
-                                typeof parsed[key] === "string"
-                                    ? parsed[key]
-                                    : JSON.stringify(parsed[key]),
-                        }))
-                }
-            } catch {
-                // Not valid JSON, treat as primitive string
-            }
+                .map((key) => ({
+                    key,
+                    name: key,
+                    value: (value as Record<string, unknown>)[key],
+                    isColumn: false,
+                }))
         }
 
         // Primitive value
@@ -475,9 +460,32 @@ export function DrillInContent({
         return currentLevelItems.filter((item) => !excludeKeys.includes(item.key))
     }, [currentLevelItems, isAtInitialPathLevel, excludeKeys])
 
+    useEffect(() => {
+        if (!collapseSignal) return
+        if (lastCollapseSignalRef.current === collapseSignal) return
+        lastCollapseSignalRef.current = collapseSignal
+        const nextCollapsed: Record<string, boolean> = {}
+        for (const item of filteredLevelItems) {
+            nextCollapsed[`${currentPath.join(".")}.${item.key}`] = true
+        }
+        setCollapsedFields(nextCollapsed)
+    }, [collapseSignal, currentPath, filteredLevelItems])
+
+    useEffect(() => {
+        if (lastViewModeResetSignalRef.current === viewModeResetSignal) return
+        lastViewModeResetSignalRef.current = viewModeResetSignal
+        setViewModes({})
+    }, [viewModeResetSignal])
+
     // Check if a value is expandable
     const isExpandable = useCallback(
         (value: unknown): boolean => {
+            if (valueMode === "native") {
+                if (typeof value === "string" || value == null) return false
+                if (Array.isArray(value)) return value.length > 0
+                return typeof value === "object" && Object.keys(value).length > 0
+            }
+
             const strValue = valueToString(value)
             try {
                 const parsed = JSON.parse(strValue)
@@ -491,12 +499,20 @@ export function DrillInContent({
                 return false
             }
         },
-        [valueToString],
+        [valueMode, valueToString],
     )
 
     // Get item count for arrays/objects
     const getItemCount = useCallback(
         (value: unknown): string => {
+            if (valueMode === "native") {
+                if (Array.isArray(value)) return `${value.length} items`
+                if (value && typeof value === "object") {
+                    return `${Object.keys(value).length} properties`
+                }
+                return ""
+            }
+
             const strValue = valueToString(value)
             try {
                 const parsed = JSON.parse(strValue)
@@ -508,10 +524,10 @@ export function DrillInContent({
             }
             return ""
         },
-        [valueToString],
+        [valueMode, valueToString],
     )
 
-    const getFieldViewModeOptions = useCallback(
+    const resolveFieldViewModeOptions = useCallback(
         (
             value: unknown,
             dataType: DataType,
@@ -521,12 +537,9 @@ export function DrillInContent({
 
             const options: FieldViewMode[] = []
 
-            // Check if value is structured data (object/array) - either natively or as stringified JSON
+            // Check only native structured data. Strings that contain JSON stay strings.
             const isStructuredData =
-                dataType === "json-object" ||
-                dataType === "json-array" ||
-                dataType === "messages" ||
-                (typeof value === "string" && tryParseStructuredJson(value) !== null)
+                dataType === "json-object" || dataType === "json-array" || dataType === "messages"
 
             // Only show JSON/YAML when value is structured data
             if (isStructuredData) {
@@ -539,14 +552,11 @@ export function DrillInContent({
                 options.push("rendered-json")
             }
 
-            // Show "Raw" option when:
-            // 1. We have an originalStringValue (from auto-parsed stringified JSON), OR
-            // 2. The value itself is a stringified JSON string
+            // Show "Raw" option when legacy string-mode parsing preserved the
+            // original storage string for a nested value.
             const hasOriginalString = !!originalStringValue
-            const isStringifiedJson =
-                typeof value === "string" && tryParseStructuredJson(value) !== null
 
-            if (hasOriginalString || isStringifiedJson) {
+            if (hasOriginalString) {
                 options.push("raw")
             }
 
@@ -768,7 +778,12 @@ export function DrillInContent({
                         const stringValue = valueToString(item.value)
 
                         // Use locked type if available, otherwise detect from value
-                        const dataType = lockedFieldTypes[fieldKey] ?? detectDataType(stringValue)
+                        const dataType =
+                            lockedFieldTypes[fieldKey] ??
+                            detectDataType(
+                                valueMode === "string" ? stringValue : item.value,
+                                valueMode,
+                            )
                         const isRawMode = rawModeFields[fieldKey] ?? false
                         const isCollapsed = collapsedFields[fieldKey] ?? false
                         const expandable = isExpandable(item.value)
@@ -813,24 +828,40 @@ export function DrillInContent({
                               ).length
                             : 0
 
-                        const fieldViewModeOptions = getFieldViewModeOptions(
-                            item.value,
-                            dataType,
-                            item.originalStringValue,
-                        )
-                        const defaultViewMode = getDefaultFieldViewMode(
-                            item.value,
-                            fieldViewModeOptions.map((opt) => opt.value),
-                        )
+                        const fieldViewModeOptions = getExternalFieldViewModeOptions
+                            ? getExternalFieldViewModeOptions({
+                                  value: item.value,
+                                  dataType,
+                                  item,
+                                  fieldKey,
+                                  fullPath,
+                              }).map((option) => ({
+                                  value: option.value as FieldViewMode,
+                                  label: option.label,
+                              }))
+                            : resolveFieldViewModeOptions(
+                                  item.value,
+                                  dataType,
+                                  item.originalStringValue,
+                              )
+                        const availableModes = fieldViewModeOptions.map((opt) => opt.value)
+                        const defaultViewMode =
+                            (getExternalDefaultFieldViewMode?.({
+                                value: item.value,
+                                dataType,
+                                item,
+                                fieldKey,
+                                fullPath,
+                                options: availableModes,
+                            }) as FieldViewMode | undefined) ??
+                            getDefaultFieldViewMode(item.value, availableModes)
                         const selectedViewMode =
                             fieldViewModeOptions.find((opt) => opt.value === viewModes[fieldKey])
                                 ?.value ?? defaultViewMode
 
-                        // Determine if markdown toggle should be shown (only for string fields)
-                        const showMarkdownToggle =
-                            !enableFieldViewModes &&
-                            !expandable &&
-                            (dataType === "string" || dataType === "null")
+                        // Markdown switching has moved to the shared viewMode
+                        // dropdown — keep the inline icon hidden everywhere.
+                        const showMarkdownToggle = false
                         const showFieldHeader =
                             !hideFieldHeaders &&
                             !(hideSingleFieldHeader && filteredLevelItems.length === 1)
@@ -883,6 +914,7 @@ export function DrillInContent({
                                                 isMapped={isMapped}
                                                 mappedColumn={mappedColumn}
                                                 nestedMappingCount={nestedMappingCount}
+                                                typeChip={getFieldTypeChip?.(item.value)}
                                                 viewModeOptions={
                                                     fieldViewModeOptions.length > 0
                                                         ? fieldViewModeOptions
@@ -943,6 +975,7 @@ export function DrillInContent({
                                         isMapped={isMapped}
                                         mappedColumn={mappedColumn}
                                         nestedMappingCount={nestedMappingCount}
+                                        typeChip={getFieldTypeChip?.(item.value)}
                                         viewModeOptions={
                                             fieldViewModeOptions.length > 0
                                                 ? fieldViewModeOptions
@@ -1022,27 +1055,6 @@ function propertyTypeToDataType(propType: PropertyType): DataType {
     }
 }
 
-function tryParseStructuredJson(value: string): unknown | null {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-
-    // Only parse structured JSON (objects/arrays), not plain strings/booleans/numbers.
-    if (
-        !(
-            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-            (trimmed.startsWith("[") && trimmed.endsWith("]"))
-        )
-    ) {
-        return null
-    }
-
-    try {
-        return JSON.parse(trimmed)
-    } catch {
-        return null
-    }
-}
-
 function getDefaultFieldViewMode(value: unknown, availableModes: FieldViewMode[]): FieldViewMode {
     const hasMode = (mode: FieldViewMode) => availableModes.includes(mode)
 
@@ -1063,13 +1075,7 @@ function safeJsonStringify(value: unknown): string {
 }
 
 function toStringifiedJsonLiteral(value: unknown): string {
-    const compactJsonString =
-        typeof value === "string"
-            ? (() => {
-                  const parsed = tryParseStructuredJson(value)
-                  return parsed !== null ? (JSON.stringify(parsed) ?? "null") : value
-              })()
-            : (JSON.stringify(value) ?? "null")
+    const compactJsonString = typeof value === "string" ? value : (JSON.stringify(value) ?? "null")
 
     return JSON.stringify(compactJsonString) ?? '""'
 }
@@ -1132,21 +1138,7 @@ function renderFieldContentByMode({
     dataType,
 }: RenderFieldContentByModeProps) {
     if (selectedViewMode === "json") {
-        // JSON mode - show parsed/formatted JSON
-        // If value is a stringified JSON string, parse it first then format nicely
-        let jsonValue: string
-        if (typeof item.value === "string") {
-            const parsed = tryParseStructuredJson(item.value)
-            if (parsed !== null) {
-                // Value was stringified JSON - show the parsed version formatted
-                jsonValue = safeJsonStringify(parsed)
-            } else {
-                // Plain string - just stringify it
-                jsonValue = safeJsonStringify(item.value)
-            }
-        } else {
-            jsonValue = safeJsonStringify(item.value)
-        }
+        const jsonValue = safeJsonStringify(item.value)
         return (
             <ReadOnlyCodeView
                 editorId={`drill-field-${fieldKey}`}
@@ -1183,16 +1175,11 @@ function renderFieldContentByMode({
     }
 
     if (selectedViewMode === "yaml") {
-        const yamlSource =
-            typeof item.value === "string"
-                ? (tryParseStructuredJson(item.value) ?? item.value)
-                : item.value
-
         let yamlValue = ""
         try {
-            yamlValue = yaml.dump(yamlSource, {lineWidth: 120})
+            yamlValue = yaml.dump(item.value, {lineWidth: 120})
         } catch {
-            yamlValue = String(yamlSource ?? "")
+            yamlValue = String(item.value ?? "")
         }
 
         return (
@@ -1207,10 +1194,10 @@ function renderFieldContentByMode({
     const editorId = `drill-field-${fieldKey}`
     const textValue =
         typeof item.value === "string"
-            ? getTextModeValue(stringValue)
+            ? getTextModeValue(stringValue, valueMode)
             : valueMode === "string"
-              ? getTextModeValue(stringValue)
-              : getTextModeValue(item.originalStringValue ?? stringValue)
+              ? getTextModeValue(stringValue, valueMode)
+              : getTextModeValue(item.originalStringValue ?? stringValue, valueMode)
 
     return (
         <EditorProvider
@@ -1223,7 +1210,7 @@ function renderFieldContentByMode({
             <EditorMarkdownToggleExposer
                 onToggleReady={(toggleFn) => registerMarkdownToggle(fieldKey, toggleFn)}
             />
-            <MarkdownViewSync isMarkdownView={selectedViewMode === "text"} />
+            <MarkdownViewSync isMarkdownView={selectedViewMode === "markdown"} />
             <SharedEditor
                 id={editorId}
                 initialValue={textValue}
@@ -1314,10 +1301,7 @@ function renderFieldContent({
         const originalWasString = typeof item.value === "string"
 
         // For nested objects/arrays (not originally strings), use JSON editor (read-only)
-        if (
-            !originalWasString &&
-            (dataType === "json-object" || dataType === "json-array" || dataType === "messages")
-        ) {
+        if (!originalWasString && (dataType === "json-object" || dataType === "json-array")) {
             return (
                 <JsonEditorWithLocalState
                     editorKey={`${fullPath.join("-")}-raw-editor`}
@@ -1332,10 +1316,7 @@ function renderFieldContent({
         // For primitives, behavior depends on whether we're in string mode (stringified JSON structure)
         let rawValue = stringValue
 
-        if (
-            originalWasString &&
-            (dataType === "json-object" || dataType === "json-array" || dataType === "messages")
-        ) {
+        if (originalWasString && (dataType === "json-object" || dataType === "json-array")) {
             // String-encoded JSON: show as escaped string literal
             try {
                 const parsed = JSON.parse(stringValue)
@@ -1449,7 +1430,8 @@ function renderFieldContent({
                             value: idx,
                             label: `${idx + 1}. ${getPreview(arrItem)}`,
                         }))}
-                        onSelect={(idx: number) => {
+                        onSelect={(idx) => {
+                            if (idx == null) return
                             setCurrentPath([...fullPath, String(idx)])
                         }}
                     />
@@ -1546,7 +1528,7 @@ function renderFieldContent({
     const editorId = `drill-field-${fieldKey}`
     // For null values, use empty string; otherwise get text mode value
     const isNull = dataType === "null" || item.value === null
-    const textValue = isNull ? "" : getTextModeValue(stringValue)
+    const textValue = isNull ? "" : getTextModeValue(stringValue, valueMode)
     return (
         <EditorProvider
             key={`${editorId}-provider`}
@@ -1566,8 +1548,12 @@ function renderFieldContent({
                         // Transitioning from null - store as string directly
                         setValue(fullPath, newValue)
                     } else {
-                        const storageValue = textModeToStorageValue(newValue, stringValue)
-                        setValue(fullPath, valueMode === "string" ? storageValue : storageValue)
+                        const storageValue = textModeToStorageValue(
+                            newValue,
+                            stringValue,
+                            valueMode,
+                        )
+                        setValue(fullPath, storageValue)
                     }
                 }}
                 placeholder={`Enter ${item.name}...`}

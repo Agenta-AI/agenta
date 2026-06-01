@@ -69,7 +69,7 @@ const createParamsFromSchema = (
     inputSchema: Record<string, unknown> | null,
     environmentName: string,
     isChat: boolean,
-    appName: string | null,
+    appSlug: string | null,
 ): string => {
     const inputs: GenericObject = {}
 
@@ -90,7 +90,7 @@ const createParamsFromSchema = (
     const params: GenericObject = {
         data: {inputs},
         references: {
-            ...(appName ? {application: {slug: appName}} : {}),
+            ...(appSlug ? {application: {slug: appSlug}} : {}),
             environment: {slug: environmentName},
         },
     }
@@ -125,7 +125,7 @@ export const createParams = (
         inputs["messages"] = [{role: "user", content: ""}]
     }
 
-    const appSlug = app?.name ?? app?.slug
+    const appSlug = app?.slug ?? undefined
     const params: GenericObject = {
         data: {inputs},
         references: {
@@ -206,12 +206,12 @@ function VariantEndpointContent() {
                 inputSchema,
                 selectedEnvironment?.name || "none",
                 isChat,
-                currentApp?.name ?? currentApp?.slug ?? null,
+                currentApp?.slug ?? null,
             ),
-        [inputSchema, selectedEnvironment?.name, isChat, currentApp?.name, currentApp?.slug],
+        [inputSchema, selectedEnvironment?.name, isChat, currentApp?.slug],
     )
 
-    const appSlug = currentApp?.slug ?? currentApp?.name ?? ""
+    const appSlug = currentApp?.slug ?? ""
 
     const invokeLlmAppCodeSnippet = useMemo<Record<string, string>>(
         () => ({

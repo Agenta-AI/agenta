@@ -1,12 +1,13 @@
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
+import type {DataType} from "@agenta/ui/drill-in"
 import {ArrowCounterClockwise, Code, Trash, TreeStructure} from "@phosphor-icons/react"
 import {Button, Segmented, Select, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import type {DataType} from "@/oss/components/TestcasesTableNew/components/TestcaseEditDrawer/fieldUtils"
 import type {EntityAPI, EntityDrillIn} from "@/oss/state/entities/shared"
 
+import type {DrillInContentProps} from "./DrillInContent"
 import {type PropertyType} from "./DrillInControls"
 import {EntityDrillInView} from "./EntityDrillInView"
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
@@ -66,6 +67,16 @@ export interface EntityDualViewEditorProps<TEntity> {
     onPathChange?: (path: string[]) => void
     /** Keys to exclude when displaying items at the initial path level */
     excludeKeys?: string[]
+    /** Optional callback to render a TypeChip for each field header */
+    getFieldTypeChip?: (value: unknown) => ReactNode
+    /** Field-level view mode selector */
+    enableFieldViewModes?: boolean
+    getFieldViewModeOptions?: DrillInContentProps["getFieldViewModeOptions"]
+    getDefaultFieldViewMode?: DrillInContentProps["getDefaultFieldViewMode"]
+    /** Increment to collapse all visible fields */
+    collapseSignal?: number
+    /** Change to clear field-level view mode overrides */
+    viewModeResetSignal?: DrillInContentProps["viewModeResetSignal"]
 }
 
 function EntityDualViewEditorInner<TEntity>({
@@ -103,6 +114,12 @@ function EntityDualViewEditorInner<TEntity>({
     getDefaultValueForType,
     onPathChange,
     excludeKeys,
+    getFieldTypeChip,
+    enableFieldViewModes,
+    getFieldViewModeOptions,
+    getDefaultFieldViewMode,
+    collapseSignal,
+    viewModeResetSignal,
 }: EntityDualViewEditorProps<TEntity>) {
     // Internal state for uncontrolled mode
     const [internalEditMode, setInternalEditMode] = useState<EditMode>(defaultEditMode)
@@ -272,6 +289,12 @@ function EntityDualViewEditorInner<TEntity>({
                     getDefaultValueForType={getDefaultValueForType}
                     onPathChange={onPathChange}
                     excludeKeys={excludeKeys}
+                    getFieldTypeChip={getFieldTypeChip}
+                    enableFieldViewModes={enableFieldViewModes}
+                    getFieldViewModeOptions={getFieldViewModeOptions}
+                    getDefaultFieldViewMode={getDefaultFieldViewMode}
+                    collapseSignal={collapseSignal}
+                    viewModeResetSignal={viewModeResetSignal}
                 />
             ) : (
                 <div

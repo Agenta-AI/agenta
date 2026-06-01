@@ -105,7 +105,7 @@ export const useSelectDeployVariant = () => {
         const store = getDefaultStore()
         const workflows = store.get(workflowsListDataAtom)
         const workflowEntity = workflows.find((w) => w.id === row.workflowId)
-        const applicationSlug = workflowEntity?.slug || workflowEntity?.name || undefined
+        const applicationSlug = workflowEntity?.slug || undefined
 
         try {
             await publish({
@@ -113,7 +113,7 @@ export const useSelectDeployVariant = () => {
                 environmentSlug: envName,
                 applicationId: row.workflowId || appId || "",
                 workflowVariantId: row.variantId || undefined,
-                variantSlug: row.variantName || undefined,
+                variantSlug: row.variantSlug || undefined,
                 applicationSlug,
                 revisionVersion: row.version ?? undefined,
                 note,

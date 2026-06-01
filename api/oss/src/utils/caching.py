@@ -349,7 +349,7 @@ async def set_cache(
     ttl: Optional[int] = AGENTA_CACHE_TTL,
 ) -> Optional[bool]:
     # Noop if caching is disabled
-    if not env.redis.cache_enabled:
+    if not env.agenta.api.caching.enabled:
         return None
 
     try:
@@ -423,7 +423,7 @@ async def get_cache(
     leakage: Optional[float] = AGENTA_CACHE_LEAKAGE_PROBABILITY,
 ) -> Optional[Any]:
     # Noop if caching is disabled - always return cache miss
-    if not env.redis.cache_enabled:
+    if not env.agenta.api.caching.enabled:
         return None
 
     try:
@@ -482,7 +482,7 @@ async def invalidate_cache(
     user_id: Optional[str] = None,
 ) -> Optional[bool]:
     # Noop if caching is disabled
-    if not env.redis.cache_enabled:
+    if not env.agenta.api.caching.enabled:
         return None
 
     try:

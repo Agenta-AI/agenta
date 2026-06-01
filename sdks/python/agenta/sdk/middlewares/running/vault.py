@@ -38,12 +38,16 @@ if "mistral" not in _PROVIDER_KINDS:
     _PROVIDER_KINDS.append("mistral")
 
 _AUTH_ENABLED = (
-    getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED", "true").lower() in TRUTHY
-)
+    getenv("AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED")
+    or getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED")
+    or "true"
+).lower() in TRUTHY
 
 _CACHE_ENABLED = (
-    getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
-)
+    getenv("AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED")
+    or getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED")
+    or "true"
+).lower() in TRUTHY
 
 _cache = TTLLRUCache()
 

@@ -290,6 +290,14 @@ export const workflowSchema = z
         workflow_id: z.string().nullable().optional(),
         workflow_variant_id: z.string().nullable().optional(),
 
+        // Parent slugs (from revision responses; backend returns artifact_slug
+        // and variant_slug alongside the IDs so callers can verify which
+        // workflow/variant the revision belongs to without a second lookup).
+        workflow_slug: z.string().nullable().optional(),
+        workflow_variant_slug: z.string().nullable().optional(),
+        artifact_slug: z.string().nullable().optional(),
+        variant_slug: z.string().nullable().optional(),
+
         // Commit fields
         /** Commit message (from CommitDBA on revision responses) */
         message: z.string().nullable().optional(),

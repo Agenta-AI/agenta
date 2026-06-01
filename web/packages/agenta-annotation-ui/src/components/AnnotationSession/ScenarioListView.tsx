@@ -84,7 +84,7 @@ const TestcaseDataCell = memo(function TestcaseDataCell({
 }: {
     scenarioId: string
     dataKey: string
-    chatPreference?: "input" | "output"
+    chatPreference?: ChatExtractionPreference
 }) {
     const testcaseRef = useAtomValue(
         annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),

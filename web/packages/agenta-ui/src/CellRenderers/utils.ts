@@ -2,7 +2,7 @@
  * Shared utility functions for cell content rendering
  */
 
-import {safeJson5Parse} from "@agenta/shared/utils"
+import {isChatMessagesArray} from "@agenta/shared/utils"
 
 import {DEFAULT_MAX_LINES, MAX_CELL_CHARS} from "./constants"
 
@@ -52,6 +52,7 @@ export const safeJsonStringify = (value: unknown): string => {
  * Re-exported from @agenta/shared for convenience.
  */
 export {tryParseJsonValue as tryParseJson} from "@agenta/shared/utils"
+export {isChatMessagesArray} from "@agenta/shared/utils"
 
 /**
  * Normalize value to display string
@@ -75,43 +76,6 @@ export function getBeautifiedJsonEntries(value: unknown): {key: string; value: s
         key,
         value: normalizeValue(entryValue),
     }))
-}
-
-/**
- * Check if a single entry looks like a chat message
- */
-const isChatEntry = (entry: unknown): boolean => {
-    if (!entry || typeof entry !== "object") return false
-    const obj = entry as Record<string, unknown>
-
-    const hasRole =
-        typeof obj.role === "string" ||
-        typeof obj.sender === "string" ||
-        typeof obj.author === "string"
-
-    if (!hasRole) return false
-
-    // Check for content in various formats
-    return (
-        obj.content !== undefined ||
-        obj.text !== undefined ||
-        obj.message !== undefined ||
-        Array.isArray(obj.content) ||
-        Array.isArray(obj.parts) ||
-        Array.isArray(obj.tool_calls) ||
-        typeof (obj.delta as Record<string, unknown>)?.content === "string"
-    )
-}
-
-/**
- * Check if a value looks like chat messages (array with role/content structure)
- */
-export const isChatMessagesArray = (value: unknown): boolean => {
-    if (!Array.isArray(value)) return false
-    if (value.length === 0) return false
-
-    // Check if at least one item looks like a chat message
-    return value.some(isChatEntry)
 }
 
 /**
@@ -197,17 +161,7 @@ export const extractChatMessages = (
     if (depth > 3) return null
     if (!value) return null
 
-    if (typeof value === "string") {
-        const trimmed = value.trim()
-        if (!trimmed) return null
-
-        const parsed = safeJson5Parse(trimmed)
-        if (parsed !== null && parsed !== value) {
-            return extractChatMessages(parsed, options, depth + 1, seen)
-        }
-
-        return null
-    }
+    if (typeof value === "string") return null
 
     // Direct array - check if it looks like chat messages
     if (Array.isArray(value)) {

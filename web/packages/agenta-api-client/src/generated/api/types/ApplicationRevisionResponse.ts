@@ -12,4 +12,6 @@ export interface ApplicationRevisionResponse {
     application_revision?: (AgentaApi.ApplicationRevision | null) | undefined;
     /** Present only when the request set `resolve: true`. Describes which embedded references were resolved and any errors that occurred. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    /** References used to retrieve the top-level revision. */
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

@@ -20,7 +20,11 @@ class SimpleTraceReferences(UniversalBaseModel):
     evaluator: typing.Optional[Reference] = None
     evaluator_variant: typing.Optional[Reference] = None
     evaluator_revision: typing.Optional[Reference] = None
+    environment: typing.Optional[Reference] = None
+    environment_variant: typing.Optional[Reference] = None
+    environment_revision: typing.Optional[Reference] = None
     testcase: typing.Optional[Reference] = None
+    selector: typing.Optional[typing.Dict[str, typing.Any]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

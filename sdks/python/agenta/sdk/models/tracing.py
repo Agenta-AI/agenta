@@ -106,6 +106,8 @@ class AgAttributes(BaseModel):
     meta: Optional[Meta] = None
     exception: Optional[Data] = None
     references: Optional[Dict[str, "OTelReference"]] = None
+    selector: Optional[Dict[str, str]] = None
+
     unsupported: Optional[Data] = None
 
     model_config = {"ser_json_exclude_none": True}

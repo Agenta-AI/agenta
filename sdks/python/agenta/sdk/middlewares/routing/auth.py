@@ -22,12 +22,16 @@ log = get_module_logger(__name__)
 AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
 
 _AUTH_ENABLED = (
-    getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED", "true").lower() in TRUTHY
-)
+    getenv("AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED")
+    or getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED")
+    or "true"
+).lower() in TRUTHY
 
 _CACHE_ENABLED = (
-    getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
-)
+    getenv("AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED")
+    or getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED")
+    or "true"
+).lower() in TRUTHY
 
 _ALWAYS_ALLOW_LIST = [
     "/health",

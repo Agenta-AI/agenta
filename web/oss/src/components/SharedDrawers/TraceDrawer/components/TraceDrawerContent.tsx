@@ -119,9 +119,14 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
                     />
                 </div>
             </div>
-            <Spin spinning={Boolean(isLoading)} tip="Loading trace…" size="large">
+            <Spin
+                spinning={Boolean(isLoading)}
+                tip="Loading trace…"
+                size="large"
+                wrapperClassName="flex-1 min-h-0 [&_.ant-spin-container]:h-full"
+            >
                 <div className="h-full">
-                    <Splitter className="h-[calc(100%-48px)]">
+                    <Splitter className="h-full">
                         <Splitter.Panel defaultSize={320} collapsible>
                             <TraceTree
                                 activeTraceId={activeId}

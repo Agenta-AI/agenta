@@ -580,13 +580,6 @@ export function createEvaluatorColumns(
                             onClick: (record: EvaluatorTableRow) =>
                                 actions.handleConfigure?.(record),
                         },
-                        {
-                            key: "details",
-                            label: "View details",
-                            icon: <Eye size={16} />,
-                            onClick: (record: EvaluatorTableRow) =>
-                                actions.handleConfigure?.(record),
-                        },
                         {type: "divider" as const},
                         {
                             key: "delete",
