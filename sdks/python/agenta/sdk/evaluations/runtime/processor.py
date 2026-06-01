@@ -37,6 +37,7 @@ class ProcessedScenario(BaseModel):
 
 CreateScenario = Callable[[UUID], Awaitable[Any]]
 RefreshMetrics = Callable[[UUID, Optional[UUID]], Awaitable[Any]]
+PlanCellFilter = Callable[[PlannedCell], bool]
 
 
 async def process_evaluation_source_slice(
@@ -58,6 +59,8 @@ async def process_evaluation_source_slice(
     max_retries: Optional[int] = None,
     retry_delay: Optional[float] = None,
     execute_custom: bool = False,
+    initial_context_by_repeat: Optional[Dict[int, Dict[str, Any]]] = None,
+    plan_cell_filter: Optional[PlanCellFilter] = None,
 ) -> List[ProcessedScenario]:
     """Process concrete source items through the SDK-owned runtime contract.
 
@@ -96,11 +99,19 @@ async def process_evaluation_source_slice(
             is_split=is_split,
             execute_custom=execute_custom,
         )
+        if plan_cell_filter is not None:
+            plan = plan.model_copy(
+                update={
+                    "cells": [cell for cell in plan.cells if plan_cell_filter(cell)]
+                }
+            )
         results: Dict[str, Any] = {}
         context_by_repeat = _initial_context_by_repeat(
             source_item=source_item,
             repeats=repeats,
         )
+        if initial_context_by_repeat:
+            context_by_repeat.update(initial_context_by_repeat)
         scenario_has_pending = False
         scenario_has_errors = False
         scenario_auto_results_created = False

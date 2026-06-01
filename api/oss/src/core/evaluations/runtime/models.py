@@ -16,6 +16,7 @@ DispatchKind = Literal[
     "queue_testcases",
     "live_query",
 ]
+SliceProcessMode = Literal["fill-missing", "force"]
 
 
 class RuntimeModel(BaseModel):
@@ -76,6 +77,7 @@ class TensorSlice(RuntimeModel):
     scenario_ids: Optional[List[UUID]] = None
     step_keys: Optional[List[str]] = None
     repeat_idxs: Optional[List[int]] = None
+    process_mode: SliceProcessMode = "fill-missing"
 
 
 class TensorProbeSummary(RuntimeModel):

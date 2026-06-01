@@ -1,7 +1,7 @@
 """add default evaluation queues
 
 Revision ID: a1d2e3f4a5b6
-Revises: e6f7a8b9c0d1
+Revises: f7a8b9c0d1e2
 Create Date: 2026-05-15 00:00:00
 
 Previously shared revision id `a1b2c3d4e5f6` with
@@ -18,7 +18,7 @@ from typing import Sequence, Union
 from alembic import op
 
 revision: str = "a1d2e3f4a5b6"
-down_revision: Union[str, None] = "e6f7a8b9c0d1"
+down_revision: Union[str, None] = "f7a8b9c0d1e2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

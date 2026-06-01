@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from types import SimpleNamespace
 
 from uuid import UUID
@@ -7,6 +7,7 @@ from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep as SdkEvaluationStep,
     ResolvedSourceItem as SdkResolvedSourceItem,
 )
+from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.evaluations.runtime.processor import (
     process_evaluation_source_slice as sdk_process_evaluation_source_slice,
 )
@@ -45,6 +46,7 @@ from oss.src.core.evaluations.runtime.adapters import (
 )
 from oss.src.core.evaluations.runtime.models import (
     ProcessSummary,
+    PlannedCell,
     ResolvedSourceItem,
 )
 from oss.src.core.evaluations.runtime.sources import (
@@ -54,6 +56,58 @@ from oss.src.core.evaluations.runtime.sources import (
 
 
 log = get_module_logger(__name__)
+
+
+def _cell_key(cell: Any) -> Tuple[str, int]:
+    return cell.step_key, int(cell.repeat_idx or 0)
+
+
+def _cell_is_addressed(
+    *,
+    cell: PlannedCell,
+    requested_steps: set[str],
+    requested_repeats: set[int],
+) -> bool:
+    if requested_steps and cell.step_key not in requested_steps:
+        return False
+    if requested_repeats and cell.repeat_idx not in requested_repeats:
+        return False
+    return True
+
+
+async def _seed_context_by_repeat(
+    *,
+    project_id: UUID,
+    scenario_cells: List[EvaluationResult],
+    invocation_step_keys: set[str],
+    tracing_service: Optional[TracingService],
+) -> Dict[int, Dict[str, Any]]:
+    trace_ids_by_repeat = {
+        int(cell.repeat_idx or 0): cell.trace_id
+        for cell in scenario_cells
+        if cell.step_key in invocation_step_keys and cell.trace_id
+    }
+    if not trace_ids_by_repeat:
+        return {}
+
+    hydrated = await resolve_direct_source_items(
+        project_id=project_id,
+        trace_ids=list(dict.fromkeys(trace_ids_by_repeat.values())),
+        tracing_service=tracing_service,
+    )
+    trace_items = {item.trace_id: item for item in hydrated if item.trace_id}
+    context_by_repeat: Dict[int, Dict[str, Any]] = {}
+
+    for repeat_idx, trace_id in trace_ids_by_repeat.items():
+        item = trace_items.get(trace_id)
+        context_by_repeat[repeat_idx] = {
+            "trace": item.trace if item is not None else None,
+            "trace_id": trace_id,
+            "span_id": item.span_id if item is not None else None,
+            "outputs": item.outputs if item is not None else None,
+        }
+
+    return context_by_repeat
 
 
 async def _resolve_runners_and_revisions(
@@ -242,9 +296,13 @@ class BackendSliceProcessor:
         )
         # Inputs are always needed to rebuild the source binding even when the
         # slice's step_keys exclude them, so probe inputs separately per scenario.
-        scenario_ids = sorted(
-            {cell.scenario_id for cell in existing if cell.scenario_id},
-            key=str,
+        scenario_ids = (
+            sorted(set(tensor_slice.scenario_ids or []), key=str)
+            if tensor_slice.scenario_ids is not None
+            else sorted(
+                {cell.scenario_id for cell in existing if cell.scenario_id},
+                key=str,
+            )
         )
         if not scenario_ids:
             return ProcessSummary()
@@ -262,6 +320,7 @@ class BackendSliceProcessor:
 
         requested_steps = set(tensor_slice.step_keys or [])
         requested_repeats = set(tensor_slice.repeat_idxs or [])
+        force_rerun = tensor_slice.process_mode == "force"
 
         sdk_steps_all = [
             SdkEvaluationStep(
@@ -287,6 +346,7 @@ class BackendSliceProcessor:
             cells_by_step: Dict[str, List[EvaluationResult]] = {}
             for cell in input_cells:
                 cells_by_step.setdefault(cell.step_key, []).append(cell)
+            existing_cell_keys = {_cell_key(cell) for cell in input_cells}
 
             source_item = _source_item_from_input_cells(
                 input_steps=input_steps,
@@ -321,6 +381,47 @@ class BackendSliceProcessor:
                 inputs=resolved.inputs or getattr(resolved.testcase, "data", None),
                 outputs=resolved.outputs,
             )
+            initial_context_by_repeat = await _seed_context_by_repeat(
+                project_id=project_id,
+                scenario_cells=input_cells,
+                invocation_step_keys={step.key for step in invocation_steps},
+                tracing_service=self.tracing_service,
+            )
+            effective_is_split_value = effective_is_split(
+                is_split=bool(run.flags and run.flags.is_split),
+                has_application_steps=bool(invocation_steps),
+                has_evaluator_steps=bool(annotation_steps),
+            )
+            preview_plan = EvaluationPlanner().plan(
+                run_id=run_id,
+                scenario_id=scenario_id,
+                source=sdk_source_item,
+                steps=sdk_steps_all,
+                repeats=run.data.repeats,
+                is_split=effective_is_split_value,
+            )
+            addressed_cells = [
+                cell
+                for cell in preview_plan.cells
+                if _cell_is_addressed(
+                    cell=cell,
+                    requested_steps=requested_steps,
+                    requested_repeats=requested_repeats,
+                )
+            ]
+            if not force_rerun:
+                summary.reused += sum(
+                    1
+                    for cell in addressed_cells
+                    if _cell_key(cell) in existing_cell_keys
+                )
+            target_keys = {
+                _cell_key(cell)
+                for cell in addressed_cells
+                if force_rerun or _cell_key(cell) not in existing_cell_keys
+            }
+            if not target_keys:
+                continue
 
             processed = await sdk_process_evaluation_source_slice(
                 run_id=run_id,
@@ -349,11 +450,7 @@ class BackendSliceProcessor:
                     if self.tracing_service is not None
                     else None
                 ),
-                is_split=effective_is_split(
-                    is_split=bool(run.flags and run.flags.is_split),
-                    has_application_steps=bool(invocation_steps),
-                    has_evaluator_steps=bool(annotation_steps),
-                ),
+                is_split=effective_is_split_value,
                 log_pending=True,
                 refresh_metrics_without_auto_results=True,
                 batch_size=run.data.concurrency.batch_size
@@ -365,13 +462,12 @@ class BackendSliceProcessor:
                 retry_delay=run.data.concurrency.retry_delay
                 if run.data.concurrency
                 else None,
+                initial_context_by_repeat=initial_context_by_repeat,
+                plan_cell_filter=lambda cell: _cell_key(cell) in target_keys,
             )
 
+            summary.created += len(target_keys)
             for item in processed:
-                for step_key, _result in item.results.items():
-                    if requested_steps and step_key not in requested_steps:
-                        continue
-                    summary.created += 1
                 if item.has_pending:
                     summary.pending += 1
                 if item.has_errors:
