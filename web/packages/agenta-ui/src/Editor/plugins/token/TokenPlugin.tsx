@@ -29,10 +29,22 @@ function buildRegexes(templateFormat: TemplateFormat) {
         const exact = /^(\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})$/
         return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
     }
+    if (templateFormat === "mustache") {
+        // Match only variable-like Mustache tags.
+        // Excluded control tags stay plain text:
+        // - sections / inverted sections / closing tags, e.g. {{#items}}, {{^items}}, {{/items}}
+        // - comments, e.g. {{! hidden note }}
+        // - partials, e.g. {{> user_card}}
+        // - delimiter swaps, e.g. {{=<% %>=}}
+        // - unescaped variables, e.g. {{{html}}} or {{& html}}
+        const full = /\{\{\s*(?![#^/!=&>{])(?=[^{}\s])[^{}]*\}\}/
+        const input = /\{\{[^{}]*$/
+        const exact = /^\{\{\s*(?![#^/!=&>{])(?=[^{}\s])[^{}]*\}\}$/
+        return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
+    }
     // Default: {{ }} variable tokens only. Covers "curly" and "mustache" —
-    // mustache shares curly's {{name}} delimiters for plain variables, so it
-    // tokenizes through this path. (fstring also falls through to here, but its
-    // {...} single-brace placeholders are NOT matched by these {{ }} regexes.)
+    // fstring also falls through to here, but its {...} single-brace placeholders
+    // are NOT matched by these {{ }} regexes.
     const full = /\{\{[^{}]*\}\}/
     const input = /\{\{[^{}]*$/
     const exact = /^\{\{[^{}]*\}\}$/
