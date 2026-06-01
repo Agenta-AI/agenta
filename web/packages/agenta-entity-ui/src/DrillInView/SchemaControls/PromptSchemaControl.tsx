@@ -225,14 +225,33 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
         setLocalTemplateFormat(resolvedTemplateFormat)
     }, [resolvedTemplateFormat])
 
-    // Sticky reference to the format the picker was FIRST mounted with —
-    // the original on-disk format for the prompt. Stays available in the
-    // dropdown even after the user switches to a different format, so a
-    // legacy curly/fstring prompt remains revertible mid-session. Reported
-    // by Kaosiso on 2026-06-01: switching curly → mustache made the curly
-    // option vanish; users could not switch back. The sticky ref keeps
-    // both formats selectable for the picker's lifetime.
+    // Sticky reference to the persisted format for THIS revision — the
+    // user's escape hatch back to a legacy format while they have an
+    // uncommitted draft.
+    //
+    // Reported by Kaosiso on 2026-06-01: switching `curly → mustache`
+    // made the curly option vanish from the dropdown before the user had
+    // committed anything; they couldn't switch back. Arda's clarification
+    // in the follow-up DM: "until their config change" — i.e. curly
+    // stays selectable WHILE the change is still a draft, and drops once
+    // it's persisted.
+    //
+    // Implementation: capture the format at mount, then re-capture
+    // whenever `entityId` changes. A commit produces a new revision with
+    // a new entityId, so the ref naturally resets to the new
+    // server-persisted format. Draft changes within the same revision
+    // (which don't change entityId) leave the ref alone — that's the
+    // escape-hatch window.
     const originalTemplateFormatRef = useRef<TemplateFormat>(resolvedTemplateFormat)
+    const prevEntityIdRef = useRef<string | undefined>(entityId)
+    useEffect(() => {
+        if (entityId !== prevEntityIdRef.current) {
+            // New revision — reset the escape hatch to the format that
+            // was just persisted (now reflected in `resolvedTemplateFormat`).
+            originalTemplateFormatRef.current = resolvedTemplateFormat
+            prevEntityIdRef.current = entityId
+        }
+    }, [entityId, resolvedTemplateFormat])
     const stableVariables = variables ?? EMPTY_VARIABLES
 
     // Determine if llm_config is nested
