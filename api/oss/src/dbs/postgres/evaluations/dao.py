@@ -1449,8 +1449,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with self.engine.session() as session:
             mapper = inspect(EvaluationResultDBE)
             column_names = {col.name for col in mapper.columns}
-            values_list = []
             now = datetime.now(timezone.utc)
+            returned_result_dbes = []
 
             for dbe in result_dbes:
                 values_dict = {
@@ -1460,35 +1460,53 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 }
                 values_dict["updated_at"] = now
                 values_dict["updated_by_id"] = user_id
-                values_list.append(values_dict)
+                stmt = pg_insert(EvaluationResultDBE).values(values_dict)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[
+                        EvaluationResultDBE.project_id,
+                        EvaluationResultDBE.run_id,
+                        EvaluationResultDBE.scenario_id,
+                        EvaluationResultDBE.step_key,
+                        EvaluationResultDBE.repeat_idx,
+                    ],
+                    set_={
+                        EvaluationResultDBE.updated_at.name: stmt.excluded.updated_at,
+                        EvaluationResultDBE.updated_by_id.name: stmt.excluded.updated_by_id,
+                        EvaluationResultDBE.hash_id.name: stmt.excluded.hash_id,
+                        EvaluationResultDBE.trace_id.name: stmt.excluded.trace_id,
+                        EvaluationResultDBE.testcase_id.name: stmt.excluded.testcase_id,
+                        EvaluationResultDBE.error.name: stmt.excluded.error,
+                        EvaluationResultDBE.status.name: stmt.excluded.status,
+                        EvaluationResultDBE.interval.name: stmt.excluded.interval,
+                        EvaluationResultDBE.timestamp.name: stmt.excluded.timestamp,
+                        EvaluationResultDBE.flags.name: stmt.excluded.flags,
+                        EvaluationResultDBE.tags.name: stmt.excluded.tags,
+                        EvaluationResultDBE.meta.name: stmt.excluded.meta,
+                        EvaluationResultDBE.version.name: stmt.excluded.version,
+                    },
+                )
+                await session.execute(stmt)
 
-            stmt = pg_insert(EvaluationResultDBE).values(values_list)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=[
-                    EvaluationResultDBE.project_id,
-                    EvaluationResultDBE.run_id,
-                    EvaluationResultDBE.scenario_id,
-                    EvaluationResultDBE.step_key,
-                    EvaluationResultDBE.repeat_idx,
-                ],
-                set_={
-                    EvaluationResultDBE.updated_at.name: stmt.excluded.updated_at,
-                    EvaluationResultDBE.updated_by_id.name: stmt.excluded.updated_by_id,
-                    EvaluationResultDBE.hash_id.name: stmt.excluded.hash_id,
-                    EvaluationResultDBE.trace_id.name: stmt.excluded.trace_id,
-                    EvaluationResultDBE.testcase_id.name: stmt.excluded.testcase_id,
-                    EvaluationResultDBE.error.name: stmt.excluded.error,
-                    EvaluationResultDBE.status.name: stmt.excluded.status,
-                    EvaluationResultDBE.interval.name: stmt.excluded.interval,
-                    EvaluationResultDBE.timestamp.name: stmt.excluded.timestamp,
-                    EvaluationResultDBE.flags.name: stmt.excluded.flags,
-                    EvaluationResultDBE.tags.name: stmt.excluded.tags,
-                    EvaluationResultDBE.meta.name: stmt.excluded.meta,
-                    EvaluationResultDBE.version.name: stmt.excluded.version,
-                },
-            )
-            res = await session.execute(stmt.returning(EvaluationResultDBE))
-            returned_result_dbes = res.scalars().all()
+                returned_result_dbe = (
+                    (
+                        await session.execute(
+                            select(EvaluationResultDBE).where(
+                                EvaluationResultDBE.project_id
+                                == values_dict["project_id"],
+                                EvaluationResultDBE.run_id == values_dict["run_id"],
+                                EvaluationResultDBE.scenario_id
+                                == values_dict["scenario_id"],
+                                EvaluationResultDBE.step_key == values_dict["step_key"],
+                                EvaluationResultDBE.repeat_idx
+                                == values_dict["repeat_idx"],
+                            )
+                        )
+                    )
+                    .scalars()
+                    .one_or_none()
+                )
+                if returned_result_dbe is not None:
+                    returned_result_dbes.append(returned_result_dbe)
 
             await session.commit()
 

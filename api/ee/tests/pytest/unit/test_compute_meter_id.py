@@ -25,8 +25,6 @@ from ee.src.core.meters.types import (
     compute_meter_id,
 )
 from ee.src.core.access.entitlements.types import Counter
-from oss.src.utils.env import env
-
 
 # Fixed UUIDs used across the table — keep them stable.
 ORG = uuid.UUID("a1111111-1111-1111-1111-111111111111")
@@ -36,14 +34,13 @@ USR = uuid.UUID("d4444444-4444-4444-4444-444444444444")
 
 
 # ---------------------------------------------------------------------------
-# Namespace UUID — derived from env.agenta.uuid_namespace.
+# Namespace UUID — derived from the fixed project namespace root.
 # ---------------------------------------------------------------------------
 
 
-def test_namespace_uuid_is_derived_from_uuid_namespace():
-    """The meters namespace must be a stable derivative of the project-wide
-    AGENTA_UUID_NAMESPACE. Changing either side forces a full re-backfill."""
-    expected = uuid.uuid5(env.agenta.uuid_namespace, "meters")
+def test_namespace_uuid_is_derived_from_fixed_root_namespace():
+    """The meters namespace must remain a stable derivative of the fixed root."""
+    expected = uuid.uuid5(uuid.uuid5(uuid.NAMESPACE_DNS, "agenta"), "meters")
     assert AGENTA_METERS_NAMESPACE_UUID == expected
 
 

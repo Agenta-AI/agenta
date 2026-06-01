@@ -3,6 +3,36 @@ from uuid import uuid4
 import pytest
 
 
+def _commit_workflow_revision(
+    authed_api,
+    *,
+    workflow_id,
+    workflow_variant_id,
+    slug,
+    name,
+    description,
+    flags,
+    tags,
+    meta,
+):
+    return authed_api(
+        "POST",
+        "/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": slug,
+                "name": name,
+                "description": description,
+                "flags": flags,
+                "tags": tags,
+                "meta": meta,
+                "workflow_id": workflow_id,
+                "workflow_variant_id": workflow_variant_id,
+            }
+        },
+    )
+
+
 @pytest.fixture(scope="class")
 def mock_data(authed_api):
     # ARRANGE --------------------------------------------------------------
@@ -139,32 +169,27 @@ class TestWorkflowRevisionsBasics:
         # ARRANGE --------------------------------------------------------------
         workflow_revision_slug = uuid4()
 
-        response = authed_api(
-            "POST",
-            "/workflows/revisions/",
-            json={
-                "workflow_revision": {
-                    "slug": f"workflow-revision-{workflow_revision_slug}",
-                    "name": f"Workflow Revision {workflow_revision_slug}",
-                    "description": "Workflow Revision Description",
-                    "flags": {
-                        "is_custom": False,
-                        "is_evaluator": False,
-                        "is_feedback": False,
-                    },
-                    "tags": {
-                        "tag1": "value1",
-                        "tag2": "value2",
-                        "tag3": "value3",
-                    },
-                    "meta": {
-                        "meta1": "value1",
-                        "meta2": "value2",
-                        "meta3": "value3",
-                    },
-                    "workflow_id": mock_data["workflows"][0]["id"],
-                    "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
-                }
+        response = _commit_workflow_revision(
+            authed_api,
+            workflow_id=mock_data["workflows"][0]["id"],
+            workflow_variant_id=mock_data["workflow_variants"][0]["id"],
+            slug=f"workflow-revision-{workflow_revision_slug}",
+            name=f"Workflow Revision {workflow_revision_slug}",
+            description="Workflow Revision Description",
+            flags={
+                "is_custom": False,
+                "is_evaluator": False,
+                "is_feedback": False,
+            },
+            tags={
+                "tag1": "value1",
+                "tag2": "value2",
+                "tag3": "value3",
+            },
+            meta={
+                "meta1": "value1",
+                "meta2": "value2",
+                "meta3": "value3",
             },
         )
 
@@ -196,32 +221,27 @@ class TestWorkflowRevisionsBasics:
         # ARRANGE --------------------------------------------------------------
         workflow_revision_slug = uuid4()
 
-        response = authed_api(
-            "POST",
-            "/workflows/revisions/",
-            json={
-                "workflow_revision": {
-                    "slug": f"workflow-revision-{workflow_revision_slug}",
-                    "name": f"Workflow revision {workflow_revision_slug}",
-                    "description": "Workflow revision Description",
-                    "flags": {
-                        "is_custom": False,
-                        "is_evaluator": False,
-                        "is_feedback": False,
-                    },
-                    "tags": {
-                        "tag1": "value1",
-                        "tag2": "value2",
-                        "tag3": "value3",
-                    },
-                    "meta": {
-                        "meta1": "value1",
-                        "meta2": "value2",
-                        "meta3": "value3",
-                    },
-                    "workflow_id": mock_data["workflows"][0]["id"],
-                    "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
-                }
+        response = _commit_workflow_revision(
+            authed_api,
+            workflow_id=mock_data["workflows"][0]["id"],
+            workflow_variant_id=mock_data["workflow_variants"][0]["id"],
+            slug=f"workflow-revision-{workflow_revision_slug}",
+            name=f"Workflow revision {workflow_revision_slug}",
+            description="Workflow revision Description",
+            flags={
+                "is_custom": False,
+                "is_evaluator": False,
+                "is_feedback": False,
+            },
+            tags={
+                "tag1": "value1",
+                "tag2": "value2",
+                "tag3": "value3",
+            },
+            meta={
+                "meta1": "value1",
+                "meta2": "value2",
+                "meta3": "value3",
             },
         )
 
@@ -276,32 +296,27 @@ class TestWorkflowRevisionsBasics:
         # ARRANGE --------------------------------------------------------------
         workflow_revision_slug = uuid4()
 
-        response = authed_api(
-            "POST",
-            "/workflows/revisions/",
-            json={
-                "workflow_revision": {
-                    "slug": f"workflow-revision-{workflow_revision_slug}",
-                    "name": f"Workflow revision {workflow_revision_slug}",
-                    "description": "Workflow revision Description",
-                    "flags": {
-                        "is_custom": False,
-                        "is_evaluator": False,
-                        "is_feedback": False,
-                    },
-                    "tags": {
-                        "tag1": "value1",
-                        "tag2": "value2",
-                        "tag3": "value3",
-                    },
-                    "meta": {
-                        "meta1": "value1",
-                        "meta2": "value2",
-                        "meta3": "value3",
-                    },
-                    "workflow_id": mock_data["workflows"][0]["id"],
-                    "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
-                }
+        response = _commit_workflow_revision(
+            authed_api,
+            workflow_id=mock_data["workflows"][0]["id"],
+            workflow_variant_id=mock_data["workflow_variants"][0]["id"],
+            slug=f"workflow-revision-{workflow_revision_slug}",
+            name=f"Workflow revision {workflow_revision_slug}",
+            description="Workflow revision Description",
+            flags={
+                "is_custom": False,
+                "is_evaluator": False,
+                "is_feedback": False,
+            },
+            tags={
+                "tag1": "value1",
+                "tag2": "value2",
+                "tag3": "value3",
+            },
+            meta={
+                "meta1": "value1",
+                "meta2": "value2",
+                "meta3": "value3",
             },
         )
 
@@ -335,32 +350,27 @@ class TestWorkflowRevisionsBasics:
         # ARRANGE --------------------------------------------------------------
         workflow_revision_slug = uuid4()
 
-        response = authed_api(
-            "POST",
-            "/workflows/revisions/",
-            json={
-                "workflow_revision": {
-                    "slug": f"workflow-revision-{workflow_revision_slug}",
-                    "name": f"Workflow revision {workflow_revision_slug}",
-                    "description": "Workflow revision Description",
-                    "flags": {
-                        "is_custom": False,
-                        "is_evaluator": False,
-                        "is_feedback": False,
-                    },
-                    "tags": {
-                        "tag1": "value1",
-                        "tag2": "value2",
-                        "tag3": "value3",
-                    },
-                    "meta": {
-                        "meta1": "value1",
-                        "meta2": "value2",
-                        "meta3": "value3",
-                    },
-                    "workflow_id": mock_data["workflows"][0]["id"],
-                    "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
-                }
+        response = _commit_workflow_revision(
+            authed_api,
+            workflow_id=mock_data["workflows"][0]["id"],
+            workflow_variant_id=mock_data["workflow_variants"][0]["id"],
+            slug=f"workflow-revision-{workflow_revision_slug}",
+            name=f"Workflow revision {workflow_revision_slug}",
+            description="Workflow revision Description",
+            flags={
+                "is_custom": False,
+                "is_evaluator": False,
+                "is_feedback": False,
+            },
+            tags={
+                "tag1": "value1",
+                "tag2": "value2",
+                "tag3": "value3",
+            },
+            meta={
+                "meta1": "value1",
+                "meta2": "value2",
+                "meta3": "value3",
             },
         )
 
@@ -404,32 +414,27 @@ class TestWorkflowRevisionsBasics:
         # ARRANGE --------------------------------------------------------------
         workflow_revision_slug = uuid4()
 
-        response = authed_api(
-            "POST",
-            "/workflows/revisions/",
-            json={
-                "workflow_revision": {
-                    "slug": f"workflow-revision-{workflow_revision_slug}",
-                    "name": f"Workflow revision {workflow_revision_slug}",
-                    "description": "Workflow revision Description",
-                    "flags": {
-                        "is_custom": False,
-                        "is_evaluator": False,
-                        "is_feedback": False,
-                    },
-                    "tags": {
-                        "tag1": "value1",
-                        "tag2": "value2",
-                        "tag3": "value3",
-                    },
-                    "meta": {
-                        "meta1": "value1",
-                        "meta2": "value2",
-                        "meta3": "value3",
-                    },
-                    "workflow_id": mock_data["workflows"][0]["id"],
-                    "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
-                }
+        response = _commit_workflow_revision(
+            authed_api,
+            workflow_id=mock_data["workflows"][0]["id"],
+            workflow_variant_id=mock_data["workflow_variants"][0]["id"],
+            slug=f"workflow-revision-{workflow_revision_slug}",
+            name=f"Workflow revision {workflow_revision_slug}",
+            description="Workflow revision Description",
+            flags={
+                "is_custom": False,
+                "is_evaluator": False,
+                "is_feedback": False,
+            },
+            tags={
+                "tag1": "value1",
+                "tag2": "value2",
+                "tag3": "value3",
+            },
+            meta={
+                "meta1": "value1",
+                "meta2": "value2",
+                "meta3": "value3",
             },
         )
 

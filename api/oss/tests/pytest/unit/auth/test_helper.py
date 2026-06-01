@@ -148,9 +148,11 @@ async def test_get_blocked_emails_treats_posthog_errors_as_empty(monkeypatch):
         "env",
         SimpleNamespace(
             agenta=SimpleNamespace(
-                blocked_domains=set(),
-                blocked_emails=set(),
-                allowed_domains=set(),
+                access=SimpleNamespace(
+                    blocked_domains=set(),
+                    blocked_emails=set(),
+                    allowed_domains=set(),
+                ),
             ),
             posthog=SimpleNamespace(enabled=True),
         ),

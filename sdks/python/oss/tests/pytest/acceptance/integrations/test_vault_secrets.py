@@ -2,7 +2,7 @@
 Integration tests for Vault/Secrets functionality.
 
 These tests verify:
-1. Permissions verification via access.check_permissions()
+1. Permissions verification via access.verify_permissions()
 2. Secrets CRUD via secrets.list_secrets(), create_secret(), read_secret(), delete_secret()
 
 The vault middleware uses these endpoints during workflow execution to:
@@ -13,6 +13,7 @@ The vault middleware uses these endpoints during workflow execution to:
 import time
 
 import pytest
+import requests
 
 import agenta as ag
 from agenta.client.types import (
@@ -53,17 +54,28 @@ def _wait_for_secret_ids(
 class TestAccessControlPermissions:
     """Test access control permission verification."""
 
-    def test_check_permissions_for_local_secrets(self, agenta_init):
+    @staticmethod
+    def _check_permissions(*, e2e_account):
+        response = requests.get(
+            f"{e2e_account['api_url']}/access/permissions/check",
+            headers={"Authorization": e2e_account["credentials"]},
+            params={
+                "action": "view_secret",
+                "resource_type": "local_secrets",
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def test_verify_permissions_for_local_secrets(self, agenta_init, e2e_account):
         """
-        Test that check_permissions works for local_secrets resource.
+        Test that the permission check endpoint works for local_secrets resource.
 
         This is the same call the vault middleware makes to check if
         a user can use local (env var) secrets during workflow execution.
         """
-        result = ag.api.access.check_permissions(
-            action="view_secret",
-            resource_type="local_secrets",
-        )
+        result = self._check_permissions(e2e_account=e2e_account)
 
         # The response should indicate the permission effect
         assert result is not None
@@ -72,14 +84,13 @@ class TestAccessControlPermissions:
         # Effect should be "allow" or "deny"
         assert result["effect"] in ("allow", "deny")
 
-    def test_check_permissions_returns_allow_for_valid_user(self, agenta_init):
+    def test_verify_permissions_returns_allow_for_valid_user(
+        self, agenta_init, e2e_account
+    ):
         """
         Test that a valid API key gets 'allow' effect for view_secret.
         """
-        result = ag.api.access.check_permissions(
-            action="view_secret",
-            resource_type="local_secrets",
-        )
+        result = self._check_permissions(e2e_account=e2e_account)
 
         assert result is not None
         # A valid API key should have permission to view secrets

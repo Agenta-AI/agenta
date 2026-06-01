@@ -114,7 +114,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/workflows/revisions/",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-second",
@@ -147,7 +147,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/workflows/revisions/",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-third",

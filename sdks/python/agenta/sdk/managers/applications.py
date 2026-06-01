@@ -264,36 +264,6 @@ async def aupsert(
     # print("Retrieve response:", retrieve_response)
 
     if retrieve_response and retrieve_response.id and retrieve_response.application_id:
-        existing_application_name = None
-        try:
-            with_name = await _fetch_simple_application(
-                application_id=retrieve_response.application_id
-            )
-        except ValueError as e:
-            print(
-                "[WARN]: Failed to fetch existing application for name preservation; "
-                f"continuing without it: {e}"
-            )
-            with_name = None
-        if with_name:
-            existing_application_name = with_name.name
-
-        # TEMPORARY: API simple application edit currently rejects renaming.
-        # Preserve the existing stored name when updating by slug/id so evaluate()
-        # can keep syncing configuration/data without triggering rename failures.
-        if (
-            existing_application_name
-            and name is not None
-            and name != existing_application_name
-        ):
-            print(
-                "[INFO]: Renaming applications is temporarily disabled. "
-                f"Using existing application name '{existing_application_name}'."
-            )
-            name = existing_application_name
-        elif existing_application_name and name is None:
-            name = existing_application_name
-
         application_id = retrieve_response.application_id
         # print(" --- Updating application...", application_id)
         application_edit_request = SimpleApplicationEdit(

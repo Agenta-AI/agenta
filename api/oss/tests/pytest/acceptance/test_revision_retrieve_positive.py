@@ -73,7 +73,7 @@ def _create_workflow_stack(authed_api):
 
     response = authed_api(
         "POST",
-        "/workflows/revisions/",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"wfr2-{slug}",
