@@ -135,5 +135,8 @@ export const useProjectPermissions = () => {
         canExportData: hasPermission("view_api_keys") && hasPermission("edit_api_keys"),
         canViewApiKeys: hasPermission("view_api_keys"),
         canEditApiKeys: hasPermission("edit_api_keys"),
+        // Audit Log tab visibility is a permission check (`view_events`), distinct
+        // from the entitlement (`Flag.AUDIT`) that gates the page content.
+        canViewEvents: hasPermission("view_events"),
     }
 }

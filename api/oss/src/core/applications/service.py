@@ -21,6 +21,8 @@ from oss.src.core.workflows.dtos import (
     #
 )
 from oss.src.core.shared.dtos import Windowing, Reference
+from oss.src.core.git.dtos import RetrievalInfo
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
@@ -601,15 +603,25 @@ class ApplicationsService:
         application_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
-    ) -> tuple[Optional[ApplicationRevision], Optional[ResolutionInfo]]:
-        if environment_ref or environment_variant_ref or environment_revision_ref:
+    ) -> tuple[
+        Optional[ApplicationRevision],
+        Optional[ResolutionInfo],
+        Optional[RetrievalInfo],
+    ]:
+        environment_retrieval_info: Optional[RetrievalInfo] = None
+        is_environment_backed = bool(
+            environment_ref or environment_variant_ref or environment_revision_ref
+        )
+
+        if is_environment_backed:
             environments_service = self.workflows_service.environments_service
             if not environments_service:
-                return None, None
+                return None, None, None
 
             (
-                env_revision,
+                environment_revision,
                 _,
+                environment_retrieval_info,
             ) = await environments_service.retrieve_environment_revision(
                 project_id=project_id,
                 #
@@ -619,8 +631,8 @@ class ApplicationsService:
             )
 
             references_by_key = (
-                env_revision.data.references
-                if env_revision and env_revision.data
+                environment_revision.data.references
+                if environment_revision and environment_revision.data
                 else None
             )
             application_references = (
@@ -628,7 +640,7 @@ class ApplicationsService:
             )
 
             if not application_references:
-                return None, None
+                return None, None, None
 
             env_application_ref = application_references.get("application")
             env_application_variant_ref = application_references.get(
@@ -660,16 +672,36 @@ class ApplicationsService:
                 application_variant_ref=application_variant_ref,
                 application_revision_ref=application_revision_ref,
             )
-            return result if result else (None, None)
+            application_revision, resolution_info = result if result else (None, None)
+        else:
+            application_revision = await self.fetch_application_revision(
+                project_id=project_id,
+                #
+                application_ref=application_ref,
+                application_variant_ref=application_variant_ref,
+                application_revision_ref=application_revision_ref,
+            )
+            resolution_info = None
 
-        application_revision = await self.fetch_application_revision(
-            project_id=project_id,
-            #
-            application_ref=application_ref,
-            application_variant_ref=application_variant_ref,
-            application_revision_ref=application_revision_ref,
-        )
-        return application_revision, None
+        if is_environment_backed:
+            environment_references = (
+                environment_retrieval_info.references
+                if environment_retrieval_info
+                else None
+            )
+            retrieval_info = build_retrieval_info(
+                revision=application_revision,
+                entity_type="application",
+                environment_references=environment_references,
+                selector_key=key,
+            )
+        else:
+            retrieval_info = build_retrieval_info(
+                revision=application_revision,
+                entity_type="application",
+            )
+
+        return application_revision, resolution_info, retrieval_info
 
     async def edit_application_revision(
         self,
@@ -815,6 +847,8 @@ class ApplicationsService:
         user_id: UUID,
         #
         application_revision_commit: ApplicationRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[ApplicationRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **application_revision_commit.model_dump(
@@ -827,6 +861,10 @@ class ApplicationsService:
             user_id=user_id,
             #
             workflow_revision_commit=workflow_revision_commit,
+            #
+            initial=initial,
+            #
+            emit=False,
         )
 
         if not workflow_revision:
@@ -841,10 +879,10 @@ class ApplicationsService:
         # Write-action emission lives in the SERVICE layer (read actions live
         # in the router). Every caller of commit_application_revision — direct
         # commit route, simple-service create/edit, deploy paths — therefore
-        # emits exactly one `applications.revisions.committed` event. See
+        # emits exactly one `workflows.revisions.committed` event. See
         # core/events/utils.py for the read-vs-write split rationale.
         await publish_revision_event(
-            domain="application",
+            domain="workflow",
             action="commit",
             project_id=project_id,
             user_id=user_id,
