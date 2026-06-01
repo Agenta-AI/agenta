@@ -18,7 +18,7 @@ Legend: 🔴 not started · 🟡 in progress · 🟢 fixed · ⚪ deferred
 | 3 | Mustache form: can't add second sub-field | 🟢 fixed | `e26ca33a47` |
 | 4 | Text/markdown swapped in messages dropdown | ⚪ deferred | Needs video or repro to identify the actual swap |
 | 5 | Chat: `messages` in unused-columns footer | 🟢 fixed | `e08cb4e772` |
-| 6 | Chat multi-testcase regression | 🟢 fixed | `e08cb4e772` |
+| 6 | Chat multi-testcase regression | 🟢 fixed | `e08cb4e772` + `577da0e741` (radio rows) |
 | 7 | Autocomplete broken (post-merge regression) | 🟢 fixed | `693ac2457e` |
 
 **4 fixed and pushed · 3 deferred.** Next QA pass should start by re-testing
