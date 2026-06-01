@@ -13,7 +13,7 @@
  * - Object with "messages" property that is an array of role/content items
  */
 
-import {memo, useCallback, useEffect, useMemo, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import type {SimpleChatMessage} from "@agenta/shared/types"
@@ -224,6 +224,15 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     useEffect(() => {
         setLocalTemplateFormat(resolvedTemplateFormat)
     }, [resolvedTemplateFormat])
+
+    // Sticky reference to the format the picker was FIRST mounted with —
+    // the original on-disk format for the prompt. Stays available in the
+    // dropdown even after the user switches to a different format, so a
+    // legacy curly/fstring prompt remains revertible mid-session. Reported
+    // by Kaosiso on 2026-06-01: switching curly → mustache made the curly
+    // option vanish; users could not switch back. The sticky ref keeps
+    // both formats selectable for the picker's lifetime.
+    const originalTemplateFormatRef = useRef<TemplateFormat>(resolvedTemplateFormat)
     const stableVariables = variables ?? EMPTY_VARIABLES
 
     // Determine if llm_config is nested
@@ -577,7 +586,10 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                                 [templateFormatKey]: format,
                             })
                         }}
-                        options={buildTemplateFormatOptions(localTemplateFormat)}
+                        options={buildTemplateFormatOptions(
+                            localTemplateFormat,
+                            originalTemplateFormatRef.current,
+                        )}
                         className="min-w-[130px]"
                         popupMatchSelectWidth={false}
                         style={{height: 24}}

@@ -21,13 +21,12 @@ Legend: 🔴 not started · 🟡 in progress · 🟢 fixed · ⚪ deferred
 | 6 | Chat multi-testcase regression | Mahmoud | 🟢 fixed | `e08cb4e772` + `577da0e741` (radio rows) |
 | 7 | Autocomplete broken (post-merge regression) | Mahmoud | 🟢 fixed | `693ac2457e` |
 | 8 | Cursor jumps outside `{{...}}` after first char (mustache) | Kaosiso | ⚪ deferred | Cleaner description of #2 — re-test post-#7 |
-| 9 | `curly` option disappears from picker after switching away | Kaosiso | 🔴 not started | TemplateFormatPicker keeps legacy option only when prompt is on it |
+| 9 | `curly` option disappears from picker after switching away | Kaosiso | 🟢 fixed | (commit pending) — sticky original-format ref + 6 new tests |
 
-**4 fixed and pushed · 5 outstanding.** Next QA pass should:
+**5 fixed and pushed · 4 outstanding.** Next QA pass should:
 1. Re-test #2 + #8 against the post-#7 fix (likely both resolved by the regex change)
-2. Hit #9 next (UX-clear, scope contained to `templateFormatOptions.ts`)
-3. Ask Mahmoud for video timestamp / repro on #4
-4. Hand off #1 to JP for backend triage
+2. Ask Mahmoud for video timestamp / repro on #4
+3. Hand off #1 to JP for backend triage
 
 ---
 
@@ -379,7 +378,7 @@ mustache-specific code path may not handle the in-token caret case.
 2. If still broken: profile each keystroke in React DevTools to find
    the remount, walk the caret-restoration code.
 
-## 9. 🔴 `curly` picker option disappears after switching away in old apps
+## 9. 🟢 `curly` picker option disappears after switching away in old apps
 
 **Slack ts:** 1780316376.172399 (Kaosiso, 2026-06-01 12:19Z)
 **Attachments:** `F0B7ES3EP8A`, `F0B78EZKTV1` (before/after screenshots)
