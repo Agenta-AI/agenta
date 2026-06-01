@@ -15,10 +15,12 @@ import {Button, Input, Skeleton, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {extractTestcaseUserData, testcaseEntityAtomFamily} from "@/oss/state/entities/testcase"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
+import {objectColumnSubKeysAtom} from "@/oss/state/entities/testcase/columnState"
 
 import {testcasesDatasetStore, type TestcaseTableRow} from "../atoms/tableStore"
 import type {UseTestcasesTableResult} from "../hooks/types"
@@ -197,6 +199,10 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
     // Get the global Jotai store so entity atoms are accessible inside the table
     const globalStore = useMemo(() => getDefaultStore(), [])
 
+    // Subscribe to object sub-keys so groupHeaderTypeVariants recomputes when
+    // entity data changes (e.g., a column changes from string to native object).
+    const entityObjectSubKeys = useAtomValue(objectColumnSubKeysAtom)
+
     const parentColumnKeys = useMemo(() => {
         const parents = new Set<string>()
 
@@ -293,6 +299,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         rowsForTypeChips,
         showTypeChips,
         typeChipFeature.typeChips,
+        entityObjectSubKeys,
     ])
 
     const settingsMenuItems = useMemo<MenuProps["items"]>(

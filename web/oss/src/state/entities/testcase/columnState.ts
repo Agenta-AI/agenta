@@ -335,7 +335,14 @@ export const currentColumnsAtom = atom((get) => {
         }
     })
 
-    return Array.from(columnMap.values())
+    // Filter out flat columns that are strict ancestor prefixes of nested columns
+    // already in the map. If "ddd" and "ddd.ashraf" both land in the map, "ddd"
+    // as a standalone data column conflicts with the nested column definition —
+    // remove it so the table and drawer see only "ddd.ashraf".
+    const allKeys = Array.from(columnMap.keys())
+    return Array.from(columnMap.values()).filter(
+        (col) => !allKeys.some((k) => k !== col.key && k.startsWith(col.key + ".")),
+    )
 })
 
 // ============================================================================
@@ -524,7 +531,12 @@ export const expandedColumnsAtom = atom((get) => {
         }
     })
 
-    return expandedColumns
+    const seenKeys = new Set<string>()
+    return expandedColumns.filter((column) => {
+        if (seenKeys.has(column.key)) return false
+        seenKeys.add(column.key)
+        return true
+    })
 })
 
 // ============================================================================
