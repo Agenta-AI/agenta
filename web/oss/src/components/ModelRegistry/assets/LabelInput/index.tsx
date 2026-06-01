@@ -15,6 +15,7 @@ const LabelInput = ({
     ...props
 }: LabelInputProps) => {
     const resolvedInputType = type ?? inputType
+    const isPassword = resolvedInputType === "password"
 
     return (
         <div className="rounded-lg border border-solid border-[#BDC7D1] p-1 pl-2.5">
@@ -24,6 +25,8 @@ const LabelInput = ({
                     variant="borderless"
                     className={clsx("px-0 rounded-none", className)}
                     autoSize={{minRows: 1}}
+                    spellCheck={false}
+                    autoComplete="off"
                     style={{
                         overflowY: "hidden",
                         overflowX: "hidden",
@@ -32,11 +35,21 @@ const LabelInput = ({
                     }}
                     {...(props as TextAreaProps)}
                 />
+            ) : isPassword ? (
+                <Input.Password
+                    variant="borderless"
+                    className={clsx("px-0 rounded-none", className)}
+                    spellCheck={false}
+                    autoComplete="new-password"
+                    {...props}
+                />
             ) : (
                 <Input
                     variant="borderless"
                     className={clsx("px-0 rounded-none", className)}
                     type={resolvedInputType}
+                    spellCheck={false}
+                    autoComplete="off"
                     {...props}
                 />
             )}
