@@ -235,6 +235,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.needs_deployment == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Wait for deployed web and API
         env:
@@ -247,7 +248,7 @@ jobs:
 
             echo "Waiting for ${label}: ${url}"
             for attempt in $(seq 1 30); do
-              if curl -sfL -o /dev/null "$url" 2>/dev/null; then
+              if curl -sfL --max-time 10 --connect-timeout 5 -o /dev/null "$url" 2>/dev/null; then
                 echo "${label} is ready."
                 return 0
               fi
