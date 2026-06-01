@@ -104,7 +104,11 @@ const ExecutionHeader = ({
                 "border-0 border-b border-solid border-colorBorderSecondary",
                 "sticky top-0 z-10",
                 isComparisonView
-                    ? "h-[40px] bg-[var(--ant-control-item-bg-active)]"
+                    ? // control-item-bg-active is derived from colorPrimary, which is the
+                      // brand yellow in dark — so the compare header rendered olive and
+                      // inconsistent with the single-mode header. In dark, fall back to the
+                      // same neutral surface single mode uses. Light keeps the active tint.
+                      "h-[40px] bg-[var(--ant-control-item-bg-active)] dark:bg-[var(--ag-c-FFFFFF)]"
                     : "h-[48px] bg-[var(--ag-c-FFFFFF)]",
                 className,
             )}
