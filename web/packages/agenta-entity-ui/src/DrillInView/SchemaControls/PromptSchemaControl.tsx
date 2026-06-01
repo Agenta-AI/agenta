@@ -21,8 +21,8 @@ import {ChatMessageList} from "@agenta/ui/chat-message"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Plus} from "@phosphor-icons/react"
-import {Button, Select} from "antd"
+import {Info, Plus} from "@phosphor-icons/react"
+import {Alert, Button, Select} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 import {ResponseFormatControl, type ResponseFormatValue} from "./ResponseFormatControl"
@@ -548,6 +548,44 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                     })}
                 </div>
             )}
+
+            {/* One-way migration warning for legacy formats. Surfaces ONLY
+             *  while the user has:
+             *    1. an original (server-persisted) format of `curly` or
+             *       `fstring` — the two legacy formats hidden from the
+             *       picker for new prompts, and
+             *    2. picked a non-legacy alternative in the dropdown
+             *       (`localTemplateFormat !== original`), and
+             *    3. not yet committed the draft (the original ref is
+             *       sticky for the lifetime of THIS revision — once the
+             *       draft commits, a new revision is loaded and the ref
+             *       resets to the now-persisted non-legacy format,
+             *       legitimately dropping curly/fstring from the picker).
+             *
+             *  So the banner is the actionable window: "you can still
+             *  bail by discarding". Once committed, it disappears with
+             *  the legacy option itself. */}
+            {!disabled &&
+                (originalTemplateFormatRef.current === "curly" ||
+                    originalTemplateFormatRef.current === "fstring") &&
+                localTemplateFormat !== originalTemplateFormatRef.current && (
+                    <Alert
+                        type="info"
+                        showIcon
+                        icon={<Info size={14} />}
+                        className="!py-1 !px-2 !rounded-md"
+                        message={
+                            <span className="text-[12px]">
+                                Switching from{" "}
+                                <code className="font-mono text-[11px] bg-[#e6f4ff] px-1 rounded">
+                                    {originalTemplateFormatRef.current}
+                                </code>{" "}
+                                is permanent — once you commit, you won&apos;t be able to switch
+                                back. Discard the draft to revert.
+                            </span>
+                        }
+                    />
+                )}
 
             {/* Action bar - Message, Tool, Output type, Template format */}
             {!disabled && (
