@@ -24,7 +24,7 @@
 
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
-import {fetchTestcasesPage} from "@agenta/entities/testcase"
+import {fetchTestcasesPage, testcaseMolecule} from "@agenta/entities/testcase"
 import type {TraceSpan, TraceSpanNode} from "@agenta/entities/trace"
 import {extractAgData, extractInputs, extractOutputs} from "@agenta/entities/trace"
 import {
@@ -1907,6 +1907,13 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
                     oldLoadableId,
                     newLoadableId: newAnchorLoadableId,
                 })
+                // After the loadable re-link, the testcase row store is still
+                // carrying every key the *previous* primary populated (chat
+                // `messages`, old completion variables, etc.). Reconcile each
+                // row against the NEW primary's input schema so the UI shows
+                // only the relevant variables and execution doesn't have to
+                // strip them later (#4525 / AGE-3793).
+                pruneTestcaseRowsForEntity(get, set, anchorSwap.newEntityId)
             }
         }
     }
@@ -2123,6 +2130,108 @@ function relinkLoadableSessions(
     } else if (execRewrote) {
         set(executionStateAtomFamily(oldLoadableId), nextExecState)
     }
+}
+
+/**
+ * Chat-conversation transport keys that accumulate on a shared testcase row
+ * when a chat app runs (#4525 / AGE-3793). They are not template variables;
+ * they describe a conversation. Used as the strip set when the new primary's
+ * input schema is open (`additionalProperties !== false`), where the strict
+ * allow-list would over-prune evaluator rows that depend on extra columns.
+ */
+const CHAT_TRANSPORT_KEYS = ["messages"] as const
+
+/**
+ * Reconcile every testcase row against the new primary entity's input
+ * schema.
+ *
+ * Why this exists: the testcase row store (`testcaseMolecule`) is shared
+ * across loadables. When the user swaps the primary app in the LLM-as-a-
+ * judge playground (anchor swap in `setEntityIdsAtom`), the row data keeps
+ * every key the *previous* primary populated — chat `messages`, completion
+ * template variables that the new app doesn't declare, etc. Without
+ * reconciliation, those stale keys leak into the new app's request body
+ * via the downstream "spread all keys" fallbacks.
+ *
+ * Handling at the row layer (here) makes the UI immediately reflect the
+ * new app's variables and removes the need for execution-time stripping.
+ *
+ * Schema cases:
+ *   - Closed schema (`additionalProperties: false`): drop any row key not
+ *     declared by `inputSchema.properties`.
+ *   - Open schema (additionalProperties unset or true): only drop the
+ *     CHAT_TRANSPORT_KEYS set — evaluator workflows that legitimately
+ *     spread testcase columns still receive them.
+ *   - Schema not resolved: skip silently. The execution-time strip in
+ *     `executionRunner.ts` is the fallback during this hydration window.
+ *     A console.warn is emitted so we can see when it happens.
+ *
+ * Mutations go through `testcaseMolecule.actions.batchUpdate` setting
+ * stale keys to `undefined`, which the store's update reducer interprets
+ * as a delete. Drafts are created as needed (one per affected row).
+ */
+function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string) {
+    const schemas = get(workflowMolecule.selectors.ioSchemas(entityId)) as
+        | {inputSchema?: unknown}
+        | undefined
+    const inputSchema = schemas?.inputSchema as
+        | {properties?: Record<string, unknown>; additionalProperties?: unknown}
+        | undefined
+    const properties = inputSchema?.properties
+    const declared =
+        properties && typeof properties === "object" ? new Set(Object.keys(properties)) : null
+
+    if (!declared) {
+        console.warn("[playgroundController.prune] schema-not-resolved on swap", {
+            entityId,
+            // Without the schema we can't safely decide what to drop. The
+            // execution-time strip catches the leak window for now.
+        })
+        return
+    }
+
+    const isClosedSchema = inputSchema?.additionalProperties === false
+    const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+    if (!Array.isArray(displayRowIds) || displayRowIds.length === 0) return
+
+    const updates: {id: string; updates: {data: Record<string, unknown>}}[] = []
+    const droppedPerRow: Record<string, string[]> = {}
+
+    for (const rowId of displayRowIds) {
+        const row = get(testcaseMolecule.data(rowId))
+        const data = (row as {data?: Record<string, unknown>} | null)?.data
+        if (!data || typeof data !== "object") continue
+
+        const keysToDrop: string[] = []
+        if (isClosedSchema) {
+            for (const key of Object.keys(data)) {
+                if (!declared.has(key)) keysToDrop.push(key)
+            }
+        } else {
+            for (const key of CHAT_TRANSPORT_KEYS) {
+                if (key in data && !declared.has(key)) keysToDrop.push(key)
+            }
+        }
+        if (keysToDrop.length === 0) continue
+
+        const undefinedData: Record<string, unknown> = {}
+        for (const key of keysToDrop) {
+            undefinedData[key] = undefined
+        }
+        updates.push({id: rowId, updates: {data: undefinedData}})
+        droppedPerRow[rowId] = keysToDrop
+    }
+
+    if (updates.length === 0) return
+
+    console.warn("[playgroundController.prune] dropped stale keys after primary swap", {
+        entityId,
+        rowsAffected: updates.length,
+        schemaMode: isClosedSchema ? "closed" : "open",
+        droppedPerRow,
+    })
+
+    set(testcaseMolecule.actions.batchUpdate, updates)
 }
 
 /**
