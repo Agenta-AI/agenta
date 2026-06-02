@@ -7,11 +7,33 @@ import type {EvaluationRunTableRow} from "../../types"
 
 const CELL_CLASS = "flex h-full w-full min-w-0 items-center gap-2 px-2"
 
-const KIND_TONES: Record<string, string> = {
-    auto: "geekblue",
-    human: "purple",
-    online: "green",
-    custom: "magenta",
+// Light keeps antd's preset filled tag (unchanged). Only dark mode overrides the
+// colors — antd's filled-preset block reads as a muddy, low-contrast block on a
+// dark surface, so in dark we render the tag with the antd preset palette
+// explicitly (bg = -1, text = -7, border = -3), the same recipe as the entity
+// reference chips. `dark:!` so the overrides only apply in dark and beat antd's
+// own preset classes.
+const KIND_TONES: Record<string, {preset: string; darkClass: string}> = {
+    auto: {
+        preset: "geekblue",
+        darkClass:
+            "dark:!bg-[var(--ant-blue-1)] dark:!text-[var(--ant-blue-7)] dark:!border-[var(--ant-blue-3)]",
+    },
+    human: {
+        preset: "purple",
+        darkClass:
+            "dark:!bg-[var(--ant-purple-1)] dark:!text-[var(--ant-purple-7)] dark:!border-[var(--ant-purple-3)]",
+    },
+    online: {
+        preset: "green",
+        darkClass:
+            "dark:!bg-[var(--ant-green-1)] dark:!text-[var(--ant-green-7)] dark:!border-[var(--ant-green-3)]",
+    },
+    custom: {
+        preset: "magenta",
+        darkClass:
+            "dark:!bg-[var(--ant-magenta-1)] dark:!text-[var(--ant-magenta-7)] dark:!border-[var(--ant-magenta-3)]",
+    },
 }
 
 /**
@@ -56,10 +78,12 @@ export const PreviewKindCell = ({record}: {record: EvaluationRunTableRow}) => {
         )
     }
     const label = EVALUATION_KIND_LABELS[kind] ?? "—"
-    const color = KIND_TONES[kind] ?? "#e5e7eb"
+    const tone = KIND_TONES[kind]
     return (
         <div className={CELL_CLASS}>
-            <Tag color={color}>{label}</Tag>
+            <Tag color={tone?.preset} className={tone?.darkClass}>
+                {label}
+            </Tag>
         </div>
     )
 }

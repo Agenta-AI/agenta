@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {testsetMolecule} from "@agenta/entities/testset"
+import {SkeletonLine} from "@agenta/ui/table"
 import {Tag} from "antd"
 import {getDefaultStore} from "jotai"
 import {useAtomValue} from "jotai"
@@ -12,7 +13,6 @@ import {
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {revision} from "@/oss/state/entities/testset"
 
 // Entity molecule atoms must be read from the default store because they depend on
@@ -124,7 +124,7 @@ const PreviewTestsetCellContent = ({
         <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap">
             <span className="text-ellipsis overflow-hidden">{label}</span>
             {versionDisplay && (
-                <Tag className="bg-[rgba(5,23,41,0.06)]" variant="filled">
+                <Tag className="bg-[var(--ag-colorFillSecondary)]" variant="filled">
                     {versionDisplay}
                 </Tag>
             )}

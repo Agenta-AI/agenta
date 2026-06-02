@@ -33,7 +33,8 @@ const WidgetSectionItem = memo(function WidgetSectionItem({
                     "shadow-[0px_1px_2px_0px_rgba(0,0,0,0.03),0px_1px_6px_-1px_rgba(0,0,0,0.02),0px_2px_4px_0px_rgba(0,0,0,0.02)]",
                     {
                         "bg-colorFillTertiary cursor-pointer": isCompleted,
-                        "cursor-pointer bg-white hover:bg-gray-50": !isCompleted && !item.disabled,
+                        "cursor-pointer bg-[var(--ag-c-FFFFFF)] hover:bg-gray-50":
+                            !isCompleted && !item.disabled,
                         "bg-colorFillTertiary opacity-60": item.disabled,
                     },
                 )}

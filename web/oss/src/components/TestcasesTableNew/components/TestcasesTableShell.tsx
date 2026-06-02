@@ -47,7 +47,7 @@ function GroupToggleButton({
                 onToggle()
             }}
             aria-label={isCollapsed ? `Expand ${groupPath} group` : `Collapse ${groupPath} group`}
-            className="inline-flex h-5 w-5 shrink-0 select-none items-center justify-center rounded border border-[rgba(5,23,41,0.18)] bg-[#f5f5f5] p-0 text-[14px] font-bold leading-none text-[#051729] transition-colors hover:border-[#1677ff] hover:bg-[#e6f4ff] hover:text-[#1677ff]"
+            className="inline-flex h-5 w-5 shrink-0 select-none items-center justify-center rounded border border-[var(--ag-rgba-051729-18)] bg-[var(--ag-c-F5F5F5)] p-0 text-[14px] font-bold leading-none text-[var(--ag-c-051729)] transition-colors hover:border-[var(--ag-c-1677FF)] hover:bg-[var(--ag-c-E6F4FF)] hover:text-[var(--ag-c-1677FF)]"
         >
             {isCollapsed ? "+" : "−"}
         </button>

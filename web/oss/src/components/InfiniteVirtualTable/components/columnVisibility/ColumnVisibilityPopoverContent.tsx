@@ -270,7 +270,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                     </Button>
                 </Space>
             </div>
-            <div className="rounded-md border border-gray-100 bg-white shadow-inner">
+            <div className="rounded-md border border-gray-100 bg-[var(--ag-c-FFFFFF)] shadow-inner">
                 <div className="max-h-[320px] overflow-auto px-1 py-2">
                     <Tree
                         checkable

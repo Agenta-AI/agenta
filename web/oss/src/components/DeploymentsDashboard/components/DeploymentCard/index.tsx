@@ -7,7 +7,7 @@ import {EnvironmentTag} from "@agenta/ui"
 import {EntityListItemLabel, VersionBadge} from "@agenta/ui/components/presentational"
 import {Card, Space, Tag, Typography} from "antd"
 
-import {useDeploymentCardStyles} from "./styles"
+import {deploymentCardClass} from "./styles"
 
 type DeploymentCardProps = {
     env: AppEnvironmentDeployment
@@ -15,8 +15,6 @@ type DeploymentCardProps = {
 } & ComponentProps<typeof Card>
 
 const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
-    const classes = useDeploymentCardStyles()
-
     const hasDeployment = !!env.deployedRevisionId
 
     const lastModifiedText = useMemo(() => {
@@ -27,7 +25,7 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
 
     return (
         <Card
-            className={classes.deploymentCard}
+            className={deploymentCardClass}
             style={{
                 borderColor: selectedEnv === env.name ? "#1C2C3D" : undefined,
             }}

@@ -151,7 +151,9 @@ export function JsonObjectField({
     return (
         <div
             className={
-                enableFormView ? "ml-1 border-l-2 border-[rgba(5,23,41,0.10)] pl-4" : undefined
+                enableFormView
+                    ? "ml-1 border-l-2 border-[var(--ag-rgba-051729-10)] pl-4"
+                    : undefined
             }
         >
             <JsonEditorWithLocalState

@@ -173,7 +173,7 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
                     copyText={selectedOption.description}
                     title={`Copy ${scenarioLabel.toLowerCase()} id`}
                 >
-                    <Tag bordered={false} className="bg-[#0517290F] font-normal">
+                    <Tag bordered={false} className="bg-[var(--ag-c-0517290F)] font-normal">
                         {selectedOption.description}
                     </Tag>
                 </TooltipWithCopyAction>

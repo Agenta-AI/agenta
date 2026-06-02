@@ -1,6 +1,7 @@
 import {memo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {SkeletonLine} from "@agenta/ui/table"
 import {Typography} from "antd"
 
 import {
@@ -8,7 +9,6 @@ import {
     useRunRowSummary,
 } from "@/oss/components/EvaluationRunsTablePOC/context/RunRowDataContext"
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 
 const CELL_CLASS =
     "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2 whitespace-nowrap overflow-hidden"

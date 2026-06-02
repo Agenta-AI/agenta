@@ -29,7 +29,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         justifyContent: "space-between",
         width: "100%",
         padding: "8px 1.5rem",
-        borderBottom: "1px solid #eaeff5",
+        borderBottom: `1px solid ${theme.colorBorderSecondary}`,
     },
     footer: {
         position: "absolute",
@@ -41,6 +41,21 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
+        // antd's Layout.Footer defaults to colorBgLayout (#000 in dark), which
+        // reads as a mismatched black band against the #141414 content. Blend
+        // with whatever's behind it instead, and add a top border to separate
+        // it from the content above.
+        backgroundColor: "transparent",
+        borderTop: `1px solid ${theme.colorBorderSecondary}`,
+        // The social links are anchors that would otherwise inherit antd's
+        // colorLink (blue in dark). Use neutral text color so they read as icons,
+        // not links — matches the prior navy look in light, flips to light in dark.
+        "& a": {
+            color: theme.colorText,
+        },
+        "& a:hover": {
+            color: theme.colorTextSecondary,
+        },
     },
     footerLeft: {
         fontSize: 18,
@@ -53,7 +68,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         alignItems: "center",
         gap: "1rem",
         "& span.ant-typography": {
-            color: "rgba(0, 0, 0, 0.45)",
+            color: theme.colorTextTertiary,
         },
     },
     banner: {

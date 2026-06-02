@@ -376,7 +376,7 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
                 containerRef.current = node
                 refs.setFloating(node)
             }}
-            className="bg-white border border-solid border-gray-100 rounded drop-shadow-xl max-h-[200px] w-[200px] overflow-y-auto outline-none"
+            className="bg-[var(--ag-c-FFFFFF)] border border-solid border-gray-100 rounded drop-shadow-xl max-h-[200px] w-[200px] overflow-y-auto outline-none"
             style={{
                 ...floatingStyles,
                 zIndex: 1050,

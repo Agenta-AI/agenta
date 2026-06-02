@@ -824,7 +824,7 @@ const VirtualizedScenarioTableAnnotateDrawer = ({
     const renderTitle = useMemo(
         () => (
             <div className="flex items-center justify-between w-full pr-2">
-                <span className="text-base font-medium text-[#0B1F3F]">{title}</span>
+                <span className="text-base font-medium text-[var(--ag-c-0B1F3F)]">{title}</span>
                 <Button
                     type="primary"
                     disabled={!annotateState.canSubmit}

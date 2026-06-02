@@ -141,7 +141,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/workflows/revisions/",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -162,6 +162,7 @@ class TestWorkflowRevisionsBasics:
                         "meta2": "value2",
                         "meta3": "value3",
                     },
+                    "data": {"parameters": {"key1": "value1"}},
                     "workflow_id": mock_data["workflows"][0]["id"],
                     "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
                 }
@@ -198,7 +199,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/workflows/revisions/",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -219,6 +220,7 @@ class TestWorkflowRevisionsBasics:
                         "meta2": "value2",
                         "meta3": "value3",
                     },
+                    "data": {"parameters": {"key1": "value1"}},
                     "workflow_id": mock_data["workflows"][0]["id"],
                     "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
                 }
@@ -278,7 +280,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/workflows/revisions/",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -299,6 +301,7 @@ class TestWorkflowRevisionsBasics:
                         "meta2": "value2",
                         "meta3": "value3",
                     },
+                    "data": {"parameters": {"key1": "value1"}},
                     "workflow_id": mock_data["workflows"][0]["id"],
                     "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
                 }
@@ -337,7 +340,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/workflows/revisions/",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -358,6 +361,7 @@ class TestWorkflowRevisionsBasics:
                         "meta2": "value2",
                         "meta3": "value3",
                     },
+                    "data": {"parameters": {"key1": "value1"}},
                     "workflow_id": mock_data["workflows"][0]["id"],
                     "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
                 }
@@ -406,7 +410,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/workflows/revisions/",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -427,6 +431,7 @@ class TestWorkflowRevisionsBasics:
                         "meta2": "value2",
                         "meta3": "value3",
                     },
+                    "data": {"parameters": {"key1": "value1"}},
                     "workflow_id": mock_data["workflows"][0]["id"],
                     "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
                 }

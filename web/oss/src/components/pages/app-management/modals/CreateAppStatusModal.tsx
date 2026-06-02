@@ -3,11 +3,9 @@ import {useEffect} from "react"
 import {Check, CircleNotch, ExclamationMark} from "@phosphor-icons/react"
 import {Modal, Typography, theme} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
-import {createUseStyles} from "react-jss"
 
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {getErrorMessage} from "@/oss/lib/helpers/errorHandler"
-import {JSSTheme} from "@/oss/lib/Types"
 import {appCreationMessagesAtom, appCreationNavigationAtom} from "@/oss/state/appCreation/status"
 import {resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import type {AppCreationStatus} from "@/oss/state/appCreation/status"
@@ -15,38 +13,6 @@ import type {AppCreationStatus} from "@/oss/state/appCreation/status"
 import CustomAppCreationLoader from "./CustomAppCreationLoader"
 
 const {Text} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    statusRow: {
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-    },
-    topContainer: {
-        wdith: "100%",
-        height: 200,
-        backgroundColor: "#F5F7FA",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    bottomContainer: {
-        padding: theme.paddingContentHorizontalLG,
-        display: "grid",
-        gap: 10,
-    },
-    headerText: {
-        lineHeight: theme.lineHeightLG,
-        fontSize: theme.fontSizeHeading4,
-        fontWeight: theme.fontWeightStrong,
-    },
-    error: {
-        color: theme.colorError,
-    },
-    subText: {
-        color: theme.colorTextSecondary,
-    },
-}))
 
 interface Props {
     loading: boolean
@@ -64,7 +30,6 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     appName,
     ...props
 }) => {
-    const classes = useStyles()
     const {goToPlayground} = usePlaygroundNavigation()
     const {
         token: {colorError, cyan5: colorSuccess},
@@ -190,13 +155,19 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             centered
         >
             <section>
-                <div className={classes.topContainer}>
+                <div className="h-[200px] bg-colorFillTertiary flex items-center justify-center">
                     <div>
                         {closable ? (
                             <div className="flex flex-col items-center">
-                                <ExclamationMark size={48} className={`${classes.error} mb-2`} />
-                                <Text className={classes.subText}>Oops, something went wrong.</Text>
-                                <Text className={`${classes.subText} mx-6 text-center`}>
+                                <ExclamationMark
+                                    size={48}
+                                    className="mb-2"
+                                    style={{color: colorError}}
+                                />
+                                <Text className="text-colorTextSecondary">
+                                    Oops, something went wrong.
+                                </Text>
+                                <Text className="text-colorTextSecondary mx-6 text-center">
                                     {isError && getErrorMessage(details)}{" "}
                                     {isTimeout &&
                                         'The app took too long to start. Press the "Retry" button if you want to try again.'}
@@ -208,10 +179,12 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                     </div>
                 </div>
 
-                <div className={classes.bottomContainer}>
-                    <Text className={classes.headerText}>Creating your new app</Text>
+                <div className="p-6 grid gap-[10px]">
+                    <Text className="leading-[1.5714285714285714] text-[16px] font-semibold">
+                        Creating your new app
+                    </Text>
                     {Object.values(messages).map(({type, message}) => (
-                        <div className={classes.statusRow} key={message}>
+                        <div className="flex items-center gap-2" key={message}>
                             {type === "success" ? (
                                 <Check size={16} style={{color: colorSuccess}} />
                             ) : type === "error" ? (

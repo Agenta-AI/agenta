@@ -16,7 +16,11 @@ const ConfigureProviderModalContent = ({
         <div className="flex flex-col gap-4">
             <div className="flex flex-col items-start gap-1">
                 <Text>Provider</Text>
-                <Tag bordered={false} color="default" className="bg-[#0517290F] px-2 py-[1px]">
+                <Tag
+                    bordered={false}
+                    color="default"
+                    className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
+                >
                     {selectedProvider?.title}
                 </Tag>
             </div>
@@ -28,7 +32,7 @@ const ConfigureProviderModalContent = ({
                     onFocus={(e) => e.target.select()}
                     {...props}
                 />
-                <Text className="text-[#586673]">
+                <Text className="text-[var(--ag-c-586673)]">
                     This secret will be encrypted in transit and at rest.
                 </Text>
             </div>

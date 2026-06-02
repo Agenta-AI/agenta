@@ -195,7 +195,7 @@ const DataSection = memo(function DataSection({
             <div className="flex flex-col gap-3">
                 {entries.map(([key, value]) => (
                     <div key={key} className="flex flex-col gap-1">
-                        <Typography.Text className="text-xs font-medium text-[#758391]">
+                        <Typography.Text className="text-xs font-medium text-[var(--ag-c-758391)]">
                             {key}
                         </Typography.Text>
                         {isComplexValue(value) ? (
