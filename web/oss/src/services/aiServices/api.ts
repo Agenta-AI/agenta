@@ -158,14 +158,26 @@ export const aiServicesApi = {
         }
 
         try {
-            const {data} = await axios.post<ToolCallResponse>("/ai/services/tools/call", {
-                name: TOOL_REFINE_PROMPT,
-                arguments: {
-                    prompt_template_json: JSON.stringify(promptTemplate),
-                    guidelines,
-                    context: context || "",
+            const {data} = await axios.post<ToolCallResponse>(
+                "/ai/services/tools/call",
+                {
+                    name: TOOL_REFINE_PROMPT,
+                    arguments: {
+                        prompt_template_json: JSON.stringify(promptTemplate),
+                        guidelines,
+                        context: context || "",
+                    },
                 },
-            })
+                // `_ignoreError` makes the shared axios response interceptor
+                // skip `globalErrorHandler` (which pops the Next.js error
+                // overlay for every non-GET failure) and just re-throw —
+                // so our catch below can fall back to the mock SILENTLY in
+                // dev. Without this, the overlay fires before our catch
+                // runs, even though the rejection is handled. The modal /
+                // hook surfaces its own user-facing error from the thrown
+                // value when the fallback doesn't apply (prod).
+                {_ignoreError: true} as Record<string, unknown>,
+            )
             return data
         } catch (err) {
             // Dev convenience: when the AI service is unavailable locally
