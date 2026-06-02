@@ -867,17 +867,19 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     assert evaluations_service.query_results.await_count == 2
     assert evaluations_service.set_results.await_count == 1
     assert evaluations_service.delete_results.await_count == 1
-    # probe/populate/prune operate on results only — none of them refresh
-    # metrics. Metrics are the separate `refresh` op.
-    assert evaluations_service.refresh_metrics.await_count == 0
+    # prune is a tensor-write op: after removing result cells it re-triggers a
+    # metrics refresh over the affected scope (like populate/process), so
+    # aggregates recompute over the now-smaller cell set. probe/populate here do
+    # not refresh on their own in this harness, so the one refresh is prune's.
+    assert evaluations_service.refresh_metrics.await_count == 1
 
-    # refresh() is the metrics op; it recomputes the slice's scope.
+    # an explicit refresh() recomputes the slice's scope again.
     await operations.refresh(
         project_id=project_id,
         user_id=user_id,
         tensor_slice=tensor_slice,
     )
-    assert evaluations_service.refresh_metrics.await_count == 1
+    assert evaluations_service.refresh_metrics.await_count == 2
 
     # process() with no wired slice_processor must fail loudly rather than
     # masquerade as execution by silently refreshing metrics (UEL-015).
@@ -1569,72 +1571,105 @@ async def test_simple_evaluation_queue_batches_dispatch_through_slice_processor(
 
 
 @pytest.mark.asyncio
-async def test_slice_processor_calls_source_slice_loop_directly(monkeypatch):
+async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypatch):
+    # Direct-id ingest is add_scenarios -> populate -> process: it creates one
+    # skeleton scenario per id, writes each scenario's input cell carrying the
+    # id, then re-executes (force) over the new scenarios. `process` itself never
+    # creates scenarios.
     project_id = uuid4()
     user_id = uuid4()
     run_id = uuid4()
     testcase_id = uuid4()
-    tracing_service = object()
-    testcases_service = object()
-    workflows_service = object()
-    evaluations_service = object()
-    process_source_slice = AsyncMock()
-    monkeypatch.setattr(
-        run_tasks,
-        "process_evaluation_source_slice",
-        process_source_slice,
+    scenario_a = uuid4()
+    scenario_b = uuid4()
+
+    run = _run(
+        flags=EvaluationRunFlags(has_traces=True),
+        steps=[_step("query-main", "input")],
+    )
+    run.id = run_id
+
+    created_scenarios = [SimpleNamespace(id=scenario_a), SimpleNamespace(id=scenario_b)]
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        create_scenarios=AsyncMock(return_value=created_scenarios),
+        set_results=AsyncMock(return_value=[]),
     )
 
-    traces_ok = await run_tasks.process_evaluation_slice(
+    process_calls = []
+
+    class _FakeSliceProcessor:
+        def __init__(self, **kwargs):
+            pass
+
+        async def process(self, *, project_id, user_id, tensor_slice):
+            process_calls.append(tensor_slice)
+            return ProcessSummary(created=len(tensor_slice.scenario_ids or []))
+
+    monkeypatch.setattr(run_tasks, "APISliceProcessor", _FakeSliceProcessor)
+
+    ok = await run_tasks.process_evaluation_slice(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
         source_kind="traces",
-        trace_ids=["trace-1"],
+        trace_ids=["trace-1", "trace-2"],
         input_step_key="query-main",
-        tracing_service=tracing_service,  # type: ignore[arg-type]
-        testcases_service=testcases_service,  # type: ignore[arg-type]
-        workflows_service=workflows_service,  # type: ignore[arg-type]
+        tracing_service=object(),  # type: ignore[arg-type]
+        testcases_service=object(),  # type: ignore[arg-type]
+        workflows_service=object(),  # type: ignore[arg-type]
+        applications_service=object(),  # type: ignore[arg-type]
         evaluations_service=evaluations_service,  # type: ignore[arg-type]
     )
-    testcases_ok = await run_tasks.process_evaluation_slice(
+
+    assert ok is True
+    # add_scenarios: one skeleton scenario per id
+    evaluations_service.create_scenarios.assert_awaited_once()
+    _, create_kwargs = evaluations_service.create_scenarios.await_args
+    assert len(create_kwargs["scenarios"]) == 2
+    assert all(s.run_id == run_id for s in create_kwargs["scenarios"])
+
+    # populate: one input cell per scenario, carrying the trace id, at the input step
+    evaluations_service.set_results.assert_awaited_once()
+    _, set_kwargs = evaluations_service.set_results.await_args
+    input_cells = set_kwargs["results"]
+    assert len(input_cells) == 2
+    assert {c.scenario_id for c in input_cells} == {scenario_a, scenario_b}
+    assert {c.trace_id for c in input_cells} == {"trace-1", "trace-2"}
+    assert all(c.step_key == "query-main" for c in input_cells)
+    assert all(c.testcase_id is None for c in input_cells)
+
+    # process: re-execute (force) over exactly the new scenarios
+    assert len(process_calls) == 1
+    tensor_slice = process_calls[0]
+    assert tensor_slice.run_id == run_id
+    assert set(tensor_slice.scenario_ids) == {scenario_a, scenario_b}
+    assert tensor_slice.process_mode == "force"
+
+    # testcase ingest binds testcase_id (not trace_id) on the input cell
+    evaluations_service.set_results.reset_mock()
+    evaluations_service.create_scenarios.reset_mock()
+    evaluations_service.create_scenarios.return_value = [SimpleNamespace(id=scenario_a)]
+    process_calls.clear()
+
+    ok = await run_tasks.process_evaluation_slice(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
         source_kind="testcases",
         testcase_ids=[testcase_id],
-        input_step_key="testset-main",
-        tracing_service=tracing_service,  # type: ignore[arg-type]
-        testcases_service=testcases_service,  # type: ignore[arg-type]
-        workflows_service=workflows_service,  # type: ignore[arg-type]
+        input_step_key="query-main",
+        tracing_service=object(),  # type: ignore[arg-type]
+        testcases_service=object(),  # type: ignore[arg-type]
+        workflows_service=object(),  # type: ignore[arg-type]
+        applications_service=object(),  # type: ignore[arg-type]
         evaluations_service=evaluations_service,  # type: ignore[arg-type]
     )
-
-    assert traces_ok is True
-    assert testcases_ok is True
-    assert process_source_slice.await_args_list == [
-        call(
-            project_id=project_id,
-            user_id=user_id,
-            run_id=run_id,
-            trace_ids=["trace-1"],
-            input_step_key="query-main",
-            tracing_service=tracing_service,
-            workflows_service=workflows_service,
-            evaluations_service=evaluations_service,
-        ),
-        call(
-            project_id=project_id,
-            user_id=user_id,
-            run_id=run_id,
-            testcase_ids=[testcase_id],
-            input_step_key="testset-main",
-            tracing_service=tracing_service,
-            testcases_service=testcases_service,
-            workflows_service=workflows_service,
-            evaluations_service=evaluations_service,
-        ),
-    ]
+    assert ok is True
+    _, set_kwargs = evaluations_service.set_results.await_args
+    cell = set_kwargs["results"][0]
+    assert cell.testcase_id == testcase_id
+    assert cell.trace_id is None
 
 
 @pytest.mark.asyncio
@@ -2177,6 +2212,11 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
     evaluations_service = SimpleNamespace(
         fetch_run=AsyncMock(return_value=run),
         query_results=AsyncMock(side_effect=_query_results),
+        # process now owns "done": per-scenario status writes + run finalize +
+        # incremental metrics refresh.
+        edit_scenario=AsyncMock(),
+        edit_run=AsyncMock(),
+        refresh_metrics=AsyncMock(return_value=[]),
     )
     workflows_service = SimpleNamespace(
         fetch_workflow_revision=AsyncMock(
@@ -2308,6 +2348,9 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
     evaluations_service = SimpleNamespace(
         fetch_run=AsyncMock(return_value=run),
         query_results=AsyncMock(side_effect=_query_results),
+        edit_scenario=AsyncMock(),
+        edit_run=AsyncMock(),
+        refresh_metrics=AsyncMock(return_value=[]),
     )
     workflows_service = SimpleNamespace(
         fetch_workflow_revision=AsyncMock(
@@ -2461,6 +2504,9 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
     evaluations_service = SimpleNamespace(
         fetch_run=AsyncMock(return_value=run),
         query_results=AsyncMock(side_effect=_query_results),
+        edit_scenario=AsyncMock(),
+        edit_run=AsyncMock(),
+        refresh_metrics=AsyncMock(return_value=[]),
     )
     workflows_service = SimpleNamespace(
         fetch_workflow_revision=AsyncMock(

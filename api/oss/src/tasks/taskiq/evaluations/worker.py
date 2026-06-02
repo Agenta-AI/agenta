@@ -19,7 +19,9 @@ from oss.src.core.evaluations.tasks.run import (
     EvaluationSliceSource,
     process_evaluation_run,
     process_evaluation_slice,
+    process_evaluation_tensor_slice,
 )
+from oss.src.core.evaluations.runtime.models import SliceProcessMode
 from oss.src.core.evaluations.runtime.locks import (
     acquire_job_lock,
     release_job_lock,
@@ -301,12 +303,55 @@ class EvaluationsWorker:
                     tracing_service=self.tracing_service,
                     testcases_service=self.testcases_service,
                     workflows_service=self.workflows_service,
+                    applications_service=self.applications_service,
                     evaluations_service=self.evaluations_service,
                 ),
             )
             log.info("[TASK] Completed process_slice", source_kind=source_kind)
             return result
 
+        @self.broker.task(
+            task_name="evaluations.tensor_slice.process",
+            retry_on_error=False,
+            max_retries=0,
+        )
+        async def process_tensor_slice(
+            *,
+            project_id: UUID,
+            user_id: UUID,
+            #
+            run_id: UUID,
+            scenario_ids: Optional[list[UUID]] = None,
+            step_keys: Optional[list[str]] = None,
+            repeat_idxs: Optional[list[int]] = None,
+            process_mode: SliceProcessMode = "fill-missing",
+            context: Context = TaskiqDepends(),
+        ) -> Any:
+            log.info("[TASK] Starting process_tensor_slice", run_id=str(run_id))
+            result = await self._with_job_lock(
+                run_id,
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=True,
+                runner=lambda: process_evaluation_tensor_slice(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run_id,
+                    scenario_ids=scenario_ids,
+                    step_keys=step_keys,
+                    repeat_idxs=repeat_idxs,
+                    process_mode=process_mode,
+                    tracing_service=self.tracing_service,
+                    testcases_service=self.testcases_service,
+                    workflows_service=self.workflows_service,
+                    applications_service=self.applications_service,
+                    evaluations_service=self.evaluations_service,
+                ),
+            )
+            log.info("[TASK] Completed process_tensor_slice", run_id=str(run_id))
+            return result
+
         # Store task references for external access
         self.process_run = process_run
         self.process_slice = process_slice
+        self.process_tensor_slice = process_tensor_slice

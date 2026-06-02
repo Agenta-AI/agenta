@@ -95,6 +95,8 @@ from oss.src.core.testsets.dtos import TestsetRevision
 from oss.src.core.evaluators.dtos import EvaluatorRevision
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
+from oss.src.core.testcases.service import TestcasesService
+from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.applications.service import ApplicationsService
 
 from oss.src.core.evaluations.utils import (
@@ -108,6 +110,8 @@ from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from oss.src.core.evaluations.runtime.sources import resolve_queue_source_batches
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
+from oss.src.core.evaluations.runtime.models import SliceProcessMode, TensorSlice
+from oss.src.core.evaluations.runtime.tensor import TensorSliceOperations
 
 
 log = get_module_logger(__name__)
@@ -204,6 +208,9 @@ class EvaluationsService:
         testsets_service: TestsetsService,
         evaluators_service: EvaluatorsService,
         evaluations_worker: Optional["EvaluationsWorker"] = None,
+        testcases_service: Optional[TestcasesService] = None,
+        workflows_service: Optional[WorkflowsService] = None,
+        applications_service: Optional[ApplicationsService] = None,
     ):
         self.evaluations_dao = evaluations_dao
 
@@ -212,11 +219,40 @@ class EvaluationsService:
         self.testsets_service = testsets_service
         self.evaluators_service = evaluators_service
         self.evaluations_worker = evaluations_worker
+        self.testcases_service = testcases_service
+        self.workflows_service = workflows_service
+        self.applications_service = applications_service
         self.evaluations_task_runner = (
             TaskiqEvaluationTaskRunner(worker=evaluations_worker)
             if evaluations_worker is not None
             else None
         )
+
+        # Tensor slice ops (probe/populate run in-process; process dispatches
+        # async via taskiq). Built here so the service owns its runtime
+        # collaborator, like `evaluations_task_runner` above. `APISliceProcessor`
+        # lives in `tasks/processor.py` which imports this module, so it is
+        # imported locally to avoid a circular import. Requires the sub-services
+        # the SDK engine needs; absent those (e.g. worker/parser contexts) the
+        # ops degrade to None and probe/populate no-op.
+        self.tensor_slice_operations: Optional[TensorSliceOperations] = None
+        if (
+            testcases_service is not None
+            and workflows_service is not None
+            and applications_service is not None
+        ):
+            from oss.src.core.evaluations.tasks.processor import APISliceProcessor
+
+            self.tensor_slice_operations = TensorSliceOperations(
+                evaluations_service=self,
+                slice_processor=APISliceProcessor(
+                    evaluations_service=self,
+                    tracing_service=tracing_service,
+                    testcases_service=testcases_service,
+                    workflows_service=workflows_service,
+                    applications_service=applications_service,
+                ),
+            )
 
     ### CRUD
 
@@ -2777,6 +2813,174 @@ class SimpleEvaluationsService:
             input_step_key=input_step_key,
         )
         return True
+
+    # --- TENSOR SLICE OPS -----------------------------------------------------
+    #
+    # Coordinate-addressed ops over EXISTING scenarios (scenarios x steps x
+    # repeats), distinct from the source-keyed dispatch_*_slice above (which
+    # ingests NEW source items). `process` is the re-execution verb (retry /
+    # fill-missing / run-added-step), dispatched async via taskiq under the job
+    # lock. `probe` (read) and `populate` (write) are immediate, in-process.
+
+    async def dispatch_tensor_slice(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        scenario_ids: Optional[List[UUID]] = None,
+        step_keys: Optional[List[str]] = None,
+        repeat_idxs: Optional[List[int]] = None,
+        process_mode: SliceProcessMode = "fill-missing",
+    ) -> bool:
+        if self.evaluations_task_runner is None:
+            log.warning(
+                "[EVAL] Taskiq client missing; cannot dispatch tensor slice",
+                run_id=run_id,
+            )
+            return False
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run:
+            log.warning(
+                "[EVAL] tensor slice dispatch requires an existing run",
+                run_id=run_id,
+            )
+            return False
+
+        await self.evaluations_task_runner.process_tensor_slice(
+            project_id=project_id,
+            user_id=user_id,
+            run_id=run_id,
+            scenario_ids=scenario_ids,
+            step_keys=step_keys,
+            repeat_idxs=repeat_idxs,
+            process_mode=process_mode,
+        )
+        return True
+
+    async def probe_slice(
+        self,
+        *,
+        project_id: UUID,
+        #
+        run_id: UUID,
+        scenario_ids: Optional[List[UUID]] = None,
+        step_keys: Optional[List[str]] = None,
+        repeat_idxs: Optional[List[int]] = None,
+    ) -> List[EvaluationResult]:
+        tensor_ops = self.evaluations_service.tensor_slice_operations
+        if tensor_ops is None:
+            log.warning("[EVAL] tensor ops not wired; cannot probe slice")
+            return []
+
+        return await tensor_ops.probe(
+            project_id=project_id,
+            tensor_slice=TensorSlice(
+                run_id=run_id,
+                scenario_ids=scenario_ids,
+                step_keys=step_keys,
+                repeat_idxs=repeat_idxs,
+            ),
+        )
+
+    async def populate_slice(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        results: List[EvaluationResultCreate],
+    ) -> List[EvaluationResult]:
+        tensor_ops = self.evaluations_service.tensor_slice_operations
+        if tensor_ops is None:
+            log.warning("[EVAL] tensor ops not wired; cannot populate slice")
+            return []
+
+        return await tensor_ops.populate(
+            project_id=project_id,
+            user_id=user_id,
+            results=results,
+        )
+
+    # --- GRAPH-DIMENSION OPS --------------------------------------------------
+    #
+    # Modify the tensor's shape (scenarios x steps x repeats). `add_scenarios`
+    # grows the scenario (height) dimension; `resize_repeats` sets the repeat
+    # (depth) dimension. `process` operates only on EXISTING coordinates — it
+    # never mints scenarios, so callers `add_scenarios` first when needed.
+
+    async def add_scenarios(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        count: int,
+    ) -> List[EvaluationScenario]:
+        """Create `count` scenario skeleton rows for the run (height dimension).
+
+        Skeleton only: rows with no input cells and no results. `populate` writes
+        the input cells (the trace_id/testcase_id binding); `process` plans and
+        executes. Returns the created scenarios so the caller has their ids.
+        """
+        if count <= 0:
+            return []
+
+        return await self.evaluations_service.create_scenarios(
+            project_id=project_id,
+            user_id=user_id,
+            scenarios=[
+                EvaluationScenarioCreate(
+                    run_id=run_id,
+                    status=EvaluationStatus.RUNNING,
+                )
+                for _ in range(count)
+            ],
+        )
+
+    async def resize_repeats(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        repeats: int,
+    ) -> Optional[EvaluationRun]:
+        """Set the run's repeat (depth) dimension.
+
+        `repeats` is fixed at run creation today; this is the first-class op to
+        change it. Growing it adds repeat_idx slots that subsequent `process`
+        runs plan and fill; the existing result cells are untouched.
+        """
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.data:
+            return None
+
+        new_data = run.data.model_copy(update={"repeats": repeats})
+        return await self.evaluations_service.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            run=EvaluationRunEdit(
+                id=run_id,
+                name=run.name,
+                description=run.description,
+                tags=run.tags,
+                meta=run.meta,
+                status=run.status,
+                flags=run.flags,
+                data=new_data,
+            ),
+        )
 
     async def close(
         self,

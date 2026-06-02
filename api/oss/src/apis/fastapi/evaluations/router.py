@@ -53,6 +53,10 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationResultsResponse,
     EvaluationResultIdResponse,
     EvaluationResultIdsResponse,
+    # EVALUATION TENSOR SLICE
+    TensorSliceRequest,
+    TensorSliceProcessRequest,
+    TensorSliceProcessResponse,
     # EVALUATION METRICS
     EvaluationMetricsSetRequest,
     EvaluationMetricsQueryRequest,
@@ -1892,6 +1896,36 @@ class SimpleEvaluationsRouter:
             operation_id="open_simple_evaluation",
         )
 
+        # POST /api/simple/evaluations/{evaluation_id}/process
+        self.router.add_api_route(
+            path="/{evaluation_id}/process",
+            methods=["POST"],
+            endpoint=self.process_evaluation_slice,
+            response_model=TensorSliceProcessResponse,
+            response_model_exclude_none=True,
+            operation_id="process_simple_evaluation_slice",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/probe
+        self.router.add_api_route(
+            path="/{evaluation_id}/probe",
+            methods=["POST"],
+            endpoint=self.probe_evaluation_slice,
+            response_model=EvaluationResultsResponse,
+            response_model_exclude_none=True,
+            operation_id="probe_simple_evaluation_slice",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/populate
+        self.router.add_api_route(
+            path="/{evaluation_id}/populate",
+            methods=["POST"],
+            endpoint=self.populate_evaluation_slice,
+            response_model=EvaluationResultsResponse,
+            response_model_exclude_none=True,
+            operation_id="populate_simple_evaluation_slice",
+        )
+
     # SIMPLE EVALUATIONS -------------------------------------------------------
 
     # POST /api/simple/evaluations/
@@ -2199,6 +2233,98 @@ class SimpleEvaluationsRouter:
         )
 
         return response
+
+    # TENSOR SLICE OPS ---------------------------------------------------------
+
+    # POST /api/simple/evaluations/{evaluation_id}/process
+    @intercept_exceptions()
+    async def process_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        slice_request: TensorSliceProcessRequest,
+    ) -> TensorSliceProcessResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        accepted = await self.simple_evaluations_service.dispatch_tensor_slice(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            scenario_ids=slice_request.scenario_ids,
+            step_keys=slice_request.step_keys,
+            repeat_idxs=slice_request.repeat_idxs,
+            process_mode=slice_request.process_mode or "fill-missing",
+        )
+
+        return TensorSliceProcessResponse(accepted=accepted)
+
+    # POST /api/simple/evaluations/{evaluation_id}/probe
+    @intercept_exceptions()
+    async def probe_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        slice_request: TensorSliceRequest,
+    ) -> EvaluationResultsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        results = await self.simple_evaluations_service.probe_slice(
+            project_id=UUID(request.state.project_id),
+            #
+            run_id=evaluation_id,
+            scenario_ids=slice_request.scenario_ids,
+            step_keys=slice_request.step_keys,
+            repeat_idxs=slice_request.repeat_idxs,
+        )
+
+        return EvaluationResultsResponse(
+            count=len(results),
+            results=results,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/populate
+    @intercept_exceptions()
+    async def populate_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        populate_request: EvaluationResultsSetRequest,
+    ) -> EvaluationResultsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        results = await self.simple_evaluations_service.populate_slice(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            results=populate_request.results,
+        )
+
+        return EvaluationResultsResponse(
+            count=len(results),
+            results=results,
+        )
 
 
 class SimpleQueuesRouter:

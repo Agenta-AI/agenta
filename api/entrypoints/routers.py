@@ -553,6 +553,11 @@ evaluations_service = EvaluationsService(
     testsets_service=testsets_service,
     evaluators_service=evaluators_service,
     evaluations_worker=evaluations_worker,
+    # Sub-services the tensor slice processor needs; passing them lets the
+    # service build its own TensorSliceOperations (probe/populate/process).
+    testcases_service=testcases_service,
+    workflows_service=workflows_service,
+    applications_service=applications_service,
 )
 
 simple_evaluations_service = SimpleEvaluationsService(

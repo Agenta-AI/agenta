@@ -118,6 +118,10 @@ class ProcessSummary(RuntimeModel):
     reused: int = 0
     pending: int = 0
     failed: int = 0
+    # A coordinate whose input was never populated (no trace_id/testcase_id and
+    # no internal reference): there is nothing to run, so the line is SKIPPED —
+    # distinct from `failed`, which means execution was attempted and errored.
+    skipped: int = 0
 
 
 class TopologyDecision(RuntimeModel):

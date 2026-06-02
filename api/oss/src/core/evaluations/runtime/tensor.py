@@ -150,10 +150,12 @@ class TensorSliceOperations:
         user_id: UUID,
         tensor_slice: TensorSlice,
     ) -> List[UUID]:
-        # `prune` deletes result cells only. It does NOT touch metrics: metrics
-        # are aggregates over a whole scenario/interval/run (not per-cell), so
-        # pruning cells doesn't delete an aggregate — it just leaves it needing
-        # recomputation, which is the separate `refresh` op.
+        # `prune` removes result cells, then re-triggers a metrics refresh over
+        # the affected scope so aggregates recompute over the now-smaller cell
+        # set. Every tensor-write op (populate / process / prune) re-triggers
+        # refresh after touching cells — prune leaves nothing stale. It does NOT
+        # touch steps or scenarios; those are graph ops (add/remove_steps,
+        # add/remove_scenarios).
         results = await self.probe(
             project_id=project_id,
             tensor_slice=tensor_slice,
@@ -162,10 +164,16 @@ class TensorSliceOperations:
         if not result_ids:
             return []
 
-        return await self.evaluations_service.delete_results(
+        deleted = await self.evaluations_service.delete_results(
             project_id=project_id,
             result_ids=result_ids,
         )
+        await self.refresh(
+            project_id=project_id,
+            user_id=user_id,
+            tensor_slice=tensor_slice,
+        )
+        return deleted
 
     async def process(
         self,

@@ -231,6 +231,28 @@ class EvaluationResultIdsResponse(BaseModel):
     result_ids: List[UUID] = []
 
 
+# - EVALUATION TENSOR SLICE ----------------------------------------------------
+
+
+class TensorSliceRequest(BaseModel):
+    # Coordinate projection over EXISTING scenarios. Any omitted dimension is
+    # "all" for that axis; an explicit empty list means "none addressed".
+    scenario_ids: Optional[List[UUID]] = None
+    step_keys: Optional[List[str]] = None
+    repeat_idxs: Optional[List[int]] = None
+
+
+class TensorSliceProcessRequest(TensorSliceRequest):
+    # "fill-missing" runs only cells without a result; "force" re-runs all
+    # addressed cells.
+    process_mode: Optional[str] = None
+
+
+class TensorSliceProcessResponse(BaseModel):
+    # `process` is dispatched async via taskiq; this acknowledges acceptance.
+    accepted: bool = False
+
+
 # - EVALUATION METRICS ---------------------------------------------------------
 
 

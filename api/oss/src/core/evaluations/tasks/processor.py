@@ -62,6 +62,31 @@ def _cell_key(cell: Any) -> Tuple[str, int]:
     return cell.step_key, int(cell.repeat_idx or 0)
 
 
+def _to_sdk_source_item(
+    source_item: ResolvedSourceItem,
+    *,
+    step_key_fallback: Optional[str] = None,
+) -> SdkResolvedSourceItem:
+    """Shape an api-side ResolvedSourceItem into the SDK engine's input type.
+
+    The ingest and re-execute paths build this identically; the only variation
+    is the step key, which re-execute carries on the item and ingest derives
+    from the run's input step. Keeping one helper removes that duplication.
+    """
+    return SdkResolvedSourceItem(
+        kind=source_item.kind,
+        step_key=source_item.step_key or step_key_fallback or "",
+        references=source_item.references or {},
+        trace_id=source_item.trace_id,
+        span_id=source_item.span_id,
+        testcase_id=source_item.testcase_id,
+        testcase=source_item.testcase,
+        trace=source_item.trace,
+        inputs=source_item.inputs or getattr(source_item.testcase, "data", None),
+        outputs=source_item.outputs,
+    )
+
+
 def _cell_is_addressed(
     *,
     cell: PlannedCell,
@@ -235,6 +260,258 @@ def _source_item_from_input_cells(
     return None
 
 
+async def _resolve_source_from_input_cells(
+    *,
+    project_id: UUID,
+    input_steps: List[Any],
+    cells_by_step: Dict[str, List[EvaluationResult]],
+    tracing_service: Optional[Any],
+    testcases_service: Optional[Any],
+) -> Optional[SdkResolvedSourceItem]:
+    """The input-cache ladder: recover a scenario's source from its stored cell.
+
+    A scenario that already exists carries its source identity in its input
+    result cell (a `trace_id` or `testcase_id`). This reads that id back and
+    re-hydrates the trace/testcase payload — the same data the original run
+    resolved — so cache reuse and evaluator inputs match. Returns None when the
+    scenario has no usable input cell (nothing to reconstruct from); the caller
+    treats that as "must be populated first".
+    """
+    source_item = _source_item_from_input_cells(
+        input_steps=input_steps,
+        cells_by_step=cells_by_step,
+    )
+    if source_item is None:
+        return None
+
+    hydrated = await resolve_direct_source_items(
+        project_id=project_id,
+        testcase_ids=[source_item.testcase_id] if source_item.testcase_id else None,
+        trace_ids=[source_item.trace_id] if source_item.trace_id else None,
+        testcases_service=testcases_service,
+        tracing_service=tracing_service,
+    )
+    resolved = hydrated[0] if hydrated else source_item
+    resolved.step_key = source_item.step_key
+    return _to_sdk_source_item(resolved)
+
+
+async def _run_sdk_source_slice(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    run: Any,
+    evaluations_service: Any,
+    sdk_source_items: List[SdkResolvedSourceItem],
+    sdk_steps: List[SdkEvaluationStep],
+    invocation_steps: List[Any],
+    annotation_steps: List[Any],
+    runners: Any,
+    revisions: Any,
+    #
+    # --- the seams (the only things that differ between callers) ---
+    create_scenario: Any,
+    refresh_metrics: Any,
+    log_pending: bool,
+    timestamp: Optional[Any] = None,
+    interval: Optional[int] = None,
+    refresh_metrics_without_auto_results: bool = True,
+    plan_cell_filter: Optional[Any] = None,
+    initial_context_by_repeat: Optional[Any] = None,
+    tracing_service: Optional[Any] = None,
+) -> List[Any]:
+    """The single execution call: drive the SDK engine over a source slice.
+
+    Both the ingest path (NEW scenarios from source ids) and the re-execute path
+    (EXISTING scenarios by coordinate) funnel through here. They differ only in
+    the injected seams: the scenario factory (create vs reuse), the metrics
+    refresher (inline vs deferred), `log_pending`, the cell filter, and the
+    per-repeat context seed. Everything else is intrinsic to `run` + services
+    and identical for both, so it lives here once.
+    """
+    return await sdk_process_evaluation_source_slice(
+        run_id=run.id,
+        source_items=sdk_source_items,
+        steps=sdk_steps,
+        repeats=run.data.repeats,
+        create_scenario=create_scenario,
+        result_logger=APIResultLogger(
+            project_id=project_id,
+            user_id=user_id,
+            timestamp=timestamp,
+            interval=interval,
+            evaluations_service=evaluations_service,
+        ),
+        refresh_metrics=refresh_metrics,
+        runners=runners,
+        revisions=revisions,
+        trace_loader=(
+            APITraceLoader(
+                project_id=project_id,
+                tracing_service=tracing_service,
+            )
+            if tracing_service is not None
+            else None
+        ),
+        is_split=effective_is_split(
+            is_split=bool(run.flags and run.flags.is_split),
+            has_application_steps=bool(invocation_steps),
+            has_evaluator_steps=bool(annotation_steps),
+        ),
+        log_pending=log_pending,
+        refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
+        batch_size=run.data.concurrency.batch_size if run.data.concurrency else None,
+        max_retries=run.data.concurrency.max_retries if run.data.concurrency else None,
+        retry_delay=run.data.concurrency.retry_delay if run.data.concurrency else None,
+        initial_context_by_repeat=initial_context_by_repeat,
+        plan_cell_filter=plan_cell_filter,
+    )
+
+
+async def _finalize_run_after_slice(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    run: Any,
+    processed: List[Any],
+    run_status_override: Optional[Any] = None,
+    evaluations_service: Any,
+    finalize_run_status: bool = True,
+) -> None:
+    """Shared "done" for `process`: write per-scenario status + finalize the run.
+
+    This is the post-process every slice owns, regardless of how it was
+    triggered — status is a function of the touched coordinates (`processed`),
+    which is the same reasoning for ingest and re-execute. It:
+
+      1. writes each touched scenario's status (ERRORS/PENDING/SUCCESS) from its
+         `ProcessedScenario`, tolerating a mid-flight run close;
+      2. computes the run status from the touched set (or uses an override, e.g.
+         FAILURE when the slice itself raised);
+      3. if `finalize_run_status`, floors the run status across concurrent slices
+         off the CURRENT run (not the caller's stale snapshot) and flips
+         `is_active` off on a terminal status.
+
+    `finalize_run_status=False` is the live-query loop, which never finalizes —
+    it keeps ticking and leaves run status alone.
+    """
+    # 1. per-scenario status writes
+    for item in processed:
+        scenario_status = (
+            EvaluationStatus.ERRORS
+            if item.has_errors
+            else EvaluationStatus.PENDING
+            if item.has_pending
+            else EvaluationStatus.SUCCESS
+        )
+        try:
+            await evaluations_service.edit_scenario(
+                project_id=project_id,
+                user_id=user_id,
+                scenario=EvaluationScenarioEdit(
+                    id=item.scenario.id,
+                    tags=getattr(item.scenario, "tags", None),
+                    meta=getattr(item.scenario, "meta", None),
+                    status=scenario_status,
+                ),
+            )
+        except EvaluationClosedConflict:
+            # The run was closed (locked) mid-flight by a user. Closing is a
+            # lock, not a failure signal — skip the write and let the slice
+            # finish; the finalize below also tolerates the lock.
+            log.info(
+                "[WORKER] scenario write skipped: run closed mid-flight",
+                run_id=str(run.id),
+                scenario_id=str(item.scenario.id),
+            )
+
+    # 2. run status from the touched set (or the override)
+    if run_status_override is not None:
+        run_status = run_status_override
+    elif any(item.has_errors for item in processed):
+        run_status = EvaluationStatus.ERRORS
+    elif any(item.has_pending for item in processed):
+        run_status = EvaluationStatus.RUNNING
+    else:
+        run_status = EvaluationStatus.SUCCESS
+
+    if not finalize_run_status:
+        return
+
+    # 3. floor + is_active, off the CURRENT run (concurrent-slice safe).
+    # Concurrent slices each hold a stale snapshot of `run`; finalize both floors
+    # the status and flips `is_active`, so it must read the CURRENT run or a
+    # late-finishing slice clobbers another's status/flags (e.g. resurrecting
+    # is_active=True).
+    current_run = await evaluations_service.fetch_run(
+        project_id=project_id,
+        run_id=run.id,
+    )
+
+    if (
+        run.flags
+        and (
+            run.flags.has_traces
+            or run.flags.has_testcases
+            or run.flags.has_queries
+            or run.flags.has_testsets
+        )
+        and run_status != EvaluationStatus.FAILURE
+    ):
+        # Only terminal "bad" statuses floor across slices: if an earlier slice
+        # already marked the run FAILURE/ERRORS, a later SUCCESS-only slice must
+        # not downgrade it. RUNNING/PENDING rank BELOW SUCCESS so a freshly
+        # computed terminal status (incl. SUCCESS) always replaces a stale
+        # RUNNING — otherwise a run pins at RUNNING forever.
+        severity = {
+            EvaluationStatus.FAILURE: 4,
+            EvaluationStatus.ERRORS: 3,
+            EvaluationStatus.SUCCESS: 2,
+            EvaluationStatus.RUNNING: 1,
+            EvaluationStatus.PENDING: 0,
+        }
+        if current_run and current_run.status:
+            stored_severity = severity.get(current_run.status, 0)
+            if stored_severity > severity.get(run_status, 0):
+                run_status = current_run.status
+
+    # When the run reaches a terminal status, it is no longer active. A
+    # non-terminal status (RUNNING/PENDING) leaves it active so further slices
+    # can continue. Base the flags on the freshly-fetched run so a concurrent
+    # slice's flag updates are not lost, and only flip the one field this owns.
+    final_flags = (current_run.flags if current_run else None) or run.flags
+    if final_flags is not None and run_status in (
+        EvaluationStatus.SUCCESS,
+        EvaluationStatus.ERRORS,
+        EvaluationStatus.FAILURE,
+    ):
+        final_flags = final_flags.model_copy(update={"is_active": False})
+
+    try:
+        await evaluations_service.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            run=EvaluationRunEdit(
+                id=run.id,
+                name=run.name,
+                description=run.description,
+                tags=run.tags,
+                meta=run.meta,
+                status=run_status,
+                flags=final_flags,
+                data=run.data,
+            ),
+        )
+    except EvaluationClosedConflict:
+        # The run was closed (locked) mid-flight. Closing is a lock, not a
+        # failure — leave its status as-is rather than erroring finalization.
+        log.info(
+            "[WORKER] finalize skipped: run closed mid-flight",
+            run_id=str(run.id),
+            run_status=str(run_status),
+        )
+
+
 class APISliceProcessor:
     """API `SliceProcessor`: re-execute the runnable cells in a slice.
 
@@ -334,6 +611,7 @@ class APISliceProcessor:
         ]
 
         summary = ProcessSummary()
+        all_processed: List[Any] = []
 
         for scenario_id in scenario_ids:
             input_cells = await self.evaluations_service.query_results(
@@ -348,39 +626,19 @@ class APISliceProcessor:
                 cells_by_step.setdefault(cell.step_key, []).append(cell)
             existing_cell_keys = {_cell_key(cell) for cell in input_cells}
 
-            source_item = _source_item_from_input_cells(
+            sdk_source_item = await _resolve_source_from_input_cells(
+                project_id=project_id,
                 input_steps=input_steps,
                 cells_by_step=cells_by_step,
-            )
-            if source_item is None:
-                summary.failed += 1
-                continue
-
-            # Re-hydrate source context so cache reuse / evaluator inputs match.
-            hydrated = await resolve_direct_source_items(
-                project_id=project_id,
-                testcase_ids=[source_item.testcase_id]
-                if source_item.testcase_id
-                else None,
-                trace_ids=[source_item.trace_id] if source_item.trace_id else None,
-                testcases_service=self.testcases_service,
                 tracing_service=self.tracing_service,
+                testcases_service=self.testcases_service,
             )
-            resolved = hydrated[0] if hydrated else source_item
-            resolved.step_key = source_item.step_key
-
-            sdk_source_item = SdkResolvedSourceItem(
-                kind=resolved.kind,
-                step_key=resolved.step_key,
-                references=resolved.references or {},
-                trace_id=resolved.trace_id,
-                span_id=resolved.span_id,
-                testcase_id=resolved.testcase_id,
-                testcase=resolved.testcase,
-                trace=resolved.trace,
-                inputs=resolved.inputs or getattr(resolved.testcase, "data", None),
-                outputs=resolved.outputs,
-            )
+            if sdk_source_item is None:
+                # No populated input for this scenario (no trace_id/testcase_id
+                # to reconstruct from): there is nothing to run, so the line is
+                # skipped — not a failure (which means execution errored).
+                summary.skipped += 1
+                continue
             initial_context_by_repeat = await _seed_context_by_repeat(
                 project_id=project_id,
                 scenario_cells=input_cells,
@@ -423,55 +681,54 @@ class APISliceProcessor:
             if not target_keys:
                 continue
 
-            processed = await sdk_process_evaluation_source_slice(
-                run_id=run_id,
-                source_items=[sdk_source_item],
-                steps=sdk_steps_all,
-                repeats=run.data.repeats,
+            processed = await _run_sdk_source_slice(
+                project_id=project_id,
+                user_id=user_id,
+                run=run,
+                evaluations_service=self.evaluations_service,
+                sdk_source_items=[sdk_source_item],
+                sdk_steps=sdk_steps_all,
+                invocation_steps=invocation_steps,
+                annotation_steps=annotation_steps,
+                runners=runners,
+                revisions=revisions,
+                # reuse the existing scenario; do NOT create a new one.
                 create_scenario=_ExistingScenario(scenario_id),
-                result_logger=APIResultLogger(
+                # process is a tensor-write op: it refreshes the touched scope's
+                # metrics incrementally per-scenario (and rolls up), the same as
+                # ingest — re-execute no longer opts out with a no-op.
+                refresh_metrics=APIMetricsRefresher(
                     project_id=project_id,
                     user_id=user_id,
                     timestamp=None,
                     interval=None,
                     evaluations_service=self.evaluations_service,
                 ),
-                # process() writes result cells only; metric refresh is the
-                # separate `refresh` op invoked by the caller on the right
-                # boundary. The SDK loop requires a callback, so pass a no-op.
-                refresh_metrics=_noop_refresh_metrics,
-                runners=runners,
-                revisions=revisions,
-                trace_loader=(
-                    APITraceLoader(
-                        project_id=project_id,
-                        tracing_service=self.tracing_service,
-                    )
-                    if self.tracing_service is not None
-                    else None
-                ),
-                is_split=effective_is_split_value,
                 log_pending=True,
-                refresh_metrics_without_auto_results=True,
-                batch_size=run.data.concurrency.batch_size
-                if run.data.concurrency
-                else None,
-                max_retries=run.data.concurrency.max_retries
-                if run.data.concurrency
-                else None,
-                retry_delay=run.data.concurrency.retry_delay
-                if run.data.concurrency
-                else None,
+                tracing_service=self.tracing_service,
                 initial_context_by_repeat=initial_context_by_repeat,
                 plan_cell_filter=lambda cell: _cell_key(cell) in target_keys,
             )
 
             summary.created += len(target_keys)
+            all_processed.extend(processed)
             for item in processed:
                 if item.has_pending:
                     summary.pending += 1
                 if item.has_errors:
                     summary.failed += 1
+
+        # Shared "done": write per-scenario status + finalize the run from the
+        # touched set — identical to ingest (a re-run IS a run-state change).
+        if all_processed:
+            await _finalize_run_after_slice(
+                project_id=project_id,
+                user_id=user_id,
+                run=run,
+                processed=all_processed,
+                evaluations_service=self.evaluations_service,
+                finalize_run_status=True,
+            )
 
         log.info(
             "[SLICE] re-execute complete",
@@ -480,6 +737,7 @@ class APISliceProcessor:
             created=summary.created,
             pending=summary.pending,
             failed=summary.failed,
+            skipped=summary.skipped,
             requested_steps=sorted(requested_steps) or None,
             requested_repeats=sorted(requested_repeats) or None,
         )
@@ -499,16 +757,6 @@ class _ExistingScenario:
 
     async def __call__(self, run_id: UUID):
         return self._scenario
-
-
-async def _noop_refresh_metrics(run_id: UUID, scenario_id):
-    """No-op refresh callback for `process` (results-only).
-
-    The SDK slice loop requires a `refresh_metrics` callback, but `process` no
-    longer refreshes metrics — that is the separate `refresh` op. This satisfies
-    the contract without recomputing anything.
-    """
-    return None
 
 
 async def _resolve_testset_input_specs(
@@ -666,7 +914,8 @@ async def process_evaluation_source_slice(
     )
 
     run: Optional[EvaluationRun] = None
-    run_status = EvaluationStatus.SUCCESS
+    processed: List[Any] = []
+    run_status_override: Optional[Any] = None
 
     try:
         run = await evaluations_service.fetch_run(
@@ -814,18 +1063,9 @@ async def process_evaluation_source_slice(
             or (input_steps[0].key if input_steps else "")
         )
         sdk_source_items = [
-            SdkResolvedSourceItem(
-                kind=source_item.kind,
-                step_key=source_item.step_key or effective_input_step_key,
-                references=source_item.references or {},
-                trace_id=source_item.trace_id,
-                span_id=source_item.span_id,
-                testcase_id=source_item.testcase_id,
-                testcase=source_item.testcase,
-                trace=source_item.trace,
-                inputs=source_item.inputs
-                or getattr(source_item.testcase, "data", None),
-                outputs=source_item.outputs,
+            _to_sdk_source_item(
+                source_item,
+                step_key_fallback=effective_input_step_key,
             )
             for source_item in source_items
         ]
@@ -861,19 +1101,20 @@ async def process_evaluation_source_slice(
             sdk_steps=[{"key": s.key, "type": s.type} for s in sdk_steps],
         )
 
-        processed = await sdk_process_evaluation_source_slice(
-            run_id=run_id,
-            source_items=sdk_source_items,
-            steps=sdk_steps,
-            repeats=run.data.repeats,
+        processed = await _run_sdk_source_slice(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            evaluations_service=evaluations_service,
+            sdk_source_items=sdk_source_items,
+            sdk_steps=sdk_steps,
+            invocation_steps=invocation_steps,
+            annotation_steps=annotation_steps,
+            runners=runners,
+            revisions=revisions,
+            # ingest CREATES a new scenario per source item, and refreshes
+            # metrics inline (re-execute defers refresh to the separate op).
             create_scenario=APIScenarioFactory(
-                project_id=project_id,
-                user_id=user_id,
-                timestamp=timestamp,
-                interval=interval,
-                evaluations_service=evaluations_service,
-            ),
-            result_logger=APIResultLogger(
                 project_id=project_id,
                 user_id=user_id,
                 timestamp=timestamp,
@@ -887,32 +1128,11 @@ async def process_evaluation_source_slice(
                 interval=interval,
                 evaluations_service=evaluations_service,
             ),
-            runners=runners,
-            revisions=revisions,
-            trace_loader=(
-                APITraceLoader(
-                    project_id=project_id,
-                    tracing_service=tracing_service,
-                )
-                if tracing_service is not None
-                else None
-            ),
-            is_split=effective_is_split(
-                is_split=bool(run.flags and run.flags.is_split),
-                has_application_steps=bool(invocation_steps),
-                has_evaluator_steps=bool(annotation_steps),
-            ),
             log_pending=False,
+            timestamp=timestamp,
+            interval=interval,
             refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
-            batch_size=run.data.concurrency.batch_size
-            if run.data.concurrency
-            else None,
-            max_retries=run.data.concurrency.max_retries
-            if run.data.concurrency
-            else None,
-            retry_delay=run.data.concurrency.retry_delay
-            if run.data.concurrency
-            else None,
+            tracing_service=tracing_service,
         )
 
         log.info(
@@ -927,130 +1147,28 @@ async def process_evaluation_source_slice(
             result_step_keys=[list(i.results.keys()) for i in processed],
         )
 
-        for item in processed:
-            scenario_status = (
-                EvaluationStatus.ERRORS
-                if item.has_errors
-                else EvaluationStatus.PENDING
-                if item.has_pending
-                else EvaluationStatus.SUCCESS
-            )
-            try:
-                await evaluations_service.edit_scenario(
-                    project_id=project_id,
-                    user_id=user_id,
-                    scenario=EvaluationScenarioEdit(
-                        id=item.scenario.id,
-                        tags=getattr(item.scenario, "tags", None),
-                        meta=getattr(item.scenario, "meta", None),
-                        status=scenario_status,
-                    ),
-                )
-            except EvaluationClosedConflict:
-                # The run was closed (locked) mid-flight by a user. Closing is a
-                # lock, not a failure signal — skip the write and let the slice
-                # finish; the finalize below will also tolerate the lock.
-                log.info(
-                    "[WORKER] scenario write skipped: run closed mid-flight",
-                    run_id=str(run_id),
-                    scenario_id=str(item.scenario.id),
-                )
-
-        if any(item.has_errors for item in processed):
-            run_status = EvaluationStatus.ERRORS
-        elif any(item.has_pending for item in processed):
-            run_status = EvaluationStatus.RUNNING
-        else:
-            run_status = EvaluationStatus.SUCCESS
-
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.error(
             f"An error occurred during source slice evaluation: {e}",
             exc_info=True,
         )
-        run_status = EvaluationStatus.FAILURE
+        run_status_override = EvaluationStatus.FAILURE
 
     if not run:
         return
 
-    # Concurrent slices (allow_concurrency=True) each hold their own stale
-    # snapshot of `run` taken at the top of this call. Finalization both floors
-    # the status and flips `is_active`, so it must work off the CURRENT run, not
-    # the snapshot — otherwise a late-finishing slice clobbers another slice's
-    # status/flags with its stale copy (e.g. resurrecting is_active=True).
-    current_run = None
-    if update_run_status:
-        current_run = await evaluations_service.fetch_run(
-            project_id=project_id,
-            run_id=run_id,
-        )
-
-    if (
-        update_run_status
-        and run.flags
-        and (
-            run.flags.has_traces
-            or run.flags.has_testcases
-            or run.flags.has_queries
-            or run.flags.has_testsets
-        )
-        and run_status != EvaluationStatus.FAILURE
-    ):
-        # Only terminal "bad" statuses floor across slices: if an earlier slice
-        # already marked the run FAILURE/ERRORS, a later SUCCESS-only slice must
-        # not downgrade it. The transient RUNNING/PENDING states rank BELOW
-        # SUCCESS so a freshly computed terminal status (incl. SUCCESS) always
-        # replaces a stale RUNNING — otherwise a run pins at RUNNING forever.
-        severity = {
-            EvaluationStatus.FAILURE: 4,
-            EvaluationStatus.ERRORS: 3,
-            EvaluationStatus.SUCCESS: 2,
-            EvaluationStatus.RUNNING: 1,
-            EvaluationStatus.PENDING: 0,
-        }
-        if current_run and current_run.status:
-            stored_severity = severity.get(current_run.status, 0)
-            if stored_severity > severity.get(run_status, 0):
-                run_status = current_run.status
-
-    if update_run_status:
-        # When the run reaches a terminal status, it is no longer active. A
-        # non-terminal status (RUNNING/PENDING) leaves the run active so further
-        # slices can continue. Base the flags on the freshly-fetched run so a
-        # concurrent slice's flag updates are not lost, and only flip the one
-        # field this finalize owns.
-        final_flags = (current_run.flags if current_run else None) or run.flags
-        if final_flags is not None and run_status in (
-            EvaluationStatus.SUCCESS,
-            EvaluationStatus.ERRORS,
-            EvaluationStatus.FAILURE,
-        ):
-            final_flags = final_flags.model_copy(update={"is_active": False})
-
-        try:
-            await evaluations_service.edit_run(
-                project_id=project_id,
-                user_id=user_id,
-                run=EvaluationRunEdit(
-                    id=run_id,
-                    name=run.name,
-                    description=run.description,
-                    tags=run.tags,
-                    meta=run.meta,
-                    status=run_status,
-                    flags=final_flags,
-                    data=run.data,
-                ),
-            )
-        except EvaluationClosedConflict:
-            # The run was closed (locked) mid-flight. Closing is a lock, not a
-            # failure — the user deliberately froze the run, so leave its status
-            # as-is rather than turning finalization into an error.
-            log.info(
-                "[WORKER] finalize skipped: run closed mid-flight",
-                run_id=str(run_id),
-                run_status=str(run_status),
-            )
+    # Shared "done": per-scenario status + run finalize (floor + is_active),
+    # derived from the touched set. `update_run_status` gates the run-level
+    # finalize (the live-query loop passes False — it keeps ticking).
+    await _finalize_run_after_slice(
+        project_id=project_id,
+        user_id=user_id,
+        run=run,
+        processed=processed,
+        run_status_override=run_status_override,
+        evaluations_service=evaluations_service,
+        finalize_run_status=update_run_status,
+    )
 
     log.info("[DONE]      ", run_id=run_id, project_id=project_id, user_id=user_id)
     return
