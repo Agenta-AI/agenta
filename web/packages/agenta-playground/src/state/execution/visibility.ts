@@ -49,9 +49,36 @@ export interface SplitInputsVisibilityArgs {
 }
 
 /**
+ * True when a testcase value is "unauthored" — should drive the `[draft]`
+ * badge. Treats every form of emptiness as unauthored:
+ *
+ *   - `undefined` / `null`
+ *   - `""` (empty string)
+ *   - `{}` (empty plain object)
+ *   - `[]` (empty array)
+ *
+ * `0` and `false` are NOT empty — they're legitimate user values for
+ * number / boolean ports.
+ *
+ * Background: object-typed ports (e.g. `geo` referenced via `{{geo.region}}`,
+ * `repos` referenced as `{{#repos}}…`) get auto-seeded with an empty `{}`
+ * when the testcase column is created, while string ports stay missing
+ * until the user types. Checking `name in testcaseData` alone treated the
+ * auto-seeded empty objects as authored — so `geo`/`repos` rendered without
+ * a draft badge while `name`/`user` got one, even though all four were
+ * equally unfilled by the user (Arda QA 2026-06-02).
+ */
+function isValueUnauthored(value: unknown): boolean {
+    if (value === undefined || value === null || value === "") return true
+    if (Array.isArray(value)) return value.length === 0
+    if (typeof value === "object") return Object.keys(value as object).length === 0
+    return false
+}
+
+/**
  * Split the referenced + testcase universe into `inputs` (referenced, with
- * draft annotation for missing) and `unreferencedColumns` (in testcase but
- * not referenced).
+ * draft annotation for missing OR empty values) and `unreferencedColumns`
+ * (in testcase but not referenced).
  *
  * Pure — no atoms, no React, no jotai. Easy to unit-test.
  */
@@ -63,7 +90,15 @@ export function splitInputsVisibility({
 
     const inputs: VariableEntry[] = referencedKeys.map((name) => {
         if (name in testcaseData) {
-            return {name, value: testcaseData[name]}
+            const value = testcaseData[name]
+            // Key exists but the value is empty — surface the draft badge
+            // so the UX is consistent with truly-missing columns. Both
+            // routes (draft vs filled) write through the same
+            // `setCellValue` reducer downstream, so the change is purely
+            // visual: same write path, more honest "you haven't filled
+            // this yet" affordance.
+            if (isValueUnauthored(value)) return {name, value, isDraft: true}
+            return {name, value}
         }
         return {name, value: undefined, isDraft: true}
     })
