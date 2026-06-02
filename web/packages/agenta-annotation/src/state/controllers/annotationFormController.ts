@@ -1049,7 +1049,12 @@ function buildEvaluatorMaps(resolvedRefs: ResolvedEvaluatorRef[]): EvaluatorMaps
 
 interface StepRefs {
     evaluator_variant?: {id?: string; slug?: string}
-    evaluator_revision?: {id?: string; slug?: string; version?: string | number}
+    evaluator_revision?: {id?: string; slug?: string; version?: string}
+}
+
+function normalizeReferenceVersion(version: string | number | undefined): string | undefined {
+    if (version === undefined || version === null) return undefined
+    return String(version)
 }
 
 /**
@@ -1067,7 +1072,9 @@ function buildStepReferences(annotationSteps: EvaluationRunDataStep[]): Map<stri
                     ? {
                           id: step.references.evaluator_revision.id ?? undefined,
                           slug: step.references.evaluator_revision.slug ?? undefined,
-                          version: step.references.evaluator_revision.version ?? undefined,
+                          version: normalizeReferenceVersion(
+                              step.references.evaluator_revision.version ?? undefined,
+                          ),
                       }
                     : undefined,
                 evaluator_variant: step.references?.evaluator_variant
@@ -1452,9 +1459,10 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                                                         .id,
                                                     slug: existingAnn.references.evaluator_revision
                                                         .slug,
-                                                    version:
+                                                    version: normalizeReferenceVersion(
                                                         existingAnn.references.evaluator_revision
                                                             .version,
+                                                    ),
                                                 },
                                             }
                                           : {}),
