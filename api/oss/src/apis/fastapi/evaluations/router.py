@@ -57,6 +57,12 @@ from oss.src.apis.fastapi.evaluations.models import (
     TensorSliceRequest,
     TensorSliceProcessRequest,
     TensorSliceProcessResponse,
+    # EVALUATION GRAPH-SHAPE OPS
+    AddScenariosRequest,
+    RemoveScenariosRequest,
+    AddStepsRequest,
+    RemoveStepsRequest,
+    SetRepeatsRequest,
     # EVALUATION METRICS
     EvaluationMetricsSetRequest,
     EvaluationMetricsQueryRequest,
@@ -1926,6 +1932,66 @@ class SimpleEvaluationsRouter:
             operation_id="populate_simple_evaluation_slice",
         )
 
+        # POST /api/simple/evaluations/{evaluation_id}/prune
+        self.router.add_api_route(
+            path="/{evaluation_id}/prune",
+            methods=["POST"],
+            endpoint=self.prune_evaluation_slice,
+            response_model=EvaluationResultIdsResponse,
+            response_model_exclude_none=True,
+            operation_id="prune_simple_evaluation_slice",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/scenarios/add
+        self.router.add_api_route(
+            path="/{evaluation_id}/scenarios/add",
+            methods=["POST"],
+            endpoint=self.add_evaluation_scenarios,
+            response_model=EvaluationScenariosResponse,
+            response_model_exclude_none=True,
+            operation_id="add_simple_evaluation_scenarios",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/scenarios/remove
+        self.router.add_api_route(
+            path="/{evaluation_id}/scenarios/remove",
+            methods=["POST"],
+            endpoint=self.remove_evaluation_scenarios,
+            response_model=EvaluationScenarioIdsResponse,
+            response_model_exclude_none=True,
+            operation_id="remove_simple_evaluation_scenarios",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/steps/add
+        self.router.add_api_route(
+            path="/{evaluation_id}/steps/add",
+            methods=["POST"],
+            endpoint=self.add_evaluation_steps,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="add_simple_evaluation_steps",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/steps/remove
+        self.router.add_api_route(
+            path="/{evaluation_id}/steps/remove",
+            methods=["POST"],
+            endpoint=self.remove_evaluation_steps,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="remove_simple_evaluation_steps",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/repeats
+        self.router.add_api_route(
+            path="/{evaluation_id}/repeats",
+            methods=["POST"],
+            endpoint=self.set_evaluation_repeats,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="set_simple_evaluation_repeats",
+        )
+
     # SIMPLE EVALUATIONS -------------------------------------------------------
 
     # POST /api/simple/evaluations/
@@ -2324,6 +2390,186 @@ class SimpleEvaluationsRouter:
         return EvaluationResultsResponse(
             count=len(results),
             results=results,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/prune
+    @intercept_exceptions()
+    async def prune_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        slice_request: TensorSliceRequest,
+    ) -> EvaluationResultIdsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        result_ids = await self.simple_evaluations_service.prune_slice(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            scenario_ids=slice_request.scenario_ids,
+            step_keys=slice_request.step_keys,
+            repeat_idxs=slice_request.repeat_idxs,
+        )
+
+        return EvaluationResultIdsResponse(
+            count=len(result_ids),
+            result_ids=result_ids,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/scenarios/add
+    @intercept_exceptions()
+    async def add_evaluation_scenarios(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        add_request: AddScenariosRequest,
+    ) -> EvaluationScenariosResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        scenarios = await self.simple_evaluations_service.add_scenarios(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            count=add_request.count,
+        )
+
+        return EvaluationScenariosResponse(
+            count=len(scenarios),
+            scenarios=scenarios,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/scenarios/remove
+    @intercept_exceptions()
+    async def remove_evaluation_scenarios(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        remove_request: RemoveScenariosRequest,
+    ) -> EvaluationScenarioIdsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        scenario_ids = await self.simple_evaluations_service.remove_scenarios(
+            project_id=UUID(request.state.project_id),
+            #
+            scenario_ids=remove_request.scenario_ids,
+        )
+
+        return EvaluationScenarioIdsResponse(
+            count=len(scenario_ids),
+            scenario_ids=scenario_ids,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/steps/add
+    @intercept_exceptions()
+    async def add_evaluation_steps(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        add_request: AddStepsRequest,
+    ) -> EvaluationRunResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run = await self.simple_evaluations_service.add_steps(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            steps=add_request.steps,
+        )
+
+        return EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/steps/remove
+    @intercept_exceptions()
+    async def remove_evaluation_steps(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        remove_request: RemoveStepsRequest,
+    ) -> EvaluationRunResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run = await self.simple_evaluations_service.remove_steps(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            step_keys=remove_request.step_keys,
+        )
+
+        return EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/repeats
+    @intercept_exceptions()
+    async def set_evaluation_repeats(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        repeats_request: SetRepeatsRequest,
+    ) -> EvaluationRunResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run = await self.simple_evaluations_service.set_repeats(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            repeats=repeats_request.repeats,
+        )
+
+        return EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
         )
 
 

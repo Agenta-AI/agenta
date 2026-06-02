@@ -154,8 +154,8 @@ class TensorSliceOperations:
         # the affected scope so aggregates recompute over the now-smaller cell
         # set. Every tensor-write op (populate / process / prune) re-triggers
         # refresh after touching cells — prune leaves nothing stale. It does NOT
-        # touch steps or scenarios; those are graph ops (add/remove_steps,
-        # add/remove_scenarios).
+        # touch steps or scenarios; those are the graph-shape ops on the service
+        # (add_steps/remove_steps, add_scenarios/remove_scenarios).
         results = await self.probe(
             project_id=project_id,
             tensor_slice=tensor_slice,

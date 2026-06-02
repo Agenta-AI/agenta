@@ -24,6 +24,7 @@ from ..types.evaluation_result_query import EvaluationResultQuery
 from ..types.evaluation_result_response import EvaluationResultResponse
 from ..types.evaluation_results_response import EvaluationResultsResponse
 from ..types.evaluation_run_create import EvaluationRunCreate
+from ..types.evaluation_run_data_step import EvaluationRunDataStep
 from ..types.evaluation_run_edit import EvaluationRunEdit
 from ..types.evaluation_run_id_response import EvaluationRunIdResponse
 from ..types.evaluation_run_ids_response import EvaluationRunIdsResponse
@@ -51,6 +52,7 @@ from ..types.simple_queue_response import SimpleQueueResponse
 from ..types.simple_queue_scenarios_query import SimpleQueueScenariosQuery
 from ..types.simple_queue_scenarios_response import SimpleQueueScenariosResponse
 from ..types.simple_queues_response import SimpleQueuesResponse
+from ..types.tensor_slice_process_response import TensorSliceProcessResponse
 from ..types.windowing import Windowing
 from .raw_client import AsyncRawEvaluationsClient, RawEvaluationsClient
 
@@ -1454,6 +1456,309 @@ class EvaluationsClient:
         )
         """
         _response = self._raw_client.open_simple_evaluation(evaluation_id, request_options=request_options)
+        return _response.data
+    
+    def process_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TensorSliceProcessResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        process_mode : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        TensorSliceProcessResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.process_simple_evaluation_slice(
+            evaluation_id="evaluation_id",
+        )
+        """
+        _response = self._raw_client.process_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, process_mode=process_mode, request_options=request_options)
+        return _response.data
+    
+    def probe_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationResultsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.probe_simple_evaluation_slice(
+            evaluation_id="evaluation_id",
+        )
+        """
+        _response = self._raw_client.probe_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        return _response.data
+    
+    def populate_simple_evaluation_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        results : typing.Sequence[EvaluationResultCreate]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationResultsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi, EvaluationResultCreate
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.populate_simple_evaluation_slice(
+            evaluation_id="evaluation_id",
+            results=[
+                EvaluationResultCreate(
+                    step_key="step_key",
+                    scenario_id="scenario_id",
+                    run_id="run_id",
+                )
+            ],
+        )
+        """
+        _response = self._raw_client.populate_simple_evaluation_slice(evaluation_id, results=results, request_options=request_options)
+        return _response.data
+    
+    def prune_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultIdsResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationResultIdsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.prune_simple_evaluation_slice(
+            evaluation_id="evaluation_id",
+        )
+        """
+        _response = self._raw_client.prune_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        return _response.data
+    
+    def add_simple_evaluation_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        count : int
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationScenariosResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.add_simple_evaluation_scenarios(
+            evaluation_id="evaluation_id",
+            count=1,
+        )
+        """
+        _response = self._raw_client.add_simple_evaluation_scenarios(evaluation_id, count=count, request_options=request_options)
+        return _response.data
+    
+    def remove_simple_evaluation_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenarioIdsResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Sequence[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationScenarioIdsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.remove_simple_evaluation_scenarios(
+            evaluation_id="evaluation_id",
+            scenario_ids=["scenario_ids"],
+        )
+        """
+        _response = self._raw_client.remove_simple_evaluation_scenarios(evaluation_id, scenario_ids=scenario_ids, request_options=request_options)
+        return _response.data
+    
+    def add_simple_evaluation_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        steps : typing.Sequence[EvaluationRunDataStep]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationRunResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi, EvaluationRunDataStep, Reference
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.add_simple_evaluation_steps(
+            evaluation_id="evaluation_id",
+            steps=[
+                EvaluationRunDataStep(
+                    key="key",
+                    type="input",
+                    origin="custom",
+                    references={"key": Reference()},
+                )
+            ],
+        )
+        """
+        _response = self._raw_client.add_simple_evaluation_steps(evaluation_id, steps=steps, request_options=request_options)
+        return _response.data
+    
+    def remove_simple_evaluation_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        step_keys : typing.Sequence[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationRunResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.remove_simple_evaluation_steps(
+            evaluation_id="evaluation_id",
+            step_keys=["step_keys"],
+        )
+        """
+        _response = self._raw_client.remove_simple_evaluation_steps(evaluation_id, step_keys=step_keys, request_options=request_options)
+        return _response.data
+    
+    def set_simple_evaluation_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        repeats : int
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationRunResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.set_simple_evaluation_repeats(
+            evaluation_id="evaluation_id",
+            repeats=1,
+        )
+        """
+        _response = self._raw_client.set_simple_evaluation_repeats(evaluation_id, repeats=repeats, request_options=request_options)
         return _response.data
     
     def create_simple_queue(self, *, queue: SimpleQueueCreate, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueResponse:
@@ -3417,6 +3722,381 @@ class AsyncEvaluationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.open_simple_evaluation(evaluation_id, request_options=request_options)
+        return _response.data
+    
+    async def process_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TensorSliceProcessResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        process_mode : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        TensorSliceProcessResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.process_simple_evaluation_slice(
+                evaluation_id="evaluation_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.process_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, process_mode=process_mode, request_options=request_options)
+        return _response.data
+    
+    async def probe_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationResultsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.probe_simple_evaluation_slice(
+                evaluation_id="evaluation_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.probe_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        return _response.data
+    
+    async def populate_simple_evaluation_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        results : typing.Sequence[EvaluationResultCreate]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationResultsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi, EvaluationResultCreate
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.populate_simple_evaluation_slice(
+                evaluation_id="evaluation_id",
+                results=[
+                    EvaluationResultCreate(
+                        step_key="step_key",
+                        scenario_id="scenario_id",
+                        run_id="run_id",
+                    )
+                ],
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.populate_simple_evaluation_slice(evaluation_id, results=results, request_options=request_options)
+        return _response.data
+    
+    async def prune_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultIdsResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationResultIdsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.prune_simple_evaluation_slice(
+                evaluation_id="evaluation_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.prune_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        return _response.data
+    
+    async def add_simple_evaluation_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        count : int
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationScenariosResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.add_simple_evaluation_scenarios(
+                evaluation_id="evaluation_id",
+                count=1,
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.add_simple_evaluation_scenarios(evaluation_id, count=count, request_options=request_options)
+        return _response.data
+    
+    async def remove_simple_evaluation_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenarioIdsResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Sequence[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationScenarioIdsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.remove_simple_evaluation_scenarios(
+                evaluation_id="evaluation_id",
+                scenario_ids=["scenario_ids"],
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.remove_simple_evaluation_scenarios(evaluation_id, scenario_ids=scenario_ids, request_options=request_options)
+        return _response.data
+    
+    async def add_simple_evaluation_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        steps : typing.Sequence[EvaluationRunDataStep]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationRunResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi, EvaluationRunDataStep, Reference
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.add_simple_evaluation_steps(
+                evaluation_id="evaluation_id",
+                steps=[
+                    EvaluationRunDataStep(
+                        key="key",
+                        type="input",
+                        origin="custom",
+                        references={"key": Reference()},
+                    )
+                ],
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.add_simple_evaluation_steps(evaluation_id, steps=steps, request_options=request_options)
+        return _response.data
+    
+    async def remove_simple_evaluation_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        step_keys : typing.Sequence[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationRunResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.remove_simple_evaluation_steps(
+                evaluation_id="evaluation_id",
+                step_keys=["step_keys"],
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.remove_simple_evaluation_steps(evaluation_id, step_keys=step_keys, request_options=request_options)
+        return _response.data
+    
+    async def set_simple_evaluation_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        repeats : int
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EvaluationRunResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.set_simple_evaluation_repeats(
+                evaluation_id="evaluation_id",
+                repeats=1,
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.set_simple_evaluation_repeats(evaluation_id, repeats=repeats, request_options=request_options)
         return _response.data
     
     async def create_simple_queue(self, *, queue: SimpleQueueCreate, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueResponse:

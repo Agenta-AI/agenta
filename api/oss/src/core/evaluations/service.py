@@ -2907,12 +2907,70 @@ class SimpleEvaluationsService:
             results=results,
         )
 
+    async def prune_slice(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        scenario_ids: Optional[List[UUID]] = None,
+        step_keys: Optional[List[str]] = None,
+        repeat_idxs: Optional[List[int]] = None,
+    ) -> List[UUID]:
+        tensor_ops = self.evaluations_service.tensor_slice_operations
+        if tensor_ops is None:
+            log.warning("[EVAL] tensor ops not wired; cannot prune slice")
+            return []
+
+        return await tensor_ops.prune(
+            project_id=project_id,
+            user_id=user_id,
+            tensor_slice=TensorSlice(
+                run_id=run_id,
+                scenario_ids=scenario_ids,
+                step_keys=step_keys,
+                repeat_idxs=repeat_idxs,
+            ),
+        )
+
     # --- GRAPH-DIMENSION OPS --------------------------------------------------
     #
-    # Modify the tensor's shape (scenarios x steps x repeats). `add_scenarios`
-    # grows the scenario (height) dimension; `resize_repeats` sets the repeat
-    # (depth) dimension. `process` operates only on EXISTING coordinates — it
-    # never mints scenarios, so callers `add_scenarios` first when needed.
+    # Modify the tensor's SHAPE (scenarios x steps x repeats) — distinct from the
+    # tensor ops (probe/populate/process/prune) that fill or clear cells WITHIN a
+    # fixed shape. Three axes, each with a paired add/remove (or set):
+    #
+    #   height — `add_scenarios` / `remove_scenarios`  (scenario rows)
+    #   width  — `add_steps` / `remove_steps`          (graph step columns)
+    #   depth  — `set_repeats`                         (repeat count)
+    #
+    # `process` operates only on EXISTING coordinates — it never mints scenarios
+    # or steps, so callers grow the shape with these ops first when needed.
+
+    async def _edit_run_data(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        new_data: EvaluationRunData,
+    ) -> Optional[EvaluationRun]:
+        """Persist a new `data` payload for `run`, preserving every other field."""
+        return await self.evaluations_service.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            run=EvaluationRunEdit(
+                id=run.id,
+                name=run.name,
+                description=run.description,
+                tags=run.tags,
+                meta=run.meta,
+                status=run.status,
+                flags=run.flags,
+                data=new_data,
+            ),
+        )
 
     async def add_scenarios(
         self,
@@ -2944,7 +3002,103 @@ class SimpleEvaluationsService:
             ],
         )
 
-    async def resize_repeats(
+    async def remove_scenarios(
+        self,
+        *,
+        project_id: UUID,
+        #
+        scenario_ids: List[UUID],
+    ) -> List[UUID]:
+        """Delete scenario rows (height dimension) — the inverse of `add_scenarios`.
+
+        Removing a scenario drops its whole row (every step/repeat cell with it).
+        Returns the ids actually deleted.
+        """
+        if not scenario_ids:
+            return []
+
+        return await self.evaluations_service.delete_scenarios(
+            project_id=project_id,
+            scenario_ids=scenario_ids,
+        )
+
+    async def add_steps(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        steps: List[EvaluationRunDataStep],
+    ) -> Optional[EvaluationRun]:
+        """Append graph steps to the run (width dimension).
+
+        Adds new step columns to `run.data.steps`; the cells under them start
+        empty and a subsequent `process` fills them. Steps whose key already
+        exists are skipped (add is idempotent on key). Existing steps, scenarios,
+        and result cells are untouched.
+        """
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.data:
+            return None
+        if not steps:
+            return run
+
+        existing = list(run.data.steps or [])
+        existing_keys = {step.key for step in existing}
+        fresh = [step for step in steps if step.key not in existing_keys]
+        if not fresh:
+            return run
+
+        new_data = run.data.model_copy(update={"steps": existing + fresh})
+        return await self._edit_run_data(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            new_data=new_data,
+        )
+
+    async def remove_steps(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        step_keys: List[str],
+    ) -> Optional[EvaluationRun]:
+        """Drop graph steps from the run by key (width dimension).
+
+        The inverse of `add_steps`: removes the named step columns from
+        `run.data.steps`. The result cells under those steps are not deleted here
+        (that is `prune`); this op only narrows the graph's declared width.
+        """
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.data:
+            return None
+        if not step_keys:
+            return run
+
+        drop = set(step_keys)
+        kept = [step for step in (run.data.steps or []) if step.key not in drop]
+        if len(kept) == len(run.data.steps or []):
+            return run
+
+        new_data = run.data.model_copy(update={"steps": kept})
+        return await self._edit_run_data(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            new_data=new_data,
+        )
+
+    async def set_repeats(
         self,
         *,
         project_id: UUID,
@@ -2967,19 +3121,11 @@ class SimpleEvaluationsService:
             return None
 
         new_data = run.data.model_copy(update={"repeats": repeats})
-        return await self.evaluations_service.edit_run(
+        return await self._edit_run_data(
             project_id=project_id,
             user_id=user_id,
-            run=EvaluationRunEdit(
-                id=run_id,
-                name=run.name,
-                description=run.description,
-                tags=run.tags,
-                meta=run.meta,
-                status=run.status,
-                flags=run.flags,
-                data=new_data,
-            ),
+            run=run,
+            new_data=new_data,
         )
 
     async def close(

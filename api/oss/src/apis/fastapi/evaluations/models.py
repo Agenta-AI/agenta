@@ -12,6 +12,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRunCreate,
     EvaluationRunEdit,
     EvaluationRunQuery,
+    EvaluationRunDataStep,
     #
     EvaluationScenario,
     EvaluationScenarioCreate,
@@ -251,6 +252,39 @@ class TensorSliceProcessRequest(TensorSliceRequest):
 class TensorSliceProcessResponse(BaseModel):
     # `process` is dispatched async via taskiq; this acknowledges acceptance.
     accepted: bool = False
+
+
+# - EVALUATION GRAPH-SHAPE OPS -------------------------------------------------
+#
+# Reshape the tensor (scenarios x steps x repeats). Paired with the tensor ops
+# above: shape ops add/remove coordinates, tensor ops fill/clear cells within a
+# shape. One request model per axis op; responses reuse the scenario/run/result
+# envelopes already defined above.
+
+
+class AddScenariosRequest(BaseModel):
+    # Height: append `count` empty scenario rows; `populate`/`process` fill them.
+    count: int
+
+
+class RemoveScenariosRequest(BaseModel):
+    # Height: drop these scenario rows (and all their cells).
+    scenario_ids: List[UUID]
+
+
+class AddStepsRequest(BaseModel):
+    # Width: append graph step columns (idempotent on key).
+    steps: List[EvaluationRunDataStep]
+
+
+class RemoveStepsRequest(BaseModel):
+    # Width: drop graph step columns by key.
+    step_keys: List[str]
+
+
+class SetRepeatsRequest(BaseModel):
+    # Depth: set the run's repeat count.
+    repeats: int
 
 
 # - EVALUATION METRICS ---------------------------------------------------------

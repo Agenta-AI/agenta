@@ -41,45 +41,49 @@ graph", so create and edit share one reconciliation path.
 
 ## Operations
 
-### Graph operations
+Every first-class op below is reachable over HTTP under `/api/simple/evaluations/{id}/…`
+with an explicit `operation_id`, so the regenerated Fern client exposes a method per op.
 
-| Operation | Status | Where / Tracking |
-| --- | --- | --- |
-| `add_step` | deferred (this branch) | No explicit endpoint. Today a step is added by including it in `data.steps` on `create_run`/`edit_run`; flags re-derive and the default queue reconciles. A first-class `add_step` op (with validation, conflict handling) lands later in this branch. proposal.md:370; gap.md:271. |
-| `remove_step` (+ `prune`) | **done** (folded into edit) | Destructive removal is implemented via the shared reconcile path, not a dedicated endpoint. Omitting a step from `data.steps` on `edit_run` removes it from the graph and prunes its cells, input-only orphan scenarios, and stale metrics. See `EvaluationsService._reconcile_run` / `_prune_removed_steps` in `api/oss/src/core/evaluations/service.py`; semantics in `step-removal-semantics.md`; closed finding UEL-014. |
-| `add_scenario` | deferred (this branch) | `create_scenario`/`create_scenarios` exist as CRUD, but a graph-aware `add_scenario` (resolving source bindings, planning cells) is not yet a first-class op; lands later in this branch. proposal.md:372. |
-| `remove_scenario` | deferred (this branch) | `delete_scenario(s)` exist as CRUD; a cascade-aware `remove_scenario` (prune the scenario's cells + flush metrics) lands later in this branch. proposal.md:373. |
+### Graph-shape operations
+
+| Operation | Status | Endpoint (`operation_id`) | Where |
+| --- | --- | --- | --- |
+| `add_steps` | **done** | `POST /{id}/steps/add` (`add_simple_evaluation_steps`) | `SimpleEvaluationsService.add_steps` — appends step columns to `run.data.steps` (idempotent on key); cells fill on the next `process`. The legacy folded-into-`edit_run` path still works too. proposal.md:370. |
+| `remove_steps` | **done** | `POST /{id}/steps/remove` (`remove_simple_evaluation_steps`) | `SimpleEvaluationsService.remove_steps` — drops step columns by key. Destructive cell removal via the reconcile path (`_reconcile_run` / `_prune_removed_steps`) is also driven by omitting a step on `edit_run`; semantics in `step-removal-semantics.md`; closed UEL-014. |
+| `add_scenarios` | **done** | `POST /{id}/scenarios/add` (`add_simple_evaluation_scenarios`) | `SimpleEvaluationsService.add_scenarios` — appends N skeleton rows (height). `populate` writes their input cells, `process` plans/executes (`process` never mints scenarios). proposal.md:372. |
+| `remove_scenarios` | **done** | `POST /{id}/scenarios/remove` (`remove_simple_evaluation_scenarios`) | `SimpleEvaluationsService.remove_scenarios` — drops scenario rows and their cells (delegates to `delete_scenarios`). proposal.md:373. |
+| `set_repeats` | **done** | `POST /{id}/repeats` (`set_simple_evaluation_repeats`) | `SimpleEvaluationsService.set_repeats` — sets the run's repeat (depth) dimension; existing cells untouched, new repeat slots fill on the next `process`. |
 
 ### Tensor operations
 
-| Operation | Status | Where / Tracking |
-| --- | --- | --- |
-| `probe(slice)` | **done** | `TensorSliceOperations.probe` / `probe_summary` in `api/oss/src/core/evaluations/runtime/tensor.py`. |
-| `populate(slice, results)` | **done** (in-process) | `TensorSliceOperations.populate`. A bulk/slice HTTP write surface is still listed as a gap (gap.md:339). |
-| `add_result` | **done** (CRUD) | `create_result`/`create_results` on the service + `/evaluations/results/` routes. This is the low-level cell write that `populate` builds on. |
-| `prune(slice)` | **done** | `TensorSliceOperations.prune`. Also driven by `remove_step` via `_prune_removed_steps`. |
-| `process(slice)` | **done** | `TensorSliceOperations.process` delegates to an injected `SliceProcessor` (the adapter-free execution seam in `runtime/tensor.py`); the backend impl `BackendSliceProcessor` (`tasks/processor.py`) re-executes the runnable cells for the EXISTING scenarios a `TensorSlice` addresses — rebuilds each scenario's source binding from its stored input cell, re-hydrates trace/testcase context, plans from the run's current graph (so modified steps re-run), runs the cache-aware runners (hashed-trace reuse), populates, and refreshes metrics. With no processor wired it raises rather than silently refreshing metrics. Closed finding UEL-015. proposal.md:160-208. |
+| Operation | Status | Endpoint (`operation_id`) | Where |
+| --- | --- | --- | --- |
+| `probe(slice)` | **done** | `POST /{id}/probe` (`probe_simple_evaluation_slice`) | `SimpleEvaluationsService.probe_slice` → `TensorSliceOperations.probe` / `probe_summary` in `runtime/tensor.py`. |
+| `populate(slice, results)` | **done** | `POST /{id}/populate` (`populate_simple_evaluation_slice`) | `SimpleEvaluationsService.populate_slice` → `TensorSliceOperations.populate`. Low-level cell CRUD (`create_results` + `/evaluations/results/`) still underlies it. |
+| `prune(slice)` | **done** | `POST /{id}/prune` (`prune_simple_evaluation_slice`) | `SimpleEvaluationsService.prune_slice` → `TensorSliceOperations.prune` (removes cells + refreshes metrics over the scope). Also driven by `remove_step` via `_prune_removed_steps`. |
+| `process(slice)` | **done** | `POST /{id}/process` (`process_simple_evaluation_slice`) | `SimpleEvaluationsService.dispatch_tensor_slice` → taskiq → `TensorSliceOperations.process`, which delegates to the injected `SliceProcessor` (`APISliceProcessor` in `tasks/processor.py`). Re-executes the runnable cells for the EXISTING scenarios a `TensorSlice` addresses — rebuilds each scenario's source binding from its stored input cell, re-hydrates trace/testcase context, plans from the run's current graph (so modified steps re-run), runs the cache-aware runners (hashed-trace reuse), populates, refreshes metrics, and finalizes. With no processor wired it raises rather than silently refreshing. Closed UEL-015. proposal.md:160-208. |
 
 ### Run operations
 
 | Operation | Status | Where / Tracking |
 | --- | --- | --- |
-| `refresh_metrics(scope)` | **done** | `EvaluationsService.refresh_metrics` + `/evaluations/metrics/refresh`. Also invoked by the prune cascade for affected scenarios. |
+| `refresh_metrics(scope)` | **done** | `EvaluationsService.refresh_metrics` + `/evaluations/metrics/refresh`. Also invoked by every tensor-write op (populate / process / prune) over the touched scope. |
 | `set_flag` | deferred (this branch) | No first-class constrained `set_flag`. Flags are currently re-derived from the graph (`_make_run_flags`) and reconciled (`is_queue` via `_reconcile_default_queue`). A constrained setter lands later in this branch. proposal.md:379; gap.md:302, 340. |
-| run start / stop / close / open | **done** | `create_run`/`close_run`/`open_run` etc. on the service + routes. |
+| run start / stop / close / open | **done** | `create_run`/`close_run`/`open_run` + `/{id}/start`,`/stop`,`/close`,`/open` routes. |
 
-## What "implement later" means here
+## Still deferred
 
-The deferred operations above (`add_step`, `add_scenario`, `remove_scenario`,
-`set_flag`, a slice-shaped `process`, and bulk `populate`) are planned for this
-branch but not yet implemented — they will land in later commits on this branch.
-When implemented, they should:
+Only `set_flag` remains deferred on this branch (flags are re-derived from the graph
+today; a constrained setter lands later — proposal.md:379; gap.md:302, 340). When
+implemented it should:
 
 - follow the AGENTS.md domain conventions (`apis/fastapi/evaluations/router.py` +
   `core/evaluations/service.py`), with typed domain exceptions in
   `core/evaluations/types.py`;
-- reuse the shared reconcile path so graph mutations keep the graph/tensor invariant
-  and re-derive flags + default-queue eligibility consistently with create/edit;
-- be slice-shaped where applicable (`TensorSlice`) so setup, retry, queue assignment,
-  manual annotation, live ticks, and SDK/local runs share one tensor contract
-  (proposal.md:381).
+- reuse the shared reconcile path so the mutation re-derives flags + default-queue
+  eligibility consistently with create/edit.
+
+The graph-shape and tensor ops are all wired end to end (service → HTTP →
+Fern client). They are slice-shaped where applicable (`TensorSlice`) so setup, retry,
+queue assignment, manual annotation, live ticks, and SDK/local runs share one tensor
+contract (proposal.md:381).

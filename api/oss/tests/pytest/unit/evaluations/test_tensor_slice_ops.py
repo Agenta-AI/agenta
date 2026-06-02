@@ -28,6 +28,7 @@ from oss.src.core.evaluations.types import (
     EvaluationResultCreate,
     EvaluationRun,
     EvaluationRunData,
+    EvaluationRunDataStep,
     EvaluationStatus,
 )
 
@@ -342,7 +343,8 @@ async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeyp
     assert captured["refresh_slice"] == captured["process_slice"]
 
 
-# --- graph-dimension ops: add_scenarios (height) / resize_repeats (depth) -----
+# --- graph-shape ops: add/remove_scenarios (height), add/remove_steps (width),
+#     set_repeats (depth) ---------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -387,9 +389,153 @@ async def test_add_scenarios_zero_count_is_noop():
 
 
 @pytest.mark.asyncio
-async def test_resize_repeats_sets_run_data_repeats():
+async def test_remove_scenarios_deletes_rows():
+    scenario_ids = [uuid4(), uuid4()]
+    evaluations_service = SimpleNamespace(
+        delete_scenarios=AsyncMock(return_value=scenario_ids)
+    )
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.remove_scenarios(
+        project_id=uuid4(),
+        scenario_ids=scenario_ids,
+    )
+
+    assert result == scenario_ids
+    evaluations_service.delete_scenarios.assert_awaited_once()
+    _, kwargs = evaluations_service.delete_scenarios.await_args
+    assert kwargs["scenario_ids"] == scenario_ids
+
+
+@pytest.mark.asyncio
+async def test_remove_scenarios_empty_is_noop():
+    evaluations_service = SimpleNamespace(delete_scenarios=AsyncMock())
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.remove_scenarios(project_id=uuid4(), scenario_ids=[])
+
+    assert result == []
+    evaluations_service.delete_scenarios.assert_not_awaited()
+
+
+def _step(key: str) -> EvaluationRunDataStep:
+    return EvaluationRunDataStep(
+        key=key,
+        type="input",
+        origin="custom",
+        references={},
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_steps_appends_new_columns():
     run_id = uuid4()
-    # resize_repeats builds a real EvaluationRunEdit, so the run/data must be the
+    run = EvaluationRun(
+        id=run_id,
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(steps=[_step("input")], repeats=1),
+    )
+    edited = SimpleNamespace(id=run_id)
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(return_value=edited),
+    )
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.add_steps(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=run_id,
+        steps=[_step("evaluator")],
+    )
+
+    assert result == edited
+    _, kwargs = evaluations_service.edit_run.await_args
+    assert [s.key for s in kwargs["run"].data.steps] == ["input", "evaluator"]
+
+
+@pytest.mark.asyncio
+async def test_add_steps_skips_existing_key():
+    run_id = uuid4()
+    run = EvaluationRun(
+        id=run_id,
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(steps=[_step("input")], repeats=1),
+    )
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(),
+    )
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.add_steps(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=run_id,
+        steps=[_step("input")],
+    )
+
+    # all keys already present -> no edit, run returned unchanged
+    assert result is run
+    evaluations_service.edit_run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_remove_steps_drops_named_columns():
+    run_id = uuid4()
+    run = EvaluationRun(
+        id=run_id,
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(steps=[_step("input"), _step("evaluator")], repeats=1),
+    )
+    edited = SimpleNamespace(id=run_id)
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(return_value=edited),
+    )
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.remove_steps(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=run_id,
+        step_keys=["evaluator"],
+    )
+
+    assert result == edited
+    _, kwargs = evaluations_service.edit_run.await_args
+    assert [s.key for s in kwargs["run"].data.steps] == ["input"]
+
+
+@pytest.mark.asyncio
+async def test_remove_steps_unknown_key_is_noop():
+    run_id = uuid4()
+    run = EvaluationRun(
+        id=run_id,
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(steps=[_step("input")], repeats=1),
+    )
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(),
+    )
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.remove_steps(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=run_id,
+        step_keys=["missing"],
+    )
+
+    assert result is run
+    evaluations_service.edit_run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_set_repeats_sets_run_data_repeats():
+    run_id = uuid4()
+    # set_repeats builds a real EvaluationRunEdit, so the run/data must be the
     # real DTOs (model_copy + validation run for real).
     run = EvaluationRun(
         id=run_id,
@@ -403,7 +549,7 @@ async def test_resize_repeats_sets_run_data_repeats():
     )
     service = _simple_service(evaluations_service=evaluations_service)
 
-    result = await service.resize_repeats(
+    result = await service.set_repeats(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=run_id,
@@ -417,11 +563,11 @@ async def test_resize_repeats_sets_run_data_repeats():
 
 
 @pytest.mark.asyncio
-async def test_resize_repeats_returns_none_when_run_missing():
+async def test_set_repeats_returns_none_when_run_missing():
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=None))
     service = _simple_service(evaluations_service=evaluations_service)
 
-    result = await service.resize_repeats(
+    result = await service.set_repeats(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=uuid4(),
