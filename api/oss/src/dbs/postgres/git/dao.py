@@ -507,6 +507,12 @@ class GitDAO(GitDAOInterface):
 
             pick_default_variant = False
 
+            # Track whether any identifying filter was applied. If we reach the
+            # query without one, bail out instead of running
+            # `WHERE project_id = ... LIMIT 1`, which would return an arbitrary
+            # row.
+            applied_identifying_filter = False
+
             if artifact_ref:
                 if artifact_ref.id:
                     stmt = stmt.filter(self.VariantDBE.artifact_id == artifact_ref.id)  # type: ignore
@@ -1093,6 +1099,14 @@ class GitDAO(GitDAOInterface):
                     self.RevisionDBE.project_id == project_id,  # type: ignore
                 )
             )
+
+            # Track whether any identifying filter was applied. If we reach the
+            # query without one (e.g. `revision_ref` carries only a `version` and
+            # no `variant_ref` is provided to scope it), bail out instead of
+            # running `WHERE project_id = ... LIMIT 1`, which would return an
+            # arbitrary row. A version is a per-variant sequence number and cannot
+            # identify a revision on its own.
+            applied_identifying_filter = False
 
             if revision_ref and (revision_ref.id or revision_ref.slug):
                 if revision_ref.id:
