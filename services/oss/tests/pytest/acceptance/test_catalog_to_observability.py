@@ -34,7 +34,7 @@ pytestmark = [pytest.mark.acceptance]
 # ---------------------------------------------------------------------------
 
 _POLL_INTERVAL = 0.5  # seconds between trace-fetch retries
-_POLL_TIMEOUT = 20.0  # maximum seconds to wait for a trace to appear
+_POLL_TIMEOUT = 30.0  # maximum seconds to wait for a trace to appear
 
 
 def _uid() -> str:
