@@ -43,36 +43,45 @@ export interface ToolCallResponse {
  * LOCAL-DEV MOCK for the refine-prompt tool.
  *
  * The refine endpoint hits an upstream AI service that isn't trivially
- * runnable locally ("Failed to connect to upstream service"). This mock
- * lets you exercise the Refine Prompt modal — and specifically verify the
- * apply-doesn't-revert fix — without that service.
+ * runnable locally ("AI services are disabled" / "Failed to connect to
+ * upstream service"). This mock lets you exercise the Refine Prompt modal
+ * — and specifically verify the apply-doesn't-revert fix — without it.
  *
- * Enable it either way:
- *   - Env (needs dev-server restart):  NEXT_PUBLIC_MOCK_REFINE_PROMPT=true
- *   - Runtime (no restart, just reload the page after setting):
- *       localStorage.setItem("agenta:mock-refine-prompt", "true")
+ * Three modes (see `getRefineMockMode`):
+ *   - "force": always mock, never hit the network. Set via env
+ *       `NEXT_PUBLIC_MOCK_REFINE_PROMPT=true` (restart) or
+ *       `localStorage["agenta:mock-refine-prompt"] = "true"` (reload).
+ *   - "off": never mock — surface the real error. Set
+ *       `localStorage["agenta:mock-refine-prompt"] = "false"`.
+ *   - "auto" (DEFAULT in dev): try the real endpoint; if it errors AND
+ *       we're not in production, fall back to the mock with a console
+ *       warning. This is what makes refine "just work" locally without
+ *       any setup. In production the real service responds, so the
+ *       fallback never fires — and even if it threw, the `NODE_ENV`
+ *       guard re-throws.
  *
- * The mock prepends a visible `[refined]` marker to every message's
+ * The mock prepends a visible `[refined] ` marker to every message's
  * content. That makes the revert-bug observable: click "Use refined
  * prompt" → the editor should show `[refined] …`; if the old race
  * regressed, the marker would disappear as the editor reverts to the
- * pre-refine content. It also honours a couple of magic guidelines so
- * you can exercise the error / empty branches:
- *   - guidelines containing "error"  → returns `isError: true`
- *   - guidelines containing "noop"   → returns the prompt unchanged
- *
- * Off by default — zero production impact (both checks resolve falsy).
+ * pre-refine content. Magic guidelines for the other branches:
+ *   - guidelines containing "error" → returns `isError: true`
+ *   - guidelines containing "noop"  → returns the prompt unchanged
  */
-function isRefineMockEnabled(): boolean {
-    if (process.env.NEXT_PUBLIC_MOCK_REFINE_PROMPT === "true") return true
+type RefineMockMode = "force" | "off" | "auto"
+
+function getRefineMockMode(): RefineMockMode {
+    if (process.env.NEXT_PUBLIC_MOCK_REFINE_PROMPT === "true") return "force"
     if (typeof window !== "undefined") {
         try {
-            return window.localStorage.getItem("agenta:mock-refine-prompt") === "true"
+            const v = window.localStorage.getItem("agenta:mock-refine-prompt")
+            if (v === "true") return "force"
+            if (v === "false") return "off"
         } catch {
             // localStorage can throw in private-mode / sandboxed contexts.
         }
     }
-    return false
+    return "auto"
 }
 
 function buildMockRefineResponse(
@@ -138,7 +147,9 @@ export const aiServicesApi = {
         guidelines: string,
         context?: string,
     ): Promise<ToolCallResponse> {
-        if (isRefineMockEnabled()) {
+        const mode = getRefineMockMode()
+
+        if (mode === "force") {
             // Simulate a bit of network latency so the apply flow runs
             // against a realistic async boundary (the original revert bug
             // was a race; the delay makes any regression easier to catch).
@@ -146,15 +157,34 @@ export const aiServicesApi = {
             return buildMockRefineResponse(promptTemplate, guidelines)
         }
 
-        const {data} = await axios.post<ToolCallResponse>("/ai/services/tools/call", {
-            name: TOOL_REFINE_PROMPT,
-            arguments: {
-                prompt_template_json: JSON.stringify(promptTemplate),
-                guidelines,
-                context: context || "",
-            },
-        })
-        return data
+        try {
+            const {data} = await axios.post<ToolCallResponse>("/ai/services/tools/call", {
+                name: TOOL_REFINE_PROMPT,
+                arguments: {
+                    prompt_template_json: JSON.stringify(promptTemplate),
+                    guidelines,
+                    context: context || "",
+                },
+            })
+            return data
+        } catch (err) {
+            // Dev convenience: when the AI service is unavailable locally
+            // (disabled / upstream down), fall back to the mock instead of
+            // surfacing a runtime error — so the modal stays testable with
+            // zero setup. Skipped in production (real service responds) and
+            // when explicitly disabled (`localStorage[...] = "false"`).
+            const isProd = process.env.NODE_ENV === "production"
+            if (!isProd && mode === "auto") {
+                // eslint-disable-next-line no-console
+                console.warn(
+                    "[refinePrompt] AI service unavailable — falling back to the local mock. " +
+                        'Set localStorage["agenta:mock-refine-prompt"] = "false" to see the real error.',
+                    err,
+                )
+                return buildMockRefineResponse(promptTemplate, guidelines)
+            }
+            throw err
+        }
     },
 }
 
