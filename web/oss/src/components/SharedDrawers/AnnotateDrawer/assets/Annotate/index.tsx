@@ -153,7 +153,7 @@ const Annotate = ({
                             {ann.meta?.name || ann.references?.evaluator?.slug}
                         </Typography.Text>
                         <Typography.Text
-                            className="text-[#758391] truncate !w-[40%] text-end"
+                            className="text-[var(--ag-c-758391)] truncate !w-[40%] text-end"
                             title={ann.references?.evaluator?.slug}
                         >
                             {ann.references?.evaluator?.slug}
@@ -199,7 +199,7 @@ const Annotate = ({
                                 {eva.name}
                             </Typography.Text>
                             <Typography.Text
-                                className="text-[#758391] truncate !w-[40%] text-end"
+                                className="text-[var(--ag-c-758391)] truncate !w-[40%] text-end"
                                 title={eva.slug}
                             >
                                 {eva.slug}
@@ -292,7 +292,7 @@ const Annotate = ({
                 className={clsx(
                     "rounded-none",
                     "[&_.ant-collapse-content-box]:!p-0",
-                    "[&_.ant-collapse-content]:!bg-white [&_.ant-collapse-content]:p-3",
+                    "[&_.ant-collapse-content]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-content]:p-3",
                     "[&_.playground-property-control]:!mb-0",
                     "[&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1",
                     "[&_.ant-collapse-header-text]:w-[95%]",

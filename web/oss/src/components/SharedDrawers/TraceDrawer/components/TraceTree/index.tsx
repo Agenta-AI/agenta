@@ -28,13 +28,16 @@ import TraceTreeSettings from "../TraceTreeSettings"
 import {TraceTreeSettingsState} from "../TraceTreeSettings/types"
 
 import {filterKeySpans} from "./assets/spanVisibility"
-import {useStyles} from "./assets/styles"
 import {TraceTreeProps} from "./assets/types"
+
+const treeHeaderClass =
+    "[&_.ant-typography]:text-sm [&_.ant-typography]:leading-[1.5714285714285714] [&_.ant-typography]:font-medium"
+const treeTitleClass = "text-xs leading-[1.6666666666666667]"
+const treeContentContainerClass = "text-colorTextSecondary"
+const treeContentClass = "flex items-center font-mono gap-0.5"
 
 export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: any}) => {
     const {span_name, span_id, status_code} = value || {}
-
-    const classes = useStyles()
 
     const formattedTokens = useAtomValue(formattedSpanTokensAtomFamily(value))
     const formattedCost = useAtomValue(formattedSpanCostAtomFamily(value))
@@ -48,8 +51,8 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                     <Typography.Text
                         className={
                             status_code === StatusCode.STATUS_CODE_ERROR
-                                ? `${classes.treeTitle} text-[#D61010] font-[500]`
-                                : classes.treeTitle
+                                ? `${treeTitleClass} text-[var(--ag-c-D61010)] font-[500]`
+                                : treeTitleClass
                         }
                     >
                         {span_name}
@@ -57,14 +60,14 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                 </Tooltip>
             </Space>
 
-            <Space className={classes.treeContentContainer}>
+            <Space className={treeContentContainerClass}>
                 {settings.latency && (
                     <Tooltip
                         title={`Latency: ${formattedLatency}`}
                         mouseEnterDelay={0.25}
                         placement="bottom"
                     >
-                        <div className={classes.treeContent}>
+                        <div className={treeContentClass}>
                             <Timer />
                             {formattedLatency}
                         </div>
@@ -77,7 +80,7 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                         mouseEnterDelay={0.25}
                         placement="bottom"
                     >
-                        <div className={classes.treeContent}>
+                        <div className={treeContentClass}>
                             <Coins />
                             {formattedCost}
                         </div>
@@ -90,7 +93,7 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                         mouseEnterDelay={0.25}
                         placement="bottom"
                     >
-                        <div className={classes.treeContent}>
+                        <div className={treeContentClass}>
                             <PlusCircle />
                             {formattedTokens}
                         </div>
@@ -102,7 +105,6 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
 }
 
 const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: TraceTreeProps) => {
-    const classes = useStyles()
     const [searchValue, setSearchValue] = useState("")
 
     const [traceTreeSettings, setTraceTreeSettings] = useLocalStorage<TraceTreeSettingsState>(
@@ -175,7 +177,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
             <div
                 className={clsx(
                     "flex items-center justify-between h-[43px] pl-2 pr-2",
-                    classes.treeHeader,
+                    treeHeaderClass,
                 )}
             >
                 <Input

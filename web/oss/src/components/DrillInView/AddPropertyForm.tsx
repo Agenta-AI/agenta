@@ -96,7 +96,7 @@ export function AddPropertyForm({onAdd, mode = "inline"}: AddPropertyFormProps) 
                 <Tooltip title={open ? undefined : "Add property"}>
                     <button
                         type="button"
-                        className="flex items-center justify-center w-6 h-6 rounded border-none cursor-pointer transition-colors bg-transparent text-[rgba(0,0,0,0.45)] hover:text-[#1c2c3d] hover:bg-[rgba(0,0,0,0.06)]"
+                        className="flex items-center justify-center w-6 h-6 rounded border-none cursor-pointer transition-colors bg-transparent text-[var(--ag-rgba-000-45)] hover:text-[var(--ag-c-1C2C3D)] hover:bg-[var(--ag-rgba-000-06)]"
                     >
                         <Plus size={14} />
                     </button>
@@ -109,7 +109,7 @@ export function AddPropertyForm({onAdd, mode = "inline"}: AddPropertyFormProps) 
     return (
         <div className="flex flex-col gap-2">
             {open ? (
-                <div className="flex items-center gap-2 p-2 rounded-md border border-[rgba(0,0,0,0.06)] bg-[rgba(0,0,0,0.02)]">
+                <div className="flex items-center gap-2 p-2 rounded-md border border-[var(--ag-rgba-000-06)] bg-[var(--ag-rgba-000-02)]">
                     {formContent}
                 </div>
             ) : (

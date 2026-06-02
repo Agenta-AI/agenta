@@ -86,26 +86,26 @@ const GenerationComparisonChatOutputCell = ({
             <>
                 <div
                     className={clsx([
-                        "shrink-0 flex flex-col self-stretch sticky left-0 z-[99] bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                        "shrink-0 flex flex-col self-stretch sticky left-0 z-[99] bg-[var(--ag-c-FFFFFF)] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
                         {"border-r": variantIndex === 0},
                     ])}
                 >
                     {variantIndex === 0 ? (
                         <div className="!w-[400px] shrink-0 sticky top-9 z-[2] p-3">
-                            <div className="h-16 rounded bg-[rgba(5,23,41,0.06)] animate-pulse" />
+                            <div className="h-16 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
                         </div>
                     ) : null}
                 </div>
                 <div
                     className={clsx([
                         "!min-w-[400px] flex-1",
-                        "shrink-0 bg-white z-[1]",
+                        "shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
                         "flex flex-col self-stretch",
-                        "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
+                        "border-0 border-r border-b border-solid border-[var(--ag-rgba-051729-06)]",
                     ])}
                 >
                     <div className="!w-full shrink-0 sticky top-9 z-[1] p-3">
-                        <div className="h-20 rounded bg-[rgba(5,23,41,0.06)] animate-pulse" />
+                        <div className="h-20 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
                     </div>
                 </div>
             </>
@@ -116,7 +116,7 @@ const GenerationComparisonChatOutputCell = ({
         <>
             <div
                 className={clsx([
-                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[99] bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[99] bg-[var(--ag-c-FFFFFF)] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
                     {"border-r": variantIndex === 0},
                 ])}
             >
@@ -154,7 +154,7 @@ const GenerationComparisonChatOutputCell = ({
                                         "!p-0 [&_.agenta-editor-wrapper]:!p-3 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
                                     editorClassName: "!p-3",
                                     headerClassName:
-                                        "min-h-[48px] px-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                                        "min-h-[48px] px-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
                                     footerClassName: "px-2",
                                     editorType: "borderless",
                                 }}
@@ -186,9 +186,9 @@ const GenerationComparisonChatOutputCell = ({
             <div
                 className={clsx([
                     "!min-w-[400px] flex-1",
-                    "shrink-0 bg-white z-[1]",
+                    "shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
                     "flex flex-col self-stretch",
-                    "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
+                    "border-0 border-r border-b border-solid border-[var(--ag-rgba-051729-06)]",
                 ])}
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[1] p-3">
@@ -202,7 +202,7 @@ const GenerationComparisonChatOutputCell = ({
                                 "!p-0 [&_.agenta-editor-wrapper]:!p-3 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
                             editorClassName: "!p-3",
                             headerClassName:
-                                "min-h-[48px] border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                                "min-h-[48px] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
                             footerClassName: "px-2 !m-0",
                             editorType: "borderless",
                         }}

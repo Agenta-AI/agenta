@@ -48,22 +48,22 @@ const TestsetsFiltersSummary = ({tableMode = "active"}: TestsetsFiltersSummaryPr
 
     if (!summary.hasFilters) {
         return (
-            <Typography.Text className="text-xs text-[#98A2B3] whitespace-nowrap">
+            <Typography.Text className="text-xs text-[var(--ag-c-98A2B3)] whitespace-nowrap">
                 No filters applied
             </Typography.Text>
         )
     }
 
     return (
-        <div className="flex gap-2 text-xs text-[#475467] grow overflow-x-auto">
+        <div className="flex gap-2 text-xs text-[var(--ag-c-475467)] grow overflow-x-auto">
             {summary.dateCreated && (
                 <Tag
                     closable
                     onClose={handleRemoveDateCreated}
-                    className="m-0 px-2 py-0.5 text-xs border border-solid rounded text-[#475467] bg-[#F2F4F7] border-transparent"
+                    className="m-0 px-2 py-0.5 text-xs border border-solid rounded text-[var(--ag-c-475467)] bg-[var(--ag-c-F2F4F7)] border-transparent"
                 >
                     <span>
-                        <span className="font-medium text-[#101828]">Date Created:</span>{" "}
+                        <span className="font-medium text-[var(--ag-c-101828)]">Date Created:</span>{" "}
                         {formatDateLabel(summary.dateCreated.from)} -{" "}
                         {formatDateLabel(summary.dateCreated.to)}
                     </span>
@@ -73,10 +73,12 @@ const TestsetsFiltersSummary = ({tableMode = "active"}: TestsetsFiltersSummaryPr
                 <Tag
                     closable
                     onClose={handleRemoveDateModified}
-                    className="m-0 px-2 py-0.5 text-xs border border-solid rounded text-[#475467] bg-[#F2F4F7] border-transparent"
+                    className="m-0 px-2 py-0.5 text-xs border border-solid rounded text-[var(--ag-c-475467)] bg-[var(--ag-c-F2F4F7)] border-transparent"
                 >
                     <span>
-                        <span className="font-medium text-[#101828]">Date Modified:</span>{" "}
+                        <span className="font-medium text-[var(--ag-c-101828)]">
+                            Date Modified:
+                        </span>{" "}
                         {formatDateLabel(summary.dateModified.from)} -{" "}
                         {formatDateLabel(summary.dateModified.to)}
                     </span>

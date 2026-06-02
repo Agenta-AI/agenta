@@ -5,9 +5,8 @@ import {CheckOutlined} from "@ant-design/icons"
 import {Input, Modal, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
-import {createUseStyles} from "react-jss"
 
-import {GenericObject, JSSTheme} from "@/oss/lib/Types"
+import {GenericObject} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
 import {getProjectValues} from "@/oss/state/project"
 
@@ -15,18 +14,9 @@ import {invalidateAppManagementWorkflowQueries} from "../../store"
 
 import {closeEditAppModalAtom, editAppModalAtom} from "./store/editAppModalStore"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    title: {
-        fontSize: theme.fontSizeLG,
-        lineHeight: theme.lineHeightLG,
-        fontWeight: theme.fontWeightStrong,
-    },
-}))
-
 const EditAppModal = () => {
     const {open, appDetails} = useAtomValue(editAppModalAtom)
     const closeModal = useSetAtom(closeEditAppModalAtom)
-    const classes = useStyles()
     const {apps, isLoading, mutate} = useAppsData()
     const [appNameInput, setAppNameInput] = useState(appDetails?.name || "")
 
@@ -74,7 +64,11 @@ const EditAppModal = () => {
             }}
             onOk={handleEditAppName}
             okText={"Confirm"}
-            title={<Typography.Text className={classes.title}>Rename App</Typography.Text>}
+            title={
+                <Typography.Text className="text-base leading-normal font-semibold">
+                    Rename App
+                </Typography.Text>
+            }
             open={open}
             onCancel={closeModal}
         >

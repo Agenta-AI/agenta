@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
+import {SkeletonLine} from "@agenta/ui/table"
 
 import {useRunRowSummary} from "../../context/RunRowDataContext"
 import type {EvaluationRunTableRow} from "../../types"

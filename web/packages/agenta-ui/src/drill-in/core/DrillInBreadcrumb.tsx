@@ -110,7 +110,7 @@ export const DrillInBreadcrumb = memo(
         )
 
         return (
-            <div className="drill-in-breadcrumb flex items-center gap-1 min-h-[32px] sticky top-0 bg-white z-10 py-2">
+            <div className="drill-in-breadcrumb flex items-center gap-1 min-h-[32px] sticky top-0 bg-[var(--ag-c-FFFFFF)] z-10 py-2">
                 {/* Fixed prefix (span navigation) - doesn't scroll */}
                 {prefix && <div className="flex-shrink-0 flex items-center">{prefix}</div>}
 

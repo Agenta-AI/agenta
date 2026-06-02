@@ -311,7 +311,7 @@ const MappingPopoverContent = memo(
                     <Button
                         type="text"
                         size="small"
-                        className="justify-start text-blue-600"
+                        className="justify-start text-blue-600 dark:text-[#58a6ff]"
                         onClick={() => setShowNewColumnInput(true)}
                     >
                         + Create new column
@@ -418,11 +418,11 @@ const DrillInFieldHeader = memo(
         // Whole header is a click target for collapse — gives users a generous
         // hit area instead of the small caret icon.
         const headerInteractive = shouldShowCollapse
-            ? "cursor-pointer hover:bg-[rgba(5,23,41,0.04)] transition-colors"
+            ? "cursor-pointer hover:bg-[var(--ag-rgba-051729-04)] transition-colors"
             : ""
         const headerClassName = isFlat
-            ? `flex items-center justify-between py-1 px-3 bg-white ${headerInteractive}`
-            : `flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)] ${headerInteractive}`
+            ? `flex items-center justify-between py-1 px-3 bg-[var(--ag-c-FFFFFF)] ${headerInteractive}`
+            : `flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[var(--ag-rgba-051729-06)] ${headerInteractive}`
 
         // Mapping popover content
         const mappingContent = onMapToColumn && (
@@ -472,17 +472,17 @@ const DrillInFieldHeader = memo(
                         </>
                     )}
                     {mappedColumn ? (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                             mapped to {mappedColumn}
                         </span>
                     ) : nestedMappingCount > 0 ? (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                             contains {nestedMappingCount} mapping
                             {nestedMappingCount > 1 ? "s" : ""}
                         </span>
                     ) : null}
                     {itemCount ? (
-                        <span className="text-xs text-[rgba(5,23,41,0.45)]">{itemCount}</span>
+                        <span className="text-xs text-[var(--ag-rgba-051729-45)]">{itemCount}</span>
                     ) : null}
                 </div>
                 {/* Right-side controls stop click bubbling so they don't toggle collapse */}
@@ -516,7 +516,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
                                 icon={codeIcon}
                                 onClick={onToggleRawMode}
                             />
@@ -527,7 +527,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
                                 icon={isMarkdownView ? textIcon : markdownIcon}
                                 onClick={onToggleMarkdownView}
                             />
@@ -574,7 +574,7 @@ const DrillInFieldHeader = memo(
                                     />
                                 </Tooltip>
                                 {popoverOpen && (
-                                    <div className="absolute right-0 top-full mt-1 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                                    <div className="absolute right-0 top-full mt-1 bg-[var(--ant-color-bg-elevated)] rounded-md shadow-lg border border-gray-200 dark:shadow-none dark:border-[rgba(255,255,255,0.16)] z-50">
                                         {mappingContent}
                                     </div>
                                 )}

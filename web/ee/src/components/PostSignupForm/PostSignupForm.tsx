@@ -15,9 +15,13 @@ import {flushSync} from "react-dom"
 
 import type {Org} from "@/oss/lib/Types"
 
-import {useStyles} from "./assets/styles"
 import PostSignupHeader from "./PostSignupHeader"
 import PostSignupSubmitting from "./PostSignupSubmitting"
+
+const mainContainerClass = "w-[400px] mx-auto h-[82vh] flex flex-col justify-between"
+const containerClass =
+    "p-6 grid gap-8 rounded-lg shadow-[0px_9px_28px_8px_#0000000D,0px_3px_6px_-4px_#0000001F,0px_6px_16px_0px_#00000014] border border-colorBorder"
+const formItemClass = "gap-2 [&>.ant-form-item-row>.ant-form-item-label]:font-medium"
 
 // Fisher-Yates shuffle algorithm
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -97,7 +101,6 @@ interface PostSignupFormProps {
 const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
     const [form] = Form.useForm()
     const router = useRouter()
-    const classes = useStyles()
     const formData = Form.useWatch([], form)
     const [currentStep, setCurrentStep] = useState(0)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -275,7 +278,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                 <div key={question.id}>
                     <Form.Item
                         name={fieldName}
-                        className={classes.formItem}
+                        className={formItemClass}
                         label={question.question}
                         rules={[{required: true, message: "Please select an option"}]}
                     >
@@ -300,7 +303,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     <div key={question.id}>
                         <Form.Item
                             name={fieldName}
-                            className={classes.formItem}
+                            className={formItemClass}
                             label={question.question}
                             rules={[{required: true, message: "Please enter a response"}]}
                         >
@@ -320,7 +323,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     <div key={question.id}>
                         <Form.Item
                             name={fieldName}
-                            className={classes.formItem}
+                            className={formItemClass}
                             label={question.question}
                             rules={[{required: true, message: "Please provide a rating"}]}
                         >
@@ -334,7 +337,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                 <div key={question.id}>
                     <Form.Item
                         name={fieldName}
-                        className={classes.formItem}
+                        className={formItemClass}
                         label={question.question}
                         rules={[{required: true, message: "Please provide a response"}]}
                     >
@@ -348,7 +351,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
             <div key={question.id}>
                 <Form.Item
                     name={fieldName}
-                    className={classes.formItem}
+                    className={formItemClass}
                     label={question.question}
                     rules={[{required: true, message: "Please select an option"}]}
                 >
@@ -429,9 +432,9 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                 layout="vertical"
                 form={form}
                 onFinish={handleSubmitFormData}
-                className={classes.mainContainer}
+                className={mainContainerClass}
             >
-                <div className={classes.container}>
+                <div className={containerClass}>
                     <div className="space-y-1">
                         <Typography.Paragraph>
                             {currentStep + 1}/{totalSteps || 1}
