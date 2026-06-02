@@ -653,7 +653,7 @@ const DeleteSection = memo(function DeleteSection({
 
     return (
         <>
-            <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-[var(--ag-c-FEE4E2)] bg-[var(--ag-c-FFFBFA)]">
+            <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-[var(--ag-c-FEE4E2)] bg-[var(--ag-c-FFFBFA)] dark:border-[var(--ant-red-3)] dark:bg-[var(--ant-red-1)]">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="flex flex-col gap-1">
                         <Text className="text-sm font-semibold text-[var(--ag-c-B42318)]">
