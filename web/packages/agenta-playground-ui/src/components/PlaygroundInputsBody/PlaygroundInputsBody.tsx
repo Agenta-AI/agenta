@@ -162,7 +162,11 @@ export function PlaygroundInputsBody({
             name={variable.name}
             value={variable.value}
             options={getViewOptionsForExpectedType(variable.value, variable.expectedType)}
-            defaultMode={getDefaultViewForExpectedType(variable.value, variable.expectedType)}
+            defaultMode={getDefaultViewForExpectedType(
+                variable.value,
+                variable.expectedType,
+                variable.expectedSchema,
+            )}
             isDraft={variable.isDraft}
             helpText={variable.helpText}
             expectedType={variable.expectedType}

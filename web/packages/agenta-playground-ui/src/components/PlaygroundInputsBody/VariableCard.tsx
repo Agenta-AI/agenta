@@ -535,6 +535,7 @@ export function VariableCard({
                     mode={mode}
                     value={value}
                     seedShape={seedShape}
+                    expectedSchema={expectedSchema}
                     editable={editable}
                     onChange={handleValueChange}
                     templateFormat={templateFormat}
@@ -630,6 +631,10 @@ interface CardBodyProps {
      *  draft (empty). The testcase stays untouched until the user actually
      *  edits a field — `onChange` only fires on real edits. */
     seedShape?: unknown
+    /** Declared port schema fragment. Used by the form view to derive an
+     *  empty-row template for array-of-objects ports (the items shape) so
+     *  the user can `+ Add row` to extend the array. */
+    expectedSchema?: unknown
     editable: boolean
     onChange: (next: unknown) => void
     /** Active prompt template format. Forwarded to `ChatMessageList` when
@@ -642,6 +647,7 @@ function CardBody({
     mode,
     value,
     seedShape,
+    expectedSchema,
     editable,
     onChange,
     templateFormat = "curly",
@@ -658,38 +664,52 @@ function CardBody({
     const renderValue = seedShape != null ? seedShape : value
 
     if (mode === "form") {
-        // FormView expects an object record. If the value is an array, wrap
-        // its indexed children into a record { "0": ..., "1": ... } so the
-        // form can render. FormView itself recurses into arrays as well,
-        // but its root signature is `Record<string, unknown>`.
-        const obj =
-            renderValue !== null && typeof renderValue === "object" && !Array.isArray(renderValue)
+        // FormView accepts arrays at root now (Phase 2d of the mustache
+        // section RFC) — array-of-objects ports render as a stack of row
+        // editors with `+ Add row`. Pass arrays through as arrays; only
+        // wrap non-array primitives into an empty `{}` so FormView always
+        // sees a valid object / array root.
+        const expectsArray = (expectedSchema as {type?: string} | null)?.type === "array"
+        const isEmptyObject =
+            renderValue !== null &&
+            typeof renderValue === "object" &&
+            !Array.isArray(renderValue) &&
+            Object.keys(renderValue as object).length === 0
+
+        const formValue: Record<string, unknown> | unknown[] = Array.isArray(renderValue)
+            ? (renderValue as unknown[])
+            : // Migration coercion: an empty `{}` on a port that's now
+              // declared as array (e.g. a section opener with sub-paths
+              // after Phase 2c retyped `repos` from object to array)
+              // would otherwise render as ObjectRows with `(empty object)`
+              // — confusing for an array-of-objects port. Coerce empty
+              // objects to empty arrays so the form-array editor shows.
+              // Non-empty objects pass through to preserve user data on
+              // ports that legitimately hold object values.
+              expectsArray && isEmptyObject
+              ? []
+              : renderValue !== null &&
+                  typeof renderValue === "object" &&
+                  !Array.isArray(renderValue)
                 ? (renderValue as Record<string, unknown>)
-                : Array.isArray(renderValue)
-                  ? Object.fromEntries(renderValue.map((v, i) => [String(i), v]))
-                  : {}
+                : {}
+
+        // Empty-row template for `+ Add row`: derived from the items
+        // schema when the port is array-of-objects. Mustache section
+        // openers with sub-paths (`{{#repos}}{{name}}{{/repos}}`) emit a
+        // schema of `{type: "array", items: {type: "object", properties:
+        // …}}` (see `portHelpers#groupTemplateVariables` + `molecule.ts`'s
+        // schema producer), so `items` carries the row shape — feed it
+        // through `buildEmptyShapeFromSchema` to get the empty row.
+        const itemsSchema = (expectedSchema as {items?: unknown} | null)?.items
+        const arrayItemTemplate = itemsSchema ? buildEmptyShapeFromSchema(itemsSchema) : undefined
+
         return (
             <FormView
-                value={obj}
+                value={formValue}
                 editable={editable}
-                onChange={(next) => {
-                    if (Array.isArray(renderValue)) {
-                        // Recover an array from the indexed-record form. Sort
-                        // the keys numerically and discard non-numeric keys
-                        // (defensive — FormView preserves keys 1:1).
-                        const rec = next as Record<string, unknown>
-                        const arr: unknown[] = []
-                        for (const [k, v] of Object.entries(rec)) {
-                            const idx = Number(k)
-                            if (Number.isInteger(idx) && idx >= 0) {
-                                arr[idx] = v
-                            }
-                        }
-                        onChange(arr)
-                    } else {
-                        onChange(next)
-                    }
-                }}
+                onChange={onChange}
+                arrayItemTemplate={arrayItemTemplate}
             />
         )
     }

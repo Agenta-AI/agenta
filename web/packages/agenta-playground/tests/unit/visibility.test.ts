@@ -78,31 +78,40 @@ describe("splitInputsVisibility", () => {
         })
     })
 
-    describe("empty values (draft) — Arda QA 2026-06-02", () => {
-        it("treats empty string as draft", () => {
-            const {inputs} = splitInputsVisibility({
-                referencedKeys: ["a"],
-                testcaseData: {a: ""},
-            })
-            expect(inputs).toEqual([{name: "a", value: "", isDraft: true}])
-        })
-
-        it("treats null as draft", () => {
+    describe("primitives stay authored (existing contract)", () => {
+        // The pre-existing `playground-inputs-visibility.test.ts` contract:
+        // primitives — `null`, `undefined`, `""`, `0`, `false` — are
+        // treated as authored when the key is present. Only EMPTY
+        // CONTAINERS (the auto-seed case for object / array ports) are
+        // re-classified as draft in this rule. Keeping the primitives
+        // strict avoids a regression in the "user has explicitly cleared
+        // a string field" UX.
+        it("treats null as authored", () => {
             const {inputs} = splitInputsVisibility({
                 referencedKeys: ["a"],
                 testcaseData: {a: null},
             })
-            expect(inputs).toEqual([{name: "a", value: null, isDraft: true}])
+            expect(inputs).toEqual([{name: "a", value: null}])
         })
 
-        it("treats explicit undefined as draft", () => {
+        it("treats explicit undefined as authored", () => {
             const {inputs} = splitInputsVisibility({
                 referencedKeys: ["a"],
                 testcaseData: {a: undefined},
             })
-            expect(inputs).toEqual([{name: "a", value: undefined, isDraft: true}])
+            expect(inputs).toEqual([{name: "a", value: undefined}])
         })
 
+        it("treats empty string as authored", () => {
+            const {inputs} = splitInputsVisibility({
+                referencedKeys: ["a"],
+                testcaseData: {a: ""},
+            })
+            expect(inputs).toEqual([{name: "a", value: ""}])
+        })
+    })
+
+    describe("empty containers (draft) — Arda QA 2026-06-02", () => {
         it("treats empty object {} as draft (the geo/repos auto-seed case)", () => {
             // Object-typed ports get auto-seeded with `{}` when the
             // testcase column is created. Previously the `in` check
