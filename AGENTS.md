@@ -192,11 +192,9 @@ Rules:
   node (a fork produces two heads; alembic then can't resolve a linear upgrade).
 - Revision ids must be globally unique within a chain. A duplicate id makes
   alembic silently skip one file (the migration never runs).
-- The EE chain extends past the shared OSS head with EE-only migrations, so an
-  OSS migration chains after the OSS head while its EE copy chains after the EE
-  head — same revision id, different `down_revision`.
-- `evaluation_runs.data` / `evaluation_queues.data` are `json` columns (not
-  `jsonb`); cast `data::jsonb` before using jsonb operators / `jsonb_array_elements`.
+- The EE chain and the OSS chain are parallel, so an OSS migration chains after
+  the OSS head while its EE counterpart chains after the EE head — same revision id,
+  possibly different `down_revision`.
 
 ### Router and function style conventions
 
