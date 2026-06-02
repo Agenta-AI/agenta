@@ -236,6 +236,57 @@ function buildEvaluatorSelfReferences(params: {
     return Object.keys(refs).length > 0 ? refs : undefined
 }
 
+/**
+ * Filter row data to only keys present in the entity's input schema.
+ *
+ * Why this exists: testcase rows live in the local testcase molecule and
+ * preserve every key the user ever ran with (chat apps populate
+ * `messages`/`context`, completion apps populate template variables, etc.).
+ * When the user swaps the primary app — e.g. in the LLM-as-a-judge playground
+ * switching the chained app from chat to completion (issue #4525 /
+ * AGE-3793) — the same row data carries stale chat keys into the completion
+ * request.
+ *
+ * Downstream there's already filtering by `variables` (input ports) in
+ * `resolveVariableValues` / `buildCompletionInputRow`, but it falls back to
+ * "spread all keys" when `variables` is empty (entity still hydrating, or a
+ * workflow with no declared input ports). This helper filters AT THE RUNNER
+ * before the data leaves for stage execution, so stale keys can't slip
+ * through the fallback.
+ *
+ * Fallback contract: when the entity has no resolvable input schema
+ * (`properties` missing / empty), return the data unchanged — preserves the
+ * pre-fix behavior so workflows that genuinely depend on free-form input
+ * (e.g. `__rawBody` app workflows with `__meta.variables`) aren't broken.
+ */
+function filterDataToEntityInputSchema(
+    get: Getter,
+    data: Record<string, unknown>,
+    entityId: string,
+): Record<string, unknown> {
+    const schemas = get(workflowMolecule.selectors.ioSchemas(entityId)) as
+        | {inputSchema?: unknown}
+        | undefined
+    const inputSchema = schemas?.inputSchema as
+        | {properties?: Record<string, unknown>}
+        | undefined
+    const properties = inputSchema?.properties
+    if (!properties || typeof properties !== "object") {
+        return {...data}
+    }
+    const allowedKeys = new Set(Object.keys(properties))
+    if (allowedKeys.size === 0) {
+        return {...data}
+    }
+    const filtered: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(data)) {
+        if (allowedKeys.has(key)) {
+            filtered[key] = value
+        }
+    }
+    return filtered
+}
+
 function createConcurrencyLimiter(concurrency: number) {
     let active = 0
     const queue: (() => void)[] = []
@@ -434,7 +485,17 @@ export async function executeStepForSessionWithExecutionItems(
 
                     let nodeInputs: Record<string, unknown>
                     if (node.depth === 0) {
-                        nodeInputs = {...data}
+                        // Filter to the root entity's declared input schema so stale
+                        // keys from a previous primary app (e.g. chat `messages` /
+                        // `context` after swapping the upstream app in the
+                        // LLM-as-a-judge playground — issue #4525 / AGE-3793) don't
+                        // leak into the new app's request body via the downstream
+                        // "spread all keys" fallback in resolveVariableValues.
+                        nodeInputs = filterDataToEntityInputSchema(
+                            get,
+                            data,
+                            node.entity.id as string,
+                        )
                     } else {
                         // Check whether the incoming connection has explicit valid mappings.
                         // resolveChainInputs always returns non-empty (fallback spreads testcaseData
@@ -653,7 +714,14 @@ export async function executeStepForSessionWithExecutionItems(
                 if (abortController.signal.aborted) break
 
                 const perSession2 = sessionOptions?.[session.id]
-                const nodeInputs2 = {...data}
+                // Same input-schema filter as the first-run path above —
+                // repetitions hit the same root entity, so stale keys must be
+                // filtered identically (issue #4525 / AGE-3793).
+                const nodeInputs2 = filterDataToEntityInputSchema(
+                    get,
+                    data,
+                    session.runnableId,
+                )
                 const repetitionItem = rootExecutionHandle.retry({
                     get,
                     headers: perSession2?.headers ?? {},
