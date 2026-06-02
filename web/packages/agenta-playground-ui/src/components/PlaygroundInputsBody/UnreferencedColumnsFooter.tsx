@@ -75,7 +75,7 @@ export function UnreferencedColumnsFooter({
                 icon={expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 onClick={() => setExpanded((prev) => !prev)}
                 aria-expanded={expanded}
-                className="self-start text-[12px] !text-[rgba(5,23,41,0.55)]"
+                className="self-start text-[12px] !text-[var(--ag-rgba-051729-55)]"
             >
                 {summary}
             </Button>

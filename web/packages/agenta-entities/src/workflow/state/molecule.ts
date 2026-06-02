@@ -929,7 +929,29 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                             type: group.type,
                             required: true,
                             ...(group.subPaths
-                                ? {schema: buildSubPathSchema(group.subPaths)}
+                                ? group.type === "array"
+                                    ? {
+                                          // Section opener with sub-paths →
+                                          // array of objects. Items schema
+                                          // describes each ROW; nested
+                                          // section openers inside the
+                                          // group surface as array-typed
+                                          // sub-properties via the
+                                          // `sectionSubPaths` hint.
+                                          schema: {
+                                              type: "array",
+                                              items: buildSubPathSchema(
+                                                  group.subPaths,
+                                                  group.sectionSubPaths,
+                                              ),
+                                          },
+                                      }
+                                    : {
+                                          schema: buildSubPathSchema(
+                                              group.subPaths,
+                                              group.sectionSubPaths,
+                                          ),
+                                      }
                                 : group.type === "array"
                                   ? {schema: {type: "array"}}
                                   : {}),
@@ -988,7 +1010,22 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                         type: group.type,
                         required: true,
                         ...(group.subPaths
-                            ? {schema: buildSubPathSchema(group.subPaths)}
+                            ? group.type === "array"
+                                ? {
+                                      schema: {
+                                          type: "array",
+                                          items: buildSubPathSchema(
+                                              group.subPaths,
+                                              group.sectionSubPaths,
+                                          ),
+                                      },
+                                  }
+                                : {
+                                      schema: buildSubPathSchema(
+                                          group.subPaths,
+                                          group.sectionSubPaths,
+                                      ),
+                                  }
                             : group.type === "array"
                               ? {schema: {type: "array"}}
                               : {}),
@@ -1004,23 +1041,71 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
  * object variable. Used only as a UI shape hint (seeds the JSON editor's
  * default so users see which keys the template references).
  *
- * Nested paths (`a.b.c`) are flattened to their top-level segment here —
- * deeper structure is communicated via `_pathHints` for the adapter to
- * optionally render, without imposing nesting on the default value.
+ * Recursive — groups paths by their first segment and descends. Sub-paths
+ * that match an entry in `sectionSubPaths` (mustache section openers
+ * inside the group, e.g. `repos.contributors` for `{{#repos}}{{#contributors}}
+ * …{{/contributors}}{{/repos}}`) emit `{type: "array", items: …}` at that
+ * depth; everything else stays as objects. Leaf paths become strings.
+ *
+ * At the ROOT level (when called from the schema producer above) the
+ * function also emits `_pathHints` — the original flat sub-path list —
+ * for backward compatibility with consumers that read hints directly.
+ * Hints are omitted when the properties carry any array-typed children,
+ * because the flat-hint format can't represent array nesting and would
+ * confuse downstream shape derivation if preferred over properties.
+ *
+ * Inner (non-root) levels never emit `_pathHints` — the recursive
+ * structure already captures the nesting precisely.
  */
-function buildSubPathSchema(subPaths: string[]): {
+function buildSubPathSchema(
+    subPaths: string[],
+    sectionSubPaths?: string[],
+    prefix: string = "",
+): {
     type: "object"
-    properties: Record<string, {type: "string"}>
-    _pathHints: string[]
+    properties: Record<string, unknown>
+    _pathHints?: string[]
 } {
-    const topLevelKeys = new Set<string>()
+    const sectionSet = new Set(sectionSubPaths ?? [])
+
+    // Group remaining sub-paths under each first-segment child.
+    const childPaths: Record<string, string[]> = {}
     for (const sp of subPaths) {
-        const first = sp.split(/[.[\]/]/).filter(Boolean)[0]
-        if (first) topLevelKeys.add(first)
+        const segments = sp.split(/[.[\]/]/).filter(Boolean)
+        if (segments.length === 0) continue
+        const head = segments[0]
+        const tail = segments.slice(1).join(".")
+        if (!(head in childPaths)) childPaths[head] = []
+        if (tail) childPaths[head].push(tail)
     }
-    const properties: Record<string, {type: "string"}> = {}
-    for (const k of topLevelKeys) properties[k] = {type: "string"}
-    return {type: "object", properties, _pathHints: subPaths}
+
+    const properties: Record<string, unknown> = {}
+    let hasArrayChild = false
+    for (const head of Object.keys(childPaths)) {
+        const childSubPaths = childPaths[head]
+        const fullPath = prefix ? `${prefix}.${head}` : head
+        const isSection = sectionSet.has(fullPath)
+
+        if (isSection && childSubPaths.length > 0) {
+            properties[head] = {
+                type: "array",
+                items: buildSubPathSchema(childSubPaths, sectionSubPaths, fullPath),
+            }
+            hasArrayChild = true
+        } else if (isSection) {
+            properties[head] = {type: "array"}
+            hasArrayChild = true
+        } else if (childSubPaths.length > 0) {
+            properties[head] = buildSubPathSchema(childSubPaths, sectionSubPaths, fullPath)
+        } else {
+            properties[head] = {type: "string"}
+        }
+    }
+
+    if (!prefix && !hasArrayChild) {
+        return {type: "object", properties, _pathHints: subPaths}
+    }
+    return {type: "object", properties}
 }
 
 /**

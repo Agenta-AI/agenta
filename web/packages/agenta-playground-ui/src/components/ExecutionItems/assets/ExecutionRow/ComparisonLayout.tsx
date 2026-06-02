@@ -290,8 +290,13 @@ const ComparisonLayout = ({
                     {"max-w-[100%]": viewType === "comparison"},
                 ])}
             >
-                <div className="flex gap-1 items-start">
-                    <div className="flex flex-col grow">
+                <div className="flex gap-1 items-start min-w-0">
+                    {/* `min-w-0` on this flex child — without it, a wide
+                     *  variable value (e.g. `geo.subregion = "Western Europe"`
+                     *  inside a Form view) forces the column to grow beyond
+                     *  its grid slot, which in comparison mode pushes adjacent
+                     *  variant columns off-screen. Kaosiso QA 2026-06-02. */}
+                    <div className="flex flex-col grow min-w-0">
                         {useNewInputsBody ? (
                             <>
                                 {/* Row-level controls — moved out of the
@@ -358,7 +363,7 @@ const ComparisonLayout = ({
                                             },
                                         ])}
                                         disabled={disabled}
-                                        placeholder="Enter value"
+                                        placeholder="Enter a value"
                                         editorProps={{enableTokens: false}}
                                         headerActions={
                                             !inputOnly ? (

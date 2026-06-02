@@ -342,16 +342,87 @@ describe("groupTemplateVariables", () => {
             })
         })
 
-        it("keeps sub-pathed names as `object` even when in sectionOpeners", () => {
-            // `{{#user}}{{user.name}}{{/user}}` — `user` is in sectionOpeners
-            // BUT also has sub-paths, so it's an object (sub-paths are the
-            // stronger signal).
-            const result = groupTemplateVariables(["user", "$.user.name"], {
-                sectionOpeners: new Set(["user"]),
+        it("infers `array` for sub-pathed section openers (RFC Phase 2c)", () => {
+            // `{{#repos}}{{name}}{{/repos}}` — `repos` is a section opener
+            // and the inner `name` produces `repos.name` as a sub-path.
+            // Mustache iterates an array of objects in this shape, so we
+            // surface `array` as the type and keep the sub-paths to
+            // describe the ROW (items) schema. Single-object templates
+            // still render at runtime — mustache treats a non-array
+            // truthy value as a one-element iteration.
+            const result = groupTemplateVariables(["repos", "repos.name"], {
+                sectionOpeners: new Set(["repos"]),
             })
             expect(result).toHaveLength(1)
-            expect(result[0].type).toBe("object")
+            expect(result[0]).toMatchObject({
+                envelope: "inputs",
+                key: "repos",
+                type: "array",
+            })
             expect(result[0].subPaths).toContain("name")
+        })
+
+        it("infers `array` for nested section openers + records sectionSubPaths", () => {
+            // `{{#org}}{{#users}}{{name}}{{/users}}{{/org}}` — both `org`
+            // and `org.users` are section openers. `extractMustacheSection
+            // Openers` emits DOTTED PATHS, so the hint is keyed by the
+            // full path under the group (`org` for top-level, `org.users`
+            // for nested).
+            const result = groupTemplateVariables(["org", "org.users", "org.users.name"], {
+                sectionOpeners: new Set(["org", "org.users"]),
+            })
+            const org = result.find((g) => g.key === "org")
+            expect(org?.type).toBe("array")
+            expect(org?.subPaths).toEqual(expect.arrayContaining(["users.name"]))
+            // `users` is recorded as a nested section under `org` —
+            // schema producer uses this to emit an array shape at that
+            // depth instead of an object. Paths are RELATIVE to the
+            // group root (so `"users"`, not `"org.users"`).
+            expect(org?.sectionSubPaths).toContain("users")
+        })
+
+        it("records nested section paths at every depth", () => {
+            // `{{#repos}}{{#contributors}}{{#tags}}{{name}}{{/tags}}…`
+            // — three nested section levels.
+            const result = groupTemplateVariables(
+                [
+                    "repos",
+                    "repos.contributors",
+                    "repos.contributors.tags",
+                    "repos.contributors.tags.name",
+                ],
+                {
+                    sectionOpeners: new Set([
+                        "repos",
+                        "repos.contributors",
+                        "repos.contributors.tags",
+                    ]),
+                },
+            )
+            const repos = result.find((g) => g.key === "repos")
+            expect(repos?.type).toBe("array")
+            expect(repos?.sectionSubPaths).toEqual(
+                expect.arrayContaining(["contributors", "contributors.tags"]),
+            )
+        })
+
+        it("omits sectionSubPaths when there are no nested sections", () => {
+            const result = groupTemplateVariables(["repos", "repos.name"], {
+                sectionOpeners: new Set(["repos"]),
+            })
+            const repos = result.find((g) => g.key === "repos")
+            expect(repos?.type).toBe("array")
+            expect(repos?.sectionSubPaths).toBeUndefined()
+        })
+
+        it("infers `object` for sub-pathed NON-section names", () => {
+            // `{{geo.region}}` — plain dotted reference, NOT a section
+            // opener. Stays as `object` because there's no iteration
+            // signal — just nested-field access.
+            const result = groupTemplateVariables(["geo", "geo.region"])
+            expect(result).toHaveLength(1)
+            expect(result[0].type).toBe("object")
+            expect(result[0].subPaths).toContain("region")
         })
 
         it("leaves non-opener names as `string`", () => {

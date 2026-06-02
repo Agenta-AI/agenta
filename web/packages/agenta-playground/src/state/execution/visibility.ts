@@ -49,9 +49,38 @@ export interface SplitInputsVisibilityArgs {
 }
 
 /**
+ * True when a testcase value is an "unauthored container" — empty `{}`
+ * or `[]`. These are the auto-seed shapes for object / array ports
+ * (a `{{geo.region}}` reference creates `geo` as an empty object on
+ * column creation, same for array section openers), and need to render
+ * with the draft badge to match the visual behaviour of string ports
+ * that stay missing until first edit.
+ *
+ * Primitives — `null`, `undefined`, `""`, `0`, `false` — stay AUTHORED.
+ * If the key is present in the testcase with one of these values, the
+ * user (or the row's source data) is signalling "this column exists,
+ * even if I haven't filled it with a meaningful value". The pre-existing
+ * `playground-inputs-visibility` tests assert this contract:
+ *   - `{x: null}`       → not draft (null is a real value)
+ *   - `{x: undefined}`  → not draft (explicit, even if empty)
+ *
+ * Only the container case is special — there's no other way to tell an
+ * auto-seeded empty container apart from an authored one.
+ *
+ * Arda QA 2026-06-02: `name`/`user` (missing keys) showed `[draft]`,
+ * `geo`/`repos` (auto-seeded `{}`) did NOT. This helper closes that gap.
+ */
+function isValueUnauthored(value: unknown): boolean {
+    if (value === null || value === undefined) return false
+    if (Array.isArray(value)) return value.length === 0
+    if (typeof value === "object") return Object.keys(value as object).length === 0
+    return false
+}
+
+/**
  * Split the referenced + testcase universe into `inputs` (referenced, with
- * draft annotation for missing) and `unreferencedColumns` (in testcase but
- * not referenced).
+ * draft annotation for missing OR empty values) and `unreferencedColumns`
+ * (in testcase but not referenced).
  *
  * Pure — no atoms, no React, no jotai. Easy to unit-test.
  */
@@ -63,7 +92,15 @@ export function splitInputsVisibility({
 
     const inputs: VariableEntry[] = referencedKeys.map((name) => {
         if (name in testcaseData) {
-            return {name, value: testcaseData[name]}
+            const value = testcaseData[name]
+            // Key exists but the value is empty — surface the draft badge
+            // so the UX is consistent with truly-missing columns. Both
+            // routes (draft vs filled) write through the same
+            // `setCellValue` reducer downstream, so the change is purely
+            // visual: same write path, more honest "you haven't filled
+            // this yet" affordance.
+            if (isValueUnauthored(value)) return {name, value, isDraft: true}
+            return {name, value}
         }
         return {name, value: undefined, isDraft: true}
     })

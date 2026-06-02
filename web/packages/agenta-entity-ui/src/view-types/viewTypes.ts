@@ -107,10 +107,10 @@ export function getViewOptions(value: unknown): ViewOption[] {
     const opts: ViewOption[] = []
 
     if (kind === "string") {
-        opts.push({value: "text", label: "String", hint: "default"})
+        opts.push({value: "text", label: "Text", hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
     } else if (kind === "boolean") {
-        opts.push({value: "text", label: "String", hint: "default"})
+        opts.push({value: "text", label: "Text", hint: "default"})
     } else if (kind === "chat") {
         opts.push({value: "chat", label: "Chat", hint: "default"})
     } else if (kind === "object") {
@@ -191,10 +191,10 @@ export function getViewOptionsForExpectedType(
 
     const opts: ViewOption[] = []
     if (expectedKind === "string") {
-        opts.push({value: "text", label: "String", hint: "default"})
+        opts.push({value: "text", label: "Text", hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
     } else if (expectedKind === "boolean") {
-        opts.push({value: "text", label: "String", hint: "default"})
+        opts.push({value: "text", label: "Text", hint: "default"})
     } else if (expectedKind === "object") {
         opts.push({value: "form", label: "Form"})
     }
@@ -209,23 +209,53 @@ export function getViewOptionsForExpectedType(
  * `getViewOptionsForExpectedType` keeps a consistent layout regardless
  * of which mode is the default.
  *
- *   - object → Form  (seeded with empty-shape when a schema is known)
- *   - array  → JSON  (FormView has no add-item affordance for `[]`,
- *                     JSON's buffer is the better empty-state UX)
- *   - string/number/integer/boolean → text ("String" label)
+ *   - object → Form (seeded with empty-shape when a schema is known)
+ *   - array of objects (`expectedSchema.items` describes a row shape)
+ *            → Form  (the form-array editor's `+ Add row` makes the
+ *                     empty-state UX clean; user clicks once to extend)
+ *   - array (no items schema or items are primitives)
+ *            → JSON  (FormView's array-of-primitives case lacks an
+ *                     `add row` template, JSON's buffer is friendlier)
+ *   - string/number/integer/boolean → text ("Text" label)
  */
 export function getDefaultViewForExpectedType(
     value: unknown,
     expectedType: ExpectedType,
+    expectedSchema?: unknown,
 ): ViewType {
     if (!isValueEmpty(value)) return getDefaultViewForValue(value)
     if (expectedType === "object") return "form"
-    if (expectedType === "array") return "json"
+    if (expectedType === "array") {
+        // Array-of-objects (mustache section opener with sub-paths) →
+        // open in Form view so the user sees a row-per-item layout with
+        // a clear `+ Add row` affordance. Plain arrays (no items schema
+        // or items that aren't object-shaped) stay on JSON, which is
+        // friendlier for arrays of primitives.
+        if (isArrayOfObjectsSchema(expectedSchema)) return "form"
+        return "json"
+    }
     if (expectedType === "boolean") return "text"
     if (expectedType === "string" || expectedType === "number" || expectedType === "integer") {
         return "text"
     }
     return getDefaultViewForValue(value)
+}
+
+/** Whether a schema fragment describes an array whose items have an
+ *  object-with-properties shape — the array-of-objects case the form
+ *  view's `+ Add row` editor handles natively. */
+function isArrayOfObjectsSchema(schema: unknown): boolean {
+    if (!schema || typeof schema !== "object") return false
+    const s = schema as {type?: string; items?: unknown}
+    if (s.type !== "array" || !s.items || typeof s.items !== "object") return false
+    const items = s.items as {type?: string; properties?: unknown; _pathHints?: unknown}
+    if (items.type !== "object") return false
+    const hasProperties =
+        !!items.properties &&
+        typeof items.properties === "object" &&
+        Object.keys(items.properties as object).length > 0
+    const hasPathHints = Array.isArray(items._pathHints) && items._pathHints.length > 0
+    return hasProperties || hasPathHints
 }
 
 // ─── Empty-shape seed from JSON schema ─────────────────────────────────────
@@ -275,13 +305,33 @@ function buildShapeFromPathHints(hints: unknown[]): Record<string, unknown> {
 }
 
 /**
+ * True when any property (recursively) is declared as `type: "array"`.
+ * Used by `buildEmptyShapeFromSchema` to detect schemas whose properties
+ * encode an array-of-objects nested shape (from mustache nested section
+ * openers) — `_pathHints` can't represent those, so the properties walk
+ * must take precedence.
+ */
+function hasArrayProperty(properties: Record<string, unknown> | undefined): boolean {
+    if (!properties || typeof properties !== "object") return false
+    for (const value of Object.values(properties)) {
+        if (!value || typeof value !== "object") continue
+        const prop = value as {type?: string; properties?: Record<string, unknown>}
+        if (prop.type === "array") return true
+        if (prop.type === "object" && hasArrayProperty(prop.properties)) return true
+    }
+    return false
+}
+
+/**
  * Build a render-only empty-value seed matching the schema's expected
  * structure. Returns `null` when there's nothing useful to seed (primitive
  * type / missing properties / non-object input).
  *
  * Order of preference for object schemas:
- *   1. `_pathHints` (preserves nested sub-paths)
- *   2. `properties` (recursive, flat per level)
+ *   1. `properties` if they carry any array-typed child (e.g. nested
+ *      array-of-objects from mustache `{{#repos}}{{#contributors}}…`)
+ *   2. `_pathHints` (preserves nested sub-paths)
+ *   3. `properties` (recursive, flat per level)
  */
 export function buildEmptyShapeFromSchema(schema: unknown): unknown {
     if (!schema || typeof schema !== "object") return null
@@ -292,17 +342,31 @@ export function buildEmptyShapeFromSchema(schema: unknown): unknown {
         _pathHints?: unknown
     }
 
-    if (s.type === "object" && Array.isArray(s._pathHints) && s._pathHints.length > 0) {
-        return buildShapeFromPathHints(s._pathHints)
-    }
-
-    if (s.type === "object" && s.properties) {
-        const out: Record<string, unknown> = {}
-        for (const [key, prop] of Object.entries(s.properties)) {
-            const nested = buildEmptyShapeFromSchema(prop)
-            out[key] = nested ?? ""
+    if (s.type === "object") {
+        // Prefer `properties` over `_pathHints` when the properties carry
+        // ANY array-typed child (nested array-of-objects shapes coming
+        // out of `buildSubPathSchema` for mustache nested section openers).
+        // The hints format is a flat list of dotted paths and can't
+        // represent arrays — falling back to it would silently strip
+        // the nested array structure and reconstruct everything as
+        // objects, producing `{contributors: {name: ""}}` instead of
+        // `{contributors: []}`. The recursive properties walk below
+        // honours array shapes correctly.
+        const propertiesHaveArrayChild = hasArrayProperty(
+            s.properties as Record<string, unknown> | undefined,
+        )
+        if (!propertiesHaveArrayChild && Array.isArray(s._pathHints) && s._pathHints.length > 0) {
+            return buildShapeFromPathHints(s._pathHints)
         }
-        return out
+
+        if (s.properties) {
+            const out: Record<string, unknown> = {}
+            for (const [key, prop] of Object.entries(s.properties)) {
+                const nested = buildEmptyShapeFromSchema(prop)
+                out[key] = nested ?? ""
+            }
+            return out
+        }
     }
 
     if (s.type === "array") return []

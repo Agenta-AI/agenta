@@ -6,7 +6,7 @@
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {getValueAtPath, generateId} from "@agenta/shared/utils"
+import {getValueAtPath, generateId, parseMustache, walkMustache} from "@agenta/shared/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {parseEvaluatorKeyFromUri} from "../workflow/core"
@@ -508,19 +508,33 @@ export function extractTemplateVariables(
     // curly, jinja2, and mustache all use {{variableName}} for variable substitution
     // Linear scan: find '{{', then find '}}', extract the content between them.
     //
-    // For MUSTACHE, normalise / skip block-level syntax:
+    // For MUSTACHE, normalise / skip block-level syntax AND track section depth:
     //
-    //   keep (strip prefix → variable name):
+    //   keep (strip prefix → variable name) WHEN AT TOP LEVEL (depth 0):
     //     - `{{#name}}` — section opener: `name` IS a variable (the iterable
-    //                      / truthiness check), it still needs a value.
+    //                      / truthiness check). Increments section depth.
     //     - `{{^name}}` — inverted section opener: same — `name` is a variable.
+    //                      Increments section depth.
     //     - `{{&name}}` — unescaped variable: `name` IS the variable.
+    //     - bare `{{name}}` — plain variable reference.
     //
-    //   skip entirely (not variables — structural / inert tokens):
-    //     - `{{/name}}`      — section closer (just a boundary marker).
+    //   structural / inert tokens (no variable emitted regardless of depth):
+    //     - `{{/name}}`      — section closer. Decrements section depth.
     //     - `{{!comment}}`   — comment.
     //     - `{{> partial}}`  — partial template inclusion (resolved at render).
     //     - `{{.}}`          — implicit iterator (current item, no base name).
+    //
+    //   **inside a section (depth > 0): variable extraction is suppressed.**
+    //   `{{#repo}}{{name}}{{/repo}}` emits `['repo']`, NOT `['repo', 'name']`.
+    //   Mahmoud's QA on 2026-06-02: "since `name` is in that loop, it's
+    //   actually `repo.name`". We don't yet model scoped names, so we skip
+    //   the bare reference rather than register a phantom top-level port.
+    //   Section openers nested inside another section are ALSO skipped for
+    //   the same reason. The user fills the top-level section variable
+    //   (`repo`) with raw JSON (array of objects, single object, or scalar
+    //   per their template's intent); the runtime resolves the inner names
+    //   at render time. Full scope-aware discovery is Phase 2 — see
+    //   `docs/designs/mustache-section-support.md`.
     //
     // For CURLY / JINJA2, none of those prefix characters are valid in
     // identifiers — those formats have no section semantics, no implicit
@@ -533,6 +547,71 @@ export function extractTemplateVariables(
     // The TokenPlugin highlights all of these via its own regex — this filter
     // is for PORT DISCOVERY only. The mustache renderer pairs `#`/`^`/`/`
     // structurally at render time.
+    // Mustache: defer to the structural parser
+    // (`@agenta/shared/utils/mustache#parseMustache`) and emit scope-aware
+    // variable PATHS. Phase 2 of `docs/designs/mustache-section-support.md`.
+    //
+    //   `{{#repo}}{{name}}{{/repo}}`        → ['repo', 'repo.name']
+    //   `{{#org}}{{#users}}{{name}}{{/users}}{{/org}}`
+    //                                       → ['org', 'org.users', 'org.users.name']
+    //   `{{name}}{{#sec}}{{a}}{{/sec}}{{country.a}}`
+    //                                       → ['name', 'sec', 'sec.a', 'country.a']
+    //
+    // Section openers contribute their name (the user must provide a value
+    // for the section to render). Variables inside a section join the
+    // open-stack with `.` separators.
+    //
+    //   `{{.}}` — implicit iterator, never emits.
+    //   `{{&body}}` joins the stack like a plain variable.
+    //   Structural-only tags (comments, partials, set-delimiter,
+    //   inheritance blocks `{{$x}}`, parent templates `{{<x}}`) NEVER emit.
+    //   Mustache inheritance is recognised by the parser so the FE doesn't
+    //   surface phantom variable names like `$slot`.
+    //
+    // Duplicates dedupe in source order (first occurrence wins).
+    if (templateFormat === "mustache") {
+        const {ast} = parseMustache(input)
+        const seen = new Set<string>()
+        const pathStack: string[] = []
+        const join = (name: string): string =>
+            pathStack.length === 0 ? name : `${pathStack.join(".")}.${name}`
+        const emit = (name: string) => {
+            if (!name) return
+            if (seen.has(name)) return
+            seen.add(name)
+            variables.push(name)
+        }
+        walkMustache(ast, {
+            onEnter: (node) => {
+                if (node.kind === "section") {
+                    // Empty section names — produced while the user is
+                    // mid-typing `{{#|}}` (autoclose state, no name yet) —
+                    // contribute nothing to paths AND must not push the
+                    // empty string onto the stack. Otherwise inner
+                    // variables would join as `".name"` (leading dot).
+                    if (!node.name) return
+                    emit(join(node.name))
+                    pathStack.push(node.name)
+                } else if (node.kind === "variable") {
+                    if (node.implicitIterator) return
+                    emit(join(node.name))
+                }
+                // text / comment / partial / delimiter / block / parent
+                // contribute no variables.
+            },
+            onExit: (node) => {
+                // Symmetric to onEnter — only pop when the corresponding
+                // push happened. The parser's walk is depth-paired so
+                // this keeps stack alignment safe.
+                if (node.kind === "section" && node.name) pathStack.pop()
+            },
+        })
+        return variables
+    }
+
+    // curly / jinja2: linear scan for `{{name}}`. Anything starting with
+    // mustache-style markers is an authoring error in these formats; skip
+    // so the playground doesn't surface a port for the bad token.
     let i = 0
     while (i < input.length - 1) {
         if (input[i] === "{" && input[i + 1] === "{") {
@@ -540,27 +619,12 @@ export function extractTemplateVariables(
             const end = input.indexOf("}}", start)
             if (end !== -1) {
                 const raw = input.slice(start, end).trim()
-
-                if (templateFormat === "mustache") {
-                    const isSkippablePrefix = /^[/!>]/.test(raw)
-                    const isImplicitIterator = raw === "."
-                    if (raw && !isSkippablePrefix && !isImplicitIterator) {
-                        // Strip section-opener / unescape prefixes — the base
-                        // name is the actual variable that needs a value.
-                        const variable = /^[#^&]/.test(raw) ? raw.slice(1).trim() : raw
-                        if (variable && !variables.includes(variable)) {
-                            variables.push(variable)
-                        }
-                    }
-                } else {
-                    // curly / jinja2 — only identifier-shaped tokens count.
-                    // Anything starting with mustache-style markers is an
-                    // authoring error in these formats; skip it so the
-                    // playground doesn't surface a port for the bad token.
-                    const startsWithMustacheMarker = /^[#^&/!>.]/.test(raw)
-                    if (raw && !startsWithMustacheMarker && !variables.includes(raw)) {
-                        variables.push(raw)
-                    }
+                // Authoring-error guard: include `$<` and `=` so spec-mustache
+                // inheritance tags pasted into a curly/jinja2 prompt don't
+                // surface as phantom ports.
+                const startsWithMustacheMarker = /^[#^&/!>.$<=]/.test(raw)
+                if (raw && !startsWithMustacheMarker && !variables.includes(raw)) {
+                    variables.push(raw)
                 }
 
                 i = end + 2
@@ -577,44 +641,53 @@ export function extractTemplateVariables(
 }
 
 /**
- * Extract names that appear as mustache SECTION OPENERS (`{{#name}}` or
- * `{{^name}}`) from a template string.
+ * Extract section opener PATHS from a mustache template string.
+ *
+ * Walks the AST and emits a dotted path for every section opener
+ * (`{{#name}}` or `{{^name}}`) — joined with `.` against the path
+ * stack of enclosing sections. So for
+ *
+ *   `{{#repos}}{{#contributors}}{{name}}{{/contributors}}{{/repos}}`
+ *
+ * the returned set is `{"repos", "repos.contributors"}`.
+ *
+ * Callers (`groupTemplateVariables` via `portHelpers.ts`, and the schema
+ * producer in `molecule.ts` via `buildSubPathSchema`) use this hint to:
+ *   - infer the GROUP'S type as `array` when its top-level name is a
+ *     section opener (`repos` here),
+ *   - emit nested array-of-objects schemas when a SUB-PATH is itself a
+ *     section opener (`repos.contributors` here).
  *
  * Distinct from `extractTemplateVariables`, which returns every referenced
- * placeholder (section openers, plain variables, dotted access). Callers use
- * this set as a hint when grouping variables — a name referenced ONLY as a
- * section opener with no sub-paths is best surfaced as an `array` port
- * (iteration intent) rather than the default `string` port.
- *
- * Always returns an empty set for non-mustache formats: curly / jinja2 /
- * fstring don't have section semantics, so the hint isn't meaningful there.
+ * placeholder (variables, section openers, dotted access). Always returns
+ * an empty set for non-mustache formats: curly / jinja2 / fstring don't
+ * have section semantics, so the hint isn't meaningful there.
  */
 export function extractMustacheSectionOpeners(
     input: string,
     templateFormat: TemplateFormat = "curly",
 ): Set<string> {
-    const names = new Set<string>()
-    if (templateFormat !== "mustache") return names
+    const paths = new Set<string>()
+    if (templateFormat !== "mustache") return paths
 
-    let i = 0
-    while (i < input.length - 1) {
-        if (input[i] === "{" && input[i + 1] === "{") {
-            const start = i + 2
-            const end = input.indexOf("}}", start)
-            if (end === -1) break
-            const raw = input.slice(start, end).trim()
-            // Section opener (`#name`) or inverted section opener (`^name`).
-            // `&name` is variable unescape, not a section — exclude.
-            if (/^[#^]/.test(raw)) {
-                const name = raw.slice(1).trim()
-                if (name) names.add(name)
+    const {ast} = parseMustache(input)
+    const stack: string[] = []
+    walkMustache(ast, {
+        onEnter: (node) => {
+            if (node.kind === "section") {
+                // Skip empty section names (mid-typing autoclose state)
+                // — they'd contribute a leading-dot path otherwise.
+                if (!node.name) return
+                const path = stack.length === 0 ? node.name : `${stack.join(".")}.${node.name}`
+                paths.add(path)
+                stack.push(node.name)
             }
-            i = end + 2
-        } else {
-            i++
-        }
-    }
-    return names
+        },
+        onExit: (node) => {
+            if (node.kind === "section" && node.name) stack.pop()
+        },
+    })
+    return paths
 }
 
 /**

@@ -15,8 +15,10 @@
  *   - Object / array: bold label, then a 2px gray left rail with the
  *     children stacked inside, indented ~16-20px. Children recurse.
  *
- * Color palette is intentionally minimal: white background, light-gray
- * borders (#e5e7eb), dark labels, gray placeholders. No accent colors
+ * Color palette is intentionally minimal: container background, border-
+ * secondary borders, primary text labels, tertiary text placeholders.
+ * All colours route through `--ag-color*` theme tokens so light is
+ * byte-identical and dark mode inverts via `.dark`. No accent colors
  * inside the form. Top-level kind chips live in the section header above.
  *
  * Promoted from the design-mockups POC (`ProposalV2FormView.tsx`).
@@ -27,10 +29,12 @@ import {useCallback, useMemo, useState, type ReactNode} from "react"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
-import {Input, InputNumber, Switch} from "antd"
+import {MinusCircle, Plus} from "@phosphor-icons/react"
+import {Button as AntdButton, Input, InputNumber, Switch} from "antd"
 import {dump as yamlDump, load as yamlLoad} from "js-yaml"
 
 import {
+    buildEmptyShapeFromSchema,
     detectNestedKind,
     getDefaultViewForValue,
     getViewOptions,
@@ -53,23 +57,49 @@ const NESTED_KIND_CHIP: Record<NestedKind, ChipVariant> = {
 }
 
 interface FormViewProps {
-    value: Record<string, unknown>
+    value: Record<string, unknown> | unknown[]
     onChange: (next: unknown) => void
     editable?: boolean
+    /**
+     * Optional JSON Schema fragment describing the value's expected shape.
+     * Threaded through every nested field so:
+     *   - Each array node derives its OWN `+ Add row` template from its
+     *     `items` schema, not a single global template.
+     *   - Nested array-of-objects inside an outer array (e.g.
+     *     `repos[i].contributors`) gets a template matching the inner
+     *     items shape (`{name: ""}`), not the outer row shape.
+     *
+     * Without the schema, arrays still render but new rows default to
+     * `null` (no template). Most callers pass the port schema directly;
+     * see `PlaygroundInputsBody/VariableCard.tsx` for the canonical
+     * wiring.
+     */
+    schema?: unknown
 }
 
-export function FormView({value, onChange, editable}: FormViewProps) {
+export function FormView({value, onChange, editable, schema}: FormViewProps) {
     // Wrap the entire form in a rail so the children visually read as
     // "contents of the variable named in the section header above" — the
     // rail is consistent with the rail that appears at deeper levels.
     return (
         <div style={styles.formOuter}>
-            <ObjectRows
-                obj={value}
-                onChange={(next) => onChange(next)}
-                depth={0}
-                editable={!!editable}
-            />
+            {Array.isArray(value) ? (
+                <ArrayBody
+                    arr={value}
+                    depth={0}
+                    editable={!!editable}
+                    schema={schema}
+                    onChange={(next) => onChange(next)}
+                />
+            ) : (
+                <ObjectRows
+                    obj={value}
+                    onChange={(next) => onChange(next)}
+                    depth={0}
+                    editable={!!editable}
+                    schema={schema}
+                />
+            )}
         </div>
     )
 }
@@ -81,9 +111,10 @@ interface ObjectRowsProps {
     depth: number
     editable: boolean
     onChange: (next: Record<string, unknown>) => void
+    schema?: unknown
 }
 
-function ObjectRows({obj, depth, editable, onChange}: ObjectRowsProps) {
+function ObjectRows({obj, depth, editable, onChange, schema}: ObjectRowsProps) {
     const entries = Object.entries(obj)
     if (entries.length === 0) {
         return <span style={styles.emptyHint}>(empty object)</span>
@@ -91,6 +122,7 @@ function ObjectRows({obj, depth, editable, onChange}: ObjectRowsProps) {
     const updateKey = (key: string, next: unknown) => {
         onChange({...obj, [key]: next})
     }
+    const properties = (schema as {properties?: Record<string, unknown>} | null)?.properties
     return (
         <div style={depth === 0 ? styles.rootStack : styles.nestedStack}>
             {entries.map(([key, child]) => (
@@ -101,6 +133,10 @@ function ObjectRows({obj, depth, editable, onChange}: ObjectRowsProps) {
                     depth={depth}
                     editable={editable}
                     onChange={(next) => updateKey(key, next)}
+                    // Descend into the schema for this property — each
+                    // child gets ITS OWN slice so nested arrays infer
+                    // the correct row template from their local items.
+                    schema={properties?.[key]}
                 />
             ))}
         </div>
@@ -115,9 +151,10 @@ interface FormFieldProps {
     depth: number
     editable: boolean
     onChange: (next: unknown) => void
+    schema?: unknown
 }
 
-function FormField({label, value, depth, editable, onChange}: FormFieldProps) {
+function FormField({label, value, depth, editable, onChange, schema}: FormFieldProps) {
     const kind = detectNestedKind(value)
 
     // For string fields we manage a per-field view mode (Text / Markdown /
@@ -162,8 +199,118 @@ function FormField({label, value, depth, editable, onChange}: FormFieldProps) {
                     editable={editable}
                     onChange={onChange}
                     stringMode={stringMode}
+                    schema={schema}
                 />
             </div>
+        </div>
+    )
+}
+
+/* ── Array body (rows + add/remove row affordances) ─────────────────── */
+
+interface ArrayBodyProps {
+    arr: unknown[]
+    depth: number
+    editable: boolean
+    onChange: (next: unknown[]) => void
+    /**
+     * Schema fragment for the ARRAY itself (`{type: "array", items: {…}}`).
+     * The row template for `+ Add row` is derived from `schema.items`
+     * locally — this ensures nested arrays inside an array-of-objects
+     * (e.g. `repos[i].contributors`) use the INNER items shape, not the
+     * outer row shape. Without a schema, new rows default to `null`.
+     */
+    schema?: unknown
+}
+
+function cloneTemplate(template: unknown): unknown {
+    if (template === undefined || template === null) return null
+    if (typeof template !== "object") return template
+    // `structuredClone` was added to all major browsers / Node 17+. The
+    // FE targets Node 22 and modern browsers per the toolchain, so this
+    // is safe — and it handles nested arrays/objects/dates correctly.
+    return structuredClone(template)
+}
+
+/**
+ * Renders an array as a stack of row editors with `+ Add row` (when
+ * editable) and a per-row remove button. Each row is the same
+ * `FormField` used for object properties — so an array of strings
+ * shows a string input per row, and an array of objects shows a
+ * nested form per row.
+ *
+ * Used at both the FormView ROOT (when the variable's value is itself
+ * an array — e.g. `repos` typed as array-of-objects from a mustache
+ * section opener) and at NESTED depths (when an object property is
+ * an array). The behaviour is identical at both levels; the only
+ * difference is whether the parent supplies a label.
+ *
+ * Phase 2d of `docs/designs/mustache-section-support.md` — the
+ * "form-array editor" piece.
+ */
+function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
+    // Derive the row template + per-row schema FROM THIS array's local
+    // items schema — not from a global template passed down. This is
+    // what makes nested array-of-objects (e.g. `repos[i].contributors`)
+    // get the inner item shape (`{name: ""}`) instead of the outer row
+    // shape (`{name, stars, description, contributors}`).
+    const itemsSchema = (schema as {items?: unknown} | null)?.items
+    const rowTemplate = itemsSchema ? buildEmptyShapeFromSchema(itemsSchema) : undefined
+
+    const updateIndex = (idx: number, next: unknown) => {
+        const copy = [...arr]
+        copy[idx] = next
+        onChange(copy)
+    }
+    const removeIndex = (idx: number) => {
+        onChange(arr.filter((_, i) => i !== idx))
+    }
+    const addRow = () => {
+        onChange([...arr, cloneTemplate(rowTemplate)])
+    }
+
+    return (
+        <div style={styles.arrayStack}>
+            {arr.length === 0 && !editable ? (
+                <span style={styles.emptyHint}>(empty array)</span>
+            ) : null}
+            {arr.map((item, idx) => (
+                <div key={idx} style={styles.arrayRow}>
+                    <div style={styles.arrayRowField}>
+                        <FormField
+                            label={String(idx)}
+                            value={item}
+                            depth={depth}
+                            editable={editable}
+                            onChange={(next) => updateIndex(idx, next)}
+                            // Each row's schema is the array's items
+                            // schema — descend into it for nested fields.
+                            schema={itemsSchema}
+                        />
+                    </div>
+                    {editable ? (
+                        <AntdButton
+                            type="text"
+                            size="small"
+                            icon={<MinusCircle size={14} />}
+                            aria-label={`Remove row ${idx}`}
+                            onClick={() => removeIndex(idx)}
+                            style={styles.arrayRowRemove}
+                        />
+                    ) : null}
+                </div>
+            ))}
+            {editable ? (
+                <AntdButton
+                    type="dashed"
+                    size="small"
+                    icon={<Plus size={14} />}
+                    onClick={addRow}
+                    style={styles.arrayAddRow}
+                >
+                    Add row
+                </AntdButton>
+            ) : null}
         </div>
     )
 }
@@ -176,6 +323,7 @@ interface FieldBodyProps {
     onChange: (next: unknown) => void
     /** For strings only — the active view mode chosen via the labelRow dropdown. */
     stringMode?: ViewType
+    schema?: unknown
 }
 
 function FieldBody({
@@ -185,6 +333,7 @@ function FieldBody({
     editable,
     onChange,
     stringMode,
+    schema,
 }: FieldBodyProps): ReactNode {
     if (kind === "object") {
         return (
@@ -194,31 +343,21 @@ function FieldBody({
                     depth={depth + 1}
                     editable={editable}
                     onChange={(next) => onChange(next)}
+                    schema={schema}
                 />
             </NestedRail>
         )
     }
     if (kind === "array") {
-        const arr = value as unknown[]
-        const updateIndex = (idx: number, next: unknown) => {
-            const copy = [...arr]
-            copy[idx] = next
-            onChange(copy)
-        }
         return (
             <NestedRail>
-                <div style={styles.arrayStack}>
-                    {arr.map((item, idx) => (
-                        <FormField
-                            key={idx}
-                            label={String(idx)}
-                            value={item}
-                            depth={depth + 1}
-                            editable={editable}
-                            onChange={(next) => updateIndex(idx, next)}
-                        />
-                    ))}
-                </div>
+                <ArrayBody
+                    arr={value as unknown[]}
+                    depth={depth + 1}
+                    editable={editable}
+                    schema={schema}
+                    onChange={onChange}
+                />
             </NestedRail>
         )
     }
@@ -333,45 +472,54 @@ function StringLeafEditor({value, mode, editable, onChange}: StringLeafEditorPro
     const isCode = mode === "json" || mode === "yaml"
 
     return (
-        <div style={styles.leafCard}>
-            <SharedEditor
-                // Key by `mode` ONLY — switching between text/markdown/json/
-                // yaml legitimately needs a remount because `editorProps`
-                // (codeOnly, language, disableLongText) change.
-                //
-                // Do NOT include `buffer.length` or any keystroke-derived
-                // signal here. The previous key included `buffer.length`
-                // and that re-mounted the editor on every keystroke — which
-                // tore down the underlying <textarea>/<contenteditable>
-                // element, ripped focus out, and limited the user to
-                // one character per typing burst (JP, QA on mustache,
-                // 2026-05-28). The editor's own internal state tracks
-                // keystrokes; we only need to remount for mode changes.
-                key={`leaf-${mode}`}
-                initialValue={buffer}
-                handleChange={editable ? handleChange : undefined}
-                editorType="borderless"
-                className="overflow-hidden"
-                disableDebounce
-                disabled={!editable}
-                state={editable ? undefined : "readOnly"}
-                placeholder="Enter value"
-                editorProps={{
-                    codeOnly: isCode,
-                    language: isCode ? mode : undefined,
-                    showLineNumbers: true,
-                    showToolbar: false,
-                    disableLongText: !isCode,
-                }}
-            />
-        </div>
+        <SharedEditor
+            // Key by `mode` ONLY — switching between text/markdown/json/
+            // yaml legitimately needs a remount because `editorProps`
+            // (codeOnly, language, disableLongText) change.
+            //
+            // Do NOT include `buffer.length` or any keystroke-derived
+            // signal here. The previous key included `buffer.length`
+            // and that re-mounted the editor on every keystroke — which
+            // tore down the underlying <textarea>/<contenteditable>
+            // element, ripped focus out, and limited the user to
+            // one character per typing burst (JP, QA on mustache,
+            // 2026-05-28). The editor's own internal state tracks
+            // keystrokes; we only need to remount for mode changes.
+            key={`leaf-${mode}`}
+            initialValue={buffer}
+            handleChange={editable ? handleChange : undefined}
+            // `border` so the editor itself supplies its border, hover and
+            // focus states — matches the config-message editor's look and
+            // gives the input a visible boundary in dark mode. Previously
+            // wrapped in a `leafCard` div with a static border + no hover
+            // state, which read fine in light but didn't surface focus /
+            // hover affordances and routed the caret through a layer that
+            // ignored theme colors (Kaosiso QA 2026-06-02).
+            editorType="border"
+            className="overflow-hidden"
+            disableDebounce
+            disabled={!editable}
+            state={editable ? undefined : "readOnly"}
+            placeholder="Enter a value"
+            editorProps={{
+                codeOnly: isCode,
+                language: isCode ? mode : undefined,
+                showLineNumbers: true,
+                showToolbar: false,
+                disableLongText: !isCode,
+            }}
+        />
     )
 }
 
 /* ── Styles ─────────────────────────────────────────────────────────── */
 
-const BORDER = "1px solid #e5e7eb"
-const RAIL = "2px solid #e5e7eb"
+// Route through a theme token so light is byte-identical and dark mode
+// inverts via the `.dark` selector. (Previous hex `#e5e7eb` rendered as
+// a near-white rail on dark canvas — Kaosiso QA 2026-06-02 follow-up.)
+// Leaf editor now uses SharedEditor's `editorType="border"` so its own
+// border + hover + focus states apply; no leaf-level border needed here.
+const RAIL = "2px solid var(--ag-colorBorderSecondary)"
 
 const styles = {
     formOuter: {
@@ -407,6 +555,37 @@ const styles = {
         flexDirection: "column" as const,
         gap: 18,
     },
+    arrayRow: {
+        // Each row hosts the FormField on the left and the remove
+        // button on the right. `align-items: flex-start` keeps the
+        // remove button aligned with the label row even when the field
+        // body grows tall.
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 8,
+    },
+    arrayRowField: {
+        // Field takes all remaining width; `min-width: 0` lets the inner
+        // editors shrink past their content-driven min width (without it,
+        // long values would push the remove button off-screen).
+        flex: 1,
+        minWidth: 0,
+    },
+    arrayRowRemove: {
+        // Sit at the top of the row alongside the field label. The button
+        // is slightly indented from the row's leading edge so it doesn't
+        // visually collide with the field's value border.
+        marginTop: 2,
+        color: "var(--ag-colorTextTertiary)",
+    },
+    arrayAddRow: {
+        // Dashed primary-color affordance; visually distinct from the
+        // filled rows so the user reads it as an action rather than a
+        // row of data. Aligned to the left so the rows visually anchor
+        // at the same leading edge.
+        alignSelf: "flex-start",
+        marginTop: 4,
+    },
     field: {
         display: "flex",
         flexDirection: "column" as const,
@@ -437,22 +616,13 @@ const styles = {
         fontSize: 12,
         fontWeight: 600,
         lineHeight: "20px",
-        color: "#1f2937",
+        color: "var(--ag-colorText)",
         margin: 0,
     },
     nestedRail: {
         marginLeft: 4,
         paddingLeft: 16,
         borderLeft: RAIL,
-    },
-    /* String leaf card — no toolbar; the dropdown lives in the field's
-       label row, matching the section header's pattern. */
-    leafCard: {
-        background: "white",
-        border: BORDER,
-        borderRadius: 8,
-        overflow: "hidden",
-        padding: "6px 4px",
     },
     /* Primitive inputs */
     input: {
@@ -465,7 +635,7 @@ const styles = {
     },
     emptyHint: {
         fontSize: 12,
-        color: "#9ca3af",
+        color: "var(--ag-colorTextTertiary)",
         fontStyle: "italic" as const,
     },
 }

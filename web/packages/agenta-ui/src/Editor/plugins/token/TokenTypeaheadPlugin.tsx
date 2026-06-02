@@ -205,6 +205,16 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
      * types `.` manually to drill, or `}}` to close.
      */
     const pathSuggestions = useMemo<Suggestion[]>(() => {
+        // Suppress typeahead inside structural Mustache tags. `{{/x}}`,
+        // `{{!cmt}}`, `{{>partial}}`, `{{=swap=}}` aren't name references —
+        // suggesting variable names would mislead the user into authoring
+        // a token that can't bind to data. Phase 1 keeps this simple by
+        // returning no suggestions; a follow-up could detect the nearest
+        // unclosed `{{#}}`/`{{^}}` and suggest its name for `{{/...}}`.
+        if (templateFormat === "mustache" && /^[/!>=]/.test(inputQuery)) {
+            return []
+        }
+
         const {mode, prefix, current} = pathContext
         const query = current.toLowerCase()
         const results: Suggestion[] = []
@@ -298,7 +308,14 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
         }
 
         return results
-    }, [pathContext, getContextSuggestions, allowedEnvelopeSlots, dynamicallyReadingTokens])
+    }, [
+        pathContext,
+        getContextSuggestions,
+        allowedEnvelopeSlots,
+        dynamicallyReadingTokens,
+        inputQuery,
+        templateFormat,
+    ])
 
     const suggestions = pathSuggestions
 

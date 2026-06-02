@@ -143,20 +143,48 @@ export interface GroupedTemplateVariable {
     name: string
     /**
      * Declared shape.
-     *   - `"object"` when any placeholder references a sub-path of this
-     *     group (`{{geo.region}}` → object with `region` sub-path).
-     *   - `"array"` when the name appears ONLY as a mustache section opener
-     *     (`{{#languages}}{{.}}{{/languages}}` → array, no sub-paths).
+     *   - `"array"` when the name appears as a mustache section opener
+     *     (`{{#languages}}…{{/languages}}`). The iteration intent is the
+     *     strongest signal mustache gives us — even when sub-paths are
+     *     also referenced, an array of objects fits better than a single
+     *     object. Mustache resolves both at runtime (an array iterates,
+     *     a non-array truthy value renders the block once), so prefer
+     *     the more common case in the UI default.
+     *   - `"object"` when sub-paths are referenced but the name is NOT
+     *     a section opener (`{{geo.region}}` → object with `region`
+     *     sub-path).
      *   - `"string"` otherwise.
      */
     type: "string" | "object" | "array"
     /**
-     * Known sub-paths beneath the group (populated only when `type === "object"`).
-     * Used to seed a shape-hint default in the JSON editor so users see
-     * which keys the template references without having to re-read the prompt.
-     * Example: `["country", "capital"]` for `$.inputs.test.{country, capital}`.
+     * Known sub-paths beneath the group.
+     *
+     *   - For `type === "object"`: keys on the object value.
+     *   - For `type === "array"`: keys on each ROW of the array (the
+     *     items shape). Used downstream by the schema producer to emit
+     *     `{type: "array", items: {type: "object", properties: …}}` so
+     *     the form view can render an array-of-objects editor.
+     *
+     * Used to seed a shape-hint default in the JSON / Form editors so
+     * users see which keys the template references without having to
+     * re-read the prompt. Example: `["country", "capital"]` for
+     * `$.inputs.test.{country, capital}`.
      */
     subPaths?: string[]
+    /**
+     * Sub-paths within this group that are themselves mustache section
+     * openers — surfaces nested array-of-objects shapes to the schema
+     * producer. For `{{#repos}}{{#contributors}}{{name}}{{/contributors}}
+     * {{/repos}}`, the `repos` group emits `subPaths: ["contributors",
+     * "contributors.name"]` AND `sectionSubPaths: ["contributors"]`, so
+     * `buildSubPathSchema` knows to emit `contributors` as `{type:
+     * "array", items: {…}}` at that depth instead of an object.
+     *
+     * Always a subset of `subPaths` (a path must appear somewhere in the
+     * template to be a sub-path). Mustache-only; omitted for non-section
+     * groups and for groups with no nested sections.
+     */
+    sectionSubPaths?: string[]
 }
 
 interface ParsedTemplateExpression {
@@ -362,10 +390,31 @@ export function groupTemplateVariables(
     // format flag through this resolution — but doing it consistently
     // keeps the helper format-aware end-to-end.
     const sectionOpenerIds = new Set<string>()
+    // Nested-section paths recorded per group. For `{{#repos}}{{#contributors}}
+    // …{{/contributors}}{{/repos}}`, `extractMustacheSectionOpeners` emits
+    // both `repos` and `repos.contributors`. The former contributes to
+    // `sectionOpenerIds` (the group `inputs.repos` is itself a section);
+    // the latter contributes `contributors` to
+    // `nestedSectionsByGroup["inputs.repos"]` so the schema producer can
+    // emit an array-of-objects shape at that sub-path's depth.
+    const nestedSectionsByGroup = new Map<string, Set<string>>()
     if (options?.sectionOpeners) {
         for (const opener of options.sectionOpeners) {
             const parsed = parseTemplateExpression(opener, templateFormat)
-            if (parsed.key) sectionOpenerIds.add(`${parsed.envelope}.${parsed.key}`)
+            if (!parsed.key) continue
+            const groupId = `${parsed.envelope}.${parsed.key}`
+            if (parsed.subPath) {
+                // Nested section under an existing group root.
+                let set = nestedSectionsByGroup.get(groupId)
+                if (!set) {
+                    set = new Set()
+                    nestedSectionsByGroup.set(groupId, set)
+                }
+                set.add(parsed.subPath)
+            } else {
+                // Group root itself is a section opener.
+                sectionOpenerIds.add(groupId)
+            }
         }
     }
 
@@ -398,20 +447,32 @@ export function groupTemplateVariables(
     return Array.from(groups.values()).map(({envelope, key, subPaths}) => {
         const subPathList = Array.from(subPaths)
         // Type inference priority:
-        //   1. Sub-paths present → `"object"` (the strongest signal — the
-        //      template addresses specific fields).
-        //   2. Section opener AND no sub-paths → `"array"` (iteration intent).
+        //   1. Section opener → `"array"` (iteration intent — the
+        //      strongest signal mustache gives us). Sub-paths describe the
+        //      ROW shape; the schema producer emits `{type: "array", items:
+        //      {type: "object", properties: …}}` so the array-of-objects
+        //      case (the common one for templates that loop over a list)
+        //      renders cleanly in the form view. Single-object templates
+        //      still render once at runtime — mustache treats a non-array
+        //      truthy value as a one-element iteration.
+        //   2. Sub-paths present (no section opener) → `"object"`.
         //   3. Otherwise → `"string"`.
         const groupId = `${envelope}.${key}`
         const isSectionOpener = sectionOpenerIds.has(groupId)
-        const type: GroupedTemplateVariable["type"] =
-            subPathList.length > 0 ? "object" : isSectionOpener ? "array" : "string"
+        const type: GroupedTemplateVariable["type"] = isSectionOpener
+            ? "array"
+            : subPathList.length > 0
+              ? "object"
+              : "string"
+        const nestedSet = nestedSectionsByGroup.get(groupId)
+        const sectionSubPathList = nestedSet ? Array.from(nestedSet) : []
         return {
             envelope,
             key,
             name: key,
             type,
             ...(subPathList.length > 0 ? {subPaths: subPathList} : {}),
+            ...(sectionSubPathList.length > 0 ? {sectionSubPaths: sectionSubPathList} : {}),
         }
     })
 }
