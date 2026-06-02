@@ -122,7 +122,7 @@ async def _write_meta(
     payload: LockPayload,
     ttl: int,
 ) -> None:
-    await locking.store_set(
+    await locking.set_key(
         _actual_meta_name(lock_key),
         orjson.dumps(payload.model_dump(mode="json")),
         ttl=ttl,
@@ -135,7 +135,7 @@ async def _touch_meta(
     ttl: int,
 ) -> None:
     meta_key = _actual_meta_name(lock_key)
-    raw = await locking.store_get(meta_key)
+    raw = await locking.get_key(meta_key)
     if not raw:
         return
 
@@ -146,7 +146,7 @@ async def _touch_meta(
         return
 
     payload.updated_at = _now_iso()
-    await locking.store_set(
+    await locking.set_key(
         meta_key,
         orjson.dumps(payload.model_dump(mode="json")),
         ttl=ttl,
@@ -158,11 +158,11 @@ async def _read_meta_if_lock_exists(
     lock_key: str,
 ) -> Optional[LockPayload]:
     actual_lock_key = _actual_lock_name(lock_key)
-    if not await locking.store_exists(actual_lock_key):
-        await locking.store_delete(_actual_meta_name(lock_key))
+    if not await locking.has_key(actual_lock_key):
+        await locking.delete_key(_actual_meta_name(lock_key))
         return None
 
-    raw = await locking.store_get(_actual_meta_name(lock_key))
+    raw = await locking.get_key(_actual_meta_name(lock_key))
     if not raw:
         return None
 
@@ -264,7 +264,7 @@ async def _release_lock(
         return False
 
     try:
-        await locking.store_delete(_actual_meta_name(lock_key))
+        await locking.delete_key(_actual_meta_name(lock_key))
     except Exception:
         log.warning(
             "[LOCK] Released lock but failed to delete metadata",
@@ -368,7 +368,7 @@ async def list_active_job_locks(
     Wildcard discovery must use SCAN, never KEYS.
     """
     payloads: list[LockPayload] = []
-    async for raw_lock_key in locking.store_scan_iter(
+    async for raw_lock_key in locking.scan_keys(
         match=_actual_lock_name(job_lock_pattern(run_id))
     ):
         meta_key = (
@@ -376,7 +376,7 @@ async def list_active_job_locks(
             if isinstance(raw_lock_key, bytes)
             else f"{raw_lock_key}:meta"
         )
-        raw_payload = await locking.store_get(meta_key)
+        raw_payload = await locking.get_key(meta_key)
         if not raw_payload:
             continue
 
@@ -404,9 +404,7 @@ async def is_run_executing(
     *,
     run_id: str,
 ) -> bool:
-    async for _ in locking.store_scan_iter(
-        match=_actual_lock_name(job_lock_pattern(run_id))
-    ):
+    async for _ in locking.scan_keys(match=_actual_lock_name(job_lock_pattern(run_id))):
         return True
     return False
 
@@ -415,7 +413,7 @@ async def has_mutation_lock(
     *,
     run_id: str,
 ) -> bool:
-    return await locking.store_exists(_actual_lock_name(run_lock_key(run_id)))
+    return await locking.has_key(_actual_lock_name(run_lock_key(run_id)))
 
 
 async def refresh_worker_heartbeat(
@@ -425,7 +423,7 @@ async def refresh_worker_heartbeat(
 ) -> WorkerHeartbeatPayload:
     now = _now_iso()
     hb_key = _actual_lock_name(worker_heartbeat_key(worker_id))
-    raw = await locking.store_get(hb_key)
+    raw = await locking.get_key(hb_key)
     created_at = now
 
     if raw:
@@ -443,7 +441,7 @@ async def refresh_worker_heartbeat(
         created_at=created_at,
         updated_at=now,
     )
-    await locking.store_set(
+    await locking.set_key(
         hb_key,
         orjson.dumps(payload.model_dump(mode="json")),
         ttl=ttl,

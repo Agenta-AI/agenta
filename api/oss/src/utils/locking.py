@@ -46,33 +46,33 @@ return 0
 # callers depend only on `locking` and never hold a `LockEngine` themselves.
 
 
-async def store_set(key: str, value, *, ttl: Optional[int] = None) -> None:
+async def set_key(key: str, value, *, ttl: Optional[int] = None) -> None:
     """SET a lock-store key, optionally with a TTL (seconds)."""
     await _lock_engine.set(key, value, ex=ttl)
 
 
-async def store_get(key: str):
+async def get_key(key: str):
     """GET a lock-store key (raw bytes, or None)."""
     return await _lock_engine.get(key)
 
 
-async def store_delete(key: str) -> None:
+async def delete_key(key: str) -> None:
     """DEL a lock-store key."""
     await _lock_engine.delete(key)
 
 
-async def store_exists(key: str) -> bool:
+async def has_key(key: str) -> bool:
     """EXISTS check for a lock-store key."""
     return bool(await _lock_engine.exists(key))
 
 
-def store_scan_iter(*, match: str):
-    """SCAN (async iterator) over lock-store keys matching `match`.
+async def scan_keys(*, match: str):
+    """SCAN over lock-store keys matching `match` (async iterator).
 
-    Returns the redis `scan_iter` async generator directly — callers iterate it
-    with `async for`. Uses SCAN, never KEYS.
+    Async generator — iterate with `async for`. Uses SCAN, never KEYS.
     """
-    return _lock_engine.scan_iter(match=match)
+    async for key in _lock_engine.scan_iter(match=match):
+        yield key
 
 
 async def acquire_lock(
