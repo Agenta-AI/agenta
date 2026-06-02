@@ -584,6 +584,12 @@ export function extractTemplateVariables(
         walkMustache(ast, {
             onEnter: (node) => {
                 if (node.kind === "section") {
+                    // Empty section names — produced while the user is
+                    // mid-typing `{{#|}}` (autoclose state, no name yet) —
+                    // contribute nothing to paths AND must not push the
+                    // empty string onto the stack. Otherwise inner
+                    // variables would join as `".name"` (leading dot).
+                    if (!node.name) return
                     emit(join(node.name))
                     pathStack.push(node.name)
                 } else if (node.kind === "variable") {
@@ -594,7 +600,10 @@ export function extractTemplateVariables(
                 // contribute no variables.
             },
             onExit: (node) => {
-                if (node.kind === "section") pathStack.pop()
+                // Symmetric to onEnter — only pop when the corresponding
+                // push happened. The parser's walk is depth-paired so
+                // this keeps stack alignment safe.
+                if (node.kind === "section" && node.name) pathStack.pop()
             },
         })
         return variables
@@ -666,13 +675,16 @@ export function extractMustacheSectionOpeners(
     walkMustache(ast, {
         onEnter: (node) => {
             if (node.kind === "section") {
+                // Skip empty section names (mid-typing autoclose state)
+                // — they'd contribute a leading-dot path otherwise.
+                if (!node.name) return
                 const path = stack.length === 0 ? node.name : `${stack.join(".")}.${node.name}`
                 paths.add(path)
                 stack.push(node.name)
             }
         },
         onExit: (node) => {
-            if (node.kind === "section") stack.pop()
+            if (node.kind === "section" && node.name) stack.pop()
         },
     })
     return paths

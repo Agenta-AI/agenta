@@ -327,3 +327,178 @@ describe("extractMustacheSectionOpeners", () => {
         expect(Array.from(out).sort()).toEqual(["org", "org.users"])
     })
 })
+
+// ─── Typing-state behaviour ──────────────────────────────────────────────
+//
+// While the user TYPES (rather than pasting a complete prompt), the parser
+// receives progressively-more-complete input. These tests pin down the
+// behaviour at each intermediate stage so we don't regress into early/
+// noisy variable extraction or parser crashes on malformed inputs. The
+// concern is from JP / Mahmoud's 2026-05-28 QA — when extraction surfaced
+// half-formed variables too eagerly, the cursor jumped out of the auto-
+// closed `{{|}}` token mid-word. The cursor fix was at the editor layer
+// (`TokenPlugin.tsx`); these tests cover the COMPLEMENTARY guarantee at
+// the walker layer: stable, conservative output across every typing stage.
+
+describe("extractTemplateVariables — typing-state behaviour (mustache)", () => {
+    // Models the REAL editor flow: `AutoCloseTokenBracesPlugin` closes
+    // every `{{` to `{{|}}` (cursor between), so tokens are syntactically
+    // complete at every typing stage — there is no intermediate `{{#repos`
+    // (no `}}`) state to worry about. These tests pin the walker's output
+    // at each autoclose-complete intermediate token.
+    //
+    // Background — JP / Mahmoud 2026-05-28 QA: the cursor-jump fix at the
+    // editor layer (`TokenPlugin.tsx`) keeps the caret inside the
+    // auto-closed brace pair, so partial names like `{{#r}}` exist as
+    // complete tokens. These tests verify the walker doesn't surface
+    // confusing output at those intermediate stages.
+
+    const cases: Array<[string, string[], string]> = [
+        ["", [], "empty editor"],
+        ["{{}}", [], "autoclose only — empty token"],
+        ["{{#}}", [], "typed `#` (empty section name) — walker skips empty"],
+        ["{{#r}}", ["r"], "single-char section opener typed"],
+        ["{{#re}}", ["re"], "two-char section opener"],
+        ["{{#rep}}", ["rep"], "three-char"],
+        ["{{#repo}}", ["repo"], "four-char"],
+        ["{{#repos}}", ["repos"], "section opener name fully typed"],
+        ["{{#repos}}{{}}", ["repos"], "opened inner token (still empty)"],
+        ["{{#repos}}{{n}}", ["repos", "repos.n"], "single char inner var"],
+        ["{{#repos}}{{na}}", ["repos", "repos.na"], "two char"],
+        ["{{#repos}}{{nam}}", ["repos", "repos.nam"], "three char"],
+        ["{{#repos}}{{name}}", ["repos", "repos.name"], "inner variable name complete"],
+        [
+            "{{#repos}}{{name}}{{/}}",
+            ["repos", "repos.name"],
+            "started close tag, empty name — no new emissions",
+        ],
+        ["{{#repos}}{{name}}{{/r}}", ["repos", "repos.name"], "partial close — no new emissions"],
+        ["{{#repos}}{{name}}{{/repos}}", ["repos", "repos.name"], "close tag complete"],
+        [
+            "{{#repos}}{{name}}{{/repos}}{{}}",
+            ["repos", "repos.name"],
+            "started top-level var (empty)",
+        ],
+        [
+            "{{#repos}}{{name}}{{/repos}}{{c}}",
+            ["repos", "repos.name", "c"],
+            "single char top-level var",
+        ],
+        [
+            "{{#repos}}{{name}}{{/repos}}{{country.a}}",
+            ["repos", "repos.name", "country.a"],
+            "top-level dotted variable complete",
+        ],
+    ]
+
+    for (const [input, expected, label] of cases) {
+        it(`stage: ${label} (${JSON.stringify(input)})`, () => {
+            expect(extractTemplateVariables(input, "mustache")).toEqual(expected)
+        })
+    }
+
+    it("doesn't crash on unclosed nested sections (still valid AST)", () => {
+        // The editor's autoclose closes `{{` but it doesn't auto-pair
+        // a `{{/repos}}`. User has typed both open tokens but no
+        // matching close yet. Parser reports the unbalanced sections
+        // but still produces a sane AST; walker emits paths normally.
+        expect(extractTemplateVariables("{{#repos}}{{#contributors}}", "mustache")).toEqual([
+            "repos",
+            "repos.contributors",
+        ])
+    })
+
+    it("`{{#}}{{name}}{{/}}` — empty section names don't leak leading dots", () => {
+        // If the user hits `{{#` and immediately starts typing the
+        // inner variable without naming the section first, the section
+        // has no name. The walker mustn't push the empty name onto
+        // the path stack — otherwise `name` would join as `.name`.
+        expect(extractTemplateVariables("{{#}}{{name}}{{/}}", "mustache")).toEqual(["name"])
+    })
+
+    it("`{{#r}}` (in-progress section name) emits the partial name", () => {
+        // Walker reads what the parser parsed — if the name is `r`,
+        // that's a real (if partial) section name. Same as pre-Phase-2.
+        expect(extractTemplateVariables("{{#r}}{{/r}}", "mustache")).toEqual(["r"])
+    })
+
+    it("partial close tags (`{{/r}}`) don't introduce phantom variables", () => {
+        // A closing tag with a partial name doesn't emit anything by
+        // itself — closing tags never produce variables, only update
+        // the section stack. If the open was `repos` and the close
+        // got typed as `{{/r}}` (mismatch), the parser still produces
+        // a mismatched-close error but the walker doesn't crash.
+        expect(extractTemplateVariables("{{#repos}}{{name}}{{/r}}", "mustache")).toEqual([
+            "repos",
+            "repos.name",
+        ])
+    })
+})
+
+describe("extractTemplateVariables — non-mustache regressions", () => {
+    // Curly and jinja2 must keep their existing behaviour after the
+    // mustache branch swap to the parser. The mustache-marker exclusion
+    // guard widened to include `$<=` (spec block / parent / delimiter
+    // sigils), so verify ordinary `$.path` and dotted names still flow.
+
+    describe("curly (literal-key contract)", () => {
+        it("extracts a plain variable", () => {
+            expect(extractTemplateVariables("Hello {{name}}", "curly")).toEqual(["name"])
+        })
+
+        it("keeps dotted names verbatim (literal key per backend resolver)", () => {
+            // Backend curly resolver does literal-key-first lookup, so
+            // `{{user.name}}` maps to a testcase column LITERALLY named
+            // `user.name`. The walker preserves this verbatim.
+            expect(extractTemplateVariables("Hi {{user.name}}", "curly")).toEqual(["user.name"])
+        })
+
+        it("rejects mustache-style section openers as malformed (`{{#x}}`)", () => {
+            // In a curly prompt, `{{#items}}` is an authoring error —
+            // curly has no section semantics. Walker excludes it so
+            // there's no phantom `items` port.
+            expect(extractTemplateVariables("{{#items}}", "curly")).toEqual([])
+        })
+
+        it("rejects mustache-style block / parent / delimiter sigils", () => {
+            expect(extractTemplateVariables("{{$slot}}", "curly")).toEqual([])
+            expect(extractTemplateVariables("{{<base}}", "curly")).toEqual([])
+            expect(extractTemplateVariables("{{=<% %>=}}", "curly")).toEqual([])
+        })
+
+        it("doesn't crash mid-typing on unclosed `{{`", () => {
+            expect(extractTemplateVariables("Hi {{na", "curly")).toEqual([])
+        })
+    })
+
+    describe("jinja2", () => {
+        it("extracts a plain variable", () => {
+            expect(extractTemplateVariables("Hello {{name}}", "jinja2")).toEqual(["name"])
+        })
+
+        it("extracts dotted attribute access", () => {
+            // Jinja2 follows mustache-style nested-dot semantics at the
+            // parsing level (the backend resolves both attrs and items).
+            expect(extractTemplateVariables("Region: {{geo.region}}", "jinja2")).toEqual([
+                "geo.region",
+            ])
+        })
+
+        it("excludes mustache structural tags", () => {
+            expect(extractTemplateVariables("{{#items}}", "jinja2")).toEqual([])
+        })
+    })
+
+    describe("fstring", () => {
+        it("extracts single-brace variables", () => {
+            expect(extractTemplateVariables("Hello {name}", "fstring")).toEqual(["name"])
+        })
+
+        it("does NOT extract from `{{x}}` (escaped braces in f-strings)", () => {
+            // f-string escapes `{{` and `}}` as LITERAL braces. So a
+            // template that contains `{{x}}` literally produces the
+            // characters `{x}` at render time — NO variable.
+            expect(extractTemplateVariables("Hi {{x}}", "fstring")).toEqual([])
+        })
+    })
+})
