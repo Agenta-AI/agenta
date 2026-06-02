@@ -286,7 +286,7 @@ jobs:
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "22"
 
       - name: Install pnpm
         if: steps.auth_bootstrap.outputs.enabled == 'true'
@@ -321,15 +321,14 @@ jobs:
         working-directory: web/tests
         run: pnpm exec playwright install-deps chromium
 
-      # Browser binaries. The download stalls post-100% on these runners, so cap
-      # each attempt and retry rather than hanging the job. On a cache hit this
-      # is a quick no-op. DEBUG=pw:install is left on temporarily to trace any
-      # remaining stall; drop it once runs are green.
+      # Browser binaries. Root cause of the original ~6h hang: Playwright 1.59's
+      # zip extraction deadlocks on Node 24 (reproduced locally: Node 22/23
+      # extract in ~16s, Node 24 hangs indefinitely). The job is pinned to Node
+      # 22 (LTS) above, which fixes it. The cache makes this a no-op on a hit,
+      # and the retry + per-attempt timeout guard against any transient stall.
       - name: Install Playwright browser
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         working-directory: web/tests
-        env:
-          DEBUG: pw:install
         run: |
           for attempt in 1 2 3; do
             echo "::group::playwright install chromium (attempt ${attempt}/3)"
@@ -633,7 +632,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "22"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
