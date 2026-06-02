@@ -632,44 +632,50 @@ export function extractTemplateVariables(
 }
 
 /**
- * Extract names that appear as mustache SECTION OPENERS (`{{#name}}` or
- * `{{^name}}`) from a template string.
+ * Extract section opener PATHS from a mustache template string.
+ *
+ * Walks the AST and emits a dotted path for every section opener
+ * (`{{#name}}` or `{{^name}}`) — joined with `.` against the path
+ * stack of enclosing sections. So for
+ *
+ *   `{{#repos}}{{#contributors}}{{name}}{{/contributors}}{{/repos}}`
+ *
+ * the returned set is `{"repos", "repos.contributors"}`.
+ *
+ * Callers (`groupTemplateVariables` via `portHelpers.ts`, and the schema
+ * producer in `molecule.ts` via `buildSubPathSchema`) use this hint to:
+ *   - infer the GROUP'S type as `array` when its top-level name is a
+ *     section opener (`repos` here),
+ *   - emit nested array-of-objects schemas when a SUB-PATH is itself a
+ *     section opener (`repos.contributors` here).
  *
  * Distinct from `extractTemplateVariables`, which returns every referenced
- * placeholder (section openers, plain variables, dotted access). Callers use
- * this set as a hint when grouping variables — a name referenced ONLY as a
- * section opener with no sub-paths is best surfaced as an `array` port
- * (iteration intent) rather than the default `string` port.
- *
- * Always returns an empty set for non-mustache formats: curly / jinja2 /
- * fstring don't have section semantics, so the hint isn't meaningful there.
+ * placeholder (variables, section openers, dotted access). Always returns
+ * an empty set for non-mustache formats: curly / jinja2 / fstring don't
+ * have section semantics, so the hint isn't meaningful there.
  */
 export function extractMustacheSectionOpeners(
     input: string,
     templateFormat: TemplateFormat = "curly",
 ): Set<string> {
-    const names = new Set<string>()
-    if (templateFormat !== "mustache") return names
+    const paths = new Set<string>()
+    if (templateFormat !== "mustache") return paths
 
-    let i = 0
-    while (i < input.length - 1) {
-        if (input[i] === "{" && input[i + 1] === "{") {
-            const start = i + 2
-            const end = input.indexOf("}}", start)
-            if (end === -1) break
-            const raw = input.slice(start, end).trim()
-            // Section opener (`#name`) or inverted section opener (`^name`).
-            // `&name` is variable unescape, not a section — exclude.
-            if (/^[#^]/.test(raw)) {
-                const name = raw.slice(1).trim()
-                if (name) names.add(name)
+    const {ast} = parseMustache(input)
+    const stack: string[] = []
+    walkMustache(ast, {
+        onEnter: (node) => {
+            if (node.kind === "section") {
+                const path = stack.length === 0 ? node.name : `${stack.join(".")}.${node.name}`
+                paths.add(path)
+                stack.push(node.name)
             }
-            i = end + 2
-        } else {
-            i++
-        }
-    }
-    return names
+        },
+        onExit: (node) => {
+            if (node.kind === "section") stack.pop()
+        },
+    })
+    return paths
 }
 
 /**
