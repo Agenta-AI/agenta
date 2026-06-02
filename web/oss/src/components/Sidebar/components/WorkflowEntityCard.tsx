@@ -222,26 +222,28 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
 
     if (collapsed) {
         return (
-            <Dropdown
-                trigger={["click"]}
-                placement="bottomLeft"
-                destroyOnHidden
-                open={switcherOpen}
-                onOpenChange={setSwitcherOpen}
-                styles={{root: {zIndex: 2000, minWidth: 280}}}
-                menu={{
-                    items: switcherItems,
-                    selectedKeys,
-                    onClick: handleSwitcherClick,
-                    className: SWITCHER_MENU_CLASS,
-                }}
-            >
-                <Button
-                    type="text"
-                    className="flex items-center justify-center w-full"
-                    icon={<ArrowsLeftRight size={14} />}
-                />
-            </Dropdown>
+            <div className="flex justify-center w-full">
+                <Dropdown
+                    trigger={["click"]}
+                    placement="bottomLeft"
+                    destroyOnHidden
+                    open={switcherOpen}
+                    onOpenChange={setSwitcherOpen}
+                    styles={{root: {zIndex: 2000, minWidth: 280}}}
+                    menu={{
+                        items: switcherItems,
+                        selectedKeys,
+                        onClick: handleSwitcherClick,
+                        className: SWITCHER_MENU_CLASS,
+                    }}
+                >
+                    <Button
+                        type="text"
+                        className="!w-[28px] !h-[28px] !p-0 flex items-center justify-center"
+                        icon={<ArrowsLeftRight size={14} />}
+                    />
+                </Dropdown>
+            </div>
         )
     }
 
