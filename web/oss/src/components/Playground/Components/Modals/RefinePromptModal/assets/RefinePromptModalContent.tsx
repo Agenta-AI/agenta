@@ -74,68 +74,16 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
         const config = (configuration ?? {}) as Record<string, unknown>
         const currentPrompt = (config[promptKey] ?? {}) as Record<string, unknown>
 
-        // Snapshot the refined config once. We write it TWICE: the first
-        // write applies the refinement immediately, the second runs after
-        // the chat-message editor's `useDebounceInput` window (300ms in
-        // SharedEditor) so any in-flight debounced emit from the user's
-        // pre-refine typing can't revert the refined messages back to
-        // whatever was in the editor's buffer.
-        //
-        // Why the second write is necessary (reproduced in production):
-        // when the user edits a message before opening the refiner, the
-        // chat editor's `useDebounceInput` schedules a deferred onChange
-        // call at typing+300ms. The sync effect SHOULD cancel that timer
-        // when the controlled value changes via our first write, but in
-        // practice the cancellation races with two other paths:
-        //   1. The Lexical editor's own onChange fires AFTER hydration with
-        //      the freshly-hydrated text — propagating up through
-        //      `PromptSchemaControl.handleMessagesChange` which closes over
-        //      the post-refine `value`. If the editor produces text that
-        //      doesn't byte-match the refined source (markdown normalisation,
-        //      whitespace, escape stripping), this emits a new write that
-        //      OVERWRITES our refined messages with the editor's stale
-        //      buffer + post-hydration normalisation.
-        //   2. The handler chain serialises through several memoised
-        //      callbacks (`handleMessagesChange`, `MessagesSchemaControl`'s
-        //      `handleChange`, etc.). Each captures `value` via deps. If any
-        //      callback in the chain hasn't re-created with the post-refine
-        //      `value` yet when the debounced emit fires, the spread
-        //      `{...value, messages: TYPED}` writes the user's pre-refine
-        //      content back over the refinement.
-        //
-        // A 400ms re-write covers the 300ms debounce window plus React
-        // batching slack. The second write is a no-op when nothing
-        // reverted (same params → `updateConfigurationAtom` writes the
-        // same draft state; no observable churn).
-        const refinedConfig = {
+        setUpdate(revisionId, {
             ...config,
             [promptKey]: {
                 ...currentPrompt,
                 messages: workingPrompt.messages,
             },
-        }
+        })
 
-        setUpdate(revisionId, refinedConfig)
         onClose()
-
-        const timer = setTimeout(() => {
-            setUpdate(revisionId, refinedConfig)
-        }, 400)
-        revertGuardTimerRef.current = timer
     }, [workingPrompt, configuration, promptKey, revisionId, onClose, setUpdate])
-
-    // Clean up the revert-guard timer if the modal unmounts before it fires
-    // (e.g. user navigates away). Without this, a late refire would attempt
-    // to write to an unmounted revision.
-    const revertGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    useEffect(() => {
-        return () => {
-            if (revertGuardTimerRef.current !== null) {
-                clearTimeout(revertGuardTimerRef.current)
-                revertGuardTimerRef.current = null
-            }
-        }
-    }, [])
 
     return (
         <div className="flex h-full min-h-0 flex-1">
