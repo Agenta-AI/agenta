@@ -157,7 +157,9 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                                 </Tag>
                             </Tooltip>
                             {isDemoOrg && (
-                                <Tag className="bg-[#0517290F] m-0 font-normal">demo</Tag>
+                                <Tag className="bg-[var(--ag-c-0517290F)] m-0 font-normal">
+                                    demo
+                                </Tag>
                             )}
                         </div>
                     ),

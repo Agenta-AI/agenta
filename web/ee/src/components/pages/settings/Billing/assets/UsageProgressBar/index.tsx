@@ -40,7 +40,7 @@ const UsageProgressBar = ({
 
     return (
         <div className="w-full flex flex-col gap-1">
-            <Typography.Text className="text-[#586673] font-medium capitalize">
+            <Typography.Text className="text-[var(--ag-c-586673)] font-medium capitalize">
                 {prettifyLabel(label)}
                 {suffix}{" "}
                 {!isUnlimited && value >= limit && <WarningFilled className="text-yellow-500" />}

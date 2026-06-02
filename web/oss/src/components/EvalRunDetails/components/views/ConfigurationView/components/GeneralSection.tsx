@@ -27,7 +27,7 @@ interface GeneralSectionProps {
 const GeneralSectionHeader = ({runId, index}: {runId: string; index: number}) => {
     return (
         <div className="flex flex-col gap-1">
-            <Text className="text-sm font-semibold text-[#344054]">General</Text>
+            <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">General</Text>
         </div>
     )
 }

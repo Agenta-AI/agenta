@@ -34,7 +34,7 @@ function getSkeletonWidth(port: RunnablePort): string {
 const FieldSkeleton = memo(({port}: {port: RunnablePort}) => (
     <div
         className={clsx(
-            "h-4 rounded bg-[rgba(5,23,41,0.06)] animate-pulse",
+            "h-4 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse",
             getSkeletonWidth(port),
         )}
     />
@@ -107,7 +107,7 @@ const EvaluatorFieldGrid = memo(function EvaluatorFieldGrid({
         if (outputPorts.length === 0) {
             return (
                 <div className={clsx("flex items-center gap-2", className)}>
-                    <div className="h-4 w-24 rounded bg-[rgba(5,23,41,0.06)] animate-pulse" />
+                    <div className="h-4 w-24 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
                 </div>
             )
         }

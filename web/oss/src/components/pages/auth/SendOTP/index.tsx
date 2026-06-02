@@ -3,6 +3,7 @@ import {useRef, useState} from "react"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Form, FormProps, Input, Typography} from "antd"
 import {OTPRef} from "antd/es/input/OTP"
+import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import {
     clearLoginAttemptInfo,
@@ -15,7 +16,6 @@ import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 import {authFlowAtom} from "@/oss/state/session"
 
-import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
 
 const {Text} = Typography
@@ -30,7 +30,6 @@ const SendOTP = ({
 }: SendOTPProps) => {
     const {handleAuthSuccess} = usePostAuthRedirect()
     const setAuthFlow = useSetAtom(authFlowAtom)
-    const classes = useStyles()
     const [isResendDisabled, setIsResendDisabled] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
 
@@ -146,9 +145,11 @@ const SendOTP = ({
 
                 <Form.Item
                     name="otp"
-                    className={`${
-                        message.type == "error" && classes.inputOTP
-                    } w-full mb-0 ${classes.otpFormContainer}`}
+                    className={clsx(
+                        message.type == "error" &&
+                            "[&_.ant-otp_.ant-input]:border [&_.ant-otp_.ant-input]:border-solid [&_.ant-otp_.ant-input]:border-colorErrorBorder",
+                        "w-full mb-0 [&_.ant-otp]:w-full [&_.ant-otp_.ant-otp-input-wrapper]:w-full",
+                    )}
                     rules={[
                         {
                             required: true,
@@ -193,7 +194,7 @@ const SendOTP = ({
                     Resend one-time password
                 </Button>
                 {isResendDisabled && (
-                    <Text className={classes.textDisabled}>
+                    <Text className="text-colorTextDisabled">
                         Please wait to request new code (60s)
                     </Text>
                 )}

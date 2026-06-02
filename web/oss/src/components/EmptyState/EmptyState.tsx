@@ -113,7 +113,7 @@ const EmptyState = ({
                 <div className="mb-6">
                     <Typography.Title
                         level={3}
-                        className="!mb-2 !text-2xl !font-bold !text-[#101828]"
+                        className="!mb-2 !text-2xl !font-bold !text-[var(--ag-c-101828)]"
                         style={{textWrap: "balance"}}
                     >
                         {title}
@@ -121,7 +121,7 @@ const EmptyState = ({
 
                     <Typography.Paragraph
                         type="secondary"
-                        className="mx-auto max-w-2xl !text-base !text-[#475467]"
+                        className="mx-auto max-w-2xl !text-base !text-[var(--ag-c-475467)]"
                         style={{marginBottom: 0, textWrap: "pretty"}}
                     >
                         {description}

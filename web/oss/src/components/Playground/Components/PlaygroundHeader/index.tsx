@@ -375,7 +375,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 // createNewLabel="New evaluator"
                                 popupFooter={
                                     connectedEvaluatorNodes.length > 0 ? (
-                                        <div className="border-0 border-t border-solid border-[rgba(5,23,41,0.06)] p-2">
+                                        <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
                                             <Button
                                                 size="small"
                                                 danger

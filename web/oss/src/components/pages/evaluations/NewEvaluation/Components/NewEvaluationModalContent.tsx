@@ -14,9 +14,16 @@ import useFocusInput from "@/oss/hooks/useFocusInput"
 import type {Evaluator} from "@/oss/lib/Types"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 
-import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
+
+const tabsContainerClass =
+    "h-full flex [&_.ant-tabs-content-holder]:pl-4 [&_.ant-tabs-content-holder]:flex-1 " +
+    "[&_.ant-tabs-content-holder]:overflow-auto [&_.ant-tabs-tab]:text-colorTextSecondary " +
+    "[&_.ant-tabs-tab]:hover:bg-colorInfoBg [&_.ant-tabs-ink-bar]:hidden " +
+    "[&_.ant-tabs-tab-active]:bg-controlItemBgActive " +
+    "[&_.ant-tabs-tab-active]:[border-right:2px_solid_var(--ag-colorPrimary)] " +
+    "[&_.ant-tabs-tab-active]:text-colorPrimary [&_.ant-tabs-tab-active]:!font-medium"
 
 const SelectWorkflowSection = dynamic(() => import("./SelectWorkflowSection"), {ssr: false})
 
@@ -71,7 +78,6 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     onEvaluatorCreated,
     ...props
 }) => {
-    const classes = useStyles()
     const {inputRef} = useFocusInput({isOpen: props.isOpen || false})
     const appSelectionComplete = Boolean(selectedAppId)
 
@@ -339,7 +345,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 items={items}
                 tabPlacement="left"
                 className={clsx([
-                    classes.tabsContainer,
+                    tabsContainerClass,
                     "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
                     "[&_.ant-tabs-nav]:!w-[240px]",
                     "[&_.ant-tabs-content]:!h-full [&_.ant-tabs-content]:!w-full",

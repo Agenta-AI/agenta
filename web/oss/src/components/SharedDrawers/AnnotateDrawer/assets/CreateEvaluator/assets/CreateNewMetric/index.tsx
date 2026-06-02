@@ -112,7 +112,7 @@ const CreateNewMetric = ({
     )
 
     return (
-        <div className="flex flex-col gap-4 p-2 bg-[#F5F7FA] rounded-lg">
+        <div className="flex flex-col gap-4 p-2 bg-[var(--ag-c-F5F7FA)] rounded-lg">
             <div className="w-full flex flex-col gap-1">
                 <div className="w-full flex items-center justify-between">
                     <Text className="font-medium">Feedback name</Text>
@@ -275,7 +275,9 @@ const CreateNewMetric = ({
                                 </Button>
                             </div>
                             {fields.length === 0 ? (
-                                <Text className="text-[#586673]">No options configured</Text>
+                                <Text className="text-[var(--ag-c-586673)]">
+                                    No options configured
+                                </Text>
                             ) : (
                                 fields.map((fieldItem, index) => (
                                     <div key={fieldItem.key} className="flex items-center gap-2">

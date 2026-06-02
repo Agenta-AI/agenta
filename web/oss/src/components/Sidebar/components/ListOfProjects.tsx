@@ -405,7 +405,7 @@ const ListOfProjects = ({
                     <div className="flex items-center gap-2 w-full max-w-[300px]">
                         <span className="truncate">{proj.project_name}</span>
                         {proj.is_default_project && (
-                            <Tag className="bg-[#0517290F] m-0">default</Tag>
+                            <Tag className="bg-[var(--ag-c-0517290F)] m-0">default</Tag>
                         )}
                     </div>
                 ),

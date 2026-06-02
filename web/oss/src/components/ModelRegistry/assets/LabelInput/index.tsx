@@ -18,7 +18,7 @@ const LabelInput = ({
     const isPassword = resolvedInputType === "password"
 
     return (
-        <div className="rounded-lg border border-solid border-[#BDC7D1] p-1 pl-2.5">
+        <div className="rounded-lg border border-solid border-[var(--ag-c-BDC7D1)] p-1 pl-2.5">
             <span className="font-medium">{label}</span>
             {multiLine ? (
                 <Input.TextArea

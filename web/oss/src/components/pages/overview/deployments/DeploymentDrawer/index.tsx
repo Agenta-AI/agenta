@@ -204,7 +204,7 @@ const DeploymentDrawer = ({
                             className={clsx([
                                 "[&_.ant-tabs-nav]:sticky",
                                 "[&_.ant-tabs-nav]:-top-[25px]",
-                                "[&_.ant-tabs-nav]:bg-white",
+                                "[&_.ant-tabs-nav]:bg-[var(--ag-c-FFFFFF)]",
                                 "[&_.ant-tabs-nav]:z-[1]",
                             ])}
                         >
