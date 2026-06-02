@@ -143,18 +143,32 @@ export interface GroupedTemplateVariable {
     name: string
     /**
      * Declared shape.
-     *   - `"object"` when any placeholder references a sub-path of this
-     *     group (`{{geo.region}}` → object with `region` sub-path).
-     *   - `"array"` when the name appears ONLY as a mustache section opener
-     *     (`{{#languages}}{{.}}{{/languages}}` → array, no sub-paths).
+     *   - `"array"` when the name appears as a mustache section opener
+     *     (`{{#languages}}…{{/languages}}`). The iteration intent is the
+     *     strongest signal mustache gives us — even when sub-paths are
+     *     also referenced, an array of objects fits better than a single
+     *     object. Mustache resolves both at runtime (an array iterates,
+     *     a non-array truthy value renders the block once), so prefer
+     *     the more common case in the UI default.
+     *   - `"object"` when sub-paths are referenced but the name is NOT
+     *     a section opener (`{{geo.region}}` → object with `region`
+     *     sub-path).
      *   - `"string"` otherwise.
      */
     type: "string" | "object" | "array"
     /**
-     * Known sub-paths beneath the group (populated only when `type === "object"`).
-     * Used to seed a shape-hint default in the JSON editor so users see
-     * which keys the template references without having to re-read the prompt.
-     * Example: `["country", "capital"]` for `$.inputs.test.{country, capital}`.
+     * Known sub-paths beneath the group.
+     *
+     *   - For `type === "object"`: keys on the object value.
+     *   - For `type === "array"`: keys on each ROW of the array (the
+     *     items shape). Used downstream by the schema producer to emit
+     *     `{type: "array", items: {type: "object", properties: …}}` so
+     *     the form view can render an array-of-objects editor.
+     *
+     * Used to seed a shape-hint default in the JSON / Form editors so
+     * users see which keys the template references without having to
+     * re-read the prompt. Example: `["country", "capital"]` for
+     * `$.inputs.test.{country, capital}`.
      */
     subPaths?: string[]
 }
@@ -398,14 +412,23 @@ export function groupTemplateVariables(
     return Array.from(groups.values()).map(({envelope, key, subPaths}) => {
         const subPathList = Array.from(subPaths)
         // Type inference priority:
-        //   1. Sub-paths present → `"object"` (the strongest signal — the
-        //      template addresses specific fields).
-        //   2. Section opener AND no sub-paths → `"array"` (iteration intent).
+        //   1. Section opener → `"array"` (iteration intent — the
+        //      strongest signal mustache gives us). Sub-paths describe the
+        //      ROW shape; the schema producer emits `{type: "array", items:
+        //      {type: "object", properties: …}}` so the array-of-objects
+        //      case (the common one for templates that loop over a list)
+        //      renders cleanly in the form view. Single-object templates
+        //      still render once at runtime — mustache treats a non-array
+        //      truthy value as a one-element iteration.
+        //   2. Sub-paths present (no section opener) → `"object"`.
         //   3. Otherwise → `"string"`.
         const groupId = `${envelope}.${key}`
         const isSectionOpener = sectionOpenerIds.has(groupId)
-        const type: GroupedTemplateVariable["type"] =
-            subPathList.length > 0 ? "object" : isSectionOpener ? "array" : "string"
+        const type: GroupedTemplateVariable["type"] = isSectionOpener
+            ? "array"
+            : subPathList.length > 0
+              ? "object"
+              : "string"
         return {
             envelope,
             key,

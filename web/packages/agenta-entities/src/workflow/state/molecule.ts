@@ -929,7 +929,17 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                             type: group.type,
                             required: true,
                             ...(group.subPaths
-                                ? {schema: buildSubPathSchema(group.subPaths)}
+                                ? group.type === "array"
+                                    ? {
+                                          // Section opener with sub-paths →
+                                          // array of objects. The items
+                                          // schema describes each ROW.
+                                          schema: {
+                                              type: "array",
+                                              items: buildSubPathSchema(group.subPaths),
+                                          },
+                                      }
+                                    : {schema: buildSubPathSchema(group.subPaths)}
                                 : group.type === "array"
                                   ? {schema: {type: "array"}}
                                   : {}),
