@@ -92,7 +92,7 @@ class EvaluationResult(BaseModel):
     repeat_idx: Optional[int] = 0
 
     testcase_id: Optional[UUID] = None
-    trace_id: Optional[Union[UUID, str]] = None
+    trace_id: Optional[str] = None
     error: Optional[dict] = None
 
     flags: Optional[Dict[str, Any]] = None
