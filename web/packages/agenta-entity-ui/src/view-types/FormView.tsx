@@ -174,9 +174,17 @@ interface FormFieldProps {
     editable: boolean
     onChange: (next: unknown) => void
     schema?: unknown
+    /**
+     * Optional content rendered at the FAR RIGHT of the label row, after
+     * the view-type selector. Used by `ArrayBody` to place a row's remove
+     * button inline with the label — so the field body (and any nested
+     * view-type selectors) extends to the same right edge as non-array
+     * fields, instead of being inset by the button width.
+     */
+    headerRight?: ReactNode
 }
 
-function FormField({label, value, depth, editable, onChange, schema}: FormFieldProps) {
+function FormField({label, value, depth, editable, onChange, schema, headerRight}: FormFieldProps) {
     const kind = detectNestedKind(value)
 
     // For string fields we manage a per-field view mode (Text / Markdown /
@@ -204,14 +212,17 @@ function FormField({label, value, depth, editable, onChange, schema}: FormFieldP
                     <label style={styles.fieldLabel}>{label}</label>
                     <TypeChip variant={NESTED_KIND_CHIP[kind]} value={value} />
                 </div>
-                {isString ? (
-                    <ViewTypeSelect
-                        value={stringMode}
-                        options={stringOptions}
-                        onChange={setStringMode}
-                        disabled={!editable}
-                    />
-                ) : null}
+                <div style={styles.labelRight}>
+                    {isString ? (
+                        <ViewTypeSelect
+                            value={stringMode}
+                            options={stringOptions}
+                            onChange={setStringMode}
+                            disabled={!editable}
+                        />
+                    ) : null}
+                    {headerRight}
+                </div>
             </div>
             <div style={styles.fieldBody}>
                 <FieldBody
@@ -297,30 +308,33 @@ function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
                 <span style={styles.emptyHint}>(empty array)</span>
             ) : null}
             {arr.map((item, idx) => (
-                <div key={idx} style={styles.arrayRow}>
-                    <div style={styles.arrayRowField}>
-                        <FormField
-                            label={String(idx)}
-                            value={item}
-                            depth={depth}
-                            editable={editable}
-                            onChange={(next) => updateIndex(idx, next)}
-                            // Each row's schema is the array's items
-                            // schema — descend into it for nested fields.
-                            schema={itemsSchema}
-                        />
-                    </div>
-                    {editable ? (
-                        <AntdButton
-                            type="text"
-                            size="small"
-                            icon={<MinusCircle size={14} />}
-                            aria-label={`Remove row ${idx}`}
-                            onClick={() => removeIndex(idx)}
-                            style={styles.arrayRowRemove}
-                        />
-                    ) : null}
-                </div>
+                <FormField
+                    key={idx}
+                    label={String(idx)}
+                    value={item}
+                    depth={depth}
+                    editable={editable}
+                    onChange={(next) => updateIndex(idx, next)}
+                    // Each row's schema is the array's items schema —
+                    // descend into it for nested fields.
+                    schema={itemsSchema}
+                    // Remove button rides in the label row (far right) so
+                    // the field body extends to the full card width and
+                    // nested view-type selectors align with the card edge
+                    // — not inset by the button. Arda QA 2026-06-02.
+                    headerRight={
+                        editable ? (
+                            <AntdButton
+                                type="text"
+                                size="small"
+                                icon={<MinusCircle size={14} />}
+                                aria-label={`Remove row ${idx}`}
+                                onClick={() => removeIndex(idx)}
+                                style={styles.arrayRowRemove}
+                            />
+                        ) : undefined
+                    }
+                />
             ))}
             {editable ? (
                 <AntdButton
@@ -577,27 +591,10 @@ const styles = {
         flexDirection: "column" as const,
         gap: 18,
     },
-    arrayRow: {
-        // Each row hosts the FormField on the left and the remove
-        // button on the right. `align-items: flex-start` keeps the
-        // remove button aligned with the label row even when the field
-        // body grows tall.
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 8,
-    },
-    arrayRowField: {
-        // Field takes all remaining width; `min-width: 0` lets the inner
-        // editors shrink past their content-driven min width (without it,
-        // long values would push the remove button off-screen).
-        flex: 1,
-        minWidth: 0,
-    },
     arrayRowRemove: {
-        // Sit at the top of the row alongside the field label. The button
-        // is slightly indented from the row's leading edge so it doesn't
-        // visually collide with the field's value border.
-        marginTop: 2,
+        // Lives in the row's label row (far right, via FormField's
+        // `headerRight` slot) so the field body extends to the full card
+        // width and nested view-type selectors align with the card edge.
         color: "var(--ag-colorTextTertiary)",
     },
     arrayAddRow: {
@@ -629,6 +626,16 @@ const styles = {
         alignItems: "center",
         gap: 8,
         minWidth: 0,
+    },
+    labelRight: {
+        // Holds the view-type selector and/or a row remove button. Sits
+        // hard against the label row's right edge (the parent labelRow is
+        // `justify-content: space-between`), so its contents align with
+        // every other field's right edge regardless of array nesting.
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        flexShrink: 0,
     },
     /* Nested field label — distinguishes a PROPERTY of the value from the
      * VARIABLE NAME (which the parent VariableCard renders in blue mono).
