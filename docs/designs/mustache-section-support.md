@@ -1,7 +1,9 @@
 # Mustache section support in the editor
 
 **Created:** 2026-06-02
-**Status:** RFC — decisions locked, ready to implement Phase 1 (folding into PR #4465)
+**Status:** **Phase 1 + Phase 2a–2d shipped in PR #4465.** Phase 2e
+(editor validation decorations) and the nested section-opener inference
+gap are queued as follow-ups.
 **Related:** [`project_mustache_wp_b3`](../../) (WP-B3 backend/SDK), [`project_playground_mustache_input_ux`](../../)
 **Authors:** Arda
 
@@ -18,16 +20,46 @@ QA on 2026-06-02 (Mahmoud) surfaced a structural gap: section CLOSE tags
 get registered as separate top-level variables when semantically they're
 scoped to the section context.
 
-This doc scopes the work to close that gap in two phases:
+The original plan split the work in two phases:
 - **Phase 1 (this PR)** — tokenize close tags + remove phantom inner-variable
-  discovery + exclude implicit iterator. No scope tracking yet.
-- **Phase 2 (follow-up PR)** — real section parser + scoped discovery +
-  array-of-objects schema inference + form-array editing.
+  discovery + exclude implicit iterator. No scope tracking.
+- **Phase 2 (follow-up PR off main)** — real section parser + scoped
+  discovery + array-of-objects schema inference + form-array editing +
+  editor validation.
+
+**What actually shipped (delta from the original plan):** Phase 1 AND
+the scope-aware foundation pieces of Phase 2 (2a parser, 2b discovery,
+2c schema inference, 2d form-array editor) all folded into PR #4465.
+The deferral target shifted to a smaller scope: **Phase 2e (editor
+validation decorations)** and a fix for **nested section-opener
+inference** — both flagged below in the "Known limitations" section so
+reviewers don't read them as still-missing scope.
 
 JP's position (1780397247, "detect mustache keys but skip context inspection
 and leave that to the runtime engine") and Mahmoud's complaint (1780397289,
-"`name` inside `{{#repo}}` is actually `repo.name`") map cleanly to those
-two phases.
+"`name` inside `{{#repo}}` is actually `repo.name`") map cleanly to the
+phasing.
+
+---
+
+## Ship status (PR #4465 commits)
+
+| Phase | Status | Commits |
+|---|---|---|
+| 1a. Tokenize close + structural tags | ✅ Shipped | `ac1461fd84` |
+| 1b. Discovery defang (open-stack skip) | ✅ Shipped | `8a7326bae0` (superseded by `611fe9297c`) |
+| 1c. Exclude `{{.}}` | ✅ Shipped | `ac1461fd84` |
+| 1d. Suppress typeahead inside `{{/...}}` | ✅ Shipped | `ac1461fd84` |
+| 2a. Mustache AST parser | ✅ Shipped | `611fe9297c` |
+| 2b. Scope-aware variable discovery | ✅ Shipped | `611fe9297c` |
+| 2c. Array-of-objects schema inference | ✅ Shipped | `97127e8da8` |
+| 2d. Form-array editor (`+ Add row`) | ✅ Shipped | `749dfe21e2` |
+| 2e. Editor validation decorations | ⏸ Deferred | — |
+| Nested section-opener inference | ⏸ Deferred | — |
+
+The parser already emits structured `ParseError[]` with character spans
+(2a), so 2e is mostly a Lexical-plumbing follow-up — the data is there;
+only the decoration adapter is missing.
 
 ---
 
@@ -268,6 +300,56 @@ the old `name` values stash inside each row, the footer surfaces them.
 - Doesn't block save / commit — backend will reject at render time anyway;
   this is a UX nudge.
 
+### 2e' — Known limitation: nested section-opener inference (deferred)
+
+The parser (2a) and walker (2b) correctly handle nested sections — the
+walker emits dotted paths at every depth (`repos.contributors.name`).
+But `groupTemplateVariables` flattens those paths into a single
+`subPaths: string[]` array on the root group. By that point we've lost
+which sub-paths were themselves section openers.
+
+For `{{#repos}}{{name}}{{#contributors}}{{name}}{{/contributors}}{{/repos}}`:
+
+```
+walker → ['repos', 'repos.name', 'repos.contributors', 'repos.contributors.name']
+                ↓
+groupTemplateVariables (current):
+  { key: 'repos', type: 'array', subPaths: ['name', 'contributors', 'contributors.name'] }
+                ↓
+schema producer:
+  items: {
+    type: 'object',
+    properties: { name, contributors },        ← contributors as OBJECT, not array
+    _pathHints: ['name', 'contributors', 'contributors.name']
+  }
+                ↓
+buildEmptyShapeFromSchema → row template:
+  { name: '', contributors: { name: '' } }     ← single object, not list
+```
+
+The form view renders each `repos` row with `contributors` as an
+object form, not as another `+ Add row` array editor.
+
+**Runtime is unaffected** — mustache iterates whatever shape the user
+fills in. Users can switch the inner `contributors` field to JSON view
+and author an array manually; backend renders correctly. The gap is
+purely the FE's nested form affordance.
+
+**Fix scope (separate PR)**: thread section-opener identity through the
+grouper. Options:
+
+1. Replace `subPaths: string[]` with a tree structure that records
+   "section" vs "field" per node. Requires touching the schema producer
+   (`buildSubPathSchema`) and `buildEmptyShapeFromSchema` to honour the
+   tree's section markers.
+2. Pass a `Set<string>` of nested section-opener paths into
+   `groupTemplateVariables` (similar to the existing `sectionOpeners`
+   hint but for nested cases). The schema producer can then check each
+   sub-path's containment in the set.
+
+Option 1 is the cleaner data model; option 2 is the smaller diff.
+Both are out of scope for #4465.
+
 ### 2f. Out-of-scope corner cases (document, don't implement)
 
 - **Lambdas**: Mustache sections where the value is a function. Runtime
@@ -304,20 +386,46 @@ the old `name` values stash inside each row, the footer surfaces them.
 
 ---
 
-## Implementation order (Phase 1)
+## Implementation history (PR #4465)
 
-1. Extend mustache regex in `TokenPlugin.tsx` (1a + 1c, ~10 LOC).
-2. Find the variable-discovery walker, add open-stack skip (1b, ~30 LOC).
-3. Suppress typeahead inside `{{/...}}` (1d, ~5 LOC).
-4. Manual QA: type the test prompt from §1e, verify variable cards.
-5. Commit and push on top of `fe-feat/mustache-support`.
+Phase 1 — landed:
+1. Extended mustache regex in `TokenPlugin.tsx` (1a + 1c) — `ac1461fd84`.
+2. Discovery walker open-stack skip (1b) — `8a7326bae0`.
+3. Suppress typeahead inside `{{/...}}` (1d) — `ac1461fd84`.
 
-## Implementation order (Phase 2 — new PR, after #4465 merges)
+Phase 2 — landed in the same PR (deviation from the original "follow-up
+PR off main" plan, after the scope of #4465 stayed open longer than
+expected and Mahmoud's QA escalated the section issue):
+4. Hand-rolled Mustache parser (2a) at `web/packages/agenta-shared/src/utils/mustache/parser.ts` — `611fe9297c`.
+5. Scope-aware discovery (2b) — `611fe9297c` (supersedes the depth-counter version from step 2).
+6. Array-of-objects schema inference (2c) — `97127e8da8`.
+7. Form-array editor with `+ Add row` (2d) — `749dfe21e2`.
 
-1. New branch off `main`.
-2. Pick parser strategy (lib vs hand-roll), build `web/packages/agenta-shared/src/mustache/parser.ts`.
-3. Scope-aware discovery (2b).
-4. Schema inference array default (2c) + `buildEmptyShapeFromSchema` array handling.
-5. Form-array editor (2d) reusing the existing stash/conflict machinery.
-6. Editor validation decorations (2e).
-7. QA pass with Mahmoud's `{{#repo}}{{name}}{{/repo}}` example.
+Deferred to a follow-up PR (off main):
+8. Editor validation decorations (2e) — the parser's `ParseError[]`
+   output is ready to consume; just needs a Lexical decoration adapter.
+9. Nested section-opener inference (2e' above) — propagate section
+   identity through `groupTemplateVariables` so `repos.contributors`
+   gets `array` treatment when it's also a section opener.
+
+Out of scope, per §2f:
+10. Lambdas, partials, dynamic partials, delimiter swap, triple-stash —
+    parser recognises them as inert tags; discovery skips them; runtime
+    handles them.
+
+### QA validation
+
+Mahmoud's QA prompt `{{#repos}}{{name}}{{stars}}{{description}}
+{{#contributors}}{{name}}{{/contributors}}{{/repos}}` produces:
+
+- 4 top-level variable cards: `name`, `geo`, `user`, `repos`.
+- `repos` opens in Form view (array of objects) with `+ Add row`.
+- Each row exposes `name`, `stars`, `description` as string fields
+  and `contributors` as an object field (the nested-opener gap above —
+  user can switch to JSON for arrays).
+- `{{/...}}`, `{{!comment}}`, `{{>partial}}`, `{{=…=}}` all tokenize as
+  structural tags in the editor and don't surface as variables.
+- `{{.}}` stays as plain text.
+
+This matches the acceptance criteria from the original §1e plus the
+Phase 2c+2d additions.
