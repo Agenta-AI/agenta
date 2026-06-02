@@ -459,6 +459,7 @@ const ListOfOrgs = ({
             AlertPopup({
                 title: "Logout",
                 message: "Are you sure you want to logout?",
+                centered: true,
                 onOk: logout,
             })
             return
