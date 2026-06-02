@@ -422,10 +422,10 @@ export function VariableCard({
     }, [value])
 
     return (
-        <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-solid border-[#d4d4d8] bg-white px-3 py-2">
+        <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2">
             <div className="flex items-center justify-between gap-2 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
-                    <AntText className="font-mono text-[12px] leading-[20px] font-medium text-[#1677FF] truncate">
+                    <AntText className="font-mono text-[12px] leading-[20px] font-medium text-[var(--ag-c-1677FF)] truncate">
                         {name}
                     </AntText>
                     <TypeChip variant={chipVariant} value={value} />
@@ -511,7 +511,7 @@ export function VariableCard({
                                 {shapeConflicts.map((c, i) => (
                                     <span key={c.key}>
                                         {i > 0 ? ", " : ""}
-                                        <code className="font-mono text-[11px] bg-white border border-solid border-[#FFD591] text-[#874D00] px-1 rounded">
+                                        <code className="font-mono text-[11px] bg-[var(--ag-colorBgContainer)] border border-solid border-[var(--ag-colorWarning)] text-[var(--ag-colorTextHeading)] px-1 rounded">
                                             {c.key}
                                         </code>
                                     </span>
@@ -587,18 +587,18 @@ function StashedPathsFooter({variableName, paths}: StashedPathsFooterProps) {
                 icon={expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 onClick={() => setExpanded((prev) => !prev)}
                 aria-expanded={expanded}
-                className="self-start !px-1 text-[12px] !text-[rgba(5,23,41,0.55)]"
+                className="self-start !px-1 text-[12px] !text-[var(--ag-rgba-051729-55)]"
             >
                 {summary}
             </Button>
             {expanded ? (
-                <div className="flex flex-col gap-1 pl-2 border-l-2 border-solid border-[#e4e4e7]">
+                <div className="flex flex-col gap-1 pl-2 border-l-2 border-solid border-[var(--ag-colorBorderSecondary)]">
                     {paths.map((p) => (
                         <div key={p.path} className="flex items-baseline gap-2 text-[12px] py-0.5">
-                            <code className="font-mono text-[11px] text-[#1677FF] shrink-0">
+                            <code className="font-mono text-[11px] text-[var(--ag-c-1677FF)] shrink-0">
                                 {variableName}.{p.path}
                             </code>
-                            <span className="text-[rgba(5,23,41,0.55)] truncate font-mono text-[11px]">
+                            <span className="text-[var(--ag-rgba-051729-55)] truncate font-mono text-[11px]">
                                 {previewValue(p.value)}
                             </span>
                         </div>

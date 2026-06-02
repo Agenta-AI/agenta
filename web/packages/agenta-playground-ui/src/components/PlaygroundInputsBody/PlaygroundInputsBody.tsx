@@ -187,7 +187,7 @@ export function PlaygroundInputsBody({
                           // `SingleLayout`. No visible heading — the chip + name
                           // on each card carries the per-variable label, and the
                           // left-border conveys the group identity.
-                          className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[#1677FF22]"
+                          className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[var(--ag-c-1677FF22)]"
                       >
                           {section.variables.map(renderCard)}
                       </div>
