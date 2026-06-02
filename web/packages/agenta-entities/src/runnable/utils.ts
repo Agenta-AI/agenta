@@ -508,19 +508,33 @@ export function extractTemplateVariables(
     // curly, jinja2, and mustache all use {{variableName}} for variable substitution
     // Linear scan: find '{{', then find '}}', extract the content between them.
     //
-    // For MUSTACHE, normalise / skip block-level syntax:
+    // For MUSTACHE, normalise / skip block-level syntax AND track section depth:
     //
-    //   keep (strip prefix → variable name):
+    //   keep (strip prefix → variable name) WHEN AT TOP LEVEL (depth 0):
     //     - `{{#name}}` — section opener: `name` IS a variable (the iterable
-    //                      / truthiness check), it still needs a value.
+    //                      / truthiness check). Increments section depth.
     //     - `{{^name}}` — inverted section opener: same — `name` is a variable.
+    //                      Increments section depth.
     //     - `{{&name}}` — unescaped variable: `name` IS the variable.
+    //     - bare `{{name}}` — plain variable reference.
     //
-    //   skip entirely (not variables — structural / inert tokens):
-    //     - `{{/name}}`      — section closer (just a boundary marker).
+    //   structural / inert tokens (no variable emitted regardless of depth):
+    //     - `{{/name}}`      — section closer. Decrements section depth.
     //     - `{{!comment}}`   — comment.
     //     - `{{> partial}}`  — partial template inclusion (resolved at render).
     //     - `{{.}}`          — implicit iterator (current item, no base name).
+    //
+    //   **inside a section (depth > 0): variable extraction is suppressed.**
+    //   `{{#repo}}{{name}}{{/repo}}` emits `['repo']`, NOT `['repo', 'name']`.
+    //   Mahmoud's QA on 2026-06-02: "since `name` is in that loop, it's
+    //   actually `repo.name`". We don't yet model scoped names, so we skip
+    //   the bare reference rather than register a phantom top-level port.
+    //   Section openers nested inside another section are ALSO skipped for
+    //   the same reason. The user fills the top-level section variable
+    //   (`repo`) with raw JSON (array of objects, single object, or scalar
+    //   per their template's intent); the runtime resolves the inner names
+    //   at render time. Full scope-aware discovery is Phase 2 — see
+    //   `docs/designs/mustache-section-support.md`.
     //
     // For CURLY / JINJA2, none of those prefix characters are valid in
     // identifiers — those formats have no section semantics, no implicit
@@ -534,6 +548,7 @@ export function extractTemplateVariables(
     // is for PORT DISCOVERY only. The mustache renderer pairs `#`/`^`/`/`
     // structurally at render time.
     let i = 0
+    let sectionDepth = 0
     while (i < input.length - 1) {
         if (input[i] === "{" && input[i + 1] === "{") {
             const start = i + 2
@@ -542,16 +557,42 @@ export function extractTemplateVariables(
                 const raw = input.slice(start, end).trim()
 
                 if (templateFormat === "mustache") {
-                    const isSkippablePrefix = /^[/!>]/.test(raw)
+                    const isSectionOpen = /^[#^]/.test(raw)
+                    const isSectionClose = /^\//.test(raw)
+                    const isComment = /^!/.test(raw)
+                    const isPartial = /^>/.test(raw)
+                    const isDelimiterSwap = /^=/.test(raw)
                     const isImplicitIterator = raw === "."
-                    if (raw && !isSkippablePrefix && !isImplicitIterator) {
-                        // Strip section-opener / unescape prefixes — the base
-                        // name is the actual variable that needs a value.
-                        const variable = /^[#^&]/.test(raw) ? raw.slice(1).trim() : raw
+                    const isUnescape = /^&/.test(raw)
+
+                    if (isSectionOpen) {
+                        // Emit the section variable ONLY at top level. Nested
+                        // section openers (e.g. `{{#org}}{{#users}}…`) are
+                        // scoped paths we don't model yet — skip them.
+                        if (sectionDepth === 0) {
+                            const variable = raw.slice(1).trim()
+                            if (variable && !variables.includes(variable)) {
+                                variables.push(variable)
+                            }
+                        }
+                        sectionDepth += 1
+                    } else if (isSectionClose) {
+                        // Defensive: only decrement when we actually have an
+                        // open section. Unbalanced `{{/x}}` in malformed
+                        // templates is left to the editor to flag (Phase 2);
+                        // here we just stay at depth 0.
+                        if (sectionDepth > 0) sectionDepth -= 1
+                    } else if (isComment || isPartial || isDelimiterSwap || isImplicitIterator) {
+                        // Structural — no variable.
+                    } else if (sectionDepth === 0) {
+                        // Plain variable OR unescaped variable at top level.
+                        const variable = isUnescape ? raw.slice(1).trim() : raw
                         if (variable && !variables.includes(variable)) {
                             variables.push(variable)
                         }
                     }
+                    // else: bare/unescape variable inside a section → skip
+                    // (scoped name, not yet modeled — Phase 2 territory).
                 } else {
                     // curly / jinja2 — only identifier-shaped tokens count.
                     // Anything starting with mustache-style markers is an
