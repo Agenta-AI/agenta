@@ -651,6 +651,7 @@ const config: Config = {
     ],
 
     "docusaurus-plugin-image-zoom",
+    "docusaurus-plugin-llms-txt",
   ],
 
   themes: ["docusaurus-theme-openapi-docs"],
