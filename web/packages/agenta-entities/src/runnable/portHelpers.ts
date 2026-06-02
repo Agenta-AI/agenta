@@ -171,6 +171,20 @@ export interface GroupedTemplateVariable {
      * `$.inputs.test.{country, capital}`.
      */
     subPaths?: string[]
+    /**
+     * Sub-paths within this group that are themselves mustache section
+     * openers — surfaces nested array-of-objects shapes to the schema
+     * producer. For `{{#repos}}{{#contributors}}{{name}}{{/contributors}}
+     * {{/repos}}`, the `repos` group emits `subPaths: ["contributors",
+     * "contributors.name"]` AND `sectionSubPaths: ["contributors"]`, so
+     * `buildSubPathSchema` knows to emit `contributors` as `{type:
+     * "array", items: {…}}` at that depth instead of an object.
+     *
+     * Always a subset of `subPaths` (a path must appear somewhere in the
+     * template to be a sub-path). Mustache-only; omitted for non-section
+     * groups and for groups with no nested sections.
+     */
+    sectionSubPaths?: string[]
 }
 
 interface ParsedTemplateExpression {
@@ -376,10 +390,31 @@ export function groupTemplateVariables(
     // format flag through this resolution — but doing it consistently
     // keeps the helper format-aware end-to-end.
     const sectionOpenerIds = new Set<string>()
+    // Nested-section paths recorded per group. For `{{#repos}}{{#contributors}}
+    // …{{/contributors}}{{/repos}}`, `extractMustacheSectionOpeners` emits
+    // both `repos` and `repos.contributors`. The former contributes to
+    // `sectionOpenerIds` (the group `inputs.repos` is itself a section);
+    // the latter contributes `contributors` to
+    // `nestedSectionsByGroup["inputs.repos"]` so the schema producer can
+    // emit an array-of-objects shape at that sub-path's depth.
+    const nestedSectionsByGroup = new Map<string, Set<string>>()
     if (options?.sectionOpeners) {
         for (const opener of options.sectionOpeners) {
             const parsed = parseTemplateExpression(opener, templateFormat)
-            if (parsed.key) sectionOpenerIds.add(`${parsed.envelope}.${parsed.key}`)
+            if (!parsed.key) continue
+            const groupId = `${parsed.envelope}.${parsed.key}`
+            if (parsed.subPath) {
+                // Nested section under an existing group root.
+                let set = nestedSectionsByGroup.get(groupId)
+                if (!set) {
+                    set = new Set()
+                    nestedSectionsByGroup.set(groupId, set)
+                }
+                set.add(parsed.subPath)
+            } else {
+                // Group root itself is a section opener.
+                sectionOpenerIds.add(groupId)
+            }
         }
     }
 
@@ -429,12 +464,15 @@ export function groupTemplateVariables(
             : subPathList.length > 0
               ? "object"
               : "string"
+        const nestedSet = nestedSectionsByGroup.get(groupId)
+        const sectionSubPathList = nestedSet ? Array.from(nestedSet) : []
         return {
             envelope,
             key,
             name: key,
             type,
             ...(subPathList.length > 0 ? {subPaths: subPathList} : {}),
+            ...(sectionSubPathList.length > 0 ? {sectionSubPaths: sectionSubPathList} : {}),
         }
     })
 }

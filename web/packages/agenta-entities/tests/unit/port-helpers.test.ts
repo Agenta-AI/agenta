@@ -362,18 +362,57 @@ describe("groupTemplateVariables", () => {
             expect(result[0].subPaths).toContain("name")
         })
 
-        it("infers `array` for nested section openers too", () => {
+        it("infers `array` for nested section openers + records sectionSubPaths", () => {
             // `{{#org}}{{#users}}{{name}}{{/users}}{{/org}}` — both `org`
-            // and `org.users` are section openers (the walker emits both
-            // names). `org` ends up with sub-path `users.name`, so it's
-            // an array of objects whose rows themselves carry an array
-            // `users` of objects with `name`.
+            // and `org.users` are section openers. `extractMustacheSection
+            // Openers` emits DOTTED PATHS, so the hint is keyed by the
+            // full path under the group (`org` for top-level, `org.users`
+            // for nested).
             const result = groupTemplateVariables(["org", "org.users", "org.users.name"], {
-                sectionOpeners: new Set(["org", "users"]),
+                sectionOpeners: new Set(["org", "org.users"]),
             })
             const org = result.find((g) => g.key === "org")
             expect(org?.type).toBe("array")
             expect(org?.subPaths).toEqual(expect.arrayContaining(["users.name"]))
+            // `users` is recorded as a nested section under `org` —
+            // schema producer uses this to emit an array shape at that
+            // depth instead of an object. Paths are RELATIVE to the
+            // group root (so `"users"`, not `"org.users"`).
+            expect(org?.sectionSubPaths).toContain("users")
+        })
+
+        it("records nested section paths at every depth", () => {
+            // `{{#repos}}{{#contributors}}{{#tags}}{{name}}{{/tags}}…`
+            // — three nested section levels.
+            const result = groupTemplateVariables(
+                [
+                    "repos",
+                    "repos.contributors",
+                    "repos.contributors.tags",
+                    "repos.contributors.tags.name",
+                ],
+                {
+                    sectionOpeners: new Set([
+                        "repos",
+                        "repos.contributors",
+                        "repos.contributors.tags",
+                    ]),
+                },
+            )
+            const repos = result.find((g) => g.key === "repos")
+            expect(repos?.type).toBe("array")
+            expect(repos?.sectionSubPaths).toEqual(
+                expect.arrayContaining(["contributors", "contributors.tags"]),
+            )
+        })
+
+        it("omits sectionSubPaths when there are no nested sections", () => {
+            const result = groupTemplateVariables(["repos", "repos.name"], {
+                sectionOpeners: new Set(["repos"]),
+            })
+            const repos = result.find((g) => g.key === "repos")
+            expect(repos?.type).toBe("array")
+            expect(repos?.sectionSubPaths).toBeUndefined()
         })
 
         it("infers `object` for sub-pathed NON-section names", () => {

@@ -283,4 +283,47 @@ describe("extractMustacheSectionOpeners", () => {
         )
         expect(Array.from(out)).toEqual(["items"])
     })
+
+    // Nested section paths — RFC Phase 2c-extended (nested-opener inference).
+    // The walker emits dotted paths joined against the enclosing-sections
+    // stack so the schema producer can emit array-of-objects at every depth.
+    it("emits dotted paths for nested section openers", () => {
+        const out = extractMustacheSectionOpeners(
+            "{{#repos}}{{#contributors}}{{name}}{{/contributors}}{{/repos}}",
+            "mustache",
+        )
+        expect(Array.from(out).sort()).toEqual(["repos", "repos.contributors"])
+    })
+
+    it("records section paths three levels deep", () => {
+        const out = extractMustacheSectionOpeners(
+            "{{#repos}}{{#contributors}}{{#tags}}{{name}}{{/tags}}{{/contributors}}{{/repos}}",
+            "mustache",
+        )
+        expect(Array.from(out).sort()).toEqual([
+            "repos",
+            "repos.contributors",
+            "repos.contributors.tags",
+        ])
+    })
+
+    it("treats top-level + nested inverted sections the same way", () => {
+        // `{{^empty}}…{{#fallback}}…{{/fallback}}{{/empty}}` — both are
+        // section openers (inverted at the top, regular nested).
+        const out = extractMustacheSectionOpeners(
+            "{{^empty}}{{#fallback}}{{name}}{{/fallback}}{{/empty}}",
+            "mustache",
+        )
+        expect(Array.from(out).sort()).toEqual(["empty", "empty.fallback"])
+    })
+
+    it("dedupes paths even when an opener appears twice at the same depth", () => {
+        // Re-opening `users` inside two separate `org` blocks (same path)
+        // contributes the same dotted-path entry.
+        const out = extractMustacheSectionOpeners(
+            "{{#org}}{{#users}}{{/users}}{{/org}}{{#org}}{{#users}}{{/users}}{{/org}}",
+            "mustache",
+        )
+        expect(Array.from(out).sort()).toEqual(["org", "org.users"])
+    })
 })
