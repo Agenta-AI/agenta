@@ -10,7 +10,9 @@ from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.types import (
     EvaluationResultCreate,
     EvaluationScenarioCreate,
+    EvaluationScenarioQuery,
     EvaluationStatus,
+    EvaluationMetricsRefresh,
 )
 from oss.src.core.evaluations.tasks.processor import (
     APISliceProcessor,
@@ -103,6 +105,22 @@ async def process_evaluation_run(
         )
         return True
 
+    if topology.dispatch in ("queue_traces", "queue_testcases"):
+        # Direct trace/testcase -> evaluator runs are fed by explicit source ids
+        # via `process_evaluation_slice` (the queue/ingest path), not by a
+        # source the run can resolve itself. There is nothing to execute at
+        # run-start: the run is an open queue awaiting batches. Finalize it as a
+        # clean, started-but-empty queue instead of falling through to the
+        # "unsupported topology" path (which logged an error and left the run
+        # hanging as if misconfigured).
+        await _finalize_empty_queue_run(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            evaluations_service=evaluations_service,
+        )
+        return True
+
     log.warning(
         "[EVAL] [process-run] unsupported run topology",
         run_id=run_id,
@@ -111,6 +129,28 @@ async def process_evaluation_run(
         reason=topology.reason,
     )
     return False
+
+
+async def _finalize_empty_queue_run(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    run: Any,
+    evaluations_service: EvaluationsService,
+) -> None:
+    """Mark a queue run as active-and-running with nothing dispatched yet.
+
+    A queue run (direct traces/testcases -> evaluator) accumulates results as
+    batches arrive via `process_evaluation_slice`; each batch finalizes its own
+    slice. At run-start there is no batch, so we simply leave the run RUNNING and
+    active — it is a live queue, not a terminal batch — without the misleading
+    "unsupported topology" warning. Status transitions to terminal happen on the
+    batch slices, consistent with how the slice processor finalizes.
+    """
+    log.info(
+        "[EVAL] [process-run] queue run started; awaiting batches",
+        run_id=str(run.id),
+    )
 
 
 async def process_evaluation_slice(
@@ -167,6 +207,15 @@ async def process_evaluation_slice(
         return False
 
     # 1. add_scenarios — one skeleton row per id.
+    #
+    # NOTE: not idempotent. There is no dedup on source id and no unique
+    # constraint tying a scenario to its trace_id/testcase_id, so dispatching the
+    # SAME batch twice (e.g. a manual worker re-queue) mints a second set of
+    # scenarios for the same ids. The task is configured allow_concurrency=True,
+    # so a re-dispatch with a fresh job id also bypasses the singleton run lock.
+    # Acceptable today because batches are dispatched once per ingest; if
+    # re-dispatch ever becomes a real flow, dedup by source id here (skip ids
+    # already populated in this run) or add a partial-unique input-cell index.
     scenarios = await evaluations_service.create_scenarios(
         project_id=project_id,
         user_id=user_id,
@@ -276,9 +325,94 @@ async def process_evaluation_tensor_slice(
         user_id=user_id,
         tensor_slice=tensor_slice,
     )
-    await tensor_ops.refresh(
+
+    # Metrics boundary for the slice. `process` refreshes the per-scenario
+    # (variational) rows for the scenarios it executed; this step refreshes the
+    # AGGREGATE that the slice affected, which differs by run kind:
+    #   - live run     -> temporal metrics, for every interval bucket the slice's
+    #                     scenarios fall into (a live run aggregates over time).
+    #   - non-live run -> the global (whole-run) metric row.
+    await _refresh_slice_aggregate(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=tensor_slice,
+        run_id=run_id,
+        scenario_ids=scenario_ids,
+        evaluations_service=evaluations_service,
     )
     return True
+
+
+async def _refresh_slice_aggregate(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    run_id: UUID,
+    scenario_ids: Optional[List[UUID]],
+    evaluations_service: EvaluationsService,
+) -> None:
+    """Refresh the slice's aggregate metric: temporal (live) or global (non-live).
+
+    Live runs aggregate over time, so a slice must recompute the temporal buckets
+    its scenarios belong to (each scenario carries its (timestamp, interval)).
+    Non-live runs have a single global aggregate, so the whole-run row is
+    recomputed. Variational (per-scenario) rows are already refreshed inside
+    `process`.
+    """
+    run = await evaluations_service.fetch_run(
+        project_id=project_id,
+        run_id=run_id,
+    )
+    if not run:
+        return
+
+    is_live = bool(run.flags and run.flags.is_live)
+
+    if not is_live:
+        # Non-live: one global aggregate. run_id only -> the (scenario_id=None,
+        # timestamp=None) global row.
+        await evaluations_service.refresh_metrics(
+            project_id=project_id,
+            user_id=user_id,
+            metrics=EvaluationMetricsRefresh(run_id=run_id),
+        )
+        return
+
+    # Live: recompute the temporal buckets the slice touched. Resolve the slice's
+    # scenarios and group their timestamps by interval, so each affected
+    # (interval, timestamp) bucket is recomputed.
+    scenarios = await evaluations_service.query_scenarios(
+        project_id=project_id,
+        scenario=EvaluationScenarioQuery(
+            run_id=run_id,
+            ids=scenario_ids,
+        ),
+    )
+    timestamps_by_interval: dict[int, set] = {}
+    for scenario in scenarios:
+        if scenario.timestamp is None or scenario.interval is None:
+            continue
+        timestamps_by_interval.setdefault(scenario.interval, set()).add(
+            scenario.timestamp
+        )
+
+    if not timestamps_by_interval:
+        # No temporal buckets on the slice's scenarios (e.g. they were never
+        # assigned a timestamp/interval). Fall back to the global aggregate so
+        # the run is not left with stale metrics.
+        await evaluations_service.refresh_metrics(
+            project_id=project_id,
+            user_id=user_id,
+            metrics=EvaluationMetricsRefresh(run_id=run_id),
+        )
+        return
+
+    for interval, timestamps in timestamps_by_interval.items():
+        await evaluations_service.refresh_metrics(
+            project_id=project_id,
+            user_id=user_id,
+            metrics=EvaluationMetricsRefresh(
+                run_id=run_id,
+                timestamps=sorted(timestamps),
+                interval=interval,
+            ),
+        )

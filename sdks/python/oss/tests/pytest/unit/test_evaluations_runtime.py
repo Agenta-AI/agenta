@@ -232,7 +232,7 @@ async def test_sdk_source_slice_batches_runnable_cells():
 
     runner = BatchRunner()
 
-    await process_evaluation_source_slice(
+    processed = await process_evaluation_source_slice(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -264,6 +264,86 @@ async def test_sdk_source_slice_batches_runnable_cells():
         ("evaluator-auto", 1),
         ("evaluator-auto", 2),
     ]
+
+    # ProcessedScenario.results retains EVERY repeat per step (keyed by
+    # repeat_idx), not just the last one — repeats>1 must not collapse to one
+    # result per step. Regression guard for UEL-016.
+    assert len(processed) == 1
+    results = processed[0].results
+    assert set(results["testset-main"].keys()) == {0, 1, 2}
+    assert set(results["evaluator-auto"].keys()) == {0, 1, 2}
+
+
+@pytest.mark.asyncio
+async def test_sdk_source_slice_isolates_one_scenario_failure():
+    """One scenario's create_scenario failure must not abort the siblings.
+
+    Regression guard for UEL-023: the per-scenario seams were unguarded under
+    asyncio.gather(return_exceptions=False), so a single failing scenario crashed
+    the whole slice. Now each scenario is isolated.
+    """
+    run_id = uuid4()
+    good_scenario_id = uuid4()
+
+    class Runner:
+        async def execute_batch(self, requests, semaphore=None):
+            return [
+                WorkflowExecutionResult(
+                    status=EvaluationStatus.SUCCESS,
+                    trace_id=f"trace-{req.cell.repeat_idx}",
+                )
+                for req in requests
+            ]
+
+    class Logger:
+        async def log(self, request):
+            return SimpleNamespace(id=uuid4())
+
+    calls = {"n": 0}
+
+    async def create_scenario(run_id):
+        # First scenario blows up; the second succeeds.
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("boom: scenario factory failed")
+        return SimpleNamespace(id=good_scenario_id)
+
+    async def refresh_metrics(run_id, scenario_id):
+        return SimpleNamespace(id=uuid4())
+
+    source_items = [
+        ResolvedSourceItem(
+            kind="testcase",
+            step_key="testset-main",
+            testcase_id=uuid4(),
+            inputs={"prompt": "a"},
+        ),
+        ResolvedSourceItem(
+            kind="testcase",
+            step_key="testset-main",
+            testcase_id=uuid4(),
+            inputs={"prompt": "b"},
+        ),
+    ]
+
+    processed = await process_evaluation_source_slice(
+        run_id=run_id,
+        source_items=source_items,
+        steps=[
+            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=1,
+        create_scenario=create_scenario,
+        result_logger=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": Runner()},
+        revisions={"evaluator-auto": {"id": "revision"}},
+    )
+
+    # The failed scenario is dropped (not raised); the healthy one still ran.
+    assert len(processed) == 1
+    assert processed[0].scenario.id == good_scenario_id
 
 
 @pytest.mark.asyncio

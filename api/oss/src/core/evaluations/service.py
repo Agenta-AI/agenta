@@ -1172,6 +1172,19 @@ class EvaluationsService:
             windowing=windowing,
         )
 
+    async def query_result_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        result: Optional[EvaluationResultQuery] = None,
+    ) -> List[UUID]:
+        return await self.evaluations_dao.query_result_ids(
+            project_id=project_id,
+            #
+            result=result,
+        )
+
     # - EVALUATION METRIC ------------------------------------------------------
 
     async def set_metrics(
@@ -3028,6 +3041,11 @@ class SimpleEvaluationsService:
 
         Removing a scenario drops its whole row (every step/repeat cell with it).
         Returns the ids actually deleted.
+
+        Deletion is scoped by `project_id` only — it does NOT verify the
+        scenarios belong to a particular run. The run-scoped HTTP endpoint
+        validates `scenario_ids` against its path `evaluation_id` before calling
+        here, so cross-run deletion cannot happen over the API.
         """
         if not scenario_ids:
             return []

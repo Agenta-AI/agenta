@@ -156,11 +156,14 @@ class TensorSliceOperations:
         # refresh after touching cells — prune leaves nothing stale. It does NOT
         # touch steps or scenarios; those are the graph-shape ops on the service
         # (add_steps/remove_steps, add_scenarios/remove_scenarios).
-        results = await self.probe(
+        if _slice_is_empty(tensor_slice):
+            return []
+        # prune only needs the ids to delete, so use the ID-only query rather
+        # than hydrating full result DTOs via `probe`.
+        result_ids = await self.evaluations_service.query_result_ids(
             project_id=project_id,
-            tensor_slice=tensor_slice,
+            result=_query_from_slice(tensor_slice),
         )
-        result_ids = [result.id for result in results if result.id]
         if not result_ids:
             return []
 

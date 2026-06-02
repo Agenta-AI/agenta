@@ -826,6 +826,8 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     )
     evaluations_service = SimpleNamespace(
         query_results=AsyncMock(return_value=[result]),
+        # prune deletes by id, so it uses the ID-only query (UEL-029).
+        query_result_ids=AsyncMock(return_value=[result_id]),
         set_results=AsyncMock(return_value=[result]),
         delete_results=AsyncMock(return_value=[result_id]),
         refresh_metrics=AsyncMock(return_value=[]),
@@ -864,7 +866,9 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     assert probed == [result]
     assert populated == [result]
     assert pruned == [result_id]
-    assert evaluations_service.query_results.await_count == 2
+    # probe() is the only full-DTO query here (prune now uses query_result_ids).
+    assert evaluations_service.query_results.await_count == 1
+    assert evaluations_service.query_result_ids.await_count == 1
     assert evaluations_service.set_results.await_count == 1
     assert evaluations_service.delete_results.await_count == 1
     # prune is a tensor-write op: after removing result cells it re-triggers a

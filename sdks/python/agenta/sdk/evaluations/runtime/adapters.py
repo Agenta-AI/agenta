@@ -118,6 +118,12 @@ class SdkTraceLoader:
 
 
 def _normalize_service_response(response: Any) -> WorkflowExecutionResult:
+    # A response with no trace_id is treated as a FAILURE on purpose: the SDK
+    # evaluation pipeline keys cache reuse, upstream-context links, and metric
+    # provenance off the produced trace, so a step that returns outputs but no
+    # trace cannot be wired into the rest of the run and is not a usable success.
+    # (If a trace-free "outputs only" success mode is ever needed, branch here on
+    # `response.data.outputs` before falling through to FAILURE.)
     if not response or not getattr(response, "data", None) or not response.trace_id:
         return WorkflowExecutionResult(
             status=EvaluationStatus.FAILURE,

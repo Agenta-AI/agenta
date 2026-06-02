@@ -263,6 +263,49 @@ async def process_query_source_run(
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.error(e, exc_info=True)
 
+        # An exception BEFORE the slice runs (trace fetch, source assembly, a
+        # missing run/steps) never reaches the slice processor's own finalize, so
+        # without this a batch run would hang in RUNNING/is_active forever. Batch
+        # query runs (use_windowing=True) must finalize to FAILURE here; live
+        # runs (use_windowing=False) intentionally keep ticking and are left
+        # untouched. Re-fetch the run since `run` may be unbound/stale in this
+        # scope, and tolerate a run that no longer exists or was closed.
+        if use_windowing:
+            try:
+                current = await evaluations_service.fetch_run(
+                    project_id=project_id,
+                    run_id=run_id,
+                )
+                if current:
+                    flags = (
+                        current.flags.model_copy()
+                        if current.flags
+                        else EvaluationRunFlags()
+                    )
+                    flags.is_active = False
+                    await evaluations_service.edit_run(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run=EvaluationRunEdit(
+                            id=run_id,
+                            name=current.name,
+                            description=current.description,
+                            tags=current.tags,
+                            meta=current.meta,
+                            status=EvaluationStatus.FAILURE,
+                            flags=flags,
+                            data=current.data,
+                        ),
+                    )
+            except Exception as finalize_error:  # pylint: disable=broad-exception-caught
+                # Closing/finalization is best-effort: if the run was closed
+                # mid-flight or vanished, do not mask the original error.
+                log.error(
+                    "[EVAL] [query] failed to finalize run after error",
+                    run_id=str(run_id),
+                    error=str(finalize_error),
+                )
+
     log.info(
         "[DONE]      ",
         run_id=run_id,

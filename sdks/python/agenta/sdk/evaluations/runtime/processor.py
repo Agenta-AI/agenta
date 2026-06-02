@@ -105,7 +105,15 @@ async def process_evaluation_source_slice(
                     "cells": [cell for cell in plan.cells if plan_cell_filter(cell)]
                 }
             )
-        results: Dict[str, Any] = {}
+        # Keyed by step_key, then repeat_idx. A step with repeats>1 produces one
+        # result per repeat; keying by step_key alone would let later repeats
+        # overwrite earlier ones, so each step maps to a {repeat_idx: result}
+        # dict. JSON-serializable (int keys) so it survives the SDK return.
+        results: Dict[str, Dict[int, Any]] = {}
+
+        def _remember(cell: PlannedCell, value: Any) -> None:
+            results.setdefault(cell.step_key, {})[cell.repeat_idx] = value
+
         context_by_repeat = _initial_context_by_repeat(
             source_item=source_item,
             repeats=repeats,
@@ -125,12 +133,15 @@ async def process_evaluation_source_slice(
                 continue
 
             if cell.step_type == "input":
-                results[cell.step_key] = await result_logger.log(
-                    ResultLogRequest(
-                        cell=cell,
-                        testcase_id=source_item.testcase_id,
-                        trace_id=source_item.trace_id,
-                    )
+                _remember(
+                    cell,
+                    await result_logger.log(
+                        ResultLogRequest(
+                            cell=cell,
+                            testcase_id=source_item.testcase_id,
+                            trace_id=source_item.trace_id,
+                        )
+                    ),
                 )
                 idx += 1
                 continue
@@ -138,8 +149,9 @@ async def process_evaluation_source_slice(
             if not cell.should_execute:
                 scenario_has_pending = True
                 if log_pending:
-                    results[cell.step_key] = await result_logger.log(
-                        ResultLogRequest(cell=cell)
+                    _remember(
+                        cell,
+                        await result_logger.log(ResultLogRequest(cell=cell)),
                     )
                 idx += 1
                 continue
@@ -154,22 +166,25 @@ async def process_evaluation_source_slice(
             if runner is None or revision is None:
                 for batch_cell in batch_cells:
                     scenario_has_errors = True
-                    results[batch_cell.step_key] = await result_logger.log(
-                        ResultLogRequest(
-                            cell=_failed_cell(
-                                batch_cell,
-                                message=(
-                                    f"Missing runner or revision for "
-                                    f"{batch_cell.step_key}"
+                    _remember(
+                        batch_cell,
+                        await result_logger.log(
+                            ResultLogRequest(
+                                cell=_failed_cell(
+                                    batch_cell,
+                                    message=(
+                                        f"Missing runner or revision for "
+                                        f"{batch_cell.step_key}"
+                                    ),
                                 ),
-                            ),
-                            error={
-                                "message": (
-                                    f"Missing runner or revision for "
-                                    f"{batch_cell.step_key}"
-                                )
-                            },
-                        )
+                                error={
+                                    "message": (
+                                        f"Missing runner or revision for "
+                                        f"{batch_cell.step_key}"
+                                    )
+                                },
+                            )
+                        ),
                     )
                 idx += len(batch_cells)
                 continue
@@ -198,14 +213,17 @@ async def process_evaluation_source_slice(
                 if execution.outputs is None and execution.trace is not None:
                     execution.outputs = _extract_outputs(execution.trace)
 
-                results[batch_cell.step_key] = await result_logger.log(
-                    ResultLogRequest(
-                        cell=batch_cell,
-                        trace_id=execution.trace_id,
-                        span_id=execution.span_id,
-                        testcase_id=source_item.testcase_id,
-                        error=execution.error,
-                    )
+                _remember(
+                    batch_cell,
+                    await result_logger.log(
+                        ResultLogRequest(
+                            cell=batch_cell,
+                            trace_id=execution.trace_id,
+                            span_id=execution.span_id,
+                            testcase_id=source_item.testcase_id,
+                            error=execution.error,
+                        )
+                    ),
                 )
                 scenario_auto_results_created = True
                 if execution.error or _is_failure_status(execution.status):
@@ -231,12 +249,15 @@ async def process_evaluation_source_slice(
                     # Fewer executions than cells: fail the unplanned-for cells so
                     # the mismatch is visible per cell.
                     for batch_cell in batch_cells[len(executions) :]:
-                        results[batch_cell.step_key] = await result_logger.log(
-                            ResultLogRequest(
-                                cell=_failed_cell(batch_cell, message=message),
-                                testcase_id=source_item.testcase_id,
-                                error={"message": message},
-                            )
+                        _remember(
+                            batch_cell,
+                            await result_logger.log(
+                                ResultLogRequest(
+                                    cell=_failed_cell(batch_cell, message=message),
+                                    testcase_id=source_item.testcase_id,
+                                    error={"message": message},
+                                )
+                            ),
                         )
                         scenario_auto_results_created = True
                 else:
@@ -268,7 +289,19 @@ async def process_evaluation_source_slice(
 
         metrics = None
         if refresh_metrics_without_auto_results or scenario_auto_results_created:
-            metrics = await refresh_metrics(run_id, scenario_id)
+            try:
+                metrics = await refresh_metrics(run_id, scenario_id)
+            except Exception:  # pylint: disable=broad-exception-caught
+                # A metrics-refresh failure must not lose the result cells that
+                # were already written for this scenario, nor abort sibling
+                # scenarios in the gather. Mark the scenario errored and carry on.
+                logger.error(
+                    "[SLICE] scenario metrics refresh failed",
+                    run_id=str(run_id),
+                    scenario_id=str(scenario_id),
+                    exc_info=True,
+                )
+                scenario_has_errors = True
 
         async with processed_lock:
             processed.append(
@@ -282,7 +315,21 @@ async def process_evaluation_source_slice(
                 )
             )
 
-    await asyncio.gather(*(_process_one(item) for item in source_items))
+    async def _guarded_process_one(source_item: ResolvedSourceItem) -> None:
+        # One scenario's failure (e.g. create_scenario or an unhandled error in
+        # the loop) must not abort the whole slice. Isolate it: log and continue
+        # so sibling scenarios still run and partial results survive.
+        try:
+            await _process_one(source_item)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.error(
+                "[SLICE] scenario processing failed",
+                run_id=str(run_id),
+                step_key=source_item.step_key,
+                exc_info=True,
+            )
+
+    await asyncio.gather(*(_guarded_process_one(item) for item in source_items))
 
     logger.info(
         "[SLICE] Complete",
@@ -295,7 +342,18 @@ async def process_evaluation_source_slice(
         refresh_metrics_without_auto_results
         or any(item.auto_results_created for item in processed)
     ):
-        await refresh_metrics(run_id, None)
+        try:
+            await refresh_metrics(run_id, None)
+        except Exception:  # pylint: disable=broad-exception-caught
+            # The run-level rollup is best-effort: every scenario already
+            # refreshed its own metrics above, and the result cells are
+            # persisted. A failure here must not discard the processed list the
+            # caller uses to finalize run status.
+            logger.error(
+                "[SLICE] run-level metrics refresh failed",
+                run_id=str(run_id),
+                exc_info=True,
+            )
 
     return processed
 

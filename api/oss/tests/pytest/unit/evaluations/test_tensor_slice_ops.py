@@ -23,7 +23,12 @@ from oss.src.core.evaluations.service import (
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.tensor import TensorSliceOperations
 from oss.src.core.evaluations.runtime.models import TensorSlice
-from oss.src.core.evaluations.tasks.run import process_evaluation_tensor_slice
+from oss.src.core.evaluations.tasks import run as run_module
+from oss.src.core.evaluations.tasks.run import (
+    process_evaluation_run,
+    process_evaluation_tensor_slice,
+)
+from oss.src.core.evaluations.runtime.models import TopologyDecision
 from oss.src.core.evaluations.types import (
     EvaluationResult,
     EvaluationResultCreate,
@@ -299,7 +304,6 @@ async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeyp
     project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
 
     process_mock = AsyncMock()
-    refresh_mock = AsyncMock()
     captured = {}
 
     class _FakeTensorOps:
@@ -310,13 +314,21 @@ async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeyp
             captured["process_slice"] = tensor_slice
             await process_mock()
 
-        async def refresh(self, *, project_id, user_id, tensor_slice):
-            captured["refresh_slice"] = tensor_slice
-            await refresh_mock()
-
     monkeypatch.setattr(
         "oss.src.core.evaluations.tasks.run.TensorSliceOperations",
         _FakeTensorOps,
+    )
+
+    # Non-live run -> the aggregate refresh is the GLOBAL row (run_id only).
+    refresh_mock = AsyncMock(return_value=[])
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(
+            return_value=SimpleNamespace(
+                flags=SimpleNamespace(is_live=False),
+            )
+        ),
+        query_scenarios=AsyncMock(return_value=[]),
+        refresh_metrics=refresh_mock,
     )
 
     ok = await process_evaluation_tensor_slice(
@@ -330,18 +342,82 @@ async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeyp
         testcases_service=MagicMock(),
         workflows_service=MagicMock(),
         applications_service=MagicMock(),
-        evaluations_service=MagicMock(),
+        evaluations_service=evaluations_service,
     )
 
     assert ok is True
     process_mock.assert_awaited_once()
-    refresh_mock.assert_awaited_once()
-    # both ops act on the same coordinate slice
+    # process acts on the coordinate slice
     assert captured["process_slice"].run_id == run_id
     assert captured["process_slice"].scenario_ids == [scenario_id]
     assert captured["process_slice"].step_keys == ["evaluator-auto"]
     assert captured["process_slice"].process_mode == "force"
-    assert captured["refresh_slice"] == captured["process_slice"]
+    # non-live -> exactly one global refresh: run_id set, no scenario/timestamp.
+    refresh_mock.assert_awaited_once()
+    _, kwargs = refresh_mock.await_args
+    refresh = kwargs["metrics"]
+    assert refresh.run_id == run_id
+    assert refresh.scenario_ids is None
+    assert refresh.scenario_id is None
+    assert refresh.timestamps is None
+
+
+@pytest.mark.asyncio
+async def test_process_evaluation_tensor_slice_refreshes_temporal_for_live(
+    monkeypatch,
+):
+    """Live run -> the slice aggregate refresh is TEMPORAL, per affected interval."""
+    project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
+    s1, s2 = uuid4(), uuid4()
+    ts = datetime(2026, 6, 2, 14, 0, 0)
+
+    class _FakeTensorOps:
+        def __init__(self, *, evaluations_service, slice_processor):
+            pass
+
+        async def process(self, *, project_id, user_id, tensor_slice):
+            return None
+
+    monkeypatch.setattr(
+        "oss.src.core.evaluations.tasks.run.TensorSliceOperations",
+        _FakeTensorOps,
+    )
+
+    refresh_mock = AsyncMock(return_value=[])
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(
+            return_value=SimpleNamespace(flags=SimpleNamespace(is_live=True))
+        ),
+        query_scenarios=AsyncMock(
+            return_value=[
+                SimpleNamespace(id=s1, timestamp=ts, interval=1),
+                SimpleNamespace(id=s2, timestamp=ts, interval=1),
+            ]
+        ),
+        refresh_metrics=refresh_mock,
+    )
+
+    ok = await process_evaluation_tensor_slice(
+        project_id=project_id,
+        user_id=user_id,
+        run_id=run_id,
+        scenario_ids=[s1, s2],
+        process_mode="fill-missing",
+        tracing_service=MagicMock(),
+        testcases_service=MagicMock(),
+        workflows_service=MagicMock(),
+        applications_service=MagicMock(),
+        evaluations_service=evaluations_service,
+    )
+
+    assert ok is True
+    # one temporal refresh for the single affected interval, carrying its bucket.
+    refresh_mock.assert_awaited_once()
+    _, kwargs = refresh_mock.await_args
+    refresh = kwargs["metrics"]
+    assert refresh.run_id == run_id
+    assert refresh.interval == 1
+    assert refresh.timestamps == [ts]
 
 
 # --- graph-shape ops: add/remove_scenarios (height), add/remove_steps (width),
@@ -600,3 +676,142 @@ async def test_set_repeats_returns_none_when_run_missing():
     )
 
     assert result is None
+
+
+# --- prune uses the ID-only query (UEL-029) ----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_prune_uses_query_result_ids_not_full_probe():
+    """prune deletes by id, so it must use the ID-only query (no full DTO hydrate)."""
+    project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
+    result_ids = [uuid4(), uuid4()]
+
+    evaluations_service = SimpleNamespace(
+        query_result_ids=AsyncMock(return_value=result_ids),
+        # query_results is the full-DTO path; prune must NOT call it.
+        query_results=AsyncMock(return_value=["should-not-be-used"]),
+        delete_results=AsyncMock(return_value=result_ids),
+        refresh_metrics=AsyncMock(return_value=[]),
+    )
+    tensor_ops = TensorSliceOperations(evaluations_service=evaluations_service)
+
+    deleted = await tensor_ops.prune(
+        project_id=project_id,
+        user_id=user_id,
+        tensor_slice=TensorSlice(run_id=run_id, scenario_ids=[uuid4()]),
+    )
+
+    assert deleted == result_ids
+    evaluations_service.query_result_ids.assert_awaited_once()
+    evaluations_service.query_results.assert_not_awaited()
+    evaluations_service.delete_results.assert_awaited_once_with(
+        project_id=project_id,
+        result_ids=result_ids,
+    )
+
+
+@pytest.mark.asyncio
+async def test_prune_empty_slice_is_noop():
+    """An empty slice dimension ([]) addresses nothing — no query, no delete."""
+    evaluations_service = SimpleNamespace(
+        query_result_ids=AsyncMock(return_value=[]),
+        delete_results=AsyncMock(),
+        refresh_metrics=AsyncMock(),
+    )
+    tensor_ops = TensorSliceOperations(evaluations_service=evaluations_service)
+
+    deleted = await tensor_ops.prune(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        tensor_slice=TensorSlice(run_id=uuid4(), scenario_ids=[]),
+    )
+
+    assert deleted == []
+    evaluations_service.query_result_ids.assert_not_awaited()
+    evaluations_service.delete_results.assert_not_awaited()
+
+
+# --- run dispatch routes queue_* topologies (UEL-019) ------------------------
+
+
+@pytest.mark.parametrize("dispatch", ["queue_traces", "queue_testcases"])
+@pytest.mark.asyncio
+async def test_process_evaluation_run_routes_queue_topologies(monkeypatch, dispatch):
+    """queue_traces/queue_testcases must be handled (returns True), not dropped.
+
+    Before UEL-019 these truthy-dispatch topologies fell through to the
+    "unsupported topology" branch and returned False at run-start, silently
+    doing nothing. They are now routed to a clean "open queue awaiting batches"
+    finalize.
+    """
+    run_id = uuid4()
+    run = EvaluationRun(
+        id=run_id,
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(steps=[_step("input")], repeats=1),
+    )
+    monkeypatch.setattr(
+        run_module,
+        "classify_run_topology",
+        lambda _run: TopologyDecision(
+            status="supported",
+            label="direct -> evaluator",
+            reason="worker-dispatched",
+            dispatch=dispatch,
+        ),
+    )
+    evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
+
+    ok = await process_evaluation_run(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=run_id,
+        tracing_service=MagicMock(),
+        testsets_service=MagicMock(),
+        queries_service=MagicMock(),
+        workflows_service=MagicMock(),
+        applications_service=MagicMock(),
+        evaluations_service=evaluations_service,
+        simple_evaluators_service=MagicMock(),
+    )
+
+    # Handled (not the unsupported-topology False).
+    assert ok is True
+
+
+@pytest.mark.asyncio
+async def test_process_evaluation_run_unsupported_topology_returns_false(monkeypatch):
+    """A genuinely unsupported topology (no dispatch) still returns False."""
+    run_id = uuid4()
+    run = EvaluationRun(
+        id=run_id,
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(steps=[_step("input")], repeats=1),
+    )
+    monkeypatch.setattr(
+        run_module,
+        "classify_run_topology",
+        lambda _run: TopologyDecision(
+            status="unsupported",
+            label="unsupported",
+            reason="no path",
+            dispatch=None,
+        ),
+    )
+    evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
+
+    ok = await process_evaluation_run(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=run_id,
+        tracing_service=MagicMock(),
+        testsets_service=MagicMock(),
+        queries_service=MagicMock(),
+        workflows_service=MagicMock(),
+        applications_service=MagicMock(),
+        evaluations_service=evaluations_service,
+        simple_evaluators_service=MagicMock(),
+    )
+
+    assert ok is False

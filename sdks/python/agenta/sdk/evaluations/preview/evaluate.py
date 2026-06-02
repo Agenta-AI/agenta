@@ -304,6 +304,13 @@ async def _retrieve_entities(
             )
 
         if not testset_revision or not testset_revision.id:
+            # Could not resolve the testset by revision id or testset id — skip
+            # it, but say so. Silently dropping it makes a misconfigured ref look
+            # like an empty-but-successful run. (Applications log the same way.)
+            log.warning(
+                "[EVAL] testset reference could not be retrieved; skipping",
+                testset_ref=str(testset_ref),
+            )
             continue
 
         testset_revisions[testset_revision.id] = testset_revision
@@ -467,6 +474,12 @@ async def aevaluate(
 
     for testset_revision in testset_revisions.values():
         if not testset_revision.data or not testset_revision.data.testcases:
+            # An empty testset produces no scenarios. Warn so "ran, found nothing"
+            # is distinguishable from a silent failure in the returned result.
+            log.warning(
+                "[EVAL] testset has no testcases; skipping",
+                testset_revision_id=str(testset_revision.id),
+            )
             continue
 
         testcases = testset_revision.data.testcases
@@ -623,6 +636,14 @@ async def aevaluate(
 
     if len(scenarios) > 0:
         metrics = await acompute_metrics(run_id=run.id)
+    else:
+        # No scenarios were produced (every testset was empty or unresolved).
+        # Surface it instead of returning an empty-but-"successful" result.
+        log.warning(
+            "[EVAL] evaluation produced no scenarios; check testset references "
+            "and contents",
+            run_id=str(run.id),
+        )
 
     run = await aclose_run(
         run_id=run.id,

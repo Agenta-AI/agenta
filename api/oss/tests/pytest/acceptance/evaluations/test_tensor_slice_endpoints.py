@@ -350,3 +350,84 @@ class TestGraphShapeEndpoints:
         assert response.status_code == 200, response.text
         run = response.json()["run"]
         assert (run.get("data") or {}).get("repeats") == 3
+
+
+class TestSliceScoping:
+    """Path evaluation_id is enforced so a slice cannot reach another run."""
+
+    def test_populate_rejects_result_for_a_different_run(self, authed_api):
+        """UEL-017: a result whose run_id != path evaluation_id is rejected 400."""
+        eval_a = _create_testset_evaluator_evaluation(authed_api)
+        eval_b = _create_testset_evaluator_evaluation(authed_api)
+        run_a, run_b = eval_a["id"], eval_b["id"]
+        step_key = _input_step_key(authed_api, run_b)
+
+        # POST to run_a's populate, but the result targets run_b.
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_a}/populate",
+            json={
+                "results": [
+                    {
+                        "run_id": run_b,
+                        "scenario_id": str(uuid4()),
+                        "step_key": step_key,
+                        "repeat_idx": 0,
+                        "status": "success",
+                    }
+                ]
+            },
+        )
+
+        assert response.status_code == 400, response.text
+
+    def test_remove_scenarios_rejects_a_different_runs_scenario(self, authed_api):
+        """UEL-018: scenario_ids must belong to the path evaluation_id (else 400)."""
+        eval_a = _create_testset_evaluator_evaluation(authed_api)
+        eval_b = _create_testset_evaluator_evaluation(authed_api)
+        run_a, run_b = eval_a["id"], eval_b["id"]
+
+        # A real scenario in run_b.
+        created = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_b}/scenarios/add",
+            json={"count": 1},
+        )
+        assert created.status_code == 200, created.text
+        scenario_b = created.json()["scenarios"][0]["id"]
+
+        # Try to delete run_b's scenario through run_a's path.
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_a}/scenarios/remove",
+            json={"scenario_ids": [scenario_b]},
+        )
+
+        assert response.status_code == 400, response.text
+
+        # And the scenario still exists in run_b (was not deleted).
+        probe = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_b}/probe",
+            json={"scenario_ids": [scenario_b]},
+        )
+        assert probe.status_code == 200, probe.text
+
+
+class TestClosedRunReturns409:
+    """Write ops against a closed run return 409, not 500 (UEL-020)."""
+
+    def test_add_scenarios_on_closed_run_returns_409(self, authed_api):
+        evaluation = _create_testset_evaluator_evaluation(authed_api)
+        run_id = evaluation["id"]
+
+        closed = authed_api("POST", f"/evaluations/runs/{run_id}/close")
+        assert closed.status_code in (200, 204), closed.text
+
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_id}/scenarios/add",
+            json={"count": 1},
+        )
+
+        assert response.status_code == 409, response.text

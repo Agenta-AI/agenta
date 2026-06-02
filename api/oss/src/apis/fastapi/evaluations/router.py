@@ -105,6 +105,7 @@ from oss.src.apis.fastapi.evaluations.utils import (
 from oss.src.core.evaluations.types import (
     SimpleQueueScenariosQuery,
     EvaluationQueueScenariosQuery,
+    EvaluationScenarioQuery,
 )
 
 if is_ee():
@@ -2302,6 +2303,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/{evaluation_id}/process
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def process_evaluation_slice(
         self,
         request: Request,
@@ -2364,6 +2366,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/{evaluation_id}/populate
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def populate_evaluation_slice(
         self,
         request: Request,
@@ -2379,6 +2382,24 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        # The path addresses ONE run; each result carries its own run_id. Reject
+        # any result whose run_id does not match the path so a caller cannot
+        # write cells into a different run via the body (the service/DAO only
+        # scope by project + per-result run_id, not the path).
+        mismatched = [
+            result
+            for result in populate_request.results
+            if result.run_id != evaluation_id
+        ]
+        if mismatched:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "All results must target the evaluation in the path "
+                    f"({evaluation_id})."
+                ),
+            )
+
         results = await self.simple_evaluations_service.populate_slice(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2393,6 +2414,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/{evaluation_id}/prune
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def prune_evaluation_slice(
         self,
         request: Request,
@@ -2422,6 +2444,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/{evaluation_id}/scenarios/add
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def add_evaluation_scenarios(
         self,
         request: Request,
@@ -2453,6 +2476,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/{evaluation_id}/scenarios/remove
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def remove_evaluation_scenarios(
         self,
         request: Request,
@@ -2468,6 +2492,29 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        # Scope to the run in the path: only delete scenarios that actually
+        # belong to `evaluation_id`, so a caller cannot delete another run's
+        # scenarios by id. Resolve the owned subset first; reject if any
+        # requested id is not in this run.
+        owned = set(
+            await self.simple_evaluations_service.evaluations_service.query_scenario_ids(
+                project_id=UUID(request.state.project_id),
+                scenario=EvaluationScenarioQuery(
+                    run_id=evaluation_id,
+                    ids=remove_request.scenario_ids,
+                ),
+            )
+        )
+        not_owned = [s for s in remove_request.scenario_ids if s not in owned]
+        if not_owned:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "All scenario_ids must belong to the evaluation in the path "
+                    f"({evaluation_id})."
+                ),
+            )
+
         # Drops the scenario rows (and their cells). 204 — no body.
         await self.simple_evaluations_service.remove_scenarios(
             project_id=UUID(request.state.project_id),
@@ -2477,6 +2524,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/{evaluation_id}/steps/add
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def add_evaluation_steps(
         self,
         request: Request,
@@ -2507,6 +2555,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/{evaluation_id}/steps/remove
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def remove_evaluation_steps(
         self,
         request: Request,
@@ -2537,6 +2586,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/{evaluation_id}/repeats
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def set_evaluation_repeats(
         self,
         request: Request,

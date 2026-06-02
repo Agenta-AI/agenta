@@ -1801,6 +1801,67 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return results
 
+    @suppress_exceptions(default=[])
+    async def query_result_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        result: Optional[EvaluationResultQuery] = None,
+    ) -> List[UUID]:
+        # ID-only counterpart of `query_results` (mirrors `query_scenario_ids`):
+        # selects just the id column so callers that delete/count by id do not
+        # hydrate full result DTOs. Supports the slice-coordinate filters that
+        # the tensor ops address by; full-row filters live on `query_results`.
+        async with self.engine.session() as session:
+            stmt = select(EvaluationResultDBE.id).filter(
+                EvaluationResultDBE.project_id == project_id,
+            )
+
+            if result is not None:
+                if result.ids is not None:
+                    stmt = stmt.filter(EvaluationResultDBE.id.in_(result.ids))
+
+                if result.run_id is not None:
+                    stmt = stmt.filter(EvaluationResultDBE.run_id == result.run_id)
+
+                if result.run_ids is not None:
+                    stmt = stmt.filter(EvaluationResultDBE.run_id.in_(result.run_ids))
+
+                if result.scenario_id is not None:
+                    stmt = stmt.filter(
+                        EvaluationResultDBE.scenario_id == result.scenario_id
+                    )
+
+                if result.scenario_ids is not None:
+                    stmt = stmt.filter(
+                        EvaluationResultDBE.scenario_id.in_(result.scenario_ids)
+                    )
+
+                if result.step_key is not None:
+                    stmt = stmt.filter(EvaluationResultDBE.step_key == result.step_key)
+
+                if result.step_keys is not None:
+                    stmt = stmt.filter(
+                        EvaluationResultDBE.step_key.in_(result.step_keys)
+                    )
+
+                if result.repeat_idx is not None:
+                    stmt = stmt.filter(
+                        EvaluationResultDBE.repeat_idx == result.repeat_idx
+                    )
+
+                if result.repeat_idxs is not None:
+                    stmt = stmt.filter(
+                        EvaluationResultDBE.repeat_idx.in_(result.repeat_idxs)
+                    )
+
+            stmt = stmt.order_by(EvaluationResultDBE.id.asc())
+
+            res = await session.execute(stmt)
+
+            return list(res.scalars().all())
+
     # - EVALUATION METRICS -----------------------------------------------------
 
     async def set_metrics(

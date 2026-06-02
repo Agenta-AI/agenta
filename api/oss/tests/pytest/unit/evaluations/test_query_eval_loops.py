@@ -318,3 +318,107 @@ async def test_process_query_source_run_skips_empty_query_results(monkeypatch):
     )
 
     process_source_slice.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_query_source_run_finalizes_batch_run_on_pre_slice_error(
+    monkeypatch,
+):
+    """A pre-slice error in a batch run must finalize it to FAILURE (UEL-024).
+
+    An exception raised before the slice processor runs (here, during source
+    resolution) never reaches the slice's own finalize, so the outer handler must
+    flip a batch (use_windowing=True) run to FAILURE + inactive instead of
+    leaving it stuck RUNNING.
+    """
+    project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
+    run = EvaluationRun(
+        id=run_id,
+        flags=EvaluationRunFlags(has_queries=True, has_evaluators=True, is_active=True),
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="query-main",
+                    type="input",
+                    origin="custom",
+                    references={"query_revision": Reference(id=uuid4())},
+                ),
+            ]
+        ),
+    )
+    edit_run = AsyncMock()
+    monkeypatch.setattr(
+        query_module,
+        "evaluations_service",
+        SimpleNamespace(
+            fetch_run=AsyncMock(return_value=run),
+            edit_run=edit_run,
+        ),
+    )
+    monkeypatch.setattr(
+        query_module,
+        "resolve_query_source_items",
+        AsyncMock(side_effect=RuntimeError("boom: trace fetch failed")),
+    )
+
+    # Must not raise — the error is handled and the run finalized.
+    await query_module.process_query_source_run(
+        project_id=project_id,
+        user_id=user_id,
+        run_id=run_id,
+        use_windowing=True,
+    )
+
+    edit_run.assert_awaited_once()
+    _, kwargs = edit_run.await_args
+    edited = kwargs["run"]
+    assert edited.status == EvaluationStatus.FAILURE
+    assert edited.flags.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_process_query_source_run_live_run_not_finalized_on_error(monkeypatch):
+    """A LIVE run (use_windowing=False) keeps ticking — it is NOT finalized."""
+    project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
+    run = EvaluationRun(
+        id=run_id,
+        flags=EvaluationRunFlags(
+            has_queries=True, has_evaluators=True, is_live=True, is_active=True
+        ),
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="query-main",
+                    type="input",
+                    origin="custom",
+                    references={"query_revision": Reference(id=uuid4())},
+                ),
+            ]
+        ),
+    )
+    edit_run = AsyncMock()
+    monkeypatch.setattr(
+        query_module,
+        "evaluations_service",
+        SimpleNamespace(
+            fetch_run=AsyncMock(return_value=run),
+            edit_run=edit_run,
+        ),
+    )
+    monkeypatch.setattr(
+        query_module,
+        "resolve_query_source_items",
+        AsyncMock(side_effect=RuntimeError("boom")),
+    )
+
+    await query_module.process_query_source_run(
+        project_id=project_id,
+        user_id=user_id,
+        run_id=run_id,
+        use_windowing=False,
+    )
+
+    # live runs are never finalized on error — the scheduler keeps polling.
+    edit_run.assert_not_awaited()

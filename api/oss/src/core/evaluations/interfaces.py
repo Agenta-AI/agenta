@@ -368,6 +368,16 @@ class EvaluationsDAOInterface(ABC):
     ) -> List[EvaluationResult]:
         raise NotImplementedError
 
+    @abstractmethod
+    async def query_result_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        result: Optional[EvaluationResultQuery] = None,
+    ) -> List[UUID]:
+        raise NotImplementedError
+
     # - EVALUATION METRICS -----------------------------------------------------
 
     @abstractmethod
