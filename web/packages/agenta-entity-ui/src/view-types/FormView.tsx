@@ -115,30 +115,52 @@ interface ObjectRowsProps {
 }
 
 function ObjectRows({obj, depth, editable, onChange, schema}: ObjectRowsProps) {
-    const entries = Object.entries(obj)
-    if (entries.length === 0) {
+    const properties = (schema as {properties?: Record<string, unknown>} | null)?.properties
+
+    // Iterate the SCHEMA's keys as the canonical source of truth when
+    // available, then append any value-only keys (preserves legacy data /
+    // user additions outside the declared schema). This is what lets a
+    // newly-added field on the prompt template (e.g. typing a new
+    // `{{#test}}{{xyz}}{{/test}}` section inside `{{#repos}}`) appear on
+    // EXISTING rows that were filled before the schema gained the field
+    // — otherwise the row stayed at its old shape and the user couldn't
+    // see / fill the new sub-path.
+    const schemaKeys = properties ? Object.keys(properties) : []
+    const valueKeys = Object.keys(obj)
+    const extraKeys = valueKeys.filter((k) => !(properties && k in properties))
+    const keys: string[] = properties ? [...schemaKeys, ...extraKeys] : valueKeys
+
+    if (keys.length === 0) {
         return <span style={styles.emptyHint}>(empty object)</span>
     }
+
     const updateKey = (key: string, next: unknown) => {
         onChange({...obj, [key]: next})
     }
-    const properties = (schema as {properties?: Record<string, unknown>} | null)?.properties
+
     return (
         <div style={depth === 0 ? styles.rootStack : styles.nestedStack}>
-            {entries.map(([key, child]) => (
-                <FormField
-                    key={key}
-                    label={key}
-                    value={child}
-                    depth={depth}
-                    editable={editable}
-                    onChange={(next) => updateKey(key, next)}
-                    // Descend into the schema for this property — each
-                    // child gets ITS OWN slice so nested arrays infer
-                    // the correct row template from their local items.
-                    schema={properties?.[key]}
-                />
-            ))}
+            {keys.map((key) => {
+                // Value-present keys use the value; schema-only keys
+                // (existing-row gap) get an empty default derived from
+                // their declared schema, so the user can fill them in
+                // immediately without manually adding the field first.
+                const childValue =
+                    key in obj
+                        ? obj[key]
+                        : ((properties && buildEmptyShapeFromSchema(properties[key])) ?? "")
+                return (
+                    <FormField
+                        key={key}
+                        label={key}
+                        value={childValue}
+                        depth={depth}
+                        editable={editable}
+                        onChange={(next) => updateKey(key, next)}
+                        schema={properties?.[key]}
+                    />
+                )
+            })}
         </div>
     )
 }
