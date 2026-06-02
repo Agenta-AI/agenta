@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.locking import acquire_lock, release_lock
 from oss.src.core.events.service import EventsService
 
 from ee.src.apis.fastapi.events.models import EventQueryRequest, EventsQueryResponse

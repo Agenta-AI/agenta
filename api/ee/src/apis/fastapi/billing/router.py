@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import acquire_lock, release_lock, renew_lock
+from oss.src.utils.locking import acquire_lock, release_lock, renew_lock
 from oss.src.utils.env import env
 from oss.src.utils.lazy import _load_stripe
 

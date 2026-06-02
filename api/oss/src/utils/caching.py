@@ -1,7 +1,6 @@
 from typing import Any, Type, Optional, Union
 from random import random
 from asyncio import sleep
-from uuid import uuid4
 
 import orjson
 
@@ -13,7 +12,6 @@ from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 log = get_module_logger(__name__)
 
-AGENTA_LOCK_TTL = 15  # 15 seconds
 AGENTA_CACHE_TTL = 5 * 60  # 5 minutes (Layer 2) [L2]
 AGENTA_CACHE_LOCAL_TTL = 15  # 15 seconds for local in-memory cache (Layer 1) [L1]
 
@@ -25,7 +23,6 @@ AGENTA_CACHE_LOCK_TTL = 1  # TTL for cache locks
 
 AGENTA_CACHE_SCAN_BATCH_SIZE = 500
 AGENTA_CACHE_DELETE_BATCH_SIZE = 1000
-AGENTA_LOCK_SOCKET_TIMEOUT = 2.0  # Locks should be more reliable than cache lookups
 
 CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
@@ -38,22 +35,6 @@ CACHE_DEBUG_VALUE = False
 # local_cache: TTLCache = TTLCache(maxsize=4096, ttl=AGENTA_CACHE_LOCAL_TTL)
 
 _cache_engine = get_cache_engine()
-
-
-# Ownership-safe lock scripts. Owner token must match to renew/release.
-_LOCK_RENEW_IF_OWNER_SCRIPT = """
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-    return redis.call("EXPIRE", KEYS[1], tonumber(ARGV[2]))
-end
-return 0
-"""
-
-_LOCK_RELEASE_IF_OWNER_SCRIPT = """
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-    return redis.call("DEL", KEYS[1])
-end
-return 0
-"""
 
 
 # HELPERS ----------------------------------------------------------------------
@@ -116,7 +97,7 @@ async def _scan(pattern: str) -> list[str]:
         keys: list[str] = []
 
         while True:  # TODO: Really ?
-            cursor, batch = await _cache_engine.get_r().scan(
+            cursor, batch = await _cache_engine.scan(
                 cursor=cursor,
                 match=pattern,
                 count=AGENTA_CACHE_SCAN_BATCH_SIZE,
@@ -206,7 +187,7 @@ async def _try_get_and_maybe_renew(
     #     return _deserialize(raw, model=model, is_list=is_list)
 
     # Layer 2: Check Redis (distributed, 5min TTL, ~1ms latency)
-    raw = await _cache_engine.get_r().get(cache_name)
+    raw = await _cache_engine.get(cache_name)
 
     if raw is not None:
         if CACHE_DEBUG:
@@ -227,7 +208,7 @@ async def _try_get_and_maybe_renew(
                     name=cache_name,
                 )
 
-            await _cache_engine.get_r().expire(cache_name, ttl)
+            await _cache_engine.expire(cache_name, ttl)
     else:
         if CACHE_DEBUG:
             log.debug(
@@ -293,7 +274,7 @@ async def _maybe_retry_get(
         lock_name = f"lock::{cache_name}"
         lock_ex = int(lock_ttl * 1000)  # convert seconds to milliseconds
 
-        got_lock = await _cache_engine.get_r().set(lock_name, "1", nx=True, ex=lock_ex)
+        got_lock = await _cache_engine.set(lock_name, "1", nx=True, ex=lock_ex)
 
         if got_lock:
             if CACHE_DEBUG:
@@ -366,7 +347,7 @@ async def set_cache(
         #
         # Original L1 write path:
         # local_cache[cache_name] = cache_value
-        await _cache_engine.get_r().set(cache_name, cache_value, px=cache_px)
+        await _cache_engine.set(cache_name, cache_value, px=cache_px)
 
         if CACHE_DEBUG:
             log.debug(
@@ -379,7 +360,7 @@ async def set_cache(
 
         lock_name = f"lock::{cache_name}"
 
-        check = await _cache_engine.get_r().delete(lock_name)
+        check = await _cache_engine.delete(lock_name)
 
         if check:
             if CACHE_DEBUG:
@@ -500,7 +481,7 @@ async def invalidate_cache(
             #
             # Original L1 invalidation path:
             # local_cache.pop(cache_name, None)
-            await _cache_engine.get_r().delete(cache_name)
+            await _cache_engine.delete(cache_name)
 
         else:
             cache_name = _pack(
@@ -547,7 +528,7 @@ async def invalidate_cache(
             redis_keys_deleted = 0
             for i in range(0, len(keys), AGENTA_CACHE_DELETE_BATCH_SIZE):
                 batch = keys[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE]
-                deleted_count = await _cache_engine.get_r().delete(*batch)
+                deleted_count = await _cache_engine.delete(*batch)
                 redis_keys_deleted += deleted_count
 
                 if CACHE_DEBUG:
@@ -576,222 +557,3 @@ async def invalidate_cache(
         log.warn(e)
 
         return None
-
-
-async def acquire_lock(
-    namespace: str,
-    key: Optional[Union[str, dict]] = None,
-    project_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    ttl: int = AGENTA_LOCK_TTL,
-    strict: bool = False,
-) -> Optional[str]:
-    """Acquire a distributed lock using Redis SET NX (atomic check-and-set).
-
-    This prevents race conditions in distributed systems by ensuring only one
-    process can acquire the lock at a time.
-
-    Args:
-        namespace: Lock namespace (e.g., "account-creation", "task-processing")
-        key: Unique identifier for the lock (e.g., email, user_id, task_id)
-        project_id: Optional project scope
-        user_id: Optional user scope
-        ttl: Lock expiration time in seconds (default: 10). Auto-releases after TTL.
-        strict: If True, re-raise Redis errors instead of returning None.
-
-    Returns:
-        Lock owner token if lock was acquired, None if lock is already held by another process.
-
-    Example:
-        lock_owner = await acquire_lock(namespace="account-creation", key=email, ttl=10)
-        if not lock_owner:
-            # Another process has the lock
-            return
-
-        try:
-            # Do work while holding the lock
-            await create_account(email)
-        finally:
-            # Always release the lock
-            await release_lock(
-                namespace="account-creation",
-                key=email,
-                owner=lock_owner,
-            )
-    """
-    try:
-        lock_key = _pack(
-            namespace=f"lock:{namespace}",
-            key=key,
-            project_id=project_id,
-            user_id=user_id,
-        )
-        lock_owner = uuid4().hex
-
-        # Atomic SET NX: Returns True if lock acquired, False if already held
-        acquired = await _cache_engine.get_r_lock().set(
-            lock_key, lock_owner, nx=True, ex=ttl
-        )
-
-        if acquired:
-            if CACHE_DEBUG:
-                log.debug(
-                    "[lock] ACQUIRED",
-                    key=lock_key,
-                    ttl=ttl,
-                )
-            return lock_owner
-        else:
-            if CACHE_DEBUG:
-                log.debug(
-                    "[lock] BLOCKED",
-                    key=lock_key,
-                )
-            return None
-
-    except Exception as e:
-        log.error(
-            f"[lock] ACQUIRE ERROR: namespace={namespace} key={key} error={e}",
-            exc_info=True,
-        )
-        if strict:
-            raise
-        return None
-
-
-async def renew_lock(
-    namespace: str,
-    key: Optional[Union[str, dict]] = None,
-    project_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    ttl: int = AGENTA_LOCK_TTL,
-    owner: Optional[str] = None,
-) -> bool:
-    """Renew (extend) the TTL of an existing distributed lock.
-
-    Use this to prevent lock expiration during long-running operations.
-    Only succeeds if the lock key still exists in Redis. If an owner token is
-    provided, renewal only succeeds when ownership matches.
-
-    Args:
-        namespace: Lock namespace (same as used in acquire_lock)
-        key: Lock key (same as used in acquire_lock)
-        project_id: Optional project ID (same as used in acquire_lock)
-        user_id: Optional user ID (same as used in acquire_lock)
-        ttl: New expiration time in seconds
-        owner: Optional owner token returned by acquire_lock
-
-    Returns:
-        True if lock was renewed, False if lock has already expired or on error
-    """
-    try:
-        lock_key = _pack(
-            namespace=f"lock:{namespace}",
-            key=key,
-            project_id=project_id,
-            user_id=user_id,
-        )
-
-        if owner:
-            renewed = await _cache_engine.get_r_lock().eval(
-                _LOCK_RENEW_IF_OWNER_SCRIPT,
-                1,
-                lock_key,
-                owner,
-                str(ttl),
-            )
-        else:
-            renewed = await _cache_engine.get_r_lock().expire(lock_key, ttl)
-
-        if renewed:
-            if CACHE_DEBUG:
-                log.debug(
-                    "[lock] RENEWED",
-                    key=lock_key,
-                    ttl=ttl,
-                )
-            return True
-        else:
-            log.warn(
-                f"[lock] RENEW FAILED (expired or lost ownership): namespace={namespace} key={key}"
-            )
-            return False
-
-    except Exception as e:
-        log.error(
-            f"[lock] RENEW ERROR: namespace={namespace} key={key} error={e}",
-            exc_info=True,
-        )
-        return False
-
-
-async def release_lock(
-    namespace: str,
-    key: Optional[Union[str, dict]] = None,
-    project_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    owner: Optional[str] = None,
-    strict: bool = False,
-) -> bool:
-    """Release a distributed lock acquired with acquire_lock().
-
-    Args:
-        namespace: Lock namespace (same as used in acquire_lock)
-        key: Lock key (same as used in acquire_lock)
-        project_id: Optional project ID (same as used in acquire_lock)
-        user_id: Optional user ID (same as used in acquire_lock)
-        owner: Optional owner token returned by acquire_lock
-        strict: If True, re-raise Redis errors instead of returning False.
-
-    Returns:
-        True if lock was released, False if already expired.
-
-    Example:
-        lock_acquired = await acquire_lock(namespace="account-creation", key=email)
-        if lock_acquired:
-            try:
-                # ... critical section ...
-            finally:
-                await release_lock(namespace="account-creation", key=email)
-    """
-    try:
-        lock_key = _pack(
-            namespace=f"lock:{namespace}",
-            key=key,
-            project_id=project_id,
-            user_id=user_id,
-        )
-
-        if owner:
-            deleted = await _cache_engine.get_r_lock().eval(
-                _LOCK_RELEASE_IF_OWNER_SCRIPT,
-                1,
-                lock_key,
-                owner,
-            )
-        else:
-            deleted = await _cache_engine.get_r_lock().delete(lock_key)
-
-        if deleted:
-            if CACHE_DEBUG:
-                log.debug(
-                    "[lock] RELEASED",
-                    key=lock_key,
-                )
-            return True
-        else:
-            if CACHE_DEBUG:
-                log.debug(
-                    "[lock] ALREADY EXPIRED OR OWNED BY ANOTHER WORKER",
-                    key=lock_key,
-                )
-            return False
-
-    except Exception as e:
-        log.error(
-            f"[lock] RELEASE ERROR: namespace={namespace} key={key} error={e}",
-            exc_info=True,
-        )
-        if strict:
-            raise
-        return False

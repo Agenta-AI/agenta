@@ -37,6 +37,7 @@ async def fake_redis():
     fakeredis = pytest.importorskip("fakeredis")
     aioredis = pytest.importorskip("fakeredis.aioredis")
     from oss.src.utils import caching
+    from oss.src.utils import locking
 
     server = fakeredis.FakeServer()
     client = aioredis.FakeRedis(server=server, decode_responses=False)
@@ -47,7 +48,7 @@ async def fake_redis():
         key=None,
         project_id=None,
         user_id=None,
-        ttl: int = caching.AGENTA_LOCK_TTL,
+        ttl: int = locking.AGENTA_LOCK_TTL,
         owner=None,
     ) -> bool:
         lock_key = caching.pack(
@@ -85,16 +86,19 @@ async def fake_redis():
             return False
         return bool(await client.delete(lock_key))
 
-    cache_engine = pytest.importorskip("oss.src.dbs.redis.shared.engine")
+    engine = pytest.importorskip("oss.src.dbs.redis.shared.engine")
+    lock_engine = engine.get_lock_engine()
 
     with (
-        patch.object(cache_engine._cache_engine, "get_r_lock", return_value=client),
+        # The lock engine delegates redis ops to `_client()`; point it at the
+        # fakeredis instance so locking goes through the in-memory server.
+        patch.object(lock_engine, "_client", return_value=client),
         patch(
-            "oss.src.utils.caching.renew_lock",
+            "oss.src.utils.locking.renew_lock",
             _renew_lock_for_tests,
         ),
         patch(
-            "oss.src.utils.caching.release_lock",
+            "oss.src.utils.locking.release_lock",
             _release_lock_for_tests,
         ),
     ):
@@ -489,10 +493,11 @@ async def test_refresh_worker_heartbeat_preserves_created_at_without_fakeredis()
             return True
 
     dummy = DummyRedis()
-    cache_engine = pytest.importorskip("oss.src.dbs.redis.shared.engine")
+    engine = pytest.importorskip("oss.src.dbs.redis.shared.engine")
+    lock_engine = engine.get_lock_engine()
 
     with (
-        patch.object(cache_engine._cache_engine, "get_r_lock", return_value=dummy),
+        patch.object(lock_engine, "_client", return_value=dummy),
         patch(
             "oss.src.core.evaluations.runtime.locks._now_iso",
             side_effect=["2026-03-25T10:00:00Z", "2026-03-25T10:01:00Z"],

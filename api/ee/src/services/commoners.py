@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.locking import acquire_lock, release_lock
 from oss.src.utils.common import env
 
 from oss.src.services import db_manager

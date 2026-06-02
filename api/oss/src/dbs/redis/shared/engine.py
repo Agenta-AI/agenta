@@ -7,45 +7,79 @@ if TYPE_CHECKING:
 
 
 class CacheEngine:
-    """Redis volatile — caching and distributed locks."""
+    """Redis volatile — caching (short socket timeout).
+
+    Lazily opens a single client and delegates unknown attributes to it, so
+    callers use `cache_engine.get(...)`, `cache_engine.scan(...)`, etc. directly
+    (no separate accessor). Distributed locks use `LockEngine` instead — it has
+    a longer socket timeout suited to blocking lock operations.
+    """
+
+    # 0.5s — cache ops are fast; fail quickly rather than stall a request.
+    _SOCKET_TIMEOUT = 0.5
 
     def __init__(self) -> None:
         from redis.asyncio import Redis
 
         self._r: Optional[Redis] = None
-        self._r_lock: Optional[Redis] = None
 
-    def get_r(self) -> "Redis":
+    def _client(self) -> "Redis":
         if self._r is None:
             from redis.asyncio import Redis
 
             self._r = Redis.from_url(
                 url=env.redis.uri_volatile,
                 decode_responses=False,
-                socket_timeout=0.5,
+                socket_timeout=self._SOCKET_TIMEOUT,
             )
         return self._r
 
-    def get_r_lock(self) -> "Redis":
-        if self._r_lock is None:
-            from redis.asyncio import Redis
-
-            AGENTA_LOCK_SOCKET_TIMEOUT = 30
-
-            self._r_lock = Redis.from_url(
-                url=env.redis.uri_volatile,
-                decode_responses=False,
-                socket_timeout=AGENTA_LOCK_SOCKET_TIMEOUT,
-            )
-        return self._r_lock
+    def __getattr__(self, name: str):
+        # Only reached for attributes not found normally (so `_r`, `_client`,
+        # `close`, etc. are unaffected). Proxies redis client methods.
+        return getattr(self._client(), name)
 
     async def close(self) -> None:
         if self._r is not None:
             await self._r.close()
             self._r = None
-        if self._r_lock is not None:
-            await self._r_lock.close()
-            self._r_lock = None
+
+
+class LockEngine:
+    """Redis volatile — distributed locks (long socket timeout).
+
+    Same volatile Redis as `CacheEngine`, but a separate client with a longer
+    socket timeout because lock operations may block. Delegates unknown
+    attributes to its lazy client, so callers use `lock_engine.set(...)`,
+    `lock_engine.eval(...)`, etc. directly.
+    """
+
+    # 30s — lock ops may block (e.g. waiting to acquire); don't time out early.
+    _SOCKET_TIMEOUT = 30
+
+    def __init__(self) -> None:
+        from redis.asyncio import Redis
+
+        self._r: Optional[Redis] = None
+
+    def _client(self) -> "Redis":
+        if self._r is None:
+            from redis.asyncio import Redis
+
+            self._r = Redis.from_url(
+                url=env.redis.uri_volatile,
+                decode_responses=False,
+                socket_timeout=self._SOCKET_TIMEOUT,
+            )
+        return self._r
+
+    def __getattr__(self, name: str):
+        return getattr(self._client(), name)
+
+    async def close(self) -> None:
+        if self._r is not None:
+            await self._r.close()
+            self._r = None
 
 
 class StreamsEngine:
@@ -72,6 +106,7 @@ class StreamsEngine:
 
 
 _cache_engine: Optional[CacheEngine] = None
+_lock_engine: Optional[LockEngine] = None
 _streams_engine: Optional[StreamsEngine] = None
 
 
@@ -80,6 +115,13 @@ def get_cache_engine() -> CacheEngine:
     if _cache_engine is None:
         _cache_engine = CacheEngine()
     return _cache_engine
+
+
+def get_lock_engine() -> LockEngine:
+    global _lock_engine
+    if _lock_engine is None:
+        _lock_engine = LockEngine()
+    return _lock_engine
 
 
 def get_streams_engine() -> StreamsEngine:

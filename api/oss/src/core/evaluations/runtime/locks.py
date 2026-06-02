@@ -21,6 +21,7 @@ import orjson
 from pydantic import BaseModel
 
 import oss.src.utils.caching as caching
+import oss.src.utils.locking as locking
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -121,10 +122,10 @@ async def _write_meta(
     payload: LockPayload,
     ttl: int,
 ) -> None:
-    await caching._cache_engine.get_r_lock().set(
+    await locking.store_set(
         _actual_meta_name(lock_key),
         orjson.dumps(payload.model_dump(mode="json")),
-        ex=ttl,
+        ttl=ttl,
     )
 
 
@@ -134,8 +135,7 @@ async def _touch_meta(
     ttl: int,
 ) -> None:
     meta_key = _actual_meta_name(lock_key)
-    r_lock = caching._cache_engine.get_r_lock()
-    raw = await r_lock.get(meta_key)
+    raw = await locking.store_get(meta_key)
     if not raw:
         return
 
@@ -146,10 +146,10 @@ async def _touch_meta(
         return
 
     payload.updated_at = _now_iso()
-    await r_lock.set(
+    await locking.store_set(
         meta_key,
         orjson.dumps(payload.model_dump(mode="json")),
-        ex=ttl,
+        ttl=ttl,
     )
 
 
@@ -158,12 +158,11 @@ async def _read_meta_if_lock_exists(
     lock_key: str,
 ) -> Optional[LockPayload]:
     actual_lock_key = _actual_lock_name(lock_key)
-    r_lock = caching._cache_engine.get_r_lock()
-    if not await r_lock.exists(actual_lock_key):
-        await r_lock.delete(_actual_meta_name(lock_key))
+    if not await locking.store_exists(actual_lock_key):
+        await locking.store_delete(_actual_meta_name(lock_key))
         return None
 
-    raw = await r_lock.get(_actual_meta_name(lock_key))
+    raw = await locking.store_get(_actual_meta_name(lock_key))
     if not raw:
         return None
 
@@ -182,7 +181,7 @@ async def _acquire_lock(
     ttl: int,
 ) -> Optional[LockPayload]:
     namespace, key = _lock_args(lock_key)
-    job_token = await caching.acquire_lock(
+    job_token = await locking.acquire_lock(
         namespace=namespace,
         key=key,
         ttl=ttl,
@@ -209,7 +208,7 @@ async def _acquire_lock(
             job_id=job_id,
             exc_info=True,
         )
-        await caching.release_lock(
+        await locking.release_lock(
             namespace=namespace,
             key=key,
             owner=job_token,
@@ -226,7 +225,7 @@ async def _renew_lock(
     ttl: int,
 ) -> bool:
     namespace, key = _lock_args(lock_key)
-    renewed = await caching.renew_lock(
+    renewed = await locking.renew_lock(
         namespace=namespace,
         key=key,
         ttl=ttl,
@@ -256,7 +255,7 @@ async def _release_lock(
     job_token: str,
 ) -> bool:
     namespace, key = _lock_args(lock_key)
-    released = await caching.release_lock(
+    released = await locking.release_lock(
         namespace=namespace,
         key=key,
         owner=job_token,
@@ -265,7 +264,7 @@ async def _release_lock(
         return False
 
     try:
-        await caching._cache_engine.get_r_lock().delete(_actual_meta_name(lock_key))
+        await locking.store_delete(_actual_meta_name(lock_key))
     except Exception:
         log.warning(
             "[LOCK] Released lock but failed to delete metadata",
@@ -369,8 +368,7 @@ async def list_active_job_locks(
     Wildcard discovery must use SCAN, never KEYS.
     """
     payloads: list[LockPayload] = []
-    r_lock = caching._cache_engine.get_r_lock()
-    async for raw_lock_key in r_lock.scan_iter(
+    async for raw_lock_key in locking.store_scan_iter(
         match=_actual_lock_name(job_lock_pattern(run_id))
     ):
         meta_key = (
@@ -378,7 +376,7 @@ async def list_active_job_locks(
             if isinstance(raw_lock_key, bytes)
             else f"{raw_lock_key}:meta"
         )
-        raw_payload = await r_lock.get(meta_key)
+        raw_payload = await locking.store_get(meta_key)
         if not raw_payload:
             continue
 
@@ -406,8 +404,9 @@ async def is_run_executing(
     *,
     run_id: str,
 ) -> bool:
-    r_lock = caching._cache_engine.get_r_lock()
-    async for _ in r_lock.scan_iter(match=_actual_lock_name(job_lock_pattern(run_id))):
+    async for _ in locking.store_scan_iter(
+        match=_actual_lock_name(job_lock_pattern(run_id))
+    ):
         return True
     return False
 
@@ -416,8 +415,7 @@ async def has_mutation_lock(
     *,
     run_id: str,
 ) -> bool:
-    r_lock = caching._cache_engine.get_r_lock()
-    return bool(await r_lock.exists(_actual_lock_name(run_lock_key(run_id))))
+    return await locking.store_exists(_actual_lock_name(run_lock_key(run_id)))
 
 
 async def refresh_worker_heartbeat(
@@ -427,8 +425,7 @@ async def refresh_worker_heartbeat(
 ) -> WorkerHeartbeatPayload:
     now = _now_iso()
     hb_key = _actual_lock_name(worker_heartbeat_key(worker_id))
-    r_lock = caching._cache_engine.get_r_lock()
-    raw = await r_lock.get(hb_key)
+    raw = await locking.store_get(hb_key)
     created_at = now
 
     if raw:
@@ -446,10 +443,10 @@ async def refresh_worker_heartbeat(
         created_at=created_at,
         updated_at=now,
     )
-    await r_lock.set(
+    await locking.store_set(
         hb_key,
         orjson.dumps(payload.model_dump(mode="json")),
-        ex=ttl,
+        ttl=ttl,
     )
     return payload
 
