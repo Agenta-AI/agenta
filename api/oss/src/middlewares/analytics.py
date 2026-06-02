@@ -54,7 +54,7 @@ async def _set_activation_property(
     Uses caching to ensure the property is only set once per user.
     Uses PostHog's $set_once to ensure idempotency.
     """
-    if not distinct_id or not env.posthog.enabled:
+    if not distinct_id:
         return
 
     posthog = _load_posthog()
@@ -115,7 +115,7 @@ def capture_oss_deployment_created(user_email: str, organization_id: str):
     No-op if PostHog is not configured.
     """
 
-    if is_oss() and env.posthog.enabled:
+    if is_oss():
         posthog = _load_posthog()
         if posthog is None:
             return
@@ -245,7 +245,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
             except Exception:  # pylint: disable=bare-except
                 pass
 
-            if distinct_id and env.posthog.api_key:
+            if distinct_id:
                 posthog = _load_posthog()
                 if posthog is not None:
                     properties["$set"] = {"email": distinct_id}

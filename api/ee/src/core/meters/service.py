@@ -2,7 +2,6 @@ from typing import Awaitable, Tuple, Callable, List, Optional
 from uuid import uuid4
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.env import env
 from oss.src.utils.lazy import _load_stripe
 
 from ee.src.core.access.entitlements.types import Quota
@@ -77,13 +76,9 @@ class MetersService:
         self,
         renew: Optional[Callable[[], Awaitable[bool]]] = None,
     ):
-        if not env.stripe.enabled:
-            log.warn("✗ Stripe disabled")
-            return
-
         stripe = _load_stripe()
         if stripe is None:
-            log.error("[report] Failed to load Stripe module")
+            log.warn("✗ Stripe unavailable")
             return
 
         log.info("[report] ============================================")

@@ -56,16 +56,16 @@ async def send_email(
     """
     Render the shared email template and send it via SendGrid.
 
-    No-op (returns True) when SendGrid is disabled or unavailable. Callers that
-    need to short-circuit on a disabled mailer before doing other work should
-    still gate on `env.sendgrid.enabled` themselves.
+    No-op (returns True) when SendGrid is unavailable (disabled or failed to
+    load). Callers that need to short-circuit on a disabled mailer before doing
+    other work should still gate on `env.sendgrid.enabled` themselves.
 
     Returns True if the email was sent (or skipped because mailing is disabled),
     raises on a send failure or missing sender address.
     """
 
-    sg = _load_sendgrid()
-    if not env.sendgrid.enabled or sg is None:
+    sendgrid = _load_sendgrid()
+    if sendgrid is None:
         log.info(f"[SENDGRID] Email disabled - would send '{subject}' to {to_email}")
         return True
 
@@ -87,7 +87,7 @@ async def send_email(
         html_content=html_content,
     )
 
-    sg.send(message)
+    sendgrid.send(message)
 
     return True
 

@@ -70,12 +70,9 @@ class SubscriptionsService:
         organization_name: str,
         organization_email: str,
     ) -> Optional[SubscriptionDTO]:
-        if not env.stripe.enabled:
-            raise EventException("Reverse trial requires Stripe to be enabled")
-
         stripe = _load_stripe()
         if stripe is None:
-            raise EventException("Failed to load Stripe module")
+            raise EventException("Reverse trial requires Stripe to be available")
 
         if not trial_enabled():
             raise EventException(
@@ -289,13 +286,9 @@ class SubscriptionsService:
             subscription = await self.update(subscription=subscription)
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_SWITCHED:
-            if not env.stripe.enabled:
-                log.warn("✗ Stripe disabled")
-                return None
-
             stripe = _load_stripe()
             if stripe is None:
-                log.error("Failed to load Stripe module")
+                log.warn("✗ Stripe unavailable")
                 raise EventException("Stripe is not available for plan switching")
 
             if subscription.plan == plan:

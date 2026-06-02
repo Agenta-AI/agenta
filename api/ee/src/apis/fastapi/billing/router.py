@@ -6,13 +6,12 @@ from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Request, status, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-import stripe
-
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import acquire_lock, release_lock, renew_lock
 from oss.src.utils.env import env
+from oss.src.utils.lazy import _load_stripe
 
 from ee.src.core.access.entitlements.service import period_from, scope_from
 from ee.src.core.meters.types import Meters, MeterPeriod
@@ -47,12 +46,6 @@ from ee.src.core.organizations.types import OrganizationUpdate
 
 log = get_module_logger(__name__)
 
-# Initialize Stripe only if enabled
-if env.stripe.enabled:
-    stripe.api_key = env.stripe.api_key
-    log.info("✓ Stripe enabled:", target=env.stripe.webhook_target)
-else:
-    log.info("✗ Stripe disabled")
 
 FORBIDDEN_RESPONSE = JSONResponse(
     status_code=403,
@@ -249,8 +242,9 @@ class BillingRouter:
         self,
         request: Request,
     ):
-        # No-op if Stripe is disabled
-        if not env.stripe.enabled:
+        # No-op if Stripe is unavailable (disabled or failed to load)
+        stripe = _load_stripe()
+        if stripe is None:
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content={"status": "ok", "message": "Stripe not configured"},
@@ -476,8 +470,9 @@ class BillingRouter:
         self,
         organization_id: str,
     ):
-        # No-op if Stripe is disabled
-        if not env.stripe.enabled:
+        # No-op if Stripe is unavailable (disabled or failed to load)
+        stripe = _load_stripe()
+        if stripe is None:
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content={"status": "ok", "message": "Stripe not configured"},
@@ -514,8 +509,9 @@ class BillingRouter:
         plan: str,
         success_url: str,
     ):
-        # No-op if Stripe is disabled
-        if not env.stripe.enabled:
+        # No-op if Stripe is unavailable (disabled or failed to load)
+        stripe = _load_stripe()
+        if stripe is None:
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content={"status": "ok", "message": "Stripe not configured"},
@@ -727,7 +723,9 @@ class BillingRouter:
 
         _subscription = None
 
-        if env.stripe.enabled:
+        stripe = _load_stripe()
+
+        if stripe is not None:
             if not subscription.subscription_id:
                 return JSONResponse(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -885,6 +883,13 @@ class BillingRouter:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Subscription (Stripe) not found",
+            )
+
+        stripe = _load_stripe()
+        if stripe is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not load Stripe. Please try again or contact support.",
             )
 
         try:

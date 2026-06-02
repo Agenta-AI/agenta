@@ -249,11 +249,9 @@ async def _create_account(email: str, uid: str) -> bool:
             payload["organization_id"] = str(organization_db.id)
             await create_accounts(payload)
 
-    if env.posthog.enabled and env.posthog.api_key:
+    posthog = _load_posthog()
+    if posthog is not None:
         try:
-            posthog = _load_posthog()
-            if posthog is None:
-                return True
             posthog.capture(
                 distinct_id=auth_info.email,
                 event="user_signed_up_v1",
