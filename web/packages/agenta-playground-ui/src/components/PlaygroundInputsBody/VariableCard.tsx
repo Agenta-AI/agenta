@@ -694,22 +694,19 @@ function CardBody({
                 ? (renderValue as Record<string, unknown>)
                 : {}
 
-        // Empty-row template for `+ Add row`: derived from the items
-        // schema when the port is array-of-objects. Mustache section
-        // openers with sub-paths (`{{#repos}}{{name}}{{/repos}}`) emit a
-        // schema of `{type: "array", items: {type: "object", properties:
-        // …}}` (see `portHelpers#groupTemplateVariables` + `molecule.ts`'s
-        // schema producer), so `items` carries the row shape — feed it
-        // through `buildEmptyShapeFromSchema` to get the empty row.
-        const itemsSchema = (expectedSchema as {items?: unknown} | null)?.items
-        const arrayItemTemplate = itemsSchema ? buildEmptyShapeFromSchema(itemsSchema) : undefined
-
+        // Pass the FULL schema down; FormView threads it through every
+        // nested field and each array node derives its own `+ Add row`
+        // template from its LOCAL `items` schema. This is what makes
+        // nested array-of-objects (e.g. `repos[i].contributors` for the
+        // `{{#repos}}{{#contributors}}…` case) use the inner items shape
+        // (`{name: ""}`) instead of incorrectly inheriting the outer row
+        // shape (`{name, stars, description, contributors}`).
         return (
             <FormView
                 value={formValue}
                 editable={editable}
                 onChange={onChange}
-                arrayItemTemplate={arrayItemTemplate}
+                schema={expectedSchema}
             />
         )
     }

@@ -34,6 +34,7 @@ import {Button as AntdButton, Input, InputNumber, Switch} from "antd"
 import {dump as yamlDump, load as yamlLoad} from "js-yaml"
 
 import {
+    buildEmptyShapeFromSchema,
     detectNestedKind,
     getDefaultViewForValue,
     getViewOptions,
@@ -60,24 +61,23 @@ interface FormViewProps {
     onChange: (next: unknown) => void
     editable?: boolean
     /**
-     * Template used to create new rows when the user clicks `+ Add row`
-     * on an array-typed value. Cloned per insertion via `structuredClone`
-     * so mutations on one row don't leak into others.
+     * Optional JSON Schema fragment describing the value's expected shape.
+     * Threaded through every nested field so:
+     *   - Each array node derives its OWN `+ Add row` template from its
+     *     `items` schema, not a single global template.
+     *   - Nested array-of-objects inside an outer array (e.g.
+     *     `repos[i].contributors`) gets a template matching the inner
+     *     items shape (`{name: ""}`), not the outer row shape.
      *
-     * When omitted (the common case for arrays of primitives or
-     * unknown-schema arrays), new rows default to `null`.
-     *
-     * Threaded through to both the root-level array case (when `value`
-     * itself is an array) and the nested array case (when a property of
-     * `value` is an array). The same template applies at both levels
-     * because the form-array editor's contract is per-form: the caller
-     * supplies the items shape once, and FormView reuses it for any
-     * array surface inside this form.
+     * Without the schema, arrays still render but new rows default to
+     * `null` (no template). Most callers pass the port schema directly;
+     * see `PlaygroundInputsBody/VariableCard.tsx` for the canonical
+     * wiring.
      */
-    arrayItemTemplate?: unknown
+    schema?: unknown
 }
 
-export function FormView({value, onChange, editable, arrayItemTemplate}: FormViewProps) {
+export function FormView({value, onChange, editable, schema}: FormViewProps) {
     // Wrap the entire form in a rail so the children visually read as
     // "contents of the variable named in the section header above" — the
     // rail is consistent with the rail that appears at deeper levels.
@@ -88,7 +88,7 @@ export function FormView({value, onChange, editable, arrayItemTemplate}: FormVie
                     arr={value}
                     depth={0}
                     editable={!!editable}
-                    arrayItemTemplate={arrayItemTemplate}
+                    schema={schema}
                     onChange={(next) => onChange(next)}
                 />
             ) : (
@@ -97,7 +97,7 @@ export function FormView({value, onChange, editable, arrayItemTemplate}: FormVie
                     onChange={(next) => onChange(next)}
                     depth={0}
                     editable={!!editable}
-                    arrayItemTemplate={arrayItemTemplate}
+                    schema={schema}
                 />
             )}
         </div>
@@ -111,10 +111,10 @@ interface ObjectRowsProps {
     depth: number
     editable: boolean
     onChange: (next: Record<string, unknown>) => void
-    arrayItemTemplate?: unknown
+    schema?: unknown
 }
 
-function ObjectRows({obj, depth, editable, onChange, arrayItemTemplate}: ObjectRowsProps) {
+function ObjectRows({obj, depth, editable, onChange, schema}: ObjectRowsProps) {
     const entries = Object.entries(obj)
     if (entries.length === 0) {
         return <span style={styles.emptyHint}>(empty object)</span>
@@ -122,6 +122,7 @@ function ObjectRows({obj, depth, editable, onChange, arrayItemTemplate}: ObjectR
     const updateKey = (key: string, next: unknown) => {
         onChange({...obj, [key]: next})
     }
+    const properties = (schema as {properties?: Record<string, unknown>} | null)?.properties
     return (
         <div style={depth === 0 ? styles.rootStack : styles.nestedStack}>
             {entries.map(([key, child]) => (
@@ -132,7 +133,10 @@ function ObjectRows({obj, depth, editable, onChange, arrayItemTemplate}: ObjectR
                     depth={depth}
                     editable={editable}
                     onChange={(next) => updateKey(key, next)}
-                    arrayItemTemplate={arrayItemTemplate}
+                    // Descend into the schema for this property — each
+                    // child gets ITS OWN slice so nested arrays infer
+                    // the correct row template from their local items.
+                    schema={properties?.[key]}
                 />
             ))}
         </div>
@@ -147,10 +151,10 @@ interface FormFieldProps {
     depth: number
     editable: boolean
     onChange: (next: unknown) => void
-    arrayItemTemplate?: unknown
+    schema?: unknown
 }
 
-function FormField({label, value, depth, editable, onChange, arrayItemTemplate}: FormFieldProps) {
+function FormField({label, value, depth, editable, onChange, schema}: FormFieldProps) {
     const kind = detectNestedKind(value)
 
     // For string fields we manage a per-field view mode (Text / Markdown /
@@ -195,7 +199,7 @@ function FormField({label, value, depth, editable, onChange, arrayItemTemplate}:
                     editable={editable}
                     onChange={onChange}
                     stringMode={stringMode}
-                    arrayItemTemplate={arrayItemTemplate}
+                    schema={schema}
                 />
             </div>
         </div>
@@ -210,12 +214,13 @@ interface ArrayBodyProps {
     editable: boolean
     onChange: (next: unknown[]) => void
     /**
-     * Cloned per insertion when the user clicks `+ Add row`. Typically an
-     * empty object matching the items schema for an array-of-objects port
-     * (`{type: "array", items: {…}}`), but can be any shape — primitives
-     * work too. When omitted, new rows are `null`.
+     * Schema fragment for the ARRAY itself (`{type: "array", items: {…}}`).
+     * The row template for `+ Add row` is derived from `schema.items`
+     * locally — this ensures nested arrays inside an array-of-objects
+     * (e.g. `repos[i].contributors`) use the INNER items shape, not the
+     * outer row shape. Without a schema, new rows default to `null`.
      */
-    arrayItemTemplate?: unknown
+    schema?: unknown
 }
 
 function cloneTemplate(template: unknown): unknown {
@@ -243,7 +248,15 @@ function cloneTemplate(template: unknown): unknown {
  * Phase 2d of `docs/designs/mustache-section-support.md` — the
  * "form-array editor" piece.
  */
-function ArrayBody({arr, depth, editable, onChange, arrayItemTemplate}: ArrayBodyProps) {
+function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
+    // Derive the row template + per-row schema FROM THIS array's local
+    // items schema — not from a global template passed down. This is
+    // what makes nested array-of-objects (e.g. `repos[i].contributors`)
+    // get the inner item shape (`{name: ""}`) instead of the outer row
+    // shape (`{name, stars, description, contributors}`).
+    const itemsSchema = (schema as {items?: unknown} | null)?.items
+    const rowTemplate = itemsSchema ? buildEmptyShapeFromSchema(itemsSchema) : undefined
+
     const updateIndex = (idx: number, next: unknown) => {
         const copy = [...arr]
         copy[idx] = next
@@ -253,7 +266,7 @@ function ArrayBody({arr, depth, editable, onChange, arrayItemTemplate}: ArrayBod
         onChange(arr.filter((_, i) => i !== idx))
     }
     const addRow = () => {
-        onChange([...arr, cloneTemplate(arrayItemTemplate)])
+        onChange([...arr, cloneTemplate(rowTemplate)])
     }
 
     return (
@@ -270,7 +283,9 @@ function ArrayBody({arr, depth, editable, onChange, arrayItemTemplate}: ArrayBod
                             depth={depth}
                             editable={editable}
                             onChange={(next) => updateIndex(idx, next)}
-                            arrayItemTemplate={arrayItemTemplate}
+                            // Each row's schema is the array's items
+                            // schema — descend into it for nested fields.
+                            schema={itemsSchema}
                         />
                     </div>
                     {editable ? (
@@ -308,7 +323,7 @@ interface FieldBodyProps {
     onChange: (next: unknown) => void
     /** For strings only — the active view mode chosen via the labelRow dropdown. */
     stringMode?: ViewType
-    arrayItemTemplate?: unknown
+    schema?: unknown
 }
 
 function FieldBody({
@@ -318,7 +333,7 @@ function FieldBody({
     editable,
     onChange,
     stringMode,
-    arrayItemTemplate,
+    schema,
 }: FieldBodyProps): ReactNode {
     if (kind === "object") {
         return (
@@ -328,7 +343,7 @@ function FieldBody({
                     depth={depth + 1}
                     editable={editable}
                     onChange={(next) => onChange(next)}
-                    arrayItemTemplate={arrayItemTemplate}
+                    schema={schema}
                 />
             </NestedRail>
         )
@@ -340,7 +355,7 @@ function FieldBody({
                     arr={value as unknown[]}
                     depth={depth + 1}
                     editable={editable}
-                    arrayItemTemplate={arrayItemTemplate}
+                    schema={schema}
                     onChange={onChange}
                 />
             </NestedRail>
