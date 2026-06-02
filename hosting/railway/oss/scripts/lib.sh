@@ -198,6 +198,73 @@ railway_call() {
     done
 }
 
+# _railway_graphql: POST a GraphQL request to Railway's backboard API using
+# RAILWAY_API_TOKEN. Used for variableCollectionUpsert, which sets all of a
+# service's variables in ONE mutation — Railway's recommended path, since the
+# CLI's `variable set` fans out to one (server-side expensive) variableUpsert
+# per key. On success prints the response body to stdout and returns 0. Retries
+# on transient network / 429 / 5xx / timeout with the same backoff as
+# railway_call; failure output is redacted.
+#
+# Usage: _railway_graphql '<json-payload>'
+#
+# Environment variables:
+#   RAILWAY_GRAPHQL_URL       Endpoint (default: backboard.railway.com/graphql/v2)
+#   RAILWAY_GRAPHQL_TIMEOUT   Per-attempt curl timeout in seconds (default: 90)
+#   RAILWAY_RETRY_MAX/DELAY   Shared with railway_call
+_railway_graphql() {
+    local payload="$1"
+    local endpoint="${RAILWAY_GRAPHQL_URL:-https://backboard.railway.com/graphql/v2}"
+    local token="${RAILWAY_API_TOKEN:-${RAILWAY_TOKEN:-}}"
+    local max_attempts="${RAILWAY_RETRY_MAX:-5}"
+    local delay="${RAILWAY_RETRY_DELAY:-10}"
+    local timeout_s="${RAILWAY_GRAPHQL_TIMEOUT:-90}"
+    local attempt=1
+
+    while [ "$attempt" -le "$max_attempts" ]; do
+        local raw http body curl_rc
+        # `set +Ee` so a curl failure neither trips errexit nor fires the ERR
+        # trap; we classify and retry here. -w appends the HTTP status on its
+        # own line after the (single-line) JSON body.
+        raw="$(set +Ee; curl -sS --max-time "$timeout_s" -w $'\n%{http_code}' \
+            -X POST "$endpoint" \
+            -H "Authorization: Bearer ${token}" \
+            -H "Content-Type: application/json" \
+            --data "$payload" 2>&1)" && curl_rc=0 || curl_rc=$?
+        http="${raw##*$'\n'}"
+        body="${raw%$'\n'*}"
+
+        # Success = curl ok + HTTP 200 + no GraphQL "errors" array.
+        if [ "$curl_rc" -eq 0 ] && [ "$http" = "200" ] \
+            && ! printf '%s' "$body" | grep -q '"errors"'; then
+            printf '%s\n' "$body"
+            return 0
+        fi
+
+        local retryable=0
+        if [ "$curl_rc" -ne 0 ]; then
+            retryable=1                                   # network error / timeout
+        elif printf '%s' "$http" | grep -qE '^(429|5[0-9][0-9])$'; then
+            retryable=1                                   # rate-limit / server error
+        elif printf '%s' "$body" | grep -qiE "rate.?limit|timed out|temporarily unavailable|service unavailable"; then
+            retryable=1
+        fi
+
+        if [ "$retryable" -eq 1 ] && [ "$attempt" -lt "$max_attempts" ]; then
+            printf "railway graphql: transient (http=%s curl=%s), retrying in %ds (attempt %d/%d)\n" \
+                "$http" "$curl_rc" "$delay" "$attempt" "$max_attempts" >&2
+            sleep "$delay"
+            delay=$((delay * 2))
+            attempt=$((attempt + 1))
+            continue
+        fi
+
+        printf "railway graphql request failed (http=%s curl=%s)\n" "$http" "$curl_rc" >&2
+        [ -n "$body" ] && printf "%s\n" "$body" | _railway_redact >&2
+        return 1
+    done
+}
+
 # install_error_trap: Turn a bare "exit 1" into a diagnostic that names the
 # failing command and prints a short call stack. Call once near the top of a
 # script, after sourcing this file. Enables errtrace (set -E) so the trap also
