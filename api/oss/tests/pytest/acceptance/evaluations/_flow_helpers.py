@@ -241,6 +241,19 @@ def fetch_default_queue(authed_api, run_id) -> dict:
     return response.json().get("queue") or {}
 
 
+def create_queue(authed_api, run_id, *, is_default=False, name=None) -> dict:
+    """Create a queue on a run. Defaults to a NON-default queue.
+
+    Returns the created queue dict.
+    """
+    queue = {"run_id": run_id, "flags": {"is_default": is_default}}
+    if name:
+        queue["name"] = name
+    response = authed_api("POST", "/evaluations/queues/", json={"queues": [queue]})
+    assert response.status_code == 200, response.text
+    return response.json()["queues"][0]
+
+
 def archive_queue(authed_api, queue_id):
     """Archive a queue. Returns the response for status assertions."""
     return authed_api("POST", f"/evaluations/queues/{queue_id}/archive")

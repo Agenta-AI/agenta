@@ -21,6 +21,7 @@ from ._flow_helpers import (
     wait_for_run_terminal,
     fetch_run,
     fetch_default_queue,
+    create_queue,
     start_evaluation,
     close_run,
     archive_queue,
@@ -61,11 +62,18 @@ class TestEvaluationModifyFlows:
         assert final.json()["run"]["status"] == "success", final.json()["run"]
         # ----------------------------------------------------------------------
 
-    def test_unarchive_and_archive_default_queue_on_closed_run(self, authed_api):
-        # A human evaluator makes the run a queue (gets a default queue).
-        # Closing the run reconciles and archives the default queue;
-        # archiving/unarchiving a queue must work even on a CLOSED (locked) run,
-        # because queue archival is a worklist action, not a content edit.
+    def test_default_queue_on_closed_run_unarchivable_but_not_archivable(
+        self, authed_api
+    ):
+        # A human evaluator makes the run a queue (gets a default queue). This
+        # asserts two policies at once on a CLOSED (locked) run:
+        #   1. Unarchiving a default is a system-managed worklist action and must
+        #      NOT be blocked by the closed run (regression guard: it used to
+        #      raise EvaluationClosedConflict -> 409 via the run-flag sync; that
+        #      conflict is now swallowed). -> 200
+        #   2. Archiving a default DIRECTLY is forbidden regardless of run state
+        #      (default queues are system-managed). -> 409 DefaultQueueArchive-
+        #      Forbidden, NOT a closed-run conflict.
         # ARRANGE --------------------------------------------------------------
         testset = create_testset(authed_api)
         evaluator = create_mock_evaluator(authed_api, key="pass")
@@ -89,17 +97,50 @@ class TestEvaluationModifyFlows:
         assert (run.get("flags") or {}).get("is_closed") is True, run
         # ----------------------------------------------------------------------
 
-        # ACT + ASSERT: mutate the queue on the CLOSED run ---------------------
-        # Regression guard: before the fix these raised
-        # EvaluationClosedConflict -> HTTP 409. Now the closed run must NOT block
-        # queue archival, so neither call returns 409. (The exact archived/active
-        # state depends on close-time reconciliation, which is not what this test
-        # asserts.)
+        # ACT + ASSERT ---------------------------------------------------------
+        # Unarchive of a default on a closed run: allowed, closed-run conflict
+        # swallowed -> 200 (the actual regression guard).
         unarchived = unarchive_queue(authed_api, queue_id)
         assert unarchived.status_code != 409, unarchived.text
         assert unarchived.status_code == 200, unarchived.text
 
+        # Direct archive of a default: forbidden by policy -> 409 with the
+        # archive-forbidden message (NOT a closed-run conflict).
         archived = archive_queue(authed_api, queue_id)
-        assert archived.status_code != 409, archived.text
+        assert archived.status_code == 409, archived.text
+        assert "system-managed" in archived.text, archived.text
+        # ----------------------------------------------------------------------
+
+    def test_normal_queue_archivable_and_unarchivable_on_closed_run(self, authed_api):
+        # The closed-run lock must not block worklist actions on a NORMAL
+        # (non-default) queue: both archive and unarchive succeed even after the
+        # run is closed. (Non-default queues are user-managed, so unlike a
+        # default they may be archived directly.)
+        # ARRANGE --------------------------------------------------------------
+        testset = create_testset(authed_api)
+        evaluator = create_mock_evaluator(authed_api, key="pass")
+        evaluation = create_simple_evaluation(
+            authed_api,
+            name="flow-normal-queue",
+            data={
+                "testset_steps": [testset["revision_id"]],
+                "evaluator_steps": {evaluator["revision_id"]: "human"},
+            },
+        )
+        run_id = evaluation["id"]
+
+        queue = create_queue(authed_api, run_id, is_default=False, name="worklist")
+        queue_id = queue["id"]
+
+        close_run(authed_api, run_id)
+        run = fetch_run(authed_api, run_id)
+        assert (run.get("flags") or {}).get("is_closed") is True, run
+        # ----------------------------------------------------------------------
+
+        # ACT + ASSERT: both directions work on the closed run -----------------
+        archived = archive_queue(authed_api, queue_id)
         assert archived.status_code == 200, archived.text
+
+        unarchived = unarchive_queue(authed_api, queue_id)
+        assert unarchived.status_code == 200, unarchived.text
         # ----------------------------------------------------------------------
