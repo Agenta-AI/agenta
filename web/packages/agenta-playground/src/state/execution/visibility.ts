@@ -49,27 +49,29 @@ export interface SplitInputsVisibilityArgs {
 }
 
 /**
- * True when a testcase value is "unauthored" — should drive the `[draft]`
- * badge. Treats every form of emptiness as unauthored:
+ * True when a testcase value is an "unauthored container" — empty `{}`
+ * or `[]`. These are the auto-seed shapes for object / array ports
+ * (a `{{geo.region}}` reference creates `geo` as an empty object on
+ * column creation, same for array section openers), and need to render
+ * with the draft badge to match the visual behaviour of string ports
+ * that stay missing until first edit.
  *
- *   - `undefined` / `null`
- *   - `""` (empty string)
- *   - `{}` (empty plain object)
- *   - `[]` (empty array)
+ * Primitives — `null`, `undefined`, `""`, `0`, `false` — stay AUTHORED.
+ * If the key is present in the testcase with one of these values, the
+ * user (or the row's source data) is signalling "this column exists,
+ * even if I haven't filled it with a meaningful value". The pre-existing
+ * `playground-inputs-visibility` tests assert this contract:
+ *   - `{x: null}`       → not draft (null is a real value)
+ *   - `{x: undefined}`  → not draft (explicit, even if empty)
  *
- * `0` and `false` are NOT empty — they're legitimate user values for
- * number / boolean ports.
+ * Only the container case is special — there's no other way to tell an
+ * auto-seeded empty container apart from an authored one.
  *
- * Background: object-typed ports (e.g. `geo` referenced via `{{geo.region}}`,
- * `repos` referenced as `{{#repos}}…`) get auto-seeded with an empty `{}`
- * when the testcase column is created, while string ports stay missing
- * until the user types. Checking `name in testcaseData` alone treated the
- * auto-seeded empty objects as authored — so `geo`/`repos` rendered without
- * a draft badge while `name`/`user` got one, even though all four were
- * equally unfilled by the user (Arda QA 2026-06-02).
+ * Arda QA 2026-06-02: `name`/`user` (missing keys) showed `[draft]`,
+ * `geo`/`repos` (auto-seeded `{}`) did NOT. This helper closes that gap.
  */
 function isValueUnauthored(value: unknown): boolean {
-    if (value === undefined || value === null || value === "") return true
+    if (value === null || value === undefined) return false
     if (Array.isArray(value)) return value.length === 0
     if (typeof value === "object") return Object.keys(value as object).length === 0
     return false

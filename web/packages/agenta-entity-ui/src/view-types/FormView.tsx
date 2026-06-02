@@ -29,7 +29,8 @@ import {useCallback, useMemo, useState, type ReactNode} from "react"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
-import {Input, InputNumber, Switch} from "antd"
+import {MinusCircle, Plus} from "@phosphor-icons/react"
+import {Button as AntdButton, Input, InputNumber, Switch} from "antd"
 import {dump as yamlDump, load as yamlLoad} from "js-yaml"
 
 import {
@@ -55,23 +56,50 @@ const NESTED_KIND_CHIP: Record<NestedKind, ChipVariant> = {
 }
 
 interface FormViewProps {
-    value: Record<string, unknown>
+    value: Record<string, unknown> | unknown[]
     onChange: (next: unknown) => void
     editable?: boolean
+    /**
+     * Template used to create new rows when the user clicks `+ Add row`
+     * on an array-typed value. Cloned per insertion via `structuredClone`
+     * so mutations on one row don't leak into others.
+     *
+     * When omitted (the common case for arrays of primitives or
+     * unknown-schema arrays), new rows default to `null`.
+     *
+     * Threaded through to both the root-level array case (when `value`
+     * itself is an array) and the nested array case (when a property of
+     * `value` is an array). The same template applies at both levels
+     * because the form-array editor's contract is per-form: the caller
+     * supplies the items shape once, and FormView reuses it for any
+     * array surface inside this form.
+     */
+    arrayItemTemplate?: unknown
 }
 
-export function FormView({value, onChange, editable}: FormViewProps) {
+export function FormView({value, onChange, editable, arrayItemTemplate}: FormViewProps) {
     // Wrap the entire form in a rail so the children visually read as
     // "contents of the variable named in the section header above" — the
     // rail is consistent with the rail that appears at deeper levels.
     return (
         <div style={styles.formOuter}>
-            <ObjectRows
-                obj={value}
-                onChange={(next) => onChange(next)}
-                depth={0}
-                editable={!!editable}
-            />
+            {Array.isArray(value) ? (
+                <ArrayBody
+                    arr={value}
+                    depth={0}
+                    editable={!!editable}
+                    arrayItemTemplate={arrayItemTemplate}
+                    onChange={(next) => onChange(next)}
+                />
+            ) : (
+                <ObjectRows
+                    obj={value}
+                    onChange={(next) => onChange(next)}
+                    depth={0}
+                    editable={!!editable}
+                    arrayItemTemplate={arrayItemTemplate}
+                />
+            )}
         </div>
     )
 }
@@ -83,9 +111,10 @@ interface ObjectRowsProps {
     depth: number
     editable: boolean
     onChange: (next: Record<string, unknown>) => void
+    arrayItemTemplate?: unknown
 }
 
-function ObjectRows({obj, depth, editable, onChange}: ObjectRowsProps) {
+function ObjectRows({obj, depth, editable, onChange, arrayItemTemplate}: ObjectRowsProps) {
     const entries = Object.entries(obj)
     if (entries.length === 0) {
         return <span style={styles.emptyHint}>(empty object)</span>
@@ -103,6 +132,7 @@ function ObjectRows({obj, depth, editable, onChange}: ObjectRowsProps) {
                     depth={depth}
                     editable={editable}
                     onChange={(next) => updateKey(key, next)}
+                    arrayItemTemplate={arrayItemTemplate}
                 />
             ))}
         </div>
@@ -117,9 +147,10 @@ interface FormFieldProps {
     depth: number
     editable: boolean
     onChange: (next: unknown) => void
+    arrayItemTemplate?: unknown
 }
 
-function FormField({label, value, depth, editable, onChange}: FormFieldProps) {
+function FormField({label, value, depth, editable, onChange, arrayItemTemplate}: FormFieldProps) {
     const kind = detectNestedKind(value)
 
     // For string fields we manage a per-field view mode (Text / Markdown /
@@ -164,8 +195,107 @@ function FormField({label, value, depth, editable, onChange}: FormFieldProps) {
                     editable={editable}
                     onChange={onChange}
                     stringMode={stringMode}
+                    arrayItemTemplate={arrayItemTemplate}
                 />
             </div>
+        </div>
+    )
+}
+
+/* ── Array body (rows + add/remove row affordances) ─────────────────── */
+
+interface ArrayBodyProps {
+    arr: unknown[]
+    depth: number
+    editable: boolean
+    onChange: (next: unknown[]) => void
+    /**
+     * Cloned per insertion when the user clicks `+ Add row`. Typically an
+     * empty object matching the items schema for an array-of-objects port
+     * (`{type: "array", items: {…}}`), but can be any shape — primitives
+     * work too. When omitted, new rows are `null`.
+     */
+    arrayItemTemplate?: unknown
+}
+
+function cloneTemplate(template: unknown): unknown {
+    if (template === undefined || template === null) return null
+    if (typeof template !== "object") return template
+    // `structuredClone` was added to all major browsers / Node 17+. The
+    // FE targets Node 22 and modern browsers per the toolchain, so this
+    // is safe — and it handles nested arrays/objects/dates correctly.
+    return structuredClone(template)
+}
+
+/**
+ * Renders an array as a stack of row editors with `+ Add row` (when
+ * editable) and a per-row remove button. Each row is the same
+ * `FormField` used for object properties — so an array of strings
+ * shows a string input per row, and an array of objects shows a
+ * nested form per row.
+ *
+ * Used at both the FormView ROOT (when the variable's value is itself
+ * an array — e.g. `repos` typed as array-of-objects from a mustache
+ * section opener) and at NESTED depths (when an object property is
+ * an array). The behaviour is identical at both levels; the only
+ * difference is whether the parent supplies a label.
+ *
+ * Phase 2d of `docs/designs/mustache-section-support.md` — the
+ * "form-array editor" piece.
+ */
+function ArrayBody({arr, depth, editable, onChange, arrayItemTemplate}: ArrayBodyProps) {
+    const updateIndex = (idx: number, next: unknown) => {
+        const copy = [...arr]
+        copy[idx] = next
+        onChange(copy)
+    }
+    const removeIndex = (idx: number) => {
+        onChange(arr.filter((_, i) => i !== idx))
+    }
+    const addRow = () => {
+        onChange([...arr, cloneTemplate(arrayItemTemplate)])
+    }
+
+    return (
+        <div style={styles.arrayStack}>
+            {arr.length === 0 && !editable ? (
+                <span style={styles.emptyHint}>(empty array)</span>
+            ) : null}
+            {arr.map((item, idx) => (
+                <div key={idx} style={styles.arrayRow}>
+                    <div style={styles.arrayRowField}>
+                        <FormField
+                            label={String(idx)}
+                            value={item}
+                            depth={depth}
+                            editable={editable}
+                            onChange={(next) => updateIndex(idx, next)}
+                            arrayItemTemplate={arrayItemTemplate}
+                        />
+                    </div>
+                    {editable ? (
+                        <AntdButton
+                            type="text"
+                            size="small"
+                            icon={<MinusCircle size={14} />}
+                            aria-label={`Remove row ${idx}`}
+                            onClick={() => removeIndex(idx)}
+                            style={styles.arrayRowRemove}
+                        />
+                    ) : null}
+                </div>
+            ))}
+            {editable ? (
+                <AntdButton
+                    type="dashed"
+                    size="small"
+                    icon={<Plus size={14} />}
+                    onClick={addRow}
+                    style={styles.arrayAddRow}
+                >
+                    Add row
+                </AntdButton>
+            ) : null}
         </div>
     )
 }
@@ -178,6 +308,7 @@ interface FieldBodyProps {
     onChange: (next: unknown) => void
     /** For strings only — the active view mode chosen via the labelRow dropdown. */
     stringMode?: ViewType
+    arrayItemTemplate?: unknown
 }
 
 function FieldBody({
@@ -187,6 +318,7 @@ function FieldBody({
     editable,
     onChange,
     stringMode,
+    arrayItemTemplate,
 }: FieldBodyProps): ReactNode {
     if (kind === "object") {
         return (
@@ -196,31 +328,21 @@ function FieldBody({
                     depth={depth + 1}
                     editable={editable}
                     onChange={(next) => onChange(next)}
+                    arrayItemTemplate={arrayItemTemplate}
                 />
             </NestedRail>
         )
     }
     if (kind === "array") {
-        const arr = value as unknown[]
-        const updateIndex = (idx: number, next: unknown) => {
-            const copy = [...arr]
-            copy[idx] = next
-            onChange(copy)
-        }
         return (
             <NestedRail>
-                <div style={styles.arrayStack}>
-                    {arr.map((item, idx) => (
-                        <FormField
-                            key={idx}
-                            label={String(idx)}
-                            value={item}
-                            depth={depth + 1}
-                            editable={editable}
-                            onChange={(next) => updateIndex(idx, next)}
-                        />
-                    ))}
-                </div>
+                <ArrayBody
+                    arr={value as unknown[]}
+                    depth={depth + 1}
+                    editable={editable}
+                    arrayItemTemplate={arrayItemTemplate}
+                    onChange={onChange}
+                />
             </NestedRail>
         )
     }
@@ -417,6 +539,37 @@ const styles = {
         display: "flex",
         flexDirection: "column" as const,
         gap: 18,
+    },
+    arrayRow: {
+        // Each row hosts the FormField on the left and the remove
+        // button on the right. `align-items: flex-start` keeps the
+        // remove button aligned with the label row even when the field
+        // body grows tall.
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 8,
+    },
+    arrayRowField: {
+        // Field takes all remaining width; `min-width: 0` lets the inner
+        // editors shrink past their content-driven min width (without it,
+        // long values would push the remove button off-screen).
+        flex: 1,
+        minWidth: 0,
+    },
+    arrayRowRemove: {
+        // Sit at the top of the row alongside the field label. The button
+        // is slightly indented from the row's leading edge so it doesn't
+        // visually collide with the field's value border.
+        marginTop: 2,
+        color: "var(--ag-colorTextTertiary)",
+    },
+    arrayAddRow: {
+        // Dashed primary-color affordance; visually distinct from the
+        // filled rows so the user reads it as an action rather than a
+        // row of data. Aligned to the left so the rows visually anchor
+        // at the same leading edge.
+        alignSelf: "flex-start",
+        marginTop: 4,
     },
     field: {
         display: "flex",

@@ -209,23 +209,53 @@ export function getViewOptionsForExpectedType(
  * `getViewOptionsForExpectedType` keeps a consistent layout regardless
  * of which mode is the default.
  *
- *   - object → Form  (seeded with empty-shape when a schema is known)
- *   - array  → JSON  (FormView has no add-item affordance for `[]`,
- *                     JSON's buffer is the better empty-state UX)
+ *   - object → Form (seeded with empty-shape when a schema is known)
+ *   - array of objects (`expectedSchema.items` describes a row shape)
+ *            → Form  (the form-array editor's `+ Add row` makes the
+ *                     empty-state UX clean; user clicks once to extend)
+ *   - array (no items schema or items are primitives)
+ *            → JSON  (FormView's array-of-primitives case lacks an
+ *                     `add row` template, JSON's buffer is friendlier)
  *   - string/number/integer/boolean → text ("Text" label)
  */
 export function getDefaultViewForExpectedType(
     value: unknown,
     expectedType: ExpectedType,
+    expectedSchema?: unknown,
 ): ViewType {
     if (!isValueEmpty(value)) return getDefaultViewForValue(value)
     if (expectedType === "object") return "form"
-    if (expectedType === "array") return "json"
+    if (expectedType === "array") {
+        // Array-of-objects (mustache section opener with sub-paths) →
+        // open in Form view so the user sees a row-per-item layout with
+        // a clear `+ Add row` affordance. Plain arrays (no items schema
+        // or items that aren't object-shaped) stay on JSON, which is
+        // friendlier for arrays of primitives.
+        if (isArrayOfObjectsSchema(expectedSchema)) return "form"
+        return "json"
+    }
     if (expectedType === "boolean") return "text"
     if (expectedType === "string" || expectedType === "number" || expectedType === "integer") {
         return "text"
     }
     return getDefaultViewForValue(value)
+}
+
+/** Whether a schema fragment describes an array whose items have an
+ *  object-with-properties shape — the array-of-objects case the form
+ *  view's `+ Add row` editor handles natively. */
+function isArrayOfObjectsSchema(schema: unknown): boolean {
+    if (!schema || typeof schema !== "object") return false
+    const s = schema as {type?: string; items?: unknown}
+    if (s.type !== "array" || !s.items || typeof s.items !== "object") return false
+    const items = s.items as {type?: string; properties?: unknown; _pathHints?: unknown}
+    if (items.type !== "object") return false
+    const hasProperties =
+        !!items.properties &&
+        typeof items.properties === "object" &&
+        Object.keys(items.properties as object).length > 0
+    const hasPathHints = Array.isArray(items._pathHints) && items._pathHints.length > 0
+    return hasProperties || hasPathHints
 }
 
 // ─── Empty-shape seed from JSON schema ─────────────────────────────────────
