@@ -184,11 +184,7 @@ supported_llm_models = {
         "together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo",
     ],
     "minimax": [
-        "minimax/MiniMax-M2.5",
-        "minimax/MiniMax-M2.5-lightning",
-        "minimax/MiniMax-M2.1",
-        "minimax/MiniMax-M2.1-lightning",
-        "minimax/MiniMax-M2",
+        "minimax/MiniMax-M3",
     ],
 }
 
