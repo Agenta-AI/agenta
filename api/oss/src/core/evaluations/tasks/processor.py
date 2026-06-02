@@ -37,12 +37,12 @@ from oss.src.core.evaluations.utils import (
     effective_is_split,
 )
 from oss.src.core.evaluations.runtime.adapters import (
-    BackendCachedRunner,
-    BackendMetricsRefresher,
-    BackendResultLogger,
-    BackendScenarioFactory,
-    BackendTraceLoader,
-    BackendWorkflowRunner,
+    APICachedRunner,
+    APIMetricsRefresher,
+    APIResultLogger,
+    APIScenarioFactory,
+    APITraceLoader,
+    APIWorkflowRunner,
 )
 from oss.src.core.evaluations.runtime.models import (
     ProcessSummary,
@@ -123,7 +123,7 @@ async def _resolve_runners_and_revisions(
 ) -> tuple[Dict[str, Any], Dict[str, Any]]:
     """Wire one cache-aware runner + its revision per executable step.
 
-    The returned `runners` are `BackendCachedRunner`s, so hashed-trace reuse
+    The returned `runners` are `APICachedRunner`s, so hashed-trace reuse
     (cache lookup by step references/links before invoking) is handled here for
     both ingest and slice re-execution. `auto` annotations are wired; `human`
     and `custom` annotations are not (the backend never executes them).
@@ -155,8 +155,8 @@ async def _resolve_runners_and_revisions(
             raise ValueError(
                 f"App revision with id {application_revision_ref.id} not found!"
             )
-        runners[invocation_step.key] = BackendCachedRunner(
-            runner=BackendWorkflowRunner(
+        runners[invocation_step.key] = APICachedRunner(
+            runner=APIWorkflowRunner(
                 project_id=project_id,
                 user_id=user_id,
                 workflows_service=workflows_service,
@@ -186,8 +186,8 @@ async def _resolve_runners_and_revisions(
         )
         if evaluator_revision is None:
             continue
-        runners[annotation_step.key] = BackendCachedRunner(
-            runner=BackendWorkflowRunner(
+        runners[annotation_step.key] = APICachedRunner(
+            runner=APIWorkflowRunner(
                 project_id=project_id,
                 user_id=user_id,
                 workflows_service=workflows_service,
@@ -235,8 +235,8 @@ def _source_item_from_input_cells(
     return None
 
 
-class BackendSliceProcessor:
-    """Backend `SliceProcessor`: re-execute the runnable cells in a slice.
+class APISliceProcessor:
+    """API `SliceProcessor`: re-execute the runnable cells in a slice.
 
     Unlike `process_evaluation_source_slice` (an INGEST loop that creates a new
     scenario per source item), this re-executes EXISTING scenarios addressed by
@@ -429,7 +429,7 @@ class BackendSliceProcessor:
                 steps=sdk_steps_all,
                 repeats=run.data.repeats,
                 create_scenario=_ExistingScenario(scenario_id),
-                result_logger=BackendResultLogger(
+                result_logger=APIResultLogger(
                     project_id=project_id,
                     user_id=user_id,
                     timestamp=None,
@@ -443,7 +443,7 @@ class BackendSliceProcessor:
                 runners=runners,
                 revisions=revisions,
                 trace_loader=(
-                    BackendTraceLoader(
+                    APITraceLoader(
                         project_id=project_id,
                         tracing_service=self.tracing_service,
                     )
@@ -866,21 +866,21 @@ async def process_evaluation_source_slice(
             source_items=sdk_source_items,
             steps=sdk_steps,
             repeats=run.data.repeats,
-            create_scenario=BackendScenarioFactory(
+            create_scenario=APIScenarioFactory(
                 project_id=project_id,
                 user_id=user_id,
                 timestamp=timestamp,
                 interval=interval,
                 evaluations_service=evaluations_service,
             ),
-            result_logger=BackendResultLogger(
+            result_logger=APIResultLogger(
                 project_id=project_id,
                 user_id=user_id,
                 timestamp=timestamp,
                 interval=interval,
                 evaluations_service=evaluations_service,
             ),
-            refresh_metrics=BackendMetricsRefresher(
+            refresh_metrics=APIMetricsRefresher(
                 project_id=project_id,
                 user_id=user_id,
                 timestamp=timestamp,
@@ -890,7 +890,7 @@ async def process_evaluation_source_slice(
             runners=runners,
             revisions=revisions,
             trace_loader=(
-                BackendTraceLoader(
+                APITraceLoader(
                     project_id=project_id,
                     tracing_service=tracing_service,
                 )

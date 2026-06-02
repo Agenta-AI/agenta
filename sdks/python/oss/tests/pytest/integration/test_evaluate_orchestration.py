@@ -25,8 +25,8 @@ import pytest
 
 import agenta.sdk.evaluations.preview.evaluate as ev
 from agenta.sdk.evaluations.runtime.adapters import (
-    SdkLocalApplicationRunner,
-    SdkLocalEvaluatorRunner,
+    SDKApplicationRunner,
+    SDKEvaluatorRunner,
 )
 
 pytestmark = pytest.mark.integration
@@ -174,11 +174,9 @@ class TestAevaluateOrchestration:
         _, captured, (_tsr, appr, evr) = _evaluate(evaluators={str(uuid4()): "auto"})
         runners = captured["process_kwargs"]["runners"]
 
-        assert isinstance(
-            runners[f"application-{appr.slug}"], SdkLocalApplicationRunner
-        )
+        assert isinstance(runners[f"application-{appr.slug}"], SDKApplicationRunner)
         # auto evaluator -> local evaluator runner is wired
-        assert isinstance(runners[f"evaluator-{evr.slug}"], SdkLocalEvaluatorRunner)
+        assert isinstance(runners[f"evaluator-{evr.slug}"], SDKEvaluatorRunner)
 
     def test_human_evaluator_gets_no_runner(self):
         _, captured, (_tsr, _appr, evr) = _evaluate(evaluators={str(uuid4()): "human"})

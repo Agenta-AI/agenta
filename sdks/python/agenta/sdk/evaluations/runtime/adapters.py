@@ -17,7 +17,7 @@ from agenta.sdk.models.workflows import (
 )
 
 
-class SdkLocalApplicationRunner:
+class SDKApplicationRunner:
     """SDK adapter for executing application steps through local decorators."""
 
     async def execute(
@@ -48,7 +48,7 @@ class SdkLocalApplicationRunner:
         return [await self.execute(request) for request in requests]
 
 
-class SdkLocalEvaluatorRunner:
+class SDKEvaluatorRunner:
     """SDK adapter for executing evaluator steps through local decorators."""
 
     async def execute(

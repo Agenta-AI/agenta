@@ -43,8 +43,8 @@ from agenta.sdk.evaluations.metrics import (
 from agenta.sdk.evaluations.runtime.models import EvaluationStep, ResolvedSourceItem
 from agenta.sdk.evaluations.runtime.processor import process_evaluation_source_slice
 from agenta.sdk.evaluations.runtime.adapters import (
-    SdkLocalApplicationRunner,
-    SdkLocalEvaluatorRunner,
+    SDKApplicationRunner,
+    SDKEvaluatorRunner,
     SdkResultLogger,
     SdkTraceLoader,
 )
@@ -530,7 +530,7 @@ async def aevaluate(
                     },
                 )
             )
-            runners[application_step_key] = SdkLocalApplicationRunner()
+            runners[application_step_key] = SDKApplicationRunner()
             revisions[application_step_key] = application_revision
 
         for (
@@ -569,7 +569,7 @@ async def aevaluate(
             # (SDK/external-run) evaluators locally; only human is left to the
             # web. Wire a local runner for everything except human.
             if origin != "human":
-                runners[evaluator_step_key] = SdkLocalEvaluatorRunner()
+                runners[evaluator_step_key] = SDKEvaluatorRunner()
                 revisions[evaluator_step_key] = evaluator_revision
 
         source_items = []

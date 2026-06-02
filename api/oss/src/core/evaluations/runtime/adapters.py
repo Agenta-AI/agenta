@@ -76,7 +76,7 @@ def _dump_json(source: Any) -> Any:
     return source
 
 
-class BackendWorkflowServiceRunner:
+class APIWorkflowServiceRunner:
     """API adapter from SDK runtime requests to the backend workflow service."""
 
     def __init__(
@@ -125,7 +125,7 @@ class BackendWorkflowServiceRunner:
         )
 
 
-class BackendScenarioFactory:
+class APIScenarioFactory:
     def __init__(
         self,
         *,
@@ -159,7 +159,7 @@ class BackendScenarioFactory:
         return scenarios[0]
 
 
-class BackendResultLogger:
+class APIResultLogger:
     def __init__(
         self,
         *,
@@ -206,7 +206,7 @@ class BackendResultLogger:
         return results[0] if results else None
 
 
-class BackendMetricsRefresher:
+class APIMetricsRefresher:
     def __init__(
         self,
         *,
@@ -239,7 +239,7 @@ class BackendMetricsRefresher:
         )
 
 
-class BackendTraceLoader:
+class APITraceLoader:
     def __init__(
         self,
         *,
@@ -257,7 +257,7 @@ class BackendTraceLoader:
         )
 
 
-class BackendWorkflowRunner:
+class APIWorkflowRunner:
     def __init__(
         self,
         *,
@@ -369,7 +369,7 @@ class BackendWorkflowRunner:
         )
 
 
-class BackendEvaluatorRunner(BackendWorkflowRunner):
+class APIEvaluatorRunner(APIWorkflowRunner):
     def __init__(
         self,
         *,
@@ -384,7 +384,7 @@ class BackendEvaluatorRunner(BackendWorkflowRunner):
         )
 
 
-class BackendCachedRunner:
+class APICachedRunner:
     def __init__(
         self,
         *,

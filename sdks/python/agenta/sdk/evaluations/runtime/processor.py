@@ -208,12 +208,7 @@ async def process_evaluation_source_slice(
                     )
                 )
                 scenario_auto_results_created = True
-                if execution.error or str(execution.status) in {
-                    "failure",
-                    "EvaluationStatus.FAILURE",
-                    "errors",
-                    "EvaluationStatus.ERRORS",
-                }:
+                if execution.error or _is_failure_status(execution.status):
                     scenario_has_errors = True
 
                 if execution.trace_id:
@@ -322,16 +317,7 @@ async def _execute_with_retry(
     )
     for attempt in range(attempts - 1):
         failed_indices = [
-            i
-            for i, r in enumerate(results)
-            if r.error
-            or str(r.status)
-            in {
-                "failure",
-                "EvaluationStatus.FAILURE",
-                "errors",
-                "EvaluationStatus.ERRORS",
-            }
+            i for i, r in enumerate(results) if r.error or _is_failure_status(r.status)
         ]
         if not failed_indices:
             break
@@ -352,6 +338,12 @@ async def _execute_with_retry(
         for idx, result in zip(failed_indices, retried):
             results[idx] = result
     return results
+
+
+def _is_failure_status(status: EvaluationStatus) -> bool:
+    # `WorkflowExecutionResult.status` is typed `EvaluationStatus`, so compare
+    # members directly rather than matching `str(status)` against literals.
+    return status in (EvaluationStatus.FAILURE, EvaluationStatus.ERRORS)
 
 
 def _step_by_key(

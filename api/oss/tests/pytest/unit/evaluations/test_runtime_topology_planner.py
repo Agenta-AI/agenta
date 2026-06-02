@@ -5,16 +5,12 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.evaluations.runtime.adapters import (
-    BackendCachedRunner,
-    BackendEvaluatorRunner,
-    BackendWorkflowRunner,
-    BackendWorkflowServiceRunner,
+    APICachedRunner,
+    APIEvaluatorRunner,
+    APIWorkflowRunner,
+    APIWorkflowServiceRunner,
 )
 from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
-from oss.src.core.evaluations.runtime.executor import (
-    ApplicationBatchRunnableStepExecutor,
-    WorkflowRunnableStepExecutor,
-)
 from oss.src.core.evaluations.runtime.models import (
     ProcessSummary,
     ResolvedSourceItem,
@@ -1011,38 +1007,6 @@ async def test_tensor_slice_empty_dimension_short_circuits_probe_and_process():
 
 
 @pytest.mark.asyncio
-async def test_workflow_runnable_executor_normalizes_success_and_failure():
-    success_response = SimpleNamespace(
-        status=SimpleNamespace(code=200),
-        trace_id="trace-success",
-        outputs={"score": 1},
-    )
-    failure_status = SimpleNamespace(
-        code=500,
-        model_dump=lambda **kwargs: {"code": 500, "message": "failed"},
-    )
-    failure_response = SimpleNamespace(
-        status=failure_status,
-        trace_id="trace-failure",
-        outputs=None,
-    )
-    workflows_service = SimpleNamespace(
-        invoke_workflow=AsyncMock(side_effect=[success_response, failure_response])
-    )
-    executor = WorkflowRunnableStepExecutor(workflows_service=workflows_service)
-
-    success = await executor.execute(project_id=uuid4(), user_id=uuid4(), request={})
-    failure = await executor.execute(project_id=uuid4(), user_id=uuid4(), request={})
-
-    assert success.status == EvaluationStatus.SUCCESS
-    assert success.trace_id == "trace-success"
-    assert success.error is None
-    assert failure.status == EvaluationStatus.FAILURE
-    assert failure.error == {"code": 500, "message": "failed"}
-    assert workflows_service.invoke_workflow.await_count == 2
-
-
-@pytest.mark.asyncio
 async def test_backend_workflow_service_runner_adapts_sdk_runtime_request():
     workflows_service = SimpleNamespace(
         invoke_workflow=AsyncMock(
@@ -1054,7 +1018,7 @@ async def test_backend_workflow_service_runner_adapts_sdk_runtime_request():
             )
         )
     )
-    runner = BackendWorkflowServiceRunner(
+    runner = APIWorkflowServiceRunner(
         workflows_service=workflows_service,
         request_builder=lambda request: {
             "project_id": "project",
@@ -1146,7 +1110,7 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
             )
         )
     )
-    runner = BackendWorkflowRunner(
+    runner = APIWorkflowRunner(
         project_id=project_id,
         user_id=user_id,
         workflows_service=workflows_service,
@@ -1232,7 +1196,7 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
             )
         )
     )
-    runner = BackendEvaluatorRunner(
+    runner = APIEvaluatorRunner(
         project_id=project_id,
         user_id=user_id,
         workflows_service=workflows_service,
@@ -1308,7 +1272,7 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
             )
         )
     )
-    runner = BackendEvaluatorRunner(
+    runner = APIEvaluatorRunner(
         project_id=project_id,
         user_id=user_id,
         workflows_service=workflows_service,
@@ -1384,7 +1348,7 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
             ]
 
     batch_runner = BatchRunner()
-    runner = BackendCachedRunner(
+    runner = APICachedRunner(
         runner=batch_runner,
         tracing_service=tracing_service,
         project_id=project_id,
@@ -1414,25 +1378,6 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
     assert [result.trace_id for result in results] == ["cached-trace", "fresh-trace"]
     assert len(batch_runner.requests) == 1
     assert [request.cell.repeat_idx for request in batch_runner.requests[0]] == [1]
-
-
-@pytest.mark.asyncio
-async def test_application_batch_runnable_executor_delegates_batch_invocation():
-    batch_invoke = AsyncMock(return_value=["invocation-1", "invocation-2"])
-    executor = ApplicationBatchRunnableStepExecutor(batch_invoke=batch_invoke)
-
-    invocations = await executor.execute_batch(
-        project_id="project",
-        user_id="user",
-        testset_data=[{"input": 1}],
-    )
-
-    assert invocations == ["invocation-1", "invocation-2"]
-    batch_invoke.assert_awaited_once_with(
-        project_id="project",
-        user_id="user",
-        testset_data=[{"input": 1}],
-    )
 
 
 @pytest.mark.asyncio
@@ -2268,7 +2213,7 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
         sdk_loop,
     )
 
-    processor = source_slice_tasks.BackendSliceProcessor(
+    processor = source_slice_tasks.APISliceProcessor(
         evaluations_service=evaluations_service,
         tracing_service=None,
         testcases_service=None,
@@ -2412,7 +2357,7 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
         source_slice_tasks, "sdk_process_evaluation_source_slice", sdk_loop
     )
 
-    processor = source_slice_tasks.BackendSliceProcessor(
+    processor = source_slice_tasks.APISliceProcessor(
         evaluations_service=evaluations_service,
         tracing_service=None,
         testcases_service=None,
@@ -2549,7 +2494,7 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
         source_slice_tasks, "sdk_process_evaluation_source_slice", sdk_loop
     )
 
-    processor = source_slice_tasks.BackendSliceProcessor(
+    processor = source_slice_tasks.APISliceProcessor(
         evaluations_service=evaluations_service,
         tracing_service=None,
         testcases_service=None,
