@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
 import {JSON_HIGHLIGHT_CLASS} from "./constants"
-import {getBeautifiedJsonEntries, safeJsonStringify, truncateContent} from "./utils"
+import {getPrettyJsonEntries, safeJsonStringify, truncateContent} from "./utils"
 
 interface JsonCellContentProps {
     /** JSON value to render */
@@ -33,8 +33,8 @@ const JsonCellContent = memo(
         truncate = true,
         beautified = false,
     }: JsonCellContentProps) => {
-        const beautifiedEntries = useMemo(
-            () => (beautified ? getBeautifiedJsonEntries(value) : null),
+        const prettyEntries = useMemo(
+            () => (beautified ? getPrettyJsonEntries(value) : null),
             [beautified, value],
         )
         const displayString = useMemo(() => {
@@ -43,10 +43,10 @@ const JsonCellContent = memo(
             return truncateContent(full, maxLines, maxChars)
         }, [value, truncate, maxLines, maxChars])
 
-        if (beautifiedEntries) {
+        if (prettyEntries) {
             const visibleEntries = truncate
-                ? beautifiedEntries.slice(0, Math.max(maxLines, 1))
-                : beautifiedEntries
+                ? prettyEntries.slice(0, Math.max(maxLines, 1))
+                : prettyEntries
 
             return (
                 <div className="flex flex-col gap-1 text-xs">
@@ -56,10 +56,10 @@ const JsonCellContent = memo(
                             <span className="whitespace-pre-wrap break-words">{entry.value}</span>
                         </div>
                     ))}
-                    {truncate && beautifiedEntries.length > visibleEntries.length && (
+                    {truncate && prettyEntries.length > visibleEntries.length && (
                         <span className="italic">
-                            +{beautifiedEntries.length - visibleEntries.length} more field
-                            {beautifiedEntries.length - visibleEntries.length > 1 ? "s" : ""}
+                            +{prettyEntries.length - visibleEntries.length} more field
+                            {prettyEntries.length - visibleEntries.length > 1 ? "s" : ""}
                         </span>
                     )}
                 </div>

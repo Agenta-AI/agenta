@@ -66,7 +66,7 @@ export const normalizeValue = (value: unknown): string => {
     return safeJsonStringify(value)
 }
 
-export function getBeautifiedJsonEntries(value: unknown): {key: string; value: string}[] | null {
+export function getPrettyJsonEntries(value: unknown): {key: string; value: string}[] | null {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null
 
     const entries = Object.entries(value as Record<string, unknown>)
