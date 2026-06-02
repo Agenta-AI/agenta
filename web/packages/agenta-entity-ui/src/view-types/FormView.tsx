@@ -363,7 +363,7 @@ function StringLeafEditor({value, mode, editable, onChange}: StringLeafEditorPro
             disableDebounce
             disabled={!editable}
             state={editable ? undefined : "readOnly"}
-            placeholder="Enter value"
+            placeholder="Enter a value"
             editorProps={{
                 codeOnly: isCode,
                 language: isCode ? mode : undefined,
