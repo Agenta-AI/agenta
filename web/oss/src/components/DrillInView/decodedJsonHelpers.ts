@@ -22,8 +22,8 @@ import JSON5 from "json5"
  *
  * "Decoded JSON" does NOT reshape the data, drop keys, or render it outside
  * the JSON editor. Any operation that changes the set of keys or renders the
- * data as chat bubbles / labeled fields belongs in "Beautified JSON" —
- * see `BeautifiedJsonView.tsx`.
+ * data as chat bubbles / labeled fields belongs in "Pretty JSON" —
+ * see `PrettyJsonView.tsx`.
  *
  * Historical note: this mode was previously called "Rendered JSON". The name
  * invited confusion — "rendered" sounded like "rendered into another UI",

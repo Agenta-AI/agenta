@@ -42,8 +42,8 @@ interface SmartCellContentProps {
     /** Strategy for selecting chat messages in the truncated cell preview */
     chatPreviewStrategy?: ChatPreviewStrategy
     /**
-     * Force the JSON fallback path to use the beautified key/value renderer
-     * instead of raw JSON text. The dispatcher's beautified renderer is
+     * Force the JSON fallback path to use the pretty key/value renderer
+     * instead of raw JSON text. The dispatcher's pretty renderer is
      * separate and is driven by rule matches; this prop only affects the
      * fallback when no rule matches.
      */
@@ -58,7 +58,7 @@ interface SmartCellContentProps {
  * the renderer.
  *
  * Features:
- * - Auto-dispatch via extractPreview (chat, beautified, json)
+ * - Auto-dispatch via extractPreview (chat, pretty, json)
  * - Truncation for cell preview
  * - Full content in popover on hover
  * - Copy functionality in popover
@@ -127,7 +127,7 @@ const SmartCellContent = memo(
             )
         }
 
-        if (preview.renderer === "beautified") {
+        if (preview.renderer === "pretty") {
             const copyText = safeJsonStringify(preview.data)
             const cellContent = (
                 <div className={`cursor-pointer ${className}`}>
