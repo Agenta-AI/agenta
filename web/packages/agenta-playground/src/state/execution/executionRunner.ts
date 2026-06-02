@@ -289,10 +289,26 @@ function filterDataToEntityInputSchema(
     const inputSchema = getEntityInputSchema(get, entityId)
     const properties = inputSchema?.properties
     if (!properties || typeof properties !== "object") {
+        // Schema not resolved — emits when the strict allow-list filter can't
+        // run and the secondary stripChatTransportForEntity pass becomes the
+        // only line of defense against stale chat keys leaking through.
+        // If this fires on a chat→completion swap repro, the secondary strip
+        // is the one keeping `messages` out of the request body.
+        console.warn("[executionRunner.filter] schema-not-resolved fallback", {
+            entityId,
+            reason: properties === undefined ? "no-properties" : "properties-not-object",
+            dataKeys: Object.keys(data),
+            hasMessagesKey: "messages" in data,
+        })
         return {...data}
     }
     const allowedKeys = new Set(Object.keys(properties))
     if (allowedKeys.size === 0) {
+        console.warn("[executionRunner.filter] empty-properties fallback", {
+            entityId,
+            dataKeys: Object.keys(data),
+            hasMessagesKey: "messages" in data,
+        })
         return {...data}
     }
     const filtered: Record<string, unknown> = {}
@@ -328,15 +344,26 @@ function stripChatTransportForEntity(
         properties && typeof properties === "object"
             ? new Set(Object.keys(properties))
             : new Set<string>()
-    let mutated = false
+    const stripped: string[] = []
     const out: Record<string, unknown> = {...data}
     for (const key of CHAT_TRANSPORT_KEYS) {
         if (key in out && !declared.has(key)) {
             delete out[key]
-            mutated = true
+            stripped.push(key)
         }
     }
-    return mutated ? out : data
+    if (stripped.length > 0) {
+        // Logged only when this strip actually drops a key — i.e. the
+        // entity didn't declare it but the testcase row carried it
+        // (typical signal: a chat→completion swap leaving stale `messages`).
+        console.warn("[executionRunner.filter] stripped chat-transport keys", {
+            entityId,
+            stripped,
+            schemaResolved: declared.size > 0,
+        })
+        return out
+    }
+    return data
 }
 
 function createConcurrencyLimiter(concurrency: number) {
