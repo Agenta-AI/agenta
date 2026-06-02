@@ -81,7 +81,7 @@
       "sharp"
     ],
     "patchedDependencies": {
-      "docusaurus-plugin-llms-txt": "patches/docusaurus-plugin-llms-txt.patch"
+      "docusaurus-plugin-llms-txt@0.1.3": "patches/docusaurus-plugin-llms-txt@0.1.3.patch"
     }
   },
   "browserslist": {
