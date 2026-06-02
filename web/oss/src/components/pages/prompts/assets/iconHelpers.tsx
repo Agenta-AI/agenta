@@ -9,9 +9,9 @@ export const getAppTypeIcon = (appType?: string) => {
     const normalizedType = appType?.toLowerCase()
 
     if (normalizedType?.includes("chat"))
-        return <CompletionAppIcon className="text-zinc-9 dark:text-white" />
-    if (normalizedType?.includes("completion"))
         return <ChatDotsIcon size={16} className="text-zinc-9 dark:text-white" />
+    if (normalizedType?.includes("completion"))
+        return <CompletionAppIcon className="text-zinc-9 dark:text-white" />
     if (normalizedType?.includes("custom"))
         return <SetupWorkflowIcon className="text-zinc-9 dark:text-white" />
 
