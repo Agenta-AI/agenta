@@ -15,8 +15,10 @@
  *   - Object / array: bold label, then a 2px gray left rail with the
  *     children stacked inside, indented ~16-20px. Children recurse.
  *
- * Color palette is intentionally minimal: white background, light-gray
- * borders (#e5e7eb), dark labels, gray placeholders. No accent colors
+ * Color palette is intentionally minimal: container background, border-
+ * secondary borders, primary text labels, tertiary text placeholders.
+ * All colours route through `--ag-color*` theme tokens so light is
+ * byte-identical and dark mode inverts via `.dark`. No accent colors
  * inside the form. Top-level kind chips live in the section header above.
  *
  * Promoted from the design-mockups POC (`ProposalV2FormView.tsx`).
@@ -370,8 +372,13 @@ function StringLeafEditor({value, mode, editable, onChange}: StringLeafEditorPro
 
 /* ── Styles ─────────────────────────────────────────────────────────── */
 
-const BORDER = "1px solid #e5e7eb"
-const RAIL = "2px solid #e5e7eb"
+// Route through theme tokens so light is byte-identical (the `--ag-c-*`
+// vars resolve to the previously hardcoded hex in light mode) and dark
+// mode inverts via the `.dark` selector — without these the form leaf
+// cards rendered as a white block on dark canvas (Kaosiso QA 2026-06-02
+// follow-up).
+const BORDER = "1px solid var(--ag-colorBorderSecondary)"
+const RAIL = "2px solid var(--ag-colorBorderSecondary)"
 
 const styles = {
     formOuter: {
@@ -437,7 +444,7 @@ const styles = {
         fontSize: 12,
         fontWeight: 600,
         lineHeight: "20px",
-        color: "#1f2937",
+        color: "var(--ag-colorText)",
         margin: 0,
     },
     nestedRail: {
@@ -446,9 +453,11 @@ const styles = {
         borderLeft: RAIL,
     },
     /* String leaf card — no toolbar; the dropdown lives in the field's
-       label row, matching the section header's pattern. */
+       label row, matching the section header's pattern. Bg via theme
+       token so the card flips to a dark surface in dark mode instead
+       of rendering as a white block on dark canvas. */
     leafCard: {
-        background: "white",
+        background: "var(--ag-colorBgContainer)",
         border: BORDER,
         borderRadius: 8,
         overflow: "hidden",
@@ -465,7 +474,7 @@ const styles = {
     },
     emptyHint: {
         fontSize: 12,
-        color: "#9ca3af",
+        color: "var(--ag-colorTextTertiary)",
         fontStyle: "italic" as const,
     },
 }
