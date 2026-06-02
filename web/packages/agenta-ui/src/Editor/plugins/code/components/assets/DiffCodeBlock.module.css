@@ -58,7 +58,7 @@
     }
 
     &:global(.diff-context) {
-        background-color: #f9f9fa;
+        background-color: transparent;
         border-left: 3px solid var(--editor-bg);
         padding-left: 8px;
         position: relative;
