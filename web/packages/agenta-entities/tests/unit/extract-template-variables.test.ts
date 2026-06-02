@@ -107,80 +107,98 @@ describe("extractTemplateVariables", () => {
             ).toEqual(["items"])
         })
 
-        // Section depth tracking — Mahmoud QA 2026-06-02.
-        // `{{#repo}}{{name}}{{/repo}}` semantically means `repo` is iterated
-        // and `name` is `repo[i].name`. We don't model scoped names yet, so
-        // the inner reference is skipped rather than registered as a phantom
-        // top-level port. Full scope-aware discovery is Phase 2.
-        it("skips bare variables INSIDE a section block", () => {
+        // Phase 2 scope-aware discovery — `extractTemplateVariables` now
+        // emits dotted PATHS for variables inside sections. The section
+        // opener still emits its bare name (the user must provide a value
+        // for the section to render), and nested references join the
+        // open-stack with `.` separators. `docs/designs/mustache-section
+        // -support.md` §2b for the design.
+        it("emits scoped paths for bare variables INSIDE a section block", () => {
             expect(extractTemplateVariables("{{#repo}}{{name}}{{/repo}}", "mustache")).toEqual([
                 "repo",
+                "repo.name",
             ])
         })
 
-        it("skips bare variables inside, keeps top-level ones outside", () => {
-            // Mahmoud's exact example: `repo` is a section, `name` inside is
-            // scoped, `country.a` outside is a top-level dotted variable.
+        it("emits both scoped + top-level variables outside the section", () => {
+            // Mahmoud's exact example: `repo` is a section, `name` inside
+            // joins as `repo.name`, `country.a` outside is its own top-level
+            // dotted variable.
             expect(
                 extractTemplateVariables("{{#repo}}{{name}}{{/repo}}{{country.a}}", "mustache"),
-            ).toEqual(["repo", "country.a"])
+            ).toEqual(["repo", "repo.name", "country.a"])
         })
 
-        it("skips unescaped variables inside a section", () => {
-            // `{{&html}}` inside a section is scoped just like `{{html}}` —
-            // skip it so we don't surface a phantom top-level port.
+        it("emits scoped paths for unescaped variables inside a section", () => {
+            // `{{&body}}` inside `{{#post}}` joins as `post.body`.
             expect(extractTemplateVariables("{{#post}}{{&body}}{{/post}}", "mustache")).toEqual([
                 "post",
+                "post.body",
             ])
         })
 
-        it("skips nested section openers (no `outer.inner` path yet)", () => {
-            // `{{#org}}{{#users}}{{name}}{{/users}}{{/org}}` — only `org` is
-            // at top level. `users` and `name` are scoped paths under `org`,
-            // and we don't materialise them as separate ports in Phase 1.
+        it("emits scoped paths for nested section openers", () => {
+            // `{{#org}}{{#users}}{{name}}{{/users}}{{/org}}` → all three
+            // levels surface as paths: `org`, `org.users`, `org.users.name`.
             expect(
                 extractTemplateVariables(
                     "{{#org}}{{#users}}{{name}}{{/users}}{{/org}}",
                     "mustache",
                 ),
-            ).toEqual(["org"])
+            ).toEqual(["org", "org.users", "org.users.name"])
         })
 
         it("resumes top-level extraction after a section closes", () => {
-            // Two sections + a top-level variable between them. The walker
-            // must restore depth-0 state on each `{{/...}}` so the variable
-            // between sections is captured.
+            // Sections close cleanly; the walker pops the path stack so the
+            // `middle` variable between two sections is captured at root.
             expect(
                 extractTemplateVariables(
                     "{{#a}}{{ai}}{{/a}}{{middle}}{{#b}}{{bi}}{{/b}}",
                     "mustache",
                 ),
-            ).toEqual(["a", "middle", "b"])
+            ).toEqual(["a", "a.ai", "middle", "b", "b.bi"])
         })
 
-        it("emits the inverted section opener at top level", () => {
-            // `{{^empty}}...{{/empty}}` — `empty` is still a variable the
-            // user provides (the section renders only when it's falsy).
-            // Inner bare references are still scoped → skipped.
+        it("emits scoped paths under an inverted section", () => {
+            // Inverted sections (`{{^x}}…{{/x}}`) have the same scope
+            // semantics as regular sections for discovery purposes.
             expect(
                 extractTemplateVariables("{{^empty}}fallback: {{detail}}{{/empty}}", "mustache"),
-            ).toEqual(["empty"])
+            ).toEqual(["empty", "empty.detail"])
         })
 
         it("handles unbalanced `{{/x}}` defensively (no underflow)", () => {
-            // A stray closer with no matching open shouldn't crash or wrap
-            // the depth counter. Subsequent top-level variables stay visible.
+            // A stray closer with no matching open is recorded as an error
+            // by the parser but the walker still proceeds. Subsequent
+            // top-level variables stay visible.
             expect(extractTemplateVariables("{{/stray}}{{later}}", "mustache")).toEqual(["later"])
         })
 
-        it("handles unclosed `{{#x}}` defensively (subsequent vars suppressed)", () => {
-            // Unclosed section means depth never returns to 0. Subsequent
-            // variables are treated as scoped. The editor will surface the
-            // imbalance separately (Phase 2 validation); this matches the
-            // safer "no phantom ports" default.
+        it("handles unclosed `{{#x}}` defensively", () => {
+            // Unclosed section — parser treats the rest as scoped under
+            // the still-open frame, so `later` surfaces as `unclosed.later`.
+            // The editor will surface the imbalance separately (Phase 2e
+            // validation); the discovery walker just keeps emitting paths.
             expect(extractTemplateVariables("{{#unclosed}}{{later}}", "mustache")).toEqual([
                 "unclosed",
+                "unclosed.later",
             ])
+        })
+
+        it("skips inheritance blocks (`{{$name}}`) — out of scope", () => {
+            // Mustache spec defines blocks for template inheritance. We
+            // don't render them on the FE, and they don't contribute
+            // variables either. Same applies to parent templates.
+            expect(extractTemplateVariables("{{$slot}}body{{/slot}}", "mustache")).toEqual([])
+            expect(extractTemplateVariables("{{<base}}body{{/base}}", "mustache")).toEqual([])
+        })
+
+        it("preserves JSONPath as a top-level variable inside sections too", () => {
+            // `{{$.geo.region}}` is Agenta JSONPath, NOT a block. Inside
+            // a section it joins with the section name like any other var.
+            expect(
+                extractTemplateVariables("{{#ctx}}{{$.geo.region}}{{/ctx}}", "mustache"),
+            ).toEqual(["ctx", "ctx.$.geo.region"])
         })
     })
 

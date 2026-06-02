@@ -6,7 +6,7 @@
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {getValueAtPath, generateId} from "@agenta/shared/utils"
+import {getValueAtPath, generateId, parseMustache, walkMustache} from "@agenta/shared/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {parseEvaluatorKeyFromUri} from "../workflow/core"
@@ -547,61 +547,75 @@ export function extractTemplateVariables(
     // The TokenPlugin highlights all of these via its own regex — this filter
     // is for PORT DISCOVERY only. The mustache renderer pairs `#`/`^`/`/`
     // structurally at render time.
+    // Mustache: defer to the structural parser
+    // (`@agenta/shared/utils/mustache#parseMustache`) and emit scope-aware
+    // variable PATHS. Phase 2 of `docs/designs/mustache-section-support.md`.
+    //
+    //   `{{#repo}}{{name}}{{/repo}}`        → ['repo', 'repo.name']
+    //   `{{#org}}{{#users}}{{name}}{{/users}}{{/org}}`
+    //                                       → ['org', 'org.users', 'org.users.name']
+    //   `{{name}}{{#sec}}{{a}}{{/sec}}{{country.a}}`
+    //                                       → ['name', 'sec', 'sec.a', 'country.a']
+    //
+    // Section openers contribute their name (the user must provide a value
+    // for the section to render). Variables inside a section join the
+    // open-stack with `.` separators.
+    //
+    //   `{{.}}` — implicit iterator, never emits.
+    //   `{{&body}}` joins the stack like a plain variable.
+    //   Structural-only tags (comments, partials, set-delimiter,
+    //   inheritance blocks `{{$x}}`, parent templates `{{<x}}`) NEVER emit.
+    //   Mustache inheritance is recognised by the parser so the FE doesn't
+    //   surface phantom variable names like `$slot`.
+    //
+    // Duplicates dedupe in source order (first occurrence wins).
+    if (templateFormat === "mustache") {
+        const {ast} = parseMustache(input)
+        const seen = new Set<string>()
+        const pathStack: string[] = []
+        const join = (name: string): string =>
+            pathStack.length === 0 ? name : `${pathStack.join(".")}.${name}`
+        const emit = (name: string) => {
+            if (!name) return
+            if (seen.has(name)) return
+            seen.add(name)
+            variables.push(name)
+        }
+        walkMustache(ast, {
+            onEnter: (node) => {
+                if (node.kind === "section") {
+                    emit(join(node.name))
+                    pathStack.push(node.name)
+                } else if (node.kind === "variable") {
+                    if (node.implicitIterator) return
+                    emit(join(node.name))
+                }
+                // text / comment / partial / delimiter / block / parent
+                // contribute no variables.
+            },
+            onExit: (node) => {
+                if (node.kind === "section") pathStack.pop()
+            },
+        })
+        return variables
+    }
+
+    // curly / jinja2: linear scan for `{{name}}`. Anything starting with
+    // mustache-style markers is an authoring error in these formats; skip
+    // so the playground doesn't surface a port for the bad token.
     let i = 0
-    let sectionDepth = 0
     while (i < input.length - 1) {
         if (input[i] === "{" && input[i + 1] === "{") {
             const start = i + 2
             const end = input.indexOf("}}", start)
             if (end !== -1) {
                 const raw = input.slice(start, end).trim()
-
-                if (templateFormat === "mustache") {
-                    const isSectionOpen = /^[#^]/.test(raw)
-                    const isSectionClose = /^\//.test(raw)
-                    const isComment = /^!/.test(raw)
-                    const isPartial = /^>/.test(raw)
-                    const isDelimiterSwap = /^=/.test(raw)
-                    const isImplicitIterator = raw === "."
-                    const isUnescape = /^&/.test(raw)
-
-                    if (isSectionOpen) {
-                        // Emit the section variable ONLY at top level. Nested
-                        // section openers (e.g. `{{#org}}{{#users}}…`) are
-                        // scoped paths we don't model yet — skip them.
-                        if (sectionDepth === 0) {
-                            const variable = raw.slice(1).trim()
-                            if (variable && !variables.includes(variable)) {
-                                variables.push(variable)
-                            }
-                        }
-                        sectionDepth += 1
-                    } else if (isSectionClose) {
-                        // Defensive: only decrement when we actually have an
-                        // open section. Unbalanced `{{/x}}` in malformed
-                        // templates is left to the editor to flag (Phase 2);
-                        // here we just stay at depth 0.
-                        if (sectionDepth > 0) sectionDepth -= 1
-                    } else if (isComment || isPartial || isDelimiterSwap || isImplicitIterator) {
-                        // Structural — no variable.
-                    } else if (sectionDepth === 0) {
-                        // Plain variable OR unescaped variable at top level.
-                        const variable = isUnescape ? raw.slice(1).trim() : raw
-                        if (variable && !variables.includes(variable)) {
-                            variables.push(variable)
-                        }
-                    }
-                    // else: bare/unescape variable inside a section → skip
-                    // (scoped name, not yet modeled — Phase 2 territory).
-                } else {
-                    // curly / jinja2 — only identifier-shaped tokens count.
-                    // Anything starting with mustache-style markers is an
-                    // authoring error in these formats; skip it so the
-                    // playground doesn't surface a port for the bad token.
-                    const startsWithMustacheMarker = /^[#^&/!>.]/.test(raw)
-                    if (raw && !startsWithMustacheMarker && !variables.includes(raw)) {
-                        variables.push(raw)
-                    }
+                // Authoring-error guard: include `$<` and `=` so spec-mustache
+                // inheritance tags pasted into a curly/jinja2 prompt don't
+                // surface as phantom ports.
+                const startsWithMustacheMarker = /^[#^&/!>.$<=]/.test(raw)
+                if (raw && !startsWithMustacheMarker && !variables.includes(raw)) {
+                    variables.push(raw)
                 }
 
                 i = end + 2
