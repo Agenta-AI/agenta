@@ -52,6 +52,7 @@ from oss.src.core.evaluations.types import (
     DefaultQueueDataInvalid,
     DefaultQueueDemotionForbidden,
     DefaultQueueDeletionForbidden,
+    DefaultQueueArchiveForbidden,
 )
 from oss.src.core.evaluations.types import (
     Target,
@@ -438,6 +439,7 @@ class EvaluationsService:
                 project_id=project_id,
                 user_id=user_id,
                 queue_id=default_queue.id,
+                force=True,
             )
 
         is_queue = bool(
@@ -1940,7 +1942,18 @@ class EvaluationsService:
         project_id: UUID,
         user_id: UUID,
         queue_id: UUID,
+        force: bool = False,
     ) -> Optional[EvaluationQueue]:
+        # Default queues are system-managed: only reconcile (force=True) may
+        # archive them. Direct user-facing archive of a default is forbidden.
+        if not force:
+            existing = await self.fetch_queue(
+                project_id=project_id,
+                queue_id=queue_id,
+            )
+            if existing and existing.flags and existing.flags.is_default:
+                raise DefaultQueueArchiveForbidden(queue_id=queue_id)
+
         queue = await self.evaluations_dao.archive_queue(
             project_id=project_id,
             user_id=user_id,

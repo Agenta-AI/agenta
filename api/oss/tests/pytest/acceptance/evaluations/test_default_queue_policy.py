@@ -133,6 +133,31 @@ class TestDefaultQueueDemotionForbidden:
         assert response.status_code == 200, response.text
 
 
+class TestDefaultQueueArchiveForbidden:
+    # Default queues are system-managed: their archive/unarchive lifecycle is
+    # driven by run reconciliation, not by direct user action. The user-facing
+    # archive endpoint refuses a default (DefaultQueueArchiveForbidden -> 409).
+
+    def test_archiving_default_queue_is_forbidden(self, authed_api):
+        run_id = _create_run(authed_api)
+        resp = _create_queue(authed_api, run_id, flags={"is_default": True})
+        assert resp.status_code == 200, resp.text
+        queue_id = resp.json()["queues"][0]["id"]
+
+        response = authed_api("POST", f"/evaluations/queues/{queue_id}/archive")
+        # DefaultQueueArchiveForbidden -> 409
+        assert response.status_code == 409, response.text
+
+    def test_archiving_normal_queue_is_allowed(self, authed_api):
+        run_id = _create_run(authed_api)
+        resp = _create_queue(authed_api, run_id, flags={"is_default": False})
+        assert resp.status_code == 200, resp.text
+        queue_id = resp.json()["queues"][0]["id"]
+
+        response = authed_api("POST", f"/evaluations/queues/{queue_id}/archive")
+        assert response.status_code == 200, response.text
+
+
 class TestDefaultQueueDeletionForbidden:
     def test_hard_deleting_default_queue_is_forbidden(self, authed_api):
         run_id = _create_run(authed_api)
@@ -171,9 +196,10 @@ class TestDefaultQueueDeletionForbidden:
 
 
 class TestDefaultQueueUniqueness:
-    # At most one ACTIVE default queue per run, enforced by the partial unique
-    # index ux_evaluation_queues_default_per_run; create_queue surfaces the
-    # unique violation as an EntityCreationConflict (409).
+    # At most one default queue per run for the run's lifetime (active OR
+    # archived), enforced by the partial unique index
+    # ux_evaluation_queues_default_per_run; create_queue surfaces the unique
+    # violation as an EntityCreationConflict (409).
 
     def test_second_default_queue_for_same_run_is_rejected(self, authed_api):
         run_id = _create_run(authed_api)
@@ -184,19 +210,6 @@ class TestDefaultQueueUniqueness:
         second = _create_queue(authed_api, run_id, flags={"is_default": True})
         # The second default queue is rejected as a creation conflict.
         assert second.json().get("count", 0) == 0, second.text
-
-    def test_default_queue_recreatable_after_archive(self, authed_api):
-        # Archiving frees the slot — a new active default queue can be created
-        # (the guard counts only active defaults).
-        run_id = _create_run(authed_api)
-        first = _create_queue(authed_api, run_id, flags={"is_default": True})
-        first_id = first.json()["queues"][0]["id"]
-
-        archived = authed_api("POST", f"/evaluations/queues/{first_id}/archive")
-        assert archived.status_code == 200, archived.text
-
-        second = _create_queue(authed_api, run_id, flags={"is_default": True})
-        assert second.json().get("count", 0) == 1, second.text
 
     def test_default_queues_allowed_across_different_runs(self, authed_api):
         run_id_1 = _create_run(authed_api)

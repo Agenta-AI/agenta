@@ -11,8 +11,11 @@ OSS head `e6f7a8b9c0d1` with EE-only migrations
 (`9d3e8f0a1b2c -> a1b2c3d4e5f7 -> b2c3d4e5f7a8`), so this EE copy chains after
 `b2c3d4e5f7a8` while the OSS copy chains after `e6f7a8b9c0d1`.
 
-The partial unique index is scoped to ACTIVE default queues (`deleted_at IS
-NULL`) so a default can be archived then recreated/unarchived by reconcile.
+The partial unique index covers ALL default queues (active or archived), so
+there is at most ONE default queue row per (project_id, run_id) for the lifetime
+of the run. Archiving a default does NOT free the slot — the single row is
+archived/unarchived in place by reconcile, and user-facing archive of a default
+is forbidden in the service layer.
 """
 
 from typing import Sequence, Union
@@ -30,7 +33,7 @@ def upgrade() -> None:
     op.execute("""
         CREATE UNIQUE INDEX ux_evaluation_queues_default_per_run
         ON evaluation_queues (project_id, run_id)
-        WHERE (flags ->> 'is_default')::boolean = true AND deleted_at IS NULL
+        WHERE (flags ->> 'is_default')::boolean = true
     """)
 
 

@@ -19,6 +19,7 @@ from oss.src.core.evaluations.types import (
     DefaultQueueDataInvalid,
     DefaultQueueDemotionForbidden,
     DefaultQueueDeletionForbidden,
+    DefaultQueueArchiveForbidden,
 )
 
 from oss.src.apis.fastapi.shared.utils import (
@@ -70,6 +71,7 @@ def handle_evaluation_closed_exception():
             except (
                 DefaultQueueDemotionForbidden,
                 DefaultQueueDeletionForbidden,
+                DefaultQueueArchiveForbidden,
             ) as e:
                 raise DefaultQueueEditingForbiddenException(
                     message=e.message,

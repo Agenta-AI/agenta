@@ -125,6 +125,22 @@ class DefaultQueueDeletionForbidden(DefaultQueueError):
         super().__init__(message, queue_id=queue_id)
 
 
+class DefaultQueueArchiveForbidden(DefaultQueueError):
+    """Raised when a user-facing archive targets a default queue.
+
+    Default queues are system-managed: their archive/unarchive lifecycle is
+    driven by run reconciliation, not by direct user action. (Internally,
+    reconcile archives via `force=True`.)
+    """
+
+    def __init__(
+        self,
+        message: str = "default queues are system-managed and cannot be archived directly",
+        queue_id: Optional[UUID] = None,
+    ):
+        super().__init__(message, queue_id=queue_id)
+
+
 # - EVALUATION RUN -------------------------------------------------------------
 
 

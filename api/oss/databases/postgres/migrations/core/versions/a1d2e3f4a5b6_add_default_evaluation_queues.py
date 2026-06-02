@@ -9,8 +9,11 @@ Previously shared revision id `a1b2c3d4e5f6` with
 below never ran. Renamed to `a1d2e3f4a5b6` and chained after main's head
 `e6f7a8b9c0d1` to keep the branch a single linear chain.
 
-The partial unique index is scoped to ACTIVE default queues (`deleted_at IS
-NULL`) so a default can be archived then recreated/unarchived by reconcile.
+The partial unique index covers ALL default queues (active or archived), so
+there is at most ONE default queue row per (project_id, run_id) for the lifetime
+of the run. Archiving a default does NOT free the slot — the single row is
+archived/unarchived in place by reconcile, and user-facing archive of a default
+is forbidden in the service layer.
 """
 
 from typing import Sequence, Union
@@ -28,7 +31,7 @@ def upgrade() -> None:
     op.execute("""
         CREATE UNIQUE INDEX ux_evaluation_queues_default_per_run
         ON evaluation_queues (project_id, run_id)
-        WHERE (flags ->> 'is_default')::boolean = true AND deleted_at IS NULL
+        WHERE (flags ->> 'is_default')::boolean = true
     """)
 
 
