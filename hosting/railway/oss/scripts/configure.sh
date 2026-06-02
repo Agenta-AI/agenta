@@ -17,6 +17,13 @@ AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-replace-me}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 
+# Populated by resolve_railway_ids() after `railway link`. Used by the GraphQL
+# variableCollectionUpsert path; left empty -> upsert_service_vars falls back
+# to the CLI.
+RAILWAY_PROJECT_ID=""
+RAILWAY_ENVIRONMENT_ID=""
+RAILWAY_STATUS_JSON=""
+
 resolve_postgres_password() {
     if [ -n "$POSTGRES_PASSWORD" ]; then
         return 0
@@ -49,10 +56,81 @@ require_railway_auth() {
     }
 }
 
+# resolve_railway_ids: cache the project/environment IDs and status JSON used by
+# the GraphQL variableCollectionUpsert path. No-op (CLI fallback) when there is
+# no API token or the IDs cannot be resolved.
+resolve_railway_ids() {
+    [ -n "${RAILWAY_API_TOKEN:-}" ] || return 0
+    RAILWAY_STATUS_JSON="$(railway_call status --json 2>/dev/null || true)"
+    [ -n "$RAILWAY_STATUS_JSON" ] || return 0
+    RAILWAY_PROJECT_ID="$(printf '%s' "$RAILWAY_STATUS_JSON" | jq -r '.id // empty' 2>/dev/null || true)"
+    RAILWAY_ENVIRONMENT_ID="$(printf '%s' "$RAILWAY_STATUS_JSON" \
+        | jq -r --arg e "$ENV_NAME" '[.environments.edges[].node | select(.name==$e) | .id][0] // empty' 2>/dev/null || true)"
+    if [ -z "$RAILWAY_PROJECT_ID" ] || [ -z "$RAILWAY_ENVIRONMENT_ID" ]; then
+        printf "Note: could not resolve Railway project/environment IDs; using CLI variable set.\n" >&2
+        RAILWAY_PROJECT_ID=""
+    fi
+}
+
+# _service_id <service-name> -> serviceId, from the cached status JSON.
+_service_id() {
+    printf '%s' "$RAILWAY_STATUS_JSON" | jq -r --arg n "$1" --arg e "$ENV_NAME" \
+        '[.environments.edges[].node | select(.name==$e)
+          | .serviceInstances.edges[].node | select(.serviceName==$n) | .serviceId][0] // empty' 2>/dev/null || true
+}
+
+# _vars_to_json KEY=VALUE ... -> {"KEY":"VALUE",...}  (split on the first '=')
+_vars_to_json() {
+    local json='{}' kv key val
+    for kv in "$@"; do
+        key="${kv%%=*}"
+        val="${kv#*=}"
+        json="$(jq -c --arg k "$key" --arg v "$val" '. + {($k): $v}' <<<"$json")"
+    done
+    printf '%s' "$json"
+}
+
+# upsert_service_vars <service> KEY=VALUE ...
+# Sets all given variables for a service in ONE variableCollectionUpsert
+# (skipDeploys) via the GraphQL API — Railway's recommended path, which avoids
+# the CLI fanning out to one slow variableUpsert per key. Falls back to the CLI
+# when no API token / IDs are available. Reference values like
+# ${{Postgres.POSTGRES_PASSWORD}} are stored verbatim and resolved by Railway at
+# render time, exactly as with the CLI.
+upsert_service_vars() {
+    local service="$1"
+    shift
+    [ "$#" -gt 0 ] || return 0
+
+    if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
+        railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" >/dev/null
+        return 0
+    fi
+
+    local svc_id
+    svc_id="$(_service_id "$service")"
+    if [ -z "$svc_id" ]; then
+        printf "Could not resolve service id for '%s' in environment '%s'\n" "$service" "$ENV_NAME" >&2
+        return 1
+    fi
+
+    local vars_json payload
+    vars_json="$(_vars_to_json "$@")"
+    payload="$(jq -nc \
+        --arg p "$RAILWAY_PROJECT_ID" \
+        --arg e "$RAILWAY_ENVIRONMENT_ID" \
+        --arg s "$svc_id" \
+        --argjson vars "$vars_json" \
+        '{query: "mutation($input: VariableCollectionUpsertInput!){ variableCollectionUpsert(input: $input) }",
+          variables: {input: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, variables: $vars}}}')"
+
+    _railway_graphql "$payload" >/dev/null
+}
+
 set_vars() {
     local service="$1"
     shift
-    railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" >/dev/null
+    upsert_service_vars "$service" "$@"
 }
 
 set_optional_vars() {
@@ -68,7 +146,7 @@ set_optional_vars() {
     done
 
     if [ "${#args[@]}" -gt 0 ]; then
-        railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "${args[@]}" >/dev/null
+        upsert_service_vars "$service" "${args[@]}"
     fi
 }
 
@@ -101,6 +179,10 @@ main() {
     fi
 
     railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
+
+    # Resolve IDs for the GraphQL variableCollectionUpsert path (after link, so
+    # the project/environment/services exist and are linked).
+    resolve_railway_ids
 
     railway_call domain --service gateway --json >/dev/null 2>&1 || true
 
