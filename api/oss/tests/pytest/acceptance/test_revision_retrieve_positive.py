@@ -71,6 +71,9 @@ def _create_workflow_stack(authed_api):
     assert response.status_code == 200, response.text
     first_revision = response.json()["workflow_revision"]
 
+    # Second revision on the default variant must go through commit — the
+    # plain create endpoint only seeds the variant's initial revision and
+    # 409s once one exists.
     response = authed_api(
         "POST",
         "/workflows/revisions/commit",
@@ -79,6 +82,7 @@ def _create_workflow_stack(authed_api):
                 "slug": f"wfr2-{slug}",
                 "workflow_variant_id": variant["id"],
                 "workflow_id": workflow["id"],
+                "data": {"parameters": {"v": 2}},
             }
         },
     )
