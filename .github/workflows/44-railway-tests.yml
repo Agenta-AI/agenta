@@ -235,8 +235,11 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.needs_deployment == 'true'
     runs-on: ubuntu-latest
-    # Failsafe: a stalled apt/browser install must never hang the job for ~6h.
-    timeout-minutes: 15
+    # Backstop only: the real hangs are bounded per-step (wait_for caps at ~10m,
+    # the browser install retries with a 180s/attempt cap). This guards against
+    # an unexpected hang without cutting off a legitimately slow run (deploy
+    # readiness wait + cold browser install can take ~20m).
+    timeout-minutes: 30
     steps:
       - name: Wait for deployed web and API
         env:
