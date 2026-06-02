@@ -124,7 +124,7 @@ def _normalize_pricing_entry(slug: str, entry: Any) -> Dict[str, Any]:
     plus an optional `"quantity"` (default `1` when omitted).
 
     The internal `Counter` / `Gauge` slug → Stripe-side slot name map lives
-    in `ee.src.core.access.entitlements.types.STRIPE_METER_NAMES`. The runtime in
+    in `ee.src.core.access.entitlements.types.REPORTS`. The runtime in
     `ee.src.core.meters.service` resolves the internal slug through that
     map before looking up the price ID here; that is why the operator's
     pricing JSON uses Stripe-side names (matching their Stripe dashboard)
@@ -459,7 +459,7 @@ def get_stripe_meter_price(
     `meter` is a **Stripe-side meter slot name** (e.g. `"users"`,
     `"traces"`) — the operator-configured identifier on the Stripe dashboard,
     not the internal `Counter` / `Gauge` slug. Callers in `meters/service.py`
-    resolve the internal slug through `STRIPE_METER_NAMES` before calling
+    resolve the internal slug through `REPORTS` before calling
     this. Returns `None` when the plan has no pricing, the meter slot is
     absent, or the slot carries no `"price"`.
     """

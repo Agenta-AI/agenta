@@ -670,12 +670,11 @@ DEFAULT_ENTITLEMENTS = {
 }
 
 
-REPORTS = [
-    Counter.TRACES_INGESTED.value,
-    Gauge.USERS.value,
-]
-
-STRIPE_METER_NAMES: dict[str, str] = {
+# Internal Counter/Gauge slug -> Stripe-side meter slot name. Membership in
+# this map doubles as the "reportable to Stripe" set: a meter is reported iff
+# its key is present here (`key in REPORTS`), and the value is the Stripe-side
+# name to report under (`REPORTS[key]`).
+REPORTS: dict[str, str] = {
     Counter.TRACES_INGESTED.value: "traces",
     Gauge.USERS.value: "users",
 }

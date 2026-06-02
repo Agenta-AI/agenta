@@ -6,12 +6,7 @@ from oss.src.utils.env import env
 from oss.src.utils.lazy import _load_stripe
 
 from ee.src.core.access.entitlements.types import Quota
-from ee.src.core.access.entitlements.types import (
-    Counter,
-    Gauge,
-    REPORTS,
-    STRIPE_METER_NAMES,
-)
+from ee.src.core.access.entitlements.types import Counter, Gauge, REPORTS
 from ee.src.core.subscriptions.settings import get_stripe_meter_price
 from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 from ee.src.core.meters.interfaces import MetersDAOInterface
@@ -179,8 +174,8 @@ class MetersService:
 
                     if meter.key.value in _GAUGE_SLUGS:
                         try:
-                            stripe_meter_name = STRIPE_METER_NAMES.get(meter.key.value)
-                            if not stripe_meter_name:
+                            meter_name = REPORTS.get(meter.key.value)
+                            if not meter_name:
                                 log.warn(
                                     f"[report] Skipping meter {meter.organization_id}/{meter.key} - no Stripe meter mapping"
                                 )
@@ -190,7 +185,7 @@ class MetersService:
 
                             price_id = get_stripe_meter_price(
                                 meter.subscription.plan,
-                                stripe_meter_name,
+                                meter_name,
                             )
 
                             if not price_id:
@@ -258,7 +253,7 @@ class MetersService:
 
                     if meter.key.value in _COUNTER_SLUGS:
                         try:
-                            event_name = STRIPE_METER_NAMES.get(meter.key.value)
+                            event_name = REPORTS.get(meter.key.value)
                             if not event_name:
                                 log.warn(
                                     f"[report] Skipping meter {meter.organization_id}/{meter.key} - no Stripe meter mapping"
