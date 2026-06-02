@@ -828,10 +828,14 @@ const SingleView = ({
                                     className={clsx(
                                         "flex items-start gap-2 px-3 py-2 rounded-md",
                                         "bg-blue-50 border border-solid border-blue-100",
+                                        "dark:bg-blue-900/20 dark:border-blue-900/40",
                                     )}
                                 >
-                                    <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
-                                    <div className="flex-1 text-xs text-gray-700 leading-relaxed">
+                                    <Info
+                                        size={14}
+                                        className="text-blue-500 dark:text-blue-400 mt-0.5 shrink-0"
+                                    />
+                                    <div className="flex-1 text-xs text-gray-700 dark:text-gray-200 leading-relaxed">
                                         Fill these with the data the application being evaluated
                                         received and produced. The evaluator will judge this pair —
                                         not your own typed values.
@@ -841,6 +845,7 @@ const SingleView = ({
                                         onClick={() => setEvaluatorCalloutDismissed(true)}
                                         className={clsx(
                                             "shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-blue-100",
+                                            "dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-blue-900/40",
                                             "border-0 bg-transparent cursor-pointer",
                                         )}
                                         aria-label="Dismiss"
