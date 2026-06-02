@@ -110,10 +110,18 @@ upsert_service_vars() {
     local svc_id
     svc_id="$(_service_id "$service")"
     if [ -z "$svc_id" ]; then
-        printf "Could not resolve service id for '%s' in environment '%s'\n" "$service" "$ENV_NAME" >&2
-        return 1
+        # Name didn't match the cached status JSON (e.g. unexpected casing). Don't
+        # hard-fail the deploy where the CLI's --service would have worked; fall
+        # back to it.
+        printf "Could not resolve service id for '%s'; falling back to CLI variable set.\n" "$service" >&2
+        railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" >/dev/null
+        return 0
     fi
 
+    # replace:false makes the merge intent explicit: configure.sh calls set_vars
+    # then set_optional_vars for the same service and relies on accumulation.
+    # (Verified the API already defaults to merge, but pinning it avoids any
+    # future default change silently wiping earlier variables.)
     local vars_json payload
     vars_json="$(_vars_to_json "$@")"
     payload="$(jq -nc \
@@ -122,7 +130,7 @@ upsert_service_vars() {
         --arg s "$svc_id" \
         --argjson vars "$vars_json" \
         '{query: "mutation($input: VariableCollectionUpsertInput!){ variableCollectionUpsert(input: $input) }",
-          variables: {input: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, variables: $vars}}}')"
+          variables: {input: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: $vars}}}')"
 
     _railway_graphql "$payload" >/dev/null
 }

@@ -134,17 +134,21 @@ _railway_redact() {
 #   RAILWAY_RETRY_DELAY   Initial backoff delay in seconds (default: 10)
 railway_call() {
     local max_attempts="${RAILWAY_RETRY_MAX:-5}"
+    [ "$max_attempts" -ge 1 ] 2>/dev/null || max_attempts=1
     local delay="${RAILWAY_RETRY_DELAY:-10}"
     local attempt=1
     local output
     local exit_code
 
-    # Is this a non-idempotent create? If so, an ambiguous timeout must not be
-    # blind-retried (the resource may already exist). Rate-limit retries are
-    # still safe because a 429 is rejected before any work is done.
+    # Is this a non-idempotent / side-effecting command? If so, an ambiguous
+    # timeout must not be blind-retried: the server may have already accepted
+    # the request, so a retry could duplicate the resource (`init`/`add`/
+    # `environment new`/`volume add`) or trigger a second deployment (`up`/
+    # `redeploy`). Rate-limit retries stay safe for all commands because a 429
+    # is rejected before any work is done.
     local idempotent=1
     case "$1" in
-        init | add) idempotent=0 ;;
+        init | add | up | redeploy) idempotent=0 ;;
         environment) [ "${2:-}" = "new" ] && idempotent=0 ;;
         volume) [ "${2:-}" = "add" ] && idempotent=0 ;;
     esac
@@ -217,6 +221,7 @@ _railway_graphql() {
     local endpoint="${RAILWAY_GRAPHQL_URL:-https://backboard.railway.com/graphql/v2}"
     local token="${RAILWAY_API_TOKEN:-${RAILWAY_TOKEN:-}}"
     local max_attempts="${RAILWAY_RETRY_MAX:-5}"
+    [ "$max_attempts" -ge 1 ] 2>/dev/null || max_attempts=1
     local delay="${RAILWAY_RETRY_DELAY:-10}"
     local timeout_s="${RAILWAY_GRAPHQL_TIMEOUT:-90}"
     local attempt=1
