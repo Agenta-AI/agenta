@@ -363,7 +363,7 @@ const ComparisonLayout = ({
                                             },
                                         ])}
                                         disabled={disabled}
-                                        placeholder="Enter value"
+                                        placeholder="Enter a value"
                                         editorProps={{enableTokens: false}}
                                         headerActions={
                                             !inputOnly ? (
