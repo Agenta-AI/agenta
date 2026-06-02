@@ -13,9 +13,9 @@ overrides:
   postcss@<8.5.10: '>=8.5.10'
 
 patchedDependencies:
-  docusaurus-plugin-llms-txt:
+  docusaurus-plugin-llms-txt@0.1.3:
     hash: 7ab270ae013be7066f9ba47cef53e6c03014055dcdc3a1c720d92f56325ba9b0
-    path: patches/docusaurus-plugin-llms-txt.patch
+    path: patches/docusaurus-plugin-llms-txt@0.1.3.patch
 
 importers:
 
