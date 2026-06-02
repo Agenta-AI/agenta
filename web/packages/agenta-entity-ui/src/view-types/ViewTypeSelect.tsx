@@ -76,7 +76,12 @@ const styles = {
         borderRadius: 4,
         fontSize: 12,
     },
-    triggerValue: {color: "#051729", fontWeight: 600},
+    // Theme token so the trigger label stays readable in dark mode. The
+    // previous hardcoded `#051729` (Agenta navy) inverts via the codemod
+    // when used as a CSS variable but NOT when set inline, so dark mode
+    // rendered the trigger as dark-navy-on-dark — invisible (Kaosiso QA
+    // 2026-06-02).
+    triggerValue: {color: "var(--ag-colorText)", fontWeight: 600},
     triggerCaret: {marginTop: 1, opacity: 0.65},
 }
 

@@ -335,49 +335,53 @@ function StringLeafEditor({value, mode, editable, onChange}: StringLeafEditorPro
     const isCode = mode === "json" || mode === "yaml"
 
     return (
-        <div style={styles.leafCard}>
-            <SharedEditor
-                // Key by `mode` ONLY — switching between text/markdown/json/
-                // yaml legitimately needs a remount because `editorProps`
-                // (codeOnly, language, disableLongText) change.
-                //
-                // Do NOT include `buffer.length` or any keystroke-derived
-                // signal here. The previous key included `buffer.length`
-                // and that re-mounted the editor on every keystroke — which
-                // tore down the underlying <textarea>/<contenteditable>
-                // element, ripped focus out, and limited the user to
-                // one character per typing burst (JP, QA on mustache,
-                // 2026-05-28). The editor's own internal state tracks
-                // keystrokes; we only need to remount for mode changes.
-                key={`leaf-${mode}`}
-                initialValue={buffer}
-                handleChange={editable ? handleChange : undefined}
-                editorType="borderless"
-                className="overflow-hidden"
-                disableDebounce
-                disabled={!editable}
-                state={editable ? undefined : "readOnly"}
-                placeholder="Enter value"
-                editorProps={{
-                    codeOnly: isCode,
-                    language: isCode ? mode : undefined,
-                    showLineNumbers: true,
-                    showToolbar: false,
-                    disableLongText: !isCode,
-                }}
-            />
-        </div>
+        <SharedEditor
+            // Key by `mode` ONLY — switching between text/markdown/json/
+            // yaml legitimately needs a remount because `editorProps`
+            // (codeOnly, language, disableLongText) change.
+            //
+            // Do NOT include `buffer.length` or any keystroke-derived
+            // signal here. The previous key included `buffer.length`
+            // and that re-mounted the editor on every keystroke — which
+            // tore down the underlying <textarea>/<contenteditable>
+            // element, ripped focus out, and limited the user to
+            // one character per typing burst (JP, QA on mustache,
+            // 2026-05-28). The editor's own internal state tracks
+            // keystrokes; we only need to remount for mode changes.
+            key={`leaf-${mode}`}
+            initialValue={buffer}
+            handleChange={editable ? handleChange : undefined}
+            // `border` so the editor itself supplies its border, hover and
+            // focus states — matches the config-message editor's look and
+            // gives the input a visible boundary in dark mode. Previously
+            // wrapped in a `leafCard` div with a static border + no hover
+            // state, which read fine in light but didn't surface focus /
+            // hover affordances and routed the caret through a layer that
+            // ignored theme colors (Kaosiso QA 2026-06-02).
+            editorType="border"
+            className="overflow-hidden"
+            disableDebounce
+            disabled={!editable}
+            state={editable ? undefined : "readOnly"}
+            placeholder="Enter value"
+            editorProps={{
+                codeOnly: isCode,
+                language: isCode ? mode : undefined,
+                showLineNumbers: true,
+                showToolbar: false,
+                disableLongText: !isCode,
+            }}
+        />
     )
 }
 
 /* ── Styles ─────────────────────────────────────────────────────────── */
 
-// Route through theme tokens so light is byte-identical (the `--ag-c-*`
-// vars resolve to the previously hardcoded hex in light mode) and dark
-// mode inverts via the `.dark` selector — without these the form leaf
-// cards rendered as a white block on dark canvas (Kaosiso QA 2026-06-02
-// follow-up).
-const BORDER = "1px solid var(--ag-colorBorderSecondary)"
+// Route through a theme token so light is byte-identical and dark mode
+// inverts via the `.dark` selector. (Previous hex `#e5e7eb` rendered as
+// a near-white rail on dark canvas — Kaosiso QA 2026-06-02 follow-up.)
+// Leaf editor now uses SharedEditor's `editorType="border"` so its own
+// border + hover + focus states apply; no leaf-level border needed here.
 const RAIL = "2px solid var(--ag-colorBorderSecondary)"
 
 const styles = {
@@ -451,17 +455,6 @@ const styles = {
         marginLeft: 4,
         paddingLeft: 16,
         borderLeft: RAIL,
-    },
-    /* String leaf card — no toolbar; the dropdown lives in the field's
-       label row, matching the section header's pattern. Bg via theme
-       token so the card flips to a dark surface in dark mode instead
-       of rendering as a white block on dark canvas. */
-    leafCard: {
-        background: "var(--ag-colorBgContainer)",
-        border: BORDER,
-        borderRadius: 8,
-        overflow: "hidden",
-        padding: "6px 4px",
     },
     /* Primitive inputs */
     input: {
