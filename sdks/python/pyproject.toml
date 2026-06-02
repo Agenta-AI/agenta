@@ -34,7 +34,7 @@ dependencies = [
     "mystace>=1,<2",
     "orjson>=3,<4",
     "python-jsonpath>=2,<3",
-    "daytona>=0.181,<0.182",
+    "daytona>=0.183,<0.184",
 ]
 
 [project.urls]
