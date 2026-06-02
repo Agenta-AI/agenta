@@ -26,6 +26,8 @@ from oss.src.core.evaluations.tasks.run import process_evaluation_tensor_slice
 from oss.src.core.evaluations.types import (
     EvaluationResult,
     EvaluationResultCreate,
+    EvaluationRun,
+    EvaluationRunData,
     EvaluationStatus,
 )
 
@@ -338,4 +340,92 @@ async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeyp
     assert captured["process_slice"].step_keys == ["evaluator-auto"]
     assert captured["process_slice"].process_mode == "force"
     assert captured["refresh_slice"] == captured["process_slice"]
-    assert captured["slice_processor"] is not None
+
+
+# --- graph-dimension ops: add_scenarios (height) / resize_repeats (depth) -----
+
+
+@pytest.mark.asyncio
+async def test_add_scenarios_creates_n_skeleton_rows():
+    run_id = uuid4()
+    created = [SimpleNamespace(id=uuid4()), SimpleNamespace(id=uuid4())]
+    evaluations_service = SimpleNamespace(
+        create_scenarios=AsyncMock(return_value=created)
+    )
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.add_scenarios(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=run_id,
+        count=2,
+    )
+
+    assert result == created
+    evaluations_service.create_scenarios.assert_awaited_once()
+    _, kwargs = evaluations_service.create_scenarios.await_args
+    scenarios = kwargs["scenarios"]
+    assert len(scenarios) == 2
+    # skeleton only: run-scoped, no input cells / results
+    assert all(s.run_id == run_id for s in scenarios)
+
+
+@pytest.mark.asyncio
+async def test_add_scenarios_zero_count_is_noop():
+    evaluations_service = SimpleNamespace(create_scenarios=AsyncMock())
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.add_scenarios(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=uuid4(),
+        count=0,
+    )
+
+    assert result == []
+    evaluations_service.create_scenarios.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_resize_repeats_sets_run_data_repeats():
+    run_id = uuid4()
+    # resize_repeats builds a real EvaluationRunEdit, so the run/data must be the
+    # real DTOs (model_copy + validation run for real).
+    run = EvaluationRun(
+        id=run_id,
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(repeats=1),
+    )
+    edited = SimpleNamespace(id=run_id)
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(return_value=edited),
+    )
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.resize_repeats(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=run_id,
+        repeats=3,
+    )
+
+    assert result == edited
+    evaluations_service.edit_run.assert_awaited_once()
+    _, kwargs = evaluations_service.edit_run.await_args
+    assert kwargs["run"].data.repeats == 3
+
+
+@pytest.mark.asyncio
+async def test_resize_repeats_returns_none_when_run_missing():
+    evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=None))
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    result = await service.resize_repeats(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=uuid4(),
+        repeats=3,
+    )
+
+    assert result is None

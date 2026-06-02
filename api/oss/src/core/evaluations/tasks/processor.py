@@ -1112,8 +1112,8 @@ async def process_evaluation_source_slice(
             annotation_steps=annotation_steps,
             runners=runners,
             revisions=revisions,
-            # ingest CREATES a new scenario per source item, and refreshes
-            # metrics inline (re-execute defers refresh to the separate op).
+            # ingest CREATES a new scenario per source item (re-execute reuses
+            # an existing one). Both refresh metrics inline via APIMetricsRefresher.
             create_scenario=APIScenarioFactory(
                 project_id=project_id,
                 user_id=user_id,
