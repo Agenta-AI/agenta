@@ -296,36 +296,51 @@ jobs:
         working-directory: web
         run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
 
-      # DEBUG (temporary): confirm whether the hang is the browser download or
-      # the `--with-deps` apt step. Splits the two, traces apt, and caps each so
-      # the step can't hang. Revert to a single hardened install once confirmed.
-      - name: Install Playwright browser (DEBUG)
+      # Cache the downloaded browsers. On a cache hit `playwright install` is a
+      # no-op, which avoids the chromium download entirely — and that download
+      # is what stalls: the debug trace showed the 170 MiB transfer hitting 100%
+      # in ~2s, then the install hanging (no progress) until killed. apt deps
+      # were never the problem (they finished in ~10s).
+      - name: Cache Playwright browsers
+        id: pw-cache
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      # OS libraries for chromium. This is the fast, reliable part (~10s); kept
+      # as its own step so a browser-download stall can't be confused with it.
+      - name: Install Playwright system dependencies
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         working-directory: web/tests
+        run: pnpm exec playwright install-deps chromium
+
+      # Browser binaries. The download stalls post-100% on these runners, so cap
+      # each attempt and retry rather than hanging the job. On a cache hit this
+      # is a quick no-op. DEBUG=pw:install is left on temporarily to trace any
+      # remaining stall; drop it once runs are green.
+      - name: Install Playwright browser
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+        working-directory: web/tests
+        env:
+          DEBUG: pw:install
         run: |
-          set -x
-          echo "::group::environment"
-          uname -a || true
-          grep -h PRETTY_NAME /etc/os-release || true
-          { [ -t 0 ] && echo "stdin IS a tty" || echo "stdin is NOT a tty"; }
-          echo "needrestart config:"
-          sudo grep -rsiE "nrconf|restart" /etc/needrestart/ 2>/dev/null | head || echo "(none)"
-          echo "dpkg lock holder:"
-          sudo lsof /var/lib/dpkg/lock-frontend 2>/dev/null || echo "(free or lsof missing)"
-          echo "::endgroup::"
-
-          echo "::group::1) browser download only (no sudo) — expected fast (~15s)"
-          time timeout 180 pnpm exec playwright install chromium || echo "DOWNLOAD failed/timed out exit=$?"
-          echo "::endgroup::"
-
-          echo "::group::2) install-deps (sudo apt) UNGUARDED, 240s cap, pw:install trace"
-          export DEBUG=pw:install
-          set +e
-          time timeout --signal=KILL 240 pnpm exec playwright install-deps chromium
-          rc=$?
-          set -e
-          echo "DEPS exit=$rc  (124/137 => hung in apt -> confirms --with-deps is the culprit)"
-          echo "::endgroup::"
+          for attempt in 1 2 3; do
+            echo "::group::playwright install chromium (attempt ${attempt}/3)"
+            if timeout 180 pnpm exec playwright install chromium; then
+              echo "::endgroup::"
+              echo "browser install succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "attempt ${attempt} stalled or failed; retrying after 5s..."
+            sleep 5
+          done
+          echo "playwright browser install failed after 3 attempts" >&2
+          exit 1
 
       - name: Bootstrap auth with global setup
         if: steps.auth_bootstrap.outputs.enabled == 'true'
