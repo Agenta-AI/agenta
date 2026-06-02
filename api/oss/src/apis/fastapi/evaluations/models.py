@@ -1,5 +1,6 @@
 from typing import Optional, List
 from uuid import UUID
+from datetime import datetime
 
 from pydantic import BaseModel, model_validator
 from fastapi import HTTPException
@@ -243,10 +244,10 @@ class TensorSliceRequest(BaseModel):
     repeat_idxs: Optional[List[int]] = None
 
 
-class TensorSliceProcessRequest(TensorSliceRequest):
-    # "fill-missing" runs only cells without a result; "force" re-runs all
-    # addressed cells.
-    process_mode: Optional[str] = None
+class ProcessSliceRequest(TensorSliceRequest):
+    # `overwrite=False` (default) runs only cells without a result (fill-missing);
+    # `overwrite=True` re-runs every addressed cell (force).
+    overwrite: bool = False
 
 
 # `process` returns 202 (async dispatch acknowledged) and `prune` returns 204 —
@@ -264,6 +265,9 @@ class TensorSliceProcessRequest(TensorSliceRequest):
 class AddScenariosRequest(BaseModel):
     # Height: append `count` empty scenario rows; `populate`/`process` fill them.
     count: int
+    # Optional temporal bucket. Floored to the minute server-side (interval is
+    # fixed at 1 minute); omit to leave the new scenarios off the temporal axis.
+    timestamp: Optional[datetime] = None
 
 
 class RemoveScenariosRequest(BaseModel):

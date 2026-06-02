@@ -9,6 +9,7 @@ source-keyed dispatch_*_slice path (which ingests NEW source items):
   - process_evaluation_tensor_slice entry fn runs process() then refresh()
 """
 
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -368,8 +369,32 @@ async def test_add_scenarios_creates_n_skeleton_rows():
     _, kwargs = evaluations_service.create_scenarios.await_args
     scenarios = kwargs["scenarios"]
     assert len(scenarios) == 2
-    # skeleton only: run-scoped, no input cells / results
+    # skeleton only: run-scoped, no input cells / results, no temporal bucket
     assert all(s.run_id == run_id for s in scenarios)
+    assert all(s.timestamp is None and s.interval is None for s in scenarios)
+
+
+@pytest.mark.asyncio
+async def test_add_scenarios_floors_timestamp_and_sets_interval():
+    run_id = uuid4()
+    evaluations_service = SimpleNamespace(
+        create_scenarios=AsyncMock(return_value=[SimpleNamespace(id=uuid4())])
+    )
+    service = _simple_service(evaluations_service=evaluations_service)
+
+    await service.add_scenarios(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_id=run_id,
+        count=1,
+        timestamp=datetime(2026, 6, 2, 14, 23, 47, 500000),
+    )
+
+    _, kwargs = evaluations_service.create_scenarios.await_args
+    scenario = kwargs["scenarios"][0]
+    # floored to the minute; interval fixed at 1 (DEFAULT_REFRESH_INTERVAL)
+    assert scenario.timestamp == datetime(2026, 6, 2, 14, 23, 0, 0)
+    assert scenario.interval == 1
 
 
 @pytest.mark.asyncio

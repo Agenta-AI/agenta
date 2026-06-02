@@ -55,7 +55,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationResultIdsResponse,
     # EVALUATION TENSOR SLICE
     TensorSliceRequest,
-    TensorSliceProcessRequest,
+    ProcessSliceRequest,
     # EVALUATION GRAPH-SHAPE OPS
     AddScenariosRequest,
     RemoveScenariosRequest,
@@ -2307,7 +2307,7 @@ class SimpleEvaluationsRouter:
         request: Request,
         *,
         evaluation_id: UUID,
-        slice_request: TensorSliceProcessRequest,
+        slice_request: ProcessSliceRequest,
     ) -> None:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -2318,7 +2318,8 @@ class SimpleEvaluationsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # Async dispatch via taskiq — the 202 acknowledges acceptance; the work
-        # finishes on the worker. No body to return.
+        # finishes on the worker. No body to return. `overwrite` maps to the
+        # internal process mode (force = re-run all; else fill-missing).
         await self.simple_evaluations_service.dispatch_tensor_slice(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2327,7 +2328,7 @@ class SimpleEvaluationsRouter:
             scenario_ids=slice_request.scenario_ids,
             step_keys=slice_request.step_keys,
             repeat_idxs=slice_request.repeat_idxs,
-            process_mode=slice_request.process_mode or "fill-missing",
+            process_mode="force" if slice_request.overwrite else "fill-missing",
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/probe
@@ -2442,6 +2443,7 @@ class SimpleEvaluationsRouter:
             #
             run_id=evaluation_id,
             count=add_request.count,
+            timestamp=add_request.timestamp,
         )
 
         return EvaluationScenariosResponse(

@@ -2980,15 +2980,28 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         count: int,
+        timestamp: Optional[datetime] = None,
     ) -> List[EvaluationScenario]:
         """Create `count` scenario skeleton rows for the run (height dimension).
 
         Skeleton only: rows with no input cells and no results. `populate` writes
         the input cells (the trace_id/testcase_id binding); `process` plans and
         executes. Returns the created scenarios so the caller has their ids.
+
+        `timestamp` buckets the new scenarios on the temporal (time) axis so they
+        participate in temporal metrics — mirroring the query path, which derives
+        a timestamp from its window. The bucket width (`interval`) is fixed at
+        `DEFAULT_REFRESH_INTERVAL` (1 minute); only the timestamp is caller-set,
+        and it is floored to the minute so it lands on the bucket boundary.
         """
         if count <= 0:
             return []
+
+        bucket = (
+            timestamp.replace(second=0, microsecond=0)
+            if timestamp is not None
+            else None
+        )
 
         return await self.evaluations_service.create_scenarios(
             project_id=project_id,
@@ -2997,6 +3010,8 @@ class SimpleEvaluationsService:
                 EvaluationScenarioCreate(
                     run_id=run_id,
                     status=EvaluationStatus.RUNNING,
+                    timestamp=bucket,
+                    interval=DEFAULT_REFRESH_INTERVAL if bucket else None,
                 )
                 for _ in range(count)
             ],

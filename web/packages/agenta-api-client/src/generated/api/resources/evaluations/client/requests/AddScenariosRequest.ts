@@ -10,4 +10,5 @@
 export interface AddScenariosRequest {
     evaluation_id: string;
     count: number;
+    timestamp?: string | null;
 }

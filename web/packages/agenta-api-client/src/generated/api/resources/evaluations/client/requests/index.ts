@@ -41,6 +41,7 @@ export type { OpenRunRequest } from "./OpenRunRequest.js";
 export type { OpenSimpleEvaluationRequest } from "./OpenSimpleEvaluationRequest.js";
 export type { PopulateSliceRequest } from "./PopulateSliceRequest.js";
 export type { ProbeSliceRequest } from "./ProbeSliceRequest.js";
+export type { ProcessSliceRequest } from "./ProcessSliceRequest.js";
 export type { PruneSliceRequest } from "./PruneSliceRequest.js";
 export type { RemoveScenariosRequest } from "./RemoveScenariosRequest.js";
 export type { RemoveStepsRequest } from "./RemoveStepsRequest.js";
@@ -55,5 +56,4 @@ export type { SimpleQueueTestcasesCreateRequest } from "./SimpleQueueTestcasesCr
 export type { SimpleQueueTracesCreateRequest } from "./SimpleQueueTracesCreateRequest.js";
 export type { StartSimpleEvaluationRequest } from "./StartSimpleEvaluationRequest.js";
 export type { StopSimpleEvaluationRequest } from "./StopSimpleEvaluationRequest.js";
-export type { TensorSliceProcessRequest } from "./TensorSliceProcessRequest.js";
 export type { UnarchiveQueueRequest } from "./UnarchiveQueueRequest.js";

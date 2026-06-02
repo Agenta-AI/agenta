@@ -3539,7 +3539,7 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.TensorSliceProcessRequest} request
+     * @param {AgentaApi.ProcessSliceRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -3550,14 +3550,14 @@ export class EvaluationsClient {
      *     })
      */
     public processSlice(
-        request: AgentaApi.TensorSliceProcessRequest,
+        request: AgentaApi.ProcessSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<unknown> {
         return core.HttpResponsePromise.fromPromise(this.__processSlice(request, requestOptions));
     }
 
     private async __processSlice(
-        request: AgentaApi.TensorSliceProcessRequest,
+        request: AgentaApi.ProcessSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<unknown>> {
         const { evaluation_id: evaluationId, ..._body } = request;

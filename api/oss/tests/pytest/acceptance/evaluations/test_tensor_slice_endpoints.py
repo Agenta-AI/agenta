@@ -197,34 +197,31 @@ class TestTensorSliceEndpoints:
         run_id = evaluation["id"]
 
         # Dispatch re-execution over a coordinate slice. Async dispatch -> the
-        # endpoint acknowledges acceptance (it does not wait for execution).
+        # endpoint acknowledges acceptance with 202 and an empty body (it does
+        # not wait for execution).
         response = authed_api(
             "POST",
             f"/simple/evaluations/{run_id}/process",
             json={
                 "scenario_ids": [str(uuid4())],
                 "step_keys": ["evaluator-step"],
-                "process_mode": "fill-missing",
+                # overwrite omitted -> defaults to False (fill-missing)
             },
         )
 
-        assert response.status_code == 200, response.text
-        body = response.json()
-        assert "accepted" in body
-        assert isinstance(body["accepted"], bool)
+        assert response.status_code == 202, response.text
 
-    def test_process_accepts_force_mode(self, authed_api):
+    def test_process_accepts_overwrite(self, authed_api):
         evaluation = _create_testset_evaluator_evaluation(authed_api)
         run_id = evaluation["id"]
 
         response = authed_api(
             "POST",
             f"/simple/evaluations/{run_id}/process",
-            json={"process_mode": "force"},
+            json={"overwrite": True},
         )
 
-        assert response.status_code == 200, response.text
-        assert "accepted" in response.json()
+        assert response.status_code == 202, response.text
 
     def test_process_round_trips_populate_then_probe(self, authed_api):
         """add a scenario, populate its input cell, then probe it by coordinate."""
@@ -233,12 +230,12 @@ class TestTensorSliceEndpoints:
         step_key = _input_step_key(authed_api, run_id)
 
         # A result cell FKs to an existing scenario — you cannot populate into a
-        # scenario that does not exist. Add the scenario first (the height op),
-        # then populate its input cell.
+        # scenario that does not exist. Add the scenario first via the height op
+        # (`/scenarios/add`), then populate its input cell.
         created = authed_api(
             "POST",
-            "/evaluations/scenarios/",
-            json={"scenarios": [{"run_id": run_id, "status": "running"}]},
+            f"/simple/evaluations/{run_id}/scenarios/add",
+            json={"count": 1},
         )
         assert created.status_code == 200, created.text
         scenario_id = created.json()["scenarios"][0]["id"]
@@ -272,3 +269,84 @@ class TestTensorSliceEndpoints:
             str(r.get("scenario_id")) == scenario_id and r.get("step_key") == step_key
             for r in results
         )
+
+
+class TestGraphShapeEndpoints:
+    """The graph-shape ops: add/remove scenarios, add/remove steps, set repeats."""
+
+    def test_add_scenarios_returns_created_rows(self, authed_api):
+        evaluation = _create_testset_evaluator_evaluation(authed_api)
+        run_id = evaluation["id"]
+
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_id}/scenarios/add",
+            json={"count": 3},
+        )
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["count"] == 3
+        assert len(body["scenarios"]) == 3
+
+    def test_add_scenarios_floors_timestamp_to_minute(self, authed_api):
+        evaluation = _create_testset_evaluator_evaluation(authed_api)
+        run_id = evaluation["id"]
+
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_id}/scenarios/add",
+            json={"count": 1, "timestamp": "2026-06-02T14:23:47.500000Z"},
+        )
+
+        assert response.status_code == 200, response.text
+        scenario = response.json()["scenarios"][0]
+        # floored to the minute (interval fixed at 1 minute server-side)
+        assert scenario["timestamp"].startswith("2026-06-02T14:23:00")
+        assert scenario["interval"] == 1
+
+    def test_remove_scenarios_returns_204(self, authed_api):
+        evaluation = _create_testset_evaluator_evaluation(authed_api)
+        run_id = evaluation["id"]
+
+        created = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_id}/scenarios/add",
+            json={"count": 1},
+        )
+        assert created.status_code == 200, created.text
+        scenario_id = created.json()["scenarios"][0]["id"]
+
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_id}/scenarios/remove",
+            json={"scenario_ids": [scenario_id]},
+        )
+
+        assert response.status_code == 204, response.text
+
+    def test_prune_returns_204(self, authed_api):
+        evaluation = _create_testset_evaluator_evaluation(authed_api)
+        run_id = evaluation["id"]
+
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_id}/prune",
+            json={"scenario_ids": [str(uuid4())]},
+        )
+
+        assert response.status_code == 204, response.text
+
+    def test_set_repeats_returns_run(self, authed_api):
+        evaluation = _create_testset_evaluator_evaluation(authed_api)
+        run_id = evaluation["id"]
+
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_id}/repeats",
+            json={"repeats": 3},
+        )
+
+        assert response.status_code == 200, response.text
+        run = response.json()["run"]
+        assert (run.get("data") or {}).get("repeats") == 3

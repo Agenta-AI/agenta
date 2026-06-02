@@ -6,10 +6,10 @@
  *         evaluation_id: "evaluation_id"
  *     }
  */
-export interface TensorSliceProcessRequest {
+export interface ProcessSliceRequest {
     evaluation_id: string;
     scenario_ids?: string[] | null;
     step_keys?: string[] | null;
     repeat_idxs?: number[] | null;
-    process_mode?: string | null;
+    overwrite?: boolean;
 }
