@@ -52,7 +52,6 @@ from ..types.simple_queue_response import SimpleQueueResponse
 from ..types.simple_queue_scenarios_query import SimpleQueueScenariosQuery
 from ..types.simple_queue_scenarios_response import SimpleQueueScenariosResponse
 from ..types.simple_queues_response import SimpleQueuesResponse
-from ..types.tensor_slice_process_response import TensorSliceProcessResponse
 from ..types.windowing import Windowing
 from .raw_client import AsyncRawEvaluationsClient, RawEvaluationsClient
 
@@ -1458,7 +1457,7 @@ class EvaluationsClient:
         _response = self._raw_client.open_simple_evaluation(evaluation_id, request_options=request_options)
         return _response.data
     
-    def process_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TensorSliceProcessResponse:
+    def process_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -1477,8 +1476,8 @@ class EvaluationsClient:
         
         Returns
         -------
-        TensorSliceProcessResponse
-            Successful Response
+        typing.Any
+            Accepted — processing dispatched.
         
         Examples
         --------
@@ -1487,14 +1486,14 @@ class EvaluationsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.evaluations.process_simple_evaluation_slice(
+        client.evaluations.process_slice(
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.process_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, process_mode=process_mode, request_options=request_options)
+        _response = self._raw_client.process_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, process_mode=process_mode, request_options=request_options)
         return _response.data
     
-    def probe_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
+    def probe_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
         """
         Parameters
         ----------
@@ -1521,14 +1520,14 @@ class EvaluationsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.evaluations.probe_simple_evaluation_slice(
+        client.evaluations.probe_slice(
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.probe_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        _response = self._raw_client.probe_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
         return _response.data
     
-    def populate_simple_evaluation_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
+    def populate_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
         """
         Parameters
         ----------
@@ -1551,7 +1550,7 @@ class EvaluationsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.evaluations.populate_simple_evaluation_slice(
+        client.evaluations.populate_slice(
             evaluation_id="evaluation_id",
             results=[
                 EvaluationResultCreate(
@@ -1562,10 +1561,10 @@ class EvaluationsClient:
             ],
         )
         """
-        _response = self._raw_client.populate_simple_evaluation_slice(evaluation_id, results=results, request_options=request_options)
+        _response = self._raw_client.populate_slice(evaluation_id, results=results, request_options=request_options)
         return _response.data
     
-    def prune_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultIdsResponse:
+    def prune_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> None:
         """
         Parameters
         ----------
@@ -1582,8 +1581,7 @@ class EvaluationsClient:
         
         Returns
         -------
-        EvaluationResultIdsResponse
-            Successful Response
+        None
         
         Examples
         --------
@@ -1592,14 +1590,14 @@ class EvaluationsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.evaluations.prune_simple_evaluation_slice(
+        client.evaluations.prune_slice(
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.prune_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        _response = self._raw_client.prune_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
         return _response.data
     
-    def add_simple_evaluation_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
+    def add_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
         """
         Parameters
         ----------
@@ -1622,15 +1620,15 @@ class EvaluationsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.evaluations.add_simple_evaluation_scenarios(
+        client.evaluations.add_scenarios(
             evaluation_id="evaluation_id",
             count=1,
         )
         """
-        _response = self._raw_client.add_simple_evaluation_scenarios(evaluation_id, count=count, request_options=request_options)
+        _response = self._raw_client.add_scenarios(evaluation_id, count=count, request_options=request_options)
         return _response.data
     
-    def remove_simple_evaluation_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenarioIdsResponse:
+    def remove_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> None:
         """
         Parameters
         ----------
@@ -1643,8 +1641,7 @@ class EvaluationsClient:
         
         Returns
         -------
-        EvaluationScenarioIdsResponse
-            Successful Response
+        None
         
         Examples
         --------
@@ -1653,15 +1650,15 @@ class EvaluationsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.evaluations.remove_simple_evaluation_scenarios(
+        client.evaluations.remove_scenarios(
             evaluation_id="evaluation_id",
             scenario_ids=["scenario_ids"],
         )
         """
-        _response = self._raw_client.remove_simple_evaluation_scenarios(evaluation_id, scenario_ids=scenario_ids, request_options=request_options)
+        _response = self._raw_client.remove_scenarios(evaluation_id, scenario_ids=scenario_ids, request_options=request_options)
         return _response.data
     
-    def add_simple_evaluation_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+    def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
         """
         Parameters
         ----------
@@ -1684,7 +1681,7 @@ class EvaluationsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.evaluations.add_simple_evaluation_steps(
+        client.evaluations.add_steps(
             evaluation_id="evaluation_id",
             steps=[
                 EvaluationRunDataStep(
@@ -1696,10 +1693,10 @@ class EvaluationsClient:
             ],
         )
         """
-        _response = self._raw_client.add_simple_evaluation_steps(evaluation_id, steps=steps, request_options=request_options)
+        _response = self._raw_client.add_steps(evaluation_id, steps=steps, request_options=request_options)
         return _response.data
     
-    def remove_simple_evaluation_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+    def remove_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
         """
         Parameters
         ----------
@@ -1722,15 +1719,15 @@ class EvaluationsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.evaluations.remove_simple_evaluation_steps(
+        client.evaluations.remove_steps(
             evaluation_id="evaluation_id",
             step_keys=["step_keys"],
         )
         """
-        _response = self._raw_client.remove_simple_evaluation_steps(evaluation_id, step_keys=step_keys, request_options=request_options)
+        _response = self._raw_client.remove_steps(evaluation_id, step_keys=step_keys, request_options=request_options)
         return _response.data
     
-    def set_simple_evaluation_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+    def set_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
         """
         Parameters
         ----------
@@ -1753,12 +1750,12 @@ class EvaluationsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.evaluations.set_simple_evaluation_repeats(
+        client.evaluations.set_repeats(
             evaluation_id="evaluation_id",
             repeats=1,
         )
         """
-        _response = self._raw_client.set_simple_evaluation_repeats(evaluation_id, repeats=repeats, request_options=request_options)
+        _response = self._raw_client.set_repeats(evaluation_id, repeats=repeats, request_options=request_options)
         return _response.data
     
     def create_simple_queue(self, *, queue: SimpleQueueCreate, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueResponse:
@@ -3724,7 +3721,7 @@ class AsyncEvaluationsClient:
         _response = await self._raw_client.open_simple_evaluation(evaluation_id, request_options=request_options)
         return _response.data
     
-    async def process_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TensorSliceProcessResponse:
+    async def process_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -3743,8 +3740,8 @@ class AsyncEvaluationsClient:
         
         Returns
         -------
-        TensorSliceProcessResponse
-            Successful Response
+        typing.Any
+            Accepted — processing dispatched.
         
         Examples
         --------
@@ -3758,17 +3755,17 @@ class AsyncEvaluationsClient:
         
         
         async def main() -> None:
-            await client.evaluations.process_simple_evaluation_slice(
+            await client.evaluations.process_slice(
                 evaluation_id="evaluation_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.process_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, process_mode=process_mode, request_options=request_options)
+        _response = await self._raw_client.process_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, process_mode=process_mode, request_options=request_options)
         return _response.data
     
-    async def probe_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
+    async def probe_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
         """
         Parameters
         ----------
@@ -3800,17 +3797,17 @@ class AsyncEvaluationsClient:
         
         
         async def main() -> None:
-            await client.evaluations.probe_simple_evaluation_slice(
+            await client.evaluations.probe_slice(
                 evaluation_id="evaluation_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.probe_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        _response = await self._raw_client.probe_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
         return _response.data
     
-    async def populate_simple_evaluation_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
+    async def populate_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultsResponse:
         """
         Parameters
         ----------
@@ -3838,7 +3835,7 @@ class AsyncEvaluationsClient:
         
         
         async def main() -> None:
-            await client.evaluations.populate_simple_evaluation_slice(
+            await client.evaluations.populate_slice(
                 evaluation_id="evaluation_id",
                 results=[
                     EvaluationResultCreate(
@@ -3852,10 +3849,10 @@ class AsyncEvaluationsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.populate_simple_evaluation_slice(evaluation_id, results=results, request_options=request_options)
+        _response = await self._raw_client.populate_slice(evaluation_id, results=results, request_options=request_options)
         return _response.data
     
-    async def prune_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationResultIdsResponse:
+    async def prune_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> None:
         """
         Parameters
         ----------
@@ -3872,8 +3869,7 @@ class AsyncEvaluationsClient:
         
         Returns
         -------
-        EvaluationResultIdsResponse
-            Successful Response
+        None
         
         Examples
         --------
@@ -3887,17 +3883,17 @@ class AsyncEvaluationsClient:
         
         
         async def main() -> None:
-            await client.evaluations.prune_simple_evaluation_slice(
+            await client.evaluations.prune_slice(
                 evaluation_id="evaluation_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.prune_simple_evaluation_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        _response = await self._raw_client.prune_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
         return _response.data
     
-    async def add_simple_evaluation_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
+    async def add_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
         """
         Parameters
         ----------
@@ -3925,7 +3921,7 @@ class AsyncEvaluationsClient:
         
         
         async def main() -> None:
-            await client.evaluations.add_simple_evaluation_scenarios(
+            await client.evaluations.add_scenarios(
                 evaluation_id="evaluation_id",
                 count=1,
             )
@@ -3933,10 +3929,10 @@ class AsyncEvaluationsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.add_simple_evaluation_scenarios(evaluation_id, count=count, request_options=request_options)
+        _response = await self._raw_client.add_scenarios(evaluation_id, count=count, request_options=request_options)
         return _response.data
     
-    async def remove_simple_evaluation_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenarioIdsResponse:
+    async def remove_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> None:
         """
         Parameters
         ----------
@@ -3949,8 +3945,7 @@ class AsyncEvaluationsClient:
         
         Returns
         -------
-        EvaluationScenarioIdsResponse
-            Successful Response
+        None
         
         Examples
         --------
@@ -3964,7 +3959,7 @@ class AsyncEvaluationsClient:
         
         
         async def main() -> None:
-            await client.evaluations.remove_simple_evaluation_scenarios(
+            await client.evaluations.remove_scenarios(
                 evaluation_id="evaluation_id",
                 scenario_ids=["scenario_ids"],
             )
@@ -3972,10 +3967,10 @@ class AsyncEvaluationsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.remove_simple_evaluation_scenarios(evaluation_id, scenario_ids=scenario_ids, request_options=request_options)
+        _response = await self._raw_client.remove_scenarios(evaluation_id, scenario_ids=scenario_ids, request_options=request_options)
         return _response.data
     
-    async def add_simple_evaluation_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+    async def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
         """
         Parameters
         ----------
@@ -4003,7 +3998,7 @@ class AsyncEvaluationsClient:
         
         
         async def main() -> None:
-            await client.evaluations.add_simple_evaluation_steps(
+            await client.evaluations.add_steps(
                 evaluation_id="evaluation_id",
                 steps=[
                     EvaluationRunDataStep(
@@ -4018,10 +4013,10 @@ class AsyncEvaluationsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.add_simple_evaluation_steps(evaluation_id, steps=steps, request_options=request_options)
+        _response = await self._raw_client.add_steps(evaluation_id, steps=steps, request_options=request_options)
         return _response.data
     
-    async def remove_simple_evaluation_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+    async def remove_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
         """
         Parameters
         ----------
@@ -4049,7 +4044,7 @@ class AsyncEvaluationsClient:
         
         
         async def main() -> None:
-            await client.evaluations.remove_simple_evaluation_steps(
+            await client.evaluations.remove_steps(
                 evaluation_id="evaluation_id",
                 step_keys=["step_keys"],
             )
@@ -4057,10 +4052,10 @@ class AsyncEvaluationsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.remove_simple_evaluation_steps(evaluation_id, step_keys=step_keys, request_options=request_options)
+        _response = await self._raw_client.remove_steps(evaluation_id, step_keys=step_keys, request_options=request_options)
         return _response.data
     
-    async def set_simple_evaluation_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+    async def set_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
         """
         Parameters
         ----------
@@ -4088,7 +4083,7 @@ class AsyncEvaluationsClient:
         
         
         async def main() -> None:
-            await client.evaluations.set_simple_evaluation_repeats(
+            await client.evaluations.set_repeats(
                 evaluation_id="evaluation_id",
                 repeats=1,
             )
@@ -4096,7 +4091,7 @@ class AsyncEvaluationsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.set_simple_evaluation_repeats(evaluation_id, repeats=repeats, request_options=request_options)
+        _response = await self._raw_client.set_repeats(evaluation_id, repeats=repeats, request_options=request_options)
         return _response.data
     
     async def create_simple_queue(self, *, queue: SimpleQueueCreate, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueResponse:

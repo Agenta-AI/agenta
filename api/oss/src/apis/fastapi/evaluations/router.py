@@ -56,7 +56,6 @@ from oss.src.apis.fastapi.evaluations.models import (
     # EVALUATION TENSOR SLICE
     TensorSliceRequest,
     TensorSliceProcessRequest,
-    TensorSliceProcessResponse,
     # EVALUATION GRAPH-SHAPE OPS
     AddScenariosRequest,
     RemoveScenariosRequest,
@@ -1907,9 +1906,10 @@ class SimpleEvaluationsRouter:
             path="/{evaluation_id}/process",
             methods=["POST"],
             endpoint=self.process_evaluation_slice,
-            response_model=TensorSliceProcessResponse,
-            response_model_exclude_none=True,
-            operation_id="process_simple_evaluation_slice",
+            status_code=202,  # async dispatch — accepted, not yet done
+            response_model=None,
+            responses={202: {"description": "Accepted — processing dispatched."}},
+            operation_id="process_slice",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/probe
@@ -1919,7 +1919,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.probe_evaluation_slice,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
-            operation_id="probe_simple_evaluation_slice",
+            operation_id="probe_slice",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/populate
@@ -1929,7 +1929,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.populate_evaluation_slice,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
-            operation_id="populate_simple_evaluation_slice",
+            operation_id="populate_slice",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/prune
@@ -1937,9 +1937,8 @@ class SimpleEvaluationsRouter:
             path="/{evaluation_id}/prune",
             methods=["POST"],
             endpoint=self.prune_evaluation_slice,
-            response_model=EvaluationResultIdsResponse,
-            response_model_exclude_none=True,
-            operation_id="prune_simple_evaluation_slice",
+            status_code=204,  # cells removed — no body
+            operation_id="prune_slice",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/scenarios/add
@@ -1949,7 +1948,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.add_evaluation_scenarios,
             response_model=EvaluationScenariosResponse,
             response_model_exclude_none=True,
-            operation_id="add_simple_evaluation_scenarios",
+            operation_id="add_scenarios",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/scenarios/remove
@@ -1957,9 +1956,8 @@ class SimpleEvaluationsRouter:
             path="/{evaluation_id}/scenarios/remove",
             methods=["POST"],
             endpoint=self.remove_evaluation_scenarios,
-            response_model=EvaluationScenarioIdsResponse,
-            response_model_exclude_none=True,
-            operation_id="remove_simple_evaluation_scenarios",
+            status_code=204,  # rows removed — no body
+            operation_id="remove_scenarios",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/steps/add
@@ -1969,7 +1967,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.add_evaluation_steps,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
-            operation_id="add_simple_evaluation_steps",
+            operation_id="add_steps",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/steps/remove
@@ -1979,7 +1977,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.remove_evaluation_steps,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
-            operation_id="remove_simple_evaluation_steps",
+            operation_id="remove_steps",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/repeats
@@ -1989,7 +1987,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.set_evaluation_repeats,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
-            operation_id="set_simple_evaluation_repeats",
+            operation_id="set_repeats",
         )
 
     # SIMPLE EVALUATIONS -------------------------------------------------------
@@ -2310,7 +2308,7 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_id: UUID,
         slice_request: TensorSliceProcessRequest,
-    ) -> TensorSliceProcessResponse:
+    ) -> None:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -2319,7 +2317,9 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        accepted = await self.simple_evaluations_service.dispatch_tensor_slice(
+        # Async dispatch via taskiq — the 202 acknowledges acceptance; the work
+        # finishes on the worker. No body to return.
+        await self.simple_evaluations_service.dispatch_tensor_slice(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
@@ -2329,8 +2329,6 @@ class SimpleEvaluationsRouter:
             repeat_idxs=slice_request.repeat_idxs,
             process_mode=slice_request.process_mode or "fill-missing",
         )
-
-        return TensorSliceProcessResponse(accepted=accepted)
 
     # POST /api/simple/evaluations/{evaluation_id}/probe
     @intercept_exceptions()
@@ -2400,7 +2398,7 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_id: UUID,
         slice_request: TensorSliceRequest,
-    ) -> EvaluationResultIdsResponse:
+    ) -> None:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -2409,7 +2407,9 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        result_ids = await self.simple_evaluations_service.prune_slice(
+        # Removes the addressed result cells (and refreshes metrics over the
+        # scope). 204 — no body.
+        await self.simple_evaluations_service.prune_slice(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
@@ -2417,11 +2417,6 @@ class SimpleEvaluationsRouter:
             scenario_ids=slice_request.scenario_ids,
             step_keys=slice_request.step_keys,
             repeat_idxs=slice_request.repeat_idxs,
-        )
-
-        return EvaluationResultIdsResponse(
-            count=len(result_ids),
-            result_ids=result_ids,
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/scenarios/add
@@ -2462,7 +2457,7 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_id: UUID,
         remove_request: RemoveScenariosRequest,
-    ) -> EvaluationScenarioIdsResponse:
+    ) -> None:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -2471,15 +2466,11 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        scenario_ids = await self.simple_evaluations_service.remove_scenarios(
+        # Drops the scenario rows (and their cells). 204 — no body.
+        await self.simple_evaluations_service.remove_scenarios(
             project_id=UUID(request.state.project_id),
             #
             scenario_ids=remove_request.scenario_ids,
-        )
-
-        return EvaluationScenarioIdsResponse(
-            count=len(scenario_ids),
-            scenario_ids=scenario_ids,
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/steps/add

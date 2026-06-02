@@ -15,7 +15,7 @@ import type * as AgentaApi from "../../../../index.js";
  *         }
  *     }
  */
-export interface PopulateSimpleEvaluationSliceRequest {
+export interface PopulateSliceRequest {
     evaluation_id: string;
     body: AgentaApi.EvaluationResultsSetRequest;
 }

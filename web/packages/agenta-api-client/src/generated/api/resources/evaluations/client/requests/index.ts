@@ -39,9 +39,9 @@ export type { FetchSimpleEvaluationRequest } from "./FetchSimpleEvaluationReques
 export type { FetchSimpleQueueRequest } from "./FetchSimpleQueueRequest.js";
 export type { OpenRunRequest } from "./OpenRunRequest.js";
 export type { OpenSimpleEvaluationRequest } from "./OpenSimpleEvaluationRequest.js";
-export type { PopulateSimpleEvaluationSliceRequest } from "./PopulateSimpleEvaluationSliceRequest.js";
-export type { ProbeSimpleEvaluationSliceRequest } from "./ProbeSimpleEvaluationSliceRequest.js";
-export type { PruneSimpleEvaluationSliceRequest } from "./PruneSimpleEvaluationSliceRequest.js";
+export type { PopulateSliceRequest } from "./PopulateSliceRequest.js";
+export type { ProbeSliceRequest } from "./ProbeSliceRequest.js";
+export type { PruneSliceRequest } from "./PruneSliceRequest.js";
 export type { RemoveScenariosRequest } from "./RemoveScenariosRequest.js";
 export type { RemoveStepsRequest } from "./RemoveStepsRequest.js";
 export type { SetRepeatsRequest } from "./SetRepeatsRequest.js";

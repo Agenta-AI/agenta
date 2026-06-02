@@ -9,7 +9,7 @@ import type * as AgentaApi from "../../../../index.js";
  *         body: {}
  *     }
  */
-export interface PruneSimpleEvaluationSliceRequest {
+export interface ProbeSliceRequest {
     evaluation_id: string;
     body: AgentaApi.TensorSliceRequest;
 }

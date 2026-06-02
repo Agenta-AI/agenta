@@ -3545,21 +3545,21 @@ export class EvaluationsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.processSimpleEvaluationSlice({
+     *     await client.evaluations.processSlice({
      *         evaluation_id: "evaluation_id"
      *     })
      */
-    public processSimpleEvaluationSlice(
+    public processSlice(
         request: AgentaApi.TensorSliceProcessRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.TensorSliceProcessResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__processSimpleEvaluationSlice(request, requestOptions));
+    ): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__processSlice(request, requestOptions));
     }
 
-    private async __processSimpleEvaluationSlice(
+    private async __processSlice(
         request: AgentaApi.TensorSliceProcessRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.TensorSliceProcessResponse>> {
+    ): Promise<core.WithRawResponse<unknown>> {
         const { evaluation_id: evaluationId, ..._body } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -3588,7 +3588,7 @@ export class EvaluationsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.TensorSliceProcessResponse, rawResponse: _response.rawResponse };
+            return { data: _response.body, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -3616,26 +3616,26 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.ProbeSimpleEvaluationSliceRequest} request
+     * @param {AgentaApi.ProbeSliceRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.probeSimpleEvaluationSlice({
+     *     await client.evaluations.probeSlice({
      *         evaluation_id: "evaluation_id",
      *         body: {}
      *     })
      */
-    public probeSimpleEvaluationSlice(
-        request: AgentaApi.ProbeSimpleEvaluationSliceRequest,
+    public probeSlice(
+        request: AgentaApi.ProbeSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationResultsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__probeSimpleEvaluationSlice(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__probeSlice(request, requestOptions));
     }
 
-    private async __probeSimpleEvaluationSlice(
-        request: AgentaApi.ProbeSimpleEvaluationSliceRequest,
+    private async __probeSlice(
+        request: AgentaApi.ProbeSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationResultsResponse>> {
         const { evaluation_id: evaluationId, body: _body } = request;
@@ -3694,13 +3694,13 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.PopulateSimpleEvaluationSliceRequest} request
+     * @param {AgentaApi.PopulateSliceRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.populateSimpleEvaluationSlice({
+     *     await client.evaluations.populateSlice({
      *         evaluation_id: "evaluation_id",
      *         body: {
      *             results: [{
@@ -3711,15 +3711,15 @@ export class EvaluationsClient {
      *         }
      *     })
      */
-    public populateSimpleEvaluationSlice(
-        request: AgentaApi.PopulateSimpleEvaluationSliceRequest,
+    public populateSlice(
+        request: AgentaApi.PopulateSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationResultsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__populateSimpleEvaluationSlice(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__populateSlice(request, requestOptions));
     }
 
-    private async __populateSimpleEvaluationSlice(
-        request: AgentaApi.PopulateSimpleEvaluationSliceRequest,
+    private async __populateSlice(
+        request: AgentaApi.PopulateSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationResultsResponse>> {
         const { evaluation_id: evaluationId, body: _body } = request;
@@ -3778,28 +3778,28 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.PruneSimpleEvaluationSliceRequest} request
+     * @param {AgentaApi.PruneSliceRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.pruneSimpleEvaluationSlice({
+     *     await client.evaluations.pruneSlice({
      *         evaluation_id: "evaluation_id",
      *         body: {}
      *     })
      */
-    public pruneSimpleEvaluationSlice(
-        request: AgentaApi.PruneSimpleEvaluationSliceRequest,
+    public pruneSlice(
+        request: AgentaApi.PruneSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.EvaluationResultIdsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__pruneSimpleEvaluationSlice(request, requestOptions));
+    ): core.HttpResponsePromise<void> {
+        return core.HttpResponsePromise.fromPromise(this.__pruneSlice(request, requestOptions));
     }
 
-    private async __pruneSimpleEvaluationSlice(
-        request: AgentaApi.PruneSimpleEvaluationSliceRequest,
+    private async __pruneSlice(
+        request: AgentaApi.PruneSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.EvaluationResultIdsResponse>> {
+    ): Promise<core.WithRawResponse<void>> {
         const { evaluation_id: evaluationId, body: _body } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -3828,10 +3828,7 @@ export class EvaluationsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return {
-                data: _response.body as AgentaApi.EvaluationResultIdsResponse,
-                rawResponse: _response.rawResponse,
-            };
+            return { data: undefined, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -3865,19 +3862,19 @@ export class EvaluationsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.addSimpleEvaluationScenarios({
+     *     await client.evaluations.addScenarios({
      *         evaluation_id: "evaluation_id",
      *         count: 1
      *     })
      */
-    public addSimpleEvaluationScenarios(
+    public addScenarios(
         request: AgentaApi.AddScenariosRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationScenariosResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__addSimpleEvaluationScenarios(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__addScenarios(request, requestOptions));
     }
 
-    private async __addSimpleEvaluationScenarios(
+    private async __addScenarios(
         request: AgentaApi.AddScenariosRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationScenariosResponse>> {
@@ -3946,22 +3943,22 @@ export class EvaluationsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.removeSimpleEvaluationScenarios({
+     *     await client.evaluations.removeScenarios({
      *         evaluation_id: "evaluation_id",
      *         scenario_ids: ["scenario_ids"]
      *     })
      */
-    public removeSimpleEvaluationScenarios(
+    public removeScenarios(
         request: AgentaApi.RemoveScenariosRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.EvaluationScenarioIdsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__removeSimpleEvaluationScenarios(request, requestOptions));
+    ): core.HttpResponsePromise<void> {
+        return core.HttpResponsePromise.fromPromise(this.__removeScenarios(request, requestOptions));
     }
 
-    private async __removeSimpleEvaluationScenarios(
+    private async __removeScenarios(
         request: AgentaApi.RemoveScenariosRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.EvaluationScenarioIdsResponse>> {
+    ): Promise<core.WithRawResponse<void>> {
         const { evaluation_id: evaluationId, ..._body } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -3990,10 +3987,7 @@ export class EvaluationsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return {
-                data: _response.body as AgentaApi.EvaluationScenarioIdsResponse,
-                rawResponse: _response.rawResponse,
-            };
+            return { data: undefined, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -4027,7 +4021,7 @@ export class EvaluationsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.addSimpleEvaluationSteps({
+     *     await client.evaluations.addSteps({
      *         evaluation_id: "evaluation_id",
      *         steps: [{
      *                 key: "key",
@@ -4039,14 +4033,14 @@ export class EvaluationsClient {
      *             }]
      *     })
      */
-    public addSimpleEvaluationSteps(
+    public addSteps(
         request: AgentaApi.AddStepsRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationRunResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__addSimpleEvaluationSteps(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__addSteps(request, requestOptions));
     }
 
-    private async __addSimpleEvaluationSteps(
+    private async __addSteps(
         request: AgentaApi.AddStepsRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationRunResponse>> {
@@ -4112,19 +4106,19 @@ export class EvaluationsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.removeSimpleEvaluationSteps({
+     *     await client.evaluations.removeSteps({
      *         evaluation_id: "evaluation_id",
      *         step_keys: ["step_keys"]
      *     })
      */
-    public removeSimpleEvaluationSteps(
+    public removeSteps(
         request: AgentaApi.RemoveStepsRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationRunResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__removeSimpleEvaluationSteps(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__removeSteps(request, requestOptions));
     }
 
-    private async __removeSimpleEvaluationSteps(
+    private async __removeSteps(
         request: AgentaApi.RemoveStepsRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationRunResponse>> {
@@ -4190,19 +4184,19 @@ export class EvaluationsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.evaluations.setSimpleEvaluationRepeats({
+     *     await client.evaluations.setRepeats({
      *         evaluation_id: "evaluation_id",
      *         repeats: 1
      *     })
      */
-    public setSimpleEvaluationRepeats(
+    public setRepeats(
         request: AgentaApi.SetRepeatsRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluationRunResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__setSimpleEvaluationRepeats(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__setRepeats(request, requestOptions));
     }
 
-    private async __setSimpleEvaluationRepeats(
+    private async __setRepeats(
         request: AgentaApi.SetRepeatsRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationRunResponse>> {

@@ -419,7 +419,6 @@ export * from "./StandardProviderKind.js";
 export * from "./StandardProviderSettingsDto.js";
 export * from "./Status.js";
 export * from "./StringOperator.js";
-export * from "./TensorSliceProcessResponse.js";
 export * from "./TensorSliceRequest.js";
 export * from "./TestcaseInput.js";
 export * from "./TestcaseOutput.js";

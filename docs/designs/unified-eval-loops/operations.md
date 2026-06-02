@@ -48,20 +48,20 @@ with an explicit `operation_id`, so the regenerated Fern client exposes a method
 
 | Operation | Status | Endpoint (`operation_id`) | Where |
 | --- | --- | --- | --- |
-| `add_steps` | **done** | `POST /{id}/steps/add` (`add_simple_evaluation_steps`) | `SimpleEvaluationsService.add_steps` — appends step columns to `run.data.steps` (idempotent on key); cells fill on the next `process`. The legacy folded-into-`edit_run` path still works too. proposal.md:370. |
-| `remove_steps` | **done** | `POST /{id}/steps/remove` (`remove_simple_evaluation_steps`) | `SimpleEvaluationsService.remove_steps` — drops step columns by key. Destructive cell removal via the reconcile path (`_reconcile_run` / `_prune_removed_steps`) is also driven by omitting a step on `edit_run`; semantics in `step-removal-semantics.md`; closed UEL-014. |
-| `add_scenarios` | **done** | `POST /{id}/scenarios/add` (`add_simple_evaluation_scenarios`) | `SimpleEvaluationsService.add_scenarios` — appends N skeleton rows (height). `populate` writes their input cells, `process` plans/executes (`process` never mints scenarios). proposal.md:372. |
-| `remove_scenarios` | **done** | `POST /{id}/scenarios/remove` (`remove_simple_evaluation_scenarios`) | `SimpleEvaluationsService.remove_scenarios` — drops scenario rows and their cells (delegates to `delete_scenarios`). proposal.md:373. |
-| `set_repeats` | **done** | `POST /{id}/repeats` (`set_simple_evaluation_repeats`) | `SimpleEvaluationsService.set_repeats` — sets the run's repeat (depth) dimension; existing cells untouched, new repeat slots fill on the next `process`. |
+| `add_steps` | **done** | `POST /{id}/steps/add` (`add_steps`) | `SimpleEvaluationsService.add_steps` — appends step columns to `run.data.steps` (idempotent on key); cells fill on the next `process`. The legacy folded-into-`edit_run` path still works too. proposal.md:370. |
+| `remove_steps` | **done** | `POST /{id}/steps/remove` (`remove_steps`) | `SimpleEvaluationsService.remove_steps` — drops step columns by key. Destructive cell removal via the reconcile path (`_reconcile_run` / `_prune_removed_steps`) is also driven by omitting a step on `edit_run`; semantics in `step-removal-semantics.md`; closed UEL-014. |
+| `add_scenarios` | **done** | `POST /{id}/scenarios/add` (`add_scenarios`) | `SimpleEvaluationsService.add_scenarios` — appends N skeleton rows (height). `populate` writes their input cells, `process` plans/executes (`process` never mints scenarios). proposal.md:372. |
+| `remove_scenarios` | **done** | `POST /{id}/scenarios/remove` (`remove_scenarios`) | `SimpleEvaluationsService.remove_scenarios` — drops scenario rows and their cells (delegates to `delete_scenarios`). proposal.md:373. |
+| `set_repeats` | **done** | `POST /{id}/repeats` (`set_repeats`) | `SimpleEvaluationsService.set_repeats` — sets the run's repeat (depth) dimension; existing cells untouched, new repeat slots fill on the next `process`. |
 
 ### Tensor operations
 
 | Operation | Status | Endpoint (`operation_id`) | Where |
 | --- | --- | --- | --- |
-| `probe(slice)` | **done** | `POST /{id}/probe` (`probe_simple_evaluation_slice`) | `SimpleEvaluationsService.probe_slice` → `TensorSliceOperations.probe` / `probe_summary` in `runtime/tensor.py`. |
-| `populate(slice, results)` | **done** | `POST /{id}/populate` (`populate_simple_evaluation_slice`) | `SimpleEvaluationsService.populate_slice` → `TensorSliceOperations.populate`. Low-level cell CRUD (`create_results` + `/evaluations/results/`) still underlies it. |
-| `prune(slice)` | **done** | `POST /{id}/prune` (`prune_simple_evaluation_slice`) | `SimpleEvaluationsService.prune_slice` → `TensorSliceOperations.prune` (removes cells + refreshes metrics over the scope). Also driven by `remove_step` via `_prune_removed_steps`. |
-| `process(slice)` | **done** | `POST /{id}/process` (`process_simple_evaluation_slice`) | `SimpleEvaluationsService.dispatch_tensor_slice` → taskiq → `TensorSliceOperations.process`, which delegates to the injected `SliceProcessor` (`APISliceProcessor` in `tasks/processor.py`). Re-executes the runnable cells for the EXISTING scenarios a `TensorSlice` addresses — rebuilds each scenario's source binding from its stored input cell, re-hydrates trace/testcase context, plans from the run's current graph (so modified steps re-run), runs the cache-aware runners (hashed-trace reuse), populates, refreshes metrics, and finalizes. With no processor wired it raises rather than silently refreshing. Closed UEL-015. proposal.md:160-208. |
+| `probe(slice)` | **done** | `POST /{id}/probe` (`probe_slice`) | `SimpleEvaluationsService.probe_slice` → `TensorSliceOperations.probe` / `probe_summary` in `runtime/tensor.py`. |
+| `populate(slice, results)` | **done** | `POST /{id}/populate` (`populate_slice`) | `SimpleEvaluationsService.populate_slice` → `TensorSliceOperations.populate`. Low-level cell CRUD (`create_results` + `/evaluations/results/`) still underlies it. |
+| `prune(slice)` | **done** | `POST /{id}/prune` (`prune_slice`) | `SimpleEvaluationsService.prune_slice` → `TensorSliceOperations.prune` (removes cells + refreshes metrics over the scope). Also driven by `remove_step` via `_prune_removed_steps`. |
+| `process(slice)` | **done** | `POST /{id}/process` (`process_slice`) | `SimpleEvaluationsService.dispatch_tensor_slice` → taskiq → `TensorSliceOperations.process`, which delegates to the injected `SliceProcessor` (`APISliceProcessor` in `tasks/processor.py`). Re-executes the runnable cells for the EXISTING scenarios a `TensorSlice` addresses — rebuilds each scenario's source binding from its stored input cell, re-hydrates trace/testcase context, plans from the run's current graph (so modified steps re-run), runs the cache-aware runners (hashed-trace reuse), populates, refreshes metrics, and finalizes. With no processor wired it raises rather than silently refreshing. Closed UEL-015. proposal.md:160-208. |
 
 ### Run operations
 

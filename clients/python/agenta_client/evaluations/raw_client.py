@@ -60,7 +60,6 @@ from ..types.simple_queue_response import SimpleQueueResponse
 from ..types.simple_queue_scenarios_query import SimpleQueueScenariosQuery
 from ..types.simple_queue_scenarios_response import SimpleQueueScenariosResponse
 from ..types.simple_queues_response import SimpleQueuesResponse
-from ..types.tensor_slice_process_response import TensorSliceProcessResponse
 from ..types.windowing import Windowing
 
 # this is used as the default value for optional parameters
@@ -2225,7 +2224,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def process_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TensorSliceProcessResponse]:
+    def process_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -2244,8 +2243,8 @@ class RawEvaluationsClient:
         
         Returns
         -------
-        HttpResponse[TensorSliceProcessResponse]
-            Successful Response
+        HttpResponse[typing.Any]
+            Accepted — processing dispatched.
         """
         _response = self._client_wrapper.httpx_client.request(
             f"simple/evaluations/{jsonable_encoder(evaluation_id)}/process",method="POST",
@@ -2261,11 +2260,13 @@ class RawEvaluationsClient:
             request_options=request_options,omit=OMIT,
         )
         try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TensorSliceProcessResponse,
+                    typing.Any,
                     parse_obj_as(
-                        type_ =TensorSliceProcessResponse,  # type: ignore
+                        type_ =typing.Any,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -2283,7 +2284,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def probe_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationResultsResponse]:
+    def probe_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationResultsResponse]:
         """
         Parameters
         ----------
@@ -2338,7 +2339,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def populate_simple_evaluation_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationResultsResponse]:
+    def populate_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationResultsResponse]:
         """
         Parameters
         ----------
@@ -2387,7 +2388,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def prune_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationResultIdsResponse]:
+    def prune_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[None]:
         """
         Parameters
         ----------
@@ -2404,8 +2405,7 @@ class RawEvaluationsClient:
         
         Returns
         -------
-        HttpResponse[EvaluationResultIdsResponse]
-            Successful Response
+        HttpResponse[None]
         """
         _response = self._client_wrapper.httpx_client.request(
             f"simple/evaluations/{jsonable_encoder(evaluation_id)}/prune",method="POST",
@@ -2421,14 +2421,7 @@ class RawEvaluationsClient:
         )
         try:
             if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationResultIdsResponse,
-                    parse_obj_as(
-                        type_ =EvaluationResultIdsResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
+                return HttpResponse(response=_response, data=None)
             if _response.status_code == 422:
                 raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
                     HttpValidationError,
@@ -2442,7 +2435,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def add_simple_evaluation_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationScenariosResponse]:
+    def add_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationScenariosResponse]:
         """
         Parameters
         ----------
@@ -2491,7 +2484,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def remove_simple_evaluation_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationScenarioIdsResponse]:
+    def remove_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[None]:
         """
         Parameters
         ----------
@@ -2504,8 +2497,7 @@ class RawEvaluationsClient:
         
         Returns
         -------
-        HttpResponse[EvaluationScenarioIdsResponse]
-            Successful Response
+        HttpResponse[None]
         """
         _response = self._client_wrapper.httpx_client.request(
             f"simple/evaluations/{jsonable_encoder(evaluation_id)}/scenarios/remove",method="POST",
@@ -2519,14 +2511,7 @@ class RawEvaluationsClient:
         )
         try:
             if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationScenarioIdsResponse,
-                    parse_obj_as(
-                        type_ =EvaluationScenarioIdsResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
+                return HttpResponse(response=_response, data=None)
             if _response.status_code == 422:
                 raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
                     HttpValidationError,
@@ -2540,7 +2525,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def add_simple_evaluation_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationRunResponse]:
+    def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationRunResponse]:
         """
         Parameters
         ----------
@@ -2589,7 +2574,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def remove_simple_evaluation_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationRunResponse]:
+    def remove_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationRunResponse]:
         """
         Parameters
         ----------
@@ -2638,7 +2623,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def set_simple_evaluation_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationRunResponse]:
+    def set_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationRunResponse]:
         """
         Parameters
         ----------
@@ -5136,7 +5121,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def process_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TensorSliceProcessResponse]:
+    async def process_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, process_mode: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -5155,8 +5140,8 @@ class AsyncRawEvaluationsClient:
         
         Returns
         -------
-        AsyncHttpResponse[TensorSliceProcessResponse]
-            Successful Response
+        AsyncHttpResponse[typing.Any]
+            Accepted — processing dispatched.
         """
         _response = await self._client_wrapper.httpx_client.request(
             f"simple/evaluations/{jsonable_encoder(evaluation_id)}/process",method="POST",
@@ -5172,11 +5157,13 @@ class AsyncRawEvaluationsClient:
             request_options=request_options,omit=OMIT,
         )
         try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TensorSliceProcessResponse,
+                    typing.Any,
                     parse_obj_as(
-                        type_ =TensorSliceProcessResponse,  # type: ignore
+                        type_ =typing.Any,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -5194,7 +5181,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def probe_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationResultsResponse]:
+    async def probe_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationResultsResponse]:
         """
         Parameters
         ----------
@@ -5249,7 +5236,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def populate_simple_evaluation_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationResultsResponse]:
+    async def populate_slice(self, evaluation_id: str, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationResultsResponse]:
         """
         Parameters
         ----------
@@ -5298,7 +5285,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def prune_simple_evaluation_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationResultIdsResponse]:
+    async def prune_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[None]:
         """
         Parameters
         ----------
@@ -5315,8 +5302,7 @@ class AsyncRawEvaluationsClient:
         
         Returns
         -------
-        AsyncHttpResponse[EvaluationResultIdsResponse]
-            Successful Response
+        AsyncHttpResponse[None]
         """
         _response = await self._client_wrapper.httpx_client.request(
             f"simple/evaluations/{jsonable_encoder(evaluation_id)}/prune",method="POST",
@@ -5332,14 +5318,7 @@ class AsyncRawEvaluationsClient:
         )
         try:
             if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationResultIdsResponse,
-                    parse_obj_as(
-                        type_ =EvaluationResultIdsResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
+                return AsyncHttpResponse(response=_response, data=None)
             if _response.status_code == 422:
                 raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
                     HttpValidationError,
@@ -5353,7 +5332,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def add_simple_evaluation_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationScenariosResponse]:
+    async def add_scenarios(self, evaluation_id: str, *, count: int, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationScenariosResponse]:
         """
         Parameters
         ----------
@@ -5402,7 +5381,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def remove_simple_evaluation_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationScenarioIdsResponse]:
+    async def remove_scenarios(self, evaluation_id: str, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[None]:
         """
         Parameters
         ----------
@@ -5415,8 +5394,7 @@ class AsyncRawEvaluationsClient:
         
         Returns
         -------
-        AsyncHttpResponse[EvaluationScenarioIdsResponse]
-            Successful Response
+        AsyncHttpResponse[None]
         """
         _response = await self._client_wrapper.httpx_client.request(
             f"simple/evaluations/{jsonable_encoder(evaluation_id)}/scenarios/remove",method="POST",
@@ -5430,14 +5408,7 @@ class AsyncRawEvaluationsClient:
         )
         try:
             if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationScenarioIdsResponse,
-                    parse_obj_as(
-                        type_ =EvaluationScenarioIdsResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
+                return AsyncHttpResponse(response=_response, data=None)
             if _response.status_code == 422:
                 raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
                     HttpValidationError,
@@ -5451,7 +5422,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def add_simple_evaluation_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationRunResponse]:
+    async def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationRunResponse]:
         """
         Parameters
         ----------
@@ -5500,7 +5471,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def remove_simple_evaluation_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationRunResponse]:
+    async def remove_steps(self, evaluation_id: str, *, step_keys: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationRunResponse]:
         """
         Parameters
         ----------
@@ -5549,7 +5520,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def set_simple_evaluation_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationRunResponse]:
+    async def set_repeats(self, evaluation_id: str, *, repeats: int, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationRunResponse]:
         """
         Parameters
         ----------

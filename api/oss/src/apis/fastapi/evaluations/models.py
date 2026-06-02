@@ -249,9 +249,8 @@ class TensorSliceProcessRequest(TensorSliceRequest):
     process_mode: Optional[str] = None
 
 
-class TensorSliceProcessResponse(BaseModel):
-    # `process` is dispatched async via taskiq; this acknowledges acceptance.
-    accepted: bool = False
+# `process` returns 202 (async dispatch acknowledged) and `prune` returns 204 —
+# neither carries a body, so there is no response model for them.
 
 
 # - EVALUATION GRAPH-SHAPE OPS -------------------------------------------------
