@@ -121,13 +121,25 @@ const SharedEditor = ({
                 "[&_.agenta-editor-wrapper]:w-full",
                 "p-[11px]",
                 {
+                    // Default border + hover/focus parity for `border` mode.
+                    // Focus uses the SAME darker color as hover so the
+                    // user gets visible feedback when they click into the
+                    // input. Previously focus dropped back to the default
+                    // light border (Kaosiso QA 2026-06-02 follow-up).
                     "border-[var(--ag-c-BDC7D1)]": editorType === "border",
-                    "hover:border-[var(--ag-c-394857)] focus:border-[var(--ag-c-BDC7D1)]":
+                    "hover:border-[var(--ag-c-394857)] focus:border-[var(--ag-c-394857)]":
                         editorType === "border",
                     "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
-                    "hover:border-[394857] focus:border-[394857]":
-                        state === "filled" && editorType === "border",
+                    // Previously there was a `state === "filled" &&
+                    // editorType === "border"` branch that emitted
+                    // `border-[394857]` (a non-hex literal, no `#` or
+                    // var wrapping, so Tailwind matched it as a class
+                    // name and quietly dropped the colour). The default
+                    // `editorType === "border"` rule above already
+                    // applies the correct hover/focus colors via the
+                    // codemod var, so the filled-state override is now
+                    // redundant and was removed.
                 },
                 {
                     "border-[transparent] hover:!border-[var(--ag-c-BDC7D1)] focus:border-[var(--ag-c-BDC7D1)]":
@@ -143,7 +155,13 @@ const SharedEditor = ({
                     "pt-0 [&_.editor-code]:!pr-2 [&_.editor-code]:!bg-[transparent] [&_.editor-code]:!m-0 [&_.editor-code]:!pt-2 [&_.editor-code]:!pb-1 [&_.agenta-editor-wrapper]:!-ml-[12px] [&_.agenta-editor-wrapper]:!w-[calc(100%+24px)] [&_.agenta-editor-wrapper]:mb-1 overflow-hidden":
                         editorProps?.codeOnly,
                 },
-                isEditorFocused && "!border-[var(--ag-c-BDC7D1)]",
+                // JS-tracked focus — the CSS `focus:` pseudo-class only
+                // matches when the OUTER div itself is focused, but
+                // typing happens in a descendant `<ContentEditable>`.
+                // The onFocus/onBlur handlers below propagate to this
+                // boolean so the focused-border styling applies when
+                // any child element receives focus.
+                isEditorFocused && "!border-[var(--ag-c-394857)]",
                 className,
             )}
             {...props}
