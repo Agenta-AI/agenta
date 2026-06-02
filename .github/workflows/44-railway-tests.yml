@@ -235,6 +235,8 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.needs_deployment == 'true'
     runs-on: ubuntu-latest
+    # Failsafe: a stalled apt/browser install must never hang the job for ~6h.
+    timeout-minutes: 15
     steps:
       - name: Wait for deployed web and API
         env:
@@ -294,10 +296,36 @@ jobs:
         working-directory: web
         run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
 
-      - name: Install Playwright browser
+      # DEBUG (temporary): confirm whether the hang is the browser download or
+      # the `--with-deps` apt step. Splits the two, traces apt, and caps each so
+      # the step can't hang. Revert to a single hardened install once confirmed.
+      - name: Install Playwright browser (DEBUG)
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         working-directory: web/tests
-        run: pnpm exec playwright install --with-deps chromium
+        run: |
+          set -x
+          echo "::group::environment"
+          uname -a || true
+          grep -h PRETTY_NAME /etc/os-release || true
+          { [ -t 0 ] && echo "stdin IS a tty" || echo "stdin is NOT a tty"; }
+          echo "needrestart config:"
+          sudo grep -rsiE "nrconf|restart" /etc/needrestart/ 2>/dev/null | head || echo "(none)"
+          echo "dpkg lock holder:"
+          sudo lsof /var/lib/dpkg/lock-frontend 2>/dev/null || echo "(free or lsof missing)"
+          echo "::endgroup::"
+
+          echo "::group::1) browser download only (no sudo) — expected fast (~15s)"
+          time timeout 180 pnpm exec playwright install chromium || echo "DOWNLOAD failed/timed out exit=$?"
+          echo "::endgroup::"
+
+          echo "::group::2) install-deps (sudo apt) UNGUARDED, 240s cap, pw:install trace"
+          export DEBUG=pw:install
+          set +e
+          time timeout --signal=KILL 240 pnpm exec playwright install-deps chromium
+          rc=$?
+          set -e
+          echo "DEPS exit=$rc  (124/137 => hung in apt -> confirms --with-deps is the culprit)"
+          echo "::endgroup::"
 
       - name: Bootstrap auth with global setup
         if: steps.auth_bootstrap.outputs.enabled == 'true'
