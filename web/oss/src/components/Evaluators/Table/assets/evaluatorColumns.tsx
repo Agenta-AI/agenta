@@ -115,7 +115,7 @@ const AutomaticTagsCell = memo(({revisionId}: {revisionId: string}) => {
                 <Tag
                     key={tag}
                     variant="filled"
-                    className="!m-0 truncate max-w-[120px] bg-[#0517290F]"
+                    className="!m-0 truncate max-w-[120px] bg-[var(--ag-c-0517290F)]"
                 >
                     {tag}
                 </Tag>
@@ -144,7 +144,7 @@ const FeedbackCell = memo(({revisionId}: {revisionId: string}) => {
                 <Tag
                     key={name}
                     variant="filled"
-                    className="!m-0 truncate max-w-[120px] bg-[#0517290F]"
+                    className="!m-0 truncate max-w-[120px] bg-[var(--ag-c-0517290F)]"
                 >
                     {name}
                 </Tag>
@@ -179,7 +179,7 @@ const NameCellParent = memo(
         const isExpanded = expandState.expandedRowKeys.includes(rowKey)
         const revisionTag =
             version != null ? (
-                <Tag className="bg-[rgba(5,23,41,0.06)] !m-0 shrink-0" variant="filled">
+                <Tag className="bg-[var(--ag-colorFillSecondary)] !m-0 shrink-0" variant="filled">
                     v{version}
                 </Tag>
             ) : null
@@ -217,7 +217,7 @@ const NameCellRevision = memo(
         const displayName = name ?? slug ?? "—"
         const revisionTag =
             version != null ? (
-                <Tag className="bg-[rgba(5,23,41,0.06)] !m-0 shrink-0" variant="filled">
+                <Tag className="bg-[var(--ag-colorFillSecondary)] !m-0 shrink-0" variant="filled">
                     v{version}
                 </Tag>
             ) : null

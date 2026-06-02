@@ -1,0 +1,617 @@
+/**
+ * Theme variables — single source of truth for theme-aware Tailwind colors.
+ *
+ * Light values are byte-identical to the previously hardcoded values, so light
+ * mode is unchanged. Dark values are role-inverted (a light surface becomes a
+ * dark surface; dark text becomes light text). The Tailwind config points the
+ * `zinc`, `gray`, `ag-gray` scales and the antd semantic token color names at
+ * these variables (see oss/tailwind.config.ts), so any component using those
+ * classes flips automatically under the `.dark` selector.
+ *
+ * antd's own components are themed separately via ConfigProvider's darkAlgorithm
+ * (see ThemeContextProvider.tsx); these variables only drive Tailwind classes.
+ */
+
+:root {
+    /* antd semantic tokens (light = antd-themeConfig.json) */
+    --ag-colorText: #1c2c3d;
+    --ag-colorTextSecondary: #586673;
+    --ag-colorTextTertiary: #758391;
+    --ag-colorTextQuaternary: #bdc7d1;
+    --ag-colorTextHeading: #1c2c3d;
+    --ag-colorTextLabel: #586673;
+    --ag-colorTextDescription: #758391;
+    --ag-colorTextDisabled: #bdc7d1;
+    --ag-colorTextPlaceholder: #bdc7d1;
+    --ag-colorTextLightSolid: #ffffff;
+    --ag-colorIcon: #758391;
+    --ag-colorIconHover: #1c2c3d;
+    --ag-colorBgContainer: #ffffff;
+    --ag-colorBgElevated: #ffffff;
+    --ag-colorBgLayout: #ffffff;
+    --ag-colorBgBase: #ffffff;
+    --ag-colorBgSpotlight: rgba(5, 23, 41, 0.9);
+    --ag-colorBgMask: rgba(5, 23, 41, 0.45);
+    --ag-colorBorder: #bdc7d1;
+    --ag-colorBorderSecondary: #eaeff5;
+    --ag-colorFill: rgba(5, 23, 41, 0.15);
+    --ag-colorFillSecondary: rgba(5, 23, 41, 0.06);
+    --ag-colorFillTertiary: rgba(5, 23, 41, 0.04);
+    --ag-colorFillQuaternary: rgba(5, 23, 41, 0.02);
+    --ag-colorSplit: rgba(5, 23, 41, 0.06);
+    --ag-colorPrimary: #1c2c3d;
+    --ag-colorPrimaryText: #1c2c3d;
+    --ag-colorSuccess: #389e0d;
+    --ag-colorWarning: #faad14;
+    --ag-colorWarningText: #faad14;
+    --ag-colorErrorText: #d61010;
+    --ag-colorError: #d61010;
+    --ag-colorErrorBorder: #ef9f9f;
+    --ag-colorBgContainerDisabled: rgba(5, 23, 41, 0.04);
+    --ag-colorInfoBg: #f5f7fa;
+    --ag-controlItemBgActive: #f5f7fa;
+    --ag-colorWhite: #ffffff;
+    --ag-boxShadowTertiary:
+        0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02),
+        0 2px 4px 0 rgba(0, 0, 0, 0.02);
+
+    /* zinc — brand monochrome ramp (light = antd-tailwind.json zinc) */
+    --ag-zinc-1: #f5f7fa;
+    --ag-zinc-2: #eaeff5;
+    --ag-zinc-3: #d6dee6;
+    --ag-zinc-4: #bdc7d1;
+    --ag-zinc-5: #97a4b0;
+    --ag-zinc-6: #758391;
+    --ag-zinc-7: #586673;
+    --ag-zinc-8: #394857;
+    --ag-zinc-9: #1c2c3d;
+    --ag-zinc-10: #051729;
+
+    /* gray — Tailwind default gray (light = tailwindcss/colors gray) */
+    --ag-gray-50: #f9fafb;
+    --ag-gray-100: #f3f4f6;
+    --ag-gray-200: #e5e7eb;
+    --ag-gray-300: #d1d5db;
+    --ag-gray-400: #9ca3af;
+    --ag-gray-500: #6b7280;
+    --ag-gray-600: #4b5563;
+    --ag-gray-700: #374151;
+    --ag-gray-800: #1f2937;
+    --ag-gray-900: #111827;
+    --ag-gray-950: #030712;
+
+    /* ag-gray — Untitled-UI gray scale (light = the hardcoded hex it replaces) */
+    --ag-aggray-25: #fcfcfd;
+    --ag-aggray-50: #f9fafb;
+    --ag-aggray-100: #f2f4f7;
+    --ag-aggray-200: #e4e7ec;
+    --ag-aggray-300: #d0d5dd;
+    --ag-aggray-400: #98a2b3;
+    --ag-aggray-500: #667085;
+    --ag-aggray-600: #475467;
+    --ag-aggray-700: #344054;
+    --ag-aggray-800: #1d2939;
+    --ag-aggray-900: #101828;
+}
+
+.dark {
+    /* antd semantic tokens (dark = antd darkAlgorithm output) */
+    --ag-colorText: var(--ant-color-text);
+    --ag-colorTextSecondary: var(--ant-color-text-secondary);
+    --ag-colorTextTertiary: var(--ant-color-text-tertiary);
+    --ag-colorTextQuaternary: var(--ant-color-text-quaternary);
+    --ag-colorTextHeading: var(--ant-color-text-heading);
+    --ag-colorTextLabel: var(--ant-color-text-label);
+    --ag-colorTextDescription: var(--ant-color-text-description);
+    --ag-colorTextDisabled: var(--ant-color-text-disabled);
+    --ag-colorTextPlaceholder: var(--ant-color-text-placeholder);
+    --ag-colorTextLightSolid: var(--ant-color-text-light-solid);
+    --ag-colorIcon: var(--ant-color-text-tertiary);
+    --ag-colorIconHover: var(--ant-color-text);
+    --ag-colorBgContainer: var(--ant-color-bg-container);
+    --ag-colorBgElevated: var(--ant-color-bg-elevated);
+    --ag-colorBgLayout: var(--ant-color-bg-layout);
+    --ag-colorBgBase: var(--ant-color-bg-base);
+    --ag-colorBgSpotlight: var(--ant-color-bg-spotlight);
+    --ag-colorBgMask: var(--ant-color-bg-mask);
+    --ag-colorBorder: var(--ant-color-border);
+    --ag-colorBorderSecondary: var(--ant-color-border-secondary);
+    --ag-colorFill: var(--ant-color-fill);
+    --ag-colorFillSecondary: var(--ant-color-fill-secondary);
+    --ag-colorFillTertiary: var(--ant-color-fill-tertiary);
+    --ag-colorFillQuaternary: var(--ant-color-fill-quaternary);
+    --ag-colorSplit: var(--ant-color-split);
+    --ag-colorPrimary: var(--ant-color-primary);
+    --ag-colorPrimaryText: var(--ant-color-primary-text);
+    --ag-colorSuccess: var(--ant-color-success);
+    --ag-colorWarning: var(--ant-color-warning);
+    --ag-colorWarningText: var(--ant-color-warning-text);
+    --ag-colorErrorText: var(--ant-color-error-text);
+    --ag-colorError: var(--ant-color-error);
+    --ag-colorErrorBorder: var(--ant-color-error-border);
+    --ag-colorBgContainerDisabled: var(--ant-color-bg-container-disabled);
+    /* The project repurposes colorInfoBg as a neutral grey (#f5f7fa ≈ zinc-1, see
+       agenta-ui/utils/styles.ts), not a blue info tint — so keep it neutral in
+       dark (bg-elevated) instead of antd's blue --ant-color-info-bg. */
+    --ag-colorInfoBg: var(--ant-color-bg-elevated);
+    --ag-controlItemBgActive: var(--ant-control-item-bg-active);
+    --ag-colorWhite: var(--ant-color-white);
+    --ag-boxShadowTertiary: var(--ant-box-shadow-tertiary);
+
+    /* zinc — role-inverted: low index = dark surface, high index = light text */
+    --ag-zinc-1: var(--ant-color-bg-elevated);
+    --ag-zinc-2: #2a2a2a;
+    --ag-zinc-3: #383838;
+    --ag-zinc-4: var(--ant-color-border);
+    --ag-zinc-5: #5c5c5c;
+    --ag-zinc-6: var(--ant-color-text-tertiary);
+    --ag-zinc-7: var(--ant-color-text-secondary);
+    --ag-zinc-8: rgba(255, 255, 255, 0.75);
+    --ag-zinc-9: var(--ant-color-text);
+    --ag-zinc-10: rgba(255, 255, 255, 0.95);
+
+    /* gray — role-inverted Tailwind gray */
+    --ag-gray-50: #1a1a1a;
+    --ag-gray-100: var(--ant-color-bg-elevated);
+    --ag-gray-200: #2a2a2a;
+    --ag-gray-300: #383838;
+    --ag-gray-400: #5c5c5c;
+    --ag-gray-500: #8c8c8c;
+    --ag-gray-600: rgba(255, 255, 255, 0.55);
+    --ag-gray-700: var(--ant-color-text-secondary);
+    --ag-gray-800: rgba(255, 255, 255, 0.75);
+    --ag-gray-900: var(--ant-color-text);
+    --ag-gray-950: rgba(255, 255, 255, 0.92);
+
+    /* ag-gray — role-inverted Untitled-UI gray */
+    --ag-aggray-25: #1a1a1a;
+    --ag-aggray-50: var(--ant-color-bg-elevated);
+    --ag-aggray-100: #242424;
+    --ag-aggray-200: #2f2f2f;
+    --ag-aggray-300: #3d3d3d;
+    --ag-aggray-400: #5c5c5c;
+    --ag-aggray-500: #8c8c8c;
+    --ag-aggray-600: rgba(255, 255, 255, 0.55);
+    --ag-aggray-700: var(--ant-color-text-secondary);
+    --ag-aggray-800: rgba(255, 255, 255, 0.75);
+    --ag-aggray-900: var(--ant-color-text);
+}
+
+/* Codemod color variables — hardcoded hex routed through variables for dark mode. */
+:root {
+    --ag-c-051729: #051729;
+    --ag-c-05172905: #05172905;
+    --ag-c-0517290A: #0517290a;
+    --ag-c-0517290F: #0517290f;
+    --ag-c-05172916: #05172916;
+    --ag-c-0517291A: #0517291a;
+    --ag-c-0A2540: #0a2540;
+    --ag-c-0B1F3F: #0b1f3f;
+    --ag-c-101828: #101828;
+    --ag-c-13C2C2: #13c2c2;
+    --ag-c-1677FF: #1677ff;
+    --ag-c-1677FF22: #1677ff22;
+    --ag-c-17324D: #17324d;
+    --ag-c-1C2C3D: #1c2c3d;
+    --ag-c-1D2939: #1d2939;
+    --ag-c-1D4ED8: #1d4ed8;
+    --ag-c-2A2A2A: #2a2a2a;
+    --ag-c-344054: #344054;
+    --ag-c-344054BF: #344054bf;
+    --ag-c-36CFC9: #36cfc9;
+    --ag-c-374151: #374151;
+    --ag-c-394857: #394857;
+    --ag-c-475467: #475467;
+    --ag-c-475569: #475569;
+    --ag-c-586673: #586673;
+    --ag-c-64748B: #64748b;
+    --ag-c-667085: #667085;
+    --ag-c-667085BF: #667085bf;
+    --ag-c-6B7280: #6b7280;
+    --ag-c-758391: #758391;
+    --ag-c-7839EE: #7839ee;
+    --ag-c-888: #888;
+    --ag-c-9254DE: #9254de;
+    --ag-c-94A3B8: #94a3b8;
+    --ag-c-98A2B3: #98a2b3;
+    --ag-c-98C379: #98c379;
+    --ag-c-9D4EDD: #9d4edd;
+    --ag-c-B42318: #b42318;
+    --ag-c-BDC7D1: #bdc7d1;
+    --ag-c-C11574: #c11574;
+    --ag-c-C678DD: #c678dd;
+    --ag-c-D0D5DD: #d0d5dd;
+    --ag-c-D0D7E3: #d0d7e3;
+    --ag-c-D19A66: #d19a66;
+    --ag-c-D4760A: #d4760a;
+    --ag-c-D48806: #d48806;
+    --ag-c-D61010: #d61010;
+    --ag-c-DBEAFE: #dbeafe;
+    --ag-c-E0EAFF: #e0eaff;
+    --ag-c-E2E8F0: #e2e8f0;
+    --ag-c-E4E7EC: #e4e7ec;
+    --ag-c-E5E7EB: #e5e7eb;
+    --ag-c-E6F4FF: #e6f4ff;
+    --ag-c-E9D7FE: #e9d7fe;
+    --ag-c-EAECF0: #eaecf0;
+    --ag-c-EAEFF5: #eaeff5;
+    --ag-c-EEF2FF: #eef2ff;
+    --ag-c-F0F0F0: #f0f0f0;
+    --ag-c-F2F4F7: #f2f4f7;
+    --ag-c-F4EBFF: #f4ebff;
+    --ag-c-F5F5F5: #f5f5f5;
+    --ag-c-F5F7FA: #f5f7fa;
+    --ag-c-F6F8FA: #f6f8fa;
+    --ag-c-F8FAFC: #f8fafc;
+    --ag-c-F9FAFB: #f9fafb;
+    --ag-c-FAFAFA: #fafafa;
+    --ag-c-FAFAFB: #fafafb;
+    --ag-c-FAFBFC: #fafbfc;
+    --ag-c-FCE7F6: #fce7f6;
+    --ag-c-FDF2FA: #fdf2fa;
+    --ag-c-FEE4E2: #fee4e2;
+    --ag-c-FF4D4F: #ff4d4f;
+    --ag-c-FFE4B5: #ffe4b5;
+    --ag-c-FFE58F: #ffe58f;
+    --ag-c-FFF7E6: #fff7e6;
+    --ag-c-FFFBE6: #fffbe6;
+    --ag-c-FFFBFA: #fffbfa;
+    --ag-c-FFFFFF: #ffffff;
+}
+
+.dark {
+    /* Brand navy #051729 — used predominantly as a near-black TEXT color (drill-in
+       toolbar titles, field-header names, "View as" dropdowns, "Outputs" label).
+       The codemod mapped it to a saturated blue (#229eff), which made all that text
+       read as blue links in dark. Map it to the standard dark text color instead so
+       navy-as-text becomes light-as-text. (The few fill usages — e.g. the annotation
+       EmptyQueueState primary button — carry their own dark override.) */
+    --ag-c-051729: rgba(255, 255, 255, 0.88);
+    /* navy-alpha fills: invert to white-alpha so they're visible on dark
+       (the codemod left these as navy, i.e. invisible — e.g. evaluator Tags chips) */
+    --ag-c-05172905: rgba(255, 255, 255, 0.04);
+    --ag-c-0517290A: rgba(255, 255, 255, 0.06);
+    --ag-c-0517290F: rgba(255, 255, 255, 0.08);
+    --ag-c-05172916: rgba(255, 255, 255, 0.1);
+    --ag-c-0517291A: rgba(255, 255, 255, 0.12);
+    --ag-c-0A2540: #2a9cff;
+    --ag-c-0B1F3F: var(--ant-color-text);
+    --ag-c-101828: var(--ant-color-text);
+    --ag-c-13C2C2: #13c2c2;
+    --ag-c-1677FF: #1d9aff;
+    --ag-c-1677FF22: rgba(22, 119, 255, 0.133);
+    --ag-c-17324D: var(--ant-color-text-secondary);
+    --ag-c-1C2C3D: var(--ant-color-text);
+    --ag-c-1D2939: var(--ant-color-text);
+    --ag-c-1D4ED8: #348dff;
+    --ag-c-2A2A2A: var(--ant-color-text);
+    --ag-c-344054: var(--ant-color-text-secondary);
+    --ag-c-344054BF: rgba(255, 255, 255, 0.749);
+    --ag-c-36CFC9: #36cfc9;
+    --ag-c-374151: var(--ant-color-text-secondary);
+    --ag-c-394857: var(--ant-color-text-secondary);
+    --ag-c-475467: var(--ant-color-text-tertiary);
+    --ag-c-475569: var(--ant-color-text-tertiary);
+    --ag-c-586673: var(--ant-color-text-tertiary);
+    --ag-c-64748B: var(--ant-color-text-tertiary);
+    --ag-c-667085: var(--ant-color-text-tertiary);
+    --ag-c-667085BF: rgba(255, 255, 255, 0.749);
+    --ag-c-6B7280: var(--ant-color-text-tertiary);
+    --ag-c-758391: var(--ant-color-border);
+    --ag-c-7839EE: #ca60ff;
+    --ag-c-888: var(--ant-color-border);
+    --ag-c-9254DE: #bf6eff;
+    /* slate-400 / gray-400 — used exclusively as a muted secondary TEXT color
+       (e.g. the uppercase OUTPUTS / WITH-REASONING section labels in the eval
+       scenario drawer). The codemod flattened them to #2f2f2f (a dark surface),
+       which is near-invisible on the #141414 drawer. Map to the muted-text token
+       so they read as quiet-but-legible labels, matching their light-mode intent. */
+    --ag-c-94A3B8: var(--ant-color-text-tertiary);
+    --ag-c-98A2B3: var(--ant-color-text-tertiary);
+    --ag-c-98C379: #98c379;
+    --ag-c-9D4EDD: #d168ff;
+    --ag-c-B42318: #ff4b34;
+    --ag-c-BDC7D1: #2f2f2f;
+    --ag-c-C11574: #ff2efd;
+    --ag-c-C678DD: #c678dd;
+    --ag-c-D0D5DD: #242424;
+    --ag-c-D0D7E3: #242424;
+    --ag-c-D19A66: #d19a66;
+    --ag-c-D4760A: #d4760a;
+    --ag-c-D48806: #d48806;
+    --ag-c-D61010: #ff2727;
+    --ag-c-DBEAFE: #242424;
+    --ag-c-E0EAFF: #242424;
+    --ag-c-E2E8F0: #242424;
+    --ag-c-E4E7EC: #242424;
+    --ag-c-E5E7EB: #242424;
+    --ag-c-E6F4FF: var(--ant-color-bg-elevated);
+    --ag-c-E9D7FE: #242424;
+    --ag-c-EAECF0: var(--ant-color-bg-elevated);
+    --ag-c-EAEFF5: var(--ant-color-bg-elevated);
+    --ag-c-EEF2FF: var(--ant-color-bg-elevated);
+    --ag-c-F0F0F0: var(--ant-color-bg-elevated);
+    --ag-c-F2F4F7: var(--ant-color-bg-elevated);
+    --ag-c-F4EBFF: var(--ant-color-bg-elevated);
+    --ag-c-F5F5F5: var(--ant-color-bg-elevated);
+    --ag-c-F5F7FA: var(--ant-color-bg-elevated);
+    --ag-c-F6F8FA: var(--ant-color-bg-elevated);
+    --ag-c-F8FAFC: var(--ant-color-bg-elevated);
+    --ag-c-F9FAFB: var(--ant-color-bg-elevated);
+    /* Near-white "raised band" surface (drill-in field headers + root toolbar,
+       playground Outputs header, code blocks, result placeholders). In light it's
+       #fafafa — a faint band a touch off the white base. The codemod collapsed its
+       dark value onto colorBgElevated (#242424), which is the SAME token the drawer/
+       modal/popover body uses, so the band had zero surface contrast against the
+       drawer behind it (only a faint hairline). Use a translucent white overlay so
+       the band always renders ~6% lighter than whatever backdrop it sits on — a real
+       raised step on the drawer (#242424 -> ~#313131) and on a plain page alike. */
+    --ag-c-FAFAFA: rgba(255, 255, 255, 0.06);
+    --ag-c-FAFAFB: var(--ant-color-bg-elevated);
+    --ag-c-FAFBFC: var(--ant-color-bg-elevated);
+    --ag-c-FCE7F6: var(--ant-color-bg-elevated);
+    --ag-c-FDF2FA: var(--ant-color-bg-elevated);
+    --ag-c-FEE4E2: #242424;
+    --ag-c-FF4D4F: #ff4d4f;
+    --ag-c-FFE4B5: #242424;
+    --ag-c-FFE58F: #242424;
+    --ag-c-FFF7E6: var(--ant-color-bg-elevated);
+    --ag-c-FFFBE6: var(--ant-color-bg-elevated);
+    --ag-c-FFFBFA: var(--ant-color-bg-elevated);
+    --ag-c-FFFFFF: var(--ant-color-bg-container);
+}
+
+/* Extra colors referenced by standalone CSS (evaluations.css). */
+:root {
+    --ag-c-0F172A: #0f172a;
+    --ag-c-E4ECFF: #e4ecff;
+    --ag-c-C7D7FE: #c7d7fe;
+    --ag-c-1D3A8A: #1d3a8a;
+}
+.dark {
+    --ag-c-0F172A: var(--ant-color-text);
+    --ag-c-E4ECFF: #243042;
+    --ag-c-C7D7FE: #2e3f63;
+    --ag-c-1D3A8A: #8fb4ff;
+}
+
+/* Reference-tag tones — light = exact Untitled-UI hex (unchanged), dark = the
+   matching antd preset so the chips stay light-lossless yet adapt in dark.
+   Per-tone (not per-hex) because some light hexes are shared across tones. */
+:root {
+    --ag-ref-app-text: #175cd3;
+    --ag-ref-app-bg: #eff8ff;
+    --ag-ref-app-border: #b2ddff;
+    --ag-ref-variant-text: #027a48;
+    --ag-ref-variant-bg: #ecfdf3;
+    --ag-ref-variant-border: #abefc6;
+    --ag-ref-testset-text: #5925dc;
+    --ag-ref-testset-bg: #f4ebff;
+    --ag-ref-testset-border: #d6bbfb;
+    --ag-ref-query-text: #b93815;
+    --ag-ref-query-bg: #fef6ee;
+    --ag-ref-query-border: #f9dbaf;
+    --ag-ref-evaluator-text: #c01048;
+    --ag-ref-evaluator-bg: #fff1f3;
+    --ag-ref-evaluator-border: #fcceee;
+    --ag-ref-environment-text: #0f766e;
+    --ag-ref-environment-bg: #ecfdf3;
+    --ag-ref-environment-border: #99f6e4;
+}
+.dark {
+    --ag-ref-app-text: var(--ant-blue-7);
+    --ag-ref-app-bg: var(--ant-blue-1);
+    --ag-ref-app-border: var(--ant-blue-3);
+    --ag-ref-variant-text: var(--ant-green-7);
+    --ag-ref-variant-bg: var(--ant-green-1);
+    --ag-ref-variant-border: var(--ant-green-3);
+    --ag-ref-testset-text: var(--ant-purple-7);
+    --ag-ref-testset-bg: var(--ant-purple-1);
+    --ag-ref-testset-border: var(--ant-purple-3);
+    --ag-ref-query-text: var(--ant-volcano-7);
+    --ag-ref-query-bg: var(--ant-volcano-1);
+    --ag-ref-query-border: var(--ant-volcano-3);
+    --ag-ref-evaluator-text: var(--ant-magenta-7);
+    --ag-ref-evaluator-bg: var(--ant-magenta-1);
+    --ag-ref-evaluator-border: var(--ant-magenta-3);
+    --ag-ref-environment-text: var(--ant-cyan-7);
+    --ag-ref-environment-bg: var(--ant-cyan-1);
+    --ag-ref-environment-border: var(--ant-cyan-3);
+}
+
+/* Deployment-environment tag tones — light = the exact hex from
+   environmentColors (unchanged), dark = the matching antd preset so the
+   pills adapt instead of staying bright. Border tracks bg in light (invisible
+   edge), preset-3 in dark (subtle edge). */
+:root {
+    --ag-env-production-text: #237804;
+    --ag-env-production-bg: #d9f7be;
+    --ag-env-production-border: #d9f7be;
+    --ag-env-staging-text: #fa541c;
+    --ag-env-staging-bg: #fff2e8;
+    --ag-env-staging-border: #fff2e8;
+    --ag-env-development-text: #722ed1;
+    --ag-env-development-bg: #f9f0ff;
+    --ag-env-development-border: #f9f0ff;
+}
+.dark {
+    --ag-env-production-text: var(--ant-green-7);
+    --ag-env-production-bg: var(--ant-green-1);
+    --ag-env-production-border: var(--ant-green-3);
+    --ag-env-staging-text: var(--ant-volcano-7);
+    --ag-env-staging-bg: var(--ant-volcano-1);
+    --ag-env-staging-border: var(--ant-volcano-3);
+    --ag-env-development-text: var(--ant-purple-7);
+    --ag-env-development-bg: var(--ant-purple-1);
+    --ag-env-development-border: var(--ant-purple-3);
+}
+
+/* Editor variable-token chip tones — TokenNode.ts paints the placeholder chips
+   via inline JS style, so the hex codemod can't reach them. Define the missing
+   hexes here (the others — E2E8F0/1677FF/6B7280 — already have codemod vars).
+   Light = exact original hex; dark = adapted for a dark chip surface. */
+:root {
+    --ag-c-A855F7: #a855f7;
+    --ag-c-FEF2F2: #fef2f2;
+    --ag-c-B91C1C: #b91c1c;
+    --ag-c-F87171: #f87171;
+}
+.dark {
+    --ag-c-A855F7: #c084fc;
+    --ag-c-FEF2F2: #2a1215;
+    --ag-c-B91C1C: #ff7875;
+    --ag-c-F87171: #a8353a;
+}
+
+/* Sidebar chrome surface — light = #fff (unchanged, was --ag-c-FFFFFF), dark =
+   one step darker than the content surface (#141414) so the nav rail recedes
+   and reads as distinct chrome instead of merging into a single flat panel. */
+:root {
+    --ag-sidebar-bg: #ffffff;
+}
+.dark {
+    --ag-sidebar-bg: #0d0d0d;
+}
+
+/* Evaluations "Application" cell (app name + variant slug + version chip). The
+   slug/row/chip were hardcoded navy rgba in evaluations.css → near-invisible on
+   dark. Light = the exact prior rgba (unchanged); dark = adapted tokens. */
+:root {
+    --ag-app-variant-row: rgba(15, 23, 42, 0.55);
+    --ag-app-variant-label: rgba(15, 23, 42, 0.85);
+    --ag-app-variant-chip-bg: rgba(5, 23, 41, 0.08);
+}
+.dark {
+    --ag-app-variant-row: var(--ant-color-text-secondary);
+    --ag-app-variant-label: var(--ant-color-text);
+    --ag-app-variant-chip-bg: var(--ant-color-fill-secondary);
+}
+
+/* Run-comparison row tints. Light = the pale pastel per palette hue (unchanged);
+   dark = a low-alpha wash of the same hue so compare rows stay distinguishable
+   without rendering as bright light bands. Keep in sync with RUN_COMPARISON_PALETTE
+   (atoms/compare.ts). */
+:root {
+    --ag-cmp-tint-0: #eff6ff;
+    --ag-cmp-tint-1: #fff7ed;
+    --ag-cmp-tint-2: #f5f3ff;
+    --ag-cmp-tint-3: #ecfdf5;
+    --ag-cmp-tint-4: #fdf2f8;
+}
+.dark {
+    --ag-cmp-tint-0: rgba(59, 130, 246, 0.14);
+    --ag-cmp-tint-1: rgba(249, 115, 22, 0.14);
+    --ag-cmp-tint-2: rgba(139, 92, 246, 0.14);
+    --ag-cmp-tint-3: rgba(16, 185, 129, 0.14);
+    --ag-cmp-tint-4: rgba(236, 72, 153, 0.14);
+}
+
+/* Arbitrary rgba() Tailwind classes the hex codemod couldn't reach (it only
+   handled [#hex], not [rgba(...)]). Light = the exact original rgba (unchanged);
+   dark = the same alpha on white (fills/borders → subtle light overlay; text →
+   light text), so navy/black-on-white chrome inverts to white-on-dark instead of
+   staying dark-on-dark. Routed via sed: [rgba(...)] -> [var(--ag-rgba-...)]. */
+:root {
+    --ag-rgba-051729-02: rgba(5, 23, 41, 0.02);
+    --ag-rgba-051729-04: rgba(5, 23, 41, 0.04);
+    --ag-rgba-051729-06: rgba(5, 23, 41, 0.06);
+    --ag-rgba-051729-08: rgba(5, 23, 41, 0.08);
+    --ag-rgba-051729-10: rgba(5, 23, 41, 0.1);
+    --ag-rgba-051729-14: rgba(5, 23, 41, 0.14);
+    --ag-rgba-051729-18: rgba(5, 23, 41, 0.18);
+    --ag-rgba-051729-45: rgba(5, 23, 41, 0.45);
+    --ag-rgba-051729-55: rgba(5, 23, 41, 0.55);
+    --ag-rgba-051729-65: rgba(5, 23, 41, 0.65);
+    --ag-rgba-051729-72: rgba(5, 23, 41, 0.72);
+    --ag-rgba-000-02: rgba(0, 0, 0, 0.02);
+    --ag-rgba-000-06: rgba(0, 0, 0, 0.06);
+    --ag-rgba-000-45: rgba(0, 0, 0, 0.45);
+    --ag-rgba-fff-78: rgba(255, 255, 255, 0.78);
+}
+.dark {
+    --ag-rgba-051729-02: rgba(255, 255, 255, 0.04);
+    --ag-rgba-051729-04: rgba(255, 255, 255, 0.06);
+    --ag-rgba-051729-06: rgba(255, 255, 255, 0.08);
+    --ag-rgba-051729-08: rgba(255, 255, 255, 0.1);
+    --ag-rgba-051729-10: rgba(255, 255, 255, 0.12);
+    --ag-rgba-051729-14: rgba(255, 255, 255, 0.16);
+    --ag-rgba-051729-18: rgba(255, 255, 255, 0.2);
+    --ag-rgba-051729-45: rgba(255, 255, 255, 0.45);
+    --ag-rgba-051729-55: rgba(255, 255, 255, 0.6);
+    --ag-rgba-051729-65: rgba(255, 255, 255, 0.7);
+    --ag-rgba-051729-72: rgba(255, 255, 255, 0.78);
+    --ag-rgba-000-02: rgba(255, 255, 255, 0.04);
+    --ag-rgba-000-06: rgba(255, 255, 255, 0.08);
+    --ag-rgba-000-45: rgba(255, 255, 255, 0.45);
+    --ag-rgba-fff-78: rgba(20, 20, 20, 0.82);
+}
+
+/* Compare-runs status-row tints (inline-styled in CompareRunsMenu). Light =
+   exact pastel hex; dark = matching antd preset bg so the status rows stay
+   tinted instead of bright. */
+:root {
+    --ag-c-ECFDF3: #ecfdf3;
+    --ag-c-FEF3F2: #fef3f2;
+    --ag-c-EFF8FF: #eff8ff;
+    --ag-c-FFFAEB: #fffaeb;
+}
+.dark {
+    --ag-c-ECFDF3: var(--ant-green-1);
+    --ag-c-FEF3F2: var(--ant-red-1);
+    --ag-c-EFF8FF: var(--ant-blue-1);
+    --ag-c-FFFAEB: var(--ant-gold-1);
+}
+
+/* Tailwind neutral/slate scales — unlike gray/zinc/ag-gray these weren't
+   theme-aware, so text-neutral and bg-slate utilities stayed fixed and broke on
+   dark. Light = the exact Tailwind v3 hex (unchanged); dark = the same
+   role-inverted ramp gray uses (low index = dark surface, high index = light
+   text). The config points the neutral/slate scales at these (tailwind.config.ts). */
+:root {
+    --ag-neutral-50: #fafafa;
+    --ag-neutral-100: #f5f5f5;
+    --ag-neutral-200: #e5e5e5;
+    --ag-neutral-300: #d4d4d4;
+    --ag-neutral-400: #a3a3a3;
+    --ag-neutral-500: #737373;
+    --ag-neutral-600: #525252;
+    --ag-neutral-700: #404040;
+    --ag-neutral-800: #262626;
+    --ag-neutral-900: #171717;
+    --ag-neutral-950: #0a0a0a;
+    --ag-slate-50: #f8fafc;
+    --ag-slate-100: #f1f5f9;
+    --ag-slate-200: #e2e8f0;
+    --ag-slate-300: #cbd5e1;
+    --ag-slate-400: #94a3b8;
+    --ag-slate-500: #64748b;
+    --ag-slate-600: #475569;
+    --ag-slate-700: #334155;
+    --ag-slate-800: #1e293b;
+    --ag-slate-900: #0f172a;
+    --ag-slate-950: #020617;
+}
+.dark {
+    --ag-neutral-50: #1a1a1a;
+    --ag-neutral-100: var(--ant-color-bg-elevated);
+    --ag-neutral-200: #2a2a2a;
+    --ag-neutral-300: #383838;
+    --ag-neutral-400: #5c5c5c;
+    --ag-neutral-500: #8c8c8c;
+    --ag-neutral-600: rgba(255, 255, 255, 0.55);
+    --ag-neutral-700: var(--ant-color-text-secondary);
+    --ag-neutral-800: rgba(255, 255, 255, 0.75);
+    --ag-neutral-900: var(--ant-color-text);
+    --ag-neutral-950: rgba(255, 255, 255, 0.92);
+    --ag-slate-50: #1a1a1a;
+    --ag-slate-100: var(--ant-color-bg-elevated);
+    --ag-slate-200: #2a2a2a;
+    --ag-slate-300: #383838;
+    --ag-slate-400: #5c5c5c;
+    --ag-slate-500: #8c8c8c;
+    --ag-slate-600: rgba(255, 255, 255, 0.55);
+    --ag-slate-700: var(--ant-color-text-secondary);
+    --ag-slate-800: rgba(255, 255, 255, 0.75);
+    --ag-slate-900: var(--ant-color-text);
+    --ag-slate-950: rgba(255, 255, 255, 0.92);
+}

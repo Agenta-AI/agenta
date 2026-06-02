@@ -91,8 +91,8 @@ const TestcaseEditDrawerContent = ({
         <div className="flex flex-col h-full overflow-hidden w-full [&_.drill-in-breadcrumb]:pl-4 [&_.drill-in-field-content]:px-4 [&_.drill-in-field-content]:pt-2">
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 {isNewRow && isFormMode ? (
-                    <div className="rounded-md bg-green-50 border border-green-200 p-3 m-4 mb-0">
-                        <Text type="secondary" className="text-green-700">
+                    <div className="rounded-md bg-green-50 border border-green-200 dark:bg-green-900/25 dark:border-green-800 p-3 m-4 mb-0">
+                        <Text type="secondary" className="text-green-700 dark:text-green-300">
                             This is a new testcase that hasn&apos;t been saved to the server yet.
                             Fill in the fields below and click &quot;Save Testset&quot; to persist
                             all changes.

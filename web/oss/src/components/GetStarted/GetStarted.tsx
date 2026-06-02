@@ -5,10 +5,7 @@ import {Typography, Card, Button} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {
-    SetupTracingModalContent,
-    useStyles as useTracingStyles,
-} from "@/oss/components/pages/app-management/modals/SetupTracingModal"
+import {SetupTracingModalContent} from "@/oss/components/pages/app-management/modals/SetupTracingModal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {setOnboardingWidgetActivationAtom} from "@/oss/lib/onboarding"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
@@ -24,7 +21,6 @@ interface GetStartedProps {
 }
 
 const GetStarted = ({onSelectDemo}: GetStartedProps) => {
-    const tracingClasses = useTracingStyles()
     const router = useRouter()
     const posthog = usePostHogAg()
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
@@ -113,12 +109,7 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
     if (view === "trace") {
         return (
             <div className="w-full max-w-[800px] mx-auto p-6 bg-[var(--ant-color-bg-container)] rounded-lg border border-[var(--ant-color-border-secondary)] mb-10">
-                <SetupTracingModalContent
-                    classes={tracingClasses}
-                    onCancel={() => {}}
-                    isModal={false}
-                    isPostLogin={true}
-                />
+                <SetupTracingModalContent onCancel={() => {}} isModal={false} isPostLogin={true} />
                 <div className="flex justify-between mt-6">
                     <Button type="text" icon={<ArrowLeft />} onClick={() => setView("selection")}>
                         Back
@@ -223,7 +214,11 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
                 </>
             )}
 
-            <Button type="link" onClick={navigateToDestination}>
+            <Button
+                type="link"
+                onClick={navigateToDestination}
+                className="!text-colorTextSecondary hover:!text-colorText"
+            >
                 Skip
             </Button>
         </div>

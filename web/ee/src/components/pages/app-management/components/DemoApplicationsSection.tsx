@@ -1,36 +1,15 @@
 import {Button, Card, Flex, Space, Typography} from "antd"
 import Image from "next/image"
-import {createUseStyles} from "react-jss"
 
-import {JSSTheme} from "@/oss/lib/Types"
 import {useOrgData} from "@/oss/state/org"
 import {useProjectData} from "@/oss/state/project"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    demoAppCard: {
-        width: 400,
-        "& .ant-card-body": {
-            padding: theme.paddingSM,
-            "& span.ant-typography": {
-                textOverflow: "ellipsis",
-                fontSize: theme.fontSizeLG,
-                fontWeight: theme.fontWeightMedium,
-                lineHeight: theme.lineHeightLG,
-                color: "inherit",
-            },
-            "& div.ant-typography": {
-                fontSize: theme.fontSizeLG,
-                lineHeight: theme.lineHeightLG,
-                color: theme.colorTextSecondary,
-            },
-        },
-    },
-}))
+const demoAppCardClass =
+    "w-[400px] [&_.ant-card-body]:p-3 [&_.ant-card-body_span.ant-typography]:text-ellipsis [&_.ant-card-body_span.ant-typography]:text-sm [&_.ant-card-body_span.ant-typography]:font-medium [&_.ant-card-body_span.ant-typography]:leading-[1.5714285714285714] [&_.ant-card-body_span.ant-typography]:text-[inherit] [&_.ant-card-body_div.ant-typography]:text-sm [&_.ant-card-body_div.ant-typography]:leading-[1.5714285714285714] [&_.ant-card-body_div.ant-typography]:text-colorTextSecondary"
 
 const {Text, Title, Paragraph} = Typography
 
 const DemoApplicationsSection = () => {
-    const classes = useStyles()
     const {projects} = useProjectData()
     const {changeSelectedOrg} = useOrgData()
 
@@ -54,7 +33,7 @@ const DemoApplicationsSection = () => {
 
             <div>
                 <Card
-                    className={classes.demoAppCard}
+                    className={demoAppCardClass}
                     cover={
                         <Image
                             src={"/assets/rag-demo-app.webp"}

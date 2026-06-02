@@ -142,11 +142,14 @@ export interface GroupedTemplateVariable {
     /** Display label. Same as `key` under this model. */
     name: string
     /**
-     * Declared shape. `"object"` when any placeholder references a sub-path
-     * of this group (signals the UI to render a JSON editor); otherwise
-     * `"string"`.
+     * Declared shape.
+     *   - `"object"` when any placeholder references a sub-path of this
+     *     group (`{{geo.region}}` → object with `region` sub-path).
+     *   - `"array"` when the name appears ONLY as a mustache section opener
+     *     (`{{#languages}}{{.}}{{/languages}}` → array, no sub-paths).
+     *   - `"string"` otherwise.
      */
-    type: "string" | "object"
+    type: "string" | "object" | "array"
     /**
      * Known sub-paths beneath the group (populated only when `type === "object"`).
      * Used to seed a shape-hint default in the JSON editor so users see
@@ -165,6 +168,14 @@ interface ParsedTemplateExpression {
     subPath?: string
 }
 
+/** Subset of TemplateFormat needed for the literal-vs-nested decision in
+ *  `parseTemplateExpression`. Curly is special-cased because its backend
+ *  resolver does literal-key-first lookup; the others either follow the
+ *  Mustache spec (dotted names are nested) or share the same nested
+ *  semantics. Kept as a string literal union so the helper stays
+ *  free-standing — no need to pull the full `TemplateFormat` type in here. */
+type TemplateFormatForParse = "mustache" | "curly" | "fstring" | "jinja2"
+
 /**
  * Parse a single template placeholder into `{envelope, key, subPath?}`.
  *
@@ -173,7 +184,7 @@ interface ParsedTemplateExpression {
  * referencing within that slot. Anything deeper is a sub-path that will
  * be grouped into an object-typed variable.
  *
- * Examples:
+ * Examples (mustache/jinja2 — i.e. nested dot-notation):
  *   `$.inputs.country`          → {envelope: "inputs",    key: "country"}
  *   `$.inputs.arda.test254`     → {envelope: "inputs",    key: "arda",    subPath: "test254"}
  *   `$.inputs.arda.a.b`         → {envelope: "inputs",    key: "arda",    subPath: "a.b"}
@@ -182,20 +193,67 @@ interface ParsedTemplateExpression {
  *   `inputs.country`            → {envelope: "inputs",    key: "country"}
  *   `user.name`                 → {envelope: "inputs",    key: "user",    subPath: "name"}
  *
+ * Curly is special — `templateFormat === "curly"` forces plain dotted
+ * names (no `$`/`/` prefix, no envelope first segment) to be treated as
+ * LITERAL single keys instead of nested paths. Background: the backend
+ * curly renderer does literal-key-first lookup (see
+ * `sdks/python/agenta/sdk/utils/resolvers.py:46-50`), so `{{user.name}}`
+ * in a curly prompt should map to a testcase column LITERALLY named
+ * `"user.name"`. Legacy curly testsets commonly carry such dotted column
+ * names; treating them as nested would orphan the value in the
+ * "unused columns" footer and force the user to re-author the data.
+ *
+ * Curly examples:
+ *   `user.name`                 → {envelope: "inputs",    key: "user.name"}  (literal)
+ *   `topic.story`               → {envelope: "inputs",    key: "topic.story"}
+ *   `inputs.country`            → {envelope: "inputs",    key: "country"}    (envelope still routes)
+ *   `$.inputs.country`          → {envelope: "inputs",    key: "country"}    (JSONPath unchanged)
+ *
+ * JSONPath and JSON Pointer paths are always parsed as nested regardless
+ * of format — the backend treats `$.*` / `/*` identically across curly,
+ * mustache, and jinja2 (see `templating.py:14-16`).
+ *
  * Validation is performed upstream in `groupTemplateVariables` via
  * `isValidTemplateVariable`, so this parser can assume the envelope
  * segment is a known slot.
  */
-function parseTemplateExpression(expr: string): ParsedTemplateExpression {
+function parseTemplateExpression(
+    expr: string,
+    templateFormat?: TemplateFormatForParse,
+): ParsedTemplateExpression {
     if (!expr) return {envelope: "inputs", key: ""}
 
     const parseSegments = (segments: string[]): ParsedTemplateExpression => {
         if (segments.length === 0) return {envelope: "inputs", key: ""}
-        if (segments.length === 1) return {envelope: segments[0], key: ""}
+
+        const first = segments[0]
+        const firstIsEnvelope = KNOWN_ENVELOPE_SLOTS.has(first)
+
+        if (segments.length === 1) {
+            // `$.inputs` / `$.outputs` — envelope-only reference.
+            if (firstIsEnvelope) return {envelope: first, key: ""}
+            // `$.profile` — testcase-spread key. Per the RFC, testcase
+            // top-level columns are spread into the render context, so
+            // they live implicitly under the `inputs` envelope. Treating
+            // the first segment as the key under `inputs` keeps port
+            // discovery consistent with envelope-rooted writes.
+            return {envelope: "inputs", key: first}
+        }
+
+        if (firstIsEnvelope) {
+            return {
+                envelope: first,
+                key: segments[1],
+                subPath: segments.length > 2 ? segments.slice(2).join(".") : undefined,
+            }
+        }
+        // Testcase-spread key with a sub-path: `$.profile.name` →
+        // `{envelope: "inputs", key: "profile", subPath: "name"}`. The
+        // testcase spread makes this equivalent to `$.inputs.profile.name`.
         return {
-            envelope: segments[0],
-            key: segments[1],
-            subPath: segments.length > 2 ? segments.slice(2).join(".") : undefined,
+            envelope: "inputs",
+            key: first,
+            subPath: segments.length > 1 ? segments.slice(1).join(".") : undefined,
         }
     }
 
@@ -226,11 +284,20 @@ function parseTemplateExpression(expr: string): ParsedTemplateExpression {
     // `envelope === "inputs"`. Treat them as inputs-scoped sub-path
     // references (`{envelope: "inputs", key: "user", subPath: "name"}`),
     // matching how `$.inputs.user.name` parses.
+    //
+    // EXCEPTION — curly: backend curly does literal-key-first lookup, so
+    // a curly user authoring `{{user.name}}` typically means a column
+    // literally named `"user.name"`. Returning a literal key here aligns
+    // FE port discovery with the backend resolver and preserves legacy
+    // curly testsets with dotted column names. See the docstring above.
     if (expr.includes(".")) {
         const tokens = expr.split(".").filter(Boolean)
         if (tokens.length === 0) return {envelope: "inputs", key: ""}
         if (tokens.length === 1) return {envelope: "inputs", key: tokens[0]}
         if (KNOWN_ENVELOPE_SLOTS.has(tokens[0])) return parseSegments(tokens)
+        if (templateFormat === "curly") {
+            return {envelope: "inputs", key: expr}
+        }
         return {
             envelope: "inputs",
             key: tokens[0],
@@ -261,17 +328,58 @@ function parseTemplateExpression(expr: string): ParsedTemplateExpression {
  * `envelope === "inputs"`; other slots are runtime-resolved (backend
  * populates them from trace / workflow config / etc.).
  */
-export function groupTemplateVariables(placeholders: string[]): GroupedTemplateVariable[] {
+export function groupTemplateVariables(
+    placeholders: string[],
+    options?: {
+        /** Set of names that appeared as mustache section openers
+         *  (`{{#name}}` / `{{^name}}`) in the source template. Used to
+         *  refine type inference: a name referenced ONLY as a section
+         *  opener (no sub-paths) gets `type: "array"` — the iteration
+         *  intent is the strongest signal we have without parsing the
+         *  block body. Names with sub-paths stay `"object"` regardless. */
+        sectionOpeners?: Set<string>
+        /** Active template format for the source workflow. Only `"curly"`
+         *  changes parsing behaviour — it forces plain dotted names (no
+         *  `$`/`/` prefix, no envelope first segment) to be kept as
+         *  LITERAL single keys, matching the backend curly resolver's
+         *  literal-key-first lookup. Omit / pass anything else to keep
+         *  the nested dot-notation behaviour (Mustache spec / Jinja2
+         *  attribute access). See `parseTemplateExpression` docstring. */
+        templateFormat?: TemplateFormatForParse
+    },
+): GroupedTemplateVariable[] {
     const groups = new Map<string, {envelope: string; key: string; subPaths: Set<string>}>()
+    const templateFormat = options?.templateFormat
+
+    // Resolve section opener names through `parseTemplateExpression` and
+    // key them by envelope-scoped `${envelope}.${key}` ids — same identity
+    // the `groups` map uses below. Otherwise a section opener written as
+    // `{{#languages}}` would coerce BOTH `inputs.languages` AND
+    // `outputs.languages` (if both existed in the same prompt) to `array`.
+    //
+    // Section openers are mustache-only by construction (curly / jinja2 /
+    // fstring have no `{{#name}}` syntax) so we don't need to thread the
+    // format flag through this resolution — but doing it consistently
+    // keeps the helper format-aware end-to-end.
+    const sectionOpenerIds = new Set<string>()
+    if (options?.sectionOpeners) {
+        for (const opener of options.sectionOpeners) {
+            const parsed = parseTemplateExpression(opener, templateFormat)
+            if (parsed.key) sectionOpenerIds.add(`${parsed.envelope}.${parsed.key}`)
+        }
+    }
 
     for (const placeholder of placeholders) {
-        // Invalid envelope references (e.g. `$.input.xx.abc` — `input` is not
-        // a known envelope slot) don't get an input control. The prompt
-        // editor's token node renders them with a distinct invalid state so
-        // the user sees the problem at the source.
+        // Structurally malformed placeholders (e.g. empty, `$outputs.x` with
+        // no dot after `$`, `$.` with no field, `$..foo` empty segment) don't
+        // get an input control. The prompt editor's token node renders them
+        // with a distinct invalid state so the user sees the problem at the
+        // source. Near-typos of envelope slots (`$.input.x`) are NOT filtered
+        // here — they're treated as testcase-spread keys per the post-2026-
+        // 05-28 mustache QA principle (see `templateVariable.ts` docstring).
         if (!isValidTemplateVariable(placeholder)) continue
 
-        const parsed = parseTemplateExpression(placeholder)
+        const parsed = parseTemplateExpression(placeholder, templateFormat)
         if (!parsed.key) continue // envelope-only reference, not a specific field
 
         const groupId = `${parsed.envelope}.${parsed.key}`
@@ -289,11 +397,20 @@ export function groupTemplateVariables(placeholders: string[]): GroupedTemplateV
 
     return Array.from(groups.values()).map(({envelope, key, subPaths}) => {
         const subPathList = Array.from(subPaths)
+        // Type inference priority:
+        //   1. Sub-paths present → `"object"` (the strongest signal — the
+        //      template addresses specific fields).
+        //   2. Section opener AND no sub-paths → `"array"` (iteration intent).
+        //   3. Otherwise → `"string"`.
+        const groupId = `${envelope}.${key}`
+        const isSectionOpener = sectionOpenerIds.has(groupId)
+        const type: GroupedTemplateVariable["type"] =
+            subPathList.length > 0 ? "object" : isSectionOpener ? "array" : "string"
         return {
             envelope,
             key,
             name: key,
-            type: subPathList.length > 0 ? ("object" as const) : ("string" as const),
+            type,
             ...(subPathList.length > 0 ? {subPaths: subPathList} : {}),
         }
     })

@@ -57,7 +57,7 @@ const SessionHeader = () => {
 
                 <Typography.Text className="text-sm font-medium">Session</Typography.Text>
                 <TooltipWithCopyAction copyText={sessionId || ""} title="Copy session id">
-                    <Tag className="font-mono bg-[#0517290F]" bordered={false}>
+                    <Tag className="font-mono bg-[var(--ag-c-0517290F)]" bordered={false}>
                         # {sessionId || "-"}
                     </Tag>
                 </TooltipWithCopyAction>

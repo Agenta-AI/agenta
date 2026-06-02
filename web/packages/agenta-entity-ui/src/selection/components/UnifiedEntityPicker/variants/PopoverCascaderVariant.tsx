@@ -113,7 +113,7 @@ function ChildPanelContent({
         <div data-testid={POPOVER_CASCADER_TEST_IDS.childPanel} style={panelStyle}>
             {/* Child panel header */}
             {multiSelect && (
-                <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-start justify-between">
+                <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between">
                     <div className="flex flex-col gap-0.5">
                         <span className="text-[10px] font-medium truncate" title={parentLabel}>
                             {parentLabel}
@@ -151,7 +151,7 @@ function ChildPanelContent({
                                     "flex items-center gap-2 px-2 py-1.5 rounded-md",
                                     isDisabled
                                         ? "opacity-50 cursor-not-allowed"
-                                        : "cursor-pointer hover:bg-[rgba(5,23,41,0.04)]",
+                                        : "cursor-pointer hover:bg-[var(--ag-rgba-051729-04)]",
                                 )}
                                 onClick={() => {
                                     if (!isDisabled) onSelect(item)
@@ -515,7 +515,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     const content = (
         <div className="flex flex-col" data-testid={POPOVER_CASCADER_TEST_IDS.content}>
             {/* HEADER ROW: Search + Action Button */}
-            <div className="flex items-center gap-2 p-2 pb-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+            <div className="flex items-center gap-2 p-2 pb-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
                 <div className="flex-1">
                     <SearchInput
                         value={searchTerm}
@@ -545,7 +545,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                         "[&_.ant-tabs-nav]:px-3 [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-nav::before]:border-b-0",
                         "[&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2",
                         "[&_.ant-tabs-nav-wrap]:pb-0",
-                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                        "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
                     )}
                 />
             )}
@@ -555,12 +555,12 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 {/* ROOT PANEL */}
                 <div
                     data-testid={POPOVER_CASCADER_TEST_IDS.rootPanel}
-                    className="flex flex-col border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
+                    className="flex flex-col border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]"
                     style={panelStyle}
                 >
                     {/* Selection summary */}
                     {selectionSummaryText ? (
-                        <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-center">
+                        <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center">
                             <span className="text-zinc-500 text-[10px]">
                                 {selectionSummaryText}
                             </span>

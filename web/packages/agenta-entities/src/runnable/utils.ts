@@ -446,13 +446,14 @@ export function autoMapInputs(
 // TEMPLATE VARIABLE EXTRACTION
 // ============================================================================
 
-type TemplateFormat = "curly" | "fstring" | "jinja2"
+type TemplateFormat = "mustache" | "curly" | "fstring" | "jinja2"
 
 /** Normalize a raw template_format string to a known TemplateFormat, or null if unrecognized. */
-function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat | null {
+export function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat | null {
     if (raw === "fstring") return "fstring"
     if (raw === "jinja2" || raw === "jinja") return "jinja2"
     if (raw === "curly") return "curly"
+    if (raw === "mustache") return "mustache"
     return null
 }
 
@@ -461,6 +462,7 @@ function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat |
  *
  * Supports multiple template formats:
  * - "curly" (default): {{variableName}}
+ * - "mustache": {{variableName}} (shares the {{...}} extraction path with curly)
  * - "jinja2": {{variableName}} (blocks {% %} and comments {# #} are ignored — they are not variables)
  * - "fstring": {variableName} (single braces; literal braces escaped as {{ / }})
  *
@@ -503,18 +505,64 @@ export function extractTemplateVariables(
         return variables
     }
 
-    // curly and jinja2 both use {{variableName}} for variable substitution
-    // Linear scan: find '{{', then find '}}', extract the content between them
+    // curly, jinja2, and mustache all use {{variableName}} for variable substitution
+    // Linear scan: find '{{', then find '}}', extract the content between them.
+    //
+    // For MUSTACHE, normalise / skip block-level syntax:
+    //
+    //   keep (strip prefix → variable name):
+    //     - `{{#name}}` — section opener: `name` IS a variable (the iterable
+    //                      / truthiness check), it still needs a value.
+    //     - `{{^name}}` — inverted section opener: same — `name` is a variable.
+    //     - `{{&name}}` — unescaped variable: `name` IS the variable.
+    //
+    //   skip entirely (not variables — structural / inert tokens):
+    //     - `{{/name}}`      — section closer (just a boundary marker).
+    //     - `{{!comment}}`   — comment.
+    //     - `{{> partial}}`  — partial template inclusion (resolved at render).
+    //     - `{{.}}`          — implicit iterator (current item, no base name).
+    //
+    // For CURLY / JINJA2, none of those prefix characters are valid in
+    // identifiers — those formats have no section semantics, no implicit
+    // iterator, no inline comments / partials inside `{{...}}`. If the user
+    // wrote `{{#items}}` in a curly prompt it's an authoring error (likely
+    // mustache syntax pasted in). Skip the extraction so no phantom port
+    // appears in the playground — the user sees the broken token in the
+    // editor without the FE silently masking it.
+    //
+    // The TokenPlugin highlights all of these via its own regex — this filter
+    // is for PORT DISCOVERY only. The mustache renderer pairs `#`/`^`/`/`
+    // structurally at render time.
     let i = 0
     while (i < input.length - 1) {
         if (input[i] === "{" && input[i + 1] === "{") {
             const start = i + 2
             const end = input.indexOf("}}", start)
             if (end !== -1) {
-                const variable = input.slice(start, end).trim()
-                if (variable && !variables.includes(variable)) {
-                    variables.push(variable)
+                const raw = input.slice(start, end).trim()
+
+                if (templateFormat === "mustache") {
+                    const isSkippablePrefix = /^[/!>]/.test(raw)
+                    const isImplicitIterator = raw === "."
+                    if (raw && !isSkippablePrefix && !isImplicitIterator) {
+                        // Strip section-opener / unescape prefixes — the base
+                        // name is the actual variable that needs a value.
+                        const variable = /^[#^&]/.test(raw) ? raw.slice(1).trim() : raw
+                        if (variable && !variables.includes(variable)) {
+                            variables.push(variable)
+                        }
+                    }
+                } else {
+                    // curly / jinja2 — only identifier-shaped tokens count.
+                    // Anything starting with mustache-style markers is an
+                    // authoring error in these formats; skip it so the
+                    // playground doesn't surface a port for the bad token.
+                    const startsWithMustacheMarker = /^[#^&/!>.]/.test(raw)
+                    if (raw && !startsWithMustacheMarker && !variables.includes(raw)) {
+                        variables.push(raw)
+                    }
                 }
+
                 i = end + 2
             } else {
                 // No closing '}}' found, no more variables possible
@@ -526,6 +574,47 @@ export function extractTemplateVariables(
     }
 
     return variables
+}
+
+/**
+ * Extract names that appear as mustache SECTION OPENERS (`{{#name}}` or
+ * `{{^name}}`) from a template string.
+ *
+ * Distinct from `extractTemplateVariables`, which returns every referenced
+ * placeholder (section openers, plain variables, dotted access). Callers use
+ * this set as a hint when grouping variables — a name referenced ONLY as a
+ * section opener with no sub-paths is best surfaced as an `array` port
+ * (iteration intent) rather than the default `string` port.
+ *
+ * Always returns an empty set for non-mustache formats: curly / jinja2 /
+ * fstring don't have section semantics, so the hint isn't meaningful there.
+ */
+export function extractMustacheSectionOpeners(
+    input: string,
+    templateFormat: TemplateFormat = "curly",
+): Set<string> {
+    const names = new Set<string>()
+    if (templateFormat !== "mustache") return names
+
+    let i = 0
+    while (i < input.length - 1) {
+        if (input[i] === "{" && input[i + 1] === "{") {
+            const start = i + 2
+            const end = input.indexOf("}}", start)
+            if (end === -1) break
+            const raw = input.slice(start, end).trim()
+            // Section opener (`#name`) or inverted section opener (`^name`).
+            // `&name` is variable unescape, not a section — exclude.
+            if (/^[#^]/.test(raw)) {
+                const name = raw.slice(1).trim()
+                if (name) names.add(name)
+            }
+            i = end + 2
+        } else {
+            i++
+        }
+    }
+    return names
 }
 
 /**
@@ -706,6 +795,60 @@ export function extractVariablesFromConfig(
 }
 
 /**
+ * Mirror of `extractVariablesFromConfig` that collects mustache SECTION
+ * OPENERS (`{{#name}}` / `{{^name}}`) across all prompt-like entries in
+ * config. Used alongside `extractVariablesFromConfig` to feed the
+ * `sectionOpeners` hint into `groupTemplateVariables`, so a name referenced
+ * only via section markers (no sub-paths) surfaces as an `array` port
+ * instead of the default `string` port.
+ *
+ * Always returns an empty set for non-mustache prompts — section semantics
+ * are mustache-specific.
+ */
+export function extractSectionOpenersFromConfig(
+    agConfig: Record<string, unknown> | undefined,
+): Set<string> {
+    const openers = new Set<string>()
+    if (!agConfig) return openers
+
+    for (const value of Object.values(agConfig)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+        const prompt = value as Record<string, unknown>
+
+        const rawTf = (prompt.template_format ?? prompt.templateFormat) as string | undefined
+        const tf = resolveTemplateFormat(rawTf) ?? "curly"
+        if (tf !== "mustache") continue
+
+        if (!Array.isArray(prompt.messages)) continue
+        for (const message of prompt.messages) {
+            if (!message || typeof message !== "object") continue
+            const content = (message as Record<string, unknown>).content
+            if (typeof content === "string") {
+                for (const opener of extractMustacheSectionOpeners(content, tf)) {
+                    openers.add(opener)
+                }
+            } else if (Array.isArray(content)) {
+                for (const part of content) {
+                    if (typeof part === "string") {
+                        for (const opener of extractMustacheSectionOpeners(part, tf)) {
+                            openers.add(opener)
+                        }
+                    } else if (part && typeof part === "object") {
+                        const text = (part as Record<string, unknown>).text
+                        if (typeof text === "string") {
+                            for (const opener of extractMustacheSectionOpeners(text, tf)) {
+                                openers.add(opener)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return openers
+}
+
+/**
  * Synchronize `input_keys` for prompt configs in a parameters object.
  *
  * Supports both wrapped params (`{ag_config: {...}}`) and direct config objects.
@@ -807,7 +950,10 @@ const TESTCASE_OBJECT_KEYS = new Set(["inputs"])
 export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Record<string, unknown> {
     const {testcaseData, upstreamOutput, settings, inputSchema} = ctx
 
-    const prediction = normalizeCompact(upstreamOutput)
+    // RFC invariant: native JSON stays native until template rendering.
+    // We pass `upstreamOutput` through as-is (object, array, string, primitive)
+    // and expose it under both `prediction` and `outputs` keys downstream —
+    // they are the same value, not a stringified copy and a native copy.
 
     const schemaProperties =
         inputSchema?.properties && typeof inputSchema.properties === "object"
@@ -820,13 +966,12 @@ export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Recor
             inputSchema: inputSchema!,
             testcaseData,
             upstreamOutput,
-            prediction,
             settings,
         })
     }
 
     // Legacy fallback — no schema available
-    return buildLegacy({testcaseData, prediction, settings})
+    return buildLegacy({testcaseData, upstreamOutput, settings})
 }
 
 /**
@@ -838,10 +983,9 @@ function buildFromSchema(ctx: {
     inputSchema: Record<string, unknown>
     testcaseData: Record<string, unknown>
     upstreamOutput: unknown
-    prediction: string
     settings: Record<string, unknown>
 }): Record<string, unknown> {
-    const {schemaProperties, inputSchema, testcaseData, upstreamOutput, prediction, settings} = ctx
+    const {schemaProperties, inputSchema, testcaseData, upstreamOutput, settings} = ctx
     const inputs: Record<string, unknown> = {}
 
     for (const key of Object.keys(schemaProperties)) {
@@ -854,13 +998,15 @@ function buildFromSchema(ctx: {
             const columnName = keySettingValue.startsWith("testcase.")
                 ? keySettingValue.split(".")[1]
                 : keySettingValue
-            inputs[key] = normalizeCompact(testcaseData[columnName])
+            // RFC invariant: native value passes through, not stringified.
+            inputs[key] = testcaseData[columnName]
             continue
         }
 
-        // 2. Known upstream output keys
+        // 2. Known upstream output keys — both `prediction` and `outputs`
+        //    expose the SAME native upstream value; do not stringify either one.
         if (UPSTREAM_OUTPUT_KEYS.has(key)) {
-            inputs[key] = key === "prediction" ? prediction : normalizeCompact(upstreamOutput)
+            inputs[key] = upstreamOutput
             continue
         }
 
@@ -887,9 +1033,9 @@ function buildFromSchema(ctx: {
         }
     }
 
-    // Ensure upstream output is always present in some form
+    // Ensure upstream output is always present in some form (native, both keys).
     if (!("prediction" in inputs) && !("outputs" in inputs)) {
-        inputs.prediction = prediction
+        inputs.prediction = upstreamOutput
         inputs.outputs = upstreamOutput
     }
 
@@ -902,10 +1048,10 @@ function buildFromSchema(ctx: {
  */
 function buildLegacy(ctx: {
     testcaseData: Record<string, unknown>
-    prediction: string
+    upstreamOutput: unknown
     settings: Record<string, unknown>
 }): Record<string, unknown> {
-    const {testcaseData, prediction, settings} = ctx
+    const {testcaseData, upstreamOutput, settings} = ctx
 
     const correctAnswerKey = settings.correct_answer_key
     const groundTruthKey =
@@ -915,12 +1061,12 @@ function buildLegacy(ctx: {
               ? correctAnswerKey
               : undefined
 
-    const rawGT = groundTruthKey ? testcaseData[groundTruthKey] : undefined
-    const ground_truth = normalizeCompact(rawGT)
+    // RFC invariant: native ground-truth value passes through, not stringified.
+    const ground_truth = groundTruthKey ? testcaseData[groundTruthKey] : undefined
 
     const inputs: Record<string, unknown> = {
         ...testcaseData,
-        prediction,
+        prediction: upstreamOutput,
     }
 
     if (groundTruthKey) {
@@ -1025,24 +1171,6 @@ export function validateEvaluatorInputs(ctx: EvaluatorInputContext): EvaluatorIn
     }
 
     return {valid: true, missingInputs: []}
-}
-
-/**
- * Normalize a value to a compact string representation.
- * Mirrors DebugSection's `normalizeCompact` helper.
- */
-function normalizeCompact(val: unknown): string {
-    if (val === undefined || val === null) return ""
-    const str = typeof val === "string" ? val : JSON.stringify(val)
-    try {
-        const parsed = JSON.parse(str)
-        if (parsed && typeof parsed === "object") {
-            return JSON.stringify(parsed)
-        }
-        return str
-    } catch {
-        return str
-    }
 }
 
 /**

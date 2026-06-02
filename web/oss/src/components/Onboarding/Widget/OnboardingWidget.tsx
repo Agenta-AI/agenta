@@ -515,13 +515,16 @@ const OnboardingWidgetContent = () => {
         <section
             className={clsx(
                 "fixed bottom-6 right-6 z-[900] w-[330px] max-w-[calc(100vw-32px)]",
-                "overflow-hidden rounded-xl bg-white",
+                "overflow-hidden rounded-xl bg-[var(--ag-c-FFFFFF)]",
                 "shadow-[0px_6px_16px_0px_rgba(0,0,0,0.08),0px_3px_6px_-4px_rgba(0,0,0,0.12),0px_9px_28px_8px_rgba(0,0,0,0.05)]",
+                // On dark the shadow is invisible, so the panel merges into the
+                // page — add a border to give it a defined floating edge.
+                "dark:border dark:border-solid dark:border-colorBorder",
             )}
         >
             <Collapse
                 activeKey={!isMinimized ? ["widget"] : []}
-                className="[&_.ant-collapse-item]:!border-none [&_.ant-collapse-header]:!bg-white [&_.ant-collapse-body]:!bg-white [&_.ant-collapse-header]:!py-3 [&_.ant-collapse-header]:!px-4 [&_.ant-collapse-content-box]:!p-0"
+                className="[&_.ant-collapse-item]:!border-none [&_.ant-collapse-header]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-body]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-header]:!py-3 [&_.ant-collapse-header]:!px-4 [&_.ant-collapse-content-box]:!p-0"
                 expandIcon={() => null}
                 items={widgetCollapseItems}
                 bordered={false}

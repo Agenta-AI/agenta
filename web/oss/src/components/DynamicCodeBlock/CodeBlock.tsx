@@ -14,28 +14,13 @@ import {ContentEditable} from "@lexical/react/LexicalContentEditable"
 import {LexicalErrorBoundary} from "@lexical/react/LexicalErrorBoundary"
 import {RichTextPlugin} from "@lexical/react/LexicalRichTextPlugin"
 import {EditorThemeClasses, $createTextNode, $getRoot} from "lexical"
-import {createUseStyles} from "react-jss"
+
+import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 
 interface CodeBlockProps {
     language: string
     value: string
 }
-
-const useStyles = createUseStyles({
-    container: {margin: 0},
-    editor: {
-        fontFamily:
-            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-        fontSize: 13,
-        lineHeight: 1.55,
-        padding: 12,
-        borderRadius: 6,
-        overflowX: "auto",
-        background: "#FAFAFA",
-        outline: "none",
-        whiteSpace: "pre",
-    },
-})
 
 const onError = (error: Error) => {
     console.error(error)
@@ -87,26 +72,32 @@ const ShikiHighlightPlugin: FC<{langs: string[]; themeName: string}> = ({langs, 
     return null
 }
 
-const InitializeContentPlugin: FC<{language: string; value: string}> = ({language, value}) => {
+const InitializeContentPlugin: FC<{language: string; value: string; themeName: string}> = ({
+    language,
+    value,
+    themeName,
+}) => {
     const [editor] = useLexicalComposerContext()
 
     useEffect(() => {
         editor.update(() => {
             const root = $getRoot()
             root.clear()
-            const codeNode = $createCodeNode(language)
+            // The Shiki tokenizer reads the theme off the CodeNode (getTheme()),
+            // not from registerCodeHighlighting — so the theme MUST be set here,
+            // otherwise tokens render with the fallback (light) palette in dark.
+            const codeNode = $createCodeNode(language, themeName)
             codeNode.append($createTextNode(value))
             root.append(codeNode)
         })
-    }, [editor, language, value])
+    }, [editor, language, value, themeName])
 
     return null
 }
 
 const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
-    const classes = useStyles()
-
     const lexicalLanguage = useMemo(() => resolveLexicalLanguage(language), [language])
+    const {appTheme} = useAppTheme()
 
     const editorConfig = useMemo(
         () => ({
@@ -119,19 +110,28 @@ const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
         [],
     )
 
-    const shikiTheme = "github-light"
+    // Shiki tokens carry inline colors from the theme, so a light theme in dark
+    // mode renders unreadable/boxed tokens — pick the theme that matches the app.
+    const shikiTheme = appTheme === ThemeMode.Dark ? "github-dark" : "github-light"
     const shikiLang = lexicalLanguage
     const langs = useMemo(() => [shikiLang], [shikiLang])
 
     return (
-        <div className={classes.container}>
-            <LexicalComposer initialConfig={editorConfig}>
+        <div className="m-0">
+            {/* Re-key on theme so Shiki re-tokenizes with the matching palette. */}
+            <LexicalComposer key={shikiTheme} initialConfig={editorConfig}>
                 <RichTextPlugin
-                    contentEditable={<ContentEditable className={classes.editor} />}
+                    contentEditable={
+                        <ContentEditable className="font-mono text-[13px] leading-[1.55] p-3 rounded-md overflow-x-auto bg-[var(--ag-c-FAFAFA)] outline-none whitespace-pre" />
+                    }
                     placeholder={null}
                     ErrorBoundary={LexicalErrorBoundary}
                 />
-                <InitializeContentPlugin language={lexicalLanguage} value={value} />
+                <InitializeContentPlugin
+                    language={lexicalLanguage}
+                    value={value}
+                    themeName={shikiTheme}
+                />
                 <ShikiHighlightPlugin langs={langs} themeName={shikiTheme} />
             </LexicalComposer>
         </div>

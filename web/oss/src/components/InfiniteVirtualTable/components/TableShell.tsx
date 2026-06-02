@@ -67,7 +67,7 @@ const TableShell = ({
                 <div className="w-full flex flex-wrap items-center justify-between gap-4">
                     {title ? (
                         <div className="flex items-center gap-3 shrink min-w-0">
-                            <div className="font-medium text-[#101828]">{title}</div>
+                            <div className="font-medium text-[var(--ag-c-101828)]">{title}</div>
                             {badge}
                         </div>
                     ) : (
@@ -86,7 +86,7 @@ const TableShell = ({
                 </div>
             ) : null}
 
-            {description ? <div className="text-[#475467]">{description}</div> : null}
+            {description ? <div className="text-[var(--ag-c-475467)]">{description}</div> : null}
 
             {filters ? (
                 <div className="w-full flex flex-wrap items-center justify-between gap-4">

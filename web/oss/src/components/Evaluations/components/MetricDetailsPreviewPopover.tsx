@@ -72,20 +72,20 @@ const POPOVER_STYLES = {
     body: {
         padding: 0,
         borderRadius: 16,
-        border: "1px solid #E4E7EC",
+        border: "1px solid var(--ag-colorBorderSecondary)",
         boxShadow: "0px 18px 45px rgba(15, 23, 42, 0.18)",
-        background: "#fff",
+        background: "var(--ag-colorBgElevated)",
         maxHeight: 480,
         overflowY: "auto",
     },
     arrow: {
-        color: "#fff",
+        color: "var(--ag-colorBgElevated)",
     },
 } as const
 
 const Section = ({title, children}: {title: string; children: ReactNode}) => (
     <section className="flex flex-col gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-colorTextTertiary">
             {title}
         </span>
         {children}
@@ -94,9 +94,9 @@ const Section = ({title, children}: {title: string; children: ReactNode}) => (
 
 const DistributionSkeleton = () => (
     <div className="flex flex-col gap-3">
-        <div className="h-3 w-24 rounded-full bg-neutral-200/80 animate-pulse" />
-        <div className="relative h-[160px] w-full overflow-hidden rounded-2xl border border-neutral-100 bg-neutral-50">
-            <div className="h-full w-full animate-pulse bg-gradient-to-r from-neutral-100 via-neutral-200/80 to-neutral-100" />
+        <div className="h-3 w-24 rounded-full bg-neutral-200 animate-pulse" />
+        <div className="relative h-[160px] w-full overflow-hidden rounded-2xl border border-colorBorderSecondary bg-neutral-50">
+            <div className="h-full w-full animate-pulse bg-gradient-to-r from-neutral-100 via-neutral-200 to-neutral-100" />
         </div>
     </div>
 )
@@ -510,16 +510,16 @@ const MetricPopoverContent = ({
 
     // const summarySection = summaryRows.length ? (
     //     <Section title="Summary">
-    //         <div className="rounded-2xl border border-neutral-100 bg-white/80">
+    //         <div className="rounded-2xl border border-colorBorderSecondary bg-white/80">
     //             {summaryRows.map(({label, value}, index) => (
     //                 <div
     //                     key={label}
     //                     className={`flex items-center justify-between gap-6 px-3 py-2 text-[12px] ${
-    //                         index !== summaryRows.length - 1 ? "border-b border-neutral-100" : ""
+    //                         index !== summaryRows.length - 1 ? "border-b border-colorBorderSecondary" : ""
     //                     }`}
     //                 >
-    //                     <span className="text-neutral-500">{label}</span>
-    //                     <span className="font-semibold text-neutral-900 tabular-nums">{value}</span>
+    //                     <span className="text-colorTextTertiary">{label}</span>
+    //                     <span className="font-semibold text-colorText tabular-nums">{value}</span>
     //                 </div>
     //             ))}
     //         </div>
@@ -529,16 +529,16 @@ const MetricPopoverContent = ({
     // For string metrics without distributions, headline metrics (count, etc.) are not relevant
     const headlineMetricsRow =
         headlineMetrics.length && !isStringMetricWithoutDistribution ? (
-            <div className="flex items-center gap-2 border border-neutral-100 py-2">
+            <div className="flex items-center gap-2 border border-colorBorderSecondary py-2">
                 {headlineMetrics.map(({label, value}) => (
                     <div
                         key={label}
-                        className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] shadow-sm"
+                        className="flex items-center gap-1 rounded-full bg-[var(--ag-c-FFFFFF)] px-3 py-1 text-[11px] shadow-sm"
                     >
-                        <span className="uppercase tracking-wide text-[10px] text-neutral-400">
+                        <span className="uppercase tracking-wide text-[10px] text-colorTextTertiary">
                             {label}
                         </span>
-                        <span className="text-[12px] font-semibold text-neutral-900 tabular-nums">
+                        <span className="text-[12px] font-semibold text-colorText tabular-nums">
                             {value}
                         </span>
                     </div>
@@ -547,12 +547,12 @@ const MetricPopoverContent = ({
         ) : null
 
     if (!shouldLoad && !normalizedPrefetchedStats) {
-        return <span className="text-xs text-neutral-500">Loading statistics…</span>
+        return <span className="text-xs text-colorTextTertiary">Loading statistics…</span>
     }
 
     if (!runId) {
         return (
-            <div className="max-w-[320px] text-xs text-neutral-600">
+            <div className="max-w-[320px] text-xs text-colorTextSecondary">
                 Run metadata unavailable—statistics cannot be loaded.
             </div>
         )
@@ -560,7 +560,7 @@ const MetricPopoverContent = ({
 
     if (hasError) {
         return (
-            <div className="max-w-[320px] text-xs text-neutral-600">
+            <div className="max-w-[320px] text-xs text-colorTextSecondary">
                 Failed to load run-level statistics.{" "}
                 {selection.error ? String(selection.error) : ""}
             </div>
@@ -569,17 +569,19 @@ const MetricPopoverContent = ({
 
     const highlightChip =
         highlightDisplay && !isStringMetricWithoutDistribution ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-900 shadow-sm">
-                <span className="uppercase tracking-wide text-[10px] text-neutral-400">Value</span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-colorBorderSecondary bg-[var(--ag-c-FFFFFF)] px-3 py-1 text-[11px] text-colorText shadow-sm">
+                <span className="uppercase tracking-wide text-[10px] text-colorTextTertiary">
+                    Value
+                </span>
                 {highlightDisplay}
             </span>
         ) : null
 
     return (
-        <div className="flex w-[320px] max-w-[360px] flex-col gap-4 rounded-2xl bg-white p-4 text-xs text-neutral-700">
+        <div className="flex w-[320px] max-w-[360px] flex-col gap-4 rounded-2xl bg-[var(--ag-colorBgElevated)] p-4 text-xs text-colorTextSecondary">
             <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-neutral-900">
+                    <span className="text-sm font-semibold text-colorText">
                         {resolvedMetricKey ?? "Metric details"}
                     </span>
                     {highlightChip}
@@ -590,7 +592,7 @@ const MetricPopoverContent = ({
                 <>
                     {showScenarioValue ? (
                         <Section title="Scenario value">
-                            <div className="h-3 w-3/4 rounded-full bg-neutral-200/70 animate-pulse" />
+                            <div className="h-3 w-3/4 rounded-full bg-neutral-200 animate-pulse" />
                         </Section>
                     ) : null}
                     <Section title="Distribution">
@@ -601,7 +603,7 @@ const MetricPopoverContent = ({
                 <>
                     {scenarioDisplay ? (
                         <Section title="Scenario value">
-                            <span className="text-neutral-800 text-xs whitespace-pre-wrap">
+                            <span className="text-colorText text-xs whitespace-pre-wrap">
                                 {scenarioDisplay}
                             </span>
                         </Section>
@@ -635,15 +637,15 @@ const MetricPopoverContent = ({
                     {/* {summarySection} */}
                 </>
             ) : (
-                <div className="flex flex-col gap-2 text-[11px] text-neutral-600">
+                <div className="flex flex-col gap-2 text-[11px] text-colorTextSecondary">
                     {showScenarioValue && scenarioDisplay ? (
                         <Section title="Scenario value">
-                            <span className="text-neutral-800 text-xs whitespace-pre-wrap">
+                            <span className="text-colorText text-xs whitespace-pre-wrap">
                                 {scenarioDisplay}
                             </span>
                         </Section>
                     ) : null}
-                    <span className="text-neutral-500">
+                    <span className="text-colorTextTertiary">
                         {isEmpty
                             ? stepType === "annotation"
                                 ? "Run-level evaluator statistics not available yet."

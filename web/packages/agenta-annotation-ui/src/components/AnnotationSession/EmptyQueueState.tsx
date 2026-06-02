@@ -39,7 +39,7 @@ const EmptyQueueState = memo(function EmptyQueueState({onViewChange}: EmptyQueue
                     <Button
                         size="small"
                         type="primary"
-                        className="!bg-[#051729] !border-[#051729] hover:!bg-[#0a2540] hover:!border-[#0a2540]"
+                        className="!bg-[var(--ag-c-051729)] !border-[var(--ag-c-051729)] hover:!bg-[var(--ag-c-0A2540)] hover:!border-[var(--ag-c-0A2540)] dark:!bg-[var(--ant-color-primary)] dark:!border-[var(--ant-color-primary)] dark:hover:!bg-[var(--ant-color-primary-hover)] dark:hover:!border-[var(--ant-color-primary-hover)]"
                         onClick={() => navigation.navigateToObservability?.()}
                     >
                         Go to observability

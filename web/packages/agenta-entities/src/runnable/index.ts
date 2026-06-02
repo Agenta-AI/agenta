@@ -128,10 +128,12 @@ export {
     buildEvaluatorExecutionInputs,
     validateEvaluatorInputs,
     // Template variable extraction
+    extractMustacheSectionOpeners,
     extractTemplateVariables,
     extractTemplateVariablesFromJson,
     extractVariablesFromPrompts,
     extractVariablesFromConfig,
+    extractSectionOpenersFromConfig,
     extractVariablesFromEnhancedPrompts,
     syncPromptInputKeysInParameters,
 } from "./utils"

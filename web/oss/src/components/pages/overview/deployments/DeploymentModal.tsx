@@ -7,9 +7,6 @@ import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {Modal, Typography} from "antd"
 import {useAtomValue} from "jotai"
-import {createUseStyles} from "react-jss"
-
-import type {JSSTheme} from "@/oss/lib/Types"
 
 type DeploymentModalProps = {
     selectedEnvironment: AppEnvironmentDeployment
@@ -18,30 +15,6 @@ type DeploymentModalProps = {
     setIsDeploymentModalOpen: (value: React.SetStateAction<boolean>) => void
 } & React.ComponentProps<typeof Modal>
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: {
-        "& .ant-modal-footer": {
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-        },
-    },
-    wrapper: {
-        "& h1": {
-            fontSize: theme.fontSizeLG,
-            fontWeight: theme.fontWeightStrong,
-            lineHeight: theme.lineHeightLG,
-            marginBottom: 8,
-        },
-        "& span": {
-            color: theme.colorPrimary,
-            fontSize: theme.fontSizeLG,
-            lineHeight: theme.lineHeightLG,
-            fontWeight: theme.fontWeightMedium,
-        },
-    },
-}))
-
 const DeploymentModal = ({
     selectedEnvironment,
     selectedVariant,
@@ -49,7 +22,6 @@ const DeploymentModal = ({
     setIsDeploymentModalOpen,
     ...props
 }: DeploymentModalProps) => {
-    const classes = useStyles()
     const {isPending: isPublishVariantLoading, mutateAsync: publish} =
         useAtomValue(publishMutationAtom)
 
@@ -78,7 +50,7 @@ const DeploymentModal = ({
 
     return (
         <Modal
-            className={classes.container}
+            className="[&_.ant-modal-footer]:flex [&_.ant-modal-footer]:items-center [&_.ant-modal-footer]:justify-end"
             okText={
                 <div className="flex gap-2 items-center">
                     <Rocket size={16} />
@@ -90,13 +62,13 @@ const DeploymentModal = ({
             centered
             {...props}
         >
-            <div className={classes.wrapper}>
+            <div className="[&_h1]:text-sm [&_h1]:font-semibold [&_h1]:leading-[1.5714285714285714] [&_h1]:mb-2 [&_span]:text-colorPrimary [&_span]:text-sm [&_span]:leading-[1.5714285714285714] [&_span]:font-medium">
                 <Typography.Title>Confirm Deployment</Typography.Title>
 
                 <div className="flex flex-col gap-4">
                     <div>
                         You are about to deploy {selectedVariant.name}{" "}
-                        <span className="bg-[rgba(5,23,41,0.06)] px-2 !text-xs">
+                        <span className="bg-[var(--ag-colorFillSecondary)] px-2 !text-xs">
                             {selectedVariant.version}
                         </span>{" "}
                         to {selectedEnvironment.name} environment. This will overwrite the existing

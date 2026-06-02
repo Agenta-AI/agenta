@@ -17,7 +17,7 @@ import {navigateCursor} from "./assets/selectionUtils"
 import {TokenInputNode, $createTokenInputNode, $isTokenInputNode} from "./TokenInputNode"
 import {TokenNode, $createTokenNode, $isTokenNode} from "./TokenNode"
 
-type TemplateFormat = "curly" | "fstring" | "jinja2"
+type TemplateFormat = "mustache" | "curly" | "fstring" | "jinja2"
 
 function buildRegexes(templateFormat: TemplateFormat) {
     if (templateFormat === "jinja2") {
@@ -29,7 +29,54 @@ function buildRegexes(templateFormat: TemplateFormat) {
         const exact = /^(\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})$/
         return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
     }
-    // Default: curly variable tokens only
+    if (templateFormat === "mustache") {
+        // Match variable-bearing Mustache tags. Three classes of token text:
+        //
+        //   - Plain variables: `{{name}}`, `{{ name }}`, `{{country.a}}`,
+        //     `{{$.country}}` — first char after `{{\s*` is part of the
+        //     variable name itself.
+        //   - Variables with a single-character prefix sigil that still
+        //     reference a name:
+        //       · `#` section opener (`{{#items}}` — iterable / truthy)
+        //       · `^` inverted section opener (`{{^empty}}`)
+        //       · `&` unescaped variable (`{{&html}}`)
+        //     Our mustache typeahead anchors on `$isTokenNode` and adds
+        //     suggestions specifically for `#` / `^` section openers (see
+        //     `TokenTypeaheadPlugin`'s section + inverted-section modes),
+        //     so these MUST tokenize, otherwise the resulting text gets
+        //     stuck as a TokenInputNode (yellow-dashed "in progress") and
+        //     no typeahead can fire on subsequent edits.
+        //   - Triple-stash `{{{html}}}` — also unescaped variable. We
+        //     deliberately reject this here via the `(?<!{)` lookbehind
+        //     to avoid splitting the outer braces; users can write `{{&
+        //     html}}` for the same semantics.
+        //
+        // Pure-structural control tags STAY plain text — they don't
+        // reference a variable:
+        //   · `/` section closer (`{{/items}}`)
+        //   · `!` comment (`{{! hidden note }}`)
+        //   · `=` delimiter swap (`{{=<% %>=}}`)
+        //   · `>` partial (`{{> user_card}}`)
+        //
+        // Empty `{{}}` / `{{ }}` rejected via the `(?=[^{}\s])` post-
+        // whitespace lookahead.
+        //
+        // Background: regex initially landed in JP's `web regex fix`
+        // (commit `17df11cca3`, 2026-06-01) excluded ALL non-alphanumeric
+        // sigils. That tore down our mustache section-opener typeahead
+        // because `{{#items}}` no longer promoted to a TokenNode → no
+        // anchor → no typeahead → Mahmoud's QA report on the same day
+        // ("all autocomplete features for mustache don't work for me").
+        // This refinement keeps the structural excludes JP added but
+        // re-includes the three sigils that still carry a variable name.
+        const full = /(?<!\{)\{\{\s*(?![/!=>])(?=[^{}\s])[^{}]*\}\}/
+        const input = /(?<!\{)\{\{[^{}]*$/
+        const exact = /^\{\{\s*(?![/!=>])(?=[^{}\s])[^{}]*\}\}$/
+        return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
+    }
+    // Default: {{ }} variable tokens only. Covers "curly" and "mustache" —
+    // fstring also falls through to here, but its {...} single-brace placeholders
+    // are NOT matched by these {{ }} regexes.
     const full = /\{\{[^{}]*\}\}/
     const input = /\{\{[^{}]*$/
     const exact = /^\{\{[^{}]*\}\}$/
@@ -100,6 +147,39 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
                 const parent = textNode?.getParent()
                 if (!parent) return
 
+                // Capture the cursor position BEFORE we create any new
+                // nodes — it tells us where to put the caret after the
+                // transform. The key distinction:
+                //
+                //   - Cursor INSIDE the matched braces (strictly between
+                //     `{{` and `}}`): the user is typing inside an
+                //     auto-closed token. `AutoCloseTokenBracesPlugin`
+                //     turns `{{` into `{{|}}` with the cursor between
+                //     the brace pairs, and the very next character the
+                //     user types triggers this transform — keep the
+                //     cursor inside the new TokenNode so they can keep
+                //     typing the variable name.
+                //
+                //   - Cursor AT THE CLOSING EDGE (just typed `}}` to
+                //     close manually): the user has finished authoring
+                //     the token and is ready to type after it. The
+                //     legacy behaviour kicks in — insert a space after
+                //     the token and move the cursor past it.
+                //
+                // Without this check, every transform jumped the cursor
+                // out of the token, which made auto-close + type-one-
+                // letter feel like "the variable closes after my first
+                // keystroke" (Mahmoud QA 2026-06-01, Kaosiso clarified
+                // it as "cursor jumps outside the curly braces after
+                // entering the first character").
+                const preTransformSelection = $getSelection()
+                const preTransformCursorOffset = $isRangeSelection(preTransformSelection)
+                    ? preTransformSelection.anchor.offset
+                    : -1
+                const cursorInsideToken =
+                    preTransformCursorOffset > startOffset + 1 &&
+                    preTransformCursorOffset < endOffset - 1
+
                 if (beforeToken) {
                     const beforeNode = $createTextNode(beforeToken)
                     textNode.insertBefore(beforeNode)
@@ -108,29 +188,37 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
                 const tokenNode = $createTokenNode(fullMatch)
                 textNode.insertBefore(tokenNode)
 
+                let afterNode: TextNode | null = null
                 if (afterToken) {
-                    const afterNode = $createTextNode(afterToken)
+                    afterNode = $createTextNode(afterToken)
                     textNode.insertBefore(afterNode)
+                }
+
+                if (cursorInsideToken && fullMatch !== "{{}}") {
+                    // Auto-close case — keep cursor inside the new
+                    // TokenNode at the same relative offset as before.
+                    navigateCursor({
+                        nodeKey: tokenNode.getKey(),
+                        offset: preTransformCursorOffset - startOffset,
+                    })
+                } else if (afterNode) {
                     if (fullMatch === "{{}}") {
                         navigateCursor({nodeKey: tokenNode.getKey(), offset: 2})
                     } else {
-                        // Get the current selection before any transformations
-                        const selection = $getSelection()
-                        const cursorOffset = $isRangeSelection(selection)
-                            ? selection.anchor.offset
-                            : 0
-                        // Calculate the new cursor position based on where it was before
-                        const tokenStart = text.indexOf(fullMatch)
-                        const tokenEnd = tokenStart + fullMatch.length
-
+                        // Calculate cursor position relative to the
+                        // after-text — preserves where the user was
+                        // typing past the closed token.
                         navigateCursor({
                             nodeKey: afterNode.getKey(),
-                            offset: Math.max(0, cursorOffset - tokenEnd),
+                            offset: Math.max(0, preTransformCursorOffset - endOffset),
                         })
                     }
                 } else if (fullMatch === "{{}}") {
                     navigateCursor({nodeKey: tokenNode.getKey(), offset: 2})
                 } else {
+                    // Manual close, no trailing text — insert a space
+                    // after the token so the user has somewhere to keep
+                    // typing, and move the cursor to it.
                     const spaceNode = $createTextNode(" ")
                     tokenNode.insertAfter(spaceNode)
                     editor.update(() => {

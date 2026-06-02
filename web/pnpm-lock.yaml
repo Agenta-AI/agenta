@@ -1047,6 +1047,9 @@ importers:
       usehooks-ts:
         specifier: ^3.0.0
         version: 3.1.1(react@19.2.6)
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(vite@8.0.12(@types/node@20.19.39)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.47.0)(tsx@4.21.0)(yaml@2.8.4))
 
   packages/agenta-playground:
     dependencies:

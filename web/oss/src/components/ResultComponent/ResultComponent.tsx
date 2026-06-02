@@ -2,9 +2,7 @@ import {ReactNode} from "react"
 
 import {CloseCircleFilled} from "@ant-design/icons"
 import {Result, Spin, Typography} from "antd"
-import {createUseStyles} from "react-jss"
 
-import {JSSTheme} from "@/oss/lib/Types"
 const {Title} = Typography
 
 interface ResultComponentProps {
@@ -14,23 +12,12 @@ interface ResultComponentProps {
     spinner?: boolean
 }
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    closeCircleIcon: {
-        color: "#ff4d4f",
-    },
-    title: {
-        textTransform: "capitalize",
-    },
-}))
-
 const ResultComponent: React.FC<ResultComponentProps> = ({status, title, subtitle, spinner}) => {
-    const classes = useStyles()
-
     return (
         <Result
-            icon={status === "error" && <CloseCircleFilled className={classes.closeCircleIcon} />}
+            icon={status === "error" && <CloseCircleFilled className="text-[#ff4d4f]" />}
             title={
-                <Title level={3} className={classes.title}>
+                <Title level={3} className="capitalize">
                     {title}
                 </Title>
             }

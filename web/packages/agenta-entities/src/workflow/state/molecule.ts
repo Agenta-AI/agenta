@@ -49,7 +49,13 @@ import {
     groupTemplateVariables,
 } from "../../runnable/portHelpers"
 import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
-import {extractTemplateVariables, extractVariablesFromConfig} from "../../runnable/utils"
+import {
+    extractMustacheSectionOpeners,
+    extractSectionOpenersFromConfig,
+    extractTemplateVariables,
+    extractVariablesFromConfig,
+    resolveTemplateFormat,
+} from "../../runnable/utils"
 import type {RunnablePort, StoreOptions} from "../../shared"
 import {isLocalDraftId, isPlaceholderId} from "../../shared"
 import {archiveWorkflow, unarchiveWorkflow} from "../api"
@@ -765,18 +771,27 @@ function buildEvaluatorFieldPortsFromTemplate(entity: Workflow | null | undefine
     const rawFmt =
         (prompt?.template_format as string | undefined) ??
         (params.template_format as string | undefined)
-    const fmt = rawFmt === "fstring" || rawFmt === "jinja2" ? rawFmt : "curly"
+    // Reuse the shared resolver so ``mustache`` (and any future format) is
+    // preserved rather than silently coerced; fall back to ``curly`` only when
+    // the stored format is unrecognized.
+    const fmt = resolveTemplateFormat(rawFmt) ?? "curly"
 
     const placeholders: string[] = []
+    const sectionOpeners = new Set<string>()
     for (const message of messages) {
         const content = message?.content
         if (typeof content !== "string") continue
         for (const v of extractTemplateVariables(content, fmt)) {
             if (!placeholders.includes(v)) placeholders.push(v)
         }
+        // Collect mustache `{{#name}}` / `{{^name}}` openers so iteration
+        // intent surfaces as `type: "array"` for ports with no sub-paths.
+        for (const opener of extractMustacheSectionOpeners(content, fmt)) {
+            sectionOpeners.add(opener)
+        }
     }
 
-    const groups = groupTemplateVariables(placeholders)
+    const groups = groupTemplateVariables(placeholders, {sectionOpeners})
     const ports: RunnablePort[] = []
     const seen = new Set<string>()
     for (const group of groups) {
@@ -789,23 +804,36 @@ function buildEvaluatorFieldPortsFromTemplate(entity: Workflow | null | undefine
         if (RESERVED_FIELD_KEYS.has(group.key)) continue
         if (seen.has(group.key)) continue
         seen.add(group.key)
+        const baseHelpText = `Field referenced in your prompt as \`{{$.inputs.${group.key}}}\`${
+            group.type === "string" ? ` or \`{{${group.key}}}\`` : ""
+        }${
+            group.type === "array"
+                ? ` (used as a mustache section: \`{{#${group.key}}}…{{/${group.key}}}\`)`
+                : ""
+        }. Note: this value is merged into the \`inputs\` envelope at runtime, so it also appears inside \`{{inputs}}\` if your prompt renders the whole envelope.`
+
+        // Emit an explicit `array` schema for section-opener ports so the
+        // empty-shape seed produces `[]` (instead of nothing) and the new
+        // playground inputs body can show a sensible JSON skeleton on
+        // drafts. Object ports already get a schema from `subPaths`.
+        const schema =
+            group.subPaths && group.subPaths.length > 0
+                ? {
+                      type: "object",
+                      properties: Object.fromEntries(
+                          group.subPaths.map((sp) => [sp, {type: "string"}]),
+                      ),
+                  }
+                : group.type === "array"
+                  ? {type: "array"}
+                  : undefined
+
         ports.push({
             key: group.key,
             name: group.key,
             type: group.type,
-            helpText: `Field referenced in your prompt as \`{{$.inputs.${group.key}}}\`${
-                group.type === "string" ? ` or \`{{${group.key}}}\`` : ""
-            }. Note: this value is merged into the \`inputs\` envelope at runtime, so it also appears inside \`{{inputs}}\` if your prompt renders the whole envelope.`,
-            ...(group.subPaths && group.subPaths.length > 0
-                ? {
-                      schema: {
-                          type: "object",
-                          properties: Object.fromEntries(
-                              group.subPaths.map((sp) => [sp, {type: "string"}]),
-                          ),
-                      },
-                  }
-                : {}),
+            helpText: baseHelpText,
+            ...(schema ? {schema} : {}),
         })
     }
     return ports
@@ -880,14 +908,31 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
             if (params) {
                 const vars = extractVariablesFromConfig(params as Record<string, unknown>)
                 if (vars.length > 0) {
-                    return groupTemplateVariables(vars)
+                    const sectionOpeners = extractSectionOpenersFromConfig(
+                        params as Record<string, unknown>,
+                    )
+                    // Resolve the workflow-level template_format so the
+                    // grouper can apply format-aware parsing (curly →
+                    // literal-key dotted names; mustache/jinja2 → nested).
+                    // See parseTemplateExpression docstring + Slack QA on
+                    // 2026-05-28 ("did curly still behave as curly?").
+                    const promptObj = params.prompt as Record<string, unknown> | undefined
+                    const rawTf =
+                        (promptObj?.template_format as string | undefined) ??
+                        ((params as Record<string, unknown>).template_format as string | undefined)
+                    const templateFormat = resolveTemplateFormat(rawTf) ?? undefined
+                    return groupTemplateVariables(vars, {sectionOpeners, templateFormat})
                         .filter((group) => group.envelope === "inputs")
                         .map((group) => ({
                             key: group.key,
                             name: group.name,
                             type: group.type,
                             required: true,
-                            ...(group.subPaths ? {schema: buildSubPathSchema(group.subPaths)} : {}),
+                            ...(group.subPaths
+                                ? {schema: buildSubPathSchema(group.subPaths)}
+                                : group.type === "array"
+                                  ? {schema: {type: "array"}}
+                                  : {}),
                         }))
                 }
             }
@@ -924,14 +969,29 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                 (key) => !systemFields.has(key),
             )
             if (vars.length > 0) {
-                return groupTemplateVariables(vars)
+                const sectionOpeners = extractSectionOpenersFromConfig(
+                    params as Record<string, unknown>,
+                )
+                // Same format resolution as the `is_base` branch above —
+                // workflow-level template_format steers literal-vs-nested
+                // dot parsing for plain `{{foo.bar}}` placeholders.
+                const promptObj = params.prompt as Record<string, unknown> | undefined
+                const rawTf =
+                    (promptObj?.template_format as string | undefined) ??
+                    ((params as Record<string, unknown>).template_format as string | undefined)
+                const templateFormat = resolveTemplateFormat(rawTf) ?? undefined
+                return groupTemplateVariables(vars, {sectionOpeners, templateFormat})
                     .filter((group) => group.envelope === "inputs")
                     .map((group) => ({
                         key: group.key,
                         name: group.name,
                         type: group.type,
                         required: true,
-                        ...(group.subPaths ? {schema: buildSubPathSchema(group.subPaths)} : {}),
+                        ...(group.subPaths
+                            ? {schema: buildSubPathSchema(group.subPaths)}
+                            : group.type === "array"
+                              ? {schema: {type: "array"}}
+                              : {}),
                     }))
             }
         }
