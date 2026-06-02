@@ -7,7 +7,7 @@
  * Self-contained — no dependency on @/oss.
  */
 
-import {memo, useCallback} from "react"
+import {memo, useCallback, type ReactNode} from "react"
 
 import {X} from "@phosphor-icons/react"
 import {Button, Input, InputNumber, Radio, Select, Slider, Typography} from "antd"
@@ -43,6 +43,62 @@ const READONLY_CLASS =
 // SUB-COMPONENTS
 // ============================================================================
 
+/**
+ * Clear ("remove value") button shared by annotation value controls.
+ *
+ * Always rendered so the control's width is stable — it is *disabled* (not
+ * unmounted) when there is no value to clear or the field is read-only. This
+ * prevents the layout shift that happened when the button appeared/disappeared
+ * as the value toggled.
+ */
+const ClearButton = memo(function ClearButton({
+    onClear,
+    disabled,
+}: {
+    onClear: () => void
+    disabled?: boolean
+}) {
+    return (
+        <Button
+            icon={<X size={14} />}
+            type="text"
+            size="small"
+            aria-label="Clear value"
+            onClick={onClear}
+            disabled={disabled}
+        />
+    )
+})
+
+/**
+ * Shared label row for every annotation value control: the field label on the
+ * left and the always-present ClearButton on the right (with an optional inline
+ * control such as a radio group or a compact number input between them). Keeps
+ * the clear affordance consistent across all field types and prevents the
+ * layout shift that came from conditionally mounting the remove button.
+ */
+const FieldLabelRow = memo(function FieldLabelRow({
+    label,
+    trailing,
+    onClear,
+    clearDisabled,
+}: {
+    label: string
+    trailing?: ReactNode
+    onClear: () => void
+    clearDisabled?: boolean
+}) {
+    return (
+        <div className="flex items-center justify-between gap-2">
+            <Typography.Text className="playground-property-control-label">{label}</Typography.Text>
+            <div className="flex items-center gap-1">
+                {trailing}
+                <ClearButton onClear={onClear} disabled={clearDisabled} />
+            </div>
+        </div>
+    )
+})
+
 const BooleanField = memo(function BooleanField({
     label,
     value,
@@ -63,11 +119,11 @@ const BooleanField = memo(function BooleanField({
         <div
             className={`flex flex-col gap-0 playground-property-control ${readOnly ? READONLY_CLASS : ""}`}
         >
-            <div className="flex items-center gap-2 justify-between">
-                <Typography.Text className="playground-property-control-label">
-                    {label}
-                </Typography.Text>
-                <div className="flex items-center gap-1">
+            <FieldLabelRow
+                label={label}
+                onClear={() => onChange(null)}
+                clearDisabled={disabled || readOnly || !hasValue}
+                trailing={
                     <Radio.Group
                         onChange={(e) => onChange(e.target.value)}
                         value={value}
@@ -76,17 +132,8 @@ const BooleanField = memo(function BooleanField({
                         <Radio.Button value={true}>True</Radio.Button>
                         <Radio.Button value={false}>False</Radio.Button>
                     </Radio.Group>
-                    {hasValue && !readOnly && (
-                        <Button
-                            icon={<X size={14} />}
-                            type="text"
-                            size="small"
-                            onClick={() => onChange(null)}
-                            disabled={disabled}
-                        />
-                    )}
-                </div>
-            </div>
+                }
+            />
         </div>
     )
 })
@@ -125,29 +172,32 @@ const NumberField = memo(function NumberField({
     const useSlider = min !== undefined && max !== undefined
     const step = isInteger ? 1 : 0.1
     const isDisabled = disabled || readOnly
+    const hasValue = value !== null && value !== undefined
 
     return (
         <div
             className={`flex flex-col gap-1 playground-property-control ${readOnly ? READONLY_CLASS : ""}`}
         >
-            <div className="flex items-center justify-between">
-                <Typography.Text className="playground-property-control-label">
-                    {label}
-                </Typography.Text>
-                {useSlider && (
-                    <InputNumber
-                        value={displayValue}
-                        onChange={handleChange}
-                        disabled={isDisabled}
-                        min={min}
-                        max={max}
-                        step={step}
-                        precision={isInteger ? 0 : undefined}
-                        size="small"
-                        className="w-[70px]"
-                    />
-                )}
-            </div>
+            <FieldLabelRow
+                label={label}
+                onClear={() => onChange(null)}
+                clearDisabled={disabled || readOnly || !hasValue}
+                trailing={
+                    useSlider ? (
+                        <InputNumber
+                            value={displayValue}
+                            onChange={handleChange}
+                            disabled={isDisabled}
+                            min={min}
+                            max={max}
+                            step={step}
+                            precision={isInteger ? 0 : undefined}
+                            size="small"
+                            className="w-[70px]"
+                        />
+                    ) : undefined
+                }
+            />
             {useSlider ? (
                 <Slider
                     value={displayValue ?? min ?? 0}
@@ -188,12 +238,17 @@ const StringField = memo(function StringField({
     onChange: (value: string | null) => void
 }) {
     const isDisabled = disabled || readOnly
+    const hasValue = value !== null && value !== undefined && value !== ""
 
     return (
         <div
             className={`flex flex-col gap-1 playground-property-control ${readOnly ? READONLY_CLASS : ""}`}
         >
-            <Typography.Text className="playground-property-control-label">{label}</Typography.Text>
+            <FieldLabelRow
+                label={label}
+                onClear={() => onChange(null)}
+                clearDisabled={disabled || readOnly || !hasValue}
+            />
             <Input.TextArea
                 value={value ?? ""}
                 onChange={(e) => onChange(e.target.value || null)}
@@ -249,7 +304,11 @@ const SelectField = memo(function SelectField({
         <div
             className={`flex flex-col gap-1 playground-property-control ${readOnly ? READONLY_CLASS : ""}`}
         >
-            <Typography.Text className="playground-property-control-label">{label}</Typography.Text>
+            <FieldLabelRow
+                label={label}
+                onClear={() => onChange(null)}
+                clearDisabled={disabled || readOnly || normalizedValue === undefined}
+            />
             <Select
                 value={normalizedValue}
                 onChange={handleChange}
@@ -258,7 +317,6 @@ const SelectField = memo(function SelectField({
                 mode={mode}
                 placeholder={mode ? "Select options" : "Select"}
                 className="w-full"
-                allowClear={!readOnly && normalizedValue !== undefined}
             />
         </div>
     )

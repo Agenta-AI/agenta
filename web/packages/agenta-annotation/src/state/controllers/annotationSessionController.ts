@@ -50,8 +50,8 @@ import {fetchTestcase, fetchTestcasesBatch, SYSTEM_FIELDS} from "@agenta/entitie
 import type {Testcase} from "@agenta/entities/testcase"
 import {
     createTestset,
+    fetchLatestRevision,
     fetchLatestRevisionsBatch,
-    fetchLatestRevisionWithTestcases,
     fetchRevisionWithTestcases,
     fetchTestsetsBatch,
     patchRevision,
@@ -64,7 +64,7 @@ import {
     type TraceSpan,
 } from "@agenta/entities/trace"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {axios, queryClient} from "@agenta/shared/api"
+import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {atom, type Getter, type Setter} from "jotai"
@@ -73,10 +73,13 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {
+    buildAddToTestsetOperations,
     buildTestcaseExportRows,
     buildTraceTestsetRows,
     buildTestsetSyncOperations,
     buildTestsetSyncPreview,
+    filterQueueScopedAnnotations,
+    getTestcaseDedupId,
     getTestsetSyncEvaluatorColumnKey,
     remapTargetRowsToBaseRevision,
     selectQueueScopedAnnotation,
@@ -1299,7 +1302,12 @@ const scenarioAnnotationsByTestcaseQueryAtomFamily = atomFamily(
                         },
                     },
                 })
-                return response.annotations ?? []
+                // A query by testcase id returns annotations from EVERY queue
+                // that ever touched this testcase (and archived revisions).
+                // Scope to the active queue so a fresh queue doesn't surface
+                // stale annotations from prior queues.
+                const queueId = getStore().get(activeQueueIdAtom)
+                return filterQueueScopedAnnotations(response.annotations ?? [], queueId ?? "")
             },
             enabled: !!testcaseId,
             retry: (failureCount: number, error: Error) => {
@@ -2379,11 +2387,25 @@ let _onSessionClosed: (() => void) | null = null
 let _onNavigate: ((scenarioId: string, index: number) => void) | null = null
 
 async function fetchBaseRevisionRows(params: {projectId: string; revisionId: string}) {
-    const revision = await fetchRevisionWithTestcases({
-        id: params.revisionId,
-        projectId: params.projectId,
-    })
+    // Fetch the RAW testcases — not via fetchRevisionWithTestcases.
+    //
+    // AGE-3761: normalizeRevision()/normalizeTestcase() strips system fields,
+    // including `testcase_dedup_id`, from each row's data. The add-to-testset
+    // matching (buildAddToTestsetOperations) relies on that dedup id to
+    // re-identify a row by content lineage after an earlier save reassigned its
+    // (immutable) testcase id. With the dedup stripped, the fallback match never
+    // fired, so the second save appended the annotated row instead of replacing
+    // it — duplicating it. Reading the raw rows keeps the dedup id intact.
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
+        {
+            testset_revision_refs: [{id: params.revisionId}],
+            windowing: {limit: 1},
+        },
+        {params: {project_id: params.projectId, include_testcases: true}},
+    )
 
+    const revision = response.data?.testset_revisions?.[0]
     const rawRows = revision?.data?.testcases ?? []
 
     return rawRows as {
@@ -2649,9 +2671,28 @@ async function fetchLatestRevisionWithRows(params: {
     projectId: string
     testsetId: string
 }): Promise<LatestRevisionWithRows> {
-    const latestRevision = await fetchLatestRevisionWithTestcases({
+    // Resolve the latest *non-archived* revision (AGE-3761).
+    //
+    // The `retrieve {testset_ref}` path (fetchLatestRevisionWithTestcases)
+    // returns archived revisions as "latest". Basing the add-to-testset commit
+    // on an archived revision re-mutates rows whose identity the queue can no
+    // longer match (the archived revision holds reassigned testcase ids), which
+    // duplicates testcases. The revisions `query` path excludes archived
+    // revisions, so we resolve the base revision id through it. Verified against
+    // the live backend: after archiving the head revision, `retrieve` still
+    // returns it while `query` (descending, limit 1) returns the prior live one.
+    const latest = await fetchLatestRevision({
         projectId: params.projectId,
         testsetId: params.testsetId,
+    })
+    if (!latest?.id) {
+        throw new Error("The latest revision for the selected testset could not be resolved.")
+    }
+
+    // Re-fetch with a 1-row sample purely for column detection.
+    const latestRevision = await fetchRevisionWithTestcases({
+        id: latest.id,
+        projectId: params.projectId,
         testcaseLimit: 1,
     })
     if (!latestRevision?.id) {
@@ -2874,7 +2915,14 @@ async function prepareTestcaseExportRows(params: {
                 },
             },
         })
-        annotationsByTestcaseId.set(testcaseId, response.annotations ?? [])
+        // Scope to the active queue: a testcase-id query returns annotations
+        // from every queue that touched this testcase, so without this filter
+        // the export bleeds stale annotations onto rows (every row ends up
+        // "annotated" even in a fresh queue).
+        annotationsByTestcaseId.set(
+            testcaseId,
+            filterQueueScopedAnnotations(response.annotations ?? [], params.queueId),
+        )
 
         processed += 1
         params.setProcessed(processed)
@@ -3050,18 +3098,68 @@ const addScenariosToTestsetAtom = atom(
 
                     const rowsForCommit = remapRowsToExistingLeafColumns(rows, existingColumns)
 
-                    const patchResult = await patchRevision({
+                    // Match each annotated row against the testset's LATEST
+                    // revision so it replaces its existing row (by testcase id,
+                    // falling back to testcase_dedup_id) instead of being
+                    // appended. Basing on latest accumulates prior annotations
+                    // and respects external edits; the queue's testcases match
+                    // by id on a fresh testset and by dedup once an earlier save
+                    // has reassigned their ids. The dedup id is read from the
+                    // original (pre-remap) data because the remap strips system
+                    // fields like `testcase_dedup_id`.
+                    const baseRows = await fetchBaseRevisionRows({
                         projectId,
-                        testsetId: targetTestsetId,
-                        baseRevisionId: latestRevision.id,
-                        operations: {
-                            rows: {
-                                add: rowsForCommit.map((row) => ({data: row.data})),
-                            },
-                        },
-                        message: payload.commitMessage,
+                        revisionId: latestRevision.id,
                     })
-                    committedRevisionId = patchResult?.testset_revision?.id
+
+                    const commitRows = rowsForCommit.map((row, index) => {
+                        const sourceRow = rows[index] as {
+                            rowId?: string | null
+                            data?: Record<string, unknown> | null
+                        }
+                        const dedupId = getTestcaseDedupId(sourceRow?.data)
+                        // `remapRowsToExistingLeafColumns` strips system fields
+                        // (incl. `testcase_dedup_id`). Re-inject it so the
+                        // replaced testcase keeps its identity lineage across
+                        // revisions — otherwise the testset UI treats the
+                        // updated row as a brand-new one instead of an update.
+                        const data =
+                            dedupId && row.data.testcase_dedup_id === undefined
+                                ? {...row.data, testcase_dedup_id: dedupId}
+                                : row.data
+                        return {
+                            rowId: sourceRow?.rowId ?? null,
+                            dedupId,
+                            data,
+                        }
+                    })
+
+                    const operations = buildAddToTestsetOperations({
+                        rows: commitRows,
+                        baseRows,
+                    })
+
+                    // Idempotency (AGE-3761): if every annotated row already
+                    // matches an identical base row, the delta is empty.
+                    // Committing an empty delta still mints a new (identical)
+                    // revision on the backend, so skip the commit and keep the
+                    // current head — re-saving with nothing changed is a no-op.
+                    const hasChanges = Boolean(
+                        operations.rows?.replace?.length || operations.rows?.add?.length,
+                    )
+
+                    if (hasChanges) {
+                        const patchResult = await patchRevision({
+                            projectId,
+                            testsetId: targetTestsetId,
+                            baseRevisionId: latestRevision.id,
+                            operations,
+                            message: payload.commitMessage,
+                        })
+                        committedRevisionId = patchResult?.testset_revision?.id
+                    } else {
+                        committedRevisionId = latestRevision.id
+                    }
                 }
 
                 if (committedTestsetId) {
