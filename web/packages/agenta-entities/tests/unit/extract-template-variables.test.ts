@@ -72,6 +72,14 @@ describe("extractTemplateVariables", () => {
             expect(extractTemplateVariables("hello {{> partial}} world", "mustache")).toEqual([])
         })
 
+        it("skips delimiter-swap tags `{{=<% %>=}}`", () => {
+            // Delimiter swap is a structural tag that reconfigures the
+            // tokenizer at render time; it never references a variable.
+            expect(
+                extractTemplateVariables("{{=<% %>=}}<% name %><%={{ }}=%>", "mustache"),
+            ).toEqual([])
+        })
+
         it("skips the implicit iterator `{{.}}`", () => {
             expect(extractTemplateVariables("{{.}}", "mustache")).toEqual([])
         })
@@ -97,6 +105,82 @@ describe("extractTemplateVariables", () => {
                     "mustache",
                 ),
             ).toEqual(["items"])
+        })
+
+        // Section depth tracking — Mahmoud QA 2026-06-02.
+        // `{{#repo}}{{name}}{{/repo}}` semantically means `repo` is iterated
+        // and `name` is `repo[i].name`. We don't model scoped names yet, so
+        // the inner reference is skipped rather than registered as a phantom
+        // top-level port. Full scope-aware discovery is Phase 2.
+        it("skips bare variables INSIDE a section block", () => {
+            expect(extractTemplateVariables("{{#repo}}{{name}}{{/repo}}", "mustache")).toEqual([
+                "repo",
+            ])
+        })
+
+        it("skips bare variables inside, keeps top-level ones outside", () => {
+            // Mahmoud's exact example: `repo` is a section, `name` inside is
+            // scoped, `country.a` outside is a top-level dotted variable.
+            expect(
+                extractTemplateVariables("{{#repo}}{{name}}{{/repo}}{{country.a}}", "mustache"),
+            ).toEqual(["repo", "country.a"])
+        })
+
+        it("skips unescaped variables inside a section", () => {
+            // `{{&html}}` inside a section is scoped just like `{{html}}` —
+            // skip it so we don't surface a phantom top-level port.
+            expect(extractTemplateVariables("{{#post}}{{&body}}{{/post}}", "mustache")).toEqual([
+                "post",
+            ])
+        })
+
+        it("skips nested section openers (no `outer.inner` path yet)", () => {
+            // `{{#org}}{{#users}}{{name}}{{/users}}{{/org}}` — only `org` is
+            // at top level. `users` and `name` are scoped paths under `org`,
+            // and we don't materialise them as separate ports in Phase 1.
+            expect(
+                extractTemplateVariables(
+                    "{{#org}}{{#users}}{{name}}{{/users}}{{/org}}",
+                    "mustache",
+                ),
+            ).toEqual(["org"])
+        })
+
+        it("resumes top-level extraction after a section closes", () => {
+            // Two sections + a top-level variable between them. The walker
+            // must restore depth-0 state on each `{{/...}}` so the variable
+            // between sections is captured.
+            expect(
+                extractTemplateVariables(
+                    "{{#a}}{{ai}}{{/a}}{{middle}}{{#b}}{{bi}}{{/b}}",
+                    "mustache",
+                ),
+            ).toEqual(["a", "middle", "b"])
+        })
+
+        it("emits the inverted section opener at top level", () => {
+            // `{{^empty}}...{{/empty}}` — `empty` is still a variable the
+            // user provides (the section renders only when it's falsy).
+            // Inner bare references are still scoped → skipped.
+            expect(
+                extractTemplateVariables("{{^empty}}fallback: {{detail}}{{/empty}}", "mustache"),
+            ).toEqual(["empty"])
+        })
+
+        it("handles unbalanced `{{/x}}` defensively (no underflow)", () => {
+            // A stray closer with no matching open shouldn't crash or wrap
+            // the depth counter. Subsequent top-level variables stay visible.
+            expect(extractTemplateVariables("{{/stray}}{{later}}", "mustache")).toEqual(["later"])
+        })
+
+        it("handles unclosed `{{#x}}` defensively (subsequent vars suppressed)", () => {
+            // Unclosed section means depth never returns to 0. Subsequent
+            // variables are treated as scoped. The editor will surface the
+            // imbalance separately (Phase 2 validation); this matches the
+            // safer "no phantom ports" default.
+            expect(extractTemplateVariables("{{#unclosed}}{{later}}", "mustache")).toEqual([
+                "unclosed",
+            ])
         })
     })
 
