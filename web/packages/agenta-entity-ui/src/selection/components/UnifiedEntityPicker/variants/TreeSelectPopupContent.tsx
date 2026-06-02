@@ -237,6 +237,8 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                         .tree-popup-compact .ant-tree-list-holder,
                         .tree-popup-compact .ant-tree-list-holder > div,
                         .tree-popup-compact .ant-tree-list-holder-inner { overflow: visible !important; }
+                        /* Transparent tree background so the popover surface shows through */
+                        .tree-popup-compact .ant-tree { background: transparent; }
                         /* Sticky parent group headers */
                         .tree-popup-compact .ant-tree-treenode:not(.ant-tree-treenode-leaf) { position: sticky; top: 0; z-index: 1; background: var(--ant-color-bg-elevated, #fff); }
                     `}</style>
