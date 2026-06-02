@@ -54,7 +54,7 @@ const PromptComparisonVariantNavigation = ({
 
     return (
         <div {...props} className={clsx([className, "z-[20]"])}>
-            <div className="w-full h-[48px] flex items-center px-2 sticky top-0 z-10 bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+            <div className="w-full h-[48px] flex items-center px-2 sticky top-0 z-10 bg-[var(--ag-c-FFFFFF)] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
                 <Typography.Text>Variants</Typography.Text>
             </div>
 

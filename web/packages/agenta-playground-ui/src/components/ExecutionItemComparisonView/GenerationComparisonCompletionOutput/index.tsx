@@ -294,24 +294,24 @@ const GenerationComparisonCompletionOutput = ({
                 {variantIndex === 0 ? (
                     <div
                         className={clsx([
-                            "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[99] !w-[400px]",
+                            "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)] sticky left-0 z-[99] !w-[400px]",
                             {"border-r": variantIndex === 0},
                             "shrink-0",
                         ])}
                     >
                         <div className="p-3">
-                            <div className="h-12 rounded bg-[rgba(5,23,41,0.06)] animate-pulse" />
+                            <div className="h-12 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
                         </div>
                     </div>
                 ) : null}
                 <div
                     className={clsx([
-                        "!min-w-[400px] flex-1 shrink-0 bg-white z-[1]",
-                        "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
+                        "!min-w-[400px] flex-1 shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
+                        "border-0 border-r border-b border-solid border-[var(--ag-rgba-051729-06)]",
                     ])}
                 >
                     <div className="p-3">
-                        <div className="h-20 rounded bg-[rgba(5,23,41,0.06)] animate-pulse" />
+                        <div className="h-20 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
                     </div>
                 </div>
             </>
@@ -323,7 +323,7 @@ const GenerationComparisonCompletionOutput = ({
             {variantIndex === 0 ? (
                 <div
                     className={clsx([
-                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[99] !w-[400px]",
+                        "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)] sticky left-0 z-[99] !w-[400px]",
                         {"border-r": variantIndex === 0},
                         "shrink-0",
                     ])}
@@ -336,8 +336,8 @@ const GenerationComparisonCompletionOutput = ({
 
             <div
                 className={clsx([
-                    "!min-w-[400px] flex-1 shrink-0 bg-white z-[1]",
-                    "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
+                    "!min-w-[400px] flex-1 shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
+                    "border-0 border-r border-b border-solid border-[var(--ag-rgba-051729-06)]",
                 ])}
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[1] flex flex-col gap-3 px-3 py-2">

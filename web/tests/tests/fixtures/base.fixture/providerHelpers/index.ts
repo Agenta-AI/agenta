@@ -137,7 +137,7 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                 const pathname = new URL(page.url()).pathname
                 const hasScopedSettingsPath = /\/w\/[^/]+\/p\/[^/]+\/settings$/.test(pathname)
                 const headingVisible = await page
-                    .getByRole("heading", {name: "Models"})
+                    .getByRole("heading", {name: "Providers & Models"})
                     .isVisible()
                     .catch(() => false)
                 const sectionVisible = await customProvidersSection.isVisible().catch(() => false)
@@ -181,7 +181,9 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
     await page.goto(`${projectBasePath}/settings?tab=secrets`, {waitUntil: "domcontentloaded"})
 
     await uiHelpers.expectPath("/settings")
-    await expect(page.getByRole("heading", {name: "Models"})).toBeVisible({timeout: 15000})
+    await expect(page.getByRole("heading", {name: "Providers & Models"})).toBeVisible({
+        timeout: 15000,
+    })
     await expect(getCustomProvidersSection(page)).toBeVisible({timeout: 15000})
     await waitForModelsPageReady(page)
 }

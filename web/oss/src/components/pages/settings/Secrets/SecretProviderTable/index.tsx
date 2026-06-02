@@ -80,9 +80,9 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
             ...(isCustom
                 ? [
                       {
-                          title: "Model",
-                          dataIndex: "model",
-                          key: "model",
+                          title: "Provider",
+                          dataIndex: "provider",
+                          key: "provider",
                           onHeaderCell: () => ({
                               style: {minWidth: 160},
                           }),
@@ -92,10 +92,40 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                       <Tag
                                           variant="filled"
                                           color="default"
-                                          className="bg-[#0517290F] px-2 py-[1px]"
+                                          className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
                                       >
                                           {record?.provider}
                                       </Tag>
+                                  </div>
+                              )
+                          },
+                      },
+                      {
+                          title: "Models",
+                          dataIndex: "models",
+                          key: "models",
+                          onHeaderCell: () => ({
+                              style: {minWidth: 200},
+                          }),
+                          render: (_: any, record: LlmProvider) => {
+                              const models = record?.models ?? []
+
+                              if (models.length === 0) {
+                                  return <Typography.Text type="secondary">-</Typography.Text>
+                              }
+
+                              return (
+                                  <div className="flex flex-wrap items-start gap-1">
+                                      {models.map((model) => (
+                                          <Tag
+                                              key={model}
+                                              variant="filled"
+                                              color="default"
+                                              className="bg-[#0517290F] px-2 py-[1px] m-0"
+                                          >
+                                              {model}
+                                          </Tag>
+                                      ))}
                                   </div>
                               )
                           },

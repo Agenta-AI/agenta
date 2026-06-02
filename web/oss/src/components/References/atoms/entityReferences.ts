@@ -345,6 +345,42 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                 }
             }
 
+            // Slug-only resolution (e.g. the observability table's evaluator
+            // metric columns, which only carry a slug). The id query above
+            // never runs in that case, so match the slug against the already
+            // loaded app+evaluator union list to surface the real `name`
+            // instead of leaking the slug. Mirrors `appReferenceAtomFamily`.
+            if (slug) {
+                const listState = get(workflowsListQueryStateAtom)
+                const listMatch = listState.data.find((w) => w.slug === slug)
+
+                if (listMatch) {
+                    return {
+                        data: {
+                            id: listMatch.id ?? id ?? null,
+                            slug: listMatch.slug ?? slug,
+                            name: listMatch.name ?? listMatch.slug ?? slug,
+                            metrics: extractMetricsFromWorkflow(listMatch),
+                        },
+                        isPending: false,
+                        isFetching: false,
+                        isLoading: false,
+                        isError: false,
+                    }
+                }
+
+                // List still loading — defer rather than flash the slug.
+                if (listState.isPending) {
+                    return {
+                        data: null,
+                        isPending: true,
+                        isFetching: true,
+                        isLoading: true,
+                        isError: false,
+                    }
+                }
+            }
+
             // Nothing found — return minimal reference
             return {
                 data: {

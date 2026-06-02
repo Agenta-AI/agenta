@@ -1,4 +1,5 @@
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
+import {SkeletonLine} from "@agenta/ui/table"
 import {Typography} from "antd"
 
 import {
@@ -7,7 +8,6 @@ import {
 } from "@/oss/components/EvalRunDetails/components/views/ConfigurationView/utils"
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 
 import FiltersPreview from "../../pages/evaluations/onlineEvaluation/components/FiltersPreview"
 import usePreviewQueryRevision from "../hooks/usePreviewQueryRevision"
@@ -78,7 +78,7 @@ const PreviewQueryCellContent = ({
                 </div>
             </TooltipWithCopyAction>
             {hasWindowingMeta ? (
-                <div className="flex flex-wrap gap-2 text-[11px] text-[#667085]">
+                <div className="flex flex-wrap gap-2 text-[11px] text-[var(--ag-c-667085)]">
                     {samplingRate && samplingRate !== "—" ? (
                         <span className="whitespace-nowrap">Sampling: {samplingRate}</span>
                     ) : null}

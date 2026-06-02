@@ -219,7 +219,7 @@ const DrawerHeader = () => {
 
     return (
         <div
-            className="flex items-center justify-between px-4 py-4 border-0 border-b border-solid border-[#0517290F] shrink-0"
+            className="flex items-center justify-between px-4 py-4 border-0 border-b border-solid border-[var(--ag-c-0517290F)] shrink-0"
             data-testid="workflow-revision-drawer-header"
         >
             {/* Left: close + title + nav */}

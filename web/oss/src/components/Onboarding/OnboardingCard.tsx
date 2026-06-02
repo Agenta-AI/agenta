@@ -742,7 +742,7 @@ const OnboardingCard = ({
                                     onClick={handlePrev}
                                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                                     disabled={currentStep === 0}
-                                    className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
+                                    className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] text-colorText hover:!text-colorTextSecondary"
                                     size="small"
                                 >
                                     {labels.previous ?? "Previous"}
@@ -768,7 +768,7 @@ const OnboardingCard = ({
                 {showSkip && skipTour && currentStep < totalSteps - 1 && (
                     <Button
                         type="default"
-                        className="!text-xs mt-2 w-full rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
+                        className="!text-xs mt-2 w-full rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] text-colorText hover:!text-colorTextSecondary"
                         onClick={handleSkip}
                         size="small"
                     >
@@ -778,7 +778,9 @@ const OnboardingCard = ({
 
                 {/* Arrow - hide if user has moved the card */}
                 {adjustedArrow && userOffset.x === 0 && userOffset.y === 0 && (
-                    <div className="mt-2 flex w-full justify-center !bg-white">{adjustedArrow}</div>
+                    <div className="mt-2 flex w-full justify-center !bg-[var(--ag-c-FFFFFF)]">
+                        {adjustedArrow}
+                    </div>
                 )}
             </Card>
         </section>

@@ -62,11 +62,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         height: 3,
         aspectRatio: 1 / 1,
         borderRadius: "50%",
-        backgroundColor: "#8c8c8c",
+        backgroundColor: theme.colorTextQuaternary,
         marginTop: 2,
     },
     date: {
-        color: "#8c8c8c",
+        color: theme.colorTextTertiary,
     },
     longCell: {
         height: "100%",
