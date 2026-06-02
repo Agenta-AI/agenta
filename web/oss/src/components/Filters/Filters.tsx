@@ -46,7 +46,6 @@ import {
     STRING_EQU_OPS,
 } from "../pages/observability/assets/utils"
 
-import {useStyles} from "./assets/styles"
 import {
     buildCustomTreeNode,
     collectOptionValues,
@@ -74,6 +73,14 @@ import {
     RowValidation,
     SelectOption,
 } from "./types"
+
+const popoverClass =
+    "[&.ant-popover]:max-w-[100vw] [&_.ant-popover-container]:w-[clamp(320px,60vw,700px)] [&_.ant-popover-container]:max-w-[calc(100vw-24px)] [&_.ant-popover-container]:max-h-[min(70vh,640px)] [&_.ant-popover-container]:p-0"
+const fieldDropdownSubmenuClass =
+    "[&_.ant-dropdown-menu]:w-full [&_.ant-dropdown-menu]:max-w-[min(560px,calc(100vw-32px))] [&_.ant-dropdown-menu]:max-h-[60vh] [&_.ant-dropdown-menu]:overflow-auto"
+const filterHeadingClass =
+    "flex items-center justify-between py-2 pr-2 pl-4 gap-3 [&_.ant-typography]:text-sm [&_.ant-typography]:leading-[1.5714285714285714] [&_.ant-typography]:font-medium"
+const filterContainerClass = "flex gap-2 flex-col p-2"
 
 type AnnotationFeedbackValueType = "string" | "number" | "boolean"
 
@@ -277,8 +284,6 @@ const Filters: React.FC<Props> = ({
     onClearFilter,
     buttonProps,
 }) => {
-    const classes = useStyles()
-
     const evaluatorPreviews = useAtomValue(evaluatorsListDataAtom)
 
     const annotationEvaluatorOptions = useMemo(
@@ -790,7 +795,7 @@ const Filters: React.FC<Props> = ({
         <Popover
             title={null}
             trigger="click"
-            overlayClassName={classes.popover}
+            overlayClassName={popoverClass}
             arrow={false}
             onOpenChange={(open) => {
                 setIsFilterOpen(open)
@@ -803,14 +808,14 @@ const Filters: React.FC<Props> = ({
             destroyOnHidden
             content={
                 <section>
-                    <div className={classes.filterHeading}>
+                    <div className={filterHeadingClass}>
                         <Typography.Text>Filter</Typography.Text>
                     </div>
                     <div className="-ml-4 -mr-2">
                         <Divider className="!m-0" />
                     </div>
 
-                    <div className={classes.filterContainer}>
+                    <div className={filterContainerClass}>
                         {filter.map((item, idx) => {
                             const uiKey = item.selectedField || item.field || ""
                             const baseFieldCfg = getField(uiKey)
@@ -1233,7 +1238,7 @@ const Filters: React.FC<Props> = ({
                                                             ),
                                                         "root",
                                                         [],
-                                                        classes.fieldDropdownSubmenu,
+                                                        fieldDropdownSubmenuClass,
                                                         disabledFieldOptionsForMenu ??
                                                             EMPTY_DISABLED_OPTIONS,
                                                     ),

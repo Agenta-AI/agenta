@@ -150,8 +150,8 @@ const BarChart = ({
                             return (
                                 <div
                                     style={{
-                                        backgroundColor: "#FFFFFF",
-                                        border: "1px solid #E2E8F0",
+                                        backgroundColor: "var(--ag-colorBgElevated)",
+                                        border: "1px solid var(--ag-colorBorderSecondary)",
                                         borderRadius: 6,
                                         boxShadow: "0 4px 12px rgba(15, 23, 42, 0.08)",
                                         padding: "8px 12px",
@@ -160,7 +160,7 @@ const BarChart = ({
                                 >
                                     <div
                                         style={{
-                                            color: "#0F172A",
+                                            color: "var(--ag-colorText)",
                                             marginBottom: 6,
                                             fontWeight: 500,
                                         }}
@@ -215,7 +215,7 @@ const BarChart = ({
                                                     style={{
                                                         flex: 1,
                                                         fontSize: 12,
-                                                        color: "#475467",
+                                                        color: "var(--ag-c-475467)",
                                                     }}
                                                 >
                                                     {entryLabel}

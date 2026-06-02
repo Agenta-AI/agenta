@@ -26,6 +26,8 @@ import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
 
+import {buildProjectSwitchHref} from "./assets/projectSwitchHref"
+
 interface ListOfProjectsProps {
     collapsed: boolean
     buttonProps?: ButtonProps
@@ -261,19 +263,13 @@ const ListOfProjects = ({
             cacheLastUsedProjectId(workspaceId, projectId)
             if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
-            // Extract the current page path to preserve navigation context
-            const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
-            const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
-
-            // Preserve query params for settings tab
-            const isOnSettingsPage = currentPagePath.startsWith("settings")
-            const currentTab =
-                (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
-                (router.query.tab as string | undefined)
-            const tabParam =
-                isOnSettingsPage && currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
-
-            const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
+            const href = buildProjectSwitchHref({
+                workspaceId,
+                projectId,
+                currentAsPath: router.asPath,
+                settingsTab,
+                queryTab: router.query.tab as string | undefined,
+            })
 
             void router.push(href)
         },
@@ -409,7 +405,7 @@ const ListOfProjects = ({
                     <div className="flex items-center gap-2 w-full max-w-[300px]">
                         <span className="truncate">{proj.project_name}</span>
                         {proj.is_default_project && (
-                            <Tag className="bg-[#0517290F] m-0">default</Tag>
+                            <Tag className="bg-[var(--ag-c-0517290F)] m-0">default</Tag>
                         )}
                     </div>
                 ),

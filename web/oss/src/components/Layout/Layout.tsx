@@ -4,10 +4,11 @@ import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {ConfigProvider, Layout, Modal, Space, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import {selectAtom} from "jotai/utils"
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 import {useResizeObserver} from "usehooks-ts"
 
@@ -96,6 +97,54 @@ const selectedLayoutRouteFlagsAtom = selectAtom(
         a.isEvaluator === b.isEvaluator &&
         a.isFullHeight === b.isFullHeight,
 )
+
+/**
+ * The layout flags are derived from the in-flight pathname, which Next flips at
+ * `routeChangeStart` — before the destination page mounts. During that window the
+ * *outgoing* page is still in the DOM, so leaving a full-height table page for a
+ * content-flow page would briefly strip the table's `overflow-hidden` bound and
+ * make it reflow/jump until the new page took over.
+ *
+ * This hook keeps the flags pinned to the *committed* route: while a navigation is
+ * in flight we freeze the last value and only adopt the new flags on
+ * `routeChangeComplete` (when Next swaps the page in). Same-route updates (e.g. the
+ * settings `?tab=audit-log` toggle) aren't page swaps, so they're adopted
+ * immediately when idle.
+ */
+const useCommittedLayoutFlags = (): LayoutRouteFlags => {
+    const store = useStore()
+    const router = useRouter()
+    const liveFlags = useAtomValue(selectedLayoutRouteFlagsAtom)
+    const [committedFlags, setCommittedFlags] = useState(liveFlags)
+    const navigatingRef = useRef(false)
+
+    useEffect(() => {
+        const onStart = () => {
+            navigatingRef.current = true
+        }
+        const onComplete = () => {
+            navigatingRef.current = false
+            setCommittedFlags(store.get(selectedLayoutRouteFlagsAtom))
+        }
+        router.events.on("routeChangeStart", onStart)
+        router.events.on("routeChangeComplete", onComplete)
+        router.events.on("routeChangeError", onComplete)
+        return () => {
+            router.events.off("routeChangeStart", onStart)
+            router.events.off("routeChangeComplete", onComplete)
+            router.events.off("routeChangeError", onComplete)
+        }
+    }, [router, store])
+
+    useEffect(() => {
+        // Adopt live flags immediately when no navigation is in flight (initial
+        // mount, same-route query changes, and as a self-heal if the snapshot
+        // settles after routeChangeComplete).
+        if (!navigatingRef.current) setCommittedFlags(liveFlags)
+    }, [liveFlags])
+
+    return committedFlags
+}
 
 const FooterIsland = dynamic(() => import("./FooterIsland").then((m) => m.FooterIsland), {
     ssr: false,
@@ -215,7 +264,7 @@ const AppWithVariants = memo(
                 </Modal>
                 {project?.is_demo && (
                     <>
-                        <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[#1c2c3d] text-white text-sm font-medium">
+                        <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[var(--ag-c-1C2C3D)] text-white text-sm font-medium">
                             You're viewing the demo workspace.
                             <button
                                 type="button"
@@ -346,7 +395,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     })
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
-        useAtomValue(selectedLayoutRouteFlagsAtom)
+        useCommittedLayoutFlags()
 
     const [, contextHolder] = Modal.useModal()
 

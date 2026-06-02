@@ -51,7 +51,7 @@ const SplitterPanel = Splitter.Panel
 
 const GenerationPanelPlaceholder = memo(() => (
     <div className="p-4">
-        <div className="h-[180px] rounded-lg border border-solid border-[rgba(5,23,41,0.08)] bg-white" />
+        <div className="h-[180px] rounded-lg border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-c-FFFFFF)]" />
     </div>
 ))
 
@@ -227,7 +227,7 @@ const PlaygroundMainView = ({
                             <>
                                 {isComparisonView && hasDisplayedEntities && (
                                     <PromptComparisonVariantNavigation
-                                        className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white"
+                                        className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
                                         handleScroll={handleScroll}
                                     />
                                 )}
@@ -237,7 +237,7 @@ const PlaygroundMainView = ({
                                             key={`variant-config-${variantId}`}
                                             className={clsx([
                                                 {
-                                                    "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative":
+                                                    "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
                                                         isComparisonView,
                                                 },
                                             ])}
@@ -255,7 +255,7 @@ const PlaygroundMainView = ({
                                     ))
                                 ) : (
                                     <div className="h-full w-full p-4">
-                                        <div className="h-[260px] rounded-lg border border-solid border-[rgba(5,23,41,0.08)] bg-white" />
+                                        <div className="h-[260px] rounded-lg border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-c-FFFFFF)]" />
                                     </div>
                                 )}
                             </>
@@ -286,7 +286,7 @@ const PlaygroundMainView = ({
                             {/* This component renders Output component header section */}
                             {isComparisonView ? (
                                 <div className="flex min-w-fit sticky top-0 z-[5]">
-                                    <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[99] bg-white" />
+                                    <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[99] bg-[var(--ag-c-FFFFFF)]" />
 
                                     {layoutEntityIds.map((variantId) => (
                                         <GenerationComparisonOutputHeader

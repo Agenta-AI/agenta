@@ -249,8 +249,8 @@ const MetricComparisonCard = ({metric}: MetricComparisonCardProps) => {
                                     return [formattedValue, meta?.shortName ?? ""]
                                 }}
                                 contentStyle={{
-                                    backgroundColor: "#FFFFFF",
-                                    border: "1px solid #E2E8F0",
+                                    backgroundColor: "var(--ag-colorBgElevated)",
+                                    border: "1px solid var(--ag-colorBorderSecondary)",
                                     borderRadius: 8,
                                     padding: "8px 12px",
                                     fontSize: 12,

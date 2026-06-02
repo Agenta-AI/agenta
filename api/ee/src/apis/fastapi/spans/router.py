@@ -12,18 +12,18 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import acquire_lock, release_lock
 
-from ee.src.core.tracing.service import TracingService
+from ee.src.core.tracing.service import TracingRetentionService
 
 
 log = get_module_logger(__name__)
 
 
-class SpansRouter:
+class SpansRetentionRouter:
     def __init__(
         self,
-        tracing_service: TracingService,
+        tracing_retention_service: TracingRetentionService,
     ):
-        self.tracing_service = tracing_service
+        self.tracing_retention_service = tracing_retention_service
 
         self.admin_router = APIRouter()
 
@@ -60,7 +60,7 @@ class SpansRouter:
 
             try:
                 log.info("[flush-spans] [endpoint] Retention started")
-                await self.tracing_service.flush_spans()
+                await self.tracing_retention_service.flush_spans()
                 log.info("[flush-spans] [endpoint] Retention completed")
 
                 return JSONResponse(

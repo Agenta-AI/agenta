@@ -339,7 +339,7 @@ const ComparisonLayout = ({
                                     className={clsx([
                                         "relative group/item",
                                         {
-                                            "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]":
+                                            "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]":
                                                 isChat && viewType === "comparison",
                                         },
                                     ])}

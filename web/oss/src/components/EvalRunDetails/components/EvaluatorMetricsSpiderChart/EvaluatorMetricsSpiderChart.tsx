@@ -81,10 +81,15 @@ const EvaluatorMetricsSpiderChart = ({
     const RAD = Math.PI / 180
 
     return (
-        <div className={clsx("border border-solid border-[#EAEFF5] rounded p-2", className)}>
+        <div
+            className={clsx(
+                "border border-solid border-[var(--ag-c-EAEFF5)] rounded p-2",
+                className,
+            )}
+        >
             <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="45%" data={chartData}>
-                    <PolarGrid stroke="#EAEFF5" />
+                    <PolarGrid stroke="var(--ag-colorBorderSecondary)" />
                     <PolarAngleAxis
                         dataKey="subject"
                         tick={(props: any) => {
@@ -156,7 +161,7 @@ const EvaluatorMetricsSpiderChart = ({
                                     <text
                                         textAnchor={textAnchor}
                                         dominantBaseline="middle"
-                                        fill="#4B5563"
+                                        fill="var(--ag-colorTextSecondary)"
                                         fontSize={10}
                                         style={{userSelect: "none"}}
                                     >
@@ -172,7 +177,12 @@ const EvaluatorMetricsSpiderChart = ({
                     />
                     <PolarRadiusAxis angle={30} domain={[0, 100]} axisLine={false} tick={false} />
                     <Tooltip
-                        labelStyle={{color: "#0F172A"}}
+                        contentStyle={{
+                            backgroundColor: "var(--ag-colorBgElevated)",
+                            border: "1px solid var(--ag-colorBorderSecondary)",
+                            borderRadius: 8,
+                        }}
+                        labelStyle={{color: "var(--ag-colorText)"}}
                         formatter={(val: any, name: any, payload: any) => {
                             try {
                                 const d = payload?.payload as MetricData | undefined
@@ -182,7 +192,9 @@ const EvaluatorMetricsSpiderChart = ({
                                     (pctNum / 100) * (d?.maxScore ?? 0)
 
                                 const color =
-                                    typeof payload?.color === "string" ? payload.color : "#0F172A"
+                                    typeof payload?.color === "string"
+                                        ? payload.color
+                                        : "var(--ag-colorText)"
                                 const styledName = (
                                     <span style={{color, fontWeight: 600}}>{String(name)}</span>
                                 )
