@@ -17,7 +17,6 @@ import {Button, Modal, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {useStyles} from "./styles"
 import type {VariantNavigationCardProps} from "./types"
 
 const {Text} = Typography
@@ -28,8 +27,6 @@ const VariantNavigationCard = ({
     className,
     handleScrollClick,
 }: VariantNavigationCardProps) => {
-    const classes = useStyles()
-
     const runnableData = useAtomValue(workflowMolecule.selectors.data(revisionId))
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId))
@@ -158,7 +155,7 @@ const VariantNavigationCard = ({
                     "translate-x-0 translate-y-0 skew-x-0 skew-y-0 rotate-0",
                     "transition-all duration-200 ease-in-out",
                     "opacity-100 *:!select-none",
-                    classes.card,
+                    "border border-colorBorderSecondary bg-colorBgElevated",
                     {
                         "shadow-xl [&_>_div]:scale-[1.01]": isDragging,
                         "opacity-50": active && !isDragging,

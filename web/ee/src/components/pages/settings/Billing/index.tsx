@@ -115,7 +115,7 @@ const Billing = () => {
     return (
         <section className="flex flex-col gap-4">
             {billingEnabled && (
-                <section className="w-full bg-[#F5F7FA] p-4 rounded-lg">
+                <section className="w-full bg-[var(--ag-c-F5F7FA)] p-4 rounded-lg">
                     <div className="flex flex-col items-start gap-2">
                         <Typography.Text className="text-sm font-medium">
                             Current plan
@@ -124,18 +124,18 @@ const Billing = () => {
                             <SubscriptionPlanDetails subscription={subscription} />
                         </Typography.Text>
                         {!isOnFreePlan && (
-                            <Typography.Text className="text-[#586673]">
+                            <Typography.Text className="text-[var(--ag-c-586673)]">
                                 {subscription?.free_trial
                                     ? "Trial period will end on "
                                     : "Auto renews on "}
-                                <span className="text-[#1C2C3D] font-medium">
+                                <span className="text-[var(--ag-c-1C2C3D)] font-medium">
                                     {dayjs.unix(subscription?.period_end).format("MMM D, YYYY")}
                                 </span>
                             </Typography.Text>
                         )}
 
                         {isCustomPlan ? (
-                            <Typography.Text className="text-[#586673]">
+                            <Typography.Text className="text-[var(--ag-c-586673)]">
                                 For queries regarding your plan,{" "}
                                 <a
                                     href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"
@@ -163,7 +163,7 @@ const Billing = () => {
                 </section>
             )}
 
-            <section className="w-full bg-[#F5F7FA] p-4 rounded-lg flex flex-col items-start gap-4">
+            <section className="w-full bg-[var(--ag-c-F5F7FA)] p-4 rounded-lg flex flex-col items-start gap-4">
                 <Typography.Text className="text-sm font-medium">Limits</Typography.Text>
 
                 <div className="w-full grid grid-cols-3 gap-4">
@@ -188,7 +188,7 @@ const Billing = () => {
                 </div>
             </section>
 
-            <section className="w-full bg-[#F5F7FA] p-4 rounded-lg flex flex-col items-start gap-4">
+            <section className="w-full bg-[var(--ag-c-F5F7FA)] p-4 rounded-lg flex flex-col items-start gap-4">
                 <div className="flex items-center gap-2">
                     <Typography.Text className="text-sm font-medium">Members</Typography.Text>
                     <Button size="small" onClick={navigateToWorkspaceTab}>
@@ -220,7 +220,7 @@ const Billing = () => {
             </section>
 
             {billingEnabled && (
-                <section className="w-full bg-[#F5F7FA] p-4 rounded-lg flex flex-col items-start gap-2">
+                <section className="w-full bg-[var(--ag-c-F5F7FA)] p-4 rounded-lg flex flex-col items-start gap-2">
                     <Typography.Text className="text-sm font-medium">
                         Billing information
                     </Typography.Text>

@@ -199,9 +199,9 @@ const PlaygroundVariantConfig: React.FC<
             />
             {hasPendingHydration ? (
                 <div className="p-4 flex flex-col gap-3">
-                    <div className="h-9 rounded bg-[rgba(5,23,41,0.06)] animate-pulse" />
-                    <div className="h-32 rounded border border-solid border-[rgba(5,23,41,0.08)] bg-[rgba(5,23,41,0.02)] animate-pulse" />
-                    <div className="h-24 rounded border border-solid border-[rgba(5,23,41,0.08)] bg-[rgba(5,23,41,0.02)] animate-pulse" />
+                    <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
+                    <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                    <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
                 </div>
             ) : (
                 <>

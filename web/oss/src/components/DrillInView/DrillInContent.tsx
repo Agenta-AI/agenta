@@ -1288,7 +1288,7 @@ function renderFieldContent({
     if (!editable) {
         // Read-only preview
         return (
-            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[#9d4edd] p-3 bg-gray-50 rounded-md max-h-[120px] overflow-hidden">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[var(--ag-c-9D4EDD)] p-3 bg-gray-50 rounded-md max-h-[120px] overflow-hidden">
                 {stringValue}
             </pre>
         )
@@ -1340,7 +1340,7 @@ function renderFieldContent({
         // Numbers and booleans stay as-is (no escaping needed)
 
         return (
-            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[#9d4edd] p-3 bg-gray-50 rounded-md max-h-[400px] overflow-auto">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[var(--ag-c-9D4EDD)] p-3 bg-gray-50 rounded-md max-h-[400px] overflow-auto">
                 {rawValue}
             </pre>
         )
@@ -1392,8 +1392,8 @@ function renderFieldContent({
                     "[&.ant-input-number]:!rounded-lg",
                     "[&.ant-input-number]:!min-h-[52px]",
                     "[&.ant-input-number]:!px-[11px]",
-                    "[&.ant-input-number-outlined]:!border-[#BDC7D1]",
-                    "[&.ant-input-number-outlined]:hover:!border-[#394857]",
+                    "[&.ant-input-number-outlined]:!border-[var(--ag-c-BDC7D1)]",
+                    "[&.ant-input-number-outlined]:hover:!border-[var(--ag-c-394857)]",
                     "[&_.ant-input-number-input]:!p-0",
                     "[&_.ant-input-number-input]:!h-[50px]",
                     "[&_.ant-input-number-input]:!text-xs",
