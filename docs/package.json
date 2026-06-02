@@ -79,7 +79,10 @@
     "onlyBuiltDependencies": [
       "@parcel/watcher",
       "sharp"
-    ]
+    ],
+    "patchedDependencies": {
+      "docusaurus-plugin-llms-txt": "patches/docusaurus-plugin-llms-txt.patch"
+    }
   },
   "browserslist": {
     "production": [

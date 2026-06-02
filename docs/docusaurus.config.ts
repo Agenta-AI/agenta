@@ -651,7 +651,14 @@ const config: Config = {
     ],
 
     "docusaurus-plugin-image-zoom",
-    "docusaurus-plugin-llms-txt",
+    [
+      "docusaurus-plugin-llms-txt",
+      {
+        title: "Agenta Documentation",
+        description: "The LLMOps platform for building and deploying LLM applications.",
+        fullLLMsTxt: true,
+      },
+    ],
   ],
 
   themes: ["docusaurus-theme-openapi-docs"],
