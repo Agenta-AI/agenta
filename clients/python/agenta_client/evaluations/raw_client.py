@@ -12,7 +12,6 @@ from ..core.request_options import RequestOptions
 from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.evaluation_metrics_create import EvaluationMetricsCreate
-from ..types.evaluation_metrics_edit import EvaluationMetricsEdit
 from ..types.evaluation_metrics_ids_response import EvaluationMetricsIdsResponse
 from ..types.evaluation_metrics_query import EvaluationMetricsQuery
 from ..types.evaluation_metrics_refresh import EvaluationMetricsRefresh
@@ -26,7 +25,6 @@ from ..types.evaluation_queue_response import EvaluationQueueResponse
 from ..types.evaluation_queue_scenarios_query import EvaluationQueueScenariosQuery
 from ..types.evaluation_queues_response import EvaluationQueuesResponse
 from ..types.evaluation_result_create import EvaluationResultCreate
-from ..types.evaluation_result_edit import EvaluationResultEdit
 from ..types.evaluation_result_id_response import EvaluationResultIdResponse
 from ..types.evaluation_result_ids_response import EvaluationResultIdsResponse
 from ..types.evaluation_result_query import EvaluationResultQuery
@@ -609,6 +607,46 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def fetch_default_queue(self, run_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationQueueResponse]:
+        """
+        Parameters
+        ----------
+        run_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[EvaluationQueueResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"evaluations/runs/{jsonable_encoder(run_id)}/default-queue",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    EvaluationQueueResponse,
+                    parse_obj_as(
+                        type_ =EvaluationQueueResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def create_scenarios(self, *, scenarios: typing.Sequence[EvaluationScenarioCreate], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationScenariosResponse]:
         """
         Parameters
@@ -929,7 +967,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def create_results(self, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationResultsResponse]:
+    def set_results(self, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationResultsResponse]:
         """
         Parameters
         ----------
@@ -1006,53 +1044,6 @@ class RawEvaluationsClient:
                     EvaluationResultIdsResponse,
                     parse_obj_as(
                         type_ =EvaluationResultIdsResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def edit_results(self, *, results: typing.Sequence[EvaluationResultEdit], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationResultsResponse]:
-        """
-        Parameters
-        ----------
-        results : typing.Sequence[EvaluationResultEdit]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[EvaluationResultsResponse]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "evaluations/results/",method="PATCH",
-            json={
-                "results": convert_and_respect_annotation_metadata(object_=results, annotation=typing.Sequence[EvaluationResultEdit], direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationResultsResponse,
-                    parse_obj_as(
-                        type_ =EvaluationResultsResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1200,55 +1191,6 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def edit_result(self, result_id: str, *, result: EvaluationResultEdit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationResultResponse]:
-        """
-        Parameters
-        ----------
-        result_id : str
-        
-        result : EvaluationResultEdit
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[EvaluationResultResponse]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"evaluations/results/{jsonable_encoder(result_id)}",method="PATCH",
-            json={
-                "result": convert_and_respect_annotation_metadata(object_=result, annotation=EvaluationResultEdit, direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationResultResponse,
-                    parse_obj_as(
-                        type_ =EvaluationResultResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
     def refresh_metrics(self, *, metrics: EvaluationMetricsRefresh, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationMetricsResponse]:
         """
         Parameters
@@ -1296,7 +1238,7 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def create_metrics(self, *, metrics: typing.Sequence[EvaluationMetricsCreate], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationMetricsResponse]:
+    def set_metrics(self, *, metrics: typing.Sequence[EvaluationMetricsCreate], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationMetricsResponse]:
         """
         Parameters
         ----------
@@ -1373,53 +1315,6 @@ class RawEvaluationsClient:
                     EvaluationMetricsIdsResponse,
                     parse_obj_as(
                         type_ =EvaluationMetricsIdsResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def edit_metrics(self, *, metrics: typing.Sequence[EvaluationMetricsEdit], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationMetricsResponse]:
-        """
-        Parameters
-        ----------
-        metrics : typing.Sequence[EvaluationMetricsEdit]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[EvaluationMetricsResponse]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "evaluations/metrics/",method="PATCH",
-            json={
-                "metrics": convert_and_respect_annotation_metadata(object_=metrics, annotation=typing.Sequence[EvaluationMetricsEdit], direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationMetricsResponse,
-                    parse_obj_as(
-                        type_ =EvaluationMetricsResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1784,6 +1679,86 @@ class RawEvaluationsClient:
             ,
             request_options=request_options,omit=OMIT,
         )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    EvaluationQueueResponse,
+                    parse_obj_as(
+                        type_ =EvaluationQueueResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def archive_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationQueueResponse]:
+        """
+        Parameters
+        ----------
+        queue_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[EvaluationQueueResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"evaluations/queues/{jsonable_encoder(queue_id)}/archive",method="POST",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    EvaluationQueueResponse,
+                    parse_obj_as(
+                        type_ =EvaluationQueueResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def unarchive_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationQueueResponse]:
+        """
+        Parameters
+        ----------
+        queue_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[EvaluationQueueResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"evaluations/queues/{jsonable_encoder(queue_id)}/unarchive",method="POST",
+            request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
@@ -3081,6 +3056,46 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    async def fetch_default_queue(self, run_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationQueueResponse]:
+        """
+        Parameters
+        ----------
+        run_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[EvaluationQueueResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"evaluations/runs/{jsonable_encoder(run_id)}/default-queue",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    EvaluationQueueResponse,
+                    parse_obj_as(
+                        type_ =EvaluationQueueResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     async def create_scenarios(self, *, scenarios: typing.Sequence[EvaluationScenarioCreate], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationScenariosResponse]:
         """
         Parameters
@@ -3401,7 +3416,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def create_results(self, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationResultsResponse]:
+    async def set_results(self, *, results: typing.Sequence[EvaluationResultCreate], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationResultsResponse]:
         """
         Parameters
         ----------
@@ -3478,53 +3493,6 @@ class AsyncRawEvaluationsClient:
                     EvaluationResultIdsResponse,
                     parse_obj_as(
                         type_ =EvaluationResultIdsResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def edit_results(self, *, results: typing.Sequence[EvaluationResultEdit], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationResultsResponse]:
-        """
-        Parameters
-        ----------
-        results : typing.Sequence[EvaluationResultEdit]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[EvaluationResultsResponse]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "evaluations/results/",method="PATCH",
-            json={
-                "results": convert_and_respect_annotation_metadata(object_=results, annotation=typing.Sequence[EvaluationResultEdit], direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationResultsResponse,
-                    parse_obj_as(
-                        type_ =EvaluationResultsResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -3672,55 +3640,6 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def edit_result(self, result_id: str, *, result: EvaluationResultEdit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationResultResponse]:
-        """
-        Parameters
-        ----------
-        result_id : str
-        
-        result : EvaluationResultEdit
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[EvaluationResultResponse]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"evaluations/results/{jsonable_encoder(result_id)}",method="PATCH",
-            json={
-                "result": convert_and_respect_annotation_metadata(object_=result, annotation=EvaluationResultEdit, direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationResultResponse,
-                    parse_obj_as(
-                        type_ =EvaluationResultResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
     async def refresh_metrics(self, *, metrics: EvaluationMetricsRefresh, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationMetricsResponse]:
         """
         Parameters
@@ -3768,7 +3687,7 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def create_metrics(self, *, metrics: typing.Sequence[EvaluationMetricsCreate], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationMetricsResponse]:
+    async def set_metrics(self, *, metrics: typing.Sequence[EvaluationMetricsCreate], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationMetricsResponse]:
         """
         Parameters
         ----------
@@ -3845,53 +3764,6 @@ class AsyncRawEvaluationsClient:
                     EvaluationMetricsIdsResponse,
                     parse_obj_as(
                         type_ =EvaluationMetricsIdsResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def edit_metrics(self, *, metrics: typing.Sequence[EvaluationMetricsEdit], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationMetricsResponse]:
-        """
-        Parameters
-        ----------
-        metrics : typing.Sequence[EvaluationMetricsEdit]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[EvaluationMetricsResponse]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "evaluations/metrics/",method="PATCH",
-            json={
-                "metrics": convert_and_respect_annotation_metadata(object_=metrics, annotation=typing.Sequence[EvaluationMetricsEdit], direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EvaluationMetricsResponse,
-                    parse_obj_as(
-                        type_ =EvaluationMetricsResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -4256,6 +4128,86 @@ class AsyncRawEvaluationsClient:
             ,
             request_options=request_options,omit=OMIT,
         )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    EvaluationQueueResponse,
+                    parse_obj_as(
+                        type_ =EvaluationQueueResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def archive_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationQueueResponse]:
+        """
+        Parameters
+        ----------
+        queue_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[EvaluationQueueResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"evaluations/queues/{jsonable_encoder(queue_id)}/archive",method="POST",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    EvaluationQueueResponse,
+                    parse_obj_as(
+                        type_ =EvaluationQueueResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def unarchive_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationQueueResponse]:
+        """
+        Parameters
+        ----------
+        queue_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[EvaluationQueueResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"evaluations/queues/{jsonable_encoder(queue_id)}/unarchive",method="POST",
+            request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(

@@ -5,11 +5,13 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         metrics: [{
+ *         results: [{
+ *                 step_key: "step_key",
+ *                 scenario_id: "scenario_id",
  *                 run_id: "run_id"
  *             }]
  *     }
  */
-export interface EvaluationMetricsCreateRequest {
-    metrics: AgentaApi.EvaluationMetricsCreate[];
+export interface EvaluationResultsSetRequest {
+    results: AgentaApi.EvaluationResultCreate[];
 }

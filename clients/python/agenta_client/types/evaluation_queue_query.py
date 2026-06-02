@@ -15,6 +15,7 @@ class EvaluationQueueQuery(UniversalBaseModel):
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
+    include_archived: typing.Optional[bool] = None
     user_id: typing.Optional[str] = None
     user_ids: typing.Optional[typing.List[str]] = None
     run_id: typing.Optional[str] = None
