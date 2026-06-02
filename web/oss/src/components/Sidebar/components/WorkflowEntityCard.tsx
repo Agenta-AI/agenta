@@ -96,7 +96,9 @@ const SWITCHER_MENU_CLASS = clsx(
     "[&_.ant-dropdown-menu-item-group-title]:sticky",
     "[&_.ant-dropdown-menu-item-group-title]:top-0",
     "[&_.ant-dropdown-menu-item-group-title]:z-10",
-    "[&_.ant-dropdown-menu-item-group-title]:bg-[var(--ag-c-FFFFFF)]",
+    "[&_.ant-dropdown-menu-item-group-title]:!bg-[var(--ant-color-bg-elevated)]",
+    "[&_.ant-dropdown-menu-item-group-title]:!text-[var(--ant-color-text-secondary)]",
+    "[&_.ant-dropdown-menu-item-group-title]:!pb-2",
 )
 
 /**
