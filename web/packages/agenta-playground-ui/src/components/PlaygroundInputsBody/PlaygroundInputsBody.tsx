@@ -176,7 +176,7 @@ export function PlaygroundInputsBody({
     )
 
     return (
-        <div className="agenta-playground-inputs-body flex flex-col gap-2">
+        <div className="agenta-playground-inputs-body flex flex-col gap-2 min-w-0">
             {sections
                 ? sections.map((section) => (
                       <div

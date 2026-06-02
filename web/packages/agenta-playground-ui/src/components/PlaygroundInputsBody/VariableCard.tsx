@@ -422,7 +422,7 @@ export function VariableCard({
     }, [value])
 
     return (
-        <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2">
+        <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2 min-w-0">
             <div className="flex items-center justify-between gap-2 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
                     <AntText className="font-mono text-[12px] leading-[20px] font-medium text-[var(--ag-c-1677FF)] truncate">
