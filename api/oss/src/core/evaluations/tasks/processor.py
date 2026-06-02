@@ -973,6 +973,18 @@ async def process_evaluation_source_slice(
     if not run:
         return
 
+    # Concurrent slices (allow_concurrency=True) each hold their own stale
+    # snapshot of `run` taken at the top of this call. Finalization both floors
+    # the status and flips `is_active`, so it must work off the CURRENT run, not
+    # the snapshot — otherwise a late-finishing slice clobbers another slice's
+    # status/flags with its stale copy (e.g. resurrecting is_active=True).
+    current_run = None
+    if update_run_status:
+        current_run = await evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+
     if (
         update_run_status
         and run.flags
@@ -996,10 +1008,6 @@ async def process_evaluation_source_slice(
             EvaluationStatus.RUNNING: 1,
             EvaluationStatus.PENDING: 0,
         }
-        current_run = await evaluations_service.fetch_run(
-            project_id=project_id,
-            run_id=run_id,
-        )
         if current_run and current_run.status:
             stored_severity = severity.get(current_run.status, 0)
             if stored_severity > severity.get(run_status, 0):
@@ -1008,8 +1016,10 @@ async def process_evaluation_source_slice(
     if update_run_status:
         # When the run reaches a terminal status, it is no longer active. A
         # non-terminal status (RUNNING/PENDING) leaves the run active so further
-        # slices can continue.
-        final_flags = run.flags
+        # slices can continue. Base the flags on the freshly-fetched run so a
+        # concurrent slice's flag updates are not lost, and only flip the one
+        # field this finalize owns.
+        final_flags = (current_run.flags if current_run else None) or run.flags
         if final_flags is not None and run_status in (
             EvaluationStatus.SUCCESS,
             EvaluationStatus.ERRORS,
