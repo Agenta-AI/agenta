@@ -237,6 +237,28 @@ function buildEvaluatorSelfReferences(params: {
 }
 
 /**
+ * Keys that are chat-conversation transport (not template variables). They
+ * accumulate on the shared testcase row when a chat app runs, and must not
+ * leak into a non-chat entity's request body (issue #4525 / AGE-3793).
+ *
+ * Kept conservative: only `messages`. `chatHistory` is constructed at
+ * runtime from the flat message store, not stored on row data.
+ */
+const CHAT_TRANSPORT_KEYS = ["messages"] as const
+
+function getEntityInputSchema(
+    get: Getter,
+    entityId: string,
+): {properties?: Record<string, unknown>; additionalProperties?: unknown} | undefined {
+    const schemas = get(workflowMolecule.selectors.ioSchemas(entityId)) as
+        | {inputSchema?: unknown}
+        | undefined
+    return schemas?.inputSchema as
+        | {properties?: Record<string, unknown>; additionalProperties?: unknown}
+        | undefined
+}
+
+/**
  * Filter row data to only keys present in the entity's input schema.
  *
  * Why this exists: testcase rows live in the local testcase molecule and
@@ -264,12 +286,7 @@ function filterDataToEntityInputSchema(
     data: Record<string, unknown>,
     entityId: string,
 ): Record<string, unknown> {
-    const schemas = get(workflowMolecule.selectors.ioSchemas(entityId)) as
-        | {inputSchema?: unknown}
-        | undefined
-    const inputSchema = schemas?.inputSchema as
-        | {properties?: Record<string, unknown>}
-        | undefined
+    const inputSchema = getEntityInputSchema(get, entityId)
     const properties = inputSchema?.properties
     if (!properties || typeof properties !== "object") {
         return {...data}
@@ -285,6 +302,41 @@ function filterDataToEntityInputSchema(
         }
     }
     return filtered
+}
+
+/**
+ * Strip chat-transport keys from row data unless the target entity
+ * explicitly declares them as inputs. Used as a defensive pre-filter for
+ * the chain / evaluator input-building paths (depth > 0), where the
+ * filter-by-properties pass above isn't applied because chain mappings
+ * and evaluator schema resolution own their own input shaping.
+ *
+ * Difference from `filterDataToEntityInputSchema`: that helper does a
+ * strict allow-list (great for primary/root entities with closed
+ * schemas); this one only strips a known-leaky set so evaluators that
+ * legitimately depend on `additionalProperties: true` spread keep
+ * receiving their extra testcase columns.
+ */
+function stripChatTransportForEntity(
+    get: Getter,
+    data: Record<string, unknown>,
+    entityId: string,
+): Record<string, unknown> {
+    const inputSchema = getEntityInputSchema(get, entityId)
+    const properties = inputSchema?.properties
+    const declared =
+        properties && typeof properties === "object"
+            ? new Set(Object.keys(properties))
+            : new Set<string>()
+    let mutated = false
+    const out: Record<string, unknown> = {...data}
+    for (const key of CHAT_TRANSPORT_KEYS) {
+        if (key in out && !declared.has(key)) {
+            delete out[key]
+            mutated = true
+        }
+    }
+    return mutated ? out : data
 }
 
 function createConcurrencyLimiter(concurrency: number) {
@@ -491,12 +543,23 @@ export async function executeStepForSessionWithExecutionItems(
                         // LLM-as-a-judge playground — issue #4525 / AGE-3793) don't
                         // leak into the new app's request body via the downstream
                         // "spread all keys" fallback in resolveVariableValues.
-                        nodeInputs = filterDataToEntityInputSchema(
-                            get,
-                            data,
-                            node.entity.id as string,
-                        )
+                        const rootEntityId = node.entity.id as string
+                        const filtered = filterDataToEntityInputSchema(get, data, rootEntityId)
+                        // Defense in depth: if the strict filter fell back to spreading
+                        // all keys (schema not yet resolved), still strip known chat-
+                        // transport keys unless the entity declares them. Without this
+                        // the bug repros while the new app's schema is mid-hydration.
+                        nodeInputs = stripChatTransportForEntity(get, filtered, rootEntityId)
                     } else {
+                        // Strip chat-transport keys from testcase data before chain /
+                        // evaluator input construction, so the downstream "spread all
+                        // keys" fallbacks (resolveChainInputs no-mapping branch and
+                        // buildEvaluatorExecutionInputs additionalProperties spread)
+                        // can't carry stale `messages` from a previous chat app into
+                        // the current target entity (#4525 / AGE-3793).
+                        const targetEntityId = node.entity.id as string
+                        const dataForChain = stripChatTransportForEntity(get, data, targetEntityId)
+
                         // Check whether the incoming connection has explicit valid mappings.
                         // resolveChainInputs always returns non-empty (fallback spreads testcaseData
                         // + prediction), so we can't rely on its result length alone.
@@ -514,7 +577,7 @@ export async function executeStepForSessionWithExecutionItems(
                                 allConnections,
                                 nodeId,
                                 nodeResults,
-                                data,
+                                dataForChain,
                             )
                             nodeInputs = resolved
                         } else {
@@ -530,10 +593,10 @@ export async function executeStepForSessionWithExecutionItems(
 
                             const evalStore = getDefaultStore()
                             const stageConfiguration = evalStore.get(
-                                workflowMolecule.selectors.configuration(node.entity.id as string),
+                                workflowMolecule.selectors.configuration(targetEntityId),
                             )
                             const stageSchemas = evalStore.get(
-                                workflowMolecule.selectors.ioSchemas(node.entity.id as string),
+                                workflowMolecule.selectors.ioSchemas(targetEntityId),
                             )
                             const inputSchema =
                                 (stageSchemas?.inputSchema as
@@ -543,10 +606,15 @@ export async function executeStepForSessionWithExecutionItems(
                                 session.mode === "chat"
                                     ? buildSharedChatInputs(get, loadableId)
                                     : undefined
+                            // Base the evaluator testcase on the stripped
+                            // `dataForChain` (not raw `data`) so stale chat-
+                            // transport keys from a previous chat app can't leak
+                            // in (#4525 / AGE-3793), then layer the current
+                            // shared chat inputs on top for chat-mode runs.
                             const evaluatorTestcaseData =
                                 rootChatInputs && Object.keys(rootChatInputs).length > 0
-                                    ? {...data, ...rootChatInputs}
-                                    : data
+                                    ? {...dataForChain, ...rootChatInputs}
+                                    : dataForChain
 
                             const evaluatorInputContext = {
                                 testcaseData: evaluatorTestcaseData,
@@ -717,9 +785,10 @@ export async function executeStepForSessionWithExecutionItems(
                 // Same input-schema filter as the first-run path above —
                 // repetitions hit the same root entity, so stale keys must be
                 // filtered identically (issue #4525 / AGE-3793).
-                const nodeInputs2 = filterDataToEntityInputSchema(
+                const repFiltered = filterDataToEntityInputSchema(get, data, session.runnableId)
+                const nodeInputs2 = stripChatTransportForEntity(
                     get,
-                    data,
+                    repFiltered,
                     session.runnableId,
                 )
                 const repetitionItem = rootExecutionHandle.retry({
