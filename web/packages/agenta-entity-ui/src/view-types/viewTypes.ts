@@ -107,10 +107,10 @@ export function getViewOptions(value: unknown): ViewOption[] {
     const opts: ViewOption[] = []
 
     if (kind === "string") {
-        opts.push({value: "text", label: "String", hint: "default"})
+        opts.push({value: "text", label: "Text", hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
     } else if (kind === "boolean") {
-        opts.push({value: "text", label: "String", hint: "default"})
+        opts.push({value: "text", label: "Text", hint: "default"})
     } else if (kind === "chat") {
         opts.push({value: "chat", label: "Chat", hint: "default"})
     } else if (kind === "object") {
@@ -191,10 +191,10 @@ export function getViewOptionsForExpectedType(
 
     const opts: ViewOption[] = []
     if (expectedKind === "string") {
-        opts.push({value: "text", label: "String", hint: "default"})
+        opts.push({value: "text", label: "Text", hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
     } else if (expectedKind === "boolean") {
-        opts.push({value: "text", label: "String", hint: "default"})
+        opts.push({value: "text", label: "Text", hint: "default"})
     } else if (expectedKind === "object") {
         opts.push({value: "form", label: "Form"})
     }
@@ -212,7 +212,7 @@ export function getViewOptionsForExpectedType(
  *   - object → Form  (seeded with empty-shape when a schema is known)
  *   - array  → JSON  (FormView has no add-item affordance for `[]`,
  *                     JSON's buffer is the better empty-state UX)
- *   - string/number/integer/boolean → text ("String" label)
+ *   - string/number/integer/boolean → text ("Text" label)
  */
 export function getDefaultViewForExpectedType(
     value: unknown,
