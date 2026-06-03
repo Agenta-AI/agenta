@@ -187,12 +187,11 @@ export const aiServicesApi = {
             // when explicitly disabled (`localStorage[...] = "false"`).
             const isProd = process.env.NODE_ENV === "production"
             if (!isProd && mode === "auto") {
-                // eslint-disable-next-line no-console
-                console.warn(
-                    "[refinePrompt] AI service unavailable — falling back to the local mock. " +
-                        'Set localStorage["agenta:mock-refine-prompt"] = "false" to see the real error.',
-                    err,
-                )
+                // console.warn(
+                //     "[refinePrompt] AI service unavailable — falling back to the local mock. " +
+                //         'Set localStorage["agenta:mock-refine-prompt"] = "false" to see the real error.',
+                //     err,
+                // )
                 return buildMockRefineResponse(promptTemplate, guidelines)
             }
             throw err
