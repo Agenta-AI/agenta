@@ -1480,6 +1480,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 values_dict["updated_by_id"] = user_id
                 values_list.append(values_dict)
 
+            # A multi-row pg_insert().values([...]) renders a single VALUES
+            # clause from a uniform column set, so every dict must share the
+            # same keys (DTOs are dumped with exclude_none, so optional columns
+            # vary per row). Backfill missing keys with None.
+            values_list = _uniform_values(values_list)
+
             # Fields refreshed on conflict (identity/created_* are preserved).
             conflict_update_cols = [
                 EvaluationResultDBE.updated_at,
@@ -1990,7 +1996,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             # Global: (project_id, run_id) WHERE scenario_id IS NULL AND timestamp IS NULL
             if global_metrics:
-                stmt = pg_insert(EvaluationMetricsDBE).values(global_metrics)
+                stmt = pg_insert(EvaluationMetricsDBE).values(
+                    _uniform_values(global_metrics)
+                )
                 stmt = stmt.on_conflict_do_update(
                     index_elements=[
                         EvaluationMetricsDBE.project_id,
@@ -2010,7 +2018,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             # Variational: (project_id, run_id, scenario_id) WHERE timestamp IS NULL AND scenario_id IS NOT NULL
             if variational_metrics:
-                stmt = pg_insert(EvaluationMetricsDBE).values(variational_metrics)
+                stmt = pg_insert(EvaluationMetricsDBE).values(
+                    _uniform_values(variational_metrics)
+                )
                 stmt = stmt.on_conflict_do_update(
                     index_elements=[
                         EvaluationMetricsDBE.project_id,
@@ -2031,7 +2041,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             # Temporal: (project_id, run_id, timestamp) WHERE scenario_id IS NULL AND timestamp IS NOT NULL
             if temporal_metrics:
-                stmt = pg_insert(EvaluationMetricsDBE).values(temporal_metrics)
+                stmt = pg_insert(EvaluationMetricsDBE).values(
+                    _uniform_values(temporal_metrics)
+                )
                 stmt = stmt.on_conflict_do_update(
                     index_elements=[
                         EvaluationMetricsDBE.project_id,
@@ -2800,6 +2812,33 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             return queues
 
     # --------------------------------------------------------------------------
+
+
+def _uniform_values(values_list: list[dict]) -> list[dict]:
+    """Backfill a list of insert dicts to a uniform key set.
+
+    A multi-row ``pg_insert().values([...])`` renders ONE VALUES clause whose
+    columns are taken from the union of keys; rows missing a key would shift
+    columns and silently corrupt (or empty) the insert. DTOs are dumped with
+    ``exclude_none``, so optional columns are absent on some rows. We backfill
+    every missing key with ``None`` so all rows align.
+
+    ``id`` is special: it is the server-defaulted primary key, so forcing
+    ``id=None`` would override the default. It is therefore all-or-nothing —
+    kept only when EVERY row already carries it (explicit-id upsert), otherwise
+    dropped from all rows so the DB generates it.
+    """
+    if not values_list:
+        return values_list
+
+    all_keys = set()
+    for values in values_list:
+        all_keys.update(values.keys())
+
+    if not all(("id" in values) for values in values_list):
+        all_keys.discard("id")
+
+    return [{key: values.get(key) for key in all_keys} for values in values_list]
 
 
 async def _get_run_flags(
