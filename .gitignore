@@ -26,9 +26,10 @@ myenv/
 **/error-*.log
 
 # examples/
-examples/**/config.toml
-examples/**/agenta.py
-examples/**/main.py
+# Note: config.toml / agenta.py / main.py are NOT ignored here. They used to be
+# (the old `agenta init` CLI generated them into example dirs), but modern
+# examples author these by hand as real source. The CLI's generated templates
+# are ignored separately under sdks/python/agenta/templates/.
 examples/**/storage/
 examples/**/entrypoint.sh
 examples/**/agenta/
