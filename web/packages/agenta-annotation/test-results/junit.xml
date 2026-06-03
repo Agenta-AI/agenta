@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="78" failures="0" errors="0" time="0.112877977">
+    <testsuite name="tests/unit/annotation-form-helpers.test.ts" timestamp="2026-06-03T07:51:16.842Z" hostname="Kaosisos-MacBook-Pro.local" tests="38" failures="0" errors="0" skipped="0" time="0.079835364">
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns true for null" time="0.003193247">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns true for undefined" time="0.000426831">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns true for " time="0.00022392">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns true for " time="0.000394588">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns false for 0" time="0.000342228">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns false for false" time="0.000172727">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns false for 0" time="0.000318123">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns false for " time="0.000154355">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns false for {}" time="0.000593872">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="isEmptyValue &gt; returns false for  " time="0.000258603">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getOutputsSchema &gt; returns the schema from resolveOutputSchema" time="0.018263232">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getOutputsSchema &gt; returns empty object when resolveOutputSchema returns null" time="0.021705992">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — scalar types &gt; produces a number field with null default" time="0.005147245">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — scalar types &gt; produces an integer field with null default" time="0.000455569">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — scalar types &gt; produces a boolean field with null default" time="0.000533427">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — scalar types &gt; produces a string field with empty-string default" time="0.000415174">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — array type &gt; produces an array field with item schema" time="0.000462322">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — array type &gt; defaults item type to string when items is missing" time="0.002111803">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — anyOf schema &gt; unwraps the first anyOf entry to get the real type" time="0.005339982">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — array-of-types &gt; filters &apos;null&apos; from the type array and uses the remaining types" time="0.000613499">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — array-of-types &gt; skips the property when only &apos;null&apos; type remains after filtering" time="0.005364649">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — array-of-types &gt; includes non-null enum values and strips null/empty entries" time="0.000314292">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — edge cases &gt; returns empty object for an empty schema" time="0.000201713">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — edge cases &gt; skips unsupported types (e.g. &apos;object&apos;)" time="0.000369456">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricFieldsFromEvaluator — edge cases &gt; skips properties with no type field" time="0.000208122">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — flat outputs matching schema &gt; fills a number field from flat outputs" time="0.000565318">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — flat outputs matching schema &gt; fills a string field from flat outputs" time="0.000294481">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — flat outputs matching schema &gt; uses schema default when key is absent in outputs" time="0.00023096">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — flat outputs matching schema &gt; uses &apos;&apos; as default for a missing string field" time="0.000172772">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — nested outputs &gt; flattens metrics nested under &apos;metrics&apos; key" time="0.000358223">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — nested outputs &gt; flattens fields nested under &apos;notes&apos; key" time="0.000209121">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — nested outputs &gt; flattens fields nested under &apos;extra&apos; key" time="0.000184574">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — nested outputs &gt; flat keys outside of metrics/notes/extra are preserved directly" time="0.000175375">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — schema-free inference &gt; infers a number field from a numeric output value" time="0.000531908">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — schema-free inference &gt; infers a boolean field from a boolean output value" time="0.000429949">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — schema-free inference &gt; infers a string field from a string output value" time="0.000213978">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — schema-free inference &gt; serialises an object output to a JSON string field" time="0.000379304">
+        </testcase>
+        <testcase classname="tests/unit/annotation-form-helpers.test.ts" name="getMetricsFromAnnotation — schema-free inference &gt; returns empty object when annotation outputs are empty" time="0.000287768">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/testset-sync.test.ts" timestamp="2026-06-03T07:51:16.868Z" hostname="Kaosisos-MacBook-Pro.local" tests="40" failures="0" errors="0" skipped="0" time="0.033042613">
+        <testcase classname="tests/unit/testset-sync.test.ts" name="getQueueAnnotationTag &gt; formats queue ID into tag" time="0.003451276">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="getQueueAnnotationTag &gt; handles arbitrary queue IDs" time="0.000339992">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="mergeTestcaseAnnotationTags &gt; always includes the queue tag and kind tag" time="0.00157184">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="mergeTestcaseAnnotationTags &gt; merges existing tags without duplicates" time="0.001066907">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="mergeTestcaseAnnotationTags &gt; adds output keys as tags" time="0.000432673">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="mergeTestcaseAnnotationTags &gt; handles null existingTags gracefully" time="0.00031137">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="mergeTestcaseAnnotationTags &gt; filters out falsy tags from existingTags" time="0.000652604">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="selectQueueScopedAnnotation — no match &gt; returns null annotation when list is empty" time="0.001475313">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="selectQueueScopedAnnotation — no match &gt; returns null annotation when no annotation matches the evaluator slug" time="0.001590326">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="selectQueueScopedAnnotation — queue-scoped matching &gt; returns the annotation when exactly one queue-scoped match exists" time="0.00062801">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="selectQueueScopedAnnotation — queue-scoped matching &gt; returns duplicate_queue_annotations when multiple queue-scoped annotations match" time="0.000372534">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="selectQueueScopedAnnotation — queue-scoped matching &gt; ignores annotations scoped to a different queue" time="0.000294816">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="selectQueueScopedAnnotation — legacy fallback &gt; falls back to a legacy annotation (no queue tags) when no queue-scoped match" time="0.000350558">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="selectQueueScopedAnnotation — legacy fallback &gt; returns duplicate_legacy_annotations when multiple legacy annotations match" time="0.000232561">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="selectQueueScopedAnnotation — evaluatorWorkflowId matching &gt; matches annotation by evaluator workflow ID" time="0.000220965">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="getTestsetSyncEvaluatorColumnKey &gt; returns evaluator slug when no annotation supplied" time="0.000211145">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="getTestsetSyncEvaluatorColumnKey &gt; prefers annotation&apos;s evaluator slug over evaluator.slug" time="0.000205561">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="getTestsetSyncEvaluatorColumnKey &gt; falls back to evaluator.workflowId when slug is empty" time="0.000135544">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="getTestsetSyncEvaluatorColumnKey &gt; returns empty string when evaluator has no slug or workflowId" time="0.000132458">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestsetSyncOperations &gt; maps target rows to replace operations" time="0.00041353">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestsetSyncOperations &gt; produces an empty replace list for a target with no rows" time="0.000249256">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="remapTargetRowsToBaseRevision &gt; keeps rows whose rowId exists directly in baseRows" time="0.002495199">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="remapTargetRowsToBaseRevision &gt; remaps a row using testcase_dedup_id when rowId is not in baseRows" time="0.000243903">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="remapTargetRowsToBaseRevision &gt; also remaps using legacy __dedup_id__ key" time="0.00020136">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="remapTargetRowsToBaseRevision &gt; drops rows with no matching rowId and no dedup key" time="0.000253405">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="remapTargetRowsToBaseRevision &gt; updates rowCount to reflect mapped rows only" time="0.000469284">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTraceTestsetRows &gt; builds a row per scenario with trace inputs and output" time="0.001453622">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTraceTestsetRows &gt; expands a nested &apos;inputs&apos; key into top-level columns" time="0.001394469">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTraceTestsetRows &gt; merges annotation outputs into the row" time="0.001420822">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTraceTestsetRows &gt; handles a missing scenario gracefully (uses empty defaults)" time="0.000365183">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestcaseExportRows &gt; builds a row when annotation data exists for the testcase" time="0.000788308">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestcaseExportRows &gt; skips a scenario with no testcase mapping" time="0.000422125">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestcaseExportRows &gt; skips a testcase with no annotations" time="0.000299728">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestsetSyncPreview &gt; returns a missing_testcase conflict when testcase not found" time="0.001103675">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestsetSyncPreview &gt; returns a missing_testset conflict when testcase has no testset_id" time="0.000254052">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestsetSyncPreview &gt; returns a missing_latest_revision conflict when no revision for testset" time="0.00081726">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestsetSyncPreview &gt; produces a clean target when everything is resolved" time="0.000674425">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestsetSyncPreview &gt; records duplicate_queue_annotations conflict and skips the row" time="0.000710204">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestsetSyncPreview &gt; groups rows from different scenarios under the same testset target" time="0.000615301">
+        </testcase>
+        <testcase classname="tests/unit/testset-sync.test.ts" name="buildTestsetSyncPreview &gt; skips rows with no annotation data and does not add them as conflicts" time="0.000292529">
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="187" failures="0" errors="0" time="0.15012691">
+    <testsuite name="tests/unit/data-transforms.test.ts" timestamp="2026-06-03T07:51:20.543Z" hostname="Kaosisos-MacBook-Pro.local" tests="22" failures="0" errors="0" skipped="0" time="0.014309687">
+        <testcase classname="tests/unit/data-transforms.test.ts" name="extractApiErrorMessage — Axios-style errors &gt; extracts from response.data.detail string" time="0.002546081">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="extractApiErrorMessage — Axios-style errors &gt; extracts from response.data.message string" time="0.000365527">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="extractApiErrorMessage — Axios-style errors &gt; extracts from response.data.error string" time="0.0002325">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="extractApiErrorMessage — Axios-style errors &gt; extracts from nested response.data.detail.message" time="0.000289911">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="extractApiErrorMessage — Axios-style errors &gt; extracts from an array of detail strings" time="0.000366091">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="extractApiErrorMessage — Error instances &gt; returns error.message for a plain Error" time="0.000310955">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="extractApiErrorMessage — direct string/object &gt; returns a non-empty string value directly" time="0.000275387">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="extractApiErrorMessage — direct string/object &gt; falls back to String(error) for unknown shapes" time="0.00019925">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="preserveResponseStatus &gt; wraps an error with a custom message" time="0.000816785">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="preserveResponseStatus &gt; preserves the response status from the original error" time="0.00033335">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="preserveResponseStatus &gt; preserves the original error message when no override is given" time="0.000300095">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripAgentaMetadataDeep &gt; removes agenta_metadata keys from objects" time="0.000901889">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripAgentaMetadataDeep &gt; removes __agenta_metadata keys from objects" time="0.000661765">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripAgentaMetadataDeep &gt; recursively strips metadata from nested objects" time="0.000290145">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripAgentaMetadataDeep &gt; strips metadata from objects inside arrays" time="0.00021932">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripAgentaMetadataDeep &gt; returns primitives unchanged" time="0.000203792">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripEnhancedWrappers &gt; unwraps a simple {__id, __metadata, value} wrapper" time="0.000355085">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripEnhancedWrappers &gt; strips __id and __metadata from plain objects (non-wrapper)" time="0.000448585">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripEnhancedWrappers &gt; recursively strips wrappers from nested objects" time="0.000242952">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripEnhancedWrappers &gt; processes arrays recursively" time="0.001055276">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripEnhancedWrappers &gt; returns null/undefined unchanged" time="0.000209983">
+        </testcase>
+        <testcase classname="tests/unit/data-transforms.test.ts" name="stripEnhancedWrappers &gt; returns primitives unchanged" time="0.000148744">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/formatters.test.ts" timestamp="2026-06-03T07:51:20.555Z" hostname="Kaosisos-MacBook-Pro.local" tests="44" failures="0" errors="0" skipped="0" time="0.029119193">
+        <testcase classname="tests/unit/formatters.test.ts" name="formatNumber &gt; formats with locale thousand separators and 2 decimal places" time="0.003713118">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatNumber &gt; returns &apos;-&apos; for null" time="0.000494948">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatNumber &gt; returns &apos;-&apos; for undefined" time="0.000334845">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatNumber &gt; formats zero" time="0.000426467">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatNumber &gt; formats negative numbers" time="0.000340483">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatCompact &gt; formats thousands as K" time="0.000465451">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatCompact &gt; formats millions as M" time="0.000407826">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatCompact &gt; returns &apos;-&apos; for null" time="0.000305715">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatCurrency &gt; formats with dollar sign and 2 decimals for typical values" time="0.00254155">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatCurrency &gt; formats small values without trailing zeros (maximumFractionDigits: 6)" time="0.000456143">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatCurrency &gt; returns &apos;-&apos; for null" time="0.000727972">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatLatency &gt; formats sub-millisecond values in μs" time="0.000334701">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatLatency &gt; formats millisecond-range values in ms" time="0.000224338">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatLatency &gt; formats second-range values in s" time="0.000194387">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatLatency &gt; formats exactly 1 second" time="0.000137998">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatLatency &gt; returns &apos;-&apos; for null" time="0.000128351">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatLatency &gt; returns &apos;-&apos; for undefined" time="0.000136314">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatTokens &gt; formats values under 1000 as plain integers" time="0.000364411">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatTokens &gt; formats thousands as K with 1 decimal" time="0.000143129">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatTokens &gt; formats millions as M with 1 decimal" time="0.000140819">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatTokens &gt; returns &apos;-&apos; for null" time="0.00011791">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPercent &gt; formats decimal as percentage with 1 decimal for values &gt;= 10%" time="0.000228929">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPercent &gt; formats small values with 2 decimal places" time="0.000129466">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPercent &gt; returns &apos;100%&apos; for values &gt;= 99.95%" time="0.000478414">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPercent &gt; returns &apos;0%&apos; for zero" time="0.000144519">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPercent &gt; treats negative values as 0%" time="0.000189746">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPercent &gt; returns &apos;-&apos; for null" time="0.000144275">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatSignificant &gt; formats values with significant-figure-aware decimals" time="0.000419335">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatSignificant &gt; returns &apos;0&apos; for zero" time="0.000219374">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatSignificant &gt; uses scientific notation for extreme values" time="0.000279056">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatSignificant &gt; returns &apos;-&apos; for null" time="0.000256581">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPreviewValue &gt; wraps strings in quotes" time="0.000306751">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPreviewValue &gt; truncates long strings and adds ellipsis" time="0.00017171">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPreviewValue &gt; formats numbers as-is" time="0.000130479">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPreviewValue &gt; formats booleans as-is" time="0.000140545">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPreviewValue &gt; formats arrays with length" time="0.000113721">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPreviewValue &gt; formats small objects with key names" time="0.000124305">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPreviewValue &gt; truncates objects with more than 3 keys" time="0.000131993">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPreviewValue &gt; returns &apos;(null)&apos; for null" time="0.000111097">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="formatPreviewValue &gt; returns &apos;(undefined)&apos; for undefined" time="0.000152774">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="createFormatter &gt; applies multiplier, prefix, suffix, and fixed decimals" time="0.000473756">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="createFormatter &gt; uses the custom fallback for null/undefined" time="0.000223072">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="createFormatter &gt; uses compact notation when compact: true" time="0.000384642">
+        </testcase>
+        <testcase classname="tests/unit/formatters.test.ts" name="createFormatter &gt; prepends a prefix" time="0.000216185">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/path-utils.test.ts" timestamp="2026-06-03T07:51:20.571Z" hostname="Kaosisos-MacBook-Pro.local" tests="25" failures="0" errors="0" skipped="0" time="0.037525386">
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — basic object navigation &gt; retrieves a deeply nested value" time="0.002557808">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — basic object navigation &gt; returns the root when the path is empty" time="0.000322721">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — basic object navigation &gt; returns undefined for a missing key" time="0.000256621">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — basic object navigation &gt; returns undefined when traversal hits null" time="0.000267802">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — array indexing &gt; accesses array elements by numeric index" time="0.000327434">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — array indexing &gt; accesses array elements by string index" time="0.000195651">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — array indexing &gt; returns undefined for out-of-bounds index" time="0.000250685">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — array indexing &gt; navigates mixed array/object paths" time="0.000218769">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — JSON string traversal &gt; parses a JSON string and continues traversal" time="0.00074782">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="getValueAtPath — JSON string traversal &gt; returns undefined when the string is not valid JSON" time="0.000317394">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="setValueAtPath — object mutation (immutable) &gt; sets a nested value without mutating the original" time="0.000377345">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="setValueAtPath — object mutation (immutable) &gt; creates intermediate objects for new paths" time="0.00015727">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="setValueAtPath — object mutation (immutable) &gt; replaces the root when path is empty" time="0.000134198">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="setValueAtPath — array mutation (immutable) &gt; sets an array element by index" time="0.000164713">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="setValueAtPath — array mutation (immutable) &gt; handles nested array+object paths" time="0.000166792">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="setValueAtPath — JSON string re-serialisation &gt; parses a JSON string, sets the value, and re-stringifies" time="0.000172575">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="deleteValueAtPath — object &gt; removes a key from a nested object (immutable)" time="0.002067215">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="deleteValueAtPath — object &gt; returns data unchanged when path is empty" time="0.020732904">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="deleteValueAtPath — array &gt; removes an element from an array by index" time="0.001636661">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="hasValueAtPath &gt; returns true when the key exists" time="0.000583877">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="hasValueAtPath &gt; returns false when the key is missing" time="0.000163844">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="hasValueAtPath &gt; returns false when a parent is null" time="0.000124015">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="hasValueAtPath &gt; returns true for valid array index" time="0.000115465">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="hasValueAtPath &gt; returns false for out-of-bounds array index" time="0.000115521">
+        </testcase>
+        <testcase classname="tests/unit/path-utils.test.ts" name="hasValueAtPath &gt; returns true for the root when path is empty and data is defined" time="0.000104562">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/slug.test.ts" timestamp="2026-06-03T07:51:20.581Z" hostname="Kaosisos-MacBook-Pro.local" tests="40" failures="0" errors="0" skipped="0" time="0.030062015">
+        <testcase classname="tests/unit/slug.test.ts" name="slugifyName &gt; lowercases and trims" time="0.003214561">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="slugifyName &gt; replaces spaces with hyphens" time="0.00045722">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="slugifyName &gt; collapses multiple spaces into one hyphen" time="0.000251821">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="slugifyName &gt; strips leading and trailing hyphens" time="0.000354766">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="slugifyName &gt; preserves allowed chars: digits, underscore, dot, hyphen" time="0.000235035">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="slugifyName &gt; removes disallowed special characters" time="0.00021152">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="slugifyName &gt; returns empty string for a blank input" time="0.000533555">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="generateSlugWithSuffix &gt; produces &lt;base&gt;-&lt;4 chars&gt; format" time="0.003529513">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="generateSlugWithSuffix &gt; falls back to &apos;resource&apos; when name slugifies to empty" time="0.000746449">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="generateSlugWithSuffix &gt; produces different slugs on repeated calls (randomness)" time="0.000734153">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="generateSlugWithExistingSuffix &gt; appends the provided suffix to the slugified name" time="0.000325176">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="generateSlugWithExistingSuffix &gt; generates a new random suffix when suffix is null" time="0.000376281">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="generateSlugWithExistingSuffix &gt; generates a new random suffix when suffix is undefined" time="0.000230762">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="getSlugSuffix &gt; returns the 4-char suffix when present" time="0.000250414">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="getSlugSuffix &gt; returns null when the trailing segment is not exactly 4 chars" time="0.00025666">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="getSlugSuffix &gt; returns null when there is no hyphen-separated suffix" time="0.000218056">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="stripSlugSuffix &gt; removes the 4-char suffix" time="0.000213417">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="stripSlugSuffix &gt; leaves the slug unchanged when no suffix is present" time="0.000179517">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="regenerateSlugSuffix &gt; replaces the known suffix with a new random one" time="0.001827256">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="regenerateSlugSuffix &gt; appends a new suffix when the slug does not end with the given suffix" time="0.000207291">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="regenerateSlugSuffix &gt; always produces a 4-char suffix" time="0.000200284">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns true for valid slug a" time="0.000257971">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns true for valid slug abc" time="0.000181899">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns true for valid slug my-app" time="0.000093801">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns true for valid slug my_app" time="0.000083682">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns true for valid slug app.v2" time="0.000083173">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns true for valid slug app-v2-ab12" time="0.00007983">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns false for empty string" time="0.00011098">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns false for slugs longer than 255 characters" time="0.000129017">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns false for double hyphens" time="0.0001072">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns false for double dots" time="0.000214997">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isValidSlug &gt; returns false for slugs starting or ending with non-alphanumeric" time="0.000242711">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="buildGatewayToolSlug &gt; builds the correct double-underscore format" time="0.000756189">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isGatewayToolSlug &gt; returns true for a valid gateway tool slug" time="0.001401067">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="isGatewayToolSlug &gt; returns false for a non-gateway slug" time="0.003921047">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="parseGatewayToolSlug &gt; parses all four parts correctly" time="0.001736217">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="parseGatewayToolSlug &gt; returns null for a slug with wrong number of parts" time="0.000184061">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="parseGatewayToolSlug &gt; returns null for a slug that does not start with &apos;tools&apos;" time="0.000400336">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="parseGatewayToolSlug &gt; returns null for undefined input" time="0.000282527">
+        </testcase>
+        <testcase classname="tests/unit/slug.test.ts" name="parseGatewayToolSlug &gt; returns null when any segment is empty" time="0.000151165">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/template-variable.test.ts" timestamp="2026-06-03T07:51:20.594Z" hostname="Kaosisos-MacBook-Pro.local" tests="23" failures="0" errors="0" skipped="0" time="0.01161637">
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — empty / malformed &gt; rejects an empty expression" time="0.002987017">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — empty / malformed &gt; rejects expressions with consecutive dots (..)" time="0.000484413">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — empty / malformed &gt; rejects expressions with consecutive slashes (//)" time="0.000282633">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSONPath &gt; accepts a well-formed JSONPath" time="0.000333902">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSONPath &gt; accepts bare &apos;$&apos; (whole context shorthand)" time="0.000213164">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSONPath &gt; rejects &apos;$&lt;no-dot&gt;&apos; (malformed root)" time="0.000193018">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSONPath &gt; rejects &apos;$.&apos; with no field after the dot" time="0.000297891">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSONPath &gt; accepts any root segment — does NOT validate against envelope slots (permissive)" time="0.000347021">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSON Pointer &gt; accepts a pointer rooted at a known envelope slot" time="0.00073819">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSON Pointer &gt; rejects a multi-segment pointer with an unknown root slot" time="0.000411952">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSON Pointer &gt; includes a &apos;did-you-mean&apos; suggestion for near-miss slot names" time="0.000275967">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSON Pointer &gt; accepts a single-segment identifier-shaped pointer unconditionally (mustache close tag)" time="0.000139059">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — JSON Pointer &gt; rejects &apos;/&apos; with no segments" time="0.000125541">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — plain names &gt; accepts plain identifiers" time="0.000245851">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="validateTemplateVariable — plain names &gt; accepts dot-notation paths" time="0.000119536">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="isValidTemplateVariable &gt; returns true for a valid expression" time="0.00015515">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="isValidTemplateVariable &gt; returns false for an invalid expression" time="0.000137059">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="extractTemplateExpression &gt; strips {{ }} wrappers" time="0.00019578">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="extractTemplateExpression &gt; strips {% %} wrappers" time="0.000117001">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="extractTemplateExpression &gt; strips {%- -%} wrappers (whitespace-trimming variants)" time="0.000164">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="extractTemplateExpression &gt; strips {# #} comment wrappers" time="0.000285222">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="extractTemplateExpression &gt; returns the raw text when no wrapper is present" time="0.000128854">
+        </testcase>
+        <testcase classname="tests/unit/template-variable.test.ts" name="extractTemplateExpression &gt; returns empty string for empty input" time="0.000122009">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/validators-and-ids.test.ts" timestamp="2026-06-03T07:51:20.602Z" hostname="Kaosisos-MacBook-Pro.local" tests="33" failures="0" errors="0" skipped="0" time="0.027494259">
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidUUID &gt; returns true for valid UUID 123e4567-e89b-12d3-a456-426614174000" time="0.003901645">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidUUID &gt; returns true for valid UUID 00000000-0000-0000-0000-000000000000" time="0.001252744">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidUUID &gt; returns true for valid UUID FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" time="0.000217274">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidUUID &gt; returns false for invalid input " time="0.000379108">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidUUID &gt; returns false for invalid input not-a-uuid" time="0.000236402">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidUUID &gt; returns false for invalid input 123e4567-e89b-12d3-a456" time="0.000159416">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidUUID &gt; returns false for invalid input 123e4567-e89b-12d3-a456-42661417400Z" time="0.00024089">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidUUID &gt; returns false for invalid input 123e4567e89b12d3a456426614174000" time="0.000520701">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="validateUUID &gt; does not throw for a valid UUID" time="0.001772324">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="validateUUID &gt; throws with a descriptive message for an invalid UUID" time="0.000672121">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidHttpUrl &gt; returns true for http://example.com" time="0.000331258">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidHttpUrl &gt; returns true for https://example.com/path?q=1" time="0.000188039">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidHttpUrl &gt; returns false for ftp://example.com" time="0.000192804">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidHttpUrl &gt; returns false for not-a-url" time="0.000215639">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidHttpUrl &gt; returns false for " time="0.000138057">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidHttpUrl &gt; returns false for javascript:alert(1)" time="0.000163908">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidRegex &gt; returns true for valid regex ^[a-z]+$" time="0.000265106">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidRegex &gt; returns true for valid regex \d+" time="0.000129412">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidRegex &gt; returns true for valid regex (foo|bar)" time="0.000198754">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidRegex &gt; returns true for valid regex .*" time="0.000118527">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidRegex &gt; returns false for invalid regex [invalid" time="0.000173268">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidRegex &gt; returns false for invalid regex (unclosed" time="0.000099736">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="isValidRegex &gt; returns false for invalid regex *bad" time="0.000091557">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="uuidToTraceId &gt; strips dashes from a UUID" time="0.000158752">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="uuidToTraceId &gt; returns undefined for undefined input" time="0.008773454">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="uuidToTraceId &gt; returns undefined for empty string" time="0.000167004">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="uuidToSpanId &gt; returns the last 16 hex chars of the stripped UUID" time="0.000202041">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="uuidToSpanId &gt; returns undefined for undefined input" time="0.000172146">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="uuidToSpanId &gt; span ID length is always 16" time="0.001682264">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="removeTrailingSlash &gt; removes a trailing slash" time="0.000315106">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="removeTrailingSlash &gt; leaves a URI without trailing slash unchanged" time="0.000141222">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="removeTrailingSlash &gt; removes only the last slash, not interior ones" time="0.000687124">
+        </testcase>
+        <testcase classname="tests/unit/validators-and-ids.test.ts" name="removeTrailingSlash &gt; handles empty string" time="0.000208165">
+        </testcase>
+    </testsuite>
+</testsuites>
