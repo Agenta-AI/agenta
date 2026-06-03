@@ -67,7 +67,7 @@ const {Text, Title} = Typography
  */
 const createParamsFromSchema = (
     inputSchema: Record<string, unknown> | null,
-    environmentName: string,
+    environmentSlug: string,
     isChat: boolean,
     appSlug: string | null,
 ): string => {
@@ -91,7 +91,7 @@ const createParamsFromSchema = (
         data: {inputs},
         references: {
             ...(appSlug ? {application: {slug: appSlug}} : {}),
-            environment: {slug: environmentName},
+            environment: {slug: environmentSlug},
         },
     }
     return JSON.stringify(params, null, 2)
@@ -103,7 +103,7 @@ const createParamsFromSchema = (
  */
 export const createParams = (
     inputParams: Parameter[] | null,
-    environmentName: string,
+    environmentSlug: string,
     value: string | number,
     app?: {name?: string | null; slug?: string | null; flags?: {is_chat?: boolean} | null} | null,
     revision?: {flags?: {is_chat?: boolean} | null} | null,
@@ -130,7 +130,7 @@ export const createParams = (
         data: {inputs},
         references: {
             ...(appSlug ? {application: {slug: appSlug}} : {}),
-            environment: {slug: environmentName},
+            environment: {slug: environmentSlug},
         },
     }
     return JSON.stringify(params, null, 2)
@@ -204,11 +204,11 @@ function VariantEndpointContent() {
         () =>
             createParamsFromSchema(
                 inputSchema,
-                selectedEnvironment?.name || "none",
+                selectedEnvironment?.slug || "none",
                 isChat,
                 currentApp?.slug ?? null,
             ),
-        [inputSchema, selectedEnvironment?.name, isChat, currentApp?.slug],
+        [inputSchema, selectedEnvironment?.slug, isChat, currentApp?.slug],
     )
 
     const appSlug = currentApp?.slug ?? ""
@@ -275,7 +275,7 @@ function VariantEndpointContent() {
                 icon: <HistoryOutlined />,
                 children: (
                     <DeploymentHistory
-                        environmentSlug={selectedEnvironment?.name ?? ""}
+                        environmentSlug={selectedEnvironment?.slug ?? ""}
                         appId={appId}
                     />
                 ),
