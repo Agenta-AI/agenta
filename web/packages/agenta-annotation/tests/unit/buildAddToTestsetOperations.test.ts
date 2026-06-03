@@ -134,4 +134,29 @@ describe("buildAddToTestsetOperations", () => {
         ])
         expect(operations.rows?.add).toBeUndefined()
     })
+
+    // Corruption guard: when the target revision has duplicate
+    // testcase_dedup_ids (dedup -> row is no longer 1:1), a row matchable only
+    // by that dedup must NOT replace an arbitrary row — it falls through to add.
+    // An id match still wins (it's unambiguous).
+    it("does not replace via an ambiguous (duplicated) dedup id", () => {
+        const operations = buildAddToTestsetOperations({
+            rows: [
+                // only matchable by the duplicated dedup -> must add, not replace
+                {rowId: "stale", dedupId: "DUP", data: {country: "Nauru", rating: 5}},
+                // unambiguous id match -> still replaces in place
+                {rowId: "tc-3", data: {country: "Palau", rating: 4}},
+            ],
+            baseRows: [
+                {id: "tc-1", data: {country: "Nauru", testcase_dedup_id: "DUP"}},
+                {id: "tc-2", data: {country: "NauruDup", testcase_dedup_id: "DUP"}},
+                {id: "tc-3", data: {country: "Palau", testcase_dedup_id: "D3"}},
+            ],
+        })
+
+        expect(operations.rows?.add).toEqual([{data: {country: "Nauru", rating: 5}}])
+        expect(operations.rows?.replace).toEqual([
+            {id: "tc-3", data: {country: "Palau", rating: 4}},
+        ])
+    })
 })

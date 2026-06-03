@@ -222,9 +222,14 @@ export async function queryAnnotations({
         response.data,
         "[queryAnnotations]",
     )
+    // `parseAnnotationTraces` drops non-annotation rows (e.g. the invocation
+    // trace the testcase query returns alongside annotations), so derive `count`
+    // from the filtered list rather than the unfiltered backend payload — else
+    // `count > annotations.length` and annotation-oriented callers break.
+    const annotations = parseAnnotationTraces(validated?.traces)
     return {
-        count: validated?.count ?? 0,
-        annotations: parseAnnotationTraces(validated?.traces),
+        count: annotations.length,
+        annotations,
     }
 }
 

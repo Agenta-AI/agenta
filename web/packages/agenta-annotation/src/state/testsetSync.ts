@@ -772,6 +772,8 @@ export function buildAddToTestsetOperations(params: {
     const baseRowIds = new Set<string>()
     const baseRowIdByDedup = new Map<string, string>()
     const baseDataById = new Map<string, Record<string, unknown> | null | undefined>()
+    // Dedup ids that appear on more than one base row (historical corruption).
+    const ambiguousDedups = new Set<string>()
 
     for (const row of params.baseRows) {
         if (row.id) {
@@ -781,8 +783,30 @@ export function buildAddToTestsetOperations(params: {
 
         const dedupId = getTestcaseDedupId(row.data)
         if (row.id && dedupId) {
-            baseRowIdByDedup.set(dedupId, row.id)
+            if (baseRowIdByDedup.has(dedupId)) {
+                // dedup -> row is no longer 1:1 for this id. Letting the last
+                // writer win would replace an *arbitrary* row, silently
+                // corrupting an unrelated testcase. Mark it ambiguous instead.
+                ambiguousDedups.add(dedupId)
+            } else {
+                baseRowIdByDedup.set(dedupId, row.id)
+            }
         }
+    }
+
+    // Drop ambiguous dedups from the fallback index: rows that can only be
+    // matched by such a dedup fall through to `add` rather than overwriting the
+    // wrong row. This is the documented "duplicate/missing dedup" corruption
+    // case that the FE can contain but not repair (the durable fix is backend).
+    if (ambiguousDedups.size > 0) {
+        for (const dedupId of ambiguousDedups) {
+            baseRowIdByDedup.delete(dedupId)
+        }
+        console.warn(
+            `[buildAddToTestsetOperations] target revision has ${ambiguousDedups.size} ` +
+                `duplicate testcase_dedup_id(s); those rows can't be matched by dedup and ` +
+                `will be added instead of replaced.`,
+        )
     }
 
     const replace: {id: string; data: Record<string, unknown>}[] = []

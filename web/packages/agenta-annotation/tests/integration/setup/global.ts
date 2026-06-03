@@ -26,6 +26,12 @@ export async function setup() {
     const authKey = process.env.AGENTA_AUTH_KEY
 
     if (!apiUrl || !authKey) {
+        // Clear any credentials left over from a previous run, otherwise
+        // helpers/env.ts would still report hasBackend=true and the suite would
+        // hit a stale project/backend instead of skipping.
+        delete process.env.AGENTA_TEST_API_KEY
+        delete process.env.AGENTA_TEST_PROJECT_ID
+        delete process.env.NEXT_PUBLIC_AGENTA_API_URL
         console.warn(
             "\n[integration] AGENTA_API_URL or AGENTA_AUTH_KEY not set." +
                 "\n[integration] All integration tests will be skipped." +
@@ -46,6 +52,9 @@ export async function setup() {
 
     const response = await fetch(`${apiUrl}/admin/simple/accounts/`, {
         method: "POST",
+        // Explicit timeout so a hung backend fails the run fast and
+        // deterministically rather than waiting on Undici's ~300s default.
+        signal: AbortSignal.timeout(30_000),
         headers: {
             "Content-Type": "application/json",
             Authorization: `Access ${authKey}`,

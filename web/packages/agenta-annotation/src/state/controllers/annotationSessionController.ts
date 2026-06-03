@@ -1289,36 +1289,48 @@ const scenarioAnnotationsQueryAtomFamily = atomFamily(
  */
 const scenarioAnnotationsByTestcaseQueryAtomFamily = atomFamily(
     ({scenarioId, testcaseId}: {scenarioId: string; testcaseId: string}) =>
-        atomWithQuery(() => ({
-            queryKey: ["scenarioAnnotationsByTestcase", scenarioId, testcaseId],
-            queryFn: async (): Promise<Annotation[]> => {
-                const projectId = getStore().get(projectIdAtom)
-                if (!projectId || !testcaseId) return []
-                const response = await queryAnnotations({
-                    projectId,
-                    annotation: {
-                        references: {
-                            testcase: {id: testcaseId},
+        atomWithQuery((get) => {
+            // Read queue + project reactively so the cache key includes them.
+            // The queryFn filters by the active queue, so without these in the
+            // key a cached result could be reused across queue changes (and the
+            // testcase-based invalidation path must write under the same key).
+            const queueId = get(activeQueueIdAtom) ?? ""
+            const projectId = get(projectIdAtom)
+            return {
+                queryKey: [
+                    "scenarioAnnotationsByTestcase",
+                    scenarioId,
+                    testcaseId,
+                    queueId,
+                    projectId ?? "",
+                ],
+                queryFn: async (): Promise<Annotation[]> => {
+                    if (!projectId || !testcaseId) return []
+                    const response = await queryAnnotations({
+                        projectId,
+                        annotation: {
+                            references: {
+                                testcase: {id: testcaseId},
+                            },
                         },
-                    },
-                })
-                // A query by testcase id returns annotations from EVERY queue
-                // that ever touched this testcase (and archived revisions).
-                // Scope to the active queue so a fresh queue doesn't surface
-                // stale annotations from prior queues.
-                const queueId = getStore().get(activeQueueIdAtom)
-                return filterQueueScopedAnnotations(response.annotations ?? [], queueId ?? "")
-            },
-            enabled: !!testcaseId,
-            retry: (failureCount: number, error: Error) => {
-                if (error?.message === "projectId not yet available" && failureCount < 5) {
-                    return true
-                }
-                return false
-            },
-            retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
-            staleTime: 30_000,
-        })),
+                    })
+                    // A query by testcase id returns annotations from EVERY queue
+                    // that ever touched this testcase (and archived revisions).
+                    // Scope to the active queue so a fresh queue doesn't surface
+                    // stale annotations from prior queues.
+                    return filterQueueScopedAnnotations(response.annotations ?? [], queueId)
+                },
+                enabled: !!testcaseId,
+                retry: (failureCount: number, error: Error) => {
+                    if (error?.message === "projectId not yet available" && failureCount < 5) {
+                        return true
+                    }
+                    return false
+                },
+                retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
+                staleTime: 30_000,
+            }
+        }),
     (a: {scenarioId: string; testcaseId: string}, b: {scenarioId: string; testcaseId: string}) =>
         a.scenarioId === b.scenarioId && a.testcaseId === b.testcaseId,
 )
@@ -1995,12 +2007,24 @@ async function invalidateScenarioAnnotations(
                         },
                     },
                 })
+                // Scope to the active queue before seeding the cache — a
+                // testcase-id query returns every queue's annotations, so an
+                // unfiltered write here would reintroduce cross-queue bleed
+                // after submit. Write under the same queue/project-scoped key
+                // as scenarioAnnotationsByTestcaseQueryAtomFamily.
+                const queueId = store.get(activeQueueIdAtom) ?? ""
                 const annotations = mergeAnnotationsByTraceSpan(
-                    response.annotations ?? [],
+                    filterQueueScopedAnnotations(response.annotations ?? [], queueId),
                     fallbackAnnotations,
                 )
                 queryClient.setQueryData(
-                    ["scenarioAnnotationsByTestcase", scenarioId, testcaseRef.testcaseId],
+                    [
+                        "scenarioAnnotationsByTestcase",
+                        scenarioId,
+                        testcaseRef.testcaseId,
+                        queueId,
+                        projectId ?? "",
+                    ],
                     annotations,
                 )
             } catch {
