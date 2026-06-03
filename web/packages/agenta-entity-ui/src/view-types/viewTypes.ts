@@ -281,7 +281,8 @@ function isArrayOfObjectsSchema(schema: unknown): boolean {
  *  Defensive against malformed entries (non-strings are skipped) — the helper
  *  receives data sourced from `unknown`-typed schema fragments. */
 function buildShapeFromPathHints(hints: unknown[]): Record<string, unknown> {
-    const out: Record<string, unknown> = {}
+    const out: Record<string, unknown> = Object.create(null)
+    const BLOCKED_KEYS = new Set(["__proto__", "prototype", "constructor"])
     for (const path of hints) {
         if (typeof path !== "string") continue
         const segments = path.split(/[.[\]/]/).filter(Boolean)
@@ -289,13 +290,14 @@ function buildShapeFromPathHints(hints: unknown[]): Record<string, unknown> {
         let cursor: Record<string, unknown> = out
         for (let i = 0; i < segments.length; i++) {
             const seg = segments[i]
+            if (BLOCKED_KEYS.has(seg)) break
             const isLast = i === segments.length - 1
             if (isLast) {
                 if (!(seg in cursor)) cursor[seg] = ""
             } else {
                 const existing = cursor[seg]
                 if (typeof existing !== "object" || existing === null || Array.isArray(existing)) {
-                    cursor[seg] = {}
+                    cursor[seg] = Object.create(null) as Record<string, unknown>
                 }
                 cursor = cursor[seg] as Record<string, unknown>
             }
@@ -360,7 +362,7 @@ export function buildEmptyShapeFromSchema(schema: unknown): unknown {
         }
 
         if (s.properties) {
-            const out: Record<string, unknown> = {}
+            const out: Record<string, unknown> = Object.create(null)
             for (const [key, prop] of Object.entries(s.properties)) {
                 const nested = buildEmptyShapeFromSchema(prop)
                 out[key] = nested ?? ""
