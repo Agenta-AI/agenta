@@ -55,7 +55,8 @@ Is the code used by 2+ features, or could be?
 | --- | --- | --- |
 | `@agenta/shared` | Pure utilities (no React) | Path utilities, common types |
 | `@agenta/ui` | Reusable React components | `EnhancedModal`, `InfiniteVirtualTable`, `cn`, `textColors`, presentational components |
-| `@agenta/entities` | Entity state/hooks/controllers | Molecules, bridges, UI components |
+| `@agenta/entities` | Entity state/hooks/controllers | Molecules, bridges, controllers |
+| `@agenta/entity-ui` | Entity-specific UI components | `EntityPicker`, `EntityCascader`, modals |
 | `@agenta/playground` | Playground-specific components | `PlaygroundContent`, `EntitySelector`, `InputMappingModal` |
 
 READMEs:
