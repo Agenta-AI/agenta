@@ -15,6 +15,8 @@ import {deployToEnvironment} from "../environment/api/mutations"
 import type {Environment} from "../environment/core"
 import {invalidateEnvironmentsListCache} from "../environment/state/environmentMolecule"
 import {environmentsListQueryAtomFamily} from "../environment/state/store"
+import {workflowsListDataAtom, workflowMolecule} from "../workflow"
+import type {Workflow} from "../workflow/core"
 
 // ============================================================================
 // PAYLOAD TYPES
@@ -83,6 +85,19 @@ function resolveAppKey(env: Environment, applicationId: string, applicationSlug?
     return `${applicationId}.revision`
 }
 
+function resolveApplicationSlug(
+    workflows: Workflow[],
+    payload: Pick<PublishPayload, "applicationId" | "applicationSlug" | "revisionId">,
+): string | undefined {
+    if (payload.applicationSlug) return payload.applicationSlug
+
+    const revision = workflowMolecule.get.data(payload.revisionId)
+    const revisionSlug = revision?.workflow_slug ?? revision?.artifact_slug ?? undefined
+    if (revisionSlug) return revisionSlug
+
+    return workflows.find((workflow) => workflow.id === payload.applicationId)?.slug ?? undefined
+}
+
 // ============================================================================
 // PUBLISH MUTATION
 // ============================================================================
@@ -103,6 +118,7 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
         // Resolve environment from list cache
         const listQuery = get(environmentsListQueryAtomFamily(false))
         const environments = listQuery.data?.environments ?? []
+        const workflows = get(workflowsListDataAtom)
         const env = resolveEnvironmentBySlug(environments, payload.environmentSlug)
 
         if (!env) {
@@ -119,7 +135,8 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
             )
         }
 
-        const appKey = resolveAppKey(env, payload.applicationId, payload.applicationSlug)
+        const applicationSlug = resolveApplicationSlug(workflows, payload)
+        const appKey = resolveAppKey(env, payload.applicationId, applicationSlug)
 
         await deployToEnvironment({
             projectId,
@@ -129,7 +146,7 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
             references: {
                 application: {
                     id: payload.applicationId,
-                    slug: payload.applicationSlug,
+                    slug: applicationSlug,
                 },
                 application_variant: {
                     id: payload.workflowVariantId,
@@ -173,6 +190,7 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
 
     const listQuery = store.get(environmentsListQueryAtomFamily(false))
     const environments = listQuery.data?.environments ?? []
+    const workflows = store.get(workflowsListDataAtom)
     const env = resolveEnvironmentBySlug(environments, payload.environmentSlug)
 
     if (!env) {
@@ -183,7 +201,8 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
         throw new Error(`Environment "${payload.environmentSlug}" has no variant_id.`)
     }
 
-    const appKey = resolveAppKey(env, payload.applicationId, payload.applicationSlug)
+    const applicationSlug = resolveApplicationSlug(workflows, payload)
+    const appKey = resolveAppKey(env, payload.applicationId, applicationSlug)
 
     await deployToEnvironment({
         projectId,
@@ -193,7 +212,7 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
         references: {
             application: {
                 id: payload.applicationId,
-                slug: payload.applicationSlug,
+                slug: applicationSlug,
             },
             application_variant: {
                 id: payload.workflowVariantId,

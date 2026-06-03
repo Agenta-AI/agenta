@@ -383,6 +383,7 @@ const VariantsDashboard = () => {
             <DeploymentsDashboard
                 environmentId={selectedEnvironmentId}
                 environmentName={selectedEnv || ""}
+                environmentSlug={selectedEnvironmentEntity?.slug ?? selectedEnv ?? ""}
                 currentDeployedRevisionId={currentDeployedRevisionId}
             />
         </div>
