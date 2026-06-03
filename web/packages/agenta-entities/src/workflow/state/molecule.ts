@@ -1060,7 +1060,7 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
 function buildSubPathSchema(
     subPaths: string[],
     sectionSubPaths?: string[],
-    prefix: string = "",
+    prefix = "",
 ): {
     type: "object"
     properties: Record<string, unknown>

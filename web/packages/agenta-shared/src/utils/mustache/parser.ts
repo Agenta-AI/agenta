@@ -139,7 +139,7 @@ export function parseMustache(input: string): ParseResult {
      * opener so we can emit a SectionNode (or BlockNode / ParentNode) when
      * we encounter its matching close.
      */
-    type Frame = {
+    interface Frame {
         kind: "section" | "block" | "parent"
         name: string
         inverted: boolean // only meaningful for kind === "section"
