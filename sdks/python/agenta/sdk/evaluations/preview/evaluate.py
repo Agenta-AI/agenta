@@ -451,15 +451,6 @@ async def aevaluate(
         repeats=run_data.repeats,
     )
 
-    print(
-        f"{UNICODE['here']}"
-        f"{UNICODE['skip']}"
-        f"{UNICODE['skip']}"
-        f"{UNICODE['skip']}"
-        f"{UNICODE['skip']}"
-        f"     run_id={str(run.id)}",
-    )
-
     if not run.id:
         print("[failure] could not create evaluation")
         return None
