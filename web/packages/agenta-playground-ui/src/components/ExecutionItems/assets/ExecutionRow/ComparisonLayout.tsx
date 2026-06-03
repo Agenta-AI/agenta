@@ -401,10 +401,27 @@ const ComparisonLayout = ({
                                                     <EnhancedButton
                                                         size="small"
                                                         type="text"
-                                                        icon={<MinusCircleIcon size={14} />}
-                                                        onClick={() => deleteRow(rowId)}
-                                                        disabled={rowCount <= 1}
-                                                        tooltipProps={{title: "Remove"}}
+                                                        icon={
+                                                            <ArrowsOutLineHorizontalIcon
+                                                                size={14}
+                                                            />
+                                                        }
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            openFocusDrawer({
+                                                                rowId,
+                                                                entityId:
+                                                                    structuralRootNode?.entityId ??
+                                                                    entityId,
+                                                            })
+                                                        }}
+                                                        disabled={
+                                                            !(
+                                                                structuralRootNode?.entityId ??
+                                                                entityId
+                                                            )
+                                                        }
+                                                        tooltipProps={{title: "Open details"}}
                                                     />
                                                 </>
                                             ) : undefined
