@@ -83,6 +83,7 @@ import {
     newTestcaseDataHashAtom,
 } from "../execution/selectors"
 import {pruneDanglingConnections} from "../helpers/connectionGraph"
+import {reconcileRowDataForEntity, resolveEntityInputContract} from "../helpers/entityInputContract"
 import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessages"
 import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
@@ -2133,17 +2134,8 @@ function relinkLoadableSessions(
 }
 
 /**
- * Chat-conversation transport keys that accumulate on a shared testcase row
- * when a chat app runs (#4525 / AGE-3793). They are not template variables;
- * they describe a conversation. Used as the strip set when the new primary's
- * input schema is open (`additionalProperties !== false`), where the strict
- * allow-list would over-prune evaluator rows that depend on extra columns.
- */
-const CHAT_TRANSPORT_KEYS = ["messages"] as const
-
-/**
  * Reconcile every testcase row against the new primary entity's input
- * schema.
+ * contract.
  *
  * Why this exists: the testcase row store (`testcaseMolecule`) is shared
  * across loadables. When the user swaps the primary app in the LLM-as-a-
@@ -2153,73 +2145,62 @@ const CHAT_TRANSPORT_KEYS = ["messages"] as const
  * reconciliation, those stale keys leak into the new app's request body
  * via the downstream "spread all keys" fallbacks.
  *
- * Handling at the row layer (here) makes the UI immediately reflect the
- * new app's variables and removes the need for execution-time stripping.
+ * Handling at the row layer (here) makes the UI immediately reflect the new
+ * app's variables and is the primary fix; execution-time reconciliation in
+ * `executionRunner.ts` is only a hydration-window safety net.
  *
- * Schema cases:
- *   - Closed schema (`additionalProperties: false`): drop any row key not
- *     declared by `inputSchema.properties`.
- *   - Open schema (additionalProperties unset or true): only drop the
- *     CHAT_TRANSPORT_KEYS set — evaluator workflows that legitimately
- *     spread testcase columns still receive them.
- *   - Schema not resolved: skip silently. The execution-time strip in
- *     `executionRunner.ts` is the fallback during this hydration window.
- *     A console.warn is emitted so we can see when it happens.
+ * Allow-list source is `inputPorts` (via `resolveEntityInputContract`), NOT
+ * `inputSchema.properties` — completion apps surface their variables as
+ * prompt template placeholders through `inputPorts` and have an EMPTY static
+ * input schema, so schema-based filtering keeps everything. Policy:
+ *   - App with a resolved contract → strict: keep only declared keys.
+ *   - Evaluator → chat-transport only: evaluators spread extra testcase
+ *     columns, so we never strict-filter them.
+ *   - Unresolved contract (ports mid-hydration) → skip; the execution-time
+ *     reconciliation catches it. A console.warn is emitted so we can see
+ *     when the hydration window is hit.
  *
- * Mutations go through `testcaseMolecule.actions.batchUpdate` setting
- * stale keys to `undefined`, which the store's update reducer interprets
- * as a delete. Drafts are created as needed (one per affected row).
+ * Mutations go through `testcaseMolecule.actions.batchUpdate` setting stale
+ * keys to `undefined`, which the store's update reducer interprets as a
+ * delete. Drafts are created as needed (one per affected row).
  */
 function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string) {
-    const schemas = get(workflowMolecule.selectors.ioSchemas(entityId)) as
-        | {inputSchema?: unknown}
-        | undefined
-    const inputSchema = schemas?.inputSchema as
-        | {properties?: Record<string, unknown>; additionalProperties?: unknown}
-        | undefined
-    const properties = inputSchema?.properties
-    const declared =
-        properties && typeof properties === "object" ? new Set(Object.keys(properties)) : null
+    const contract = resolveEntityInputContract(get, entityId)
 
-    if (!declared) {
-        console.warn("[playgroundController.prune] schema-not-resolved on swap", {
+    // Unresolved, non-evaluator contract → we can't strict-filter safely yet.
+    // The evaluator path is always "resolved enough" (chat-transport strip
+    // works without a variable list), so only bail for non-evaluator apps.
+    if (!contract.isEvaluator && !contract.resolved) {
+        console.warn("[playgroundController.prune] contract-not-resolved on swap", {
             entityId,
-            // Without the schema we can't safely decide what to drop. The
-            // execution-time strip catches the leak window for now.
+            // Without resolved inputPorts we can't decide what to drop. The
+            // execution-time reconciliation catches the leak window for now.
         })
         return
     }
 
-    const isClosedSchema = inputSchema?.additionalProperties === false
     const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
     if (!Array.isArray(displayRowIds) || displayRowIds.length === 0) return
 
     const updates: {id: string; updates: {data: Record<string, unknown>}}[] = []
     const droppedPerRow: Record<string, string[]> = {}
+    let strategyUsed: string | null = null
 
     for (const rowId of displayRowIds) {
         const row = get(testcaseMolecule.data(rowId))
         const data = (row as {data?: Record<string, unknown>} | null)?.data
         if (!data || typeof data !== "object") continue
 
-        const keysToDrop: string[] = []
-        if (isClosedSchema) {
-            for (const key of Object.keys(data)) {
-                if (!declared.has(key)) keysToDrop.push(key)
-            }
-        } else {
-            for (const key of CHAT_TRANSPORT_KEYS) {
-                if (key in data && !declared.has(key)) keysToDrop.push(key)
-            }
-        }
-        if (keysToDrop.length === 0) continue
+        const {dropped, strategy} = reconcileRowDataForEntity(get, entityId, data)
+        if (dropped.length === 0) continue
+        strategyUsed = strategy
 
         const undefinedData: Record<string, unknown> = {}
-        for (const key of keysToDrop) {
+        for (const key of dropped) {
             undefinedData[key] = undefined
         }
         updates.push({id: rowId, updates: {data: undefinedData}})
-        droppedPerRow[rowId] = keysToDrop
+        droppedPerRow[rowId] = dropped
     }
 
     if (updates.length === 0) return
@@ -2227,7 +2208,7 @@ function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string) 
     console.warn("[playgroundController.prune] dropped stale keys after primary swap", {
         entityId,
         rowsAffected: updates.length,
-        schemaMode: isClosedSchema ? "closed" : "open",
+        strategy: strategyUsed,
         droppedPerRow,
     })
 

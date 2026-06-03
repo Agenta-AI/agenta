@@ -16,6 +16,7 @@ import {getDefaultStore} from "jotai/vanilla"
 
 import {messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat/messageAtoms"
 import {SHARED_SESSION_ID, type ChatMessage} from "../chat/messageTypes"
+import {reconcileRowDataForEntity} from "../helpers/entityInputContract"
 import type {OutputConnection, PlaygroundNode} from "../types"
 
 import {
@@ -237,133 +238,38 @@ function buildEvaluatorSelfReferences(params: {
 }
 
 /**
- * Keys that are chat-conversation transport (not template variables). They
- * accumulate on the shared testcase row when a chat app runs, and must not
- * leak into a non-chat entity's request body (issue #4525 / AGE-3793).
+ * Reconcile row data to an entity's input contract at execution time.
  *
- * Kept conservative: only `messages`. `chatHistory` is constructed at
- * runtime from the flat message store, not stored on row data.
+ * This is the runtime safety net for #4525 / AGE-3793: testcase rows live in
+ * a shared store and preserve every key the user ever ran with (chat apps
+ * populate `messages`, completion apps populate template variables, etc.).
+ * When the user swaps the primary app, the same row carries stale keys.
+ *
+ * Reconciliation primarily happens at swap time in the playground controller
+ * (`pruneTestcaseRowsForEntity`); this pass catches the hydration window
+ * where the new entity's input contract wasn't yet resolved at swap time but
+ * IS resolved by the time the request is built.
+ *
+ * Delegates to the shared `reconcileRowDataForEntity` — allow-list derived
+ * from `inputPorts` (the same source `executionItems` uses for `variables`),
+ * NOT `inputSchema.properties` (empty for completion apps). Apps get a strict
+ * allow-list; evaluators / unresolved contracts get a chat-transport-only
+ * strip so workflows depending on extra testcase columns keep working.
  */
-const CHAT_TRANSPORT_KEYS = ["messages"] as const
-
-function getEntityInputSchema(
-    get: Getter,
-    entityId: string,
-): {properties?: Record<string, unknown>; additionalProperties?: unknown} | undefined {
-    const schemas = get(workflowMolecule.selectors.ioSchemas(entityId)) as
-        | {inputSchema?: unknown}
-        | undefined
-    return schemas?.inputSchema as
-        | {properties?: Record<string, unknown>; additionalProperties?: unknown}
-        | undefined
-}
-
-/**
- * Filter row data to only keys present in the entity's input schema.
- *
- * Why this exists: testcase rows live in the local testcase molecule and
- * preserve every key the user ever ran with (chat apps populate
- * `messages`/`context`, completion apps populate template variables, etc.).
- * When the user swaps the primary app — e.g. in the LLM-as-a-judge playground
- * switching the chained app from chat to completion (issue #4525 /
- * AGE-3793) — the same row data carries stale chat keys into the completion
- * request.
- *
- * Downstream there's already filtering by `variables` (input ports) in
- * `resolveVariableValues` / `buildCompletionInputRow`, but it falls back to
- * "spread all keys" when `variables` is empty (entity still hydrating, or a
- * workflow with no declared input ports). This helper filters AT THE RUNNER
- * before the data leaves for stage execution, so stale keys can't slip
- * through the fallback.
- *
- * Fallback contract: when the entity has no resolvable input schema
- * (`properties` missing / empty), return the data unchanged — preserves the
- * pre-fix behavior so workflows that genuinely depend on free-form input
- * (e.g. `__rawBody` app workflows with `__meta.variables`) aren't broken.
- */
-function filterDataToEntityInputSchema(
+function reconcileEntityInputData(
     get: Getter,
     data: Record<string, unknown>,
     entityId: string,
 ): Record<string, unknown> {
-    const inputSchema = getEntityInputSchema(get, entityId)
-    const properties = inputSchema?.properties
-    if (!properties || typeof properties !== "object") {
-        // Schema not resolved — emits when the strict allow-list filter can't
-        // run and the secondary stripChatTransportForEntity pass becomes the
-        // only line of defense against stale chat keys leaking through.
-        // If this fires on a chat→completion swap repro, the secondary strip
-        // is the one keeping `messages` out of the request body.
-        console.warn("[executionRunner.filter] schema-not-resolved fallback", {
+    const {data: next, dropped, strategy} = reconcileRowDataForEntity(get, entityId, data)
+    if (dropped.length > 0) {
+        console.warn("[executionRunner.filter] reconciled stale row keys", {
             entityId,
-            reason: properties === undefined ? "no-properties" : "properties-not-object",
-            dataKeys: Object.keys(data),
-            hasMessagesKey: "messages" in data,
+            strategy,
+            dropped,
         })
-        return {...data}
     }
-    const allowedKeys = new Set(Object.keys(properties))
-    if (allowedKeys.size === 0) {
-        console.warn("[executionRunner.filter] empty-properties fallback", {
-            entityId,
-            dataKeys: Object.keys(data),
-            hasMessagesKey: "messages" in data,
-        })
-        return {...data}
-    }
-    const filtered: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(data)) {
-        if (allowedKeys.has(key)) {
-            filtered[key] = value
-        }
-    }
-    return filtered
-}
-
-/**
- * Strip chat-transport keys from row data unless the target entity
- * explicitly declares them as inputs. Used as a defensive pre-filter for
- * the chain / evaluator input-building paths (depth > 0), where the
- * filter-by-properties pass above isn't applied because chain mappings
- * and evaluator schema resolution own their own input shaping.
- *
- * Difference from `filterDataToEntityInputSchema`: that helper does a
- * strict allow-list (great for primary/root entities with closed
- * schemas); this one only strips a known-leaky set so evaluators that
- * legitimately depend on `additionalProperties: true` spread keep
- * receiving their extra testcase columns.
- */
-function stripChatTransportForEntity(
-    get: Getter,
-    data: Record<string, unknown>,
-    entityId: string,
-): Record<string, unknown> {
-    const inputSchema = getEntityInputSchema(get, entityId)
-    const properties = inputSchema?.properties
-    const declared =
-        properties && typeof properties === "object"
-            ? new Set(Object.keys(properties))
-            : new Set<string>()
-    const stripped: string[] = []
-    const out: Record<string, unknown> = {...data}
-    for (const key of CHAT_TRANSPORT_KEYS) {
-        if (key in out && !declared.has(key)) {
-            delete out[key]
-            stripped.push(key)
-        }
-    }
-    if (stripped.length > 0) {
-        // Logged only when this strip actually drops a key — i.e. the
-        // entity didn't declare it but the testcase row carried it
-        // (typical signal: a chat→completion swap leaving stale `messages`).
-        console.warn("[executionRunner.filter] stripped chat-transport keys", {
-            entityId,
-            stripped,
-            schemaResolved: declared.size > 0,
-        })
-        return out
-    }
-    return data
+    return next
 }
 
 function createConcurrencyLimiter(concurrency: number) {
@@ -564,28 +470,25 @@ export async function executeStepForSessionWithExecutionItems(
 
                     let nodeInputs: Record<string, unknown>
                     if (node.depth === 0) {
-                        // Filter to the root entity's declared input schema so stale
-                        // keys from a previous primary app (e.g. chat `messages` /
-                        // `context` after swapping the upstream app in the
+                        // Reconcile the row to the root entity's input contract so
+                        // stale keys from a previous primary app (e.g. chat `messages`
+                        // / `context` after swapping the upstream app in the
                         // LLM-as-a-judge playground — issue #4525 / AGE-3793) don't
                         // leak into the new app's request body via the downstream
-                        // "spread all keys" fallback in resolveVariableValues.
+                        // "spread all keys" fallback in resolveVariableValues. Apps
+                        // get a strict allow-list (from inputPorts); evaluators get a
+                        // chat-transport-only strip.
                         const rootEntityId = node.entity.id as string
-                        const filtered = filterDataToEntityInputSchema(get, data, rootEntityId)
-                        // Defense in depth: if the strict filter fell back to spreading
-                        // all keys (schema not yet resolved), still strip known chat-
-                        // transport keys unless the entity declares them. Without this
-                        // the bug repros while the new app's schema is mid-hydration.
-                        nodeInputs = stripChatTransportForEntity(get, filtered, rootEntityId)
+                        nodeInputs = reconcileEntityInputData(get, data, rootEntityId)
                     } else {
-                        // Strip chat-transport keys from testcase data before chain /
-                        // evaluator input construction, so the downstream "spread all
-                        // keys" fallbacks (resolveChainInputs no-mapping branch and
+                        // Reconcile testcase data before chain / evaluator input
+                        // construction, so the downstream "spread all keys" fallbacks
+                        // (resolveChainInputs no-mapping branch and
                         // buildEvaluatorExecutionInputs additionalProperties spread)
-                        // can't carry stale `messages` from a previous chat app into
-                        // the current target entity (#4525 / AGE-3793).
+                        // can't carry stale keys from a previous app into the current
+                        // target entity (#4525 / AGE-3793).
                         const targetEntityId = node.entity.id as string
-                        const dataForChain = stripChatTransportForEntity(get, data, targetEntityId)
+                        const dataForChain = reconcileEntityInputData(get, data, targetEntityId)
 
                         // Check whether the incoming connection has explicit valid mappings.
                         // resolveChainInputs always returns non-empty (fallback spreads testcaseData
@@ -809,15 +712,10 @@ export async function executeStepForSessionWithExecutionItems(
                 if (abortController.signal.aborted) break
 
                 const perSession2 = sessionOptions?.[session.id]
-                // Same input-schema filter as the first-run path above —
-                // repetitions hit the same root entity, so stale keys must be
-                // filtered identically (issue #4525 / AGE-3793).
-                const repFiltered = filterDataToEntityInputSchema(get, data, session.runnableId)
-                const nodeInputs2 = stripChatTransportForEntity(
-                    get,
-                    repFiltered,
-                    session.runnableId,
-                )
+                // Same reconciliation as the first-run path above — repetitions
+                // hit the same root entity, so stale keys must be filtered
+                // identically (issue #4525 / AGE-3793).
+                const nodeInputs2 = reconcileEntityInputData(get, data, session.runnableId)
                 const repetitionItem = rootExecutionHandle.retry({
                     get,
                     headers: perSession2?.headers ?? {},
