@@ -13,7 +13,7 @@ interface NavigationTarget {
 
 const getEvaluatorIdentifier = (evaluator: any) => {
     if (!evaluator) return null
-    return evaluator.id
+    return evaluator.id ?? evaluator.slug ?? evaluator.key ?? null
 }
 
 const isHumanEvaluator = (evaluator: any) => {
