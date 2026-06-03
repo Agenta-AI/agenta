@@ -142,7 +142,10 @@ const RowHeaderActions = ({
                 icon={<ArrowsOutLineHorizontalIcon size={12} />}
                 size="small"
                 type="text"
-                onClick={() => openFocusDrawer({rowId, entityId})}
+                onClick={(e) => {
+                    e.stopPropagation()
+                    openFocusDrawer({rowId, entityId})
+                }}
                 tooltipProps={{title: tooltipTitle}}
             />
             <EnhancedButton
