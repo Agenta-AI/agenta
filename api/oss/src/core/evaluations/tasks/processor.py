@@ -15,7 +15,6 @@ from agenta.sdk.evaluations.runtime.processor import (
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.testcases.service import TestcasesService
-from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluations.service import EvaluationsService
@@ -40,7 +39,6 @@ from oss.src.core.evaluations.runtime.adapters import (
     APICachedRunner,
     APIMetricsRefresher,
     APIResultLogger,
-    APIScenarioFactory,
     APITraceLoader,
     APIWorkflowRunner,
 )
@@ -48,10 +46,10 @@ from oss.src.core.evaluations.runtime.models import (
     ProcessSummary,
     PlannedCell,
     ResolvedSourceItem,
+    ScenarioBinding,
 )
 from oss.src.core.evaluations.runtime.sources import (
     resolve_direct_source_items,
-    resolve_testset_input_specs,
 )
 
 
@@ -98,6 +96,36 @@ def _cell_is_addressed(
     if requested_repeats and cell.repeat_idx not in requested_repeats:
         return False
     return True
+
+
+def _seed_context_from_source(
+    *,
+    source_item: ResolvedSourceItem,
+    repeats: Optional[int],
+) -> Dict[int, Dict[str, Any]]:
+    """Build per-repeat upstream context from an ALREADY-HYDRATED source item.
+
+    The API-side counterpart of the SDK's `_initial_context_by_repeat`, for the
+    seeded ingest path: the trace was fetched once by the resolver and lives on
+    the `ResolvedSourceItem`, so the runner's upstream context is read straight
+    from it instead of re-fetching by id. Testcase sources carry no trace, so
+    there is no upstream context to seed (returns {}).
+    """
+    trace = source_item.trace
+    trace_id = source_item.trace_id
+    if not trace and not trace_id:
+        return {}
+    if not trace_id:
+        return {}
+
+    context = {
+        "trace": trace,
+        "trace_id": str(trace_id),
+        "span_id": source_item.span_id,
+        "outputs": source_item.outputs,
+    }
+    count = max(repeats or 1, 1)
+    return {repeat_idx: context for repeat_idx in range(count)}
 
 
 async def _seed_context_by_repeat(
@@ -547,7 +575,22 @@ class APISliceProcessor:
         project_id: UUID,
         user_id: UUID,
         tensor_slice,
+        seed_bindings: Optional[Dict[UUID, ScenarioBinding]] = None,
+        refresh_metrics_without_auto_results: bool = True,
+        finalize_run_status: bool = True,
     ) -> ProcessSummary:
+        """Re-execute scenarios in the slice.
+
+        When `seed_bindings` is supplied (the mint→populate→re-execute ingest
+        flows: run/slice), each addressed scenario's source is taken from its
+        binding's ALREADY-HYDRATED `ResolvedSourceItem` — no re-read of input
+        cells, no per-id trace/testcase re-fetch. Bindings also carry the
+        per-scenario `timestamp`/`interval` (live-query temporal coordinates).
+
+        When `seed_bindings` is None (the tensor-retry flow), the source is
+        recovered from the scenario's stored input cells as before.
+        """
+        seed_bindings = seed_bindings or {}
         run_id = tensor_slice.run_id
         run = await self.evaluations_service.fetch_run(
             project_id=project_id,
@@ -614,37 +657,50 @@ class APISliceProcessor:
         all_processed: List[Any] = []
 
         for scenario_id in scenario_ids:
-            input_cells = await self.evaluations_service.query_results(
-                project_id=project_id,
-                result=EvaluationResultQuery(
-                    run_id=run_id,
-                    scenario_id=scenario_id,
-                ),
-            )
-            cells_by_step: Dict[str, List[EvaluationResult]] = {}
-            for cell in input_cells:
-                cells_by_step.setdefault(cell.step_key, []).append(cell)
-            existing_cell_keys = {_cell_key(cell) for cell in input_cells}
+            binding = seed_bindings.get(scenario_id)
 
-            sdk_source_item = await _resolve_source_from_input_cells(
-                project_id=project_id,
-                input_steps=input_steps,
-                cells_by_step=cells_by_step,
-                tracing_service=self.tracing_service,
-                testcases_service=self.testcases_service,
-            )
-            if sdk_source_item is None:
-                # No populated input for this scenario (no trace_id/testcase_id
-                # to reconstruct from): there is nothing to run, so the line is
-                # skipped — not a failure (which means execution errored).
-                summary.skipped += 1
-                continue
-            initial_context_by_repeat = await _seed_context_by_repeat(
-                project_id=project_id,
-                scenario_cells=input_cells,
-                invocation_step_keys={step.key for step in invocation_steps},
-                tracing_service=self.tracing_service,
-            )
+            if binding is not None:
+                # Seeded (ingest) path: the source is already hydrated in memory,
+                # so skip the input-cell read and per-id re-fetch. Fresh scenarios
+                # have no prior cells, hence no reuse to account for.
+                existing_cell_keys: set = set()
+                sdk_source_item = _to_sdk_source_item(binding.source)
+                initial_context_by_repeat = _seed_context_from_source(
+                    source_item=binding.source,
+                    repeats=run.data.repeats,
+                )
+            else:
+                input_cells = await self.evaluations_service.query_results(
+                    project_id=project_id,
+                    result=EvaluationResultQuery(
+                        run_id=run_id,
+                        scenario_id=scenario_id,
+                    ),
+                )
+                cells_by_step: Dict[str, List[EvaluationResult]] = {}
+                for cell in input_cells:
+                    cells_by_step.setdefault(cell.step_key, []).append(cell)
+                existing_cell_keys = {_cell_key(cell) for cell in input_cells}
+
+                sdk_source_item = await _resolve_source_from_input_cells(
+                    project_id=project_id,
+                    input_steps=input_steps,
+                    cells_by_step=cells_by_step,
+                    tracing_service=self.tracing_service,
+                    testcases_service=self.testcases_service,
+                )
+                if sdk_source_item is None:
+                    # No populated input for this scenario (no trace_id/testcase_id
+                    # to reconstruct from): there is nothing to run, so the line is
+                    # skipped — not a failure (which means execution errored).
+                    summary.skipped += 1
+                    continue
+                initial_context_by_repeat = await _seed_context_by_repeat(
+                    project_id=project_id,
+                    scenario_cells=input_cells,
+                    invocation_step_keys={step.key for step in invocation_steps},
+                    tracing_service=self.tracing_service,
+                )
             effective_is_split_value = effective_is_split(
                 is_split=bool(run.flags and run.flags.is_split),
                 has_application_steps=bool(invocation_steps),
@@ -703,9 +759,14 @@ class APISliceProcessor:
                     evaluations_service=self.evaluations_service,
                 ),
                 log_pending=True,
+                refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
+                # Seeded scenarios carry the run's temporal coordinates (live
+                # query); recovered scenarios already have them on their cells.
+                timestamp=binding.timestamp if binding is not None else None,
+                interval=binding.interval if binding is not None else None,
                 tracing_service=self.tracing_service,
                 initial_context_by_repeat=initial_context_by_repeat,
-                plan_cell_filter=lambda cell: _cell_key(cell) in target_keys,
+                plan_cell_filter=lambda cell, keys=target_keys: _cell_key(cell) in keys,
             )
 
             summary.created += len(target_keys)
@@ -725,7 +786,7 @@ class APISliceProcessor:
                 run=run,
                 processed=all_processed,
                 evaluations_service=self.evaluations_service,
-                finalize_run_status=True,
+                finalize_run_status=finalize_run_status,
             )
 
         log.info(
@@ -755,416 +816,3 @@ class _ExistingScenario:
 
     async def __call__(self, run_id: UUID):
         return self._scenario
-
-
-async def _resolve_testset_input_specs(
-    *,
-    project_id: UUID,
-    input_steps: List[Any],
-    testsets_service: TestsetsService,
-) -> List[Dict[str, Any]]:
-    return [
-        {
-            "step_key": spec.step_key,
-            "testset": spec.testset,
-            "testset_revision": spec.testset_revision,
-            "testcases": spec.testcases,
-            "testcases_data": spec.testcases_data,
-        }
-        for spec in await resolve_testset_input_specs(
-            project_id=project_id,
-            input_steps=input_steps,
-            testsets_service=testsets_service,
-        )
-    ]
-
-
-async def process_testset_source_run(
-    *,
-    project_id: UUID,
-    user_id: UUID,
-    #
-    run_id: UUID,
-    #
-    tracing_service: TracingService,
-    testsets_service: TestsetsService,
-    workflows_service: WorkflowsService,
-    applications_service: ApplicationsService,
-    evaluations_service: EvaluationsService,
-):
-    """Resolve testset rows, then process them through the unified source loop."""
-    log.info(
-        "[WORKER] process_testset_source_run: start",
-        run_id=str(run_id),
-        project_id=str(project_id),
-    )
-
-    run = await evaluations_service.fetch_run(
-        project_id=project_id,
-        run_id=run_id,
-    )
-    if not run:
-        raise ValueError(f"Evaluation run with id {run_id} not found!")
-    if not run.data or not run.data.steps:
-        raise ValueError(f"Evaluation run with id {run_id} has no data steps!")
-
-    log.info(
-        "[WORKER] process_testset_source_run: run fetched",
-        run_id=str(run_id),
-        run_name=run.name,
-        run_status=str(run.status),
-        steps=[
-            {"key": s.key, "type": s.type, "origin": s.origin} for s in run.data.steps
-        ],
-        repeats=run.data.repeats,
-        concurrency=run.data.concurrency.model_dump() if run.data.concurrency else None,
-    )
-
-    input_steps = [step for step in run.data.steps if step.type == "input"]
-    input_specs = await _resolve_testset_input_specs(
-        project_id=project_id,
-        input_steps=input_steps,
-        testsets_service=testsets_service,
-    )
-
-    log.info(
-        "[WORKER] process_testset_source_run: input specs resolved",
-        run_id=str(run_id),
-        input_specs=[
-            {
-                "step_key": spec["step_key"],
-                "testset_id": str(spec["testset"].id),
-                "testset_revision_id": str(spec["testset_revision"].id),
-                "testcase_count": len(spec["testcases"]),
-            }
-            for spec in input_specs
-        ],
-    )
-
-    source_items = [
-        ResolvedSourceItem(
-            kind="testcase",
-            step_key=input_spec["step_key"],
-            references={
-                "testcase": {"id": str(testcase.id)},
-                "testset": {"id": str(input_spec["testset"].id)},
-                "testset_variant": {
-                    "id": str(input_spec["testset_revision"].variant_id)
-                },
-                "testset_revision": {"id": str(input_spec["testset_revision"].id)},
-            },
-            testcase_id=testcase.id,
-            testcase=testcase,
-            inputs=testcase_data,
-        )
-        for input_spec in input_specs
-        for testcase, testcase_data in zip(
-            input_spec["testcases"],
-            input_spec["testcases_data"],
-        )
-    ]
-
-    return await process_evaluation_source_slice(
-        project_id=project_id,
-        user_id=user_id,
-        run_id=run_id,
-        source_items=source_items,
-        require_queue=False,
-        update_run_status=True,
-        refresh_metrics_without_auto_results=True,
-        tracing_service=tracing_service,
-        workflows_service=workflows_service,
-        applications_service=applications_service,
-        evaluations_service=evaluations_service,
-    )
-
-
-async def process_evaluation_source_slice(
-    *,
-    project_id: UUID,
-    user_id: UUID,
-    run_id: UUID,
-    testcase_ids: Optional[List[UUID]] = None,
-    trace_ids: Optional[List[str]] = None,
-    source_items: Optional[List[ResolvedSourceItem]] = None,
-    input_step_key: Optional[str] = None,
-    timestamp: Optional[Any] = None,
-    interval: Optional[int] = None,
-    require_queue: bool = True,
-    update_run_status: bool = True,
-    refresh_metrics_without_auto_results: bool = True,
-    tracing_service: Optional[TracingService] = None,
-    testcases_service: Optional[TestcasesService] = None,
-    workflows_service: Optional[WorkflowsService] = None,
-    applications_service: Optional[ApplicationsService] = None,
-    evaluations_service: EvaluationsService,
-):
-    """Resolve backend adapters, then delegate execution to the SDK runtime."""
-    log.info(
-        "[WORKER] process_evaluation_source_slice: start",
-        run_id=str(run_id),
-        project_id=str(project_id),
-        source_items_count=len(source_items) if source_items else 0,
-        testcase_ids_count=len(testcase_ids) if testcase_ids else 0,
-        trace_ids_count=len(trace_ids) if trace_ids else 0,
-        require_queue=require_queue,
-        update_run_status=update_run_status,
-    )
-
-    run: Optional[EvaluationRun] = None
-    processed: List[Any] = []
-    run_status_override: Optional[Any] = None
-
-    try:
-        run = await evaluations_service.fetch_run(
-            project_id=project_id,
-            run_id=run_id,
-        )
-        if not run:
-            raise ValueError(f"Evaluation run with id {run_id} not found!")
-        if not run.data or not run.data.steps:
-            raise ValueError(f"Evaluation run with id {run_id} has no data steps!")
-
-        steps = run.data.steps
-        input_steps = [step for step in steps if step.type == "input"]
-        invocation_steps = [step for step in steps if step.type == "invocation"]
-        annotation_steps = [step for step in steps if step.type == "annotation"]
-
-        log.info(
-            "[WORKER] process_evaluation_source_slice: run fetched",
-            run_id=str(run_id),
-            run_name=run.name,
-            run_status=str(run.status),
-            total_steps=len(steps),
-            input_steps=[
-                {
-                    "key": s.key,
-                    "references": {
-                        k: (v.id if hasattr(v, "id") else v)
-                        for k, v in (s.references or {}).items()
-                    },
-                }
-                for s in input_steps
-            ],
-            invocation_steps=[
-                {
-                    "key": s.key,
-                    "references": {
-                        k: str(v.id) if hasattr(v, "id") else v
-                        for k, v in (s.references or {}).items()
-                    },
-                }
-                for s in invocation_steps
-            ],
-            annotation_steps=[
-                {
-                    "key": s.key,
-                    "origin": s.origin,
-                    "references": {
-                        k: str(v.id) if hasattr(v, "id") else v
-                        for k, v in (s.references or {}).items()
-                    },
-                }
-                for s in annotation_steps
-            ],
-            repeats=run.data.repeats,
-            concurrency=run.data.concurrency.model_dump()
-            if run.data.concurrency
-            else None,
-            flags=run.flags.model_dump() if run.flags else None,
-        )
-
-        if len(invocation_steps) > 1:
-            raise ValueError(
-                f"Evaluation run with id {run_id} has more than one invocation step."
-            )
-
-        if input_step_key is not None and not any(
-            step.key == input_step_key for step in input_steps
-        ):
-            raise ValueError(
-                f"Evaluation run with id {run_id} has no input step '{input_step_key}'!"
-            )
-
-        testcase_ids = testcase_ids or []
-        trace_ids = trace_ids or []
-        source_items = source_items or []
-        if require_queue:
-            queue_step_key = input_step_key or (
-                source_items[0].step_key
-                if source_items and source_items[0].step_key
-                else None
-            )
-            source_step = (
-                next(
-                    (step for step in input_steps if step.key == queue_step_key),
-                    None,
-                )
-                if queue_step_key is not None
-                else None
-            )
-            source_step_refs = source_step.references if source_step else {}
-            source_item_kinds = {item.kind for item in source_items}
-            has_trace_payload = bool(trace_ids) or "trace" in source_item_kinds
-            has_testcase_payload = bool(testcase_ids) or "testcase" in source_item_kinds
-            accepts_trace_batch = bool(
-                run.flags
-                and has_trace_payload
-                and (
-                    run.flags.has_traces
-                    or (
-                        run.flags.has_queries
-                        and bool((source_step_refs or {}).get("query_revision"))
-                    )
-                )
-            )
-            accepts_testcase_batch = bool(
-                run.flags
-                and has_testcase_payload
-                and (
-                    run.flags.has_testcases
-                    or (
-                        run.flags.has_testsets
-                        and bool((source_step_refs or {}).get("testset_revision"))
-                    )
-                )
-            )
-            if not (accepts_trace_batch or accepts_testcase_batch):
-                raise ValueError(
-                    f"Evaluation run with id {run_id} is not configured for queue batching!"
-                )
-
-        if not source_items and not testcase_ids and not trace_ids:
-            raise ValueError(
-                f"Evaluation run with id {run_id} has no source items, testcase_ids, or trace_ids!"
-            )
-        if trace_ids and tracing_service is None:
-            raise ValueError("tracing_service is required for trace batches")
-        if testcase_ids and testcases_service is None:
-            raise ValueError("testcases_service is required for testcase batches")
-
-        if not source_items:
-            source_items = await resolve_direct_source_items(
-                project_id=project_id,
-                testcase_ids=testcase_ids,
-                trace_ids=trace_ids,
-                testcases_service=testcases_service,
-                tracing_service=tracing_service,
-            )
-        effective_input_step_key = (
-            input_step_key
-            or (
-                source_items[0].step_key
-                if source_items and source_items[0].step_key
-                else None
-            )
-            or (input_steps[0].key if input_steps else "")
-        )
-        sdk_source_items = [
-            _to_sdk_source_item(
-                source_item,
-                step_key_fallback=effective_input_step_key,
-            )
-            for source_item in source_items
-        ]
-
-        sdk_steps = [
-            SdkEvaluationStep(
-                key=step.key,
-                type=step.type,
-                origin=step.origin,
-                references=step.references or {},
-                inputs=[step_input.key for step_input in (step.inputs or [])],
-            )
-            for step in steps
-        ]
-
-        runners, revisions = await _resolve_runners_and_revisions(
-            project_id=project_id,
-            user_id=user_id,
-            run=run,
-            invocation_steps=invocation_steps,
-            annotation_steps=annotation_steps,
-            tracing_service=tracing_service,
-            workflows_service=workflows_service,
-            applications_service=applications_service,
-        )
-
-        log.info(
-            "[WORKER] process_evaluation_source_slice: runners/revisions resolved",
-            run_id=str(run_id),
-            runner_keys=list(runners.keys()),
-            revision_keys=list(revisions.keys()),
-            sdk_source_items_count=len(sdk_source_items),
-            sdk_steps=[{"key": s.key, "type": s.type} for s in sdk_steps],
-        )
-
-        processed = await _run_sdk_source_slice(
-            project_id=project_id,
-            user_id=user_id,
-            run=run,
-            evaluations_service=evaluations_service,
-            sdk_source_items=sdk_source_items,
-            sdk_steps=sdk_steps,
-            invocation_steps=invocation_steps,
-            annotation_steps=annotation_steps,
-            runners=runners,
-            revisions=revisions,
-            # ingest CREATES a new scenario per source item (re-execute reuses
-            # an existing one). Both refresh metrics inline via APIMetricsRefresher.
-            create_scenario=APIScenarioFactory(
-                project_id=project_id,
-                user_id=user_id,
-                timestamp=timestamp,
-                interval=interval,
-                evaluations_service=evaluations_service,
-            ),
-            refresh_metrics=APIMetricsRefresher(
-                project_id=project_id,
-                user_id=user_id,
-                evaluations_service=evaluations_service,
-            ),
-            log_pending=False,
-            timestamp=timestamp,
-            interval=interval,
-            refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
-            tracing_service=tracing_service,
-        )
-
-        log.info(
-            "[WORKER] process_evaluation_source_slice: SDK complete",
-            run_id=str(run_id),
-            processed_count=len(processed),
-            scenarios_with_errors=sum(1 for i in processed if i.has_errors),
-            scenarios_with_pending=sum(1 for i in processed if i.has_pending),
-            scenarios_with_auto_results=sum(
-                1 for i in processed if i.auto_results_created
-            ),
-            result_step_keys=[list(i.results.keys()) for i in processed],
-        )
-
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        log.error(
-            f"An error occurred during source slice evaluation: {e}",
-            exc_info=True,
-        )
-        run_status_override = EvaluationStatus.FAILURE
-
-    if not run:
-        return
-
-    # Shared "done": per-scenario status + run finalize (floor + is_active),
-    # derived from the touched set. `update_run_status` gates the run-level
-    # finalize (the live-query loop passes False — it keeps ticking).
-    await _finalize_run_after_slice(
-        project_id=project_id,
-        user_id=user_id,
-        run=run,
-        processed=processed,
-        run_status_override=run_status_override,
-        evaluations_service=evaluations_service,
-        finalize_run_status=update_run_status,
-    )
-
-    log.info("[DONE]      ", run_id=run_id, project_id=project_id, user_id=user_id)
-    return

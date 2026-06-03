@@ -3,10 +3,10 @@
 Covers the coordinate-addressed ops over EXISTING scenarios — distinct from the
 source-keyed dispatch_*_slice path (which ingests NEW source items):
 
-  - TaskiqEvaluationTaskRunner.process_tensor_slice (dispatch, omits empty kwargs)
+  - TaskiqEvaluationTaskRunner.process_rerun (dispatch, omits empty kwargs)
   - SimpleEvaluationsService.dispatch_tensor_slice / probe_slice / populate_slice
   - EvaluationsService self-builds TensorSliceOperations from its sub-services
-  - process_evaluation_tensor_slice entry fn runs process() then refresh()
+  - rerun entry fn runs process() then refresh()
 """
 
 from datetime import datetime
@@ -25,8 +25,8 @@ from oss.src.core.evaluations.runtime.tensor import TensorSliceOperations
 from oss.src.core.evaluations.runtime.models import TensorSlice
 from oss.src.core.evaluations.tasks import run as run_module
 from oss.src.core.evaluations.tasks.run import (
-    process_evaluation_run,
-    process_evaluation_tensor_slice,
+    run_from_source,
+    rerun,
 )
 from oss.src.core.evaluations.runtime.models import TopologyDecision
 from oss.src.core.evaluations.types import (
@@ -43,17 +43,17 @@ from oss.src.core.evaluations.types import (
 
 
 @pytest.mark.asyncio
-async def test_runner_process_tensor_slice_dispatches_and_omits_empty_kwargs():
+async def test_runner_process_rerun_dispatches_and_omits_empty_kwargs():
     project_id = uuid4()
     user_id = uuid4()
     run_id = uuid4()
     scenario_id = uuid4()
     worker = SimpleNamespace(
-        process_tensor_slice=SimpleNamespace(kiq=AsyncMock(return_value="tensor-task")),
+        process_rerun=SimpleNamespace(kiq=AsyncMock(return_value="tensor-task")),
     )
     runner = TaskiqEvaluationTaskRunner(worker=worker)
 
-    result = await runner.process_tensor_slice(
+    result = await runner.process_rerun(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -63,7 +63,7 @@ async def test_runner_process_tensor_slice_dispatches_and_omits_empty_kwargs():
     )
 
     assert result == "tensor-task"
-    worker.process_tensor_slice.kiq.assert_awaited_once_with(
+    worker.process_rerun.kiq.assert_awaited_once_with(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -73,14 +73,14 @@ async def test_runner_process_tensor_slice_dispatches_and_omits_empty_kwargs():
 
 
 @pytest.mark.asyncio
-async def test_runner_process_tensor_slice_forwards_all_kwargs_when_present():
+async def test_runner_process_rerun_forwards_all_kwargs_when_present():
     worker = SimpleNamespace(
-        process_tensor_slice=SimpleNamespace(kiq=AsyncMock()),
+        process_rerun=SimpleNamespace(kiq=AsyncMock()),
     )
     runner = TaskiqEvaluationTaskRunner(worker=worker)
     project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
 
-    await runner.process_tensor_slice(
+    await runner.process_rerun(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -90,7 +90,7 @@ async def test_runner_process_tensor_slice_forwards_all_kwargs_when_present():
         process_mode="force",
     )
 
-    worker.process_tensor_slice.kiq.assert_awaited_once_with(
+    worker.process_rerun.kiq.assert_awaited_once_with(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -120,7 +120,7 @@ async def test_dispatch_tensor_slice_dispatches_to_runner():
     project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
     run = SimpleNamespace(id=run_id, flags=SimpleNamespace())
     worker = SimpleNamespace(
-        process_tensor_slice=SimpleNamespace(kiq=AsyncMock()),
+        process_rerun=SimpleNamespace(kiq=AsyncMock()),
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
     service = _simple_service(worker=worker, evaluations_service=evaluations_service)
@@ -135,7 +135,7 @@ async def test_dispatch_tensor_slice_dispatches_to_runner():
     )
 
     assert ok is True
-    worker.process_tensor_slice.kiq.assert_awaited_once_with(
+    worker.process_rerun.kiq.assert_awaited_once_with(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -162,7 +162,7 @@ async def test_dispatch_tensor_slice_returns_false_without_runner():
 @pytest.mark.asyncio
 async def test_dispatch_tensor_slice_returns_false_when_run_missing():
     worker = SimpleNamespace(
-        process_tensor_slice=SimpleNamespace(kiq=AsyncMock()),
+        process_rerun=SimpleNamespace(kiq=AsyncMock()),
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=None))
     service = _simple_service(worker=worker, evaluations_service=evaluations_service)
@@ -174,7 +174,7 @@ async def test_dispatch_tensor_slice_returns_false_when_run_missing():
     )
 
     assert ok is False
-    worker.process_tensor_slice.kiq.assert_not_awaited()
+    worker.process_rerun.kiq.assert_not_awaited()
 
 
 # --- SimpleEvaluationsService.probe_slice / populate_slice --------------------
@@ -296,11 +296,11 @@ def test_service_leaves_tensor_ops_none_without_sub_services():
     assert service.tensor_slice_operations is None
 
 
-# --- process_evaluation_tensor_slice entry fn --------------------------------
+# --- rerun entry fn --------------------------------
 
 
 @pytest.mark.asyncio
-async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeypatch):
+async def test_rerun_runs_process_then_refresh(monkeypatch):
     project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
 
     process_mock = AsyncMock()
@@ -311,7 +311,7 @@ async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeyp
             captured["slice_processor"] = slice_processor
 
         async def process(self, *, project_id, user_id, tensor_slice):
-            captured["process_slice"] = tensor_slice
+            captured["process_run_from_batch"] = tensor_slice
             await process_mock()
 
     monkeypatch.setattr(
@@ -331,7 +331,7 @@ async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeyp
         refresh_metrics=refresh_mock,
     )
 
-    ok = await process_evaluation_tensor_slice(
+    ok = await rerun(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -348,10 +348,10 @@ async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeyp
     assert ok is True
     process_mock.assert_awaited_once()
     # process acts on the coordinate slice
-    assert captured["process_slice"].run_id == run_id
-    assert captured["process_slice"].scenario_ids == [scenario_id]
-    assert captured["process_slice"].step_keys == ["evaluator-auto"]
-    assert captured["process_slice"].process_mode == "force"
+    assert captured["process_run_from_batch"].run_id == run_id
+    assert captured["process_run_from_batch"].scenario_ids == [scenario_id]
+    assert captured["process_run_from_batch"].step_keys == ["evaluator-auto"]
+    assert captured["process_run_from_batch"].process_mode == "force"
     # non-live -> exactly one global refresh: run_id set, no scenario/timestamp.
     refresh_mock.assert_awaited_once()
     _, kwargs = refresh_mock.await_args
@@ -363,7 +363,7 @@ async def test_process_evaluation_tensor_slice_runs_process_then_refresh(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_process_evaluation_tensor_slice_refreshes_temporal_for_live(
+async def test_rerun_refreshes_temporal_for_live(
     monkeypatch,
 ):
     """Live run -> the slice aggregate refresh is TEMPORAL, per affected interval."""
@@ -397,7 +397,7 @@ async def test_process_evaluation_tensor_slice_refreshes_temporal_for_live(
         refresh_metrics=refresh_mock,
     )
 
-    ok = await process_evaluation_tensor_slice(
+    ok = await rerun(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -737,7 +737,7 @@ async def test_prune_empty_slice_is_noop():
 
 @pytest.mark.parametrize("dispatch", ["queue_traces", "queue_testcases"])
 @pytest.mark.asyncio
-async def test_process_evaluation_run_routes_queue_topologies(monkeypatch, dispatch):
+async def test_run_from_source_routes_queue_topologies(monkeypatch, dispatch):
     """queue_traces/queue_testcases must be handled (returns True), not dropped.
 
     Before UEL-019 these truthy-dispatch topologies fell through to the
@@ -763,7 +763,7 @@ async def test_process_evaluation_run_routes_queue_topologies(monkeypatch, dispa
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
 
-    ok = await process_evaluation_run(
+    ok = await run_from_source(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=run_id,
@@ -781,7 +781,7 @@ async def test_process_evaluation_run_routes_queue_topologies(monkeypatch, dispa
 
 
 @pytest.mark.asyncio
-async def test_process_evaluation_run_unsupported_topology_returns_false(monkeypatch):
+async def test_run_from_source_unsupported_topology_returns_false(monkeypatch):
     """A genuinely unsupported topology (no dispatch) still returns False."""
     run_id = uuid4()
     run = EvaluationRun(
@@ -801,7 +801,7 @@ async def test_process_evaluation_run_unsupported_topology_returns_false(monkeyp
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
 
-    ok = await process_evaluation_run(
+    ok = await run_from_source(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=run_id,

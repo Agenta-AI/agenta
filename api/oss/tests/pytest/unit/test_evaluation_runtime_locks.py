@@ -122,22 +122,16 @@ def _job_id() -> str:
 
 def _genson_patch():
     module = types.ModuleType("genson")
-    query_module = types.ModuleType("oss.src.core.evaluations.tasks.query")
 
     class SchemaBuilder: ...
 
-    async def process_query_source_run(*args, **kwargs):
-        return None
-
     module.SchemaBuilder = SchemaBuilder
-    query_module.process_query_source_run = process_query_source_run
     stack = ExitStack()
     stack.enter_context(
         patch.dict(
             sys.modules,
             {
                 "genson": module,
-                "oss.src.core.evaluations.tasks.query": query_module,
             },
         )
     )

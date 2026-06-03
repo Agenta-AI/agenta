@@ -320,7 +320,7 @@ class EvaluationsService:
                     run=run,
                 )
 
-                await self.evaluations_task_runner.process_run(
+                await self.evaluations_task_runner.process_run_from_source(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run.id,
@@ -2666,7 +2666,7 @@ class SimpleEvaluationsService:
                             user_id=user_id,
                             run=run,
                         )
-                    await self.evaluations_task_runner.process_run(
+                    await self.evaluations_task_runner.process_run_from_source(
                         project_id=project_id,
                         user_id=user_id,
                         run_id=run.id,
@@ -2767,7 +2767,7 @@ class SimpleEvaluationsService:
             run=run,
         )
 
-        await self.evaluations_task_runner.process_slice(
+        await self.evaluations_task_runner.process_run_from_batch(
             project_id=project_id,
             user_id=user_id,
             run_id=run_id,
@@ -2817,7 +2817,7 @@ class SimpleEvaluationsService:
             run=run,
         )
 
-        await self.evaluations_task_runner.process_slice(
+        await self.evaluations_task_runner.process_run_from_batch(
             project_id=project_id,
             user_id=user_id,
             run_id=run_id,
@@ -2865,7 +2865,7 @@ class SimpleEvaluationsService:
             )
             return False
 
-        await self.evaluations_task_runner.process_tensor_slice(
+        await self.evaluations_task_runner.process_rerun(
             project_id=project_id,
             user_id=user_id,
             run_id=run_id,

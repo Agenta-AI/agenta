@@ -17,9 +17,9 @@ from oss.src.core.evaluations.service import EvaluationsService
 
 from oss.src.core.evaluations.tasks.run import (
     EvaluationSliceSource,
-    process_evaluation_run,
-    process_evaluation_slice,
-    process_evaluation_tensor_slice,
+    run_from_source,
+    run_from_batch,
+    rerun,
 )
 from oss.src.core.evaluations.runtime.models import SliceProcessMode
 from oss.src.core.evaluations.runtime.locks import (
@@ -223,11 +223,11 @@ class EvaluationsWorker:
         """Register all evaluation tasks with the broker."""
 
         @self.broker.task(
-            task_name="evaluations.run.process",
+            task_name="evaluations.run_from_source.process",
             retry_on_error=False,
             max_retries=0,  # Never retry - handle errors in application logic
         )
-        async def process_run(
+        async def process_run_from_source(
             *,
             project_id: UUID,
             user_id: UUID,
@@ -239,7 +239,7 @@ class EvaluationsWorker:
             context: Context = TaskiqDepends(),
         ) -> Any:
             """Process one evaluation run using the unified topology dispatcher."""
-            log.info("[TASK] Starting process_run")
+            log.info("[TASK] Starting process_run_from_source")
 
             if newest is None:
                 newest = datetime.now(timezone.utc)
@@ -251,7 +251,7 @@ class EvaluationsWorker:
                 job_id=context.message.task_id or str(uuid4()),
                 job_type="api",
                 allow_concurrency=False,
-                runner=lambda: process_evaluation_run(
+                runner=lambda: run_from_source(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run_id,
@@ -266,15 +266,15 @@ class EvaluationsWorker:
                     simple_evaluators_service=self.simple_evaluators_service,
                 ),
             )
-            log.info("[TASK] Completed process_run")
+            log.info("[TASK] Completed process_run_from_source")
             return result
 
         @self.broker.task(
-            task_name="evaluations.slice.process",
+            task_name="evaluations.run_from_batch.process",
             retry_on_error=False,
             max_retries=0,
         )
-        async def process_slice(
+        async def process_run_from_batch(
             *,
             project_id: UUID,
             user_id: UUID,
@@ -286,13 +286,13 @@ class EvaluationsWorker:
             input_step_key: Optional[str] = None,
             context: Context = TaskiqDepends(),
         ) -> Any:
-            log.info("[TASK] Starting process_slice", source_kind=source_kind)
+            log.info("[TASK] Starting process_run_from_batch", source_kind=source_kind)
             result = await self._with_job_lock(
                 run_id,
                 job_id=context.message.task_id or str(uuid4()),
                 job_type="api",
                 allow_concurrency=True,
-                runner=lambda: process_evaluation_slice(
+                runner=lambda: run_from_batch(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run_id,
@@ -307,15 +307,15 @@ class EvaluationsWorker:
                     evaluations_service=self.evaluations_service,
                 ),
             )
-            log.info("[TASK] Completed process_slice", source_kind=source_kind)
+            log.info("[TASK] Completed process_run_from_batch", source_kind=source_kind)
             return result
 
         @self.broker.task(
-            task_name="evaluations.tensor_slice.process",
+            task_name="evaluations.rerun.process",
             retry_on_error=False,
             max_retries=0,
         )
-        async def process_tensor_slice(
+        async def process_rerun(
             *,
             project_id: UUID,
             user_id: UUID,
@@ -327,13 +327,13 @@ class EvaluationsWorker:
             process_mode: SliceProcessMode = "fill-missing",
             context: Context = TaskiqDepends(),
         ) -> Any:
-            log.info("[TASK] Starting process_tensor_slice", run_id=str(run_id))
+            log.info("[TASK] Starting process_rerun", run_id=str(run_id))
             result = await self._with_job_lock(
                 run_id,
                 job_id=context.message.task_id or str(uuid4()),
                 job_type="api",
                 allow_concurrency=True,
-                runner=lambda: process_evaluation_tensor_slice(
+                runner=lambda: rerun(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run_id,
@@ -348,10 +348,10 @@ class EvaluationsWorker:
                     evaluations_service=self.evaluations_service,
                 ),
             )
-            log.info("[TASK] Completed process_tensor_slice", run_id=str(run_id))
+            log.info("[TASK] Completed process_rerun", run_id=str(run_id))
             return result
 
         # Store task references for external access
-        self.process_run = process_run
-        self.process_slice = process_slice
-        self.process_tensor_slice = process_tensor_slice
+        self.process_run_from_source = process_run_from_source
+        self.process_run_from_batch = process_run_from_batch
+        self.process_rerun = process_rerun

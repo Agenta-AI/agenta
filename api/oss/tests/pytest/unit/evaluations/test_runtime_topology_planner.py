@@ -1063,13 +1063,15 @@ async def test_taskiq_evaluation_task_runner_omits_empty_optional_kwargs():
     user_id = uuid4()
     run_id = uuid4()
     worker = SimpleNamespace(
-        process_run=SimpleNamespace(kiq=AsyncMock(return_value="run-task")),
-        process_slice=SimpleNamespace(kiq=AsyncMock(return_value="slice-task")),
+        process_run_from_source=SimpleNamespace(kiq=AsyncMock(return_value="run-task")),
+        process_run_from_batch=SimpleNamespace(
+            kiq=AsyncMock(return_value="slice-task")
+        ),
     )
     runner = TaskiqEvaluationTaskRunner(worker=worker)
 
     assert (
-        await runner.process_run(
+        await runner.process_run_from_source(
             project_id=project_id,
             user_id=user_id,
             run_id=run_id,
@@ -1077,7 +1079,7 @@ async def test_taskiq_evaluation_task_runner_omits_empty_optional_kwargs():
         == "run-task"
     )
     assert (
-        await runner.process_slice(
+        await runner.process_run_from_batch(
             project_id=project_id,
             user_id=user_id,
             run_id=run_id,
@@ -1087,12 +1089,12 @@ async def test_taskiq_evaluation_task_runner_omits_empty_optional_kwargs():
         == "slice-task"
     )
 
-    worker.process_run.kiq.assert_awaited_once_with(
+    worker.process_run_from_source.kiq.assert_awaited_once_with(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
     )
-    worker.process_slice.kiq.assert_awaited_once_with(
+    worker.process_run_from_batch.kiq.assert_awaited_once_with(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -1407,7 +1409,7 @@ async def test_simple_evaluation_start_dispatches_batch_invocation_by_topology()
     )
     run.id = run_id
     worker = SimpleNamespace(
-        process_run=SimpleNamespace(kiq=AsyncMock()),
+        process_run_from_source=SimpleNamespace(kiq=AsyncMock()),
     )
     service = SimpleEvaluationsService(
         testsets_service=None,  # type: ignore[arg-type]
@@ -1436,7 +1438,7 @@ async def test_simple_evaluation_start_dispatches_batch_invocation_by_topology()
         evaluation_id=run_id,
     )
 
-    worker.process_run.kiq.assert_awaited_once_with(
+    worker.process_run_from_source.kiq.assert_awaited_once_with(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -1464,7 +1466,7 @@ async def test_simple_evaluation_start_does_not_dispatch_potential_topology():
     )
     run.id = run_id
     worker = SimpleNamespace(
-        process_run=SimpleNamespace(kiq=AsyncMock()),
+        process_run_from_source=SimpleNamespace(kiq=AsyncMock()),
     )
     service = SimpleEvaluationsService(
         testsets_service=None,  # type: ignore[arg-type]
@@ -1493,7 +1495,7 @@ async def test_simple_evaluation_start_does_not_dispatch_potential_topology():
         evaluation_id=run_id,
     )
 
-    worker.process_run.kiq.assert_not_awaited()
+    worker.process_run_from_source.kiq.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -1524,7 +1526,7 @@ async def test_simple_evaluation_queue_batches_dispatch_through_slice_processor(
     )
     run.id = run_id
     worker = SimpleNamespace(
-        process_slice=SimpleNamespace(kiq=AsyncMock()),
+        process_run_from_batch=SimpleNamespace(kiq=AsyncMock()),
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
     service = SimpleEvaluationsService(
@@ -1554,7 +1556,7 @@ async def test_simple_evaluation_queue_batches_dispatch_through_slice_processor(
 
     assert traces_ok is True
     assert testcases_ok is True
-    assert worker.process_slice.kiq.await_args_list == [
+    assert worker.process_run_from_batch.kiq.await_args_list == [
         call(
             project_id=project_id,
             user_id=user_id,
@@ -1600,19 +1602,53 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
         set_results=AsyncMock(return_value=[]),
     )
 
+    # The direct ids are hydrated once by the resolver; the unified flow seeds
+    # those items into the executor (no downstream re-fetch).
+    monkeypatch.setattr(
+        run_tasks,
+        "resolve_direct_source_items",
+        AsyncMock(
+            side_effect=lambda **kwargs: (
+                [
+                    run_tasks.ResolvedSourceItem(
+                        kind="trace", step_key="", trace_id=tid
+                    )
+                    for tid in (kwargs.get("trace_ids") or [])
+                ]
+                + [
+                    run_tasks.ResolvedSourceItem(
+                        kind="testcase", step_key="", testcase_id=tcid
+                    )
+                    for tcid in (kwargs.get("testcase_ids") or [])
+                ]
+            )
+        ),
+    )
+
     process_calls = []
+    seed_calls = []
 
     class _FakeSliceProcessor:
         def __init__(self, **kwargs):
             pass
 
-        async def process(self, *, project_id, user_id, tensor_slice):
+        async def process(
+            self,
+            *,
+            project_id,
+            user_id,
+            tensor_slice,
+            seed_bindings=None,
+            refresh_metrics_without_auto_results=True,
+            finalize_run_status=True,
+        ):
             process_calls.append(tensor_slice)
+            seed_calls.append(seed_bindings)
             return ProcessSummary(created=len(tensor_slice.scenario_ids or []))
 
     monkeypatch.setattr(run_tasks, "APISliceProcessor", _FakeSliceProcessor)
 
-    ok = await run_tasks.process_evaluation_slice(
+    ok = await run_tasks.run_from_batch(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -1633,15 +1669,10 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
     assert len(create_kwargs["scenarios"]) == 2
     assert all(s.run_id == run_id for s in create_kwargs["scenarios"])
 
-    # populate: one input cell per scenario, carrying the trace id, at the input step
-    evaluations_service.set_results.assert_awaited_once()
-    _, set_kwargs = evaluations_service.set_results.await_args
-    input_cells = set_kwargs["results"]
-    assert len(input_cells) == 2
-    assert {c.scenario_id for c in input_cells} == {scenario_a, scenario_b}
-    assert {c.trace_id for c in input_cells} == {"trace-1", "trace-2"}
-    assert all(c.step_key == "query-main" for c in input_cells)
-    assert all(c.testcase_id is None for c in input_cells)
+    # bind: no input cell is pre-written (the SDK slice loop logs it on execute,
+    # avoiding a redundant per-scenario write). The hydrated source rides on the
+    # binding instead.
+    evaluations_service.set_results.assert_not_awaited()
 
     # process: re-execute (force) over exactly the new scenarios
     assert len(process_calls) == 1
@@ -1650,13 +1681,22 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
     assert set(tensor_slice.scenario_ids) == {scenario_a, scenario_b}
     assert tensor_slice.process_mode == "force"
 
-    # testcase ingest binds testcase_id (not trace_id) on the input cell
-    evaluations_service.set_results.reset_mock()
+    # seed bindings carry the hydrated source for each minted scenario (Option A:
+    # the executor reuses them instead of re-reading the input cell). Each binds
+    # its trace id at the input step key, with no testcase id.
+    bindings = seed_calls[0]
+    assert set(bindings.keys()) == {scenario_a, scenario_b}
+    assert {b.source.trace_id for b in bindings.values()} == {"trace-1", "trace-2"}
+    assert all(b.source.step_key == "query-main" for b in bindings.values())
+    assert all(b.source.testcase_id is None for b in bindings.values())
+
+    # testcase ingest binds testcase_id (not trace_id) on the seeded source
     evaluations_service.create_scenarios.reset_mock()
     evaluations_service.create_scenarios.return_value = [SimpleNamespace(id=scenario_a)]
     process_calls.clear()
+    seed_calls.clear()
 
-    ok = await run_tasks.process_evaluation_slice(
+    ok = await run_tasks.run_from_batch(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -1670,10 +1710,9 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
         evaluations_service=evaluations_service,  # type: ignore[arg-type]
     )
     assert ok is True
-    _, set_kwargs = evaluations_service.set_results.await_args
-    cell = set_kwargs["results"][0]
-    assert cell.testcase_id == testcase_id
-    assert cell.trace_id is None
+    binding = seed_calls[0][scenario_a]
+    assert binding.source.testcase_id == testcase_id
+    assert binding.source.trace_id is None
 
 
 @pytest.mark.asyncio
@@ -1698,14 +1737,14 @@ async def test_run_processor_routes_batch_inference_through_testset_application_
         ],
     )
     run.id = run_id
-    process_testset_source_run = AsyncMock()
+    run_testset_source = AsyncMock()
     monkeypatch.setattr(
         run_tasks,
-        "process_testset_source_run",
-        process_testset_source_run,
+        "_run_testset_source",
+        run_testset_source,
     )
 
-    processed = await run_tasks.process_evaluation_run(
+    processed = await run_tasks.run_from_source(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -1719,328 +1758,7 @@ async def test_run_processor_routes_batch_inference_through_testset_application_
     )
 
     assert processed is True
-    process_testset_source_run.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_testset_source_run_resolves_rows_and_uses_source_slice_processor(
-    monkeypatch,
-):
-    project_id = uuid4()
-    user_id = uuid4()
-    run_id = uuid4()
-    testcase_id = uuid4()
-    testset_id = uuid4()
-    testset_variant_id = uuid4()
-    testset_revision_id = uuid4()
-    run = _run(
-        steps=[
-            _step(
-                "testset-main",
-                "input",
-                references={"testset_revision": Reference(id=testset_revision_id)},
-            ),
-            _step(
-                "application-main",
-                "invocation",
-                references={"application_revision": Reference(id=uuid4())},
-            ),
-            _step(
-                "evaluator-auto",
-                "annotation",
-                origin="auto",
-                references={"evaluator_revision": Reference(id=uuid4())},
-            ),
-        ],
-    )
-    run.id = run_id
-    testcase = SimpleNamespace(id=testcase_id, data={"prompt": "hello"})
-    resolved_specs = [
-        {
-            "step_key": "testset-main",
-            "testset": SimpleNamespace(id=testset_id),
-            "testset_revision": SimpleNamespace(
-                id=testset_revision_id,
-                variant_id=testset_variant_id,
-            ),
-            "testcases": [testcase],
-            "testcases_data": [{"prompt": "hello"}],
-        }
-    ]
-    process_source_slice = AsyncMock()
-    monkeypatch.setattr(
-        source_slice_tasks,
-        "_resolve_testset_input_specs",
-        AsyncMock(return_value=resolved_specs),
-    )
-    monkeypatch.setattr(
-        source_slice_tasks,
-        "process_evaluation_source_slice",
-        process_source_slice,
-    )
-
-    await source_slice_tasks.process_testset_source_run(
-        project_id=project_id,
-        user_id=user_id,
-        run_id=run_id,
-        tracing_service=object(),  # type: ignore[arg-type]
-        testsets_service=object(),  # type: ignore[arg-type]
-        workflows_service=object(),  # type: ignore[arg-type]
-        applications_service=object(),  # type: ignore[arg-type]
-        evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=run)),
-    )
-
-    process_source_slice.assert_awaited_once()
-    kwargs = process_source_slice.await_args.kwargs
-    assert kwargs["project_id"] == project_id
-    assert kwargs["user_id"] == user_id
-    assert kwargs["run_id"] == run_id
-    assert kwargs["require_queue"] is False
-    source_item = kwargs["source_items"][0]
-    assert source_item.kind == "testcase"
-    assert source_item.step_key == "testset-main"
-    assert source_item.testcase_id == testcase_id
-    assert source_item.testcase is testcase
-    assert source_item.inputs == {"prompt": "hello"}
-    assert source_item.references == {
-        "testcase": {"id": str(testcase_id)},
-        "testset": {"id": str(testset_id)},
-        "testset_variant": {"id": str(testset_variant_id)},
-        "testset_revision": {"id": str(testset_revision_id)},
-    }
-
-
-@pytest.mark.asyncio
-async def test_source_slice_processor_maps_scenario_and_run_statuses(monkeypatch):
-    project_id = uuid4()
-    user_id = uuid4()
-    run_id = uuid4()
-    scenario_success = SimpleNamespace(id=uuid4(), tags=None, meta=None)
-    scenario_pending = SimpleNamespace(id=uuid4(), tags=None, meta=None)
-    scenario_errors = SimpleNamespace(id=uuid4(), tags=None, meta=None)
-    run = _run(
-        flags=EvaluationRunFlags(is_queue=True, has_queries=True),
-        steps=[
-            _step(
-                "query-main",
-                "input",
-                references={"query_revision": Reference(id=uuid4())},
-            ),
-            _step("evaluator-human", "annotation", origin="human"),
-        ],
-    )
-    run.id = run_id
-    evaluations_service = SimpleNamespace(
-        fetch_run=AsyncMock(return_value=run),
-        edit_scenario=AsyncMock(),
-        edit_run=AsyncMock(),
-    )
-    monkeypatch.setattr(
-        source_slice_tasks,
-        "sdk_process_evaluation_source_slice",
-        AsyncMock(
-            return_value=[
-                SdkProcessedScenario(scenario=scenario_success),
-                SdkProcessedScenario(
-                    scenario=scenario_pending,
-                    has_pending=True,
-                ),
-                SdkProcessedScenario(
-                    scenario=scenario_errors,
-                    has_errors=True,
-                ),
-            ]
-        ),
-    )
-
-    await source_slice_tasks.process_evaluation_source_slice(
-        project_id=project_id,
-        user_id=user_id,
-        run_id=run_id,
-        source_items=[
-            ResolvedSourceItem(
-                kind="trace",
-                step_key="query-main",
-                trace_id="trace-1",
-            )
-        ],
-        tracing_service=SimpleNamespace(),
-        workflows_service=SimpleNamespace(),
-        evaluations_service=evaluations_service,
-    )
-
-    assert [
-        call.kwargs["scenario"].status
-        for call in evaluations_service.edit_scenario.await_args_list
-    ] == [
-        EvaluationStatus.SUCCESS,
-        EvaluationStatus.PENDING,
-        EvaluationStatus.ERRORS,
-    ]
-    assert evaluations_service.edit_run.await_args.kwargs["run"].status == (
-        EvaluationStatus.ERRORS
-    )
-
-
-@pytest.mark.asyncio
-async def test_source_slice_processor_hydrates_direct_trace_batches(monkeypatch):
-    project_id = uuid4()
-    user_id = uuid4()
-    run_id = uuid4()
-    trace_id = "trace-1"
-    span_id = "span-1"
-    scenario = SimpleNamespace(id=uuid4(), tags=None, meta=None)
-    run = _run(
-        flags=EvaluationRunFlags(is_queue=True, has_traces=True),
-        steps=[
-            _step("traces", "input"),
-            _step("evaluator-human", "annotation", origin="human"),
-        ],
-    )
-    run.id = run_id
-    trace_payload = {
-        "trace_id": trace_id,
-        "spans": {
-            span_id: {
-                "trace_id": trace_id,
-                "span_id": span_id,
-                "attributes": {
-                    "ag": {
-                        "data": {
-                            "inputs": {"prompt": "hello"},
-                            "outputs": {"answer": "world"},
-                        }
-                    }
-                },
-            }
-        },
-    }
-    trace = SimpleNamespace(
-        trace_id=trace_id,
-        spans={
-            span_id: SimpleNamespace(
-                trace_id=trace_id,
-                span_id=span_id,
-                attributes=trace_payload["spans"][span_id]["attributes"],
-            )
-        },
-        model_dump=lambda **_: trace_payload,
-    )
-    evaluations_service = SimpleNamespace(
-        fetch_run=AsyncMock(side_effect=[run, run]),
-        edit_scenario=AsyncMock(),
-        edit_run=AsyncMock(),
-    )
-    sdk_process = AsyncMock(return_value=[SdkProcessedScenario(scenario=scenario)])
-    monkeypatch.setattr(
-        source_slice_tasks,
-        "sdk_process_evaluation_source_slice",
-        sdk_process,
-    )
-
-    await source_slice_tasks.process_evaluation_source_slice(
-        project_id=project_id,
-        user_id=user_id,
-        run_id=run_id,
-        trace_ids=[trace_id],
-        tracing_service=SimpleNamespace(fetch_trace=AsyncMock(return_value=trace)),
-        workflows_service=SimpleNamespace(),
-        evaluations_service=evaluations_service,
-    )
-
-    sdk_source_item = sdk_process.await_args.kwargs["source_items"][0]
-    assert sdk_source_item.trace_id == trace_id
-    assert sdk_source_item.span_id == span_id
-    assert sdk_source_item.trace is not None
-    assert sdk_source_item.inputs == {"prompt": "hello"}
-    assert sdk_source_item.outputs == {"answer": "world"}
-
-
-@pytest.mark.asyncio
-async def test_source_slice_processor_preserves_higher_queue_status(monkeypatch):
-    project_id = uuid4()
-    user_id = uuid4()
-    run_id = uuid4()
-    scenario = SimpleNamespace(id=uuid4(), tags=None, meta=None)
-    run = _run(
-        flags=EvaluationRunFlags(is_queue=True, has_queries=True),
-        steps=[
-            _step(
-                "query-main",
-                "input",
-                references={"query_revision": Reference(id=uuid4())},
-            ),
-            _step("evaluator-human", "annotation", origin="human"),
-        ],
-    )
-    run.id = run_id
-    current_run = run.model_copy(update={"status": EvaluationStatus.ERRORS})
-    evaluations_service = SimpleNamespace(
-        fetch_run=AsyncMock(side_effect=[run, current_run]),
-        edit_scenario=AsyncMock(),
-        edit_run=AsyncMock(),
-    )
-    monkeypatch.setattr(
-        source_slice_tasks,
-        "sdk_process_evaluation_source_slice",
-        AsyncMock(return_value=[SdkProcessedScenario(scenario=scenario)]),
-    )
-
-    await source_slice_tasks.process_evaluation_source_slice(
-        project_id=project_id,
-        user_id=user_id,
-        run_id=run_id,
-        source_items=[
-            ResolvedSourceItem(
-                kind="trace",
-                step_key="query-main",
-                trace_id="trace-1",
-            )
-        ],
-        tracing_service=SimpleNamespace(),
-        workflows_service=SimpleNamespace(),
-        evaluations_service=evaluations_service,
-    )
-
-    assert evaluations_service.edit_run.await_args.kwargs["run"].status == (
-        EvaluationStatus.ERRORS
-    )
-
-
-@pytest.mark.asyncio
-async def test_source_slice_processor_marks_run_failure_on_invalid_batch():
-    project_id = uuid4()
-    user_id = uuid4()
-    run_id = uuid4()
-    run = _run(
-        flags=EvaluationRunFlags(is_queue=True),
-        steps=[
-            _step(
-                "query-main",
-                "input",
-                references={"query_revision": Reference(id=uuid4())},
-            ),
-            _step("evaluator-human", "annotation", origin="human"),
-        ],
-    )
-    run.id = run_id
-    evaluations_service = SimpleNamespace(
-        fetch_run=AsyncMock(return_value=run),
-        edit_run=AsyncMock(),
-    )
-
-    await source_slice_tasks.process_evaluation_source_slice(
-        project_id=project_id,
-        user_id=user_id,
-        run_id=run_id,
-        tracing_service=SimpleNamespace(),
-        workflows_service=SimpleNamespace(),
-        evaluations_service=evaluations_service,
-    )
-
-    assert evaluations_service.edit_run.await_args.kwargs["run"].status == (
-        EvaluationStatus.FAILURE
-    )
+    run_testset_source.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -2052,11 +1770,11 @@ async def test_run_processor_routes_query_topologies_with_windowing(monkeypatch)
     evaluator_revision_id = uuid4()
     newest = object()
     oldest = object()
-    process_query_source_run = AsyncMock()
+    run_query_source = AsyncMock()
     monkeypatch.setattr(
         run_tasks,
-        "process_query_source_run",
-        process_query_source_run,
+        "_run_query_source",
+        run_query_source,
     )
     live_run = _run(
         flags=EvaluationRunFlags(is_live=True),
@@ -2078,9 +1796,9 @@ async def test_run_processor_routes_query_topologies_with_windowing(monkeypatch)
     batch_run = live_run.model_copy(update={"flags": EvaluationRunFlags(is_live=False)})
 
     for run, expected_use_windowing in [(live_run, False), (batch_run, True)]:
-        process_query_source_run.reset_mock()
+        run_query_source.reset_mock()
 
-        processed = await run_tasks.process_evaluation_run(
+        processed = await run_tasks.run_from_source(
             project_id=project_id,
             user_id=user_id,
             run_id=run_id,
@@ -2096,8 +1814,9 @@ async def test_run_processor_routes_query_topologies_with_windowing(monkeypatch)
         )
 
         assert processed is True
-        kwargs = process_query_source_run.await_args.kwargs
+        kwargs = run_query_source.await_args.kwargs
         assert kwargs["use_windowing"] is expected_use_windowing
+        # Batch query runs drop the scheduler tick's range; live runs keep it.
         if expected_use_windowing:
             assert kwargs["newest"] is None
             assert kwargs["oldest"] is None
@@ -2140,14 +1859,14 @@ async def test_run_processor_returns_false_for_missing_or_unsupported_run():
     )
 
     assert (
-        await run_tasks.process_evaluation_run(
+        await run_tasks.run_from_source(
             **common_kwargs,  # type: ignore[arg-type]
             evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=None)),
         )
         is False
     )
     assert (
-        await run_tasks.process_evaluation_run(
+        await run_tasks.run_from_source(
             **common_kwargs,  # type: ignore[arg-type]
             evaluations_service=SimpleNamespace(
                 fetch_run=AsyncMock(return_value=unsupported_run)

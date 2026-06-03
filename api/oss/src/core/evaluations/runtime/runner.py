@@ -11,7 +11,7 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
     def __init__(self, *, worker: Any):
         self.worker = worker
 
-    async def process_run(
+    async def process_run_from_source(
         self,
         *,
         project_id: UUID,
@@ -30,9 +30,9 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
         if oldest is not None:
             kwargs["oldest"] = oldest
 
-        return await self.worker.process_run.kiq(**kwargs)
+        return await self.worker.process_run_from_source.kiq(**kwargs)
 
-    async def process_slice(
+    async def process_run_from_batch(
         self,
         *,
         project_id: UUID,
@@ -56,9 +56,9 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
         if input_step_key is not None:
             kwargs["input_step_key"] = input_step_key
 
-        return await self.worker.process_slice.kiq(**kwargs)
+        return await self.worker.process_run_from_batch.kiq(**kwargs)
 
-    async def process_tensor_slice(
+    async def process_rerun(
         self,
         *,
         project_id: UUID,
@@ -72,7 +72,8 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
         # Re-execute EXISTING scenarios by coordinate (the tensor process(slice)
         # op): retry transiently-failed scenarios, run a newly-added evaluator
         # over existing scenarios, re-run a specific repeat, etc. Distinct verb
-        # from process_slice, which ingests NEW source items into NEW scenarios.
+        # from process_run_from_batch, which ingests NEW source items into NEW
+        # scenarios.
         kwargs: dict = dict(
             project_id=project_id,
             user_id=user_id,
@@ -87,4 +88,4 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
         if process_mode is not None:
             kwargs["process_mode"] = process_mode
 
-        return await self.worker.process_tensor_slice.kiq(**kwargs)
+        return await self.worker.process_rerun.kiq(**kwargs)

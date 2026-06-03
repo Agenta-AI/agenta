@@ -132,32 +132,50 @@ class APIScenarioFactory:
         *,
         project_id: UUID,
         user_id: UUID,
-        timestamp: Any,
-        interval: Optional[int],
         evaluations_service: Any,
     ):
         self.project_id = project_id
         self.user_id = user_id
-        self.timestamp = timestamp
-        self.interval = interval
         self.evaluations_service = evaluations_service
 
-    async def __call__(self, run_id: UUID) -> Any:
+    async def bulk_create(
+        self,
+        run_id: UUID,
+        *,
+        count: int,
+        timestamp: Any = None,
+        interval: Optional[int] = None,
+    ) -> List[Any]:
+        """Mint `count` RUNNING scenarios for a run in one DAO call.
+
+        The bulk counterpart of the retired streaming factory: the unified
+        ingest flows (run/slice) mint all scenarios up front, then populate and
+        re-execute them. `timestamp`/`interval` are the run-wide temporal
+        coordinates (live query); they stay None for non-live runs. Order is
+        preserved by `create_scenarios`, so the returned list aligns 1:1 with
+        the source items the caller intends to bind.
+        """
+        if count <= 0:
+            return []
         scenarios = await self.evaluations_service.create_scenarios(
             project_id=self.project_id,
             user_id=self.user_id,
             scenarios=[
                 EvaluationScenarioCreate(
                     run_id=run_id,
-                    timestamp=self.timestamp,
-                    interval=self.interval,
+                    timestamp=timestamp,
+                    interval=interval,
                     status=EvaluationStatus.RUNNING,
                 )
+                for _ in range(count)
             ],
         )
-        if not scenarios:
-            raise ValueError(f"Failed to create scenario for run {run_id}")
-        return scenarios[0]
+        if len(scenarios) != count:
+            raise ValueError(
+                f"Failed to create {count} scenario(s) for run {run_id}: "
+                f"got {len(scenarios)}."
+            )
+        return scenarios
 
 
 class APIResultLogger:

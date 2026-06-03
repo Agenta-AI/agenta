@@ -1,24 +1,34 @@
-from datetime import datetime
-from typing import Any, List, Literal, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from oss.src.core.applications.service import ApplicationsService
-from oss.src.core.evaluations.runtime.models import SliceProcessMode, TensorSlice
+from oss.src.core.evaluations.runtime.models import (
+    ResolvedSourceItem,
+    ScenarioBinding,
+    SliceProcessMode,
+    TensorSlice,
+)
 from oss.src.core.evaluations.runtime.tensor import TensorSliceOperations
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
+from oss.src.core.evaluations.runtime.sources import (
+    resolve_direct_source_items,
+    resolve_query_source_items,
+    resolve_testset_input_specs,
+)
+from oss.src.core.evaluations.runtime.adapters import (
+    APIMetricsRefresher,
+    APIScenarioFactory,
+)
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.types import (
-    EvaluationResultCreate,
-    EvaluationScenarioCreate,
+    EvaluationRun,
+    EvaluationRunEdit,
+    EvaluationRunFlags,
     EvaluationScenarioQuery,
     EvaluationStatus,
 )
-from oss.src.core.evaluations.runtime.adapters import APIMetricsRefresher
-from oss.src.core.evaluations.tasks.processor import (
-    APISliceProcessor,
-    process_testset_source_run,
-)
-from oss.src.core.evaluations.tasks.query import process_query_source_run
+from oss.src.core.evaluations.tasks.processor import APISliceProcessor
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testcases.service import TestcasesService
@@ -32,7 +42,198 @@ log = get_module_logger(__name__)
 EvaluationSliceSource = Literal["traces", "testcases"]
 
 
-async def process_evaluation_run(
+# =============================================================================
+# Shared skeleton — every flow is: validate run -> resolve+mint+bind (the
+# per-flow seam) -> re-execute via APISliceProcessor with the hydrated source
+# seeded in -> finalize. The only thing that differs per flow is HOW source
+# items are produced; the mint/bind/execute/finalize machinery is shared.
+# The input cell is written once, by the SDK on execute — not pre-written.
+# =============================================================================
+
+
+async def _fetch_validated_run(
+    *,
+    project_id: UUID,
+    run_id: UUID,
+    evaluations_service: EvaluationsService,
+    require: bool = False,
+) -> Optional[EvaluationRun]:
+    """Fetch a run and assert it has executable steps.
+
+    `require=False` (default) returns None on a missing/empty run so the caller
+    can warn-and-skip; `require=True` raises so a pre-execution error finalizes
+    the run to FAILURE through the caller's handler.
+    """
+    run = await evaluations_service.fetch_run(
+        project_id=project_id,
+        run_id=run_id,
+    )
+    if not run or not run.data or not run.data.steps:
+        if require:
+            raise ValueError(f"Evaluation run with id {run_id} not found or empty!")
+        return None
+    return run
+
+
+def _input_step_keys(run: EvaluationRun) -> List[str]:
+    return [step.key for step in run.data.steps if step.type == "input"]
+
+
+async def _mint_and_bind(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    run: EvaluationRun,
+    source_items: List[ResolvedSourceItem],
+    default_step_key: str,
+    timestamp: Optional[datetime],
+    interval: Optional[int],
+    evaluations_service: EvaluationsService,
+) -> List[ScenarioBinding]:
+    """Bulk-mint one scenario per source item and bind its hydrated source.
+
+    Shared by every ingest flow. The source item is ALREADY hydrated (the
+    resolver fetched the trace/testcase once), so the returned bindings carry it
+    straight into the executor — no re-read, no per-id re-fetch downstream.
+
+    The input cell is NOT written here. The SDK slice loop logs the input step
+    first (before any runnable cell), writing the same `trace_id`/`testcase_id`
+    and temporal coordinates via `APIResultLogger`. Pre-writing it here would
+    just be overwritten by that log — a redundant DB round-trip per scenario.
+    The durable input cell a later tensor retry recovers from is the SDK's.
+    """
+    if not source_items:
+        return []
+
+    factory = APIScenarioFactory(
+        project_id=project_id,
+        user_id=user_id,
+        evaluations_service=evaluations_service,
+    )
+    scenarios = await factory.bulk_create(
+        run.id,
+        count=len(source_items),
+        timestamp=timestamp,
+        interval=interval,
+    )
+
+    bindings: List[ScenarioBinding] = []
+    for scenario, source_item in zip(scenarios, source_items):
+        step_key = source_item.step_key or default_step_key
+        bound_source = source_item.model_copy(update={"step_key": step_key})
+        bindings.append(
+            ScenarioBinding(
+                scenario_id=scenario.id,
+                source=bound_source,
+                timestamp=timestamp,
+                interval=interval,
+            )
+        )
+    return bindings
+
+
+async def _execute_bindings(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    run_id: UUID,
+    bindings: List[ScenarioBinding],
+    tracing_service: Optional[TracingService],
+    testcases_service: Optional[TestcasesService],
+    workflows_service: Optional[WorkflowsService],
+    applications_service: Optional[ApplicationsService],
+    evaluations_service: EvaluationsService,
+    refresh_metrics_without_auto_results: bool = True,
+    finalize_run_status: bool = True,
+) -> None:
+    """Re-execute freshly-minted scenarios with their hydrated source seeded in.
+
+    `process_mode="force"` because the scenarios are new: their runnable cells
+    must be filled even though no result exists yet. `APISliceProcessor` owns
+    per-scenario status writes and run finalization for terminal status.
+
+    `refresh_metrics_without_auto_results=False` (the query flow) skips the
+    metric refresh for scenarios that produced no auto results — e.g. a live
+    run whose only annotation step is human — matching the legacy query loop.
+
+    `finalize_run_status=False` (the LIVE query flow) leaves the run RUNNING and
+    active so the scheduler keeps polling; batch/testset runs finalize.
+    """
+    slice_processor = APISliceProcessor(
+        evaluations_service=evaluations_service,
+        tracing_service=tracing_service,
+        testcases_service=testcases_service,
+        workflows_service=workflows_service,
+        applications_service=applications_service,
+    )
+    await slice_processor.process(
+        project_id=project_id,
+        user_id=user_id,
+        tensor_slice=TensorSlice(
+            run_id=run_id,
+            scenario_ids=[binding.scenario_id for binding in bindings],
+            process_mode="force",
+        ),
+        seed_bindings={binding.scenario_id: binding for binding in bindings},
+        refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
+        finalize_run_status=finalize_run_status,
+    )
+
+
+async def _finalize_run_terminal(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    run_id: UUID,
+    status: EvaluationStatus,
+    evaluations_service: EvaluationsService,
+) -> None:
+    """Flip a run to a terminal status + inactive, tolerating a vanished run.
+
+    Used for the two cases the slice processor's own finalize never sees: an
+    empty result set (nothing to execute) and a pre-execution error. Re-fetches
+    the run so it does not clobber concurrent flag updates.
+    """
+    try:
+        current = await evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not current:
+            return
+        flags = current.flags.model_copy() if current.flags else EvaluationRunFlags()
+        flags.is_active = False
+        await evaluations_service.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            run=EvaluationRunEdit(
+                id=run_id,
+                name=current.name,
+                description=current.description,
+                tags=current.tags,
+                meta=current.meta,
+                status=status,
+                flags=flags,
+                data=current.data,
+            ),
+        )
+    except Exception as finalize_error:  # pylint: disable=broad-exception-caught
+        # Best-effort: a run closed mid-flight or vanished must not mask the
+        # original outcome.
+        log.error(
+            "[EVAL] failed to finalize run",
+            run_id=str(run_id),
+            status=str(status),
+            error=str(finalize_error),
+        )
+
+
+# =============================================================================
+# Entry point 1: run_from_source — orchestrate a run by topology.
+# =============================================================================
+
+
+async def run_from_source(
     *,
     project_id: UUID,
     user_id: UUID,
@@ -47,58 +248,45 @@ async def process_evaluation_run(
     evaluations_service: EvaluationsService,
     simple_evaluators_service: SimpleEvaluatorsService,
 ) -> bool:
-    run = await evaluations_service.fetch_run(
+    run = await _fetch_validated_run(
         project_id=project_id,
         run_id=run_id,
+        evaluations_service=evaluations_service,
     )
     if not run:
-        log.warning("[EVAL] [process-run] run not found", run_id=run_id)
+        log.warning("[EVAL] [process-run] run not found or empty", run_id=run_id)
         return False
 
     topology = classify_run_topology(run)
 
-    if topology.dispatch == "live_query":
-        await process_query_source_run(
+    if topology.dispatch in ("live_query", "batch_query"):
+        use_windowing = topology.dispatch == "batch_query"
+        await _run_query_source(
             project_id=project_id,
             user_id=user_id,
-            run_id=run_id,
-            newest=newest,
-            oldest=oldest,
-            use_windowing=False,
-        )
-        return True
-
-    if topology.dispatch == "batch_query":
-        await process_query_source_run(
-            project_id=project_id,
-            user_id=user_id,
-            run_id=run_id,
-            newest=None,
-            oldest=None,
-            use_windowing=True,
-        )
-        return True
-
-    if topology.dispatch == "batch_testset":
-        await process_testset_source_run(
-            project_id=project_id,
-            user_id=user_id,
-            run_id=run_id,
+            run=run,
+            # Batch query runs window from the query revision's own bounds, not
+            # the scheduler tick — so the tick's newest/oldest are dropped. Live
+            # runs carry the tick's range for temporal bucketing.
+            newest=None if use_windowing else newest,
+            oldest=None if use_windowing else oldest,
+            use_windowing=use_windowing,
             tracing_service=tracing_service,
-            testsets_service=testsets_service,
+            queries_service=queries_service,
             workflows_service=workflows_service,
             applications_service=applications_service,
             evaluations_service=evaluations_service,
         )
         return True
 
-    if topology.dispatch == "batch_invocation":
-        await process_testset_source_run(
+    if topology.dispatch in ("batch_testset", "batch_invocation"):
+        await _run_testset_source(
             project_id=project_id,
             user_id=user_id,
-            run_id=run_id,
+            run=run,
             tracing_service=tracing_service,
             testsets_service=testsets_service,
+            testcases_service=None,
             workflows_service=workflows_service,
             applications_service=applications_service,
             evaluations_service=evaluations_service,
@@ -106,18 +294,12 @@ async def process_evaluation_run(
         return True
 
     if topology.dispatch in ("queue_traces", "queue_testcases"):
-        # Direct trace/testcase -> evaluator runs are fed by explicit source ids
-        # via `process_evaluation_slice` (the queue/ingest path), not by a
-        # source the run can resolve itself. There is nothing to execute at
-        # run-start: the run is an open queue awaiting batches. Finalize it as a
-        # clean, started-but-empty queue instead of falling through to the
-        # "unsupported topology" path (which logged an error and left the run
-        # hanging as if misconfigured).
-        await _finalize_empty_queue_run(
-            project_id=project_id,
-            user_id=user_id,
-            run=run,
-            evaluations_service=evaluations_service,
+        # An open queue: direct trace/testcase batches arrive later via
+        # run_from_batch and each finalizes its own scenarios. There
+        # is nothing to execute at run-start; leave the run RUNNING and active.
+        log.info(
+            "[EVAL] [process-run] queue run started; awaiting batches",
+            run_id=str(run.id),
         )
         return True
 
@@ -131,29 +313,218 @@ async def process_evaluation_run(
     return False
 
 
-async def _finalize_empty_queue_run(
+async def _run_testset_source(
     *,
     project_id: UUID,
     user_id: UUID,
-    run: Any,
+    run: EvaluationRun,
+    tracing_service: TracingService,
+    testsets_service: TestsetsService,
+    testcases_service: Optional[TestcasesService],
+    workflows_service: WorkflowsService,
+    applications_service: ApplicationsService,
     evaluations_service: EvaluationsService,
 ) -> None:
-    """Mark a queue run as active-and-running with nothing dispatched yet.
+    """Resolve testset rows -> mint -> populate -> re-execute.
 
-    A queue run (direct traces/testcases -> evaluator) accumulates results as
-    batches arrive via `process_evaluation_slice`; each batch finalizes its own
-    slice. At run-start there is no batch, so we simply leave the run RUNNING and
-    active — it is a live queue, not a terminal batch — without the misleading
-    "unsupported topology" warning. Status transitions to terminal happen on the
-    batch slices, consistent with how the slice processor finalizes.
+    Batch (non-live) runs finalize: an empty testset goes straight to SUCCESS
+    so it does not hang RUNNING; a pre-execution error goes to FAILURE.
     """
-    log.info(
-        "[EVAL] [process-run] queue run started; awaiting batches",
-        run_id=str(run.id),
-    )
+    try:
+        input_steps = [step for step in run.data.steps if step.type == "input"]
+        input_specs = await resolve_testset_input_specs(
+            project_id=project_id,
+            input_steps=input_steps,
+            testsets_service=testsets_service,
+        )
+        source_items = [
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key=input_spec.step_key,
+                references={
+                    "testcase": {"id": str(testcase.id)},
+                    "testset": {"id": str(input_spec.testset.id)},
+                    "testset_variant": {
+                        "id": str(input_spec.testset_revision.variant_id)
+                    },
+                    "testset_revision": {"id": str(input_spec.testset_revision.id)},
+                },
+                testcase_id=testcase.id,
+                testcase=testcase,
+                inputs=testcase_data,
+            )
+            for input_spec in input_specs
+            for testcase, testcase_data in zip(
+                input_spec.testcases,
+                input_spec.testcases_data,
+            )
+        ]
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        log.error("[EVAL] [process-run] testset resolution failed", error=str(e))
+        await _finalize_run_terminal(
+            project_id=project_id,
+            user_id=user_id,
+            run_id=run.id,
+            status=EvaluationStatus.FAILURE,
+            evaluations_service=evaluations_service,
+        )
+        return
+
+    if not source_items:
+        await _finalize_run_terminal(
+            project_id=project_id,
+            user_id=user_id,
+            run_id=run.id,
+            status=EvaluationStatus.SUCCESS,
+            evaluations_service=evaluations_service,
+        )
+        return
+
+    try:
+        bindings = await _mint_and_bind(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            source_items=source_items,
+            default_step_key=(
+                _input_step_keys(run)[0] if _input_step_keys(run) else ""
+            ),
+            timestamp=None,
+            interval=None,
+            evaluations_service=evaluations_service,
+        )
+        await _execute_bindings(
+            project_id=project_id,
+            user_id=user_id,
+            run_id=run.id,
+            bindings=bindings,
+            tracing_service=tracing_service,
+            testcases_service=testcases_service,
+            workflows_service=workflows_service,
+            applications_service=applications_service,
+            evaluations_service=evaluations_service,
+        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        log.error("[EVAL] [process-run] testset execution failed", error=str(e))
+        await _finalize_run_terminal(
+            project_id=project_id,
+            user_id=user_id,
+            run_id=run.id,
+            status=EvaluationStatus.FAILURE,
+            evaluations_service=evaluations_service,
+        )
 
 
-async def process_evaluation_slice(
+async def _run_query_source(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    run: EvaluationRun,
+    newest: Optional[datetime],
+    oldest: Optional[datetime],
+    use_windowing: bool,
+    tracing_service: TracingService,
+    queries_service: QueriesService,
+    workflows_service: WorkflowsService,
+    applications_service: ApplicationsService,
+    evaluations_service: EvaluationsService,
+) -> None:
+    """Resolve query traces -> mint -> populate -> re-execute, per query step.
+
+    timestamp/interval are TEMPORAL coordinates and only meaningful for LIVE
+    runs (use_windowing=False), which bucket metrics over time. Batch query runs
+    (use_windowing=True) have no temporal axis, so they stay None.
+
+    Batch query runs finalize (empty -> SUCCESS, error -> FAILURE). Live runs
+    intentionally never finalize — the scheduler keeps polling — so an empty
+    tick or an error leaves the run untouched.
+    """
+    timestamp: Optional[datetime] = None
+    interval: Optional[int] = None
+    if not use_windowing:
+        timestamp = oldest or datetime.now(timezone.utc)
+        if newest and oldest:
+            interval = int((newest - oldest).total_seconds() / 60)
+
+    finalize = use_windowing
+
+    try:
+        source_items_by_step = await resolve_query_source_items(
+            project_id=project_id,
+            run=run,
+            queries_service=queries_service,
+            tracing_service=tracing_service,
+            newest=newest,
+            oldest=oldest,
+            use_windowing=use_windowing,
+        )
+        total = sum(len(items) for items in source_items_by_step.values())
+
+        if total == 0:
+            # Live run: just wait for the next tick. Batch run: finalize SUCCESS
+            # so it does not hang RUNNING.
+            if finalize:
+                await _finalize_run_terminal(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run.id,
+                    status=EvaluationStatus.SUCCESS,
+                    evaluations_service=evaluations_service,
+                )
+            return
+
+        for step_key, source_items in source_items_by_step.items():
+            if not source_items:
+                continue
+            bindings = await _mint_and_bind(
+                project_id=project_id,
+                user_id=user_id,
+                run=run,
+                source_items=source_items,
+                default_step_key=step_key,
+                timestamp=timestamp,
+                interval=interval,
+                evaluations_service=evaluations_service,
+            )
+            await _execute_bindings(
+                project_id=project_id,
+                user_id=user_id,
+                run_id=run.id,
+                bindings=bindings,
+                tracing_service=tracing_service,
+                testcases_service=None,
+                workflows_service=workflows_service,
+                applications_service=applications_service,
+                evaluations_service=evaluations_service,
+                # Query runs only refresh metrics when auto results were created
+                # (a human-only live tick produces none) — matches the legacy
+                # query loop's refresh_metrics_without_auto_results=False.
+                refresh_metrics_without_auto_results=False,
+                # Live runs (finalize=False) keep ticking; batch runs finalize.
+                finalize_run_status=finalize,
+            )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        log.error("[EVAL] [process-run] query flow failed", error=str(e))
+        # A pre-execution error in a batch run never reaches the slice's own
+        # finalize, so flip it to FAILURE here. Live runs keep ticking.
+        if finalize:
+            await _finalize_run_terminal(
+                project_id=project_id,
+                user_id=user_id,
+                run_id=run.id,
+                status=EvaluationStatus.FAILURE,
+                evaluations_service=evaluations_service,
+            )
+
+
+# =============================================================================
+# Entry point 2: run_from_batch — ingest a DIRECT id batch into an
+# open queue run. Same mint -> populate -> re-execute as the run flows; the only
+# difference is the source comes from explicit trace_ids / testcase_ids.
+# =============================================================================
+
+
+async def run_from_batch(
     *,
     project_id: UUID,
     user_id: UUID,
@@ -170,15 +541,11 @@ async def process_evaluation_slice(
 ) -> bool:
     """Ingest a batch of DIRECT source ids (trace_ids / testcase_ids).
 
-    A direct id is the only source identity — it can't be loaded internally
-    (unlike query/testset). So this is `add_scenarios` -> `populate` -> `process`:
-
-      1. add_scenarios: one skeleton scenario per id;
-      2. populate: write each scenario's input cell carrying the id;
-      3. process: re-execute over the new scenarios (it reconstructs the source
-         from the input cell, plans, runs, and finalizes).
-
-    `process` itself never creates scenarios — that is `add_scenarios` here.
+    NOTE: not idempotent. There is no dedup on source id, so dispatching the
+    SAME batch twice mints a second set of scenarios for the same ids. The task
+    is allow_concurrency=True, so a re-dispatch with a fresh job id also bypasses
+    the singleton run lock. Acceptable today because batches are dispatched once
+    per ingest.
     """
     if source_kind == "traces":
         ids: List[Any] = list(trace_ids or [])
@@ -195,86 +562,67 @@ async def process_evaluation_slice(
     if not ids:
         return True
 
-    run = await evaluations_service.fetch_run(project_id=project_id, run_id=run_id)
-    if not run or not run.data or not run.data.steps:
-        log.warning("[EVAL] [process-slice] run has no steps", run_id=run_id)
+    run = await _fetch_validated_run(
+        project_id=project_id,
+        run_id=run_id,
+        evaluations_service=evaluations_service,
+    )
+    if not run:
+        log.warning(
+            "[EVAL] [process-slice] run not found or has no steps", run_id=run_id
+        )
         return False
 
-    input_steps = [step for step in run.data.steps if step.type == "input"]
-    step_key = input_step_key or (input_steps[0].key if input_steps else None)
+    input_keys = _input_step_keys(run)
+    step_key = input_step_key or (input_keys[0] if input_keys else None)
     if step_key is None:
         log.warning("[EVAL] [process-slice] run has no input step", run_id=run_id)
         return False
 
-    # 1. add_scenarios — one skeleton row per id.
-    #
-    # NOTE: not idempotent. There is no dedup on source id and no unique
-    # constraint tying a scenario to its trace_id/testcase_id, so dispatching the
-    # SAME batch twice (e.g. a manual worker re-queue) mints a second set of
-    # scenarios for the same ids. The task is configured allow_concurrency=True,
-    # so a re-dispatch with a fresh job id also bypasses the singleton run lock.
-    # Acceptable today because batches are dispatched once per ingest; if
-    # re-dispatch ever becomes a real flow, dedup by source id here (skip ids
-    # already populated in this run) or add a partial-unique input-cell index.
-    scenarios = await evaluations_service.create_scenarios(
+    # Resolve the direct ids into hydrated source items (one batched fetch for
+    # testcases; per-id for traces — same as before, but now only once).
+    source_items = await resolve_direct_source_items(
+        project_id=project_id,
+        trace_ids=list(trace_ids or []) if source_kind == "traces" else None,
+        testcase_ids=list(testcase_ids or []) if source_kind == "testcases" else None,
+        testcases_service=testcases_service,
+        tracing_service=tracing_service,
+    )
+    for source_item in source_items:
+        source_item.step_key = step_key
+
+    bindings = await _mint_and_bind(
         project_id=project_id,
         user_id=user_id,
-        scenarios=[
-            EvaluationScenarioCreate(run_id=run_id, status=EvaluationStatus.RUNNING)
-            for _ in ids
-        ],
-    )
-    if len(scenarios) != len(ids):
-        log.error(
-            "[EVAL] [process-slice] scenario count mismatch",
-            run_id=run_id,
-            wanted=len(ids),
-            got=len(scenarios),
-        )
-        return False
-
-    # 2. populate — write each scenario's input cell carrying its source id.
-    input_results: List[EvaluationResultCreate] = []
-    for scenario, source_id in zip(scenarios, ids):
-        input_results.append(
-            EvaluationResultCreate(
-                run_id=run_id,
-                scenario_id=scenario.id,
-                step_key=step_key,
-                repeat_idx=0,
-                status=EvaluationStatus.SUCCESS,
-                trace_id=str(source_id) if source_kind == "traces" else None,
-                testcase_id=source_id if source_kind == "testcases" else None,
-            )
-        )
-    await evaluations_service.set_results(
-        project_id=project_id,
-        user_id=user_id,
-        results=input_results,
-    )
-
-    # 3. process — re-execute over the new scenarios (force, since they are fresh
-    #    and their cells must be filled even though no result exists yet).
-    slice_processor = APISliceProcessor(
+        run=run,
+        source_items=source_items,
+        default_step_key=step_key,
+        timestamp=None,
+        interval=None,
         evaluations_service=evaluations_service,
+    )
+    await _execute_bindings(
+        project_id=project_id,
+        user_id=user_id,
+        run_id=run_id,
+        bindings=bindings,
         tracing_service=tracing_service,
         testcases_service=testcases_service,
         workflows_service=workflows_service,
         applications_service=applications_service,
-    )
-    await slice_processor.process(
-        project_id=project_id,
-        user_id=user_id,
-        tensor_slice=TensorSlice(
-            run_id=run_id,
-            scenario_ids=[scenario.id for scenario in scenarios],
-            process_mode="force",
-        ),
+        evaluations_service=evaluations_service,
     )
     return True
 
 
-async def process_evaluation_tensor_slice(
+# =============================================================================
+# Entry point 3: rerun — re-execute EXISTING scenarios
+# by coordinate. No mint; the source is RECOVERED from stored input cells (no
+# seed_bindings). Owns the aggregate-metrics boundary the ingest flows don't.
+# =============================================================================
+
+
+async def rerun(
     *,
     project_id: UUID,
     user_id: UUID,
@@ -291,11 +639,10 @@ async def process_evaluation_tensor_slice(
 ) -> bool:
     """Re-execute EXISTING scenarios addressed by a tensor coordinate slice.
 
-    The coordinate counterpart of `process_evaluation_slice` (which ingests NEW
-    source items): this re-runs the runnable cells of scenarios that already
-    exist — retry, fill-missing, or run a newly-added step over them. It rebuilds
-    each scenario's source from its stored input cell rather than resolving new
-    sources.
+    The coordinate counterpart of the ingest flows: it re-runs the runnable
+    cells of scenarios that already exist (retry, fill-missing, or run a
+    newly-added step). It rebuilds each scenario's source from its stored input
+    cell rather than receiving a hydrated one — so NO seed_bindings.
 
     `process` is results-only by design; this entry point owns the metrics
     `refresh` boundary, invoking it after execution over the same slice scope.
@@ -388,7 +735,7 @@ async def _refresh_slice_aggregate(
             ids=scenario_ids,
         ),
     )
-    timestamps_by_interval: dict[int, set] = {}
+    timestamps_by_interval: Dict[int, set] = {}
     for scenario in scenarios:
         if scenario.timestamp is None or scenario.interval is None:
             continue

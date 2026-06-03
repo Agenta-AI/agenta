@@ -62,7 +62,7 @@ class EvaluationTaskRunner(Protocol):
     adapt this protocol to Taskiq without Taskiq leaking into SDK runtime code.
     """
 
-    async def process_run(
+    async def process_run_from_source(
         self,
         *,
         project_id: UUID,
@@ -72,7 +72,7 @@ class EvaluationTaskRunner(Protocol):
         oldest: Optional[datetime] = None,
     ) -> Any: ...
 
-    async def process_slice(
+    async def process_run_from_batch(
         self,
         *,
         project_id: UUID,
@@ -91,21 +91,21 @@ class AsyncioEvaluationTaskRunner:
     def __init__(
         self,
         *,
-        process_run: Optional[Callable[..., Awaitable[Any]]] = None,
-        process_slice: Optional[Callable[..., Awaitable[Any]]] = None,
+        process_run_from_source: Optional[Callable[..., Awaitable[Any]]] = None,
+        process_run_from_batch: Optional[Callable[..., Awaitable[Any]]] = None,
     ):
-        self._process_run = process_run
-        self._process_slice = process_slice
+        self._process_run_from_source = process_run_from_source
+        self._process_run_from_batch = process_run_from_batch
 
-    async def process_run(self, **kwargs: Any) -> Any:
-        if self._process_run is None:
-            raise RuntimeError("process_run handler is not configured")
-        return await self._process_run(**kwargs)
+    async def process_run_from_source(self, **kwargs: Any) -> Any:
+        if self._process_run_from_source is None:
+            raise RuntimeError("process_run_from_source handler is not configured")
+        return await self._process_run_from_source(**kwargs)
 
-    async def process_slice(self, **kwargs: Any) -> Any:
-        if self._process_slice is None:
-            raise RuntimeError("process_slice handler is not configured")
-        return await self._process_slice(**kwargs)
+    async def process_run_from_batch(self, **kwargs: Any) -> Any:
+        if self._process_run_from_batch is None:
+            raise RuntimeError("process_run_from_batch handler is not configured")
+        return await self._process_run_from_batch(**kwargs)
 
 
 class ResultLogger(Protocol):
