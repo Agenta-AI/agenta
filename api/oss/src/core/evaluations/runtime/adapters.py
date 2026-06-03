@@ -12,6 +12,7 @@ from agenta.sdk.models.evaluations import EvaluationStatus as SdkEvaluationStatu
 from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
 from oss.src.core.evaluations.types import (
     EvaluationMetricsRefresh,
+    EvaluationMetricsInvalid,
     EvaluationResultCreate,
     EvaluationScenarioCreate,
     EvaluationStatus,
@@ -207,34 +208,61 @@ class APIResultLogger:
 
 
 class APIMetricsRefresher:
+    """Single adapter for all three metric-refresh shapes.
+
+    A metric belongs to exactly one of three kinds, keyed by which coordinates
+    are set (the same classification `set_metrics` enforces downstream):
+      - variational: scenario_id(s) set, no timestamp   -> per-scenario rows
+      - temporal:    timestamp(s)+interval, no scenario  -> time-bucket rows
+      - global:      neither                             -> the whole-run row
+
+    The caller chooses the shape by which arguments it passes; passing a
+    scenario together with a timestamp is the both-set shape that matches no
+    unique index and is rejected here before it can reach the DAO.
+    """
+
     def __init__(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
-        timestamp: Any,
-        interval: Optional[int],
         evaluations_service: Any,
     ):
         self.project_id = project_id
         self.user_id = user_id
-        self.timestamp = timestamp
-        self.interval = interval
         self.evaluations_service = evaluations_service
 
     async def __call__(
         self,
         run_id: UUID,
-        scenario_id: Optional[UUID],
+        scenario_id: Optional[UUID] = None,
+        *,
+        scenario_ids: Optional[List[UUID]] = None,
+        timestamps: Optional[List[Any]] = None,
+        interval: Optional[int] = None,
     ) -> Any:
+        # The SDK runtime calls this positionally as (run_id, scenario_id) for
+        # the per-scenario variational refresh and (run_id, None) for the
+        # run-level global rollup. `_refresh_slice_aggregate` calls it by keyword
+        # for the temporal buckets and the global fallback.
+        has_scenario = scenario_id is not None or bool(scenario_ids)
+        has_temporal = bool(timestamps)
+        if has_scenario and has_temporal:
+            raise EvaluationMetricsInvalid(
+                run_id=run_id,
+                scenario_id=scenario_id,
+                timestamp=timestamps[0] if timestamps else None,
+            )
+
         return await self.evaluations_service.refresh_metrics(
             project_id=self.project_id,
             user_id=self.user_id,
             metrics=EvaluationMetricsRefresh(
                 run_id=run_id,
                 scenario_id=scenario_id,
-                timestamp=self.timestamp,
-                interval=self.interval,
+                scenario_ids=scenario_ids,
+                timestamps=timestamps,
+                interval=interval,
             ),
         )
 

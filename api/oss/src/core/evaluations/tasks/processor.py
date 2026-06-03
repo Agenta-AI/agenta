@@ -700,8 +700,6 @@ class APISliceProcessor:
                 refresh_metrics=APIMetricsRefresher(
                     project_id=project_id,
                     user_id=user_id,
-                    timestamp=None,
-                    interval=None,
                     evaluations_service=self.evaluations_service,
                 ),
                 log_pending=True,
@@ -1124,8 +1122,6 @@ async def process_evaluation_source_slice(
             refresh_metrics=APIMetricsRefresher(
                 project_id=project_id,
                 user_id=user_id,
-                timestamp=timestamp,
-                interval=interval,
                 evaluations_service=evaluations_service,
             ),
             log_pending=False,

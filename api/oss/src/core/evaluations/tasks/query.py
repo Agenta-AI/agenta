@@ -150,11 +150,20 @@ async def process_query_source_run(
     # Backward-compatible live-query worker shell. Scheduling/windowing stays
     # here for now; query source resolution and evaluator execution are routed
     # through the unified runtime.
-    # count in minutes
-    timestamp = oldest or datetime.now(timezone.utc)
+    #
+    # timestamp/interval are TEMPORAL coordinates and only meaningful for LIVE
+    # runs (use_windowing=False), which bucket metrics over time. Batch query
+    # runs (use_windowing=True) are not live: they have no temporal axis, so
+    # timestamp/interval must stay None — otherwise a non-None timestamp gets
+    # stamped onto per-scenario (variational) refreshes, producing a metric with
+    # BOTH scenario_id and timestamp set, which matches no unique index.
+    timestamp: Optional[datetime] = None
     interval: Optional[int] = None
-    if newest and oldest:
-        interval = int((newest - oldest).total_seconds() / 60)
+    if not use_windowing:
+        # count in minutes
+        timestamp = oldest or datetime.now(timezone.utc)
+        if newest and oldest:
+            interval = int((newest - oldest).total_seconds() / 60)
 
     try:
         # ----------------------------------------------------------------------

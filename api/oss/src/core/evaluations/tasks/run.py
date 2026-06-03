@@ -12,8 +12,8 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioCreate,
     EvaluationScenarioQuery,
     EvaluationStatus,
-    EvaluationMetricsRefresh,
 )
+from oss.src.core.evaluations.runtime.adapters import APIMetricsRefresher
 from oss.src.core.evaluations.tasks.processor import (
     APISliceProcessor,
     process_testset_source_run,
@@ -365,16 +365,17 @@ async def _refresh_slice_aggregate(
     if not run:
         return
 
+    refresh = APIMetricsRefresher(
+        project_id=project_id,
+        user_id=user_id,
+        evaluations_service=evaluations_service,
+    )
+
     is_live = bool(run.flags and run.flags.is_live)
 
     if not is_live:
-        # Non-live: one global aggregate. run_id only -> the (scenario_id=None,
-        # timestamp=None) global row.
-        await evaluations_service.refresh_metrics(
-            project_id=project_id,
-            user_id=user_id,
-            metrics=EvaluationMetricsRefresh(run_id=run_id),
-        )
+        # Non-live: one global aggregate (no scenario, no timestamp).
+        await refresh(run_id)
         return
 
     # Live: recompute the temporal buckets the slice touched. Resolve the slice's
@@ -399,20 +400,12 @@ async def _refresh_slice_aggregate(
         # No temporal buckets on the slice's scenarios (e.g. they were never
         # assigned a timestamp/interval). Fall back to the global aggregate so
         # the run is not left with stale metrics.
-        await evaluations_service.refresh_metrics(
-            project_id=project_id,
-            user_id=user_id,
-            metrics=EvaluationMetricsRefresh(run_id=run_id),
-        )
+        await refresh(run_id)
         return
 
     for interval, timestamps in timestamps_by_interval.items():
-        await evaluations_service.refresh_metrics(
-            project_id=project_id,
-            user_id=user_id,
-            metrics=EvaluationMetricsRefresh(
-                run_id=run_id,
-                timestamps=sorted(timestamps),
-                interval=interval,
-            ),
+        await refresh(
+            run_id,
+            timestamps=sorted(timestamps),
+            interval=interval,
         )
