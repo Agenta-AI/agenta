@@ -16,6 +16,7 @@ from oss.src.core.evaluations.types import (
     EvaluationQueueQueryFlags,
     #
     EvaluationClosedConflict,
+    EvaluationMetricsInvalid,
     DefaultQueueDataInvalid,
     DefaultQueueDemotionForbidden,
     DefaultQueueDeletionForbidden,
@@ -42,6 +43,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationQueueQueryRequest,
     #
     EvaluationClosedException,
+    EvaluationMetricsInvalidException,
     DefaultQueueDataInvalidException,
     DefaultQueueEditingForbiddenException,
 )
@@ -62,6 +64,13 @@ def handle_evaluation_closed_exception():
                     scenario_id=e.scenario_id,
                     result_id=e.result_id,
                     metrics_id=e.metrics_id,
+                ) from e
+            except EvaluationMetricsInvalid as e:
+                raise EvaluationMetricsInvalidException(
+                    message=e.message,
+                    run_id=e.run_id,
+                    scenario_id=e.scenario_id,
+                    timestamp=e.timestamp,
                 ) from e
             except DefaultQueueDataInvalid as e:
                 raise DefaultQueueDataInvalidException(

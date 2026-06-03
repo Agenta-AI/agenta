@@ -75,6 +75,40 @@ class EvaluationClosedConflict(Exception):
         return _message
 
 
+class EvaluationMetricsInvalid(Exception):
+    """Raised when a metric does not match any of the three valid shapes:
+    global (scenario_id IS NULL, timestamp IS NULL),
+    variational (scenario_id set, timestamp IS NULL),
+    temporal (scenario_id IS NULL, timestamp set).
+    """
+
+    def __init__(
+        self,
+        message: str = "Metric does not match a valid global/variational/temporal shape.",
+        run_id: Optional[UUID] = None,
+        scenario_id: Optional[UUID] = None,
+        timestamp: Optional[datetime] = None,
+    ):
+        super().__init__(message)
+
+        self.message = message
+        self.run_id = run_id
+        self.scenario_id = scenario_id
+        self.timestamp = timestamp
+
+    def __str__(self):
+        _message = self.message
+
+        if self.run_id:
+            _message += f" run_id={self.run_id}"
+        if self.scenario_id:
+            _message += f" scenario_id={self.scenario_id}"
+        if self.timestamp:
+            _message += f" timestamp={self.timestamp}"
+
+        return _message
+
+
 class DefaultQueueError(Exception):
     """Base exception for default-queue policy violations."""
 

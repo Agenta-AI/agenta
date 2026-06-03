@@ -361,3 +361,45 @@ class TestEvaluationMetricsBasics:
         response = response.json()
         assert response["count"] == 0
         # ----------------------------------------------------------------------
+
+    def test_invalid_metric_shape_is_rejected(self, authed_api):
+        # A metric with BOTH scenario_id and timestamp set matches none of the
+        # three partial unique indexes (global/variational/temporal). It must be
+        # rejected (422), not silently dropped.
+        # ARRANGE --------------------------------------------------------------
+        runs = [
+            {"name": "test_invalid_metric_shape"},
+        ]
+
+        response = authed_api(
+            "POST",
+            "/evaluations/runs/",
+            json={"runs": runs},
+        )
+
+        assert response.status_code == 200
+
+        run_id = response.json()["runs"][0]["id"]
+
+        metrics = [
+            {
+                "run_id": run_id,
+                "scenario_id": run_id,  # any UUID; the shape check runs first
+                "timestamp": "2026-01-01T00:00:00+00:00",
+                "status": "success",
+                "data": {"integer_metric": 1},
+            },
+        ]
+        # ----------------------------------------------------------------------
+
+        # ACT ------------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/evaluations/metrics/",
+            json={"metrics": metrics},
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 422, response.text
+        # ----------------------------------------------------------------------

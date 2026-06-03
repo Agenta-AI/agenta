@@ -92,6 +92,29 @@ class DefaultQueueDataInvalidException(HTTPException):
         self.queue_id = queue_id
 
 
+class EvaluationMetricsInvalidException(HTTPException):
+    """Raised when a metric does not match a valid global/variational/temporal shape."""
+
+    def __init__(
+        self,
+        message: str,
+        run_id: Optional[UUID] = None,
+        scenario_id: Optional[UUID] = None,
+        timestamp: Optional[datetime] = None,
+    ):
+        details = dict(message=message)
+        if run_id:
+            details["run_id"] = str(run_id)
+        if scenario_id:
+            details["scenario_id"] = str(scenario_id)
+        if timestamp:
+            details["timestamp"] = str(timestamp)
+        super().__init__(status_code=422, detail=details)
+        self.run_id = run_id
+        self.scenario_id = scenario_id
+        self.timestamp = timestamp
+
+
 class DefaultQueueEditingForbiddenException(HTTPException):
     """Raised when demoting or hard-deleting a default queue is attempted."""
 

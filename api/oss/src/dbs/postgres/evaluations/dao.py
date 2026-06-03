@@ -15,7 +15,10 @@ from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.evaluations.interfaces import EvaluationsDAOInterface
-from oss.src.core.evaluations.types import EvaluationClosedConflict
+from oss.src.core.evaluations.types import (
+    EvaluationClosedConflict,
+    EvaluationMetricsInvalid,
+)
 from oss.src.core.evaluations.types import (
     EvaluationStatus,
     EvaluationRunFlags,
@@ -1400,9 +1403,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             raise
 
-    @suppress_exceptions(
-        default=[], exclude=[EntityCreationConflict, EvaluationClosedConflict]
-    )
+    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
     async def set_results(
         self,
         *,
@@ -1411,6 +1412,21 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         results: List[EvaluationResultCreate],
     ) -> List[EvaluationResult]:
+        """Create or update results (upsert via the composite unique index).
+
+        Conflict target: (project_id, run_id, scenario_id, step_key, repeat_idx).
+
+        Fields updated on conflict:
+        - Lifecycle: updated_at, updated_by_id
+        - Data: hash_id, trace_id, testcase_id, error, status, interval,
+          timestamp, flags, tags, meta (user-defined)
+        - Management: version (from user data)
+
+        Fields preserved:
+        - created_at, created_by_id (original)
+        - id, project_id, run_id, scenario_id, step_key, repeat_idx (identity)
+        """
+
         for result in results:
             run_flags = await _get_run_flags(
                 project_id=project_id,
@@ -1443,21 +1459,46 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             for _result in _results
         ]
 
+        # Batch upsert over the single composite unique index, returning the
+        # upserted rows in the same statement (no per-row follow-up SELECT).
         async with self.engine.session() as session:
+            returned_result_dbes = []
+            # Convert DBE instances to dicts using SQLAlchemy's inspection
             mapper = inspect(EvaluationResultDBE)
             column_names = {col.name for col in mapper.columns}
-            now = datetime.now(timezone.utc)
-            returned_result_dbes = []
 
+            now = datetime.now(timezone.utc)
+            values_list = []
             for dbe in result_dbes:
                 values_dict = {
-                    key: value
-                    for key, value in dbe.__dict__.items()
-                    if key in column_names and not (key == "id" and value is None)
+                    k: v
+                    for k, v in dbe.__dict__.items()
+                    if k in column_names and not (k == "id" and v is None)
                 }
+                # Add lifecycle values
                 values_dict["updated_at"] = now
                 values_dict["updated_by_id"] = user_id
-                stmt = pg_insert(EvaluationResultDBE).values(values_dict)
+                values_list.append(values_dict)
+
+            # Fields refreshed on conflict (identity/created_* are preserved).
+            conflict_update_cols = [
+                EvaluationResultDBE.updated_at,
+                EvaluationResultDBE.updated_by_id,
+                EvaluationResultDBE.hash_id,
+                EvaluationResultDBE.trace_id,
+                EvaluationResultDBE.testcase_id,
+                EvaluationResultDBE.error,
+                EvaluationResultDBE.status,
+                EvaluationResultDBE.interval,
+                EvaluationResultDBE.timestamp,
+                EvaluationResultDBE.flags,
+                EvaluationResultDBE.tags,
+                EvaluationResultDBE.meta,
+                EvaluationResultDBE.version,
+            ]
+
+            if values_list:
+                stmt = pg_insert(EvaluationResultDBE).values(values_list)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=[
                         EvaluationResultDBE.project_id,
@@ -1467,43 +1508,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationResultDBE.repeat_idx,
                     ],
                     set_={
-                        EvaluationResultDBE.updated_at.name: stmt.excluded.updated_at,
-                        EvaluationResultDBE.updated_by_id.name: stmt.excluded.updated_by_id,
-                        EvaluationResultDBE.hash_id.name: stmt.excluded.hash_id,
-                        EvaluationResultDBE.trace_id.name: stmt.excluded.trace_id,
-                        EvaluationResultDBE.testcase_id.name: stmt.excluded.testcase_id,
-                        EvaluationResultDBE.error.name: stmt.excluded.error,
-                        EvaluationResultDBE.status.name: stmt.excluded.status,
-                        EvaluationResultDBE.interval.name: stmt.excluded.interval,
-                        EvaluationResultDBE.timestamp.name: stmt.excluded.timestamp,
-                        EvaluationResultDBE.flags.name: stmt.excluded.flags,
-                        EvaluationResultDBE.tags.name: stmt.excluded.tags,
-                        EvaluationResultDBE.meta.name: stmt.excluded.meta,
-                        EvaluationResultDBE.version.name: stmt.excluded.version,
+                        col.name: stmt.excluded[col.name]
+                        for col in conflict_update_cols
                     },
                 )
-                await session.execute(stmt)
-
-                returned_result_dbe = (
-                    (
-                        await session.execute(
-                            select(EvaluationResultDBE).where(
-                                EvaluationResultDBE.project_id
-                                == values_dict["project_id"],
-                                EvaluationResultDBE.run_id == values_dict["run_id"],
-                                EvaluationResultDBE.scenario_id
-                                == values_dict["scenario_id"],
-                                EvaluationResultDBE.step_key == values_dict["step_key"],
-                                EvaluationResultDBE.repeat_idx
-                                == values_dict["repeat_idx"],
-                            )
-                        )
-                    )
-                    .scalars()
-                    .one_or_none()
-                )
-                if returned_result_dbe is not None:
-                    returned_result_dbes.append(returned_result_dbe)
+                res = await session.execute(stmt.returning(EvaluationResultDBE))
+                returned_result_dbes.extend(res.scalars().all())
 
             await session.commit()
 
@@ -1861,6 +1871,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
     # - EVALUATION METRICS -----------------------------------------------------
 
+    @suppress_exceptions(
+        default=[], exclude=[EvaluationClosedConflict, EvaluationMetricsInvalid]
+    )
     async def set_metrics(
         self,
         *,
@@ -1926,6 +1939,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             mapper = inspect(EvaluationMetricsDBE)
             column_names = {col.name for col in mapper.columns}
 
+            now = datetime.now(timezone.utc)
             values_list = []
             for dbe in metric_dbes:
                 values_dict = {
@@ -1933,10 +1947,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     for k, v in dbe.__dict__.items()
                     if k in column_names and not (k == "id" and v is None)
                 }
+                # Add lifecycle values
+                values_dict["updated_at"] = now
+                values_dict["updated_by_id"] = user_id
                 values_list.append(values_dict)
 
             # Precompute which metrics belong to each of the 3 index types
-            now = datetime.now(timezone.utc)
             global_metrics = []  # scenario_id IS NULL AND timestamp IS NULL
             variational_metrics = []  # scenario_id IS NOT NULL AND timestamp IS NULL
             temporal_metrics = []  # scenario_id IS NULL AND timestamp IS NOT NULL
@@ -1945,10 +1961,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 scenario_id = value_dict.get("scenario_id")
                 timestamp = value_dict.get("timestamp")
 
-                # Add lifecycle values
-                value_dict["updated_at"] = now
-                value_dict["updated_by_id"] = user_id
-
                 if scenario_id is None and timestamp is None:
                     global_metrics.append(value_dict)
                 elif timestamp is None and scenario_id is not None:
@@ -1956,23 +1968,25 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 elif scenario_id is None and timestamp is not None:
                     temporal_metrics.append(value_dict)
                 else:
-                    get_module_logger(__name__).warning(
-                        f"Unexpected metric pattern: scenario_id={scenario_id}, "
-                        f"timestamp={timestamp}. Skipping upsert."
+                    # scenario_id AND timestamp both set matches no unique index;
+                    # surface it rather than silently dropping the metric.
+                    raise EvaluationMetricsInvalid(
+                        run_id=value_dict.get("run_id"),
+                        scenario_id=scenario_id,
+                        timestamp=timestamp,
                     )
 
-            # Upsert each metric type with its corresponding partial unique index
-            # Shared update set for all upserts
-            conflict_update_set = {
-                EvaluationMetricsDBE.updated_at: EvaluationMetricsDBE.updated_at,
-                EvaluationMetricsDBE.updated_by_id: EvaluationMetricsDBE.updated_by_id,
-                EvaluationMetricsDBE.data: EvaluationMetricsDBE.data,
-                EvaluationMetricsDBE.flags: EvaluationMetricsDBE.flags,
-                EvaluationMetricsDBE.tags: EvaluationMetricsDBE.tags,
-                EvaluationMetricsDBE.meta: EvaluationMetricsDBE.meta,
-                EvaluationMetricsDBE.status: EvaluationMetricsDBE.status,
-                EvaluationMetricsDBE.version: EvaluationMetricsDBE.version,
-            }
+            # Fields refreshed on conflict (identity/created_* are preserved).
+            conflict_update_cols = [
+                EvaluationMetricsDBE.updated_at,
+                EvaluationMetricsDBE.updated_by_id,
+                EvaluationMetricsDBE.data,
+                EvaluationMetricsDBE.flags,
+                EvaluationMetricsDBE.tags,
+                EvaluationMetricsDBE.meta,
+                EvaluationMetricsDBE.status,
+                EvaluationMetricsDBE.version,
+            ]
 
             # Global: (project_id, run_id) WHERE scenario_id IS NULL AND timestamp IS NULL
             if global_metrics:
@@ -1986,9 +2000,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationMetricsDBE.scenario_id.is_(None),
                         EvaluationMetricsDBE.timestamp.is_(None),
                     ),
-                    set_=dict(
-                        (k, stmt.excluded[k.name]) for k in conflict_update_set.keys()
-                    ),
+                    set_={
+                        col.name: stmt.excluded[col.name]
+                        for col in conflict_update_cols
+                    },
                 )
                 res = await session.execute(stmt.returning(EvaluationMetricsDBE))
                 returned_metric_dbes.extend(res.scalars().all())
@@ -2006,9 +2021,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationMetricsDBE.scenario_id.isnot(None),
                         EvaluationMetricsDBE.timestamp.is_(None),
                     ),
-                    set_=dict(
-                        (k, stmt.excluded[k.name]) for k in conflict_update_set.keys()
-                    ),
+                    set_={
+                        col.name: stmt.excluded[col.name]
+                        for col in conflict_update_cols
+                    },
                 )
                 res = await session.execute(stmt.returning(EvaluationMetricsDBE))
                 returned_metric_dbes.extend(res.scalars().all())
@@ -2026,9 +2042,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationMetricsDBE.scenario_id.is_(None),
                         EvaluationMetricsDBE.timestamp.isnot(None),
                     ),
-                    set_=dict(
-                        (k, stmt.excluded[k.name]) for k in conflict_update_set.keys()
-                    ),
+                    set_={
+                        col.name: stmt.excluded[col.name]
+                        for col in conflict_update_cols
+                    },
                 )
                 res = await session.execute(stmt.returning(EvaluationMetricsDBE))
                 returned_metric_dbes.extend(res.scalars().all())
