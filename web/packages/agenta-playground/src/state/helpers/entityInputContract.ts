@@ -121,6 +121,17 @@ export interface ReconcileResult {
     strategy: ReconcileStrategy
 }
 
+export interface ReconcileOptions {
+    /**
+     * Keys to keep even when they aren't in the entity's allow-list. Used to
+     * protect testcase columns that a DOWNSTREAM evaluator consumes via its
+     * `<input>_key` settings (e.g. `correct_answer_key → ground_truth`). The
+     * primary app doesn't declare them, but they're intentional evaluation
+     * columns — not stale leftovers — so a strict clean must not drop them.
+     */
+    protectedKeys?: ReadonlySet<string>
+}
+
 /**
  * Reconcile a row's data to an entity's input contract.
  *
@@ -128,7 +139,8 @@ export interface ReconcileResult {
  *  - Evaluator → `chat-transport`: only strip chat-transport keys the entity
  *    doesn't declare. Preserves evaluators that spread additional testcase
  *    columns.
- *  - App with a resolved contract → `strict`: keep only declared keys.
+ *  - App with a resolved contract → `strict`: keep only declared (or
+ *    protected) keys.
  *  - Unresolved (schema/ports mid-hydration, non-evaluator) → `chat-transport`
  *    as a safety net; the caller may choose to defer a strict pass until the
  *    contract resolves.
@@ -137,8 +149,10 @@ export function reconcileRowDataForEntity(
     get: Getter,
     entityId: string,
     data: Record<string, unknown>,
+    options?: ReconcileOptions,
 ): ReconcileResult {
     const contract = resolveEntityInputContract(get, entityId)
+    const protectedKeys = options?.protectedKeys
 
     const useStrict = !contract.isEvaluator && contract.resolved
 
@@ -146,7 +160,7 @@ export function reconcileRowDataForEntity(
         const dropped: string[] = []
         const next: Record<string, unknown> = {}
         for (const [key, value] of Object.entries(data)) {
-            if (contract.allowedKeys.has(key)) {
+            if (contract.allowedKeys.has(key) || protectedKeys?.has(key)) {
                 next[key] = value
             } else {
                 dropped.push(key)
@@ -161,7 +175,7 @@ export function reconcileRowDataForEntity(
     const dropped: string[] = []
     const next: Record<string, unknown> = {...data}
     for (const key of CHAT_TRANSPORT_KEYS) {
-        if (key in next && !contract.allowedKeys.has(key)) {
+        if (key in next && !contract.allowedKeys.has(key) && !protectedKeys?.has(key)) {
             delete next[key]
             dropped.push(key)
         }
@@ -169,4 +183,38 @@ export function reconcileRowDataForEntity(
     return dropped.length > 0
         ? {data: next, dropped, strategy: "chat-transport"}
         : {data, dropped, strategy: "chat-transport"}
+}
+
+/**
+ * Collect testcase column names that downstream evaluator nodes reference via
+ * their `<input>_key` settings (e.g. `correct_answer_key → ground_truth`).
+ *
+ * These columns are intentional evaluation inputs the primary app doesn't
+ * declare, so a strict row clean against the app contract must protect them
+ * (pass the result as `reconcileRowDataForEntity`'s `protectedKeys`).
+ *
+ * Mirrors the `<key>_key` resolution in `buildEvaluatorExecutionInputs`
+ * (`@agenta/entities/runnable`): a setting named `<input>_key` whose string
+ * value names a column, optionally prefixed `testcase.`.
+ */
+export function collectDownstreamReferencedColumns(
+    get: Getter,
+    nodes: readonly {depth: number; entityId: string}[],
+): Set<string> {
+    const columns = new Set<string>()
+    for (const node of nodes) {
+        if (node.depth === 0) continue
+        const settings = get(workflowMolecule.selectors.configuration(node.entityId)) as
+            | Record<string, unknown>
+            | null
+            | undefined
+        if (!settings || typeof settings !== "object") continue
+        for (const [key, value] of Object.entries(settings)) {
+            if (!key.endsWith("_key")) continue
+            if (typeof value !== "string" || value.length === 0) continue
+            const column = value.startsWith("testcase.") ? value.split(".")[1] : value
+            if (column) columns.add(column)
+        }
+    }
+    return columns
 }
