@@ -34,16 +34,22 @@ interface Suggestion {
     hint?: string
 }
 
-type PathMode = "path" | "flat"
+type PathMode = "path" | "flat" | "section" | "inverted-section"
 
 interface PathContext {
     /**
-     * "path" → user is authoring a JSONPath expression rooted at `$`.
-     * "flat" → user is authoring a plain curly token (e.g. `{{country}}`,
-     *          `{{country.region}}`); resolves at runtime against the
-     *          flattened `inputs` kwargs by the SDK template engine, so
-     *          we drill into the `inputs` envelope implicitly when
-     *          asking the suggestions consumer for candidates.
+     * "path"             → user is authoring a JSONPath expression rooted at `$`.
+     * "flat"             → user is authoring a plain curly token (`{{country}}`,
+     *                        `{{country.region}}`); resolves at runtime against
+     *                        the flattened `inputs` kwargs by the SDK template
+     *                        engine, so we drill into the `inputs` envelope
+     *                        implicitly when asking the suggestions consumer.
+     * "section"          → mustache section opener: `{{#name}}`. Same
+     *                        suggestion sources as flat mode (the name is a
+     *                        field on the input context), but the inserted
+     *                        token text wraps as `{{#name}}`.
+     * "inverted-section" → mustache inverted section opener: `{{^name}}`.
+     *                        Same sources as "section"; inserted as `{{^name}}`.
      */
     mode: PathMode
     /** Path segments already committed before the current input (e.g. ["inputs"] when typing `$.inputs.ar`). */
@@ -70,8 +76,24 @@ interface PathContext {
  *   `co`                   → {mode:"flat", prefix: [],                 current: "co"}
  *   `country.`             → {mode:"flat", prefix: ["country"],        current: ""}
  *   `country.re`           → {mode:"flat", prefix: ["country"],        current: "re"}
+ *
+ * Section-mode examples (`#` / `^` prefix — MUSTACHE ONLY):
+ *   `#`                    → {mode:"section",          prefix: [],         current: ""}
+ *   `#la`                  → {mode:"section",          prefix: [],         current: "la"}
+ *   `#user.`               → {mode:"section",          prefix: ["user"],   current: ""}
+ *   `^empty`               → {mode:"inverted-section", prefix: [],         current: "empty"}
+ *
+ * In non-mustache formats, `{{#name}}` is an authoring error (no section
+ * semantics exist), so the section / inverted-section modes are suppressed.
+ * The plugin falls back to flat mode for those formats — the `#` / `^`
+ * appears as part of the literal query, matching nothing, so no
+ * suggestions surface and the user isn't tempted to author a broken
+ * template.
  */
-function parsePathContext(input: string): PathContext {
+export function parsePathContext(
+    input: string,
+    templateFormat: "mustache" | "curly" | "fstring" | "jinja2" = "curly",
+): PathContext {
     if (input.startsWith("$")) {
         const body = input.replace(/^\$\.?/, "")
         if (body === "" && input === "$") return {mode: "path", prefix: [], current: ""}
@@ -80,6 +102,15 @@ function parsePathContext(input: string): PathContext {
         const prefix = endsOnBoundary ? segments : segments.slice(0, -1)
         const current = endsOnBoundary ? "" : (segments[segments.length - 1] ?? "")
         return {mode: "path", prefix, current}
+    }
+    if (templateFormat === "mustache" && (input.startsWith("#") || input.startsWith("^"))) {
+        const mode: PathMode = input.startsWith("#") ? "section" : "inverted-section"
+        const body = input.slice(1)
+        const endsOnBoundary = body.endsWith(".") || body.endsWith("[")
+        const segments = body.split(/[.[\]'"]/).filter(Boolean)
+        const prefix = endsOnBoundary ? segments : segments.slice(0, -1)
+        const current = endsOnBoundary ? "" : (segments[segments.length - 1] ?? "")
+        return {mode, prefix, current}
     }
     const endsOnBoundary = input.endsWith(".") || input.endsWith("[")
     const segments = input.split(/[.[\]'"]/).filter(Boolean)
@@ -90,9 +121,14 @@ function parsePathContext(input: string): PathContext {
 
 interface TokenMenuPluginProps {
     tokens: string[]
+    /** Active prompt template format. Section / inverted-section modes are
+     *  mustache-only — for other formats `{{#...}}` is an authoring error,
+     *  not a typeahead trigger. Defaults to `"curly"` to match the rest of
+     *  the editor's defaults. */
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
 }
 
-export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
+export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPluginProps) {
     const [editor] = useLexicalComposerContext()
     const [anchor, setAnchor] = useState<{element: HTMLElement; key: string} | null>(null)
     const [selectedIndex, setSelectedIndex] = useState(0)
@@ -130,7 +166,10 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
         return Array.from(uniqueTokens).filter(Boolean)
     }, [tokens])
 
-    const pathContext = useMemo(() => parsePathContext(inputQuery), [inputQuery])
+    const pathContext = useMemo(
+        () => parsePathContext(inputQuery, templateFormat),
+        [inputQuery, templateFormat],
+    )
 
     /**
      * Consumer-provided path suggestions (optional). The playground injects
@@ -166,6 +205,16 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
      * types `.` manually to drill, or `}}` to close.
      */
     const pathSuggestions = useMemo<Suggestion[]>(() => {
+        // Suppress typeahead inside structural Mustache tags. `{{/x}}`,
+        // `{{!cmt}}`, `{{>partial}}`, `{{=swap=}}` aren't name references —
+        // suggesting variable names would mislead the user into authoring
+        // a token that can't bind to data. Phase 1 keeps this simple by
+        // returning no suggestions; a follow-up could detect the nearest
+        // unclosed `{{#}}`/`{{^}}` and suggest its name for `{{/...}}`.
+        if (templateFormat === "mustache" && /^[/!>=]/.test(inputQuery)) {
+            return []
+        }
+
         const {mode, prefix, current} = pathContext
         const query = current.toLowerCase()
         const results: Suggestion[] = []
@@ -182,7 +231,13 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
             const body = [...prefix, label].join(".")
             const trailing = appendDot ? "." : ""
             const tokenText =
-                mode === "path" ? `{{$.${body}${trailing}}}` : `{{${body}${trailing}}}`
+                mode === "path"
+                    ? `{{$.${body}${trailing}}}`
+                    : mode === "section"
+                      ? `{{#${body}${trailing}}}`
+                      : mode === "inverted-section"
+                        ? `{{^${body}${trailing}}}`
+                        : `{{${body}${trailing}}}`
             results.push({label, tokenText, hint})
         }
 
@@ -216,28 +271,51 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
             return results
         }
 
-        // Flat-mode: ask the consumer for suggestions as if we were
-        // drilling into `$.inputs.<flat-prefix>`. Lets a single source
-        // (testcase columns, port schema sub-paths) feed both modes.
+        // Flat-mode AND section/inverted-section modes — all three share the
+        // same suggestion source. The section name is a field on the input
+        // context (mustache `#name` works for any truthy value: arrays
+        // iterate, objects context-switch, primitives render the block once),
+        // so the candidate set is the same as flat mode. The differing piece
+        // is the inserted tokenText, handled in `push()` above via the `mode`
+        // switch.
         if (getContextSuggestions) {
             const provided = getContextSuggestions(["inputs", ...prefix], current)
             for (const s of provided) push(s.label, {hint: s.hint})
         }
 
-        // Mine previously-seen flat tokens (everything that doesn't
-        // start with `$.`) sharing the current dot-prefix.
+        // Mine previously-seen flat tokens (everything that doesn't start
+        // with `$.`) sharing the current dot-prefix.
+        //
+        // Mustache section openers in the document show up here too — the
+        // token body is `#languages` / `^empty`. Two things matter:
+        //   - In FLAT mode, those tokens should be skipped entirely (they
+        //     aren't flat-style names and shouldn't pollute the list).
+        //   - In SECTION / inverted-section mode, strip the leading `#` /
+        //     `^` before comparing prefixes and extracting the next
+        //     segment. Otherwise selecting one would re-prefix in
+        //     `push()` and produce `{{##languages}}` / `{{^^empty}}`.
         const flatPrefix = prefix.length > 0 ? `${prefix.join(".")}.` : ""
         for (const token of dynamicallyReadingTokens) {
             if (!token || token.startsWith("$.") || token === "$") continue
-            if (flatPrefix && !token.startsWith(flatPrefix)) continue
-            const rest = flatPrefix ? token.slice(flatPrefix.length) : token
+            const hasSectionMarker = token.startsWith("#") || token.startsWith("^")
+            if (hasSectionMarker && mode === "flat") continue
+            const normalized = hasSectionMarker ? token.slice(1) : token
+            if (flatPrefix && !normalized.startsWith(flatPrefix)) continue
+            const rest = flatPrefix ? normalized.slice(flatPrefix.length) : normalized
             const nextSeg = rest.split(/[.[\]'"]/).filter(Boolean)[0]
             if (!nextSeg) continue
             push(nextSeg, {hint: "seen"})
         }
 
         return results
-    }, [pathContext, getContextSuggestions, allowedEnvelopeSlots, dynamicallyReadingTokens])
+    }, [
+        pathContext,
+        getContextSuggestions,
+        allowedEnvelopeSlots,
+        dynamicallyReadingTokens,
+        inputQuery,
+        templateFormat,
+    ])
 
     const suggestions = pathSuggestions
 
