@@ -188,6 +188,15 @@ export const connectAppToEvaluatorAtom = atom(
             },
         })
 
+        // Clean the shared testcase row against the newly-selected app's input
+        // contract so stale keys from a previously-selected app (e.g. chat
+        // `messages`/`context` after swapping a chat app for a completion app)
+        // are dropped immediately — not only at run time (#4525 / AGE-3793).
+        // Runs AFTER connectDownstreamNode so the evaluator is in the graph and
+        // its referenced columns (correct_answer_key → ground_truth, etc.) are
+        // protected from the strict app-contract clean.
+        set(playgroundController.actions.reconcileRowsToPrimary)
+
         // Persist only after both graph mutations succeeded. The picker
         // display label is derived from the depth-0 node's `label` via
         // `selectedAppLabelAtom`, so no extra write needed here.

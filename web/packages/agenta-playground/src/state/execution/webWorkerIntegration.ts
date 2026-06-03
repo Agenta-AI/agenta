@@ -350,13 +350,6 @@ export const triggerExecutionAtom = atom(
             // Persist the cleaned row (deletes the dropped keys via the
             // testcase store's undefined-means-delete semantics).
             set(loadableController.actions.updateRow, loadableId, logicalRowId, undefinedPatch)
-            console.warn("[webWorker.reconcile] cleaned stale row keys before run", {
-                rootEntityId,
-                rowId: logicalRowId,
-                strategy: reconciledRow.strategy,
-                dropped: reconciledRow.dropped,
-                protectedColumns: Array.from(protectedColumns),
-            })
         }
 
         // In comparison mode, filter nodes to only include the effective variant's

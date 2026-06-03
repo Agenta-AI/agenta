@@ -261,15 +261,7 @@ function reconcileEntityInputData(
     data: Record<string, unknown>,
     entityId: string,
 ): Record<string, unknown> {
-    const {data: next, dropped, strategy} = reconcileRowDataForEntity(get, entityId, data)
-    if (dropped.length > 0) {
-        console.warn("[executionRunner.filter] reconciled stale row keys", {
-            entityId,
-            strategy,
-            dropped,
-        })
-    }
-    return next
+    return reconcileRowDataForEntity(get, entityId, data).data
 }
 
 function createConcurrencyLimiter(concurrency: number) {
