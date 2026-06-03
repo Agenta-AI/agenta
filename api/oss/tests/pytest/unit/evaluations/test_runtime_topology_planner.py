@@ -2152,8 +2152,11 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
     assert summary.created == 1
     sdk_loop.assert_awaited_once()
     kwargs = sdk_loop.await_args.kwargs
-    assert kwargs["initial_context_by_repeat"][1]["trace_id"] == trace_id
-    assert kwargs["initial_context_by_repeat"][1]["outputs"] == {"answer": "ok"}
+    # initial_context_by_repeat is now a per-scenario async callable (batched
+    # slice): resolve it for this scenario to get its {repeat: ctx} dict.
+    scenario_context = await kwargs["initial_context_by_repeat"](scenario_id)
+    assert scenario_context[1]["trace_id"] == trace_id
+    assert scenario_context[1]["outputs"] == {"answer": "ok"}
     assert kwargs["plan_cell_filter"](
         SdkPlannedCell(
             run_id=run_id,

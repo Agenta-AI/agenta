@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, List, Optional, Any, Tuple
 from types import SimpleNamespace
 
@@ -627,7 +628,26 @@ class APISliceProcessor:
         ]
 
         summary = ProcessSummary()
-        all_processed: List[Any] = []
+
+        effective_is_split_value = effective_is_split(
+            is_split=bool(run.flags and run.flags.is_split),
+            has_application_steps=bool(invocation_steps),
+            has_evaluator_steps=bool(annotation_steps),
+        )
+
+        # --- Recovery pass (per scenario): resolve each scenario's source,
+        # compute its addressed/target cells and reuse, and recover its upstream
+        # context. NO execution here — we collect, then run ONE batched slice so
+        # the engine's gather+semaphore give cross-scenario concurrency (matching
+        # the SDK and the design's process_slice(all scenarios)).
+        scenarios_in_order: List[Any] = []
+        batch_source_items: List[SdkResolvedSourceItem] = []
+        target_keys_by_scenario: Dict[UUID, set] = {}
+        context_by_scenario: Dict[UUID, Dict[int, Any]] = {}
+        # timestamp/interval are constant across a single process call (seeded:
+        # one value from _mint_and_bind; recovered: None), so capture once.
+        slice_timestamp: Optional[Any] = None
+        slice_interval: Optional[int] = None
 
         for scenario_id in scenario_ids:
             binding = seed_bindings.get(scenario_id)
@@ -638,10 +658,12 @@ class APISliceProcessor:
                 # have no prior cells, hence no reuse to account for.
                 existing_cell_keys: set = set()
                 sdk_source_item = _to_sdk_source_item(binding.source)
-                initial_context_by_repeat = _seed_context_from_source(
+                scenario_context = _seed_context_from_source(
                     source_item=binding.source,
                     repeats=run.data.repeats,
                 )
+                slice_timestamp = binding.timestamp
+                slice_interval = binding.interval
             else:
                 input_cells = await self.evaluations_service.query_results(
                     project_id=project_id,
@@ -668,17 +690,12 @@ class APISliceProcessor:
                     # skipped — not a failure (which means execution errored).
                     summary.skipped += 1
                     continue
-                initial_context_by_repeat = await _seed_context_by_repeat(
+                scenario_context = await _seed_context_by_repeat(
                     project_id=project_id,
                     scenario_cells=input_cells,
                     invocation_step_keys={step.key for step in invocation_steps},
                     tracing_service=self.tracing_service,
                 )
-            effective_is_split_value = effective_is_split(
-                is_split=bool(run.flags and run.flags.is_split),
-                has_application_steps=bool(invocation_steps),
-                has_evaluator_steps=bool(annotation_steps),
-            )
             preview_plan = EvaluationPlanner().plan(
                 run_id=run_id,
                 scenario_id=scenario_id,
@@ -710,19 +727,43 @@ class APISliceProcessor:
             if not target_keys:
                 continue
 
-            processed = await _run_sdk_source_slice(
+            scenarios_in_order.append(SimpleNamespace(id=scenario_id))
+            batch_source_items.append(sdk_source_item)
+            target_keys_by_scenario[scenario_id] = target_keys
+            context_by_scenario[scenario_id] = scenario_context
+            summary.created += len(target_keys)
+
+        # --- Single batched execution over all recovered scenarios. The engine
+        # creates scenarios via the ordered cursor, filters cells per-scenario,
+        # and resolves each scenario's recovered context lazily via the callable.
+        all_processed: List[Any] = []
+        if batch_source_items:
+
+            async def _scenario_context(
+                scenario_id: UUID,
+                _ctx: Dict[UUID, Dict[int, Any]] = context_by_scenario,
+            ) -> Dict[int, Any]:
+                return _ctx.get(scenario_id, {})
+
+            def _plan_cell_filter(
+                cell: Any,
+                _keys: Dict[UUID, set] = target_keys_by_scenario,
+            ) -> bool:
+                return _cell_key(cell) in _keys.get(cell.scenario_id, set())
+
+            all_processed = await _run_sdk_source_slice(
                 project_id=project_id,
                 user_id=user_id,
                 run=run,
                 evaluations_service=self.evaluations_service,
-                sdk_source_items=[sdk_source_item],
+                sdk_source_items=batch_source_items,
                 sdk_steps=sdk_steps_all,
                 invocation_steps=invocation_steps,
                 annotation_steps=annotation_steps,
                 runners=runners,
                 revisions=revisions,
-                # reuse the existing scenario; do NOT create a new one.
-                create_scenario=_ExistingScenario(scenario_id),
+                # reuse existing scenarios in order; do NOT mint new ones.
+                create_scenario=_OrderedScenarios(scenarios_in_order),
                 # process is a tensor-write op: it refreshes the touched scope's
                 # metrics incrementally per-scenario (and rolls up), the same as
                 # ingest — re-execute no longer opts out with a no-op.
@@ -735,16 +776,15 @@ class APISliceProcessor:
                 refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
                 # Seeded scenarios carry the run's temporal coordinates (live
                 # query); recovered scenarios already have them on their cells.
-                timestamp=binding.timestamp if binding is not None else None,
-                interval=binding.interval if binding is not None else None,
+                # Constant across the slice, so passed once.
+                timestamp=slice_timestamp,
+                interval=slice_interval,
                 tracing_service=self.tracing_service,
-                initial_context_by_repeat=initial_context_by_repeat,
-                plan_cell_filter=lambda cell, keys=target_keys: _cell_key(cell) in keys,
+                initial_context_by_repeat=_scenario_context,
+                plan_cell_filter=_plan_cell_filter,
             )
 
-            summary.created += len(target_keys)
-            all_processed.extend(processed)
-            for item in processed:
+            for item in all_processed:
                 if item.has_pending:
                     summary.pending += 1
                 if item.has_errors:
@@ -776,16 +816,30 @@ class APISliceProcessor:
         return summary
 
 
-class _ExistingScenario:
-    """`create_scenario` adapter that returns an existing scenario by id.
+class _OrderedScenarios:
+    """`create_scenario` adapter handing back EXISTING scenarios in order.
 
-    The SDK slice loop calls `create_scenario(run_id)` and uses `.id`; for
-    re-execution we hand it the existing scenario rather than minting a new one,
-    so results are populated against the scenario the slice addressed.
+    The engine calls `create_scenario(run_id)` once per source item; for a
+    batched re-execute slice we hand back the recovered scenarios in the order
+    their sources were collected, instead of minting new ones — the API analogue
+    of the SDK's `_PreMintedScenarios`.
+
+    Order/concurrency: the engine runs scenarios concurrently (gather +
+    semaphore), so multiple coroutines call this. `create_scenario` is the FIRST
+    statement of the engine's `_process_one` and this body has no `await`, so
+    each task runs through the pop synchronously before any real suspension —
+    i.e. the pops happen in source-item order, pairing scenario i with source i.
+    The lock makes the index increment atomic so the ordering can never degrade
+    into a double-hand-out if scheduling shifts.
     """
 
-    def __init__(self, scenario_id: UUID):
-        self._scenario = SimpleNamespace(id=scenario_id)
+    def __init__(self, scenarios: List[Any]):
+        self._scenarios = list(scenarios)
+        self._idx = 0
+        self._lock = asyncio.Lock()
 
     async def __call__(self, run_id: UUID):
-        return self._scenario
+        async with self._lock:
+            scenario = self._scenarios[self._idx]
+            self._idx += 1
+            return scenario

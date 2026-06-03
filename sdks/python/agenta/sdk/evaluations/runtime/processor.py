@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -47,6 +47,17 @@ class ProcessedScenario(BaseModel):
 CreateScenario = Callable[[UUID], Awaitable[Any]]
 RefreshMetrics = Callable[[UUID, Optional[UUID]], Awaitable[Any]]
 PlanCellFilter = Callable[[PlannedCell], bool]
+# Per-repeat upstream context seed. Either ONE slice-wide dict (every scenario
+# gets the same seed — the simple/SDK case, usually None) OR an async callable
+# `(scenario_id) -> {repeat_idx: ctx}` resolved lazily per scenario. The
+# callable form lets a batched slice carry DIFFERENT recovered context per
+# scenario (the API re-execute path) without holding every scenario's context
+# in memory at once.
+InitialContextByRepeat = Dict[int, Dict[str, Any]]
+InitialContextSeed = Union[
+    InitialContextByRepeat,
+    Callable[[UUID], Awaitable[InitialContextByRepeat]],
+]
 # Adapter boundary for persisting a scenario's terminal status. The engine
 # computes the verdict (has_errors/has_pending) per scenario, so writing the
 # status is a property of `process` itself — every driver (API ingest,
@@ -107,7 +118,7 @@ async def process_sources(
     max_retries: Optional[int] = None,
     retry_delay: Optional[float] = None,
     execute_custom: bool = False,
-    initial_context_by_repeat: Optional[Dict[int, Dict[str, Any]]] = None,
+    initial_context_by_repeat: Optional[InitialContextSeed] = None,
     plan_cell_filter: Optional[PlanCellFilter] = None,
     edit_scenario: Optional[EditScenario] = None,
 ) -> List[ProcessedScenario]:
@@ -182,8 +193,14 @@ async def process_sources(
             source_item=source_item,
             repeats=repeats,
         )
-        if initial_context_by_repeat:
-            context_by_repeat.update(initial_context_by_repeat)
+        # The seed is either a slice-wide dict (every scenario the same) or an
+        # async callable resolved lazily for THIS scenario — the batched-slice
+        # case where each scenario recovers its own upstream context.
+        seed = initial_context_by_repeat
+        if callable(seed):
+            seed = await seed(scenario_id)
+        if seed:
+            context_by_repeat.update(seed)
         scenario_has_pending = False
         scenario_has_errors = False
         scenario_auto_results_created = False
