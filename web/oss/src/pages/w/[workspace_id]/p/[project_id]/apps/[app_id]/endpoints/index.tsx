@@ -98,7 +98,7 @@ const createParamsFromSchema = (
 }
 
 /**
- * Build example params JSON from synthesized Parameter[] + environment name.
+ * Build example params JSON from synthesized Parameter[] + environment slug.
  * Used by DeploymentDrawer and UseApiContent for environment-based code snippets.
  */
 export const createParams = (

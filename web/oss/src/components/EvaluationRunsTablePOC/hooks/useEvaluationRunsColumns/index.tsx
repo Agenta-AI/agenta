@@ -232,10 +232,7 @@ const useEvaluationRunsColumns = ({
                     evaluatorHandles.projectId = projectId
                 }
                 const evaluatorRef = resolveEvaluatorReferenceCandidate(refs)
-                const slugCandidate =
-                    evaluatorHandles.slug ??
-                    normalizeString(evaluatorRef?.slug) ??
-                    normalizeString(evaluatorRef?.key)
+                const slugCandidate = evaluatorHandles.slug ?? normalizeString(evaluatorRef?.slug)
                 const groupKey =
                     slugCandidate ??
                     evaluatorHandles.id ??
