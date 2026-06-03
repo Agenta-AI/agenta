@@ -11,6 +11,7 @@ import {getDefaultStore} from "jotai/vanilla"
 
 import {parseEvaluatorKeyFromUri} from "../workflow/core"
 
+import {groupTemplateVariables} from "./portHelpers"
 import type {
     RunnableType,
     RunnableData,
@@ -941,6 +942,60 @@ export function syncPromptInputKeysInParameters(
     return syncPromptInputKeysInConfig(parameters)
 }
 
+/**
+ * Compute the `input_keys` for a single prompt config.
+ *
+ * `input_keys` must be the set of TOP-LEVEL keys that the runtime `inputs`
+ * dict is keyed by — NOT the raw scoped/dotted placeholder paths. For
+ * mustache/jinja2 a reference like `{{country.name}}` resolves `name`
+ * against the top-level `country` object, so the input key is `country`;
+ * a section `{{#repos}}{{name}}{{/repos}}` has input key `repos`. For
+ * curly, dotted names are LITERAL testcase columns (backend literal-key
+ * resolver), so `{{user.name}}` stays `user.name`.
+ *
+ * `groupTemplateVariables` already encodes exactly this format-aware
+ * collapse (via `parseTemplateExpression`), and is the same helper the
+ * input-port discovery (`inputPortsAtomFamily`) and the invoke request
+ * builder use. Routing `input_keys` through it keeps the SAVED config in
+ * sync with what the backend validates at invoke time.
+ *
+ * Background: previously this used the raw `extractVariablesFromConfig`
+ * output, which for mustache returns scoped dotted paths (`country.name`,
+ * `repos.name`). The saved `input_keys` then mismatched the actual inputs
+ * dict keys, and every deployed invoke failed with
+ * `Invalid inputs: Expected [...] Got [...]` (Mahmoud QA 2026-06-03).
+ */
+function computePromptInputKeys(
+    promptKey: string,
+    promptConfig: Record<string, unknown>,
+): string[] {
+    const vars = extractVariablesFromConfig({[promptKey]: promptConfig})
+    if (vars.length === 0) return []
+
+    const sectionOpeners = extractSectionOpenersFromConfig({[promptKey]: promptConfig})
+    const rawTf = (promptConfig.template_format ?? promptConfig.templateFormat) as
+        | string
+        | undefined
+    const templateFormat = resolveTemplateFormat(rawTf) ?? undefined
+
+    const grouped = groupTemplateVariables(vars, {sectionOpeners, templateFormat})
+
+    // Only `inputs`-envelope keys become testcase columns / input keys.
+    // Other envelopes (`$.outputs.*`, `$.parameters.*`, ...) are runtime-
+    // resolved and must not appear in `input_keys`. Dedup in first-seen
+    // order (groupTemplateVariables already dedups by envelope.key, but
+    // guard defensively).
+    const seen = new Set<string>()
+    const keys: string[] = []
+    for (const group of grouped) {
+        if (group.envelope !== "inputs") continue
+        if (seen.has(group.key)) continue
+        seen.add(group.key)
+        keys.push(group.key)
+    }
+    return keys
+}
+
 function syncPromptInputKeysInConfig(config: Record<string, unknown>): Record<string, unknown> {
     let changed = false
     const result = {...config}
@@ -951,7 +1006,7 @@ function syncPromptInputKeysInConfig(config: Record<string, unknown>): Record<st
         const promptConfig = value as Record<string, unknown>
         if (!Array.isArray(promptConfig.messages)) continue
 
-        const variables = extractVariablesFromConfig({[key]: promptConfig})
+        const variables = computePromptInputKeys(key, promptConfig)
         const existing = promptConfig.input_keys
 
         if (
