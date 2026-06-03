@@ -422,7 +422,7 @@ const toEnvironmentReference = (
     appId: string | null,
 ): EnvironmentReference => ({
     id: null, // Entity deployment doesn't expose environment ID
-    slug: env.name,
+    slug: env.slug,
     name: env.name,
     appId: appId ?? null,
     deployedAppVariantId: env.deployedVariantId ?? null,

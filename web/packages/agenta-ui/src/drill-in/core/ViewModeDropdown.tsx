@@ -21,12 +21,15 @@ export interface ViewModeDropdownProps<TValue extends string = string> {
     value: TValue
     options: ViewModeDropdownOption<TValue>[]
     onChange: (value: TValue) => void
+    /** When true, both the trigger button and the menu are disabled. */
+    disabled?: boolean
 }
 
 function ViewModeDropdownInner<TValue extends string = string>({
     value,
     options,
     onChange,
+    disabled,
 }: ViewModeDropdownProps<TValue>) {
     const selectedOption = options.find((option) => option.value === value)
     const items: MenuProps["items"] = options.map((option) => ({
@@ -36,10 +39,16 @@ function ViewModeDropdownInner<TValue extends string = string>({
     }))
 
     return (
-        <Dropdown menu={{items, selectedKeys: [value]}} trigger={["click"]} placement="bottomRight">
+        <Dropdown
+            menu={{items, selectedKeys: [value]}}
+            trigger={["click"]}
+            placement="bottomRight"
+            disabled={disabled}
+        >
             <AntdButton
                 type="text"
                 size="small"
+                disabled={disabled}
                 className="inline-flex h-6 items-center gap-1 px-2 text-xs text-[var(--ag-c-051729)]"
             >
                 <span className="font-medium">{selectedOption?.label ?? value}</span>
