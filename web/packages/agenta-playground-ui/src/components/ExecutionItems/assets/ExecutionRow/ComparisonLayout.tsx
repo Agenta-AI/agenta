@@ -283,14 +283,15 @@ const ComparisonLayout = ({
                                                                 size={14}
                                                             />
                                                         }
-                                                        onClick={() =>
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
                                                             openFocusDrawer({
                                                                 rowId,
                                                                 entityId:
                                                                     structuralRootNode?.entityId ??
                                                                     entityId,
                                                             })
-                                                        }
+                                                        }}
                                                         disabled={
                                                             !(
                                                                 structuralRootNode?.entityId ??
