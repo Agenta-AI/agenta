@@ -70,7 +70,7 @@ def _patch_steps(authed_api, run, steps):
 
 
 def _default_queue(authed_api, run_id) -> dict:
-    response = authed_api("GET", f"/evaluations/runs/{run_id}/default-queue")
+    response = authed_api("GET", f"/evaluations/runs/{run_id}/queues/default")
     assert response.status_code == 200, response.text
     return response.json().get("queue") or {}
 

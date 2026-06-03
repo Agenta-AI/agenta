@@ -1,9 +1,8 @@
 export type { AddScenariosRequest } from "./AddScenariosRequest.js";
 export type { AddStepsRequest } from "./AddStepsRequest.js";
-export type { ArchiveQueueRequest } from "./ArchiveQueueRequest.js";
 export type { CloseRunRequest } from "./CloseRunRequest.js";
-export type { CloseRunWithStatusRequest } from "./CloseRunWithStatusRequest.js";
 export type { CloseSimpleEvaluationRequest } from "./CloseSimpleEvaluationRequest.js";
+export type { DeleteMetricRequest } from "./DeleteMetricRequest.js";
 export type { DeleteQueueRequest } from "./DeleteQueueRequest.js";
 export type { DeleteResultRequest } from "./DeleteResultRequest.js";
 export type { DeleteRunRequest } from "./DeleteRunRequest.js";
@@ -21,6 +20,7 @@ export type { EvaluationQueuesCreateRequest } from "./EvaluationQueuesCreateRequ
 export type { EvaluationQueuesEditRequest } from "./EvaluationQueuesEditRequest.js";
 export type { EvaluationResultIdsRequest } from "./EvaluationResultIdsRequest.js";
 export type { EvaluationResultQueryRequest } from "./EvaluationResultQueryRequest.js";
+export type { EvaluationResultsSetRequest } from "./EvaluationResultsSetRequest.js";
 export type { EvaluationRunEditRequest } from "./EvaluationRunEditRequest.js";
 export type { EvaluationRunQueryRequest } from "./EvaluationRunQueryRequest.js";
 export type { EvaluationRunsCreateRequest } from "./EvaluationRunsCreateRequest.js";
@@ -31,6 +31,7 @@ export type { EvaluationScenarioQueryRequest } from "./EvaluationScenarioQueryRe
 export type { EvaluationScenariosCreateRequest } from "./EvaluationScenariosCreateRequest.js";
 export type { EvaluationScenariosEditRequest } from "./EvaluationScenariosEditRequest.js";
 export type { FetchDefaultQueueRequest } from "./FetchDefaultQueueRequest.js";
+export type { FetchMetricRequest } from "./FetchMetricRequest.js";
 export type { FetchQueueRequest } from "./FetchQueueRequest.js";
 export type { FetchResultRequest } from "./FetchResultRequest.js";
 export type { FetchRunRequest } from "./FetchRunRequest.js";
@@ -56,4 +57,3 @@ export type { SimpleQueueTestcasesCreateRequest } from "./SimpleQueueTestcasesCr
 export type { SimpleQueueTracesCreateRequest } from "./SimpleQueueTracesCreateRequest.js";
 export type { StartSimpleEvaluationRequest } from "./StartSimpleEvaluationRequest.js";
 export type { StopSimpleEvaluationRequest } from "./StopSimpleEvaluationRequest.js";
-export type { UnarchiveQueueRequest } from "./UnarchiveQueueRequest.js";

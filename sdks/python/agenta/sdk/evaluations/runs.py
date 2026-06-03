@@ -100,7 +100,8 @@ async def aclose(
 ) -> Optional[EvaluationRun]:
     response = authed_api()(
         method="POST",
-        endpoint=f"/evaluations/runs/{run_id}/close/{status}",
+        endpoint=f"/evaluations/runs/{run_id}/close",
+        params={"status": status} if status else None,
     )
 
     try:

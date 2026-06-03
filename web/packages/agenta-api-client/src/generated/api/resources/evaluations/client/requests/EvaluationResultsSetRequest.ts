@@ -5,7 +5,6 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         evaluation_id: "evaluation_id",
  *         results: [{
  *                 step_key: "step_key",
  *                 scenario_id: "scenario_id",
@@ -13,7 +12,6 @@ import type * as AgentaApi from "../../../../index.js";
  *             }]
  *     }
  */
-export interface PopulateSliceRequest {
-    evaluation_id: string;
+export interface EvaluationResultsSetRequest {
     results: AgentaApi.EvaluationResultCreate[];
 }

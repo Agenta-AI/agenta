@@ -312,10 +312,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 references=run_references,
             )
 
-            # `status` is a VARCHAR column but `edit_dbe_from_dto` dumps the DTO
-            # without `mode="json"`, leaving an EvaluationStatus enum that does
-            # not persist reliably. Write the serialized value explicitly (same
-            # as `close_run`) so terminal statuses from the slice are saved.
+            # `status` is a VARCHAR but `edit_dbe_from_dto` dumps without `mode="json"`.
             if run.status is not None:
                 run_dbe.status = run.status.value  # type: ignore
                 flag_modified(run_dbe, "status")
@@ -2269,10 +2266,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 run_id=queue.run_id,
             )
 
-        # At most one ACTIVE default queue per run. This is enforced by the
-        # partial unique index ux_evaluation_queues_default_per_run; the insert
-        # below surfaces a duplicate as EntityCreationConflict via
-        # check_entity_creation_conflict, so no separate pre-check is needed.
         _queue = EvaluationQueue(
             **queue.model_dump(
                 mode="json",

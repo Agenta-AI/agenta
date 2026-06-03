@@ -174,6 +174,6 @@ class TestEvaluationStepRemoval:
         assert run["flags"]["has_human"] is True
 
         # A human run gets an active default queue on create.
-        response = authed_api("GET", f"/evaluations/runs/{run['id']}/default-queue")
+        response = authed_api("GET", f"/evaluations/runs/{run['id']}/queues/default")
         assert response.status_code == 200
         assert response.json()["count"] == 1

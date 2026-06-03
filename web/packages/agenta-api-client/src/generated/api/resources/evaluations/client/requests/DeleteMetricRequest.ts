@@ -3,9 +3,9 @@
 /**
  * @example
  *     {
- *         queue_id: "queue_id"
+ *         metrics_id: "metrics_id"
  *     }
  */
-export interface ArchiveQueueRequest {
-    queue_id: string;
+export interface DeleteMetricRequest {
+    metrics_id: string;
 }

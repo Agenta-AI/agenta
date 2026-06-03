@@ -738,81 +738,6 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.CloseRunWithStatusRequest} request
-     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.evaluations.closeRunWithStatus({
-     *         run_id: "run_id",
-     *         status: "pending"
-     *     })
-     */
-    public closeRunWithStatus(
-        request: AgentaApi.CloseRunWithStatusRequest,
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.EvaluationRunResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__closeRunWithStatus(request, requestOptions));
-    }
-
-    private async __closeRunWithStatus(
-        request: AgentaApi.CloseRunWithStatusRequest,
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.EvaluationRunResponse>> {
-        const { run_id: runId, status } = request;
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                `evaluations/runs/${core.url.encodePathParam(runId)}/close/${core.url.encodePathParam(status)}`,
-            ),
-            method: "POST",
-            headers: _headers,
-            queryParameters: requestOptions?.queryParams,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.EvaluationRunResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/evaluations/runs/{run_id}/close/{status}",
-        );
-    }
-
-    /**
      * @param {AgentaApi.OpenRunRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -920,7 +845,7 @@ export class EvaluationsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `evaluations/runs/${core.url.encodePathParam(runId)}/default-queue`,
+                `evaluations/runs/${core.url.encodePathParam(runId)}/queues/default`,
             ),
             method: "GET",
             headers: _headers,
@@ -956,7 +881,7 @@ export class EvaluationsClient {
             _response.error,
             _response.rawResponse,
             "GET",
-            "/evaluations/runs/{run_id}/default-queue",
+            "/evaluations/runs/{run_id}/queues/default",
         );
     }
 
@@ -2139,6 +2064,157 @@ export class EvaluationsClient {
     }
 
     /**
+     * @param {AgentaApi.FetchMetricRequest} request
+     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.evaluations.fetchMetric({
+     *         metrics_id: "metrics_id"
+     *     })
+     */
+    public fetchMetric(
+        request: AgentaApi.FetchMetricRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.EvaluationMetricsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchMetric(request, requestOptions));
+    }
+
+    private async __fetchMetric(
+        request: AgentaApi.FetchMetricRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.EvaluationMetricsResponse>> {
+        const { metrics_id: metricsId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `evaluations/metrics/${core.url.encodePathParam(metricsId)}`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.EvaluationMetricsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/evaluations/metrics/{metrics_id}",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.DeleteMetricRequest} request
+     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.evaluations.deleteMetric({
+     *         metrics_id: "metrics_id"
+     *     })
+     */
+    public deleteMetric(
+        request: AgentaApi.DeleteMetricRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.EvaluationMetricsIdsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteMetric(request, requestOptions));
+    }
+
+    private async __deleteMetric(
+        request: AgentaApi.DeleteMetricRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.EvaluationMetricsIdsResponse>> {
+        const { metrics_id: metricsId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `evaluations/metrics/${core.url.encodePathParam(metricsId)}`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.EvaluationMetricsIdsResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
+            "/evaluations/metrics/{metrics_id}",
+        );
+    }
+
+    /**
      * @param {AgentaApi.EvaluationQueuesCreateRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2649,154 +2725,6 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.ArchiveQueueRequest} request
-     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.evaluations.archiveQueue({
-     *         queue_id: "queue_id"
-     *     })
-     */
-    public archiveQueue(
-        request: AgentaApi.ArchiveQueueRequest,
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.EvaluationQueueResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__archiveQueue(request, requestOptions));
-    }
-
-    private async __archiveQueue(
-        request: AgentaApi.ArchiveQueueRequest,
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.EvaluationQueueResponse>> {
-        const { queue_id: queueId } = request;
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                `evaluations/queues/${core.url.encodePathParam(queueId)}/archive`,
-            ),
-            method: "POST",
-            headers: _headers,
-            queryParameters: requestOptions?.queryParams,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.EvaluationQueueResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/evaluations/queues/{queue_id}/archive",
-        );
-    }
-
-    /**
-     * @param {AgentaApi.UnarchiveQueueRequest} request
-     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.evaluations.unarchiveQueue({
-     *         queue_id: "queue_id"
-     *     })
-     */
-    public unarchiveQueue(
-        request: AgentaApi.UnarchiveQueueRequest,
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.EvaluationQueueResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__unarchiveQueue(request, requestOptions));
-    }
-
-    private async __unarchiveQueue(
-        request: AgentaApi.UnarchiveQueueRequest,
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.EvaluationQueueResponse>> {
-        const { queue_id: queueId } = request;
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                `evaluations/queues/${core.url.encodePathParam(queueId)}/unarchive`,
-            ),
-            method: "POST",
-            headers: _headers,
-            queryParameters: requestOptions?.queryParams,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.EvaluationQueueResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/evaluations/queues/{queue_id}/unarchive",
-        );
-    }
-
-    /**
      * @param {AgentaApi.EvaluationQueueScenariosQueryRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2945,6 +2873,75 @@ export class EvaluationsClient {
         }
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/simple/evaluations/");
+    }
+
+    /**
+     * @param {AgentaApi.SimpleEvaluationQueryRequest} request
+     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.evaluations.querySimpleEvaluations()
+     */
+    public querySimpleEvaluations(
+        request: AgentaApi.SimpleEvaluationQueryRequest = {},
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__querySimpleEvaluations(request, requestOptions));
+    }
+
+    private async __querySimpleEvaluations(
+        request: AgentaApi.SimpleEvaluationQueryRequest = {},
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationsResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "simple/evaluations/query",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.SimpleEvaluationsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/simple/evaluations/query");
     }
 
     /**
@@ -3171,75 +3168,6 @@ export class EvaluationsClient {
             "PATCH",
             "/simple/evaluations/{evaluation_id}",
         );
-    }
-
-    /**
-     * @param {AgentaApi.SimpleEvaluationQueryRequest} request
-     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.evaluations.querySimpleEvaluations()
-     */
-    public querySimpleEvaluations(
-        request: AgentaApi.SimpleEvaluationQueryRequest = {},
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SimpleEvaluationsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__querySimpleEvaluations(request, requestOptions));
-    }
-
-    private async __querySimpleEvaluations(
-        request: AgentaApi.SimpleEvaluationQueryRequest = {},
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SimpleEvaluationsResponse>> {
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "simple/evaluations/query",
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: request,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.SimpleEvaluationsResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/simple/evaluations/query");
     }
 
     /**
@@ -3539,6 +3467,88 @@ export class EvaluationsClient {
     }
 
     /**
+     * @param {AgentaApi.PopulateSliceRequest} request
+     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.evaluations.populateSlice({
+     *         evaluation_id: "evaluation_id",
+     *         results: [{
+     *                 step_key: "step_key",
+     *                 scenario_id: "scenario_id",
+     *                 run_id: "run_id"
+     *             }]
+     *     })
+     */
+    public populateSlice(
+        request: AgentaApi.PopulateSliceRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.EvaluationResultsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__populateSlice(request, requestOptions));
+    }
+
+    private async __populateSlice(
+        request: AgentaApi.PopulateSliceRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.EvaluationResultsResponse>> {
+        const { evaluation_id: evaluationId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `simple/evaluations/${core.url.encodePathParam(evaluationId)}/populate`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.EvaluationResultsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/simple/evaluations/{evaluation_id}/populate",
+        );
+    }
+
+    /**
      * @param {AgentaApi.ProcessSliceRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -3623,8 +3633,7 @@ export class EvaluationsClient {
      *
      * @example
      *     await client.evaluations.probeSlice({
-     *         evaluation_id: "evaluation_id",
-     *         body: {}
+     *         evaluation_id: "evaluation_id"
      *     })
      */
     public probeSlice(
@@ -3638,7 +3647,7 @@ export class EvaluationsClient {
         request: AgentaApi.ProbeSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluationResultsResponse>> {
-        const { evaluation_id: evaluationId, body: _body } = request;
+        const { evaluation_id: evaluationId, ..._body } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -3694,90 +3703,6 @@ export class EvaluationsClient {
     }
 
     /**
-     * @param {AgentaApi.PopulateSliceRequest} request
-     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.evaluations.populateSlice({
-     *         evaluation_id: "evaluation_id",
-     *         body: {
-     *             results: [{
-     *                     step_key: "step_key",
-     *                     scenario_id: "scenario_id",
-     *                     run_id: "run_id"
-     *                 }]
-     *         }
-     *     })
-     */
-    public populateSlice(
-        request: AgentaApi.PopulateSliceRequest,
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.EvaluationResultsResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__populateSlice(request, requestOptions));
-    }
-
-    private async __populateSlice(
-        request: AgentaApi.PopulateSliceRequest,
-        requestOptions?: EvaluationsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.EvaluationResultsResponse>> {
-        const { evaluation_id: evaluationId, body: _body } = request;
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                `simple/evaluations/${core.url.encodePathParam(evaluationId)}/populate`,
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.EvaluationResultsResponse, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/simple/evaluations/{evaluation_id}/populate",
-        );
-    }
-
-    /**
      * @param {AgentaApi.PruneSliceRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -3785,8 +3710,7 @@ export class EvaluationsClient {
      *
      * @example
      *     await client.evaluations.pruneSlice({
-     *         evaluation_id: "evaluation_id",
-     *         body: {}
+     *         evaluation_id: "evaluation_id"
      *     })
      */
     public pruneSlice(
@@ -3800,7 +3724,7 @@ export class EvaluationsClient {
         request: AgentaApi.PruneSliceRequest,
         requestOptions?: EvaluationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<void>> {
-        const { evaluation_id: evaluationId, body: _body } = request;
+        const { evaluation_id: evaluationId, ..._body } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -4212,7 +4136,7 @@ export class EvaluationsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `simple/evaluations/${core.url.encodePathParam(evaluationId)}/repeats`,
+                `simple/evaluations/${core.url.encodePathParam(evaluationId)}/repeats/set`,
             ),
             method: "POST",
             headers: _headers,
@@ -4251,7 +4175,7 @@ export class EvaluationsClient {
             _response.error,
             _response.rawResponse,
             "POST",
-            "/simple/evaluations/{evaluation_id}/repeats",
+            "/simple/evaluations/{evaluation_id}/repeats/set",
         );
     }
 

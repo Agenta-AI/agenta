@@ -244,10 +244,30 @@ class TensorSliceRequest(BaseModel):
     repeat_idxs: Optional[List[int]] = None
 
 
+class PopulateSliceRequest(EvaluationResultsSetRequest):
+    # Write-side slice op: same `results` payload as the generic results setter,
+    # but the populate endpoint owns its own request type so its run-scoped
+    # validation and OpenAPI surface can diverge from `set_results`.
+    pass
+
+
 class ProcessSliceRequest(TensorSliceRequest):
     # `overwrite=False` (default) runs only cells without a result (fill-missing);
     # `overwrite=True` re-runs every addressed cell (force).
     overwrite: bool = False
+
+
+class ProbeSliceRequest(TensorSliceRequest):
+    # Read-side slice op: coordinate projection over existing cells. Its own
+    # request type keeps the probe OpenAPI surface independent of the other
+    # tensor ops.
+    pass
+
+
+class PruneSliceRequest(TensorSliceRequest):
+    # Delete-side slice op: clears the addressed cells (and refreshes metrics).
+    # Owns its request type for the same reason.
+    pass
 
 
 # `process` returns 202 (async dispatch acknowledged) and `prune` returns 204 —

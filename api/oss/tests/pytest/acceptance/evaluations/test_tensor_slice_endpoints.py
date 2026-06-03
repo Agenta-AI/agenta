@@ -343,7 +343,7 @@ class TestGraphShapeEndpoints:
 
         response = authed_api(
             "POST",
-            f"/simple/evaluations/{run_id}/repeats",
+            f"/simple/evaluations/{run_id}/repeats/set",
             json={"repeats": 3},
         )
 

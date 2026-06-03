@@ -133,31 +133,6 @@ class TestDefaultQueueDemotionForbidden:
         assert response.status_code == 200, response.text
 
 
-class TestDefaultQueueArchiveForbidden:
-    # Default queues are system-managed: their archive/unarchive lifecycle is
-    # driven by run reconciliation, not by direct user action. The user-facing
-    # archive endpoint refuses a default (DefaultQueueArchiveForbidden -> 409).
-
-    def test_archiving_default_queue_is_forbidden(self, authed_api):
-        run_id = _create_run(authed_api)
-        resp = _create_queue(authed_api, run_id, flags={"is_default": True})
-        assert resp.status_code == 200, resp.text
-        queue_id = resp.json()["queues"][0]["id"]
-
-        response = authed_api("POST", f"/evaluations/queues/{queue_id}/archive")
-        # DefaultQueueArchiveForbidden -> 409
-        assert response.status_code == 409, response.text
-
-    def test_archiving_normal_queue_is_allowed(self, authed_api):
-        run_id = _create_run(authed_api)
-        resp = _create_queue(authed_api, run_id, flags={"is_default": False})
-        assert resp.status_code == 200, resp.text
-        queue_id = resp.json()["queues"][0]["id"]
-
-        response = authed_api("POST", f"/evaluations/queues/{queue_id}/archive")
-        assert response.status_code == 200, response.text
-
-
 class TestDefaultQueueDeletionForbidden:
     def test_hard_deleting_default_queue_is_forbidden(self, authed_api):
         run_id = _create_run(authed_api)

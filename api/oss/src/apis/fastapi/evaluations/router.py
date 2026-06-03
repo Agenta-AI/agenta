@@ -54,8 +54,10 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationResultIdResponse,
     EvaluationResultIdsResponse,
     # EVALUATION TENSOR SLICE
-    TensorSliceRequest,
     ProcessSliceRequest,
+    PopulateSliceRequest,
+    ProbeSliceRequest,
+    PruneSliceRequest,
     # EVALUATION GRAPH-SHAPE OPS
     AddScenariosRequest,
     RemoveScenariosRequest,
@@ -134,7 +136,7 @@ class EvaluationsRouter:
 
         self.admin_router = APIRouter()
 
-        # EVALUATION RUNS ------------------------------------------------------
+        # ADMIN EVALUATION REFRESH ---------------------------------------------
 
         # POST /api/evaluations/runs/refresh
         self.admin_router.add_api_route(
@@ -143,6 +145,8 @@ class EvaluationsRouter:
             endpoint=self.refresh_runs,
             response_model_exclude_none=True,
         )
+
+        # EVALUATION RUNS ------------------------------------------------------
 
         # POST /api/evaluations/runs/
         self.router.add_api_route(
@@ -244,16 +248,6 @@ class EvaluationsRouter:
             operation_id="close_run",
         )
 
-        # POST /api/evaluations/runs/{run_id}/close/{status}
-        self.router.add_api_route(
-            path="/runs/{run_id}/close/{status}",
-            methods=["POST"],
-            endpoint=self.close_run,
-            response_model=EvaluationRunResponse,
-            response_model_exclude_none=True,
-            operation_id="close_run_with_status",
-        )
-
         # POST /api/evaluations/runs/{run_id}/open
         self.router.add_api_route(
             path="/runs/{run_id}/open",
@@ -264,9 +258,9 @@ class EvaluationsRouter:
             operation_id="open_run",
         )
 
-        # GET /api/evaluations/runs/{run_id}/default-queue
+        # GET /api/evaluations/runs/{run_id}/queues/default
         self.router.add_api_route(
-            path="/runs/{run_id}/default-queue",
+            path="/runs/{run_id}/queues/default",
             methods=["GET"],
             endpoint=self.fetch_default_queue,
             response_model=EvaluationQueueResponse,
@@ -410,6 +404,7 @@ class EvaluationsRouter:
             operation_id="refresh_metrics",
         )
 
+        # TODO: deprecate once web uses /mretrics/refresh
         # POST /api/evaluations/metrics/
         self.router.add_api_route(
             path="/metrics/",
@@ -438,6 +433,26 @@ class EvaluationsRouter:
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
             operation_id="query_metrics",
+        )
+
+        # GET /api/evaluations/metrics/{metrics_id}
+        self.router.add_api_route(
+            path="/metrics/{metrics_id}",
+            methods=["GET"],
+            endpoint=self.fetch_metric,
+            response_model=EvaluationMetricsResponse,
+            response_model_exclude_none=True,
+            operation_id="fetch_metric",
+        )
+
+        # DELETE /api/evaluations/metrics/{metrics_id}
+        self.router.add_api_route(
+            path="/metrics/{metrics_id}",
+            methods=["DELETE"],
+            endpoint=self.delete_metric,
+            response_model=EvaluationMetricsIdsResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_metric",
         )
 
         # EVALUATION QUEUES ----------------------------------------------------
@@ -510,26 +525,6 @@ class EvaluationsRouter:
             response_model=EvaluationQueueIdResponse,
             response_model_exclude_none=True,
             operation_id="delete_queue",
-        )
-
-        # POST /api/evaluations/queues/{queue_id}/archive
-        self.router.add_api_route(
-            path="/queues/{queue_id}/archive",
-            methods=["POST"],
-            endpoint=self.archive_queue,
-            response_model=EvaluationQueueResponse,
-            response_model_exclude_none=True,
-            operation_id="archive_queue",
-        )
-
-        # POST /api/evaluations/queues/{queue_id}/unarchive
-        self.router.add_api_route(
-            path="/queues/{queue_id}/unarchive",
-            methods=["POST"],
-            endpoint=self.unarchive_queue,
-            response_model=EvaluationQueueResponse,
-            response_model_exclude_none=True,
-            operation_id="unarchive_queue",
         )
 
         # POST /api/evaluations/queues/{queue_id}/scenarios/query
@@ -824,7 +819,7 @@ class EvaluationsRouter:
 
         return run_response
 
-    # GET /evaluations/runs/{run_id}/default-queue
+    # GET /evaluations/runs/{run_id}/queues/default
     @intercept_exceptions()
     @suppress_exceptions(default=EvaluationQueueResponse(), exclude=[HTTPException])
     async def fetch_default_queue(
@@ -913,7 +908,7 @@ class EvaluationsRouter:
         return run_id_response
 
     # POST /evaluations/runs/{run_id}/close
-    # POST /evaluations/runs/{run_id}/close/{status}
+    # POST /evaluations/runs/{run_id}/close?status=
     @intercept_exceptions()
     async def close_run(
         self,
@@ -921,7 +916,7 @@ class EvaluationsRouter:
         *,
         run_id: UUID,
         #
-        status: Optional[EvaluationStatus] = None,
+        status: Optional[EvaluationStatus] = Query(None),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1479,6 +1474,66 @@ class EvaluationsRouter:
 
         return metrics_response
 
+    # GET /evaluations/metrics/{metrics_id}
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationMetricsResponse(), exclude=[HTTPException])
+    async def fetch_metric(
+        self,
+        request: Request,
+        *,
+        metrics_id: UUID,
+    ) -> EvaluationMetricsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_EVALUATION_METRICS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        metrics = await self.evaluations_service.fetch_metrics(
+            project_id=UUID(request.state.project_id),
+            #
+            metrics_ids=[metrics_id],
+        )
+
+        metrics_response = EvaluationMetricsResponse(
+            count=len(metrics),
+            metrics=metrics,
+        )
+
+        return metrics_response
+
+    # DELETE /evaluations/metrics/{metrics_id}
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_metric(
+        self,
+        request: Request,
+        *,
+        metrics_id: UUID,
+    ) -> EvaluationMetricsIdsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        metrics_ids = await self.evaluations_service.delete_metrics(
+            project_id=UUID(request.state.project_id),
+            #
+            metrics_ids=[metrics_id],
+        )
+
+        metrics_ids_response = EvaluationMetricsIdsResponse(
+            count=len(metrics_ids),
+            metrics_ids=metrics_ids,
+        )
+
+        return metrics_ids_response
+
     # EVALUATION QUEUES --------------------------------------------------------
 
     # POST /evaluations/queues/
@@ -1822,6 +1877,16 @@ class SimpleEvaluationsRouter:
             operation_id="create_simple_evaluation",
         )
 
+        # POST /api/simple/evaluations/query
+        self.router.add_api_route(
+            path="/query",
+            methods=["POST"],
+            endpoint=self.query_evaluations,
+            response_model=SimpleEvaluationsResponse,
+            response_model_exclude_none=True,
+            operation_id="query_simple_evaluations",
+        )
+
         # GET /api/simple/evaluations/{evaluation_id}
         self.router.add_api_route(
             path="/{evaluation_id}",
@@ -1850,16 +1915,6 @@ class SimpleEvaluationsRouter:
             response_model=SimpleEvaluationIdResponse,
             response_model_exclude_none=True,
             operation_id="delete_simple_evaluation",
-        )
-
-        # POST /api/simple/evaluations/query
-        self.router.add_api_route(
-            path="/query",
-            methods=["POST"],
-            endpoint=self.query_evaluations,
-            response_model=SimpleEvaluationsResponse,
-            response_model_exclude_none=True,
-            operation_id="query_simple_evaluations",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/start
@@ -1902,14 +1957,24 @@ class SimpleEvaluationsRouter:
             operation_id="open_simple_evaluation",
         )
 
+        # POST /api/simple/evaluations/{evaluation_id}/populate
+        self.router.add_api_route(
+            path="/{evaluation_id}/populate",
+            methods=["POST"],
+            endpoint=self.populate_evaluation_slice,
+            response_model=EvaluationResultsResponse,
+            response_model_exclude_none=True,
+            operation_id="populate_slice",
+        )
+
         # POST /api/simple/evaluations/{evaluation_id}/process
         self.router.add_api_route(
             path="/{evaluation_id}/process",
             methods=["POST"],
             endpoint=self.process_evaluation_slice,
-            status_code=202,  # async dispatch — accepted, not yet done
+            status_code=http_status.HTTP_202_ACCEPTED,
             response_model=None,
-            responses={202: {"description": "Accepted — processing dispatched."}},
+            responses={http_status.HTTP_202_ACCEPTED: {"description": "Accepted."}},
             operation_id="process_slice",
         )
 
@@ -1923,22 +1988,12 @@ class SimpleEvaluationsRouter:
             operation_id="probe_slice",
         )
 
-        # POST /api/simple/evaluations/{evaluation_id}/populate
-        self.router.add_api_route(
-            path="/{evaluation_id}/populate",
-            methods=["POST"],
-            endpoint=self.populate_evaluation_slice,
-            response_model=EvaluationResultsResponse,
-            response_model_exclude_none=True,
-            operation_id="populate_slice",
-        )
-
         # POST /api/simple/evaluations/{evaluation_id}/prune
         self.router.add_api_route(
             path="/{evaluation_id}/prune",
             methods=["POST"],
             endpoint=self.prune_evaluation_slice,
-            status_code=204,  # cells removed — no body
+            status_code=http_status.HTTP_204_NO_CONTENT,
             operation_id="prune_slice",
         )
 
@@ -1981,9 +2036,9 @@ class SimpleEvaluationsRouter:
             operation_id="remove_steps",
         )
 
-        # POST /api/simple/evaluations/{evaluation_id}/repeats
+        # POST /api/simple/evaluations/{evaluation_id}/repeats/set
         self.router.add_api_route(
-            path="/{evaluation_id}/repeats",
+            path="/{evaluation_id}/repeats/set",
             methods=["POST"],
             endpoint=self.set_evaluation_repeats,
             response_model=EvaluationRunResponse,
@@ -2301,6 +2356,54 @@ class SimpleEvaluationsRouter:
 
     # TENSOR SLICE OPS ---------------------------------------------------------
 
+    # POST /api/simple/evaluations/{evaluation_id}/populate
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def populate_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        populate_slice_request: PopulateSliceRequest,
+    ) -> EvaluationResultsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        # The path addresses ONE run; each result carries its own run_id. Reject
+        # any result whose run_id does not match the path so a caller cannot
+        # write cells into a different run via the body (the service/DAO only
+        # scope by project + per-result run_id, not the path).
+        mismatched = [
+            result
+            for result in populate_slice_request.results
+            if result.run_id != evaluation_id
+        ]
+        if mismatched:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "All results must target the evaluation in the path "
+                    f"({evaluation_id})."
+                ),
+            )
+
+        results = await self.simple_evaluations_service.populate_slice(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            results=populate_slice_request.results,
+        )
+
+        return EvaluationResultsResponse(
+            count=len(results),
+            results=results,
+        )
+
     # POST /api/simple/evaluations/{evaluation_id}/process
     @intercept_exceptions()
     @handle_evaluation_closed_exception()
@@ -2309,7 +2412,7 @@ class SimpleEvaluationsRouter:
         request: Request,
         *,
         evaluation_id: UUID,
-        slice_request: ProcessSliceRequest,
+        preocess_slice_request: ProcessSliceRequest,
     ) -> None:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -2327,10 +2430,12 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
-            scenario_ids=slice_request.scenario_ids,
-            step_keys=slice_request.step_keys,
-            repeat_idxs=slice_request.repeat_idxs,
-            process_mode="force" if slice_request.overwrite else "fill-missing",
+            scenario_ids=preocess_slice_request.scenario_ids,
+            step_keys=preocess_slice_request.step_keys,
+            repeat_idxs=preocess_slice_request.repeat_idxs,
+            process_mode="force"
+            if preocess_slice_request.overwrite
+            else "fill-missing",
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/probe
@@ -2340,7 +2445,7 @@ class SimpleEvaluationsRouter:
         request: Request,
         *,
         evaluation_id: UUID,
-        slice_request: TensorSliceRequest,
+        probe_slice_request: ProbeSliceRequest,
     ) -> EvaluationResultsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -2354,57 +2459,9 @@ class SimpleEvaluationsRouter:
             project_id=UUID(request.state.project_id),
             #
             run_id=evaluation_id,
-            scenario_ids=slice_request.scenario_ids,
-            step_keys=slice_request.step_keys,
-            repeat_idxs=slice_request.repeat_idxs,
-        )
-
-        return EvaluationResultsResponse(
-            count=len(results),
-            results=results,
-        )
-
-    # POST /api/simple/evaluations/{evaluation_id}/populate
-    @intercept_exceptions()
-    @handle_evaluation_closed_exception()
-    async def populate_evaluation_slice(
-        self,
-        request: Request,
-        *,
-        evaluation_id: UUID,
-        populate_request: EvaluationResultsSetRequest,
-    ) -> EvaluationResultsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        # The path addresses ONE run; each result carries its own run_id. Reject
-        # any result whose run_id does not match the path so a caller cannot
-        # write cells into a different run via the body (the service/DAO only
-        # scope by project + per-result run_id, not the path).
-        mismatched = [
-            result
-            for result in populate_request.results
-            if result.run_id != evaluation_id
-        ]
-        if mismatched:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "All results must target the evaluation in the path "
-                    f"({evaluation_id})."
-                ),
-            )
-
-        results = await self.simple_evaluations_service.populate_slice(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            results=populate_request.results,
+            scenario_ids=probe_slice_request.scenario_ids,
+            step_keys=probe_slice_request.step_keys,
+            repeat_idxs=probe_slice_request.repeat_idxs,
         )
 
         return EvaluationResultsResponse(
@@ -2420,7 +2477,7 @@ class SimpleEvaluationsRouter:
         request: Request,
         *,
         evaluation_id: UUID,
-        slice_request: TensorSliceRequest,
+        prune_slice_request: PruneSliceRequest,
     ) -> None:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -2437,9 +2494,9 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
-            scenario_ids=slice_request.scenario_ids,
-            step_keys=slice_request.step_keys,
-            repeat_idxs=slice_request.repeat_idxs,
+            scenario_ids=prune_slice_request.scenario_ids,
+            step_keys=prune_slice_request.step_keys,
+            repeat_idxs=prune_slice_request.repeat_idxs,
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/scenarios/add
@@ -2584,7 +2641,7 @@ class SimpleEvaluationsRouter:
             run=run,
         )
 
-    # POST /api/simple/evaluations/{evaluation_id}/repeats
+    # POST /api/simple/evaluations/{evaluation_id}/repeats/set
     @intercept_exceptions()
     @handle_evaluation_closed_exception()
     async def set_evaluation_repeats(

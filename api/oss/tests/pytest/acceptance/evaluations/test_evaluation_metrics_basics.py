@@ -214,25 +214,18 @@ class TestEvaluationMetricsBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        # NOTE: GET /metrics/{id} does not exist, use POST /metrics/query
         response = authed_api(
-            "POST",
-            "/evaluations/metrics/query",
-            json={
-                "metrics": {
-                    "run_id": run_id,
-                },
-            },
+            "GET",
+            f"/evaluations/metrics/{metric['id']}",
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] >= 1
-        metric_ids = [m["id"] for m in response["metrics"]]
-        assert metric["id"] in metric_ids
-        matched = [m for m in response["metrics"] if m["id"] == metric["id"]][0]
+        assert response["count"] == 1
+        matched = response["metrics"][0]
+        assert matched["id"] == metric["id"]
         assert matched["data"]["integer_metric"] == 42
         assert matched["data"]["float_metric"] == 3.14
         assert matched["data"]["string_metric"] == "test"
@@ -345,8 +338,7 @@ class TestEvaluationMetricsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/evaluations/metrics/",
-            json={"metrics_ids": [metric["id"]]},
+            f"/evaluations/metrics/{metric['id']}",
         )
         # ----------------------------------------------------------------------
 
@@ -360,8 +352,7 @@ class TestEvaluationMetricsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/evaluations/metrics/",
-            json={"metrics_ids": [metric["id"]]},
+            f"/evaluations/metrics/{metric['id']}",
         )
         # ----------------------------------------------------------------------
 
