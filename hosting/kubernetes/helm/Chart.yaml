@@ -1,0 +1,29 @@
+apiVersion: v2
+name: agenta
+description: A Helm chart for deploying Agenta (OSS or EE) on Kubernetes
+type: application
+version: 0.101.0
+appVersion: "v0.101.0"
+keywords:
+  - agenta
+  - llm
+  - ai
+  - observability
+  - prompt-management
+home: https://agenta.ai
+icon: https://raw.githubusercontent.com/Agenta-AI/agenta/main/docs/static/images/favicon.ico
+sources:
+  - https://github.com/Agenta-AI/agenta
+maintainers:
+  - name: Agenta
+    url: https://github.com/Agenta-AI
+dependencies:
+  # NOTE: the floating range below is resolved to an exact pin in Chart.lock,
+  # which IS committed to the repo. Keep Chart.lock under version control —
+  # an unlocked `helm dependency update` can pull a different 18.5.x patch
+  # that ships a different image, and the bundled Bitnami StatefulSet has
+  # immutable volumeClaimTemplates: a mismatched upgrade will fail.
+  - name: postgresql
+    version: "~18.5"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled

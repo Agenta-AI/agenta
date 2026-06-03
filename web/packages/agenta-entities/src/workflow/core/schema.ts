@@ -290,6 +290,14 @@ export const workflowSchema = z
         workflow_id: z.string().nullable().optional(),
         workflow_variant_id: z.string().nullable().optional(),
 
+        // Parent slugs (from revision responses; backend returns artifact_slug
+        // and variant_slug alongside the IDs so callers can verify which
+        // workflow/variant the revision belongs to without a second lookup).
+        workflow_slug: z.string().nullable().optional(),
+        workflow_variant_slug: z.string().nullable().optional(),
+        artifact_slug: z.string().nullable().optional(),
+        variant_slug: z.string().nullable().optional(),
+
         // Commit fields
         /** Commit message (from CommitDBA on revision responses) */
         message: z.string().nullable().optional(),
@@ -518,19 +526,84 @@ const PRESET_COLOR_NAMES = [
 type PresetColorName = (typeof PRESET_COLOR_NAMES)[number]
 
 const PRESET_COLOR_MAP: Record<PresetColorName, EvaluatorColor> = {
-    blue: {name: "blue", bg: "#e6f4ff", text: "#1677ff", border: "#91caff"},
-    purple: {name: "purple", bg: "#f9f0ff", text: "#722ed1", border: "#d3adf7"},
-    cyan: {name: "cyan", bg: "#e6fffb", text: "#13c2c2", border: "#87e8de"},
-    green: {name: "green", bg: "#f6ffed", text: "#52c41a", border: "#b7eb8f"},
-    magenta: {name: "magenta", bg: "#fff0f6", text: "#eb2f96", border: "#ffadd2"},
-    pink: {name: "pink", bg: "#fff0f6", text: "#eb2f96", border: "#ffadd2"},
-    red: {name: "red", bg: "#fff2f0", text: "#f5222d", border: "#ffccc7"},
-    orange: {name: "orange", bg: "#fff7e6", text: "#fa8c16", border: "#ffd591"},
-    yellow: {name: "yellow", bg: "#feffe6", text: "#fadb14", border: "#fffb8f"},
-    volcano: {name: "volcano", bg: "#fff2e8", text: "#fa541c", border: "#ffbb96"},
-    geekblue: {name: "geekblue", bg: "#f0f5ff", text: "#2f54eb", border: "#adc6ff"},
-    lime: {name: "lime", bg: "#fcffe6", text: "#a0d911", border: "#eaff8f"},
-    gold: {name: "gold", bg: "#fffbe6", text: "#faad14", border: "#ffe58f"},
+    blue: {
+        name: "blue",
+        bg: "var(--ant-blue-1)",
+        text: "var(--ant-blue-6)",
+        border: "var(--ant-blue-3)",
+    },
+    purple: {
+        name: "purple",
+        bg: "var(--ant-purple-1)",
+        text: "var(--ant-purple-6)",
+        border: "var(--ant-purple-3)",
+    },
+    cyan: {
+        name: "cyan",
+        bg: "var(--ant-cyan-1)",
+        text: "var(--ant-cyan-6)",
+        border: "var(--ant-cyan-3)",
+    },
+    green: {
+        name: "green",
+        bg: "var(--ant-green-1)",
+        text: "var(--ant-green-6)",
+        border: "var(--ant-green-3)",
+    },
+    magenta: {
+        name: "magenta",
+        bg: "var(--ant-magenta-1)",
+        text: "var(--ant-magenta-6)",
+        border: "var(--ant-magenta-3)",
+    },
+    pink: {
+        name: "pink",
+        bg: "var(--ant-pink-1)",
+        text: "var(--ant-pink-6)",
+        border: "var(--ant-pink-3)",
+    },
+    red: {
+        name: "red",
+        bg: "var(--ant-red-1)",
+        text: "var(--ant-red-6)",
+        border: "var(--ant-red-3)",
+    },
+    orange: {
+        name: "orange",
+        bg: "var(--ant-orange-1)",
+        text: "var(--ant-orange-6)",
+        border: "var(--ant-orange-3)",
+    },
+    yellow: {
+        name: "yellow",
+        bg: "var(--ant-yellow-1)",
+        text: "var(--ant-yellow-6)",
+        border: "var(--ant-yellow-3)",
+    },
+    volcano: {
+        name: "volcano",
+        bg: "var(--ant-volcano-1)",
+        text: "var(--ant-volcano-6)",
+        border: "var(--ant-volcano-3)",
+    },
+    geekblue: {
+        name: "geekblue",
+        bg: "var(--ant-geekblue-1)",
+        text: "var(--ant-geekblue-6)",
+        border: "var(--ant-geekblue-3)",
+    },
+    lime: {
+        name: "lime",
+        bg: "var(--ant-lime-1)",
+        text: "var(--ant-lime-6)",
+        border: "var(--ant-lime-3)",
+    },
+    gold: {
+        name: "gold",
+        bg: "var(--ant-gold-1)",
+        text: "var(--ant-gold-6)",
+        border: "var(--ant-gold-3)",
+    },
 }
 
 export interface EvaluatorColor {

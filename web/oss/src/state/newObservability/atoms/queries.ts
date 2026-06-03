@@ -227,17 +227,6 @@ export const traceAnnotationInfoAtomFamily = atomFamily((key: string) =>
 )
 
 // Formatting helpers ----------------------------------------------------------
-export const nodeDisplayNameAtomFamily = atomFamily((name: string) =>
-    atom(() => {
-        const truncated = name.length >= 15
-        return {
-            text: truncated ? `${name.slice(0, 15)}...` : name,
-            full: name,
-            truncated,
-        }
-    }),
-)
-
 export const formattedTimestampAtomFamily = atomFamily((ts?: string) =>
     atom(() => formatDay({date: ts, outputFormat: "HH:mm:ss DD MMM YYYY"})),
 )

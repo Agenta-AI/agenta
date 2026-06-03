@@ -216,7 +216,9 @@ const PromptImageUpload = ({
                 ) : (
                     <ImageIcon
                         size={48}
-                        className={clsx(error ? "text-[#D61010]" : "text-[#758391]")}
+                        className={clsx(
+                            error ? "text-[var(--ag-c-D61010)]" : "text-[var(--ag-c-758391)]",
+                        )}
                     />
                 )}
 
@@ -246,7 +248,9 @@ const PromptImageUpload = ({
                     )}
 
                     {error && (
-                        <Typography.Text className="text-[#D61010] mt-1">{error}</Typography.Text>
+                        <Typography.Text className="text-[var(--ag-c-D61010)] mt-1">
+                            {error}
+                        </Typography.Text>
                     )}
                 </div>
             </div>
@@ -273,10 +277,10 @@ const PromptImageUpload = ({
                     "w-full flex items-center gap-4 py-2 pr-1 pl-2 rounded-md",
                     "[&_.ant-upload-drag]:bg-transparent [&_.ant-upload-drag]:border-none",
                     "[&_.ant-upload-btn]:!p-0",
-                    "border border-solid border-[#BDC7D1]",
+                    "border border-solid border-[var(--ag-c-BDC7D1)]",
                     disabled ? "cursor-not-allowed" : "cursor-pointer",
                     {
-                        "!border-[#D61010]": error,
+                        "!border-[var(--ag-c-D61010)]": error,
                         "!border-solid": status === "done" && !error,
                     },
                 )}

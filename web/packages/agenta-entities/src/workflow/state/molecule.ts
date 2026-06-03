@@ -442,12 +442,16 @@ const slugAtomFamily = atomFamily((workflowId: string) =>
 /**
  * Configuration selector.
  *
- * Returns entity parameters directly. Evaluator nesting is already applied
- * in `workflowEntityAtomFamily` (entity merge layer), so no transform needed.
+ * Reads parameters from the fully merged entity (`workflowEntityAtomFamily`)
+ * so that values seeded from inspect/openapi schema defaults are visible to
+ * the form. The base atom skips schema resolution and therefore never sees
+ * those seeded values, which causes custom URL workflows with no stored
+ * parameters to render an empty form even when their openapi schema defines
+ * defaults. Evaluator nesting is already applied in the merge layer.
  */
 const configurationSelectorAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
-        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        const entity = get(workflowEntityAtomFamily(workflowId))
         return resolveParameters(entity?.data) ?? null
     }),
 )

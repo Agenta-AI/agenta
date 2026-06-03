@@ -3,6 +3,9 @@ import {useMemo} from "react"
 import type {RootDrawerViewMode, TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
 import {atom, useAtomValue} from "jotai"
 
+import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
+
+import {invocationTraceSummaryAtomFamily} from "../../atoms/invocationTraceSummary"
 import {
     buildColumnValueConfig,
     scenarioColumnValueSelectionAtomFamily,
@@ -84,6 +87,9 @@ const InvocationOutputsAdapter = ({
     collapseSignal,
 }: InvocationOutputsAdapterProps) => {
     const {columns, value} = useInvocationOutputDrawerData({runId, scenarioId, sections})
+    const traceSummary = useAtomValue(
+        useMemo(() => invocationTraceSummaryAtomFamily({scenarioId, runId}), [runId, scenarioId]),
+    )
 
     if (!columns.length) return null
 
@@ -94,6 +100,15 @@ const InvocationOutputsAdapter = ({
             columns={columns}
             rootViewMode={rootViewMode}
             collapseSignal={collapseSignal}
+            headerExtra={
+                traceSummary.traceId ? (
+                    <SharedGenerationResultUtils
+                        traceId={traceSummary.traceId}
+                        showStatus={false}
+                        className="flex items-center gap-1"
+                    />
+                ) : null
+            }
         />
     )
 }

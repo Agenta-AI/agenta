@@ -10,6 +10,13 @@ if [ "$ENTRYPOINT_DIR" != "." ]; then
   ENTRYPOINT_DIR="/app"
 fi
 
+# Normalize SuperTokens connection URI: prefer SUPERTOKENS_URI_CORE (canonical,
+# shared with api/services); fall back to SUPERTOKENS_CONNECTION_URI (legacy
+# Node SDK convention) so older deployments keep working.
+export SUPERTOKENS_URI_CORE="${SUPERTOKENS_URI_CORE:-${SUPERTOKENS_CONNECTION_URI}}"
+# LEGACY / DEPRECATED
+export SUPERTOKENS_CONNECTION_URI="${SUPERTOKENS_CONNECTION_URI:-${SUPERTOKENS_URI_CORE}}"
+
 # Infer AGENTA_SENDGRID_ENABLED from SENDGRID_API_KEY and sender address
 SENDGRID_FROM_ADDRESS_VALUE="${SENDGRID_FROM_ADDRESS:-${AGENTA_AUTHN_EMAIL_FROM:-${AGENTA_SEND_EMAIL_FROM_ADDRESS}}}"
 if [ -n "$SENDGRID_API_KEY" ] && [ -n "$SENDGRID_FROM_ADDRESS_VALUE" ]; then

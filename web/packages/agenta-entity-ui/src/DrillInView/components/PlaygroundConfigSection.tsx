@@ -1126,8 +1126,8 @@ function PlaygroundConfigSection({
 
     const configurePopoverContent = useMemo(
         () => (
-            <div className="w-[320px] max-h-[550px] overflow-hidden rounded bg-white">
-                <div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-[rgba(5,23,41,0.08)] bg-[#F6F8FA] px-3 py-2">
+            <div className="w-[320px] max-h-[550px] overflow-hidden rounded bg-[var(--ag-c-FFFFFF)]">
+                <div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-c-F6F8FA)] px-3 py-2">
                     <div className="flex items-center gap-2 min-w-0">
                         {fallbackDetail && (
                             <Button
@@ -1174,7 +1174,7 @@ function PlaygroundConfigSection({
                     <Tabs
                         activeKey={activeConfigureTab}
                         onChange={handleConfigureTabChange}
-                        className="[&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-nav]:!bg-[#F6F8FA] [&_.ant-tabs-nav]:!px-0 [&_.ant-tabs-nav-wrap]:!w-full [&_.ant-tabs-nav-list]:!w-full [&_.ant-tabs-tab]:!basis-0 [&_.ant-tabs-tab]:!flex-1 [&_.ant-tabs-tab]:!justify-center [&_.ant-tabs-tab]:!mx-0 [&_.ant-tabs-tab-btn]:!mx-auto [&_.ant-tabs-content-holder]:max-h-[452px] [&_.ant-tabs-content-holder]:overflow-y-auto [&_.ant-tabs-content-holder]:px-3 [&_.ant-tabs-content-holder]:py-3"
+                        className="[&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-nav]:!bg-[var(--ag-c-F6F8FA)] [&_.ant-tabs-nav]:!px-0 [&_.ant-tabs-nav-wrap]:!w-full [&_.ant-tabs-nav-list]:!w-full [&_.ant-tabs-tab]:!basis-0 [&_.ant-tabs-tab]:!flex-1 [&_.ant-tabs-tab]:!justify-center [&_.ant-tabs-tab]:!mx-0 [&_.ant-tabs-tab-btn]:!mx-auto [&_.ant-tabs-content-holder]:max-h-[452px] [&_.ant-tabs-content-holder]:overflow-y-auto [&_.ant-tabs-content-holder]:px-3 [&_.ant-tabs-content-holder]:py-3"
                         items={[
                             {
                                 key: "model",
@@ -1362,11 +1362,11 @@ function PlaygroundConfigSection({
 
             return (
                 <div
-                    className="flex items-center justify-between w-full px-3 py-2 bg-[#FAFAFB] cursor-pointer select-none sticky top-[48px] z-[2]"
+                    className="flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] cursor-pointer select-none sticky top-[48px] z-[2]"
                     onClick={() => toggleSection(fieldKey)}
                 >
                     <div className="flex items-center gap-1">
-                        <span className="text-[rgba(5,23,41,0.45)] flex items-center">
+                        <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
                             {isCollapsed ? (
                                 <CaretRight size={14} weight="bold" />
                             ) : (
@@ -1491,9 +1491,9 @@ function PlaygroundConfigSection({
     if (isConfigLoading) {
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>
-                <div className="h-9 rounded bg-[rgba(5,23,41,0.06)] animate-pulse" />
-                <div className="h-32 rounded border border-solid border-[rgba(5,23,41,0.08)] bg-[rgba(5,23,41,0.02)] animate-pulse" />
-                <div className="h-24 rounded border border-solid border-[rgba(5,23,41,0.08)] bg-[rgba(5,23,41,0.02)] animate-pulse" />
+                <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
+                <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
             </div>
         )
     }
@@ -1504,10 +1504,10 @@ function PlaygroundConfigSection({
                 className={clsx("flex flex-col items-center justify-center py-12 px-6", className)}
             >
                 <div className="flex flex-col items-center gap-2 text-center max-w-[320px]">
-                    <span className="text-sm font-medium text-[rgba(5,23,41,0.65)]">
+                    <span className="text-sm font-medium text-[var(--ag-rgba-051729-65)]">
                         No configuration needed
                     </span>
-                    <span className="text-xs text-[rgba(5,23,41,0.45)]">
+                    <span className="text-xs text-[var(--ag-rgba-051729-45)]">
                         This evaluator runs with default settings. You can use it directly without
                         any additional configuration.
                     </span>
@@ -1517,6 +1517,10 @@ function PlaygroundConfigSection({
     }
 
     // ========== RENDER ==========
+    const hasTopLevelObjectSection = Object.values(parameters).some(
+        (value) => value !== null && typeof value === "object" && !Array.isArray(value),
+    )
+
     return (
         <div className={clsx("flex flex-col", className)}>
             {viewMode !== "form" ? (
@@ -1524,7 +1528,9 @@ function PlaygroundConfigSection({
                     <div
                         className={clsx(
                             "border border-solid rounded overflow-hidden",
-                            validationErrors.length > 0 ? "border-[#ff4d4f]" : "border-gray-200",
+                            validationErrors.length > 0
+                                ? "border-[var(--ag-c-FF4D4F)]"
+                                : "border-gray-200",
                         )}
                     >
                         <SharedEditor
@@ -1547,7 +1553,7 @@ function PlaygroundConfigSection({
                             {validationErrors.map((err, i) => (
                                 <div
                                     key={`${err.path}-${i}`}
-                                    className="text-xs text-[#ff4d4f] leading-tight"
+                                    className="text-xs text-[var(--ag-c-FF4D4F)] leading-tight"
                                 >
                                     <span className="font-mono font-medium">{err.path}</span>
                                     {": "}
@@ -1558,20 +1564,27 @@ function PlaygroundConfigSection({
                     )}
                 </div>
             ) : (
-                <MoleculeDrillInView
-                    key={`form-${discardVersionRef.current}`}
-                    entityId={revisionId}
-                    molecule={drillInAdapter}
-                    editable={!disabled && !useServerData}
-                    rootTitle="Configuration"
-                    showBreadcrumb={false}
-                    collapsible={false}
-                    slots={{
-                        fieldHeader: fieldHeaderSlot,
-                        fieldActions: fieldActionsSlot,
-                        fieldContent: fieldContentSlot,
-                    }}
-                />
+                <>
+                    {!hasTopLevelObjectSection && (
+                        <div className="flex items-center w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] sticky top-[48px] z-[2]">
+                            <span className="capitalize font-medium text-sm">Config</span>
+                        </div>
+                    )}
+                    <MoleculeDrillInView
+                        key={`form-${discardVersionRef.current}`}
+                        entityId={revisionId}
+                        molecule={drillInAdapter}
+                        editable={!disabled && !useServerData}
+                        rootTitle="Configuration"
+                        showBreadcrumb={false}
+                        collapsible={false}
+                        slots={{
+                            fieldHeader: fieldHeaderSlot,
+                            fieldActions: fieldActionsSlot,
+                            fieldContent: fieldContentSlot,
+                        }}
+                    />
+                </>
             )}
         </div>
     )

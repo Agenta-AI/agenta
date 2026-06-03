@@ -14,6 +14,7 @@
  * - Create/Update: workflow + revision commit endpoints
  */
 
+import {getAgentaSdkClient} from "@agenta/sdk"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
 
@@ -265,6 +266,75 @@ export async function queryWorkflowRevisionsByWorkflows(
     }
 
     return validated
+}
+
+/**
+ * Retrieve a single workflow revision by reference.
+ *
+ * Endpoint: `POST /workflows/revisions/retrieve`
+ *
+ * Resolves a workflow + variant + revision reference into a single revision.
+ * The returned revision carries both its own UUID (`id`) and its parent
+ * workflow's UUID (`workflow_id`), which is what callers need to navigate to
+ * an app-scoped playground page.
+ *
+ * Backend validation rules (see `core/workflows/service.py`):
+ *
+ *  - `workflow_revision_ref.id` or `workflow_revision_ref.slug` alone
+ *    identifies a revision (both project-unique).
+ *  - `workflow_revision_ref.version` is a per-variant sequence number; it
+ *    requires `workflow_variant_ref` to be unambiguous. Sending version
+ *    alone (or with only `workflow_ref`) returns HTTP 400.
+ *
+ * When `workflowRevisionRef` is omitted, the backend returns the latest
+ * revision of the resolved variant (or an arbitrary variant of the resolved
+ * workflow if no variant ref is supplied either).
+ *
+ * @returns The resolved revision, or `null` when no match was found.
+ */
+export async function retrieveWorkflowRevision({
+    projectId,
+    workflowRef,
+    workflowVariantRef,
+    workflowRevisionRef,
+}: {
+    projectId: string
+    workflowRef?: {id?: string; slug?: string; version?: string}
+    workflowVariantRef?: {id?: string; slug?: string; version?: string}
+    workflowRevisionRef?: {id?: string; slug?: string; version?: string}
+}): Promise<Workflow | null> {
+    if (!projectId) return null
+    // The backend needs at least one identifying ref (id or slug at any
+    // level). A bare `version` on the revision ref is not identifying on
+    // its own (it's a per-variant sequence number) and the backend rejects
+    // that shape with 400, so we skip the call entirely in that case.
+    const hasWorkflowIdent = !!(workflowRef?.id || workflowRef?.slug)
+    const hasVariantIdent = !!(workflowVariantRef?.id || workflowVariantRef?.slug)
+    const hasRevisionIdent = !!(workflowRevisionRef?.id || workflowRevisionRef?.slug)
+    const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
+    if (hasNoIdentifyingRef) return null
+
+    // Use the Fern-generated client (single source of truth for the
+    // request/response shape, kept in sync with the backend OpenAPI spec).
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    const data = await client.workflows.retrieveWorkflowRevision(
+        {
+            ...(workflowRef ? {workflow_ref: workflowRef} : {}),
+            ...(workflowVariantRef ? {workflow_variant_ref: workflowVariantRef} : {}),
+            ...(workflowRevisionRef ? {workflow_revision_ref: workflowRevisionRef} : {}),
+        },
+        {queryParams: {project_id: projectId}},
+    )
+
+    // Zod validation stays at the boundary — Fern's compile-time types
+    // under-declare backend `extra="allow"` fields (e.g. `artifact_slug`),
+    // so drift detection via the local schema still has independent value.
+    const validated = safeParseWithLogging(
+        workflowRevisionResponseSchema,
+        data,
+        "[retrieveWorkflowRevision]",
+    )
+    return validated?.workflow_revision ?? null
 }
 
 /**

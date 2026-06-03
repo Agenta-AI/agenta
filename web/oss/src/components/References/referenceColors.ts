@@ -6,36 +6,39 @@ export interface ReferenceToneColors {
     border: string
 }
 
+// Backed by per-tone CSS variables (see styles/theme-variables.css): light =
+// the exact original Untitled-UI hex (unchanged), dark = the matching antd
+// preset. So reference chips are light-lossless yet adapt automatically in dark.
 const REFERENCE_TONE_COLORS: Record<ReferenceTone, ReferenceToneColors> = {
     app: {
-        text: "#175CD3",
-        background: "#EFF8FF",
-        border: "#B2DDFF",
+        text: "var(--ag-ref-app-text)",
+        background: "var(--ag-ref-app-bg)",
+        border: "var(--ag-ref-app-border)",
     },
     variant: {
-        text: "#027A48",
-        background: "#ECFDF3",
-        border: "#ABEFC6",
+        text: "var(--ag-ref-variant-text)",
+        background: "var(--ag-ref-variant-bg)",
+        border: "var(--ag-ref-variant-border)",
     },
     testset: {
-        text: "#5925DC",
-        background: "#F4EBFF",
-        border: "#D6BBFB",
+        text: "var(--ag-ref-testset-text)",
+        background: "var(--ag-ref-testset-bg)",
+        border: "var(--ag-ref-testset-border)",
     },
     query: {
-        text: "#B93815",
-        background: "#FEF6EE",
-        border: "#F9DBAF",
+        text: "var(--ag-ref-query-text)",
+        background: "var(--ag-ref-query-bg)",
+        border: "var(--ag-ref-query-border)",
     },
     evaluator: {
-        text: "#C01048",
-        background: "#FFF1F3",
-        border: "#FCCEEE",
+        text: "var(--ag-ref-evaluator-text)",
+        background: "var(--ag-ref-evaluator-bg)",
+        border: "var(--ag-ref-evaluator-border)",
     },
     environment: {
-        text: "#0F766E",
-        background: "#ECFDF3",
-        border: "#99F6E4",
+        text: "var(--ag-ref-environment-text)",
+        background: "var(--ag-ref-environment-bg)",
+        border: "var(--ag-ref-environment-border)",
     },
 }
 

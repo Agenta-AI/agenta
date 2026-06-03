@@ -1,6 +1,7 @@
-import {type ReactNode, useCallback, useMemo} from "react"
+import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
+import {hasAppReference} from "@agenta/playground"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -14,7 +15,6 @@ import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawe
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {openTraceInPlaygroundAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/openInPlayground"
 import {closeTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useAppNavigation} from "@/oss/state/appState"
 import {urlAtom} from "@/oss/state/url"
 import {buildPlaygroundUrl} from "@/oss/state/url/playground"
@@ -41,27 +41,6 @@ const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
  */
 const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
 
-/**
- * Check if a span has an app reference (application or application_revision).
- * Checks ag.references (dict format) and top-level references array.
- */
-function hasAppReference(span: TraceSpanNode): boolean {
-    const attrs = span.attributes as Record<string, unknown> | undefined
-    const ag = attrs?.ag as Record<string, unknown> | undefined
-    const agRefs = ag?.references as Record<string, unknown> | undefined
-    if (agRefs?.application || agRefs?.application_revision) return true
-
-    const topRefs = span.references as {attributes?: {key?: string}}[] | undefined
-    if (Array.isArray(topRefs)) {
-        return topRefs.some(
-            (ref) =>
-                ref.attributes?.key === "application" ||
-                ref.attributes?.key === "application_revision",
-        )
-    }
-    return false
-}
-
 const TraceTypeHeader = ({
     activeTrace,
     error,
@@ -76,6 +55,10 @@ const TraceTypeHeader = ({
     const closeTraceDrawer = useSetAtom(closeTraceDrawerAtom)
     const url = useAtomValue(urlAtom)
     const navigation = useAppNavigation()
+    // Resolving slug-only application references to UUIDs requires a backend
+    // round trip (POST /workflows/revisions/retrieve). Show a spinner on the
+    // Playground button so the user sees the click registered while we wait.
+    const [isOpening, setIsOpening] = useState(false)
     const spanIds = useMemo(() => {
         if (!activeTrace?.span_id) return []
         return [activeTrace.span_id]
@@ -121,19 +104,19 @@ const TraceTypeHeader = ({
         if (!hasApp && !hasExtractableData) {
             return {
                 enabled: false,
-                reason: "This span has no application reference or captured inputs to replay in the playground.",
+                reason: "This span has no workflow reference or captured inputs to replay in the playground.",
             }
         }
         if (!hasApp) {
             return {
                 enabled: false,
-                reason: `"${spanType}" spans need an application reference to be opened in the playground.`,
+                reason: `"${spanType}" spans need a workflow, variant, or revision reference to be opened in the playground.`,
             }
         }
         if (!hasExtractableData) {
             return {
                 enabled: false,
-                reason: "This span has an application reference but no captured parameters or inputs to open.",
+                reason: "This span has a workflow reference but no captured parameters or inputs to open.",
             }
         }
         return {
@@ -144,50 +127,58 @@ const TraceTypeHeader = ({
 
     const canOpenInPlayground = openInPlaygroundState.enabled
 
-    const handleOpenInPlayground = useCallback(() => {
+    const handleOpenInPlayground = useCallback(async () => {
         if (!activeTrace) return
-        const result = setOpenInPlayground(activeTrace)
-        if (!result?.entityId) return
+        setIsOpening(true)
+        try {
+            const result = await setOpenInPlayground(activeTrace)
+            // Need at least an entityId (revision or ephemeral) to open.
+            if (!result || !result.entityId) return
 
-        if (result.appId) {
-            // Span with an app reference → navigate to app playground.
-            // Close the trace drawer since we're leaving observability entirely.
-            closeTraceDrawer()
-            const appPlaygroundBase = `${url.baseAppURL}/${result.appId}/playground`
-            const playgroundUrl =
-                result.type === "revision"
-                    ? `${appPlaygroundBase}?revisions=${result.entityId}`
-                    : buildPlaygroundUrl([result.entityId], appPlaygroundBase)
-            navigation.push(playgroundUrl)
-            return
+            if (result.appId) {
+                // Span with an app reference → navigate to app playground.
+                // Close the trace drawer since we're leaving observability entirely.
+                closeTraceDrawer()
+                const appPlaygroundBase = `${url.baseAppURL}/${result.appId}/playground`
+                const playgroundUrl =
+                    result.type === "revision"
+                        ? // Specific revision — pin it in the URL.
+                          `${appPlaygroundBase}?revisions=${result.entityId}`
+                        : // Ephemeral entity scoped to an app (legacy evaluator path).
+                          buildPlaygroundUrl([result.entityId], appPlaygroundBase)
+                navigation.push(playgroundUrl)
+                return
+            }
+
+            // No app reference → open the playground in the workflow revision drawer
+            // overlaid on top of the trace drawer (which stays open behind so the
+            // user can still see the span they came from).
+            //
+            // We use "variant" context so the drawer renders DrawerAppPlayground
+            // (mode="app") with the ephemeral entity as the workflow under test —
+            // matching what the project-scoped /playground page did before this
+            // change. Even for evaluator spans, we want to replay the evaluator
+            // itself, NOT enter the evaluator-grading-an-app configuration flow
+            // that "evaluator-create" routes into.
+            //
+            // `expanded: true` opens the drawer in test mode (full playground
+            // with execution panel) instead of the collapsed config+metadata
+            // view — span replay is fundamentally a "run it and see" interaction.
+            //
+            // `stacked: true` forces the drawer to render with a mask + focus
+            // lock so the trace drawer behind can't steal focus from the prompt
+            // editor. Without this, the editor is unfocusable in either expanded
+            // or collapsed mode because the trace drawer's focus trap pulls
+            // focus back on every click.
+            openWorkflowRevisionDrawer({
+                entityId: result.entityId,
+                context: "variant",
+                expanded: true,
+                stacked: true,
+            })
+        } finally {
+            setIsOpening(false)
         }
-
-        // No app reference → open the playground in the workflow revision drawer
-        // overlaid on top of the trace drawer (which stays open behind so the
-        // user can still see the span they came from).
-        //
-        // We use "variant" context so the drawer renders DrawerAppPlayground
-        // (mode="app") with the ephemeral entity as the workflow under test —
-        // matching what the project-scoped /playground page did before this
-        // change. Even for evaluator spans, we want to replay the evaluator
-        // itself, NOT enter the evaluator-grading-an-app configuration flow
-        // that "evaluator-create" routes into.
-        //
-        // `expanded: true` opens the drawer in test mode (full playground
-        // with execution panel) instead of the collapsed config+metadata
-        // view — span replay is fundamentally a "run it and see" interaction.
-        //
-        // `stacked: true` forces the drawer to render with a mask + focus
-        // lock so the trace drawer behind can't steal focus from the prompt
-        // editor. Without this, the editor is unfocusable in either expanded
-        // or collapsed mode because the trace drawer's focus trap pulls
-        // focus back on every click.
-        openWorkflowRevisionDrawer({
-            entityId: result.entityId,
-            context: "variant",
-            expanded: true,
-            stacked: true,
-        })
     }, [
         activeTrace,
         setOpenInPlayground,
@@ -219,7 +210,7 @@ const TraceTypeHeader = ({
                     title="Copy span id"
                     tooltipProps={{placement: "bottom", arrow: true}}
                 >
-                    <Tag className="font-mono truncate bg-[#0517290F]" variant="filled">
+                    <Tag className="font-mono truncate bg-[var(--ag-c-0517290F)]" variant="filled">
                         # {activeTrace?.span_id || "-"}
                     </Tag>
                 </TooltipWithCopyAction>
@@ -231,7 +222,8 @@ const TraceTypeHeader = ({
                         type="default"
                         size="small"
                         icon={<Play size={14} />}
-                        disabled={!canOpenInPlayground}
+                        loading={isOpening}
+                        disabled={!canOpenInPlayground || isOpening}
                         onClick={handleOpenInPlayground}
                     >
                         Playground

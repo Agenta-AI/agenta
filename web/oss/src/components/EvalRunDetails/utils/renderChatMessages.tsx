@@ -128,7 +128,7 @@ export function renderChatMessages({
                                             href={fileContent.dataUri}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="text-[#1677ff]"
+                                            className="text-[var(--ag-c-1677FF)]"
                                         >
                                             {fileContent.filename}
                                         </a>
@@ -140,7 +140,7 @@ export function renderChatMessages({
                         </div>
                     ) : null}
                     {showDivider ? (
-                        <div className="h-px w-full bg-slate-200/90 dark:bg-slate-700/60 rounded-full" />
+                        <div className="h-px w-full bg-slate-200 dark:bg-slate-700 rounded-full" />
                     ) : null}
                 </section>
             )
@@ -206,7 +206,7 @@ export function renderChatMessages({
                                                 href={fileContent.dataUri}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="text-[#1677ff]"
+                                                className="text-[var(--ag-c-1677FF)]"
                                             >
                                                 {fileContent.filename}
                                             </a>
@@ -271,7 +271,7 @@ export function renderChatMessages({
                                                 href={fileContent?.dataUri}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="text-[#1677ff]"
+                                                className="text-[var(--ag-c-1677FF)]"
                                             >
                                                 {fileContent.filename}
                                             </a>
@@ -286,7 +286,7 @@ export function renderChatMessages({
                 )}
 
                 {showDivider ? (
-                    <div className="h-px w-full bg-slate-200/90 dark:bg-slate-700/60 rounded-full" />
+                    <div className="h-px w-full bg-slate-200 dark:bg-slate-700 rounded-full" />
                 ) : null}
             </section>
         )

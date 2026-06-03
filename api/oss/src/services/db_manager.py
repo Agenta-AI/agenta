@@ -462,19 +462,15 @@ async def setup_oss_organization_for_first_user(
 async def check_if_user_invitation_exists(email: str, organization_id: str):
     """Check if a user invitation with the given email and organization_id exists."""
 
-    project_db = await get_default_project_by_organization_id(
-        organization_id=organization_id
-    )
-    if not project_db:
-        raise NoResultFound(
-            "Default project not found for user invitation in organization."
-        )
-
     async with engine.core_session() as session:
         result = await session.execute(
-            select(InvitationDB).filter_by(
-                email=email,
-                project_id=project_db.id,
+            select(InvitationDB)
+            .join(ProjectDB, InvitationDB.project_id == ProjectDB.id)
+            .where(
+                InvitationDB.email == email,
+                ProjectDB.organization_id == uuid.UUID(organization_id),
+                InvitationDB.used.is_(False),
+                InvitationDB.expiration_date > datetime.now(timezone.utc),
             )
         )
         user_invitation = result.scalars().first()
@@ -570,8 +566,8 @@ async def _assign_user_to_organization_oss(
         )
 
     # Update user invitation if the user was invited
-    invitation = await get_project_invitation_by_email(
-        project_id=str(project_db.id), email=email
+    invitation = await get_project_invitation_by_organization_and_email(
+        organization_id=organization_id, email=email
     )
     if invitation is not None:
         await update_invitation(
@@ -1374,6 +1370,25 @@ async def get_project_invitation_by_email(project_id: str, email: str) -> Invita
         return invitation
 
 
+async def get_project_invitation_by_organization_and_email(
+    organization_id: str,
+    email: str,
+) -> Optional[InvitationDB]:
+    """Get an invitation by organization and email, regardless of project."""
+
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(InvitationDB)
+            .join(ProjectDB, InvitationDB.project_id == ProjectDB.id)
+            .where(
+                ProjectDB.organization_id == uuid.UUID(organization_id),
+                InvitationDB.email == email,
+            )
+            .order_by(InvitationDB.used.asc(), InvitationDB.created_at.desc())
+        )
+        return result.scalars().first()
+
+
 async def get_project_invitations(project_id: str) -> InvitationDB:
     """Get project invitations.
 
@@ -1545,6 +1560,26 @@ async def get_project_invitation_by_token_and_email(
         )
         invitation = result.scalars().first()
         return invitation
+
+
+async def get_project_invitation_by_organization_token_and_email(
+    organization_id: str,
+    token: str,
+    email: str,
+) -> Optional[InvitationDB]:
+    """Get an invitation by organization, token, and email, regardless of project."""
+
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(InvitationDB)
+            .join(ProjectDB, InvitationDB.project_id == ProjectDB.id)
+            .where(
+                ProjectDB.organization_id == uuid.UUID(organization_id),
+                InvitationDB.token == token,
+                InvitationDB.email == email,
+            )
+        )
+        return result.scalars().first()
 
 
 async def get_user_api_key_by_prefix(

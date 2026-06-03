@@ -60,12 +60,12 @@ The response contains the new revision with its `id`, `version`, `author`, `date
 References are how you point at something in the versioning tree. Each reference is a small object that identifies an artifact, variant, or revision.
 
 :::info
-A reference can be supplied as an `id`, a `slug`, or (for revisions) a `slug` plus `version`. For example:
+A reference can be supplied as an `id`, a `slug`, or — for revisions paired with a variant — a `version`. For example:
 
 ```json
 {"application_revision_ref": {"id": "019d9531-2e44-7c3a-b8cb-d6d8e675c18d"}}
-{"application_variant_ref": {"slug": "production"}}
-{"application_revision_ref": {"slug": "production", "version": 3}}
+{"application_variant_ref": {"slug": "default"}}
+{"application_variant_ref": {"slug": "default"}, "application_revision_ref": {"version": "3"}}
 {"environment_ref": {"slug": "production"}}
 ```
 :::
@@ -79,11 +79,19 @@ curl -X POST "$AGENTA_HOST/api/applications/revisions/retrieve" \
 
 The retrieve endpoint accepts any of:
 
-- `application_revision_ref`: a specific revision by `id` or by `slug` + `version`.
+- `application_revision_ref`: a specific revision by `id` or by `slug`.
+- `application_variant_ref` + `application_revision_ref.version`: a specific revision on that variant.
 - `application_variant_ref`: the latest revision on that variant.
-- `environment_ref`: the revision currently deployed to that environment.
+- `application_ref`: the latest revision on the artifact's default variant.
+- `environment_ref` (+ optional `key`): the revision currently deployed to that environment. The default key is `{application_slug}.revision`; provide an explicit `key` if you deployed the application under a different name.
 
-Only one reference is needed. If several are supplied, the most specific one wins: a revision reference is used over a variant reference, and a variant reference is used over an environment reference.
+You may pass several references in the same request — for example, `application_ref` plus `application_revision_ref.id` — but every supplied reference must agree with the resolved revision. The request returns `400 Bad Request` if:
+
+- A `revision_ref` carries only `version` (or a `variant_ref` carries only `version`) without an enclosing variant or artifact context. `version` is a per-variant sequence number; on its own it does not name a single revision.
+- A `variant_ref` carries only `version`. Variants do not have versions.
+- Any redundant reference contradicts the resolved revision. The detail message names the field that did not match.
+
+When the request is identifying but the row no longer exists, the endpoint returns `404 Not Found` rather than `400`.
 
 ## Listing revision history
 

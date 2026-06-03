@@ -16,6 +16,7 @@ __pycache__/
 **/__pycache__/
 
 **/error-*.log
+**/*.logs
 
 /.nox/
 /docs/_build/
@@ -78,6 +79,11 @@ services/sdks
 
 # Helm chart packages (built artifacts)
 agenta-oss-*.tgz
+
+# Local Kubernetes Helm values. Keep example values files tracked.
+hosting/kubernetes/**/.values.*.yaml
+hosting/kubernetes/**/values.*.yaml
+!hosting/kubernetes/**/values.*.example.yaml
 
 # IDE/LSP config (local tooling)
 pyrightconfig.json

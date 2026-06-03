@@ -126,7 +126,7 @@ class TestWorkflowEnvironmentEmbeds:
                             "api_settings": {
                                 "workflow_revision": {
                                     "slug": referenced_workflow_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             }
@@ -192,7 +192,7 @@ class TestWorkflowEnvironmentEmbeds:
                                     "@ag.references": {
                                         "environment_revision": {
                                             "slug": env_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     },
@@ -290,7 +290,7 @@ class TestWorkflowEnvironmentEmbeds:
                             "auth": {
                                 "workflow_revision": {
                                     "slug": "wf-auth-config",
-                                    "version": "v2",
+                                    "version": "2",
                                     "id": None,
                                 }
                             }
@@ -354,7 +354,7 @@ class TestWorkflowEnvironmentEmbeds:
                                     "@ag.references": {
                                         "environment_revision": {
                                             "slug": env_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     },
@@ -387,7 +387,7 @@ class TestWorkflowEnvironmentEmbeds:
         result = response.json()
 
         resolved_config = result["workflow_revision"]["data"]
-        assert resolved_config["parameters"]["auth_header"] == "v2"
+        assert resolved_config["parameters"]["auth_header"] == "2"
         # ----------------------------------------------------------------------
 
 
@@ -509,7 +509,7 @@ class TestEnvironmentWorkflowEmbeds:
                             "llm_defaults": {
                                 "workflow_revision": {
                                     "slug": workflow_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             }
@@ -545,7 +545,7 @@ class TestEnvironmentWorkflowEmbeds:
             resolved_config["references"]["llm_defaults"]["workflow_revision"][
                 "version"
             ]
-            == "v1"
+            == "1"
         )
 
         metadata = result["resolution_info"]
@@ -671,7 +671,7 @@ class TestChainedCrossEntityEmbeds:
                             "prompt_config": {
                                 "workflow_revision": {
                                     "slug": base_workflow_slug,
-                                    "version": "v1",
+                                    "version": "1",
                                     "id": None,
                                 }
                             }
@@ -735,7 +735,7 @@ class TestChainedCrossEntityEmbeds:
                                     "@ag.references": {
                                         "environment_revision": {
                                             "slug": env_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -778,7 +778,7 @@ class TestChainedCrossEntityEmbeds:
             resolved_config["parameters"]["config"]["references"]["prompt_config"][
                 "workflow_revision"
             ]["version"]
-            == "v1"
+            == "1"
         )
 
         metadata = result["resolution_info"]

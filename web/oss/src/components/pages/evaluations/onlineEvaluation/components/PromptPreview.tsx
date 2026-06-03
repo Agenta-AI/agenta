@@ -31,7 +31,7 @@ const PromptPreview = ({sections}: PromptPreviewProps) => {
                     <div className="flex items-center gap-2">
                         <Tag className="!m-0 capitalize">{tagContent}</Tag>
                         {/* {secondaryLabel ? (
-                            <span className="text-xs font-medium uppercase text-[#475467]">
+                            <span className="text-xs font-medium uppercase text-[var(--ag-c-475467)]">
                                 {secondaryLabel}
                             </span>
                         ) : null} */}

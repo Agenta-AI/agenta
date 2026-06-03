@@ -1,0 +1,46 @@
+{{- $apiEnabled := eq (include "agenta.api.enabled" .) "true" }}
+{{- $webEnabled := eq (include "agenta.web.enabled" .) "true" }}
+{{- $stEnabled := eq (include "agenta.supertokens.enabled" .) "true" }}
+{{- if or $apiEnabled $webEnabled $stEnabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "agenta.fullname" . }}-test-connection
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+spec:
+  restartPolicy: Never
+  containers:
+    {{- if $apiEnabled }}
+    - name: test-api
+      image: busybox:1
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing API health endpoint..."
+          wget -q --spider http://{{ include "agenta.fullname" . }}-api:{{ include "agenta.api.port" . }}/health
+          echo "API is healthy."
+    {{- end }}
+    {{- if $webEnabled }}
+    - name: test-web
+      image: busybox:1
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing Web endpoint..."
+          wget -q --spider http://{{ include "agenta.fullname" . }}-web:{{ include "agenta.web.port" . }}/
+          echo "Web is reachable."
+    {{- end }}
+    {{- if $stEnabled }}
+    - name: test-supertokens
+      image: busybox:1
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing SuperTokens endpoint..."
+          wget -q --spider http://{{ include "agenta.fullname" . }}-supertokens:{{ include "agenta.supertokens.port" . }}/hello
+          echo "SuperTokens is healthy."
+    {{- end }}
+{{- end }}

@@ -1,0 +1,19 @@
+{{- if eq (include "agenta.services.enabled" .) "true" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agenta.fullname" . }}-services
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: services
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ include "agenta.services.port" . }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "agenta.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: services
+{{- end }}

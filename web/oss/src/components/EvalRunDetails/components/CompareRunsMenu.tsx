@@ -242,7 +242,9 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
             <div className="compare-runs-header">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
-                        <Text className="whitespace-nowrap text-[#475467]">Testset:</Text>
+                        <Text className="whitespace-nowrap text-[var(--ag-c-475467)]">
+                            Testset:
+                        </Text>
                         {availability.testsetIds.length ? (
                             <div className="flex flex-wrap gap-1 min-w-0 compare-runs-match-tags">
                                 {availability.testsetIds.map((id) => {
@@ -297,7 +299,7 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
             </div>
 
             {showLoading ? (
-                <div className="flex items-center justify-center py-10 text-[#98A2B3] text-sm">
+                <div className="flex items-center justify-center py-10 text-[var(--ag-c-98A2B3)] text-sm">
                     Loading evaluations...
                 </div>
             ) : showEmptyState ? (
@@ -313,10 +315,10 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                         }
                         description={
                             <div className="flex flex-col items-center gap-2 text-center">
-                                <div className="text-base font-medium text-[#101828]">
+                                <div className="text-base font-medium text-[var(--ag-c-101828)]">
                                     No evaluations to compare
                                 </div>
-                                <div className="text-sm text-[#667085] max-w-[280px]">
+                                <div className="text-sm text-[var(--ag-c-667085)] max-w-[280px]">
                                     Run another evaluation using the same test set to enable
                                     comparison.
                                 </div>
@@ -345,7 +347,7 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                                 className={clsx(
                                     "compare-run-row flex flex-col !items-start justify-start",
                                     "!py-1 !px-2",
-                                    "border-b border-[#EAEFF5]",
+                                    "border-b border-[var(--ag-c-EAEFF5)]",
                                     "last:border-b-0",
                                     isChecked && "compare-run-row--selected",
                                 )}
@@ -402,11 +404,11 @@ type StatusTone = "success" | "error" | "processing" | "warning" | "default"
 type StatusFilterOption = StatusTone | "all" | "other"
 
 const STATUS_COLOR_MAP: Record<StatusTone, {background: string; text: string}> = {
-    success: {background: "#ECFDF3", text: "#027A48"},
-    error: {background: "#FEF3F2", text: "#B42318"},
-    processing: {background: "#EFF8FF", text: "#175CD3"},
-    warning: {background: "#FFFAEB", text: "#B54708"},
-    default: {background: "#F2F4F7", text: "#344054"},
+    success: {background: "var(--ag-c-ECFDF3)", text: "#027A48"},
+    error: {background: "var(--ag-c-FEF3F2)", text: "#B42318"},
+    processing: {background: "var(--ag-c-EFF8FF)", text: "#175CD3"},
+    warning: {background: "var(--ag-c-FFFAEB)", text: "#B54708"},
+    default: {background: "var(--ag-c-F2F4F7)", text: "#344054"},
 }
 
 const normalizeStatusLabel = (value: string) =>

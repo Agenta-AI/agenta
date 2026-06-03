@@ -6,13 +6,12 @@ import {useRowHeightContext} from "../InfiniteVirtualTable/context/RowHeightCont
 
 import CellContentPopover from "./CellContentPopover"
 import ChatMessagesCellContent from "./ChatMessagesCellContent"
+import {extractPreview} from "./extractPreview"
 import JsonCellContent from "./JsonCellContent"
 import TextCellContent from "./TextCellContent"
 import {
-    extractChatMessages,
     normalizeValue,
     safeJsonStringify,
-    tryParseJson,
     type ChatExtractionPreference,
     type ChatPreviewStrategy,
 } from "./utils"
@@ -34,25 +33,32 @@ interface SmartCellContentProps {
     className?: string
     /** Whether to show popover on hover */
     showPopover?: boolean
-    /** Hint for chat extraction direction in mixed payloads */
+    /**
+     * Side hint for the chat rule. Disambiguates payloads that carry both
+     * input-side and output-side chat keys in the same blob (see
+     * `extractChatMessages` prefer ordering).
+     */
     chatPreference?: ChatExtractionPreference
     /** Strategy for selecting chat messages in the truncated cell preview */
     chatPreviewStrategy?: ChatPreviewStrategy
-    /** Render JSON records as readable key/value fields */
+    /**
+     * Force the JSON fallback path to use the beautified key/value renderer
+     * instead of raw JSON text. The dispatcher's beautified renderer is
+     * separate and is driven by rule matches; this prop only affects the
+     * fallback when no rule matches.
+     */
     beautifyJson?: boolean
 }
 
 /**
- * Smart cell content renderer that auto-detects value type and renders appropriately.
+ * Smart cell content renderer.
  *
- * Detection order:
- * 1. Empty/null → placeholder
- * 2. Chat messages array → ChatMessagesCellContent
- * 3. JSON object/array → JsonCellContent
- * 4. Plain text → TextCellContent
+ * Delegates the "what to render" decision to `extractPreview`, which returns a
+ * discriminated union of renderer + data + source. The cell then switches on
+ * the renderer.
  *
  * Features:
- * - Auto-detection of content type
+ * - Auto-dispatch via extractPreview (chat, beautified, json)
  * - Truncation for cell preview
  * - Full content in popover on hover
  * - Copy functionality in popover
@@ -68,31 +74,16 @@ const SmartCellContent = memo(
         chatPreviewStrategy,
         beautifyJson = false,
     }: SmartCellContentProps) => {
-        // Get maxLines from context if not provided via prop
         const rowHeightContext = useRowHeightContext()
         const maxLines = maxLinesProp ?? rowHeightContext.maxLines
 
-        // Parse JSON if needed
-        const {parsed: jsonValue, isJson} = useMemo(() => tryParseJson(value), [value])
-
-        // Check for chat messages
-        const chatMessages = useMemo(
-            () => extractChatMessages(jsonValue, {prefer: chatPreference}),
-            [jsonValue, chatPreference],
+        const preview = useMemo(
+            () => extractPreview(value, chatPreference),
+            [value, chatPreference],
         )
-        const isChatMessages = chatMessages !== null && chatMessages.length > 0
 
-        // Get display value for plain text
         const displayValue = useMemo(() => normalizeValue(value), [value])
 
-        // Get copy text for popover
-        const copyText = useMemo(() => {
-            if (value === undefined || value === null) return undefined
-            if (isChatMessages || isJson) return safeJsonStringify(jsonValue)
-            return displayValue
-        }, [value, isChatMessages, isJson, jsonValue, displayValue])
-
-        // Handle empty values
         if (value === undefined || value === null || value === "") {
             return (
                 <div className={`${className}`}>
@@ -103,14 +94,13 @@ const SmartCellContent = memo(
             )
         }
 
-        // Render chat messages
-        if (isChatMessages) {
+        if (preview.renderer === "chat") {
+            const copyText = safeJsonStringify(preview.data)
             const cellContent = (
                 <div className={`cursor-pointer ${className}`}>
                     <ChatMessagesCellContent
-                        value={jsonValue}
+                        value={preview.data}
                         keyPrefix={keyPrefix}
-                        chatPreference={chatPreference}
                         previewStrategy={chatPreviewStrategy}
                         maxLines={4}
                         maxTotalLines={maxLines}
@@ -125,9 +115,8 @@ const SmartCellContent = memo(
                 <CellContentPopover
                     fullContent={
                         <ChatMessagesCellContent
-                            value={jsonValue}
+                            value={preview.data}
                             keyPrefix={`${keyPrefix}-popover`}
-                            chatPreference={chatPreference}
                             truncate={false}
                         />
                     }
@@ -138,12 +127,38 @@ const SmartCellContent = memo(
             )
         }
 
-        // Render JSON
-        if (isJson) {
+        if (preview.renderer === "beautified") {
+            const copyText = safeJsonStringify(preview.data)
+            const cellContent = (
+                <div className={`cursor-pointer ${className}`}>
+                    <JsonCellContent value={preview.data} maxLines={maxLines} truncate beautified />
+                </div>
+            )
+
+            if (!showPopover) return cellContent
+
+            return (
+                <CellContentPopover
+                    fullContent={
+                        <JsonCellContent value={preview.data} truncate={false} beautified />
+                    }
+                    copyText={copyText}
+                >
+                    {cellContent}
+                </CellContentPopover>
+            )
+        }
+
+        // preview.renderer === "json": raw JSON / text fallback
+        const jsonCandidate = preview.data
+        const isObjectLike = typeof jsonCandidate === "object" && jsonCandidate !== null
+        const copyText = isObjectLike ? safeJsonStringify(jsonCandidate) : displayValue
+
+        if (isObjectLike) {
             const cellContent = (
                 <div className={`cursor-pointer ${className}`}>
                     <JsonCellContent
-                        value={jsonValue}
+                        value={jsonCandidate}
                         maxLines={maxLines}
                         truncate
                         beautified={beautifyJson}
@@ -157,7 +172,7 @@ const SmartCellContent = memo(
                 <CellContentPopover
                     fullContent={
                         <JsonCellContent
-                            value={jsonValue}
+                            value={jsonCandidate}
                             truncate={false}
                             beautified={beautifyJson}
                         />
@@ -169,7 +184,6 @@ const SmartCellContent = memo(
             )
         }
 
-        // Render plain text
         const cellContent = (
             <div className={`cursor-pointer ${className}`}>
                 <TextCellContent value={displayValue} maxLines={maxLines} truncate />

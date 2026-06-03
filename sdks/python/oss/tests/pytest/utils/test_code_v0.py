@@ -14,6 +14,7 @@ The @instrument() decorator is bypassed via __wrapped__.
 """
 
 import asyncio
+import os
 
 import pytest
 
@@ -25,7 +26,24 @@ from agenta.sdk.workflows.errors import (
 )
 from agenta.sdk.workflows.handlers import code_v0
 
+
 _code_v0 = code_v0.__wrapped__
+
+# Mirrors registry.get_runner() precedence: local unless explicitly overridden.
+_SANDBOX_RUNNER = (
+    os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
+    or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
+    or "local"
+).lower()
+
+# Python execution works on both the local and daytona runners, so those tests
+# are not gated. JS/TS runtimes are only supported by the daytona runner (the
+# local runner rejects them), and daytona requires live sandbox credentials, so
+# JS/TS tests only run when daytona is selected.
+daytona_only = pytest.mark.skipif(
+    _SANDBOX_RUNNER != "daytona",
+    reason=f"Daytona-only test (JS/TS runtime); AGENTA_SERVICES_CODE_SANDBOX_RUNNER={_SANDBOX_RUNNER}",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -264,17 +282,19 @@ class TestCodeV0Runtime:
         r = call(evaluate("return 1.0"), runtime="python")
         assert r["success"] is True
 
-    def test_javascript_runtime_invalid_for_local_raises(self):
-        # LocalRunner only supports Python; JS/TS raises CodeV0Error
-        with pytest.raises(CodeV0Error):
-            call(
-                "function evaluate(inputs, output, trace) { return 1.0; }",
-                runtime="javascript",
-            )
+    @daytona_only
+    def test_javascript_runtime_executes(self):
+        # JS is only supported by the daytona runner; it returns a score.
+        r = call(
+            "function evaluate(inputs, output, trace) { return 1.0; }",
+            runtime="javascript",
+        )
+        assert r == {"score": 1.0, "success": True}
 
-    def test_typescript_runtime_invalid_for_local_raises(self):
-        with pytest.raises(CodeV0Error):
-            call(
-                "function evaluate(inputs: any, output: any, trace: any): number { return 1.0; }",
-                runtime="typescript",
-            )
+    @daytona_only
+    def test_typescript_runtime_executes(self):
+        r = call(
+            "function evaluate(inputs: any, output: any, trace: any): number { return 1.0; }",
+            runtime="typescript",
+        )
+        assert r == {"score": 1.0, "success": True}

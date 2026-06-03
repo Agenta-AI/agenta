@@ -68,9 +68,11 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
         "env",
         SimpleNamespace(
             agenta=SimpleNamespace(
-                blocked_domains=set(),
-                blocked_emails=set(),
-                allowed_domains=set(),
+                access=SimpleNamespace(
+                    blocked_domains=set(),
+                    blocked_emails=set(),
+                    allowed_domains=set(),
+                ),
             ),
             posthog=SimpleNamespace(enabled=True),
         ),
@@ -103,9 +105,11 @@ async def test_get_blocked_domains_splits_comma_separated_posthog_payload(monkey
         "env",
         SimpleNamespace(
             agenta=SimpleNamespace(
-                blocked_domains=set(),
-                blocked_emails=set(),
-                allowed_domains=set(),
+                access=SimpleNamespace(
+                    blocked_domains=set(),
+                    blocked_emails=set(),
+                    allowed_domains=set(),
+                ),
             ),
             posthog=SimpleNamespace(enabled=True),
         ),

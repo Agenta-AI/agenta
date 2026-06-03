@@ -7,4 +7,6 @@ export interface TestsetRevisionResponse {
     count?: number | undefined;
     /** The testset revision. `data.testcase_ids` is the ordered list of testcase IDs; `data.testcases` is populated when `include_testcases` is true. */
     testset_revision?: (AgentaApi.TestsetRevision | null) | undefined;
+    /** References used to retrieve the top-level revision. */
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

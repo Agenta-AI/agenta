@@ -151,7 +151,7 @@ class TestWorkflowEmbedsBasics:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": base_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     },
@@ -449,7 +449,7 @@ class TestWorkflowEmbedsNested:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level2_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -517,7 +517,7 @@ class TestWorkflowEmbedsNested:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": level1_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -704,7 +704,7 @@ class TestWorkflowEmbedsMultipleReferences:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": shared_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }
@@ -715,7 +715,7 @@ class TestWorkflowEmbedsMultipleReferences:
                                     "@ag.references": {
                                         "workflow_revision": {
                                             "slug": shared_slug,
-                                            "version": "v1",
+                                            "version": "1",
                                             "id": None,
                                         }
                                     }

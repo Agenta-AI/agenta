@@ -18,6 +18,7 @@ import {
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
 
 import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
+import useComparisonSchemas from "../EvalRunDetails2/hooks/useComparisonSchemas"
 
 import {MAX_COMPARISON_RUNS, compareRunIdsAtom, getComparisonColor} from "./atoms/compare"
 import {effectiveProjectIdAtom} from "./atoms/run"
@@ -149,7 +150,11 @@ const EvalRunDetailsTable = ({
         })
     }, [active, comparePaginations, compareSlots])
 
-    const etlColumns = useEtlColumns({projectId, runId, schema: runSchema})
+    // Each comparison run's own schema — comparison rows resolve their
+    // application/output cells against it (step keys differ from base run).
+    const comparisonSchemas = useComparisonSchemas({compareSlots})
+
+    const etlColumns = useEtlColumns({projectId, runId, schema: runSchema, comparisonSchemas})
 
     // Page-level hydrate — predicate-aware: with an active filter it
     // fetches the entity slices the filter needs to be evaluated; with no
@@ -390,12 +395,42 @@ const EvalRunDetailsTable = ({
             const hasComparisons = compareRunIds.length > 0
             const shouldCompare = isBaseRow && hasComparisons
 
+            // Resolve each compared run's matching scenarioId from the rows the
+            // table already paginated, using the same testcaseId → scenarioIndex
+            // matching as mergedRows. Carried forward so the focus drawer renders
+            // compare outputs without re-resolving from an orphaned paginated atom.
+            let compareScenarioIds: Record<string, string | null> | undefined
+            if (shouldCompare) {
+                const baseTestcaseId = record.testcaseId
+                const baseScenarioIndex = record.scenarioIndex
+                const resolved: Record<string, string | null> = {}
+                compareSlots.forEach((slotRunId, idx) => {
+                    if (!slotRunId) return
+                    const slotRows = compareRowsBySlot[idx] ?? []
+                    let counterpart: PreviewTableRow | undefined
+                    if (baseTestcaseId) {
+                        counterpart = slotRows.find(
+                            (row) => row && !row.__isSkeleton && row.testcaseId === baseTestcaseId,
+                        )
+                    }
+                    if (!counterpart && typeof baseScenarioIndex === "number") {
+                        counterpart = slotRows.find(
+                            (row) =>
+                                row && !row.__isSkeleton && row.scenarioIndex === baseScenarioIndex,
+                        )
+                    }
+                    resolved[slotRunId] = counterpart?.scenarioId ?? counterpart?.id ?? null
+                })
+                compareScenarioIds = resolved
+            }
+
             const focusTarget = {
                 focusRunId: targetRunId,
                 focusScenarioId: scenarioId,
                 compareMode: shouldCompare,
                 testcaseId: shouldCompare ? record.testcaseId : undefined,
                 scenarioIndex: shouldCompare ? record.scenarioIndex : undefined,
+                compareScenarioIds,
             }
             if (process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true") {
                 console.info("[EvalRunDetails2][Table] row click", {focusTarget, record})
@@ -405,7 +440,7 @@ const EvalRunDetailsTable = ({
             // (the table has an isolated Jotai Provider, so useSetAtom would write to the wrong store)
             patchFocusDrawerQueryParams(focusTarget)
         },
-        [runId, compareRunIds],
+        [runId, compareRunIds, compareSlots, compareRowsBySlot],
     )
 
     const handleLoadMore = useCallback(() => {
@@ -1059,7 +1094,7 @@ const EvalRunDetailsTable = ({
                                               ? record.compareIndex
                                               : 0,
                                       )
-                                    : "#fff"
+                                    : "var(--ag-colorBgContainer)"
 
                                 return {
                                     onClick: (event) => {

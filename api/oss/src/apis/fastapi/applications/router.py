@@ -10,7 +10,8 @@ from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.events.utils import publish_revision_event
 
-from oss.src.core.git.types import VariantForkError
+from oss.src.core.git.utils import build_retrieval_info
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -29,6 +30,7 @@ from oss.src.core.applications.dtos import (
     ApplicationCatalogType,
     ApplicationCatalogTemplate,
     ApplicationCatalogPreset,
+    ApplicationRevisionCommit,
     ApplicationRevisionData,
 )
 
@@ -1062,6 +1064,7 @@ class ApplicationsRouter:
         return application_variants_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def fork_application_variant(
         self,
         request: Request,
@@ -1101,20 +1104,12 @@ class ApplicationsRouter:
             if not fork_request.application_variant_id:
                 fork_request.application_variant_id = application_variant_id
 
-        try:
-            application_variant = (
-                await self.applications_service.fork_application_variant(
-                    project_id=UUID(request.state.project_id),
-                    user_id=UUID(request.state.user_id),
-                    #
-                    application_fork=fork_request,
-                )
-            )
-        except VariantForkError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        application_variant = await self.applications_service.fork_application_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            application_fork=fork_request,
+        )
 
         application_variant_response = ApplicationVariantResponse(
             count=1 if application_variant else 0,
@@ -1126,6 +1121,7 @@ class ApplicationsRouter:
     # APPLICATION REVISIONS ----------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def deploy_application_revision(
         self,
         request: Request,
@@ -1194,6 +1190,7 @@ class ApplicationsRouter:
 
         (
             target_environment_revision,
+            _,
             _,
         ) = await self.environments_service.retrieve_environment_revision(
             project_id=UUID(request.state.project_id),
@@ -1293,6 +1290,7 @@ class ApplicationsRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=ApplicationRevisionResponse(), exclude=[HTTPException])
+    @handle_git_exceptions()
     async def retrieve_application_revision(
         self,
         request: Request,
@@ -1387,6 +1385,7 @@ class ApplicationsRouter:
         (
             application_revision,
             resolution_info,
+            retrieval_info,
         ) = await self.applications_service.retrieve_application_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1412,11 +1411,12 @@ class ApplicationsRouter:
             count=1 if application_revision else 0,
             application_revision=application_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="retrieve",
             revision=application_revision_response.application_revision,
             count=application_revision_response.count,
@@ -1425,13 +1425,14 @@ class ApplicationsRouter:
         return application_revision_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_application_revision(
         self,
         request: Request,
         *,
         application_revision_create_request: ApplicationRevisionCreateRequest,
     ) -> ApplicationRevisionResponse:
-        """Create a revision row directly, without the commit workflow.
+        """Create and commit the initial revision for an application variant.
 
         Advanced use only. For normal development loops prefer
         `POST /applications/revisions/commit`, which commits the new revision
@@ -1445,11 +1446,19 @@ class ApplicationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        application_revision = await self.applications_service.create_application_revision(
+        application_revision = await self.applications_service.commit_application_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            application_revision_create=application_revision_create_request.application_revision,
+            application_revision_commit=ApplicationRevisionCommit(
+                **application_revision_create_request.application_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         return ApplicationRevisionResponse(
@@ -1493,7 +1502,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="fetch",
             revision=response.application_revision,
             count=response.count,
@@ -1673,7 +1682,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="query",
             revisions=response.application_revisions or [],
             count=response.count,
@@ -1756,7 +1765,7 @@ class ApplicationsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="application",
+            domain="workflow",
             action="log",
             revisions=revisions_response.application_revisions or [],
             count=revisions_response.count,
@@ -1765,6 +1774,7 @@ class ApplicationsRouter:
         return revisions_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def resolve_application_revision(
         self,
         request: Request,
@@ -1810,6 +1820,10 @@ class ApplicationsRouter:
             count=1,
             application_revision=application_revision,
             resolution_info=resolution_info,
+            retrieval_info=build_retrieval_info(
+                revision=application_revision,
+                entity_type="application",
+            ),
         )
 
 

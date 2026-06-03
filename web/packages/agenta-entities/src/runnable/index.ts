@@ -133,6 +133,7 @@ export {
     extractVariablesFromPrompts,
     extractVariablesFromConfig,
     extractVariablesFromEnhancedPrompts,
+    syncPromptInputKeysInParameters,
 } from "./utils"
 export type {ExecuteRunnableOptions} from "./utils"
 

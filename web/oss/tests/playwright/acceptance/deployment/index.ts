@@ -168,12 +168,12 @@ const deploymentTests = () => {
             const modal = page.getByRole("dialog", {name: /Deploy Development/i}).last()
             await expect(modal).toBeVisible({timeout: 10000})
 
-            const rows = modal.locator("[data-row-key]")
+            const rows = modal.locator('[data-row-key]:not([data-row-key*="skeleton"])')
             const deployBtn = modal.getByRole("button", {name: "Deploy"})
             const radioSelector =
                 '.ant-radio-wrapper, .ant-radio, [role="radio"], input[type="radio"]'
 
-            await expect(rows.first()).toBeVisible({timeout: 15000})
+            await expect(rows.first()).toBeVisible({timeout: 30000})
             await expect
                 .poll(
                     async () => {

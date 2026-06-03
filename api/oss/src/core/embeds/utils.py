@@ -215,12 +215,12 @@ def create_universal_resolver(
         *,
         ref: Reference,
         fetch_revision_by_refs: Callable[
-            [Optional[Reference], Optional[Reference]],
+            [Optional[Reference], Optional[Reference], Optional[Reference]],
             Awaitable[Optional[Any]],
         ],
     ) -> Optional[Any]:
         # First try exact revision lookup (id/slug/version as provided)
-        entity = await fetch_revision_by_refs(None, ref)
+        entity = await fetch_revision_by_refs(None, None, ref)
         if entity:
             return entity
 
@@ -228,14 +228,27 @@ def create_universal_resolver(
         if ref.id is not None:
             return None
 
-        # Normalization only:
+        # Normalization #1:
         # slug=<artifact-slug>, version=v1 while revision slug=<artifact-slug>-v1
         if ref.slug and ref.version and not ref.slug.endswith(f"-{ref.version}"):
             normalized_ref = Reference(
                 slug=f"{ref.slug}-{ref.version}",
                 version=ref.version,
             )
-            return await fetch_revision_by_refs(None, normalized_ref)
+            entity = await fetch_revision_by_refs(None, None, normalized_ref)
+            if entity:
+                return entity
+
+        # Normalization #2:
+        # `{slug, version}` may be `{artifact_slug, version}` (default
+        # variant + Nth revision) rather than a revision slug. Try that
+        # interpretation when the slug-based revision lookup misses.
+        if ref.slug and ref.version:
+            artifact_ref = Reference(slug=ref.slug)
+            version_only_ref = Reference(version=ref.version)
+            entity = await fetch_revision_by_refs(artifact_ref, None, version_only_ref)
+            if entity:
+                return entity
 
         return None
 
@@ -261,10 +274,6 @@ def create_universal_resolver(
         revision_ref: Optional[Reference] = parsed.get("revision")
         artifact_ref: Optional[Reference] = parsed.get("artifact")
 
-        # Prefer variant for scoping; fall back to artifact.
-        # Both carry whatever identifying fields the caller provided (id, slug, version).
-        scoping_ref: Optional[Reference] = variant_ref or artifact_ref
-
         # Route to appropriate service
         if category == "workflow":
             if not workflows_service:
@@ -275,10 +284,11 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref, rref: (
+                    fetch_revision_by_refs=lambda aref, vref, rref: (
                         workflows_service.fetch_workflow_revision(
                             project_id=project_id,
-                            workflow_variant_ref=vref or scoping_ref,
+                            workflow_ref=aref or artifact_ref,
+                            workflow_variant_ref=vref or variant_ref,
                             workflow_revision_ref=rref,
                             include_archived=include_archived,
                         )
@@ -328,10 +338,11 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref, rref: (
+                    fetch_revision_by_refs=lambda aref, vref, rref: (
                         environments_service.fetch_environment_revision(
                             project_id=project_id,
-                            environment_variant_ref=vref or scoping_ref,
+                            environment_ref=aref or artifact_ref,
+                            environment_variant_ref=vref or variant_ref,
                             environment_revision_ref=rref,
                             include_archived=include_archived,
                         )
@@ -381,10 +392,11 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref, rref: (
+                    fetch_revision_by_refs=lambda aref, vref, rref: (
                         applications_service.fetch_application_revision(
                             project_id=project_id,
-                            application_variant_ref=vref or scoping_ref,
+                            application_ref=aref or artifact_ref,
+                            application_variant_ref=vref or variant_ref,
                             application_revision_ref=rref,
                             include_archived=include_archived,
                         )
@@ -434,10 +446,11 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref, rref: (
+                    fetch_revision_by_refs=lambda aref, vref, rref: (
                         evaluators_service.fetch_evaluator_revision(
                             project_id=project_id,
-                            evaluator_variant_ref=vref or scoping_ref,
+                            evaluator_ref=aref or artifact_ref,
+                            evaluator_variant_ref=vref or variant_ref,
                             evaluator_revision_ref=rref,
                             include_archived=include_archived,
                         )

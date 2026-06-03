@@ -1,18 +1,27 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
+import type {User} from "@agenta/shared/types"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Checkbox, Form, Input, Radio, Rate, Space, Spin, Typography} from "antd"
-import Image from "next/image"
+import {Button, Checkbox, Form, Input, Radio, Rate, Space, Typography} from "antd"
 import {useRouter} from "next/router"
-import {MultipleSurveyQuestion, SurveyQuestion, SurveyQuestionType} from "posthog-js"
+import {
+    type MultipleSurveyQuestion,
+    type PostHog,
+    type Survey,
+    type SurveyQuestion,
+    SurveyQuestionType,
+} from "posthog-js"
+import {flushSync} from "react-dom"
 
-import ListOfOrgs from "@/oss/components/Sidebar/components/ListOfOrgs"
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {useSurvey} from "@/oss/lib/helpers/analytics/hooks/useSurvey"
-import {useOrgData} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
+import type {Org} from "@/oss/lib/Types"
 
-import {useStyles} from "./assets/styles"
+import PostSignupHeader from "./PostSignupHeader"
+import PostSignupSubmitting from "./PostSignupSubmitting"
+
+const mainContainerClass = "w-[400px] mx-auto h-[82vh] flex flex-col justify-between"
+const containerClass =
+    "p-6 grid gap-8 rounded-lg shadow-[0px_9px_28px_8px_#0000000D,0px_3px_6px_-4px_#0000001F,0px_6px_16px_0px_#00000014] border border-colorBorder"
+const formItemClass = "gap-2 [&>.ant-form-item-row>.ant-form-item-label]:font-medium"
 
 // Fisher-Yates shuffle algorithm
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -68,47 +77,36 @@ interface QuestionMeta {
     originalIndex: number
 }
 
-const PostSignupForm = () => {
-    console.log("[post-signup] form mount")
+const isEmailQuestion = (question: AnySurveyQuestion, originalIndex: number): boolean => {
+    if (originalIndex === 5) return true
+    return (
+        question.type === SurveyQuestionType.Open &&
+        question.question.toLowerCase().includes("email")
+    )
+}
+
+interface PostSignupFormProps {
+    survey: Survey
+    user: User
+    orgs: Org[]
+    posthog: PostHog
+}
+
+/**
+ * Pure consumer of survey + user + orgs. Mounted only by PostSignupRoute,
+ * which gates on all dependencies being present. No internal data fetching,
+ * no error handling, no timeouts — just renders the form and submits results
+ * back to PostHog.
+ */
+const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
     const [form] = Form.useForm()
     const router = useRouter()
-    const posthog = usePostHogAg()
-    const {user} = useProfileData()
-    const classes = useStyles()
-    const {orgs} = useOrgData()
     const formData = Form.useWatch([], form)
     const [currentStep, setCurrentStep] = useState(0)
-    const {survey, loading, error} = useSurvey("Signup 2")
-    const [autoRedirectAttempted, setAutoRedirectAttempted] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
-    useEffect(() => {
-        console.log("[post-signup] survey state", {
-            hasSurvey: Boolean(survey),
-            questionCount: survey?.questions?.length ?? 0,
-            loading,
-            error: error ? {code: (error as any).code, message: error.message} : null,
-        })
-    }, [error, loading, survey])
-
-    useEffect(() => {
-        if (!error || autoRedirectAttempted) return
-        const errorCode = (error as any).code as string | undefined
-        const shouldRedirect =
-            errorCode === "survey-unavailable" || errorCode === "posthog-not-configured"
-        if (!shouldRedirect) {
-            return
-        }
-
-        setAutoRedirectAttempted(true)
-        void router.push("/get-started")
-    }, [autoRedirectAttempted, error, router])
-
-    /**
-     * Wrap all survey questions with their array index and a stable "originalIndex".
-     * originalIndex uses question.originalQuestionIndex when available, else falls back to index.
-     */
     const allQuestions: QuestionMeta[] = useMemo(() => {
-        if (!survey?.questions) return []
+        if (!survey.questions) return []
         return survey.questions.map(
             (q: SurveyQuestion & {originalQuestionIndex?: number}, index) => {
                 const originalIndex =
@@ -121,24 +119,15 @@ const PostSignupForm = () => {
                 }
             },
         )
-    }, [survey?.questions])
+    }, [survey.questions])
 
-    /**
-     * Filter out questions that should not be shown (for example, email question).
-     */
-    const visibleQuestions: QuestionMeta[] = useMemo(() => {
-        return allQuestions.filter(({question, originalIndex}) => {
-            // Filter out the email question based on known original index or wording
-            if (originalIndex === 5) return false
-            if (
-                question.type === SurveyQuestionType.Open &&
-                question.question.toLowerCase().includes("email")
-            ) {
-                return false
-            }
-            return true
-        })
-    }, [allQuestions])
+    const visibleQuestions: QuestionMeta[] = useMemo(
+        () =>
+            allQuestions.filter(
+                ({question, originalIndex}) => !isEmailQuestion(question, originalIndex),
+            ),
+        [allQuestions],
+    )
 
     const totalSteps = Math.ceil(visibleQuestions.length / QUESTIONS_PER_PAGE)
 
@@ -153,6 +142,18 @@ const PostSignupForm = () => {
 
     const handleSubmitFormData = useCallback(
         async (values: any) => {
+            // Force the submitting view to commit synchronously, then yield
+            // one animation frame so the browser actually paints it before
+            // we trigger navigation. Without flushSync + rAF, React 18
+            // batches this state update with the rest of this task and the
+            // prefetched /get-started route swaps in before the new render
+            // ever reaches the screen — the user just sees the half-torn-
+            // down form right up until the new page replaces it.
+            flushSync(() => {
+                setIsSubmitting(true)
+            })
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
             try {
                 // Get all values including unmounted fields from previous steps
                 const allValues = {...form.getFieldsValue(true), ...values}
@@ -178,13 +179,11 @@ const PostSignupForm = () => {
                         answer = allValues[`${fieldName}_other`]
                     }
 
-                    // Special handling for email question if it was skipped in the form
-                    if (
-                        originalIndex === 5 ||
-                        (question.type === SurveyQuestionType.Open &&
-                            question.question.toLowerCase().includes("email"))
-                    ) {
-                        responses[key] = user?.email
+                    // The email question is filtered from the rendered form; we
+                    // backfill it from the user's profile on submit so PostHog
+                    // still receives a response for that question id.
+                    if (isEmailQuestion(question, originalIndex)) {
+                        responses[key] = user.email
                         return
                     }
 
@@ -206,28 +205,33 @@ const PostSignupForm = () => {
                     }
                 })
 
-                const isICP = calculateICP(
+                personProperties.is_icp_v1 = calculateICP(
                     personProperties.company_size_v1,
                     personProperties.user_role_v1,
                     personProperties.user_experience_v1,
                 )
-                personProperties.is_icp_v1 = isICP
 
-                await posthog?.capture?.("survey sent", {
-                    $survey_id: survey?.id,
-                    $survey_name: survey?.name,
+                posthog.capture("survey sent", {
+                    $survey_id: survey.id,
+                    $survey_name: survey.name,
                     ...responses,
                     $set: personProperties,
                 })
-
-                form.resetFields()
             } catch (error) {
-                console.error("Error submitting form:", error)
-            } finally {
-                router.push("/get-started")
+                console.error("Error submitting survey:", error)
+            }
+
+            try {
+                // Awaited so a rejected navigation can't leave the user stuck on
+                // the "Setting up your workspace" view forever. On failure we
+                // drop back to the form so they can try again.
+                await router.push("/get-started")
+            } catch (navError) {
+                console.error("Failed to navigate to /get-started:", navError)
+                setIsSubmitting(false)
             }
         },
-        [allQuestions, form, router, posthog, survey?.id, survey?.name, user?.email],
+        [allQuestions, form, posthog, router, survey.id, survey.name, user.email],
     )
 
     // Memoize shuffled choices keyed by the stable question index
@@ -236,7 +240,6 @@ const PostSignupForm = () => {
         const choicesMap: Record<number, string[]> = {}
 
         allQuestions.forEach(({question, index}) => {
-            // Choices only exist on multiple / single choice questions
             const q = question as MultipleSurveyQuestion & {shuffleOptions?: boolean}
             if (!q.choices) {
                 choicesMap[index] = []
@@ -246,11 +249,9 @@ const PostSignupForm = () => {
             const choices = Array.isArray(q.choices) ? q.choices : []
             const otherIndex = choices.indexOf("Other")
             const hasOther = otherIndex !== -1
-            let choicesToShuffle = choices
-
-            if (hasOther) {
-                choicesToShuffle = choices.filter((choice) => choice !== "Other")
-            }
+            const choicesToShuffle = hasOther
+                ? choices.filter((choice) => choice !== "Other")
+                : choices
 
             const shuffled = q.shuffleOptions ? shuffleArray(choicesToShuffle) : choicesToShuffle
             choicesMap[index] = hasOther ? [...shuffled, "Other"] : shuffled
@@ -277,7 +278,7 @@ const PostSignupForm = () => {
                 <div key={question.id}>
                     <Form.Item
                         name={fieldName}
-                        className={classes.formItem}
+                        className={formItemClass}
                         label={question.question}
                         rules={[{required: true, message: "Please select an option"}]}
                     >
@@ -302,7 +303,7 @@ const PostSignupForm = () => {
                     <div key={question.id}>
                         <Form.Item
                             name={fieldName}
-                            className={classes.formItem}
+                            className={formItemClass}
                             label={question.question}
                             rules={[{required: true, message: "Please enter a response"}]}
                         >
@@ -322,7 +323,7 @@ const PostSignupForm = () => {
                     <div key={question.id}>
                         <Form.Item
                             name={fieldName}
-                            className={classes.formItem}
+                            className={formItemClass}
                             label={question.question}
                             rules={[{required: true, message: "Please provide a rating"}]}
                         >
@@ -336,7 +337,7 @@ const PostSignupForm = () => {
                 <div key={question.id}>
                     <Form.Item
                         name={fieldName}
-                        className={classes.formItem}
+                        className={formItemClass}
                         label={question.question}
                         rules={[{required: true, message: "Please provide a response"}]}
                     >
@@ -350,7 +351,7 @@ const PostSignupForm = () => {
             <div key={question.id}>
                 <Form.Item
                     name={fieldName}
-                    className={classes.formItem}
+                    className={formItemClass}
                     label={question.question}
                     rules={[{required: true, message: "Please select an option"}]}
                 >
@@ -395,7 +396,6 @@ const PostSignupForm = () => {
         return visibleQuestions.slice(start, start + QUESTIONS_PER_PAGE)
     }, [currentStep, visibleQuestions])
 
-    // Calculate if current step is valid to enable the button
     const isCurrentStepValid = useMemo(() => {
         if (!formData) return false
 
@@ -413,63 +413,52 @@ const PostSignupForm = () => {
         })
     }, [currentQuestions, formData])
 
-    const showSurveyForm = Boolean(survey?.questions?.length)
-    const isSurveyLoading = loading && !error
+    const isLastStep = currentStep >= totalSteps - 1
+
+    // Once we start submitting, replace the form with a clear, full-page
+    // "setting up" view. The form is about to be unmounted by router.push
+    // anyway — rendering an unambiguous transition state is better than
+    // showing the form as a half-disabled, half-overlaid intermediate state
+    // that can briefly blank out during Next.js's chunk fetch.
+    if (isSubmitting) {
+        return <PostSignupSubmitting orgs={orgs} />
+    }
 
     return (
         <>
-            <section className="w-[90%] flex items-center justify-between mx-auto mt-12 mb-5">
-                <Image
-                    src="/assets/Agenta-logo-full-light.png"
-                    alt="agenta-ai"
-                    width={114}
-                    height={39}
-                />
+            <PostSignupHeader orgs={orgs} />
 
-                <ListOfOrgs
-                    collapsed={false}
-                    interactive={true}
-                    orgSelectionEnabled={false}
-                    buttonProps={{className: "w-[236px] !p-1 !h-10 rounded"}}
-                    overrideOrgId={orgs && orgs.length > 0 ? orgs[0]?.id : undefined}
-                />
-            </section>
+            <Form
+                layout="vertical"
+                form={form}
+                onFinish={handleSubmitFormData}
+                className={mainContainerClass}
+            >
+                <div className={containerClass}>
+                    <div className="space-y-1">
+                        <Typography.Paragraph>
+                            {currentStep + 1}/{totalSteps || 1}
+                        </Typography.Paragraph>
+                        <Typography.Title level={3}>
+                            {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
+                        </Typography.Title>
+                    </div>
 
-            <Spin spinning={isSurveyLoading}>
-                {showSurveyForm && (
-                    <Form
-                        layout="vertical"
-                        form={form}
-                        onFinish={handleSubmitFormData}
-                        className={classes.mainContainer}
-                    >
-                        <div className={classes.container}>
-                            <div className="space-y-1">
-                                <Typography.Paragraph>
-                                    {currentStep + 1}/{totalSteps || 1}
-                                </Typography.Paragraph>
-                                <Typography.Title level={3}>
-                                    {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
-                                </Typography.Title>
-                            </div>
+                    <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
+                </div>
 
-                            <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
-                        </div>
-
-                        <Button
-                            size="large"
-                            type="primary"
-                            onClick={currentStep < totalSteps - 1 ? handleNextStep : form.submit}
-                            className="w-full min-h-[32px] mt-2"
-                            iconPlacement="end"
-                            icon={<ArrowRight className="mt-[3px]" />}
-                            disabled={!isCurrentStepValid}
-                        >
-                            {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
-                        </Button>
-                    </Form>
-                )}
-            </Spin>
+                <Button
+                    size="large"
+                    type="primary"
+                    onClick={isLastStep ? form.submit : handleNextStep}
+                    className="w-full min-h-[32px] mt-2"
+                    iconPlacement="end"
+                    icon={<ArrowRight className="mt-[3px]" />}
+                    disabled={!isCurrentStepValid}
+                >
+                    {isLastStep ? "Submit" : "Continue"}
+                </Button>
+            </Form>
         </>
     )
 }

@@ -1,0 +1,120 @@
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $services := default dict $values.services -}}
+{{- $newrelic := default dict $values.newrelic -}}
+{{- if eq (include "agenta.services.enabled" .) "true" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta.fullname" . }}-services
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: services
+spec:
+  replicas: {{ include "agenta.services.replicas" . }}
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: services
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: services
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- with $services.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $init := include "agenta.initContainers" . }}
+      {{- if $init }}
+      initContainers:
+        {{- $init | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: services
+          image: {{ include "agenta.servicesImage" . }}
+          imagePullPolicy: {{ include "agenta.services.pullPolicy" . }}
+          {{- with $services.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            {{- if $newrelic.licenseKey }}
+            - newrelic-admin
+            - run-program
+            {{- end }}
+            - gunicorn
+            - entrypoints.main:app
+            - --bind
+            - 0.0.0.0:{{ include "agenta.services.port" . }}
+            - --worker-class
+            - uvicorn.workers.UvicornWorker
+            - --workers
+            - {{ include "agenta.services.workers" . | quote }}
+            - --max-requests
+            - "10000"
+            - --max-requests-jitter
+            - "1000"
+            - --timeout
+            - "60"
+            - --graceful-timeout
+            - "60"
+            - --log-level
+            - info
+            - --access-logfile
+            - "-"
+            - --error-logfile
+            - "-"
+          ports:
+            - name: http
+              containerPort: {{ include "agenta.services.port" . }}
+              protocol: TCP
+          env:
+            {{- include "agenta.commonEnv" . | nindent 12 }}
+            - name: SCRIPT_NAME
+              value: "/services"
+            {{- range $key, $val := $services.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with $services.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $services.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $services.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $services.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -6,6 +6,7 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .evaluator_revision import EvaluatorRevision
 from .resolution_info import ResolutionInfo
+from .retrieval_info import RetrievalInfo
 
 
 class EvaluatorRevisionResponse(UniversalBaseModel):
@@ -25,6 +26,11 @@ class EvaluatorRevisionResponse(UniversalBaseModel):
     resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)
     """
     Embed-resolution metadata. Populated when `resolve=true` was requested.
+    """
+    
+    retrieval_info: typing.Optional[RetrievalInfo] = pydantic.Field(default=None)
+    """
+    References used to retrieve the top-level revision.
     """
     
     

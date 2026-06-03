@@ -4,6 +4,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .retrieval_info import RetrievalInfo
 from .testset_revision import TestsetRevision
 
 
@@ -16,6 +17,11 @@ class TestsetRevisionResponse(UniversalBaseModel):
     testset_revision: typing.Optional[TestsetRevision] = pydantic.Field(default=None)
     """
     The testset revision. `data.testcase_ids` is the ordered list of testcase IDs; `data.testcases` is populated when `include_testcases` is true.
+    """
+    
+    retrieval_info: typing.Optional[RetrievalInfo] = pydantic.Field(default=None)
+    """
+    References used to retrieve the top-level revision.
     """
     
     

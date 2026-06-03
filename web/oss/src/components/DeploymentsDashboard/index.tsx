@@ -97,7 +97,10 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                         environmentSlug: environmentName,
                         applicationId: workflowData?.workflow_id || "",
                         workflowVariantId: workflowData?.workflow_variant_id ?? undefined,
-                        variantSlug: workflowData?.slug ?? undefined,
+                        variantSlug:
+                            workflowData?.workflow_variant_slug ??
+                            workflowData?.variant_slug ??
+                            undefined,
                         revisionVersion: workflowData?.version ?? undefined,
                         note: noteValue,
                     })

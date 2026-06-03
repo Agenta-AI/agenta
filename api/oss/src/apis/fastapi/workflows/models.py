@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.workflows.dtos import (
     #
     WorkflowCatalogType,
@@ -251,17 +252,43 @@ class WorkflowRevisionCommitRequest(BaseModel):
 
 
 class WorkflowRevisionRetrieveRequest(BaseModel):
+    """Request body for `POST /workflows/revisions/retrieve`.
+
+    Resolves to a single revision by one or more reference types. Every
+    reference supplied must agree with the resolved revision; contradictions
+    return HTTP 400. For environment-backed lookup, `key` may be omitted when
+    `workflow_ref` is provided, in which case it defaults to
+    `<workflow_slug>.revision`.
+    """
+
     workflow_ref: Optional[Reference] = Field(
         default=None,
-        description="Return the latest revision across all variants of this workflow.",
+        description=(
+            "Workflow artifact to look up. Identifies the artifact by `id` or "
+            "`slug` (both project-unique). When no variant_ref or revision_ref "
+            "is provided, returns the latest revision of the workflow's "
+            "default variant."
+        ),
     )
     workflow_variant_ref: Optional[Reference] = Field(
         default=None,
-        description="Return the latest revision of this variant.",
+        description=(
+            "Workflow variant to look up. Identifies the variant by `id` or "
+            "`slug` (both project-unique). When no revision_ref is provided, "
+            "returns the latest revision of this variant."
+        ),
     )
     workflow_revision_ref: Optional[Reference] = Field(
         default=None,
-        description="Return this exact revision (by `id`, or by `slug` + `version`).",
+        description=(
+            "Workflow revision to look up. "
+            "`id` alone identifies a revision (project-unique). "
+            "`slug` alone identifies a revision (project-unique). "
+            "`version` alone is a per-variant sequence number and is **not** "
+            "sufficient on its own; it must be combined with a "
+            "`workflow_variant_ref`. Sending only `version` without a variant "
+            "ref returns HTTP 400."
+        ),
     )
     #
     environment_ref: Optional[Reference] = Field(
@@ -355,6 +382,10 @@ class WorkflowRevisionResponse(BaseModel):
         default=None,
         description="Reference-resolution metadata; populated when `resolve=true` on retrieve.",
     )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References used to retrieve the top-level revision.",
+    )
 
 
 class WorkflowRevisionsResponse(BaseModel):
@@ -423,6 +454,10 @@ class WorkflowRevisionResolveResponse(BaseModel):
     resolution_info: Optional[ResolutionInfo] = Field(
         default=None,
         description="Metadata describing which references were resolved, depth reached, and errors.",
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References (artifact / variant / revision) actually used to retrieve this revision.",
     )
 
 

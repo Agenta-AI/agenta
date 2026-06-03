@@ -132,7 +132,7 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
                     slug: payload.applicationSlug,
                 },
                 application_variant: {
-                    id: payload.workflowVariantId || payload.applicationId,
+                    id: payload.workflowVariantId,
                     slug: payload.variantSlug,
                 },
                 application_revision: {
@@ -196,7 +196,7 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
                 slug: payload.applicationSlug,
             },
             application_variant: {
-                id: payload.workflowVariantId || payload.applicationId,
+                id: payload.workflowVariantId,
                 slug: payload.variantSlug,
             },
             application_revision: {

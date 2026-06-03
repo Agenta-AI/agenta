@@ -105,7 +105,7 @@ export const useSelectDeployVariant = () => {
         const store = getDefaultStore()
         const workflows = store.get(workflowsListDataAtom)
         const workflowEntity = workflows.find((w) => w.id === row.workflowId)
-        const applicationSlug = workflowEntity?.slug || workflowEntity?.name || undefined
+        const applicationSlug = workflowEntity?.slug || undefined
 
         try {
             await publish({
@@ -113,7 +113,7 @@ export const useSelectDeployVariant = () => {
                 environmentSlug: envName,
                 applicationId: row.workflowId || appId || "",
                 workflowVariantId: row.variantId || undefined,
-                variantSlug: row.variantName || undefined,
+                variantSlug: row.variantSlug || undefined,
                 applicationSlug,
                 revisionVersion: row.version ?? undefined,
                 note,
@@ -206,7 +206,7 @@ const SelectDeployVariantModalContent = ({
             {/* Left: context + deploy message */}
             <div className="w-[280px] shrink-0 flex flex-col gap-4 overflow-y-auto">
                 {/* Deploy context panel */}
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-[var(--ag-rgba-051729-06)] dark:bg-[var(--ag-rgba-051729-04)]">
                     {selectedRow ? (
                         <>
                             <Text className={textColors.secondary}>

@@ -1,9 +1,11 @@
-import React, {useMemo} from "react"
+import React, {useEffect, useLayoutEffect, useMemo} from "react"
 
 import {MESSAGE_CONTENT_SCHEMA} from "@agenta/shared/schemas"
+import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 
 import {SimpleDropdownSelect} from "../../components/presentational/select"
 import {EditorProvider} from "../../Editor/Editor"
+import {SET_MARKDOWN_VIEW} from "../../Editor/plugins/markdown/commands"
 import {SharedEditor, type SharedEditorProps} from "../../SharedEditor"
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
 
@@ -64,6 +66,41 @@ export interface ChatMessageEditorProps {
     maxPasteChars?: number
     /** Optional hook for custom handling when a paste exceeds the limit. */
     onPasteLimitExceeded?: SharedEditorProps["onPasteLimitExceeded"]
+    /**
+     * When true, render content as raw markdown source; when false, render rich text.
+     * Setting only the `markdownViewAtom` CSS flag is not enough — the Lexical
+     * editor needs a `SET_MARKDOWN_VIEW` command dispatch to actually swap
+     * between rich-text nodes and a markdown code node. This prop wires that
+     * up via an internal synchronizer mounted inside the EditorProvider.
+     */
+    markdownView?: boolean
+}
+
+/**
+ * Dispatches `SET_MARKDOWN_VIEW` whenever `enabled` changes so the Lexical
+ * editor actually swaps between rich-text and markdown-source views.
+ *
+ * Mirrors VariableControlAdapter's MarkdownViewSynchronizer: a `useLayoutEffect`
+ * handles updates after the MarkdownPlugin handler is registered, and a
+ * deferred `useEffect` + `requestAnimationFrame` re-dispatches once after paint
+ * to cover the initial mount race where this component's layout effect can
+ * fire before the descendant MarkdownPlugin has registered the command.
+ */
+const MarkdownViewSynchronizer: React.FC<{enabled: boolean}> = ({enabled}) => {
+    const [editor] = useLexicalComposerContext()
+
+    useLayoutEffect(() => {
+        editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+    }, [editor, enabled])
+
+    useEffect(() => {
+        const frameId = requestAnimationFrame(() => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+        })
+        return () => cancelAnimationFrame(frameId)
+    }, [editor, enabled])
+
+    return null
 }
 
 /**
@@ -181,12 +218,14 @@ const ChatMessageEditor: React.FC<ChatMessageEditorProps> = ({
     isJSON,
     isTool,
     language = "json",
+    markdownView = false,
     ...props
 }) => {
+    const isCodeMode = Boolean(isTool || isJSON)
     return (
         <EditorProvider
-            codeOnly={isTool || isJSON}
-            language={isTool || isJSON ? language : undefined}
+            codeOnly={isCodeMode}
+            language={isCodeMode ? language : undefined}
             enableTokens={Boolean(props.enableTokens)}
             tokens={props.tokens}
             templateFormat={props.templateFormat}
@@ -196,6 +235,11 @@ const ChatMessageEditor: React.FC<ChatMessageEditorProps> = ({
             loadingFallback={props.loadingFallback}
         >
             <ChatMessageEditorInner isJSON={isJSON} language={language} {...props} />
+            {/* Sync markdown view AFTER ChatMessageEditorInner so descendant
+                MarkdownPlugin has registered SET_MARKDOWN_VIEW by the time the
+                synchronizer's effects fire. Only mounted in rich-text mode —
+                code mode editors don't include MarkdownPlugin. */}
+            {!isCodeMode && <MarkdownViewSynchronizer enabled={markdownView} />}
         </EditorProvider>
     )
 }

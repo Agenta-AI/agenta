@@ -48,6 +48,8 @@ export const getAgDataOutputs = (span?: TraceSpanNode) => getAgData(span)?.outpu
 
 export const getAgDataInternals = (span?: TraceSpanNode) => getAgData(span)?.internals ?? null
 
+export const getAgDataParameters = (span?: TraceSpanNode) => getAgData(span)?.parameters ?? null
+
 export const getAgNodeType = (span?: TraceSpanNode) => span?.attributes?.ag?.node?.type ?? null
 
 export const getSpanException = (span?: TraceSpanNode) =>
@@ -98,6 +100,10 @@ export const spanDataOutputsAtomFamily = atomFamily((span?: TraceSpanNode) =>
 
 export const spanDataInternalsAtomFamily = atomFamily((span?: TraceSpanNode) =>
     atom(() => getAgDataInternals(span)),
+)
+
+export const spanDataParametersAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => getAgDataParameters(span)),
 )
 
 export const spanNodeTypeAtomFamily = atomFamily((span?: TraceSpanNode) =>

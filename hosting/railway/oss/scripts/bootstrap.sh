@@ -7,6 +7,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+install_error_trap
+
 PROJECT_NAME="${RAILWAY_PROJECT_NAME:-agenta-oss-railway}"
 ENV_NAME="${RAILWAY_ENVIRONMENT_NAME:-staging}"
 SOURCE_COMPOSE_FILE="${RAILWAY_SOURCE_COMPOSE_FILE:-$(railway_source_compose_file "$ROOT_DIR")}"
@@ -37,9 +39,19 @@ require_railway_auth() {
 
     # Verify the token actually works. A revoked or invalid token will cause
     # every subsequent call to fail with a confusing "Unauthorized" error.
+    # Distinguish a genuine auth failure from rate-limiting / transient network
+    # errors (where the token is fine) so the log points at the real cause.
     local whoami_output
     whoami_output="$(railway_call whoami 2>&1)" || {
-        printf "Railway authentication failed. The token appears to be invalid or revoked.\n" >&2
+        if printf "%s" "$whoami_output" | grep -qiE "rate.?limit"; then
+            printf "Railway auth check could not complete: the API is rate-limiting requests (retries exhausted).\n" >&2
+            printf "This is throttling, not a bad token. Re-run once the rate-limit window clears.\n" >&2
+        elif printf "%s" "$whoami_output" | grep -qiE "timed out|error sending request|failed to fetch|connection (reset|refused|closed)|temporarily unavailable|service unavailable|bad gateway|gateway time-?out"; then
+            printf "Railway auth check could not complete: transient network error reaching the Railway API.\n" >&2
+            printf "The token is likely fine; this is usually temporary. Re-run.\n" >&2
+        else
+            printf "Railway authentication failed. The token appears to be invalid or revoked.\n" >&2
+        fi
         printf "Output: %s\n" "$whoami_output" >&2
         exit 1
     }

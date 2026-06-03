@@ -71,7 +71,8 @@ export interface CreateAnnotationPayload {
     /** Entity references (evaluator is required by backend) */
     references?: {
         evaluator: {id?: string; slug?: string}
-        evaluator_revision?: {id?: string; slug?: string}
+        evaluator_variant?: {id?: string; slug?: string}
+        evaluator_revision?: {id?: string; slug?: string; version?: string | number}
         testset?: {id?: string}
         testcase?: {id?: string}
     }
@@ -96,10 +97,10 @@ export interface UpdateAnnotationPayload {
         meta?: {name?: string; description?: string; tags?: string[]}
         references?: {
             evaluator: {id?: string; slug?: string}
-            evaluator_revision?: {id?: string; slug?: string}
+            evaluator_variant?: {id?: string; slug?: string}
+            evaluator_revision?: {id?: string; slug?: string; version?: string | number}
             testset?: {id?: string}
             testcase?: {id?: string}
-            evaluator_variant?: {id?: string; slug?: string}
         }
         links?: Record<string, {trace_id?: string; span_id?: string}>
     }

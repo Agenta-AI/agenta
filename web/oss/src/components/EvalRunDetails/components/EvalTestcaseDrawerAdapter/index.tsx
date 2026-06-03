@@ -130,8 +130,9 @@ const EvalTestcaseDrawerAdapter = () => {
             mapEvalMetricSections({
                 groups: columnResult?.groups ?? [],
                 columns: columnResult?.columns ?? [],
+                steps: stepsQuery.data?.steps ?? [],
             }),
-        [columnResult?.columns, columnResult?.groups],
+        [columnResult?.columns, columnResult?.groups, stepsQuery.data?.steps],
     )
     const outputData = useInvocationOutputDrawerData({
         runId: runId ?? "",

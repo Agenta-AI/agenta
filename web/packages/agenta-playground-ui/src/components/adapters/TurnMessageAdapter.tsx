@@ -22,7 +22,6 @@ import {
     PromptDocumentUpload,
 } from "@agenta/ui/components/presentational"
 import type {ViewMode} from "@agenta/ui/drill-in"
-import {markdownViewAtom} from "@agenta/ui/editor"
 import type {UploadFile} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -219,12 +218,6 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const [viewMode, setViewMode] = useState<ViewMode>("text")
     const isCodeMode = viewMode === "json" || viewMode === "yaml"
     const editorLanguage = viewMode === "yaml" ? "yaml" : "json"
-
-    const setMarkdownView = useSetAtom(markdownViewAtom(editorIdRef.current))
-
-    useEffect(() => {
-        setMarkdownView(viewMode === "markdown")
-    }, [setMarkdownView, viewMode])
 
     const effectiveDisabled = Boolean(disabled)
     const isUserRole = kind === "user" && !isToolKind
@@ -663,6 +656,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             isJSON={isCodeMode}
                             isTool={isCodeMode}
                             language={editorLanguage}
+                            markdownView={viewMode === "markdown"}
                             onFocusChange={handleEditorFocusChange}
                             text={p?.json}
                             enableTokens={messageProps?.enableTokens ?? !isCodeMode}
@@ -756,6 +750,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         state={editorState}
                         isJSON={isCodeMode}
                         language={editorLanguage}
+                        markdownView={viewMode === "markdown"}
                         enableTokens={messageProps?.enableTokens ?? !isCodeMode}
                         headerRight={
                             <TurnMessageHeaderOptions

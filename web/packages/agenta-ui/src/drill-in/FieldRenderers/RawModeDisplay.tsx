@@ -60,7 +60,7 @@ export function RawModeDisplay({
     // Numbers and booleans stay as-is (no escaping needed)
 
     return (
-        <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[#9d4edd] p-3 bg-gray-50 rounded-md max-h-[400px] overflow-auto">
+        <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 text-[var(--ag-c-9D4EDD)] p-3 bg-gray-50 rounded-md max-h-[400px] overflow-auto">
             {rawValue}
         </pre>
     )

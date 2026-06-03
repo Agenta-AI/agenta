@@ -5,13 +5,10 @@
  * with ChatMessageEditor from @agenta/ui, otherwise uses JSON editor.
  */
 
-import {useEffect, useMemo, useState} from "react"
-
-import {useSetAtom} from "jotai"
+import {useMemo, useState} from "react"
 
 import {ChatMessageEditor} from "@agenta/ui/chat-message"
 
-import {markdownViewAtom} from "../../Editor/state/assets/atoms"
 import {useDrillInUI} from "../context/DrillInUIContext"
 import {ViewModeDropdown} from "../core/ViewModeDropdown"
 import {getViewOptions, type ViewMode} from "../utils/getViewOptions"
@@ -54,11 +51,6 @@ function ChatMessageObjectField({
     const isCodeMode = viewMode === "json" || viewMode === "yaml"
     const editorLanguage: "json" | "yaml" = viewMode === "yaml" ? "yaml" : "json"
 
-    const setMarkdownView = useSetAtom(markdownViewAtom(messageEditorId))
-    useEffect(() => {
-        setMarkdownView(viewMode === "markdown")
-    }, [setMarkdownView, viewMode])
-
     const viewOptions = useMemo(
         () => getViewOptions(content) as {value: ChatViewMode; label: string}[],
         [content],
@@ -73,6 +65,7 @@ function ChatMessageObjectField({
             disabled={!editable}
             isJSON={isCodeMode}
             language={editorLanguage}
+            markdownView={viewMode === "markdown"}
             enableTokens={!isCodeMode}
             templateFormat="curly"
             onChangeRole={(newRole: string) => {
@@ -158,7 +151,9 @@ export function JsonObjectField({
     return (
         <div
             className={
-                enableFormView ? "ml-1 border-l-2 border-[rgba(5,23,41,0.10)] pl-4" : undefined
+                enableFormView
+                    ? "ml-1 border-l-2 border-[var(--ag-rgba-051729-10)] pl-4"
+                    : undefined
             }
         >
             <JsonEditorWithLocalState

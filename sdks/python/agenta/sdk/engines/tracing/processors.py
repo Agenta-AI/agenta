@@ -145,6 +145,14 @@ class TraceProcessor(SpanProcessor):
                     for field, value in ref.items():
                         span.set_attribute(f"ag.refs.{key}.{field}", str(value))
 
+        # Records which environment slot selected the resolved revision, alongside
+        # the references above. Only set for environment-backed retrievals.
+        if context.selector and context.selector.get("key") is not None:
+            span.set_attribute(
+                "ag.selector.key",
+                str(context.selector["key"]),
+            )
+
         trace_id = span.context.trace_id
         span_id = span.context.span_id
 

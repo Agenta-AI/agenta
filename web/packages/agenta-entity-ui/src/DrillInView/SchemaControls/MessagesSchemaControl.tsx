@@ -204,6 +204,7 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
                 templateFormat="curly"
                 defaultMinimized={disabled}
                 loadingFallback="none"
+                viewModes={["text", "markdown"]}
             />
         </div>
     )

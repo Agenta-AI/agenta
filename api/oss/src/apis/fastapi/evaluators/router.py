@@ -10,11 +10,13 @@ from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.events.utils import publish_revision_event
 
-from oss.src.core.git.types import VariantForkError
+from oss.src.core.git.utils import build_retrieval_info
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
+    EvaluatorRevisionCommit,
     EvaluatorRevisionData,
     #
     SimpleEvaluatorQuery,
@@ -1058,6 +1060,7 @@ class EvaluatorsRouter:
         return evaluator_variants_response
 
     @intercept_exceptions()  # TODO: FIX ME
+    @handle_git_exceptions()
     async def fork_evaluator_variant(
         self,
         request: Request,
@@ -1093,18 +1096,12 @@ class EvaluatorsRouter:
             if not fork_request.evaluator_variant_id:
                 fork_request.evaluator_variant_id = evaluator_variant_id
 
-        try:
-            evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                evaluator_fork=fork_request,
-            )
-        except VariantForkError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message,
-            ) from e
+        evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluator_fork=fork_request,
+        )
 
         evaluator_variant_response = EvaluatorVariantResponse(
             count=1 if evaluator_variant else 0,
@@ -1116,6 +1113,7 @@ class EvaluatorsRouter:
     # EVALUATOR REVISIONS ------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def deploy_evaluator_revision(
         self,
         request: Request,
@@ -1277,6 +1275,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def retrieve_evaluator_revision(
         self,
         request: Request,
@@ -1334,14 +1333,6 @@ class EvaluatorsRouter:
         )
         environment_lookup_requested = environment_refs_requested or key is not None
 
-        if evaluator_lookup_requested and environment_lookup_requested:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Provide either evaluator refs or environment refs with key, not both."
-                ),
-            )
-
         if not evaluator_lookup_requested and not environment_lookup_requested:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1358,14 +1349,29 @@ class EvaluatorsRouter:
                 )
 
             if not key:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment-backed evaluator retrieve requires key.",
-                )
+                if evaluator_ref and evaluator_ref.slug:
+                    key = f"{evaluator_ref.slug}.revision"
+                elif evaluator_ref and evaluator_ref.id:
+                    evaluator = await self.evaluators_service.fetch_evaluator(
+                        project_id=UUID(request.state.project_id),
+                        evaluator_ref=evaluator_ref,
+                    )
+                    if not evaluator or not evaluator.slug:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Environment-backed evaluator retrieve could not derive key from evaluator slug.",
+                        )
+                    key = f"{evaluator.slug}.revision"
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Environment-backed evaluator retrieve requires key.",
+                    )
 
         (
             evaluator_revision,
             resolution_info,
+            retrieval_info,
         ) = await self.evaluators_service.retrieve_evaluator_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1391,11 +1397,12 @@ class EvaluatorsRouter:
             count=1 if evaluator_revision else 0,
             evaluator_revision=evaluator_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="retrieve",
             revision=evaluator_revision_response.evaluator_revision,
             count=evaluator_revision_response.count,
@@ -1404,17 +1411,18 @@ class EvaluatorsRouter:
         return evaluator_revision_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_evaluator_revision(
         self,
         request: Request,
         *,
         evaluator_revision_create_request: EvaluatorRevisionCreateRequest,
     ) -> EvaluatorRevisionResponse:
-        """Create a new revision on an evaluator variant.
+        """Create and commit the initial revision for an evaluator variant.
 
         Prefer `/evaluators/revisions/commit` for the standard commit
-        flow. This endpoint exists for internal create paths that need
-        to insert a revision without the commit semantics.
+        flow. This endpoint commits an initial revision with the `initial`
+        guard, preventing duplicate initial revisions for the same variant.
         """
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1424,11 +1432,19 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        evaluator_revision = await self.evaluators_service.create_evaluator_revision(
+        evaluator_revision = await self.evaluators_service.commit_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_revision_create=evaluator_revision_create_request.evaluator_revision,
+            evaluator_revision_commit=EvaluatorRevisionCommit(
+                **evaluator_revision_create_request.evaluator_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         return EvaluatorRevisionResponse(
@@ -1472,7 +1488,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="fetch",
             revision=response.evaluator_revision,
             count=response.count,
@@ -1641,7 +1657,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="query",
             revisions=response.evaluator_revisions or [],
             count=response.count,
@@ -1720,7 +1736,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="log",
             revisions=revisions_response.evaluator_revisions or [],
             count=revisions_response.count,
@@ -1729,6 +1745,7 @@ class EvaluatorsRouter:
         return revisions_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def resolve_evaluator_revision(
         self,
         request: Request,
@@ -1773,6 +1790,10 @@ class EvaluatorsRouter:
             count=1,
             evaluator_revision=evaluator_revision,
             resolution_info=resolution_info,
+            retrieval_info=build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+            ),
         )
 
 
