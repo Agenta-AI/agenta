@@ -1,8 +1,10 @@
 import {memo, ReactNode, useMemo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {Button, Popover, Typography} from "antd"
+import {useAtomValue} from "jotai"
 
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
 
@@ -37,6 +39,7 @@ const EvaluatorDetailsPopover = ({
     children,
 }: EvaluatorDetailsPopoverProps) => {
     const {buildEvaluatorTarget, navigateToEvaluator} = useEvaluatorNavigation()
+    const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(evaluator?.id || ""))
 
     const evaluatorName = evaluator?.name || fallbackLabel
     const evaluatorId =
@@ -51,7 +54,18 @@ const EvaluatorDetailsPopover = ({
         Boolean((evaluator as any)?.flags?.is_feedback) ||
         Boolean((evaluator as any)?.meta?.is_feedback)
 
-    const target = useMemo(() => buildEvaluatorTarget(evaluator), [buildEvaluatorTarget, evaluator])
+    const evaluatorWithLatestRevision = useMemo(() => {
+        if (!latestRevisionId) return null
+        return {...(evaluator || {}), id: latestRevisionId}
+    }, [evaluator, latestRevisionId])
+
+    const target = useMemo(() => {
+        if (isHuman) {
+            return buildEvaluatorTarget(evaluator)
+        }
+        if (!evaluatorWithLatestRevision) return null
+        return buildEvaluatorTarget(evaluatorWithLatestRevision)
+    }, [isHuman, buildEvaluatorTarget, evaluator, evaluatorWithLatestRevision])
 
     const popoverContent = (
         <div className="w-[250px]">
@@ -112,10 +126,10 @@ const EvaluatorDetailsPopover = ({
                         onClick={(event) => {
                             event?.preventDefault?.()
                             event?.stopPropagation?.()
-                            navigateToEvaluator(evaluator)
+                            navigateToEvaluator(isHuman ? evaluator : evaluatorWithLatestRevision)
                         }}
                     >
-                        Open evaluator registry
+                        {isHuman ? "Open evaluator registry" : "Open evaluator playground"}
                     </Button>
                 ) : null}
             </div>
