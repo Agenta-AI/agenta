@@ -1,4 +1,4 @@
-from asyncio import Semaphore
+from asyncio import Semaphore, gather
 from typing import Any, Dict, Optional
 
 from agenta.sdk.decorators.running import invoke_application, invoke_evaluator
@@ -64,7 +64,19 @@ class SDKWorkflowRunner:
         requests: list[WorkflowExecutionRequest],
         semaphore: Optional[Semaphore] = None,
     ) -> list[WorkflowExecutionResult]:
-        return [await self.execute(request) for request in requests]
+        # Concurrent, semaphore-bounded — same shape as APIWorkflowRunner. The
+        # engine passes a shared semaphore (from batch_size); honoring it here is
+        # what makes a scenario's repeats/steps run concurrently instead of
+        # serially.
+        async def _guarded(
+            request: WorkflowExecutionRequest,
+        ) -> WorkflowExecutionResult:
+            if semaphore is not None:
+                async with semaphore:
+                    return await self.execute(request)
+            return await self.execute(request)
+
+        return list(await gather(*(_guarded(request) for request in requests)))
 
 
 class SDKResultSetter:
@@ -104,6 +116,57 @@ class SDKResultSetter:
         )
         await self._populate(results=[payload])
         return payload
+
+
+class SDKScenarioEditor:
+    """Engine `edit_scenario` adapter — SDK peer of `APIScenarioEditor`.
+
+    Bridges the engine's `(scenario, status)` contract to the SDK client's
+    `aedit_scenario(scenario_id=, status=, tags=, meta=)`, carrying the
+    scenario's tags/meta through like the API adapter. The injected `edit`
+    client tolerates a run closed mid-flight (HTTP 409 -> None).
+    """
+
+    def __init__(self, *, edit: Any) -> None:
+        self._edit = edit
+
+    async def __call__(self, scenario: Any, status: Any) -> Any:
+        return await self._edit(
+            scenario_id=scenario.id,
+            status=getattr(status, "value", status),
+            tags=getattr(scenario, "tags", None),
+            meta=getattr(scenario, "meta", None),
+        )
+
+
+class SDKMetricsRefresher:
+    """Engine `refresh_metrics` adapter — SDK peer of `APIMetricsRefresher`.
+
+    The engine calls this `(run_id, scenario_id)` per scenario (variational) and
+    `(run_id, None)` once at the end (global). Wraps the injected `arefresh`
+    client; the SDK has no temporal axis, so unlike the API adapter it does not
+    handle timestamp/interval buckets.
+    """
+
+    def __init__(self, *, refresh: Any) -> None:
+        self._refresh = refresh
+
+    async def __call__(self, run_id: Any, scenario_id: Any = None) -> Any:
+        return await self._refresh(run_id, scenario_id)
+
+
+class SDKTraceFetcher:
+    """Engine `fetch_trace` adapter — SDK peer of `APITraceFetcher`.
+
+    A callable `(trace_id) -> trace | None`, wrapping the injected `afetch_trace`
+    client so the engine loads a runner's trace after a step executes.
+    """
+
+    def __init__(self, *, fetch: Any) -> None:
+        self._fetch = fetch
+
+    async def __call__(self, trace_id: str) -> Any:
+        return await self._fetch(trace_id)
 
 
 def _normalize_service_response(response: Any) -> WorkflowExecutionResult:

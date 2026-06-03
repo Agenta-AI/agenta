@@ -3,7 +3,12 @@ from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol, Tuple
 from uuid import UUID
 
-from agenta.sdk.evaluations.runtime.adapters import SDKResultSetter
+from agenta.sdk.evaluations.runtime.adapters import (
+    SDKResultSetter,
+    SDKScenarioEditor,
+    SDKMetricsRefresher,
+    SDKTraceFetcher,
+)
 from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep,
     PlannedCell,
@@ -426,11 +431,11 @@ class AsyncioEvaluationTaskRunner:
                 repeats=repeats,
                 create_scenario=_PreMintedScenarios(minted),
                 set_results=SDKResultSetter(populate=self._populate_slice),
-                refresh_metrics=self._refresh_metrics,
-                edit_scenario=self._edit_scenario,
+                refresh_metrics=SDKMetricsRefresher(refresh=self._refresh_metrics),
+                edit_scenario=SDKScenarioEditor(edit=self._edit_scenario),
                 runners=runners,
                 revisions=revisions,
-                fetch_trace=self._fetch_trace,
+                fetch_trace=SDKTraceFetcher(fetch=self._fetch_trace),
                 # The SDK evaluate() loop IS the executor for custom-origin steps.
                 execute_custom=True,
             )

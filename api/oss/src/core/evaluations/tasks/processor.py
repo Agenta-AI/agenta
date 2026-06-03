@@ -40,7 +40,7 @@ from oss.src.core.evaluations.runtime.adapters import (
     APIMetricsRefresher,
     APIResultSetter,
     APIScenarioEditor,
-    APITraceLoader,
+    APITraceFetcher,
     APIWorkflowRunner,
 )
 from oss.src.core.evaluations.runtime.models import (
@@ -380,7 +380,7 @@ async def _run_sdk_source_slice(
         runners=runners,
         revisions=revisions,
         fetch_trace=(
-            APITraceLoader(
+            APITraceFetcher(
                 project_id=project_id,
                 tracing_service=tracing_service,
             )

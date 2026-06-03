@@ -54,15 +54,6 @@ from agenta.sdk.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
-async def _edit_scenario(scenario: Any, status: Any) -> Any:
-    """Engine `edit_scenario` adapter: bridge the `(scenario, status)` engine
-    contract to the SDK client's `aedit_scenario(scenario_id=, status=)`."""
-    return await aedit_scenario(
-        scenario_id=scenario.id,
-        status=getattr(status, "value", status),
-    )
-
-
 class EvaluateSpecs(BaseModel):
     testsets: Optional[Target] = None
     applications: Optional[Target] = None
@@ -483,7 +474,7 @@ async def aevaluate(
         fetch_trace=afetch_trace,
         #
         add_scenarios=aadd_scenarios,
-        edit_scenario=_edit_scenario,
+        edit_scenario=aedit_scenario,
         #
         populate_slice=apopulate_slice,
         refresh_metrics=arefresh,

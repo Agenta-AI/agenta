@@ -323,7 +323,7 @@ class APIMetricsRefresher:
         )
 
 
-class APITraceLoader:
+class APITraceFetcher:
     """Callable trace loader: `await loader(trace_id) -> trace`.
 
     The engine's `fetch_trace` seam is a plain async callable; this named class

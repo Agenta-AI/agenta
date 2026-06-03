@@ -89,26 +89,40 @@ async def aedit_scenario(
     *,
     scenario_id: UUID,
     status: str,
+    tags: Optional[Dict[str, Any]] = None,
+    meta: Optional[Dict[str, Any]] = None,
 ) -> Optional[EvaluationScenario]:
-    """Edit a single scenario (currently its terminal status).
+    """Edit a single scenario (status, and optionally tags/meta).
 
     Mirrors `PATCH /evaluations/scenarios/{scenario_id}` (operation
     `edit_scenario`); the body's `scenario.id` must match the path id. Used by
     the SDK evaluate loop's `edit_scenario` adapter to flip each scenario to its
     computed SUCCESS/ERRORS/PENDING status after its cells are written.
+
+    Carries `tags`/`meta` like the API's `APIScenarioEditor`, and tolerates a
+    run closed mid-flight: the API returns 409 (EvaluationClosedException) for an
+    edit against a locked run — closing is a lock, not a failure, so we return
+    None rather than raising, matching the API adapter's
+    `except EvaluationClosedConflict`.
     """
-    payload = dict(
-        scenario=dict(
-            id=str(scenario_id),
-            status=status,
-        )
+    scenario: Dict[str, Any] = dict(
+        id=str(scenario_id),
+        status=status,
     )
+    if tags is not None:
+        scenario["tags"] = tags
+    if meta is not None:
+        scenario["meta"] = meta
 
     response = authed_api()(
         method="PATCH",
         endpoint=f"/evaluations/scenarios/{scenario_id}",
-        json=payload,
+        json=dict(scenario=scenario),
     )
+
+    # Run closed (locked) mid-flight -> 409. Skip the write, don't raise.
+    if response.status_code == 409:
+        return None
 
     try:
         response.raise_for_status()
@@ -118,5 +132,5 @@ async def aedit_scenario(
 
     response = response.json()
 
-    scenario = response.get("scenario")
-    return EvaluationScenario(**scenario) if scenario else None
+    scenario_data = response.get("scenario")
+    return EvaluationScenario(**scenario_data) if scenario_data else None

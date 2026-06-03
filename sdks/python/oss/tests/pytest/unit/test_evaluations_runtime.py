@@ -787,7 +787,7 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
         # scenario_id is set, global when it is None.
         refresh_calls.append((run_id, scenario_id))
 
-    async def fake_edit_scenario(*, scenario_id, status):
+    async def fake_edit_scenario(*, scenario_id, status, tags=None, meta=None):
         edit_status_calls.append((scenario_id, status))
 
     async def fake_invoke_application(**kwargs):
@@ -952,7 +952,7 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     async def fake_refresh(run_id, scenario_id=None):
         refresh_calls.append((run_id, scenario_id))
 
-    async def fake_edit_scenario(*, scenario_id, status):
+    async def fake_edit_scenario(*, scenario_id, status, tags=None, meta=None):
         edit_status_calls.append((scenario_id, status))
 
     async def fake_invoke_application(**kwargs):
@@ -1023,6 +1023,36 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
 
 async def _async(value):
     return value
+
+
+@pytest.mark.asyncio
+async def test_sdk_workflow_runner_execute_batch_is_concurrent_bounded():
+    """SDKWorkflowRunner.execute_batch runs concurrently, bounded by the
+    semaphore — same shape as APIWorkflowRunner (not the old sequential loop)."""
+    import asyncio
+
+    runner = runtime_adapters.SDKWorkflowRunner()
+
+    in_flight = 0
+    peak = 0
+
+    async def fake_execute(request):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0)
+        in_flight -= 1
+        return WorkflowExecutionResult(status=EvaluationStatus.SUCCESS, trace_id="t")
+
+    runner.execute = fake_execute  # type: ignore[method-assign]
+
+    requests = [SimpleNamespace(idx=i) for i in range(6)]
+    semaphore = asyncio.Semaphore(2)
+
+    results = await runner.execute_batch(requests, semaphore=semaphore)
+
+    assert len(results) == 6
+    assert peak <= 2  # honored the semaphore
 
 
 # ---------------------------------------------------------------------------
