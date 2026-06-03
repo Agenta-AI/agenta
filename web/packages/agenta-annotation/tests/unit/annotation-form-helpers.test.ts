@@ -77,32 +77,34 @@ import {
     getOutputsSchema,
     isEmptyValue,
 } from "../../src/state/controllers/annotationFormController"
+import type {Annotation} from "@agenta/entities/annotation"
+import type {Workflow} from "@agenta/entities/workflow"
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeWorkflow(schemaProperties: Record<string, unknown> = {}) {
+function makeWorkflow(schemaProperties: Record<string, unknown> = {}): Workflow {
     // resolveOutputSchema is mocked to return its input,
     // so we set data to the schema shape directly.
     return {
         data: {properties: schemaProperties},
         slug: "test-evaluator",
         id: "wf-1",
-    } as any
+    } as unknown as Workflow
 }
 
 function makeAnnotation(
     outputs: Record<string, unknown>,
     references?: {evaluator?: {slug?: string}},
-) {
+): Annotation {
     return {
         trace_id: "trace-1",
         span_id: "span-1",
         data: {outputs},
         references,
         meta: {},
-    } as any
+    } as unknown as Annotation
 }
 
 beforeEach(() => {

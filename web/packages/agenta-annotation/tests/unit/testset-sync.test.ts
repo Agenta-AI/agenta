@@ -7,7 +7,8 @@
 
 import {describe, expect, it} from "vitest"
 
-import type {Annotation} from "../../src/state/testsetSync"
+import type {Annotation} from "@agenta/entities/annotation"
+import type {Testcase} from "@agenta/entities/testcase"
 import {
     buildTestcaseExportRows,
     buildTestsetSyncOperations,
@@ -475,8 +476,8 @@ describe("buildTraceTestsetRows", () => {
 describe("buildTestcaseExportRows", () => {
     const evaluator = {slug: "quality", workflowId: "wf-q"}
 
-    function makeTestcase(id: string, testsetId: string) {
-        return {id, testset_id: testsetId, data: {prompt: "hello"}}
+    function makeTestcase(id: string, testsetId: string): Testcase {
+        return {id, testset_id: testsetId, data: {prompt: "hello"}} as unknown as Testcase
     }
 
     it("builds a row when annotation data exists for the testcase", () => {
@@ -487,7 +488,7 @@ describe("buildTestcaseExportRows", () => {
         })
         const rows = buildTestcaseExportRows({
             scenarioIds: ["s-1"],
-            testcasesByScenarioId: new Map([["s-1", makeTestcase("tc-1", "ts-1") as any]]),
+            testcasesByScenarioId: new Map([["s-1", makeTestcase("tc-1", "ts-1")]]),
             annotationsByTestcaseId: new Map([["tc-1", [ann]]]),
             evaluators: [evaluator],
             queueId: "q-1",
@@ -495,7 +496,7 @@ describe("buildTestcaseExportRows", () => {
         expect(rows).toHaveLength(1)
         expect(rows[0].testcaseId).toBe("tc-1")
         expect(rows[0].testsetId).toBe("ts-1")
-        expect((rows[0].data as any).quality).toMatchObject({score: 8})
+        expect((rows[0].data as Record<string, unknown>).quality).toMatchObject({score: 8})
     })
 
     it("skips a scenario with no testcase mapping", () => {
@@ -512,7 +513,7 @@ describe("buildTestcaseExportRows", () => {
     it("skips a testcase with no annotations", () => {
         const rows = buildTestcaseExportRows({
             scenarioIds: ["s-1"],
-            testcasesByScenarioId: new Map([["s-1", makeTestcase("tc-1", "ts-1") as any]]),
+            testcasesByScenarioId: new Map([["s-1", makeTestcase("tc-1", "ts-1")]]),
             annotationsByTestcaseId: new Map([["tc-1", []]]),
             evaluators: [evaluator],
             queueId: "q-1",
@@ -528,8 +529,8 @@ describe("buildTestcaseExportRows", () => {
 describe("buildTestsetSyncPreview", () => {
     const evaluator = {slug: "quality", workflowId: "wf-q"}
 
-    function makeTestcase(id: string, testsetId: string) {
-        return {id, testset_id: testsetId, data: {}}
+    function makeTestcase(id: string, testsetId: string): Testcase {
+        return {id, testset_id: testsetId, data: {}} as unknown as Testcase
     }
 
     function makeQueueAnn(traceId = "trace-1") {
@@ -559,7 +560,7 @@ describe("buildTestsetSyncPreview", () => {
         const preview = buildTestsetSyncPreview({
             queueId: "q-1",
             completedScenarios: [{scenarioId: "s-1", testcaseId: "tc-1"}],
-            testcasesById: new Map([["tc-1", {id: "tc-1", data: {}} as any]]),
+            testcasesById: new Map([["tc-1", {id: "tc-1", data: {}} as unknown as Testcase]]),
             annotationsByTestcaseId: new Map(),
             evaluators: [evaluator],
             latestRevisionIdsByTestsetId: new Map(),
@@ -572,7 +573,7 @@ describe("buildTestsetSyncPreview", () => {
         const preview = buildTestsetSyncPreview({
             queueId: "q-1",
             completedScenarios: [{scenarioId: "s-1", testcaseId: "tc-1"}],
-            testcasesById: new Map([["tc-1", makeTestcase("tc-1", "ts-1") as any]]),
+            testcasesById: new Map([["tc-1", makeTestcase("tc-1", "ts-1")]]),
             annotationsByTestcaseId: new Map([["tc-1", [ann]]]),
             evaluators: [evaluator],
             latestRevisionIdsByTestsetId: new Map(), // ts-1 has no revision
@@ -585,7 +586,7 @@ describe("buildTestsetSyncPreview", () => {
         const preview = buildTestsetSyncPreview({
             queueId: "q-1",
             completedScenarios: [{scenarioId: "s-1", testcaseId: "tc-1"}],
-            testcasesById: new Map([["tc-1", makeTestcase("tc-1", "ts-1") as any]]),
+            testcasesById: new Map([["tc-1", makeTestcase("tc-1", "ts-1")]]),
             annotationsByTestcaseId: new Map([["tc-1", [ann]]]),
             evaluators: [evaluator],
             latestRevisionIdsByTestsetId: new Map([["ts-1", "rev-1"]]),
@@ -604,7 +605,7 @@ describe("buildTestsetSyncPreview", () => {
         const preview = buildTestsetSyncPreview({
             queueId: "q-1",
             completedScenarios: [{scenarioId: "s-1", testcaseId: "tc-1"}],
-            testcasesById: new Map([["tc-1", makeTestcase("tc-1", "ts-1") as any]]),
+            testcasesById: new Map([["tc-1", makeTestcase("tc-1", "ts-1")]]),
             annotationsByTestcaseId: new Map([["tc-1", [ann1, ann2]]]),
             evaluators: [evaluator],
             latestRevisionIdsByTestsetId: new Map([["ts-1", "rev-1"]]),
@@ -624,8 +625,8 @@ describe("buildTestsetSyncPreview", () => {
                 {scenarioId: "s-2", testcaseId: "tc-2"},
             ],
             testcasesById: new Map([
-                ["tc-1", makeTestcase("tc-1", "ts-1") as any],
-                ["tc-2", makeTestcase("tc-2", "ts-1") as any],
+                ["tc-1", makeTestcase("tc-1", "ts-1")],
+                ["tc-2", makeTestcase("tc-2", "ts-1")],
             ]),
             annotationsByTestcaseId: new Map([
                 ["tc-1", [ann1]],
@@ -648,7 +649,7 @@ describe("buildTestsetSyncPreview", () => {
         const preview = buildTestsetSyncPreview({
             queueId: "q-1",
             completedScenarios: [{scenarioId: "s-1", testcaseId: "tc-1"}],
-            testcasesById: new Map([["tc-1", makeTestcase("tc-1", "ts-1") as any]]),
+            testcasesById: new Map([["tc-1", makeTestcase("tc-1", "ts-1")]]),
             annotationsByTestcaseId: new Map([["tc-1", [annNoOutputs]]]),
             evaluators: [evaluator],
             latestRevisionIdsByTestsetId: new Map([["ts-1", "rev-1"]]),

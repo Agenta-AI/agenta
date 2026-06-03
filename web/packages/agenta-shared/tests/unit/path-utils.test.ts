@@ -31,6 +31,24 @@ describe("getValueAtPath — basic object navigation", () => {
     })
 })
 
+describe("getValueAtPath — falsy root short-circuit", () => {
+    it("returns 0 immediately (falsy root, path ignored)", () => {
+        expect(getValueAtPath(0, ["a"])).toBe(0)
+    })
+
+    it("returns false immediately (falsy root, path ignored)", () => {
+        expect(getValueAtPath(false, ["a"])).toBe(false)
+    })
+
+    it("returns empty string immediately (falsy root, path ignored)", () => {
+        expect(getValueAtPath("", ["a"])).toBe("")
+    })
+
+    it("returns null immediately (falsy root, path ignored)", () => {
+        expect(getValueAtPath(null, ["a"])).toBeNull()
+    })
+})
+
 describe("getValueAtPath — array indexing", () => {
     it("accesses array elements by numeric index", () => {
         expect(getValueAtPath([10, 20, 30], [1])).toBe(20)
