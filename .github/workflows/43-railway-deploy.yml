@@ -112,11 +112,10 @@ jobs:
           # shellcheck source=/dev/null
           source hosting/railway/oss/scripts/preview-resolve-env.sh
 
-          log_file="$(mktemp)"
-          cleanup() {
-            rm -f "$log_file"
-          }
-          trap cleanup EXIT
+          # Keep the log in the workspace so the "Upload deploy log" step can
+          # publish it as an artifact. GitHub's live log can truncate streamed
+          # output, so we always persist a full copy.
+          log_file="${GITHUB_WORKSPACE:-$PWD}/railway-deploy-${PR_NUMBER:-unknown}.log"
 
           project="$RAILWAY_PROJECT_NAME"
           environment_name="$RAILWAY_ENVIRONMENT_NAME"
@@ -177,12 +176,57 @@ jobs:
           echo "environment_name=${environment_name}" >> "$GITHUB_OUTPUT"
           echo "railway_logs_url=${railway_logs_url}" >> "$GITHUB_OUTPUT"
 
-          trap - EXIT
-          cleanup
+          # Best-effort diagnostics; never let these change the step outcome.
+          set +e
+          # On failure, pull the tail of the key services' Railway logs into
+          # this job so the root cause (e.g. a Postgres crash-loop) is visible
+          # here instead of only in the Railway dashboard.
+          if [ "$deploy_failed" = "true" ]; then
+            # Tee into the persisted log so the uploaded artifact and the
+            # step-summary tail include the Railway service logs too, not just
+            # the (possibly truncated) live Actions log.
+            dump_railway_logs 2>&1 | tee -a "$log_file"
+          fi
+
+          status_label="Deployed"
+          [ "$deploy_failed" = "true" ] && status_label="Failed"
+          {
+            echo "### Railway Preview Deploy"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| PR | \`${PR_NUMBER}\` |"
+            echo "| Image tag | \`${IMAGE_TAG}\` |"
+            echo "| Status | ${status_label} |"
+            [ -n "$url" ] && echo "| Preview URL | ${url} |"
+            [ -n "$railway_logs_url" ] && echo "| Railway logs | [Open logs](${railway_logs_url}) |"
+            if [ "$deploy_failed" = "true" ]; then
+              echo
+              echo "<details><summary>Deploy log (last 100 lines)</summary>"
+              echo
+              echo '```'
+              tail -n 100 "$log_file" 2>/dev/null
+              echo '```'
+              echo "</details>"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          set -e
 
           if [ "$deploy_failed" = "true" ]; then
             exit 1
           fi
+
+      - name: Upload deploy log
+        if: always()
+        # Diagnostics only: a failed/duplicate upload must never fail the job.
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: railway-deploy-log-${{ inputs.pr_number }}
+          path: railway-deploy-*.log
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
 
       - name: Post preview URL as PR comment
         if: inputs.pr_number != '' && steps.deploy.outputs.preview_url != ''
