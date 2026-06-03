@@ -58,6 +58,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             borderRadius: "50%",
         },
     },
+    statusLabel: {
+        minWidth: 0,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+    },
     dot: {
         height: 3,
         aspectRatio: 1 / 1,
@@ -256,14 +262,20 @@ export const StatusRenderer = memo(
         const {label, color} = statusMapper(token)(params.data?.status.value as EvaluationStatus)
         const errorMsg = params.data?.status.error?.message
         const errorStacktrace = params.data?.status.error?.stacktrace
+        const statusLabel = errorMsg || label
+        const tooltipTitle = errorMsg
+            ? [label, errorMsg, errorStacktrace].filter(Boolean).join("\n\n")
+            : undefined
 
         return (
             <Typography.Text className={classes.statusCell}>
                 <div style={{backgroundColor: color}} />
-                <span>{label}</span>
+                <Tooltip title={tooltipTitle}>
+                    <span className={classes.statusLabel}>{statusLabel}</span>
+                </Tooltip>
                 {errorMsg && (
                     <span style={{marginRight: 2}}>
-                        <Tooltip title={errorStacktrace ? errorStacktrace : ""}>
+                        <Tooltip title={tooltipTitle}>
                             <InfoCircleOutlined />
                         </Tooltip>
                     </span>
