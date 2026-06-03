@@ -244,6 +244,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         columnVisibilityLocked: true,
         // Exclude actions column from CSV export
         exportEnabled: false,
+        onCell: () => ({className: "ag-table-actions-cell"}),
         render: (_, record) => {
             if (record.__isSkeleton) return null
 
@@ -342,7 +343,10 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
             }
 
             return (
-                <div className="h-full flex items-center justify-center">
+                <div
+                    className="w-full h-full flex items-center justify-center"
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <Dropdown
                         trigger={["click"]}
                         styles={{root: {width: 200}}}
