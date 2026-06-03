@@ -47,7 +47,7 @@ interface SmartCellContentProps {
      * separate and is driven by rule matches; this prop only affects the
      * fallback when no rule matches.
      */
-    beautifyJson?: boolean
+    prettyJson?: boolean
 }
 
 /**
@@ -72,7 +72,7 @@ const SmartCellContent = memo(
         showPopover = true,
         chatPreference,
         chatPreviewStrategy,
-        beautifyJson = false,
+        prettyJson = false,
     }: SmartCellContentProps) => {
         const rowHeightContext = useRowHeightContext()
         const maxLines = maxLinesProp ?? rowHeightContext.maxLines
@@ -131,7 +131,7 @@ const SmartCellContent = memo(
             const copyText = safeJsonStringify(preview.data)
             const cellContent = (
                 <div className={`cursor-pointer ${className}`}>
-                    <JsonCellContent value={preview.data} maxLines={maxLines} truncate beautified />
+                    <JsonCellContent value={preview.data} maxLines={maxLines} truncate pretty />
                 </div>
             )
 
@@ -139,9 +139,7 @@ const SmartCellContent = memo(
 
             return (
                 <CellContentPopover
-                    fullContent={
-                        <JsonCellContent value={preview.data} truncate={false} beautified />
-                    }
+                    fullContent={<JsonCellContent value={preview.data} truncate={false} pretty />}
                     copyText={copyText}
                 >
                     {cellContent}
@@ -161,7 +159,7 @@ const SmartCellContent = memo(
                         value={jsonCandidate}
                         maxLines={maxLines}
                         truncate
-                        beautified={beautifyJson}
+                        pretty={prettyJson}
                     />
                 </div>
             )
@@ -174,7 +172,7 @@ const SmartCellContent = memo(
                         <JsonCellContent
                             value={jsonCandidate}
                             truncate={false}
-                            beautified={beautifyJson}
+                            pretty={prettyJson}
                         />
                     }
                     copyText={copyText}

@@ -13,7 +13,7 @@ interface JsonCellContentProps {
     /** Whether to truncate content (default: true for cell, false for popover) */
     truncate?: boolean
     /** Render records as compact key/value fields instead of raw JSON text */
-    beautified?: boolean
+    pretty?: boolean
 }
 
 /**
@@ -31,11 +31,11 @@ const JsonCellContent = memo(
         maxLines = 10,
         maxChars = 500,
         truncate = true,
-        beautified = false,
+        pretty = false,
     }: JsonCellContentProps) => {
         const prettyEntries = useMemo(
-            () => (beautified ? getPrettyJsonEntries(value) : null),
-            [beautified, value],
+            () => (pretty ? getPrettyJsonEntries(value) : null),
+            [pretty, value],
         )
         const displayString = useMemo(() => {
             const full = safeJsonStringify(value)
