@@ -197,7 +197,7 @@ const extractPreviewRunMeta = (run: PreviewEvaluationRun): PreviewRunColumnMeta 
         ? evaluatorDefsRaw
               .map((evaluator: any) => ({
                   id: normalizeString(evaluator?.id),
-                  slug: normalizeString(evaluator?.slug ?? evaluator?.key),
+                  slug: normalizeString(evaluator?.slug),
                   name: normalizeString(evaluator?.name) ?? normalizeString(evaluator?.label),
               }))
               .filter((item: any) => item.id || item.slug || item.name)

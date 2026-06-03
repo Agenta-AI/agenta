@@ -63,11 +63,8 @@ export const resolveEvaluatorHandles = (
 
     const slug =
         normalizeString(evaluator.slug) ??
-        normalizeString(evaluator.key) ??
         normalizeString(evaluatorVariant.slug) ??
-        normalizeString(evaluatorVariant.key) ??
         normalizeString(evaluatorRevision.slug) ??
-        normalizeString(evaluatorRevision.key) ??
         null
 
     const name =
@@ -78,11 +75,9 @@ export const resolveEvaluatorHandles = (
 
     const id = normalizeString(evaluator.id)
     const variantId = normalizeString(evaluatorVariant.id)
-    const variantSlug =
-        normalizeString(evaluatorVariant.slug) ?? normalizeString(evaluatorVariant.key) ?? null
+    const variantSlug = normalizeString(evaluatorVariant.slug) ?? null
     const revisionId = normalizeString(evaluatorRevision.id)
-    const revisionSlug =
-        normalizeString(evaluatorRevision.slug) ?? normalizeString(evaluatorRevision.key) ?? null
+    const revisionSlug = normalizeString(evaluatorRevision.slug) ?? null
 
     return {
         slug,

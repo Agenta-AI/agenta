@@ -586,6 +586,16 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "axelray-dev",
+      "name": "AxelRay",
+      "avatar_url": "https://avatars.githubusercontent.com/u/110029405?v=4",
+      "profile": "https://github.com/axelray-dev",
+      "contributions": [
+        "platform",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
