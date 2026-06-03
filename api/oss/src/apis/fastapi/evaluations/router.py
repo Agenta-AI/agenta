@@ -58,6 +58,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     PopulateSliceRequest,
     ProbeSliceRequest,
     PruneSliceRequest,
+    RefreshSliceRequest,
     # EVALUATION GRAPH-SHAPE OPS
     AddScenariosRequest,
     RemoveScenariosRequest,
@@ -1997,6 +1998,15 @@ class SimpleEvaluationsRouter:
             operation_id="prune_slice",
         )
 
+        # POST /api/simple/evaluations/{evaluation_id}/refresh
+        self.router.add_api_route(
+            path="/{evaluation_id}/refresh",
+            methods=["POST"],
+            endpoint=self.refresh_evaluation_slice,
+            status_code=http_status.HTTP_204_NO_CONTENT,
+            operation_id="refresh_slice",
+        )
+
         # POST /api/simple/evaluations/{evaluation_id}/scenarios/add
         self.router.add_api_route(
             path="/{evaluation_id}/scenarios/add",
@@ -2497,6 +2507,37 @@ class SimpleEvaluationsRouter:
             scenario_ids=prune_slice_request.scenario_ids,
             step_keys=prune_slice_request.step_keys,
             repeat_idxs=prune_slice_request.repeat_idxs,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/refresh
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def refresh_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        refresh_slice_request: RefreshSliceRequest,
+    ) -> None:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        # Recomputes the metric rows (variational + aggregate) over the addressed
+        # scope without writing or executing cells. Used by callers that populated
+        # finished cells themselves (e.g. the SDK). 204 — no body.
+        await self.simple_evaluations_service.refresh_slice(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            scenario_ids=refresh_slice_request.scenario_ids,
+            step_keys=refresh_slice_request.step_keys,
+            repeat_idxs=refresh_slice_request.repeat_idxs,
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/scenarios/add

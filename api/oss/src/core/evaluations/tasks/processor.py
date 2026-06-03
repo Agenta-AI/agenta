@@ -9,7 +9,7 @@ from agenta.sdk.evaluations.runtime.models import (
 )
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.evaluations.runtime.processor import (
-    process_evaluation_source_slice as sdk_process_evaluation_source_slice,
+    process_sources as sdk_process_evaluation_source_slice,
 )
 
 from oss.src.utils.logging import get_module_logger
@@ -373,7 +373,7 @@ async def _run_sdk_source_slice(
         refresh_metrics=refresh_metrics,
         runners=runners,
         revisions=revisions,
-        trace_loader=(
+        fetch_trace=(
             APITraceLoader(
                 project_id=project_id,
                 tracing_service=tracing_service,

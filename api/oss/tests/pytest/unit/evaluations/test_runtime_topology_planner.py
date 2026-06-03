@@ -831,6 +831,11 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
         set_results=AsyncMock(return_value=[result]),
         delete_results=AsyncMock(return_value=[result_id]),
         refresh_metrics=AsyncMock(return_value=[]),
+        # refresh() reads run kind + scenarios for the aggregate boundary.
+        fetch_run=AsyncMock(
+            return_value=SimpleNamespace(flags=SimpleNamespace(is_live=False))
+        ),
+        query_scenarios=AsyncMock(return_value=[]),
     )
     operations = TensorSliceOperations(evaluations_service=evaluations_service)
     tensor_slice = TensorSlice(
@@ -873,17 +878,20 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     assert evaluations_service.delete_results.await_count == 1
     # prune is a tensor-write op: after removing result cells it re-triggers a
     # metrics refresh over the affected scope (like populate/process), so
-    # aggregates recompute over the now-smaller cell set. probe/populate here do
-    # not refresh on their own in this harness, so the one refresh is prune's.
-    assert evaluations_service.refresh_metrics.await_count == 1
+    # aggregates recompute over the now-smaller cell set. refresh() does both the
+    # variational and the aggregate (global, here) pass — so prune drives >= 1
+    # refresh_metrics call. probe/populate do not refresh on their own here.
+    after_prune = evaluations_service.refresh_metrics.await_count
+    assert after_prune >= 1
 
-    # an explicit refresh() recomputes the slice's scope again.
+    # an explicit refresh() recomputes the slice's scope again (another batch of
+    # variational + aggregate refresh_metrics calls).
     await operations.refresh(
         project_id=project_id,
         user_id=user_id,
         tensor_slice=tensor_slice,
     )
-    assert evaluations_service.refresh_metrics.await_count == 2
+    assert evaluations_service.refresh_metrics.await_count > after_prune
 
     # process() with no wired slice_processor must fail loudly rather than
     # masquerade as execution by silently refreshing metrics (UEL-015).

@@ -2,8 +2,6 @@ from asyncio import Semaphore
 from typing import Any, Dict, Optional
 
 from agenta.sdk.decorators.running import invoke_application, invoke_evaluator
-from agenta.sdk.evaluations.preview.utils import fetch_trace_data
-from agenta.sdk.evaluations.results import acreate as alog_result
 from agenta.sdk.evaluations.runtime.models import (
     ResultLogRequest,
     WorkflowExecutionRequest,
@@ -17,27 +15,48 @@ from agenta.sdk.models.workflows import (
 )
 
 
-class SDKApplicationRunner:
-    """SDK adapter for executing application steps through local decorators."""
+class SDKWorkflowRunner:
+    """SDK adapter for executing workflow steps through local decorators.
+
+    One runner for both runnable step kinds — invocation (application) and
+    annotation (evaluator) — mirroring the API's single `APIWorkflowRunner`. It
+    branches on `request.step.type`: an application step invokes the app
+    decorator, an evaluator step the evaluator decorator. The two paths differ
+    only in which decorator they call and the request envelope; the request
+    DATA is built identically.
+    """
 
     async def execute(
         self,
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
-        response = await invoke_application(
-            request=ApplicationServiceRequest(
-                data=WorkflowServiceRequestData(
-                    revision=request.revision,
-                    parameters=request.parameters,
-                    testcase=request.source.testcase,
-                    inputs=request.source.inputs,
-                    trace=request.upstream_trace,
-                    outputs=request.upstream_outputs,
-                ),
-                references=request.references,  # type: ignore[arg-type]
-                links=request.links,  # type: ignore[arg-type]
-            )
+        data = WorkflowServiceRequestData(
+            revision=request.revision,
+            parameters=request.parameters,
+            testcase=request.source.testcase,
+            inputs=request.source.inputs,
+            trace=request.upstream_trace,
+            outputs=request.upstream_outputs,
         )
+
+        if request.step.type == "invocation":
+            response = await invoke_application(
+                request=ApplicationServiceRequest(
+                    data=data,
+                    references=request.references,  # type: ignore[arg-type]
+                    links=request.links,  # type: ignore[arg-type]
+                )
+            )
+        else:
+            response = await invoke_evaluator(
+                request=EvaluatorServiceRequest(
+                    version="2025.07.14",
+                    data=data,
+                    references=request.references,  # type: ignore[arg-type]
+                    links=request.links,  # type: ignore[arg-type]
+                )
+            )
+
         return _normalize_service_response(response)
 
     async def execute_batch(
@@ -48,73 +67,43 @@ class SDKApplicationRunner:
         return [await self.execute(request) for request in requests]
 
 
-class SDKEvaluatorRunner:
-    """SDK adapter for executing evaluator steps through local decorators."""
+class CollectingResultLogger:
+    """Result logger that COLLECTS cells in memory instead of writing each.
 
-    async def execute(
-        self,
-        request: WorkflowExecutionRequest,
-    ) -> WorkflowExecutionResult:
-        response = await invoke_evaluator(
-            request=EvaluatorServiceRequest(
-                version="2025.07.14",
-                data=WorkflowServiceRequestData(
-                    revision=request.revision,
-                    parameters=request.parameters,
-                    testcase=request.source.testcase,
-                    inputs=request.source.inputs,
-                    trace=request.upstream_trace,
-                    outputs=request.upstream_outputs,
-                ),
-                references=request.references,  # type: ignore[arg-type]
-                links=request.links,  # type: ignore[arg-type]
-            )
-        )
-        return _normalize_service_response(response)
+    The SDK local flow mirrors the API slice ops: execute locally, then write
+    every finished cell in ONE `populate_slice` call. So during execution the
+    engine's per-cell `log` must not hit the network — it just shapes the cell
+    into a populate-ready dict and stashes it. `process_run_locally` drains
+    `cells` afterward and bulk-populates. The returned dict is also what the
+    engine remembers as the cell's value, so it round-trips into the populate
+    payload with no further reshaping.
+    """
 
-    async def execute_batch(
-        self,
-        requests: list[WorkflowExecutionRequest],
-        semaphore: Optional[Semaphore] = None,
-    ) -> list[WorkflowExecutionResult]:
-        return [await self.execute(request) for request in requests]
+    def __init__(self) -> None:
+        self.cells: list[Dict[str, Any]] = []
 
-
-class SdkResultLogger:
-    """SDK adapter for persisting evaluation result cells."""
-
-    async def log(self, request: ResultLogRequest) -> Any:
+    async def log(self, request: ResultLogRequest) -> Dict[str, Any]:
         cell = request.cell
-        return await alog_result(
-            run_id=cell.run_id,
-            scenario_id=cell.scenario_id,
+        payload = dict(
+            run_id=str(cell.run_id),
+            scenario_id=str(cell.scenario_id),
             step_key=cell.step_key,
             repeat_idx=cell.repeat_idx,
+            status=getattr(cell.status, "value", cell.status),
             trace_id=request.trace_id
             if request.trace_id is not None
             else cell.trace_id,
-            testcase_id=(
+            testcase_id=str(
                 request.testcase_id
                 if request.testcase_id is not None
                 else cell.testcase_id
-            ),
+            )
+            if (request.testcase_id is not None or cell.testcase_id is not None)
+            else None,
             error=request.error if request.error is not None else cell.error,
         )
-
-
-class SdkTraceLoader:
-    """SDK adapter for loading traces after local workflow execution."""
-
-    def __init__(self, *, max_retries: int = 30, delay: float = 1.0):
-        self.max_retries = max_retries
-        self.delay = delay
-
-    async def load(self, trace_id: str) -> Optional[Dict[str, Any]]:
-        return await fetch_trace_data(
-            trace_id,
-            max_retries=self.max_retries,
-            delay=self.delay,
-        )
+        self.cells.append(payload)
+        return payload
 
 
 def _normalize_service_response(response: Any) -> WorkflowExecutionResult:

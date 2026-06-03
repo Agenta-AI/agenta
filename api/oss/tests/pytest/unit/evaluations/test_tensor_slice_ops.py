@@ -301,9 +301,16 @@ def test_service_leaves_tensor_ops_none_without_sub_services():
 
 @pytest.mark.asyncio
 async def test_rerun_runs_process_then_refresh(monkeypatch):
+    """rerun orchestrates process(slice) then refresh(slice) over the same scope.
+
+    The refresh DETAIL (variational + global/temporal aggregate) lives in
+    TensorSliceOperations.refresh and is covered by
+    test_tensor_operations_refresh_* — here we only assert rerun delegates both
+    steps, in order, against the same coordinate slice.
+    """
     project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
 
-    process_mock = AsyncMock()
+    calls = []
     captured = {}
 
     class _FakeTensorOps:
@@ -311,24 +318,16 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
             captured["slice_processor"] = slice_processor
 
         async def process(self, *, project_id, user_id, tensor_slice):
-            captured["process_run_from_batch"] = tensor_slice
-            await process_mock()
+            calls.append("process")
+            captured["process_slice"] = tensor_slice
+
+        async def refresh(self, *, project_id, user_id, tensor_slice):
+            calls.append("refresh")
+            captured["refresh_slice"] = tensor_slice
 
     monkeypatch.setattr(
         "oss.src.core.evaluations.tasks.run.TensorSliceOperations",
         _FakeTensorOps,
-    )
-
-    # Non-live run -> the aggregate refresh is the GLOBAL row (run_id only).
-    refresh_mock = AsyncMock(return_value=[])
-    evaluations_service = SimpleNamespace(
-        fetch_run=AsyncMock(
-            return_value=SimpleNamespace(
-                flags=SimpleNamespace(is_live=False),
-            )
-        ),
-        query_scenarios=AsyncMock(return_value=[]),
-        refresh_metrics=refresh_mock,
     )
 
     ok = await rerun(
@@ -342,46 +341,59 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
         testcases_service=MagicMock(),
         workflows_service=MagicMock(),
         applications_service=MagicMock(),
-        evaluations_service=evaluations_service,
+        evaluations_service=SimpleNamespace(),
     )
 
     assert ok is True
-    process_mock.assert_awaited_once()
-    # process acts on the coordinate slice
-    assert captured["process_run_from_batch"].run_id == run_id
-    assert captured["process_run_from_batch"].scenario_ids == [scenario_id]
-    assert captured["process_run_from_batch"].step_keys == ["evaluator-auto"]
-    assert captured["process_run_from_batch"].process_mode == "force"
-    # non-live -> exactly one global refresh: run_id set, no scenario/timestamp.
-    refresh_mock.assert_awaited_once()
-    _, kwargs = refresh_mock.await_args
-    refresh = kwargs["metrics"]
-    assert refresh.run_id == run_id
-    assert refresh.scenario_ids is None
-    assert refresh.scenario_id is None
-    assert refresh.timestamps is None
+    # process THEN refresh, both over the same coordinate slice.
+    assert calls == ["process", "refresh"]
+    assert captured["process_slice"].run_id == run_id
+    assert captured["process_slice"].scenario_ids == [scenario_id]
+    assert captured["process_slice"].step_keys == ["evaluator-auto"]
+    assert captured["process_slice"].process_mode == "force"
+    assert captured["refresh_slice"].scenario_ids == [scenario_id]
 
 
 @pytest.mark.asyncio
-async def test_rerun_refreshes_temporal_for_live(
-    monkeypatch,
-):
-    """Live run -> the slice aggregate refresh is TEMPORAL, per affected interval."""
+async def test_tensor_operations_refresh_global_for_non_live():
+    """Non-live run -> refresh does variational + the GLOBAL aggregate row."""
+    project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
+
+    refresh_mock = AsyncMock(return_value=[])
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(
+            return_value=SimpleNamespace(flags=SimpleNamespace(is_live=False))
+        ),
+        query_scenarios=AsyncMock(return_value=[]),
+        refresh_metrics=refresh_mock,
+    )
+    operations = TensorSliceOperations(evaluations_service=evaluations_service)
+
+    await operations.refresh(
+        project_id=project_id,
+        user_id=user_id,
+        tensor_slice=TensorSlice(run_id=run_id, scenario_ids=[scenario_id]),
+    )
+
+    kinds = [c.kwargs["metrics"] for c in refresh_mock.await_args_list]
+    # variational: scenario_ids set, no timestamp.
+    assert any(m.scenario_ids == [scenario_id] and not m.timestamps for m in kinds)
+    # global: run_id only, no scenario, no timestamp.
+    assert any(
+        m.run_id == run_id
+        and m.scenario_ids is None
+        and m.scenario_id is None
+        and not m.timestamps
+        for m in kinds
+    )
+
+
+@pytest.mark.asyncio
+async def test_tensor_operations_refresh_temporal_for_live():
+    """Live run -> refresh does variational + a TEMPORAL aggregate per interval."""
     project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
     s1, s2 = uuid4(), uuid4()
     ts = datetime(2026, 6, 2, 14, 0, 0)
-
-    class _FakeTensorOps:
-        def __init__(self, *, evaluations_service, slice_processor):
-            pass
-
-        async def process(self, *, project_id, user_id, tensor_slice):
-            return None
-
-    monkeypatch.setattr(
-        "oss.src.core.evaluations.tasks.run.TensorSliceOperations",
-        _FakeTensorOps,
-    )
 
     refresh_mock = AsyncMock(return_value=[])
     evaluations_service = SimpleNamespace(
@@ -396,28 +408,19 @@ async def test_rerun_refreshes_temporal_for_live(
         ),
         refresh_metrics=refresh_mock,
     )
+    operations = TensorSliceOperations(evaluations_service=evaluations_service)
 
-    ok = await rerun(
+    await operations.refresh(
         project_id=project_id,
         user_id=user_id,
-        run_id=run_id,
-        scenario_ids=[s1, s2],
-        process_mode="fill-missing",
-        tracing_service=MagicMock(),
-        testcases_service=MagicMock(),
-        workflows_service=MagicMock(),
-        applications_service=MagicMock(),
-        evaluations_service=evaluations_service,
+        tensor_slice=TensorSlice(run_id=run_id, scenario_ids=[s1, s2]),
     )
 
-    assert ok is True
+    kinds = [c.kwargs["metrics"] for c in refresh_mock.await_args_list]
     # one temporal refresh for the single affected interval, carrying its bucket.
-    refresh_mock.assert_awaited_once()
-    _, kwargs = refresh_mock.await_args
-    refresh = kwargs["metrics"]
-    assert refresh.run_id == run_id
-    assert refresh.interval == 1
-    assert refresh.timestamps == [ts]
+    assert any(
+        m.run_id == run_id and m.interval == 1 and m.timestamps == [ts] for m in kinds
+    )
 
 
 # --- graph-shape ops: add/remove_scenarios (height), add/remove_steps (width),
@@ -693,6 +696,11 @@ async def test_prune_uses_query_result_ids_not_full_probe():
         query_results=AsyncMock(return_value=["should-not-be-used"]),
         delete_results=AsyncMock(return_value=result_ids),
         refresh_metrics=AsyncMock(return_value=[]),
+        # prune -> refresh() reads run kind + scenarios for the aggregate pass.
+        fetch_run=AsyncMock(
+            return_value=SimpleNamespace(flags=SimpleNamespace(is_live=False))
+        ),
+        query_scenarios=AsyncMock(return_value=[]),
     )
     tensor_ops = TensorSliceOperations(evaluations_service=evaluations_service)
 

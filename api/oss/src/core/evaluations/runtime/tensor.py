@@ -11,6 +11,7 @@ from oss.src.core.evaluations.types import (
     EvaluationResult,
     EvaluationResultCreate,
     EvaluationResultQuery,
+    EvaluationScenarioQuery,
     EvaluationStatus,
 )
 
@@ -223,22 +224,90 @@ class TensorSliceOperations:
         user_id: UUID,
         tensor_slice: TensorSlice,
     ) -> None:
-        """Recompute metrics over the slice's scope.
+        """Recompute metrics over the slice's scope — variational AND aggregate.
 
-        First-class peer of probe/process/populate/prune. Kept separate from
-        them because the three metric kinds (variational / temporal / global)
-        refresh on different boundaries — scenario-complete, interval, run — so
-        the caller invokes `refresh` at the right boundary rather than having
-        every write implicitly recompute.
+        First-class peer of probe/process/populate/prune. The three metric kinds
+        refresh on different boundaries (scenario-complete, interval, run), so a
+        complete refresh does both layers:
+
+          1. variational — the per-scenario rows for the slice's scenarios;
+          2. aggregate — temporal buckets (live runs, which aggregate over time)
+             or the single global row (non-live runs).
+
+        Callers that already refreshed variational inside `process` can still
+        call this; recomputing the per-scenario rows is idempotent. Kept separate
+        from process/populate so writes do not implicitly recompute — the caller
+        invokes `refresh` once, at the right boundary.
         """
         if _slice_is_empty(tensor_slice):
             return
 
+        run_id = tensor_slice.run_id
+
+        # 1. Variational — per-scenario rows for the addressed scenarios.
         await self.evaluations_service.refresh_metrics(
             project_id=project_id,
             user_id=user_id,
             metrics=EvaluationMetricsRefresh(
-                run_id=tensor_slice.run_id,
+                run_id=run_id,
                 scenario_ids=tensor_slice.scenario_ids,
             ),
         )
+
+        # 2. Aggregate — temporal (live) or global (non-live).
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run:
+            return
+
+        is_live = bool(run.flags and run.flags.is_live)
+
+        if not is_live:
+            # Non-live: one global aggregate (no scenario, no timestamp).
+            await self.evaluations_service.refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                metrics=EvaluationMetricsRefresh(run_id=run_id),
+            )
+            return
+
+        # Live: recompute the temporal buckets the slice touched. Group the
+        # slice's scenarios' timestamps by interval so each affected
+        # (interval, timestamp) bucket is recomputed.
+        scenarios = await self.evaluations_service.query_scenarios(
+            project_id=project_id,
+            scenario=EvaluationScenarioQuery(
+                run_id=run_id,
+                ids=tensor_slice.scenario_ids,
+            ),
+        )
+        timestamps_by_interval: dict[int, set] = {}
+        for scenario in scenarios:
+            if scenario.timestamp is None or scenario.interval is None:
+                continue
+            timestamps_by_interval.setdefault(scenario.interval, set()).add(
+                scenario.timestamp
+            )
+
+        if not timestamps_by_interval:
+            # No temporal buckets on the slice's scenarios — fall back to the
+            # global aggregate so the run is not left with stale metrics.
+            await self.evaluations_service.refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                metrics=EvaluationMetricsRefresh(run_id=run_id),
+            )
+            return
+
+        for interval, timestamps in timestamps_by_interval.items():
+            await self.evaluations_service.refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                metrics=EvaluationMetricsRefresh(
+                    run_id=run_id,
+                    timestamps=sorted(timestamps),
+                    interval=interval,
+                ),
+            )

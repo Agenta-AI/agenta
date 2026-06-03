@@ -25,8 +25,7 @@ import pytest
 
 import agenta.sdk.evaluations.preview.evaluate as ev
 from agenta.sdk.evaluations.runtime.adapters import (
-    SDKApplicationRunner,
-    SDKEvaluatorRunner,
+    SDKWorkflowRunner,
 )
 
 pytestmark = pytest.mark.integration
@@ -81,11 +80,18 @@ def _evaluator_revision(*, slug="ev1"):
 
 def _patch_io(*, testset_revision, application_revision, evaluator_revision, captured):
     """Patch every network/IO boundary aevaluate() uses, and capture the
-    process_evaluation_source_slice kwargs. Returns a context-manager list."""
+    process_sources kwargs. Returns a context-manager list.
+
+    The flow runs process_sources PER SCENARIO, so it is called once per source
+    item — `captured["process_kwargs"]` holds the most recent call and
+    `captured["process_calls"]` holds every call's kwargs.
+    """
     run_obj = SimpleNamespace(id=uuid4())
+    captured["process_calls"] = []
 
     async def fake_process(**kwargs):
         captured["process_kwargs"] = kwargs
+        captured["process_calls"].append(kwargs)
         # Return one processed scenario per source item.
         return [
             SimpleNamespace(
@@ -96,14 +102,23 @@ def _patch_io(*, testset_revision, application_revision, evaluator_revision, cap
             for _ in kwargs["source_items"]
         ]
 
+    async def fake_add_scenarios(*, run_id, count, timestamp=None):
+        return [SimpleNamespace(id=uuid4()) for _ in range(count)]
+
+    # aevaluate queries the GLOBAL aggregate metric at end-of-run; the SDK
+    # client (aquery_global) asks the API for that single row and returns it.
+    global_metric = SimpleNamespace(
+        scenario_id=None, timestamp=None, data={"score": 1.0}
+    )
+
     return [
         patch(f"{MOD}.acreate_run", AsyncMock(return_value=run_obj)),
         patch(f"{MOD}.aclose_run", AsyncMock(return_value=run_obj)),
         patch(f"{MOD}.aget_url", AsyncMock(return_value="http://x/run")),
-        patch(
-            f"{MOD}.aadd_scenario", AsyncMock(return_value=SimpleNamespace(id=uuid4()))
-        ),
-        patch(f"{MOD}.acompute_metrics", AsyncMock(return_value={"score": 1.0})),
+        patch(f"{MOD}.aadd_scenarios", fake_add_scenarios),
+        patch(f"{MOD}.apopulate_slice", AsyncMock(return_value=[])),
+        patch(f"{MOD}.arefresh_slice", AsyncMock(return_value=None)),
+        patch(f"{MOD}.aquery_metrics", AsyncMock(return_value=global_metric)),
         patch(f"{MOD}.aretrieve_testset", AsyncMock(return_value=testset_revision)),
         patch(
             f"{MOD}.aretrieve_application",
@@ -113,7 +128,7 @@ def _patch_io(*, testset_revision, application_revision, evaluator_revision, cap
             f"{MOD}.aretrieve_evaluator",
             AsyncMock(return_value=evaluator_revision),
         ),
-        patch(f"{MOD}.process_evaluation_source_slice", fake_process),
+        patch(f"{MOD}.process_sources", fake_process),
     ]
 
 
@@ -174,9 +189,11 @@ class TestAevaluateOrchestration:
         _, captured, (_tsr, appr, evr) = _evaluate(evaluators={str(uuid4()): "auto"})
         runners = captured["process_kwargs"]["runners"]
 
-        assert isinstance(runners[f"application-{appr.slug}"], SDKApplicationRunner)
-        # auto evaluator -> local evaluator runner is wired
-        assert isinstance(runners[f"evaluator-{evr.slug}"], SDKEvaluatorRunner)
+        # one shared SDKWorkflowRunner is wired into both runnable step kinds
+        # (it branches on step type internally).
+        assert isinstance(runners[f"application-{appr.slug}"], SDKWorkflowRunner)
+        # auto evaluator -> local runner is wired
+        assert isinstance(runners[f"evaluator-{evr.slug}"], SDKWorkflowRunner)
 
     def test_human_evaluator_gets_no_runner(self):
         _, captured, (_tsr, _appr, evr) = _evaluate(evaluators={str(uuid4()): "human"})
@@ -195,13 +212,18 @@ class TestAevaluateOrchestration:
         _, captured, _ = _evaluate(
             evaluators={str(uuid4()): "auto"}, repeats=4, testcases=tcs
         )
-        assert captured["process_kwargs"]["repeats"] == 4
-        # one source item per testcase
-        assert len(captured["process_kwargs"]["source_items"]) == 3
+        calls = captured["process_calls"]
+        # per-scenario: process_sources is called once per testcase, each with a
+        # single source item, and repeats forwarded on every call.
+        assert len(calls) == 3
+        assert all(c["repeats"] == 4 for c in calls)
+        assert all(len(c["source_items"]) == 1 for c in calls)
 
     def test_assembles_result_payload(self):
         result, captured, _ = _evaluate(evaluators={str(uuid4()): "auto"})
         assert set(result.keys()) == {"run", "scenarios", "metrics"}
         # one processed scenario per source item (2 default testcases)
         assert len(result["scenarios"]) == 2
-        assert result["metrics"] == {"score": 1.0}
+        # metrics is the GLOBAL aggregate row queried at end-of-run (not the
+        # per-scenario one); its data carries the run's headline score.
+        assert result["metrics"].data == {"score": 1.0}

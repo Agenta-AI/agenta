@@ -293,8 +293,15 @@ class PruneSliceRequest(TensorSliceRequest):
     pass
 
 
-# `process` returns 202 (async dispatch acknowledged) and `prune` returns 204 —
-# neither carries a body, so there is no response model for them.
+class RefreshSliceRequest(TensorSliceRequest):
+    # Metrics-side slice op: recompute the metric rows (variational + aggregate)
+    # over the addressed scope without writing or executing cells. Owns its
+    # request type for the same reason as the others.
+    pass
+
+
+# `process` returns 202 (async dispatch acknowledged) and `prune`/`refresh`
+# return 204 — none carries a body, so there is no response model for them.
 
 
 # - EVALUATION GRAPH-SHAPE OPS -------------------------------------------------

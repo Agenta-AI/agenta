@@ -286,6 +286,14 @@ class APIMetricsRefresher:
 
 
 class APITraceLoader:
+    """Callable trace loader: `await loader(trace_id) -> trace`.
+
+    The engine's `fetch_trace` seam is a plain async callable; this named class
+    carries the bound `project_id`/`tracing_service` and is invoked directly
+    (its instance IS the callable), so the API keeps a readable named adapter
+    while satisfying the callable contract.
+    """
+
     def __init__(
         self,
         *,
@@ -295,7 +303,7 @@ class APITraceLoader:
         self.project_id = project_id
         self.tracing_service = tracing_service
 
-    async def load(self, trace_id: str) -> Any:
+    async def __call__(self, trace_id: str) -> Any:
         return await fetch_trace(
             tracing_service=self.tracing_service,
             project_id=self.project_id,

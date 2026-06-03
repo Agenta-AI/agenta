@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, List, Literal, Optional
 from uuid import UUID
 
 from oss.src.core.applications.service import ApplicationsService
@@ -17,7 +17,6 @@ from oss.src.core.evaluations.runtime.sources import (
     resolve_testset_input_specs,
 )
 from oss.src.core.evaluations.runtime.adapters import (
-    APIMetricsRefresher,
     APIScenarioFactory,
 )
 from oss.src.core.evaluations.service import EvaluationsService
@@ -25,7 +24,6 @@ from oss.src.core.evaluations.types import (
     EvaluationRun,
     EvaluationRunEdit,
     EvaluationRunFlags,
-    EvaluationScenarioQuery,
     EvaluationStatus,
 )
 from oss.src.core.evaluations.tasks.processor import APISliceProcessor
@@ -673,86 +671,13 @@ async def rerun(
         tensor_slice=tensor_slice,
     )
 
-    # Metrics boundary for the slice. `process` refreshes the per-scenario
-    # (variational) rows for the scenarios it executed; this step refreshes the
-    # AGGREGATE that the slice affected, which differs by run kind:
-    #   - live run     -> temporal metrics, for every interval bucket the slice's
-    #                     scenarios fall into (a live run aggregates over time).
-    #   - non-live run -> the global (whole-run) metric row.
-    await _refresh_slice_aggregate(
+    # Metrics boundary for the slice. `refresh` recomputes both the per-scenario
+    # (variational) rows and the AGGREGATE the slice affected — temporal buckets
+    # for live runs, the global row for non-live. `process` already refreshed
+    # variational inline; recomputing it is idempotent.
+    await tensor_ops.refresh(
         project_id=project_id,
         user_id=user_id,
-        run_id=run_id,
-        scenario_ids=scenario_ids,
-        evaluations_service=evaluations_service,
+        tensor_slice=tensor_slice,
     )
     return True
-
-
-async def _refresh_slice_aggregate(
-    *,
-    project_id: UUID,
-    user_id: UUID,
-    run_id: UUID,
-    scenario_ids: Optional[List[UUID]],
-    evaluations_service: EvaluationsService,
-) -> None:
-    """Refresh the slice's aggregate metric: temporal (live) or global (non-live).
-
-    Live runs aggregate over time, so a slice must recompute the temporal buckets
-    its scenarios belong to (each scenario carries its (timestamp, interval)).
-    Non-live runs have a single global aggregate, so the whole-run row is
-    recomputed. Variational (per-scenario) rows are already refreshed inside
-    `process`.
-    """
-    run = await evaluations_service.fetch_run(
-        project_id=project_id,
-        run_id=run_id,
-    )
-    if not run:
-        return
-
-    refresh = APIMetricsRefresher(
-        project_id=project_id,
-        user_id=user_id,
-        evaluations_service=evaluations_service,
-    )
-
-    is_live = bool(run.flags and run.flags.is_live)
-
-    if not is_live:
-        # Non-live: one global aggregate (no scenario, no timestamp).
-        await refresh(run_id)
-        return
-
-    # Live: recompute the temporal buckets the slice touched. Resolve the slice's
-    # scenarios and group their timestamps by interval, so each affected
-    # (interval, timestamp) bucket is recomputed.
-    scenarios = await evaluations_service.query_scenarios(
-        project_id=project_id,
-        scenario=EvaluationScenarioQuery(
-            run_id=run_id,
-            ids=scenario_ids,
-        ),
-    )
-    timestamps_by_interval: Dict[int, set] = {}
-    for scenario in scenarios:
-        if scenario.timestamp is None or scenario.interval is None:
-            continue
-        timestamps_by_interval.setdefault(scenario.interval, set()).add(
-            scenario.timestamp
-        )
-
-    if not timestamps_by_interval:
-        # No temporal buckets on the slice's scenarios (e.g. they were never
-        # assigned a timestamp/interval). Fall back to the global aggregate so
-        # the run is not left with stale metrics.
-        await refresh(run_id)
-        return
-
-    for interval, timestamps in timestamps_by_interval.items():
-        await refresh(
-            run_id,
-            timestamps=sorted(timestamps),
-            interval=interval,
-        )

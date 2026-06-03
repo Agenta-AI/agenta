@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -15,7 +16,7 @@ from agenta.sdk.evaluations.runtime.models import (
 )
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.evaluations.runtime.processor import (
-    process_evaluation_source_slice,
+    process_sources,
 )
 from agenta.sdk.evaluations.runtime.topology import classify_steps_topology
 from agenta.sdk.evaluations.runtime.models import WorkflowExecutionResult
@@ -232,7 +233,7 @@ async def test_sdk_source_slice_batches_runnable_cells():
 
     runner = BatchRunner()
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -326,7 +327,7 @@ async def test_sdk_source_slice_isolates_one_scenario_failure():
         ),
     ]
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=source_items,
         steps=[
@@ -373,7 +374,7 @@ async def test_sdk_source_slice_marks_short_runner_batch_as_error():
     async def refresh_metrics(run_id, scenario_id):
         return SimpleNamespace(id=uuid4())
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -439,7 +440,7 @@ async def test_sdk_source_slice_handles_over_count_runner_batch():
     async def refresh_metrics(run_id, scenario_id):
         return SimpleNamespace(id=uuid4())
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -488,7 +489,7 @@ async def test_sdk_source_slice_marks_missing_runner_as_error():
     async def refresh_metrics(run_id, scenario_id):
         return SimpleNamespace(id=uuid4())
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -535,7 +536,7 @@ async def test_sdk_source_slice_can_defer_manual_results_without_metric_refresh(
     async def create_scenario(run_id):
         return SimpleNamespace(id=scenario_id)
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -617,7 +618,7 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
     async def refresh_metrics(run_id, scenario_id):
         return SimpleNamespace(id=uuid4())
 
-    await process_evaluation_source_slice(
+    await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -659,44 +660,47 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
 
 
 @pytest.mark.asyncio
-async def test_sdk_result_logger_adapter_preserves_repeat_idx(monkeypatch):
-    calls = []
+async def test_collecting_result_logger_collects_populate_ready_cell():
+    """CollectingResultLogger stashes each cell as a populate-ready dict.
 
-    async def fake_log_result(**kwargs):
-        calls.append(kwargs)
-        return {"id": "result"}
-
-    monkeypatch.setattr(runtime_adapters, "alog_result", fake_log_result)
+    It does NOT write per cell (that's the bulk populate_slice afterward); it
+    preserves repeat_idx and the cell's bound trace/testcase, and the dict it
+    returns is what the engine remembers — so it round-trips into populate.
+    """
+    run_id = uuid4()
+    scenario_id = uuid4()
+    testcase_id = uuid4()
     cell = PlannedCell(
-        run_id=uuid4(),
-        scenario_id=uuid4(),
+        run_id=run_id,
+        scenario_id=scenario_id,
         step_key="evaluator-auto",
         step_type="annotation",
         origin="auto",
         repeat_idx=2,
         status=EvaluationStatus.SUCCESS,
-        testcase_id=uuid4(),
+        testcase_id=testcase_id,
     )
 
-    result = await runtime_adapters.SdkResultLogger().log(
+    logger = runtime_adapters.CollectingResultLogger()
+    returned = await logger.log(
         ResultLogRequest(
             cell=cell,
             trace_id="trace-repeat",
         )
     )
 
-    assert result == {"id": "result"}
-    assert calls == [
-        {
-            "run_id": cell.run_id,
-            "scenario_id": cell.scenario_id,
-            "step_key": "evaluator-auto",
-            "repeat_idx": 2,
-            "trace_id": "trace-repeat",
-            "testcase_id": cell.testcase_id,
-            "error": None,
-        }
-    ]
+    # the returned dict is also the collected cell (round-trips into populate).
+    assert logger.cells == [returned]
+    assert returned == {
+        "run_id": str(run_id),
+        "scenario_id": str(scenario_id),
+        "step_key": "evaluator-auto",
+        "repeat_idx": 2,
+        "status": "success",
+        "trace_id": "trace-repeat",
+        "testcase_id": str(testcase_id),
+        "error": None,
+    }
 
 
 @pytest.mark.asyncio
@@ -757,14 +761,21 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     async def fake_create_run(**kwargs):
         return SimpleNamespace(id=run_id)
 
-    async def fake_add_scenario(**kwargs):
-        return SimpleNamespace(id=scenario_id)
+    async def fake_add_scenarios(*, run_id, count, timestamp=None):
+        # bulk-mint: one scenario per testcase, in order.
+        return [SimpleNamespace(id=scenario_id) for _ in range(count)]
 
-    logged_results = []
+    populated_cells = []
 
-    async def fake_log_result(**kwargs):
-        logged_results.append(kwargs)
-        return SimpleNamespace(id=uuid4())
+    async def fake_populate_slice(*, results):
+        # the single bulk populate the SDK does after local execution.
+        populated_cells.extend(results)
+        return [SimpleNamespace(id=uuid4()) for _ in results]
+
+    refresh_calls = []
+
+    async def fake_refresh_slice(*, run_id, scenario_ids):
+        refresh_calls.append((run_id, scenario_ids))
 
     async def fake_invoke_application(**kwargs):
         return SimpleNamespace(
@@ -782,7 +793,7 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
             span_id="eval-span",
         )
 
-    async def fake_fetch_trace_data(trace_id, **kwargs):
+    async def fake_afetch_trace(trace_id, **kwargs):
         return {
             "spans": {
                 "root": {
@@ -798,9 +809,6 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
             }
         }
 
-    async def fake_compute_metrics(**kwargs):
-        return SimpleNamespace(id=uuid4())
-
     async def fake_close_run(**kwargs):
         return SimpleNamespace(id=run_id)
 
@@ -815,12 +823,19 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
         preview_evaluate, "aretrieve_evaluator", fake_retrieve_evaluator
     )
     monkeypatch.setattr(preview_evaluate, "acreate_run", fake_create_run)
-    monkeypatch.setattr(preview_evaluate, "aadd_scenario", fake_add_scenario)
-    monkeypatch.setattr(runtime_adapters, "alog_result", fake_log_result)
+    # the SDK now mirrors the API slice ops: bulk add_scenarios -> (local
+    # execute, collect) -> bulk populate_slice -> refresh_slice.
+    monkeypatch.setattr(preview_evaluate, "aadd_scenarios", fake_add_scenarios)
+    monkeypatch.setattr(preview_evaluate, "apopulate_slice", fake_populate_slice)
+    monkeypatch.setattr(preview_evaluate, "arefresh_slice", fake_refresh_slice)
+    monkeypatch.setattr(
+        preview_evaluate,
+        "aquery_metrics",
+        AsyncMock(return_value=[]),
+    )
     monkeypatch.setattr(runtime_adapters, "invoke_application", fake_invoke_application)
     monkeypatch.setattr(runtime_adapters, "invoke_evaluator", fake_invoke_evaluator)
-    monkeypatch.setattr(runtime_adapters, "fetch_trace_data", fake_fetch_trace_data)
-    monkeypatch.setattr(preview_evaluate, "acompute_metrics", fake_compute_metrics)
+    monkeypatch.setattr(preview_evaluate, "afetch_trace", fake_afetch_trace)
     monkeypatch.setattr(preview_evaluate, "aclose_run", fake_close_run)
     monkeypatch.setattr(preview_evaluate, "aget_url", fake_get_url)
 
@@ -832,10 +847,9 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     )
 
     assert result["run"].id == run_id
-    assert [
-        (logged_result["step_key"], logged_result["repeat_idx"])
-        for logged_result in logged_results
-    ] == [
+    # cells written via populate_slice (one scenario here), repeat-aware, in
+    # plan order.
+    assert [(cell["step_key"], cell["repeat_idx"]) for cell in populated_cells] == [
         ("testset-main", 0),
         ("testset-main", 1),
         ("application-app", 0),
@@ -843,10 +857,142 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
         ("evaluator-eval", 1),
     ]
     assert [
-        logged_result["trace_id"]
-        for logged_result in logged_results
-        if logged_result["step_key"] == "evaluator-eval"
+        cell["trace_id"]
+        for cell in populated_cells
+        if cell["step_key"] == "evaluator-eval"
     ] == ["eval-trace-0", "eval-trace-1"]
+    # metrics rolled up via refresh_slice over the one scenario.
+    assert refresh_calls == [(run_id, [scenario_id])]
+
+
+@pytest.mark.asyncio
+async def test_sdk_preview_evaluate_populates_and_refreshes_per_scenario(monkeypatch):
+    """Two testcases -> two scenarios, each its OWN populate + refresh.
+
+    Locks in the per-scenario persistence boundary: a whole-testset bulk write
+    would be one populate over all cells; per-scenario is one populate per
+    scenario (its cells only) plus one refresh scoped to that scenario.
+    """
+    run_id = uuid4()
+    scenario_a, scenario_b = uuid4(), uuid4()
+    testset_revision_id = uuid4()
+    application_revision_id = uuid4()
+    evaluator_revision_id = uuid4()
+    tc_a, tc_b = uuid4(), uuid4()
+
+    def _testcase(tcid, prompt):
+        return SimpleNamespace(
+            id=tcid,
+            data={"prompt": prompt},
+            model_dump=lambda **kwargs: {"id": str(tcid), "data": {"prompt": prompt}},
+        )
+
+    testset_revision = SimpleNamespace(
+        id=testset_revision_id,
+        testset_id=uuid4(),
+        testset_variant_id=uuid4(),
+        slug="main",
+        version="1",
+        data=SimpleNamespace(testcases=[_testcase(tc_a, "a"), _testcase(tc_b, "b")]),
+    )
+    application_revision = SimpleNamespace(
+        id=application_revision_id,
+        application_id=uuid4(),
+        application_variant_id=uuid4(),
+        slug="app",
+        version="1",
+        data=SimpleNamespace(parameters={}),
+        model_dump=lambda **kwargs: {"id": str(application_revision_id)},
+    )
+    evaluator_revision = SimpleNamespace(
+        id=evaluator_revision_id,
+        evaluator_id=uuid4(),
+        evaluator_variant_id=uuid4(),
+        slug="eval",
+        version="1",
+        data=SimpleNamespace(parameters={}),
+        model_dump=lambda **kwargs: {"id": str(evaluator_revision_id)},
+    )
+
+    # one scenario id per testcase, in order.
+    minted_ids = iter([scenario_a, scenario_b])
+
+    async def fake_add_scenarios(*, run_id, count, timestamp=None):
+        return [SimpleNamespace(id=next(minted_ids)) for _ in range(count)]
+
+    # capture populate calls as separate batches (NOT flattened), to prove each
+    # scenario is its own populate.
+    populate_batches = []
+
+    async def fake_populate_slice(*, results):
+        populate_batches.append(results)
+        return [SimpleNamespace(id=uuid4()) for _ in results]
+
+    refresh_calls = []
+
+    async def fake_refresh_slice(*, run_id, scenario_ids):
+        refresh_calls.append(scenario_ids)
+
+    async def fake_invoke_application(**kwargs):
+        return SimpleNamespace(
+            data=SimpleNamespace(), trace_id="app-trace", span_id="app-span"
+        )
+
+    async def fake_invoke_evaluator(**kwargs):
+        return SimpleNamespace(
+            data=SimpleNamespace(), trace_id="eval-trace", span_id="eval-span"
+        )
+
+    async def fake_afetch_trace(trace_id, **kwargs):
+        return {"spans": {"root": {"attributes": {"ag": {"data": {}}}}}}
+
+    monkeypatch.setattr(
+        preview_evaluate, "aretrieve_testset", lambda **k: _async(testset_revision)
+    )
+    monkeypatch.setattr(
+        preview_evaluate,
+        "aretrieve_application",
+        lambda **k: _async(application_revision),
+    )
+    monkeypatch.setattr(
+        preview_evaluate, "aretrieve_evaluator", lambda **k: _async(evaluator_revision)
+    )
+    monkeypatch.setattr(
+        preview_evaluate, "acreate_run", lambda **k: _async(SimpleNamespace(id=run_id))
+    )
+    monkeypatch.setattr(preview_evaluate, "aadd_scenarios", fake_add_scenarios)
+    monkeypatch.setattr(preview_evaluate, "apopulate_slice", fake_populate_slice)
+    monkeypatch.setattr(preview_evaluate, "arefresh_slice", fake_refresh_slice)
+    monkeypatch.setattr(
+        preview_evaluate,
+        "aquery_metrics",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(runtime_adapters, "invoke_application", fake_invoke_application)
+    monkeypatch.setattr(runtime_adapters, "invoke_evaluator", fake_invoke_evaluator)
+    monkeypatch.setattr(preview_evaluate, "afetch_trace", fake_afetch_trace)
+    monkeypatch.setattr(
+        preview_evaluate, "aclose_run", lambda **k: _async(SimpleNamespace(id=run_id))
+    )
+    monkeypatch.setattr(preview_evaluate, "aget_url", lambda **k: _async(""))
+
+    await preview_evaluate.aevaluate(
+        testsets={testset_revision_id: "custom"},
+        applications={application_revision_id: "custom"},
+        evaluators={evaluator_revision_id: "auto"},
+        repeats=1,
+    )
+
+    # TWO scenarios -> TWO populate calls, each carrying only its own scenario's
+    # cells, and TWO refresh calls, each scoped to one scenario id.
+    assert len(populate_batches) == 2
+    assert {c["scenario_id"] for c in populate_batches[0]} == {str(scenario_a)}
+    assert {c["scenario_id"] for c in populate_batches[1]} == {str(scenario_b)}
+    assert refresh_calls == [[scenario_a], [scenario_b]]
+
+
+async def _async(value):
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -910,7 +1056,7 @@ async def test_sdk_source_slice_runs_scenarios_concurrently_up_to_batch_size():
         for i in range(4)
     ]
 
-    await process_evaluation_source_slice(
+    await process_sources(
         run_id=run_id,
         source_items=source_items,
         steps=[
@@ -971,7 +1117,7 @@ async def test_sdk_source_slice_semaphore_shared_across_repeats():
     async def refresh_metrics(run_id, scenario_id):
         return None
 
-    await process_evaluation_source_slice(
+    await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -1034,7 +1180,7 @@ async def test_sdk_source_slice_no_batch_size_runs_all_concurrently():
         for _ in range(5)
     ]
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=source_items,
         steps=[
@@ -1093,7 +1239,7 @@ async def test_sdk_source_slice_retries_failed_cells_and_succeeds():
     async def refresh_metrics(run_id, scenario_id):
         return None
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -1152,7 +1298,7 @@ async def test_sdk_source_slice_exhausts_retries_and_marks_error():
     async def refresh_metrics(run_id, scenario_id):
         return None
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(
@@ -1218,7 +1364,7 @@ async def test_sdk_source_slice_retries_only_failed_cells_in_batch():
     async def refresh_metrics(run_id, scenario_id):
         return None
 
-    processed = await process_evaluation_source_slice(
+    processed = await process_sources(
         run_id=run_id,
         source_items=[
             ResolvedSourceItem(

@@ -2947,6 +2947,40 @@ class SimpleEvaluationsService:
             ),
         )
 
+    async def refresh_slice(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        scenario_ids: Optional[List[UUID]] = None,
+        step_keys: Optional[List[str]] = None,
+        repeat_idxs: Optional[List[int]] = None,
+    ) -> None:
+        """Recompute metrics over the slice scope (variational + aggregate).
+
+        The metrics counterpart of populate/process: callers that wrote cells
+        without executing (e.g. the SDK, which runs workflows locally and
+        populates the finished cells) invoke this to roll up the per-scenario,
+        temporal, and global metric rows without re-running anything.
+        """
+        tensor_ops = self.evaluations_service.tensor_slice_operations
+        if tensor_ops is None:
+            log.warning("[EVAL] tensor ops not wired; cannot refresh slice")
+            return
+
+        await tensor_ops.refresh(
+            project_id=project_id,
+            user_id=user_id,
+            tensor_slice=TensorSlice(
+                run_id=run_id,
+                scenario_ids=scenario_ids,
+                step_keys=step_keys,
+                repeat_idxs=repeat_idxs,
+            ),
+        )
+
     # --- GRAPH-DIMENSION OPS --------------------------------------------------
     #
     # Modify the tensor's SHAPE (scenarios x steps x repeats) — distinct from the

@@ -40,7 +40,7 @@ RefreshMetrics = Callable[[UUID, Optional[UUID]], Awaitable[Any]]
 PlanCellFilter = Callable[[PlannedCell], bool]
 
 
-async def process_evaluation_source_slice(
+async def process_sources(
     *,
     run_id: UUID,
     source_items: List[ResolvedSourceItem],
@@ -51,7 +51,7 @@ async def process_evaluation_source_slice(
     refresh_metrics: RefreshMetrics,
     runners: Mapping[str, Any],
     revisions: Mapping[str, Any],
-    trace_loader: Optional[TraceLoader] = None,
+    fetch_trace: Optional[TraceLoader] = None,
     is_split: bool = False,
     log_pending: bool = True,
     refresh_metrics_without_auto_results: bool = True,
@@ -208,8 +208,8 @@ async def process_evaluation_source_slice(
                 retry_delay=retry_delay,
             )
             for batch_cell, execution in zip(batch_cells, executions):
-                if trace_loader and execution.trace_id and execution.trace is None:
-                    execution.trace = await trace_loader.load(str(execution.trace_id))
+                if fetch_trace and execution.trace_id and execution.trace is None:
+                    execution.trace = await fetch_trace(str(execution.trace_id))
                 if execution.outputs is None and execution.trace is not None:
                     execution.outputs = _extract_outputs(execution.trace)
 
