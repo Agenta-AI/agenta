@@ -10,6 +10,7 @@ from agenta.sdk.evaluations.runtime.models import (
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.evaluations.runtime.processor import (
     process_sources as sdk_process_evaluation_source_slice,
+    run_status as compute_run_status,
 )
 
 from oss.src.utils.logging import get_module_logger
@@ -28,7 +29,6 @@ from oss.src.core.evaluations.types import (
     EvaluationRunEdit,
     EvaluationResult,
     EvaluationResultQuery,
-    EvaluationScenarioEdit,
     EvaluationClosedConflict,
 )
 
@@ -38,7 +38,8 @@ from oss.src.core.evaluations.utils import (
 from oss.src.core.evaluations.runtime.adapters import (
     APICachedRunner,
     APIMetricsRefresher,
-    APIResultLogger,
+    APIResultSetter,
+    APIScenarioEditor,
     APITraceLoader,
     APIWorkflowRunner,
 )
@@ -363,11 +364,16 @@ async def _run_sdk_source_slice(
         steps=sdk_steps,
         repeats=run.data.repeats,
         create_scenario=create_scenario,
-        result_logger=APIResultLogger(
+        set_results=APIResultSetter(
             project_id=project_id,
             user_id=user_id,
             timestamp=timestamp,
             interval=interval,
+            evaluations_service=evaluations_service,
+        ),
+        edit_scenario=APIScenarioEditor(
+            project_id=project_id,
+            user_id=user_id,
             evaluations_service=evaluations_service,
         ),
         refresh_metrics=refresh_metrics,
@@ -406,67 +412,34 @@ async def _finalize_run_after_slice(
     evaluations_service: Any,
     finalize_run_status: bool = True,
 ) -> None:
-    """Shared "done" for `process`: write per-scenario status + finalize the run.
+    """Shared "done" for `process`: finalize the RUN from the touched set.
 
-    This is the post-process every slice owns, regardless of how it was
-    triggered — status is a function of the touched coordinates (`processed`),
-    which is the same reasoning for ingest and re-execute. It:
+    Per-scenario status is no longer written here — the engine
+    (`process_sources`) owns that via the injected `edit_scenario` adapter, the
+    same path for ingest, re-execute, and the SDK. This function is the
+    remaining RUN-level post-process every slice owns:
 
-      1. writes each touched scenario's status (ERRORS/PENDING/SUCCESS) from its
-         `ProcessedScenario`, tolerating a mid-flight run close;
-      2. computes the run status from the touched set (or uses an override, e.g.
+      1. computes the run status from the touched set (or uses an override, e.g.
          FAILURE when the slice itself raised);
-      3. if `finalize_run_status`, floors the run status across concurrent slices
+      2. if `finalize_run_status`, floors the run status across concurrent slices
          off the CURRENT run (not the caller's stale snapshot) and flips
          `is_active` off on a terminal status.
 
     `finalize_run_status=False` is the live-query loop, which never finalizes —
     it keeps ticking and leaves run status alone.
     """
-    # 1. per-scenario status writes
-    for item in processed:
-        scenario_status = (
-            EvaluationStatus.ERRORS
-            if item.has_errors
-            else EvaluationStatus.PENDING
-            if item.has_pending
-            else EvaluationStatus.SUCCESS
-        )
-        try:
-            await evaluations_service.edit_scenario(
-                project_id=project_id,
-                user_id=user_id,
-                scenario=EvaluationScenarioEdit(
-                    id=item.scenario.id,
-                    tags=getattr(item.scenario, "tags", None),
-                    meta=getattr(item.scenario, "meta", None),
-                    status=scenario_status,
-                ),
-            )
-        except EvaluationClosedConflict:
-            # The run was closed (locked) mid-flight by a user. Closing is a
-            # lock, not a failure signal — skip the write and let the slice
-            # finish; the finalize below also tolerates the lock.
-            log.info(
-                "[WORKER] scenario write skipped: run closed mid-flight",
-                run_id=str(run.id),
-                scenario_id=str(item.scenario.id),
-            )
-
-    # 2. run status from the touched set (or the override)
+    # 1. run status from the touched set (or the override). The rollup itself is
+    # the shared engine verdict (same as the SDK); only the override + the
+    # cross-slice floor below are API-specific.
     if run_status_override is not None:
         run_status = run_status_override
-    elif any(item.has_errors for item in processed):
-        run_status = EvaluationStatus.ERRORS
-    elif any(item.has_pending for item in processed):
-        run_status = EvaluationStatus.RUNNING
     else:
-        run_status = EvaluationStatus.SUCCESS
+        run_status = compute_run_status(processed)
 
     if not finalize_run_status:
         return
 
-    # 3. floor + is_active, off the CURRENT run (concurrent-slice safe).
+    # 2. floor + is_active, off the CURRENT run (concurrent-slice safe).
     # Concurrent slices each hold a stale snapshot of `run`; finalize both floors
     # the status and flips `is_active`, so it must read the CURRENT run or a
     # late-finishing slice clobbers another's status/flags (e.g. resurrecting

@@ -11,10 +11,12 @@ from agenta.sdk.models.evaluations import EvaluationStatus as SdkEvaluationStatu
 
 from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
 from oss.src.core.evaluations.types import (
+    EvaluationClosedConflict,
     EvaluationMetricsRefresh,
     EvaluationMetricsInvalid,
     EvaluationResultCreate,
     EvaluationScenarioCreate,
+    EvaluationScenarioEdit,
     EvaluationStatus,
 )
 from oss.src.core.evaluations.utils import fetch_trace
@@ -178,7 +180,7 @@ class APIScenarioFactory:
         return scenarios
 
 
-class APIResultLogger:
+class APIResultSetter:
     def __init__(
         self,
         *,
@@ -194,7 +196,7 @@ class APIResultLogger:
         self.interval = interval
         self.evaluations_service = evaluations_service
 
-    async def log(self, request: ResultLogRequest) -> Any:
+    async def set(self, request: ResultLogRequest) -> Any:
         cell = request.cell
         results = await self.evaluations_service.set_results(
             project_id=self.project_id,
@@ -223,6 +225,42 @@ class APIResultLogger:
             ],
         )
         return results[0] if results else None
+
+
+class APIScenarioEditor:
+    """Engine `edit_scenario` adapter: write one scenario's terminal status.
+
+    The engine computes each scenario's verdict in-loop, so the status write is
+    a property of `process` itself (shared by ingest + re-execute) rather than a
+    separate post-process. Tolerates a mid-flight run close: closing is a lock,
+    not a failure, so a write that loses the race is skipped, not raised.
+    """
+
+    def __init__(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        evaluations_service: Any,
+    ):
+        self.project_id = project_id
+        self.user_id = user_id
+        self.evaluations_service = evaluations_service
+
+    async def __call__(self, scenario: Any, status: Any) -> Any:
+        try:
+            return await self.evaluations_service.edit_scenario(
+                project_id=self.project_id,
+                user_id=self.user_id,
+                scenario=EvaluationScenarioEdit(
+                    id=scenario.id,
+                    tags=getattr(scenario, "tags", None),
+                    meta=getattr(scenario, "meta", None),
+                    status=_status(status),
+                ),
+            )
+        except EvaluationClosedConflict:
+            return None
 
 
 class APIMetricsRefresher:

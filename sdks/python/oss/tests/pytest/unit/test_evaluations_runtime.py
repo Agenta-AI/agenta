@@ -221,7 +221,7 @@ async def test_sdk_source_slice_batches_runnable_cells():
             ]
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             logged.append((request.cell.step_key, request.cell.repeat_idx))
             return SimpleNamespace(id=uuid4())
 
@@ -249,7 +249,7 @@ async def test_sdk_source_slice_batches_runnable_cells():
         ],
         repeats=3,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": runner},
         revisions={"evaluator-auto": {"id": "revision"}},
@@ -297,7 +297,7 @@ async def test_sdk_source_slice_isolates_one_scenario_failure():
             ]
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             return SimpleNamespace(id=uuid4())
 
     calls = {"n": 0}
@@ -336,7 +336,7 @@ async def test_sdk_source_slice_isolates_one_scenario_failure():
         ],
         repeats=1,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": Runner()},
         revisions={"evaluator-auto": {"id": "revision"}},
@@ -364,7 +364,7 @@ async def test_sdk_source_slice_marks_short_runner_batch_as_error():
             ]
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             logged.append(request)
             return SimpleNamespace(id=uuid4())
 
@@ -390,7 +390,7 @@ async def test_sdk_source_slice_marks_short_runner_batch_as_error():
         ],
         repeats=2,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": ShortRunner()},
         revisions={"evaluator-auto": {"id": "revision"}},
@@ -430,7 +430,7 @@ async def test_sdk_source_slice_handles_over_count_runner_batch():
             ]
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             logged.append(request)
             return SimpleNamespace(id=uuid4())
 
@@ -456,7 +456,7 @@ async def test_sdk_source_slice_handles_over_count_runner_batch():
         ],
         repeats=2,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": LongRunner()},
         revisions={"evaluator-auto": {"id": "revision"}},
@@ -479,7 +479,7 @@ async def test_sdk_source_slice_marks_missing_runner_as_error():
     logged = []
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             logged.append(request)
             return SimpleNamespace(id=uuid4())
 
@@ -504,7 +504,7 @@ async def test_sdk_source_slice_marks_missing_runner_as_error():
         ],
         repeats=1,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={},
         revisions={},
@@ -527,7 +527,7 @@ async def test_sdk_source_slice_can_defer_manual_results_without_metric_refresh(
     logged = []
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             logged.append(request.cell.step_key)
             return SimpleNamespace(id=uuid4())
 
@@ -551,7 +551,7 @@ async def test_sdk_source_slice_can_defer_manual_results_without_metric_refresh(
         ],
         repeats=1,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={},
         revisions={},
@@ -609,7 +609,7 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
             ]
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -635,7 +635,7 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
         ],
         repeats=2,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={
             "application-main": ApplicationRunner(),
@@ -660,12 +660,12 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
 
 
 @pytest.mark.asyncio
-async def test_collecting_result_logger_collects_populate_ready_cell():
-    """CollectingResultLogger stashes each cell as a populate-ready dict.
+async def test_sdk_result_setter_writes_populate_ready_cell_live():
+    """SDKResultSetter writes each cell LIVE via populate as the engine produces it.
 
-    It does NOT write per cell (that's the bulk populate_slice afterward); it
-    preserves repeat_idx and the cell's bound trace/testcase, and the dict it
-    returns is what the engine remembers — so it round-trips into populate.
+    It shapes the cell into a populate-ready dict — preserving repeat_idx and the
+    cell's bound trace/testcase — writes it immediately (one populate call per
+    cell), and returns that dict as the engine's remembered value.
     """
     run_id = uuid4()
     scenario_id = uuid4()
@@ -681,17 +681,21 @@ async def test_collecting_result_logger_collects_populate_ready_cell():
         testcase_id=testcase_id,
     )
 
-    logger = runtime_adapters.CollectingResultLogger()
-    returned = await logger.log(
+    populate_calls = []
+
+    async def fake_populate(*, results):
+        populate_calls.append(results)
+        return results
+
+    setter = runtime_adapters.SDKResultSetter(populate=fake_populate)
+    returned = await setter.set(
         ResultLogRequest(
             cell=cell,
             trace_id="trace-repeat",
         )
     )
 
-    # the returned dict is also the collected cell (round-trips into populate).
-    assert logger.cells == [returned]
-    assert returned == {
+    expected = {
         "run_id": str(run_id),
         "scenario_id": str(scenario_id),
         "step_key": "evaluator-auto",
@@ -701,6 +705,9 @@ async def test_collecting_result_logger_collects_populate_ready_cell():
         "testcase_id": str(testcase_id),
         "error": None,
     }
+    assert returned == expected
+    # written live: one populate call carrying exactly this cell.
+    assert populate_calls == [[expected]]
 
 
 @pytest.mark.asyncio
@@ -773,9 +780,15 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
         return [SimpleNamespace(id=uuid4()) for _ in results]
 
     refresh_calls = []
+    edit_status_calls = []
 
-    async def fake_refresh_slice(*, run_id, scenario_ids):
-        refresh_calls.append((run_id, scenario_ids))
+    async def fake_refresh(run_id, scenario_id=None):
+        # arefresh(run_id, scenario_id): per-scenario (variational) when
+        # scenario_id is set, global when it is None.
+        refresh_calls.append((run_id, scenario_id))
+
+    async def fake_edit_scenario(*, scenario_id, status):
+        edit_status_calls.append((scenario_id, status))
 
     async def fake_invoke_application(**kwargs):
         return SimpleNamespace(
@@ -823,11 +836,13 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
         preview_evaluate, "aretrieve_evaluator", fake_retrieve_evaluator
     )
     monkeypatch.setattr(preview_evaluate, "acreate_run", fake_create_run)
-    # the SDK now mirrors the API slice ops: bulk add_scenarios -> (local
-    # execute, collect) -> bulk populate_slice -> refresh_slice.
+    # the SDK mirrors the API: bulk add_scenarios -> ONE slice over all scenarios
+    # with live per-cell populate, inline per-scenario + global metric refresh,
+    # and per-scenario status writes.
     monkeypatch.setattr(preview_evaluate, "aadd_scenarios", fake_add_scenarios)
     monkeypatch.setattr(preview_evaluate, "apopulate_slice", fake_populate_slice)
-    monkeypatch.setattr(preview_evaluate, "arefresh_slice", fake_refresh_slice)
+    monkeypatch.setattr(preview_evaluate, "arefresh", fake_refresh)
+    monkeypatch.setattr(preview_evaluate, "aedit_scenario", fake_edit_scenario)
     monkeypatch.setattr(
         preview_evaluate,
         "aquery_metrics",
@@ -847,8 +862,8 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     )
 
     assert result["run"].id == run_id
-    # cells written via populate_slice (one scenario here), repeat-aware, in
-    # plan order.
+    # cells written live (one cell per populate call), repeat-aware, in plan
+    # order. populated_cells accumulates them across the per-cell writes.
     assert [(cell["step_key"], cell["repeat_idx"]) for cell in populated_cells] == [
         ("testset-main", 0),
         ("testset-main", 1),
@@ -861,17 +876,21 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
         for cell in populated_cells
         if cell["step_key"] == "evaluator-eval"
     ] == ["eval-trace-0", "eval-trace-1"]
-    # metrics rolled up via refresh_slice over the one scenario.
-    assert refresh_calls == [(run_id, [scenario_id])]
+    # metrics refreshed inline for the scenario (variational) AND once globally,
+    # mirroring the API engine.
+    assert (run_id, scenario_id) in refresh_calls
+    assert (run_id, None) in refresh_calls
 
 
 @pytest.mark.asyncio
-async def test_sdk_preview_evaluate_populates_and_refreshes_per_scenario(monkeypatch):
-    """Two testcases -> two scenarios, each its OWN populate + refresh.
+async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeypatch):
+    """Two testcases -> ONE slice over both scenarios (the design's
+    `process_slice(all scenarios)`).
 
-    Locks in the per-scenario persistence boundary: a whole-testset bulk write
-    would be one populate over all cells; per-scenario is one populate per
-    scenario (its cells only) plus one refresh scoped to that scenario.
+    Locks in the single-slice boundary: one bulk populate carrying every
+    scenario's cells, one refresh scoped to all scenario ids, and a status write
+    per scenario. An outer per-scenario loop (one populate/refresh each) would
+    leave the engine's concurrency inert, so this guards that regression.
     """
     run_id = uuid4()
     scenario_a, scenario_b = uuid4(), uuid4()
@@ -920,18 +939,21 @@ async def test_sdk_preview_evaluate_populates_and_refreshes_per_scenario(monkeyp
     async def fake_add_scenarios(*, run_id, count, timestamp=None):
         return [SimpleNamespace(id=next(minted_ids)) for _ in range(count)]
 
-    # capture populate calls as separate batches (NOT flattened), to prove each
-    # scenario is its own populate.
-    populate_batches = []
+    # cells are written live (one cell per populate call); collect every cell.
+    populated_cells = []
 
     async def fake_populate_slice(*, results):
-        populate_batches.append(results)
+        populated_cells.extend(results)
         return [SimpleNamespace(id=uuid4()) for _ in results]
 
     refresh_calls = []
+    edit_status_calls = []
 
-    async def fake_refresh_slice(*, run_id, scenario_ids):
-        refresh_calls.append(scenario_ids)
+    async def fake_refresh(run_id, scenario_id=None):
+        refresh_calls.append((run_id, scenario_id))
+
+    async def fake_edit_scenario(*, scenario_id, status):
+        edit_status_calls.append((scenario_id, status))
 
     async def fake_invoke_application(**kwargs):
         return SimpleNamespace(
@@ -962,7 +984,8 @@ async def test_sdk_preview_evaluate_populates_and_refreshes_per_scenario(monkeyp
     )
     monkeypatch.setattr(preview_evaluate, "aadd_scenarios", fake_add_scenarios)
     monkeypatch.setattr(preview_evaluate, "apopulate_slice", fake_populate_slice)
-    monkeypatch.setattr(preview_evaluate, "arefresh_slice", fake_refresh_slice)
+    monkeypatch.setattr(preview_evaluate, "arefresh", fake_refresh)
+    monkeypatch.setattr(preview_evaluate, "aedit_scenario", fake_edit_scenario)
     monkeypatch.setattr(
         preview_evaluate,
         "aquery_metrics",
@@ -983,12 +1006,19 @@ async def test_sdk_preview_evaluate_populates_and_refreshes_per_scenario(monkeyp
         repeats=1,
     )
 
-    # TWO scenarios -> TWO populate calls, each carrying only its own scenario's
-    # cells, and TWO refresh calls, each scoped to one scenario id.
-    assert len(populate_batches) == 2
-    assert {c["scenario_id"] for c in populate_batches[0]} == {str(scenario_a)}
-    assert {c["scenario_id"] for c in populate_batches[1]} == {str(scenario_b)}
-    assert refresh_calls == [[scenario_a], [scenario_b]]
+    # TWO scenarios processed in ONE slice: every cell written live, carrying
+    # both scenarios' ids.
+    assert {c["scenario_id"] for c in populated_cells} == {
+        str(scenario_a),
+        str(scenario_b),
+    }
+    # metrics refreshed inline per scenario (variational) AND once globally,
+    # mirroring the API engine.
+    assert (run_id, scenario_a) in refresh_calls
+    assert (run_id, scenario_b) in refresh_calls
+    assert (run_id, None) in refresh_calls
+    # each scenario got its status written.
+    assert {sid for sid, _status in edit_status_calls} == {scenario_a, scenario_b}
 
 
 async def _async(value):
@@ -1033,7 +1063,7 @@ async def test_sdk_source_slice_runs_scenarios_concurrently_up_to_batch_size():
             return results
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             return SimpleNamespace(id=uuid4())
 
     scenarios_created = []
@@ -1065,7 +1095,7 @@ async def test_sdk_source_slice_runs_scenarios_concurrently_up_to_batch_size():
         ],
         repeats=1,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": ConcurrentRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},
@@ -1108,7 +1138,7 @@ async def test_sdk_source_slice_semaphore_shared_across_repeats():
             return [await _one(req) for req in requests]
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -1133,7 +1163,7 @@ async def test_sdk_source_slice_semaphore_shared_across_repeats():
         ],
         repeats=4,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": ConcurrentRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},
@@ -1160,7 +1190,7 @@ async def test_sdk_source_slice_no_batch_size_runs_all_concurrently():
             ]
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -1189,7 +1219,7 @@ async def test_sdk_source_slice_no_batch_size_runs_all_concurrently():
         ],
         repeats=1,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": Runner()},
         revisions={"evaluator-auto": {"id": "rev"}},
@@ -1229,7 +1259,7 @@ async def test_sdk_source_slice_retries_failed_cells_and_succeeds():
     logged = []
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             logged.append((request.cell.step_key, request.trace_id, request.error))
             return SimpleNamespace(id=uuid4())
 
@@ -1255,7 +1285,7 @@ async def test_sdk_source_slice_retries_failed_cells_and_succeeds():
         ],
         repeats=1,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": FlakyRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},
@@ -1289,7 +1319,7 @@ async def test_sdk_source_slice_exhausts_retries_and_marks_error():
             ]
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -1314,7 +1344,7 @@ async def test_sdk_source_slice_exhausts_retries_and_marks_error():
         ],
         repeats=1,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": AlwaysFailRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},
@@ -1355,7 +1385,7 @@ async def test_sdk_source_slice_retries_only_failed_cells_in_batch():
             return results
 
     class Logger:
-        async def log(self, request):
+        async def set(self, request):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -1380,7 +1410,7 @@ async def test_sdk_source_slice_retries_only_failed_cells_in_batch():
         ],
         repeats=2,
         create_scenario=create_scenario,
-        result_logger=Logger(),
+        set_results=Logger(),
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": SelectiveFlakyRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},

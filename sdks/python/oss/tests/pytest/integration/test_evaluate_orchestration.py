@@ -82,8 +82,8 @@ def _patch_io(*, testset_revision, application_revision, evaluator_revision, cap
     """Patch every network/IO boundary aevaluate() uses, and capture the
     process_sources kwargs. Returns a context-manager list.
 
-    The flow runs process_sources PER SCENARIO, so it is called once per source
-    item — `captured["process_kwargs"]` holds the most recent call and
+    The flow runs process_sources ONCE per testset over all source items —
+    `captured["process_kwargs"]` holds the most recent call and
     `captured["process_calls"]` holds every call's kwargs.
     """
     run_obj = SimpleNamespace(id=uuid4())
@@ -98,6 +98,8 @@ def _patch_io(*, testset_revision, application_revision, evaluator_revision, cap
                 scenario=SimpleNamespace(id=uuid4()),
                 results={},
                 metrics={"score": 1.0},
+                has_errors=False,
+                has_pending=False,
             )
             for _ in kwargs["source_items"]
         ]
@@ -117,7 +119,8 @@ def _patch_io(*, testset_revision, application_revision, evaluator_revision, cap
         patch(f"{MOD}.aget_url", AsyncMock(return_value="http://x/run")),
         patch(f"{MOD}.aadd_scenarios", fake_add_scenarios),
         patch(f"{MOD}.apopulate_slice", AsyncMock(return_value=[])),
-        patch(f"{MOD}.arefresh_slice", AsyncMock(return_value=None)),
+        patch(f"{MOD}.arefresh", AsyncMock(return_value=None)),
+        patch(f"{MOD}.aedit_scenario", AsyncMock(return_value=None)),
         patch(f"{MOD}.aquery_metrics", AsyncMock(return_value=global_metric)),
         patch(f"{MOD}.aretrieve_testset", AsyncMock(return_value=testset_revision)),
         patch(
@@ -213,11 +216,11 @@ class TestAevaluateOrchestration:
             evaluators={str(uuid4()): "auto"}, repeats=4, testcases=tcs
         )
         calls = captured["process_calls"]
-        # per-scenario: process_sources is called once per testcase, each with a
-        # single source item, and repeats forwarded on every call.
-        assert len(calls) == 3
-        assert all(c["repeats"] == 4 for c in calls)
-        assert all(len(c["source_items"]) == 1 for c in calls)
+        # single-slice: process_sources is called ONCE for the testset, carrying
+        # all three source items, with repeats forwarded.
+        assert len(calls) == 1
+        assert calls[0]["repeats"] == 4
+        assert len(calls[0]["source_items"]) == 3
 
     def test_assembles_result_payload(self):
         result, captured, _ = _evaluate(evaluators={str(uuid4()): "auto"})

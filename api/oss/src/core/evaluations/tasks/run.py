@@ -96,7 +96,7 @@ async def _mint_and_bind(
 
     The input cell is NOT written here. The SDK slice loop logs the input step
     first (before any runnable cell), writing the same `trace_id`/`testcase_id`
-    and temporal coordinates via `APIResultLogger`. Pre-writing it here would
+    and temporal coordinates via `APIResultSetter`. Pre-writing it here would
     just be overwritten by that log — a redundant DB round-trip per scenario.
     The durable input cell a later tensor retry recovers from is the SDK's.
     """

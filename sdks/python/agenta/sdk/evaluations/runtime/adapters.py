@@ -67,22 +67,22 @@ class SDKWorkflowRunner:
         return [await self.execute(request) for request in requests]
 
 
-class CollectingResultLogger:
-    """Result logger that COLLECTS cells in memory instead of writing each.
+class SDKResultSetter:
+    """Result setter that WRITES each cell live, like the API's APIResultSetter.
 
-    The SDK local flow mirrors the API slice ops: execute locally, then write
-    every finished cell in ONE `populate_slice` call. So during execution the
-    engine's per-cell `log` must not hit the network — it just shapes the cell
-    into a populate-ready dict and stashes it. `process_run_locally` drains
-    `cells` afterward and bulk-populates. The returned dict is also what the
-    engine remembers as the cell's value, so it round-trips into the populate
-    payload with no further reshaping.
+    Aligns the SDK with the API persistence model: each finished cell is
+    populated to the backend as the engine produces it (one `populate` call per
+    cell), instead of collected and bulk-written after the slice. Writing live is
+    what lets the engine's inline per-scenario metric refresh see persisted
+    cells, so the SDK gets the SAME variational-inline + global-at-end refresh
+    shape as the API. The returned dict is what the engine remembers as the
+    cell's value.
     """
 
-    def __init__(self) -> None:
-        self.cells: list[Dict[str, Any]] = []
+    def __init__(self, *, populate: Any) -> None:
+        self._populate = populate
 
-    async def log(self, request: ResultLogRequest) -> Dict[str, Any]:
+    async def set(self, request: ResultLogRequest) -> Dict[str, Any]:
         cell = request.cell
         payload = dict(
             run_id=str(cell.run_id),
@@ -102,7 +102,7 @@ class CollectingResultLogger:
             else None,
             error=request.error if request.error is not None else cell.error,
         )
-        self.cells.append(payload)
+        await self._populate(results=[payload])
         return payload
 
 

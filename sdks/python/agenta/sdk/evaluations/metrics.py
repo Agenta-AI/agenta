@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from agenta.sdk.utils.client import authed_api
@@ -71,37 +71,3 @@ async def arefresh(
     metrics = EvaluationMetrics(**response["metrics"][0])
 
     return metrics
-
-
-async def arefresh_slice(
-    *,
-    run_id: UUID,
-    scenario_ids: Optional[List[UUID]] = None,
-    step_keys: Optional[List[str]] = None,
-    repeat_idxs: Optional[List[int]] = None,
-) -> None:
-    """Recompute metrics over a slice scope (variational + aggregate).
-
-    The slice-op counterpart of `arefresh`: callers that wrote finished cells
-    themselves (e.g. the SDK local evaluator, which runs workflows in-process
-    and populates the results) call this once to roll up the metric rows for the
-    addressed scope without executing anything. Mirrors `POST
-    /simple/evaluations/{id}/refresh` (204, no body).
-    """
-    payload = dict(
-        scenario_ids=[str(s) for s in scenario_ids] if scenario_ids else None,
-        step_keys=step_keys,
-        repeat_idxs=repeat_idxs,
-    )
-
-    response = authed_api()(
-        method="POST",
-        endpoint=f"/simple/evaluations/{run_id}/refresh",
-        json={k: v for k, v in payload.items() if v is not None},
-    )
-
-    try:
-        response.raise_for_status()
-    except:
-        print(response.text)
-        raise

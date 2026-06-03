@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from agenta.sdk.evaluations.runtime.executor import (
-    ResultLogger,
+    ResultSetter,
     TraceLoader,
     execute_workflow_batch,
 )
@@ -23,6 +23,15 @@ from agenta.sdk.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Default concurrency for a slice when the caller passes no explicit batch_size.
+# batch_size is None across both drivers by default (nothing sets
+# run.data.concurrency), which would leave the engine's semaphore inert and run
+# every scenario's workflows unbounded. A bounded default gives both the API and
+# the SDK the same in-slice concurrency through the shared semaphore instead of
+# dormant machinery. An explicit batch_size (e.g. from run.data.concurrency)
+# still overrides this.
+DEFAULT_BATCH_SIZE = 10
+
 
 class ProcessedScenario(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -38,6 +47,45 @@ class ProcessedScenario(BaseModel):
 CreateScenario = Callable[[UUID], Awaitable[Any]]
 RefreshMetrics = Callable[[UUID, Optional[UUID]], Awaitable[Any]]
 PlanCellFilter = Callable[[PlannedCell], bool]
+# Adapter boundary for persisting a scenario's terminal status. The engine
+# computes the verdict (has_errors/has_pending) per scenario, so writing the
+# status is a property of `process` itself — every driver (API ingest,
+# API re-execute, SDK) injects its own setter rather than re-deriving status
+# in a separate post-process. A plain async `(scenario, status) -> Any`.
+EditScenario = Callable[[Any, EvaluationStatus], Awaitable[Any]]
+
+
+def scenario_status(
+    *,
+    has_errors: bool,
+    has_pending: bool,
+) -> EvaluationStatus:
+    """The terminal status of a single scenario from its touched cells.
+
+    Identical ranking on every driver: any error ranks the scenario ERRORS,
+    else any unresolved cell ranks it PENDING, else SUCCESS.
+    """
+    if has_errors:
+        return EvaluationStatus.ERRORS
+    if has_pending:
+        return EvaluationStatus.PENDING
+    return EvaluationStatus.SUCCESS
+
+
+def run_status(processed: List[ProcessedScenario]) -> EvaluationStatus:
+    """The run status rolled up from a slice's touched scenarios.
+
+    One shared rollup for every driver: ERRORS if any scenario errored, else
+    RUNNING if any is still pending (the run is not done), else SUCCESS. Drivers
+    apply this verdict in their own way — the SDK closes the run with it; the API
+    feeds it into the cross-slice floor — but the verdict itself lives here, next
+    to the per-scenario `scenario_status`, so it is computed in exactly one place.
+    """
+    if any(item.has_errors for item in processed):
+        return EvaluationStatus.ERRORS
+    if any(item.has_pending for item in processed):
+        return EvaluationStatus.RUNNING
+    return EvaluationStatus.SUCCESS
 
 
 async def process_sources(
@@ -47,7 +95,7 @@ async def process_sources(
     steps: List[EvaluationStep],
     repeats: Optional[int] = None,
     create_scenario: CreateScenario,
-    result_logger: ResultLogger,
+    set_results: ResultSetter,
     refresh_metrics: RefreshMetrics,
     runners: Mapping[str, Any],
     revisions: Mapping[str, Any],
@@ -61,6 +109,7 @@ async def process_sources(
     execute_custom: bool = False,
     initial_context_by_repeat: Optional[Dict[int, Dict[str, Any]]] = None,
     plan_cell_filter: Optional[PlanCellFilter] = None,
+    edit_scenario: Optional[EditScenario] = None,
 ) -> List[ProcessedScenario]:
     """Process concrete source items through the SDK-owned runtime contract.
 
@@ -72,8 +121,12 @@ async def process_sources(
     across all scenarios and repeats. A single asyncio.Semaphore is shared by
     both the scenario-level gather and the per-step repeat batch so that peak
     concurrency equals exactly batch_size regardless of how repeats are split.
+    When the caller passes no batch_size, `DEFAULT_BATCH_SIZE` applies so the
+    slice still runs bounded-concurrent rather than unbounded — the same default
+    for both the API and the SDK driver.
     """
-    semaphore = asyncio.Semaphore(batch_size) if batch_size else None
+    effective_batch_size = batch_size or DEFAULT_BATCH_SIZE
+    semaphore = asyncio.Semaphore(effective_batch_size)
     processed_lock = asyncio.Lock()
     processed: List[ProcessedScenario] = []
 
@@ -81,14 +134,25 @@ async def process_sources(
         "[SLICE] Starting",
         run_id=str(run_id),
         scenarios=len(source_items),
-        batch_size=batch_size,
-        max_retries=max_retries,
-        retry_delay=retry_delay,
+        batch_size=effective_batch_size,
+        **({"max_retries": max_retries} if max_retries else {}),
+        **({"retry_delay": retry_delay} if retry_delay else {}),
     )
 
     async def _process_one(source_item: ResolvedSourceItem) -> None:
         scenario = await create_scenario(run_id)
         scenario_id = scenario.id
+
+        logger.info(
+            "[SCENARIO] Starting",
+            run_id=str(run_id),
+            scenario_id=str(scenario_id),
+            **(
+                {"testcase_id": str(source_item.testcase_id)}
+                if source_item.testcase_id
+                else {}
+            ),
+        )
 
         plan = EvaluationPlanner().plan(
             run_id=run_id,
@@ -135,7 +199,7 @@ async def process_sources(
             if cell.step_type == "input":
                 _remember(
                     cell,
-                    await result_logger.log(
+                    await set_results.set(
                         ResultLogRequest(
                             cell=cell,
                             testcase_id=source_item.testcase_id,
@@ -148,10 +212,17 @@ async def process_sources(
 
             if not cell.should_execute:
                 scenario_has_pending = True
+                logger.info(
+                    "[STEP] Pending",
+                    run_id=str(run_id),
+                    scenario_id=str(scenario_id),
+                    step_key=cell.step_key,
+                    repeat_idx=cell.repeat_idx,
+                )
                 if log_pending:
                     _remember(
                         cell,
-                        await result_logger.log(ResultLogRequest(cell=cell)),
+                        await set_results.set(ResultLogRequest(cell=cell)),
                     )
                 idx += 1
                 continue
@@ -164,11 +235,18 @@ async def process_sources(
             runner = runners.get(cell.step_key)
             revision = revisions.get(cell.step_key)
             if runner is None or revision is None:
+                logger.info(
+                    "[STEP] Error",
+                    run_id=str(run_id),
+                    scenario_id=str(scenario_id),
+                    step_key=cell.step_key,
+                    error=f"Missing runner or revision for {cell.step_key}",
+                )
                 for batch_cell in batch_cells:
                     scenario_has_errors = True
                     _remember(
                         batch_cell,
-                        await result_logger.log(
+                        await set_results.set(
                             ResultLogRequest(
                                 cell=_failed_cell(
                                     batch_cell,
@@ -215,7 +293,7 @@ async def process_sources(
 
                 _remember(
                     batch_cell,
-                    await result_logger.log(
+                    await set_results.set(
                         ResultLogRequest(
                             cell=batch_cell,
                             trace_id=execution.trace_id,
@@ -226,8 +304,25 @@ async def process_sources(
                     ),
                 )
                 scenario_auto_results_created = True
-                if execution.error or _is_failure_status(execution.status):
+                step_failed = bool(
+                    execution.error or _is_failure_status(execution.status)
+                )
+                if step_failed:
                     scenario_has_errors = True
+                logger.info(
+                    "[STEP] Done",
+                    run_id=str(run_id),
+                    scenario_id=str(scenario_id),
+                    step_key=batch_cell.step_key,
+                    repeat_idx=batch_cell.repeat_idx,
+                    status=getattr(execution.status, "name", execution.status),
+                    **(
+                        {"trace_id": str(execution.trace_id)}
+                        if execution.trace_id
+                        else {}
+                    ),
+                    **({"error": execution.error} if step_failed else {}),
+                )
 
                 if execution.trace_id:
                     _remember_context(
@@ -251,7 +346,7 @@ async def process_sources(
                     for batch_cell in batch_cells[len(executions) :]:
                         _remember(
                             batch_cell,
-                            await result_logger.log(
+                            await set_results.set(
                                 ResultLogRequest(
                                     cell=_failed_cell(batch_cell, message=message),
                                     testcase_id=source_item.testcase_id,
@@ -290,6 +385,12 @@ async def process_sources(
         metrics = None
         if refresh_metrics_without_auto_results or scenario_auto_results_created:
             try:
+                logger.info(
+                    "[METRICS] Refreshing",
+                    run_id=str(run_id),
+                    scenario_id=str(scenario_id),
+                    scope="variational",
+                )
                 metrics = await refresh_metrics(run_id, scenario_id)
             except Exception:  # pylint: disable=broad-exception-caught
                 # A metrics-refresh failure must not lose the result cells that
@@ -302,6 +403,24 @@ async def process_sources(
                     exc_info=True,
                 )
                 scenario_has_errors = True
+
+        status = scenario_status(
+            has_errors=scenario_has_errors,
+            has_pending=scenario_has_pending,
+        )
+        logger.info(
+            "[SCENARIO] Complete",
+            run_id=str(run_id),
+            scenario_id=str(scenario_id),
+            status=status.name,
+            cells=len(plan.cells),
+        )
+
+        # Per-scenario status write. The verdict is known here (this scenario's
+        # touched cells), so the engine owns the write via the injected adapter
+        # — the same path for every driver, instead of a separate post-process.
+        if edit_scenario is not None:
+            await edit_scenario(scenario, status)
 
         async with processed_lock:
             processed.append(
@@ -331,11 +450,12 @@ async def process_sources(
 
     await asyncio.gather(*(_guarded_process_one(item) for item in source_items))
 
+    has_errors = any(item.has_errors for item in processed)
     logger.info(
         "[SLICE] Complete",
         run_id=str(run_id),
         processed=len(processed),
-        has_errors=any(item.has_errors for item in processed),
+        **({"has_errors": has_errors} if has_errors else {}),
     )
 
     if processed and (
@@ -343,6 +463,11 @@ async def process_sources(
         or any(item.auto_results_created for item in processed)
     ):
         try:
+            logger.info(
+                "[METRICS] Refreshing",
+                run_id=str(run_id),
+                scope="global",
+            )
             await refresh_metrics(run_id, None)
         except Exception:  # pylint: disable=broad-exception-caught
             # The run-level rollup is best-effort: every scenario already

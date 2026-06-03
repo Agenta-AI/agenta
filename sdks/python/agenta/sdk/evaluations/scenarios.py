@@ -83,3 +83,40 @@ async def acreate(
     scenario = EvaluationScenario(**response["scenarios"][0])
 
     return scenario
+
+
+async def aedit_scenario(
+    *,
+    scenario_id: UUID,
+    status: str,
+) -> Optional[EvaluationScenario]:
+    """Edit a single scenario (currently its terminal status).
+
+    Mirrors `PATCH /evaluations/scenarios/{scenario_id}` (operation
+    `edit_scenario`); the body's `scenario.id` must match the path id. Used by
+    the SDK evaluate loop's `edit_scenario` adapter to flip each scenario to its
+    computed SUCCESS/ERRORS/PENDING status after its cells are written.
+    """
+    payload = dict(
+        scenario=dict(
+            id=str(scenario_id),
+            status=status,
+        )
+    )
+
+    response = authed_api()(
+        method="PATCH",
+        endpoint=f"/evaluations/scenarios/{scenario_id}",
+        json=payload,
+    )
+
+    try:
+        response.raise_for_status()
+    except Exception:
+        print(response.text)
+        raise
+
+    response = response.json()
+
+    scenario = response.get("scenario")
+    return EvaluationScenario(**scenario) if scenario else None

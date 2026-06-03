@@ -18,6 +18,7 @@ __pycache__/
 
 **/error-*.log
 **/*.logs
+**/*.log
 
 /.nox/
 /docs/_build/

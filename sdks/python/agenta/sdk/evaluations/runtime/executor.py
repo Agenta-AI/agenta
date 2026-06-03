@@ -1,9 +1,9 @@
-from asyncio import Semaphore, gather
+from asyncio import Lock, Semaphore, gather
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol, Tuple
 from uuid import UUID
 
-from agenta.sdk.evaluations.runtime.adapters import CollectingResultLogger
+from agenta.sdk.evaluations.runtime.adapters import SDKResultSetter
 from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep,
     PlannedCell,
@@ -104,14 +104,14 @@ class AsyncioEvaluationTaskRunner:
     Per testset revision the sequence is:
 
       1. add_scenarios — bulk-mint N skeleton scenarios (the `add_scenarios` op),
-      2. execute — drive the SDK engine over the pre-minted scenarios with local
-         runners, COLLECTING every finished cell in memory (no per-cell write),
-      3. populate — write all collected cells in one `populate_slice` call,
-      4. refresh — one `refresh_slice` metrics rollup over the scenarios.
+      2. process — ONE slice over all scenarios via the SDK engine with local
+         runners. Each cell is written live (SDKResultSetter -> populate), the
+         engine refreshes metrics inline per scenario (variational) and once at
+         the end (global), and writes each scenario's status — the SAME shape as
+         the API worker, only the runner is local.
 
-    The source processor (`process_sources`) is the same engine the API funnels through;
-    only the injected adapters (local runner, collecting logger) and the
-    bulk-persistence boundary differ.
+    The source processor (`process_sources`) is the same engine the API funnels
+    through; only the injected adapters (local runner) differ.
     """
 
     def __init__(
@@ -120,7 +120,8 @@ class AsyncioEvaluationTaskRunner:
         process_sources: Callable[..., Awaitable[List[Any]]],
         add_scenarios: Callable[..., Awaitable[List[Any]]],
         populate_slice: Callable[..., Awaitable[Any]],
-        refresh_slice: Callable[..., Awaitable[Any]],
+        refresh_metrics: Callable[..., Awaitable[Any]],
+        edit_scenario: Callable[..., Awaitable[Any]],
         retrieve_testset: Callable[..., Awaitable[Any]],
         retrieve_application: Callable[..., Awaitable[Any]],
         retrieve_evaluator: Callable[..., Awaitable[Any]],
@@ -130,7 +131,8 @@ class AsyncioEvaluationTaskRunner:
         self._process_sources = process_sources
         self._add_scenarios = add_scenarios
         self._populate_slice = populate_slice
-        self._refresh_slice = refresh_slice
+        self._refresh_metrics = refresh_metrics
+        self._edit_scenario = edit_scenario
         self._retrieve_testset = retrieve_testset
         self._retrieve_application = retrieve_application
         self._retrieve_evaluator = retrieve_evaluator
@@ -332,16 +334,24 @@ class AsyncioEvaluationTaskRunner:
         *,
         run_id: UUID,
         run_data: Any,
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], Any]:
         """Run the evaluation locally via the API-mirroring slice sequence.
 
         Takes `run_data` (revision IDS) and fetches the revision OBJECTS itself
         (`_retrieve_revisions`, via injected retrievers) — mirroring the API
         executor, which fetches its revisions inside `process`, not before. Per
-        testset: add_scenarios (bulk) -> execute locally collecting cells ->
-        populate_slice (bulk) -> refresh_slice. Empty/unresolved testsets are
-        skipped, not failed.
+        testset: add_scenarios (bulk) -> ONE process_sources slice over all
+        scenarios (live cell writes, inline + global metric refresh, status
+        writes). Empty/unresolved testsets are skipped, not failed.
         """
+        # Local import: processor.py imports from this module, so importing it at
+        # module load would be circular. The verdict→status ranking lives there
+        # so every driver shares one definition.
+        from agenta.sdk.evaluations.runtime.processor import (
+            run_status,
+            scenario_status,
+        )
+
         (
             testset_revisions,
             application_revisions,
@@ -350,6 +360,10 @@ class AsyncioEvaluationTaskRunner:
         repeats = run_data.repeats
 
         scenarios: List[Dict[str, Any]] = []
+        # Accumulate the engine's per-scenario verdicts across every slice so the
+        # run status is rolled up once via the shared `run_status` — not
+        # re-derived by the caller at close time.
+        all_processed: List[Any] = []
 
         for testset in testset_revisions:
             testset_revision, _origin = testset
@@ -381,9 +395,7 @@ class AsyncioEvaluationTaskRunner:
                 input_step_key=input_step_key,
             )
 
-            # add_scenarios — bulk-mint one skeleton per source item, in order
-            # (minting is cheap; the per-scenario boundary below is for the
-            # write/refresh, where whole-testset bulk would be all-or-nothing).
+            # add_scenarios — bulk-mint one skeleton per source item, in order.
             minted = await self._add_scenarios(
                 run_id=run_id,
                 count=len(source_items),
@@ -397,43 +409,53 @@ class AsyncioEvaluationTaskRunner:
                 )
                 continue
 
-            # Per scenario: execute -> populate -> refresh. Each scenario is its
-            # own persistence unit, so a failure isolates to one scenario, the
-            # populate payload stays one testcase's cells, results land
-            # incrementally, and only one scenario's cells are held in memory at
-            # a time — vs. a single whole-testset bulk write that risks all of it.
-            for source_item, scenario in zip(source_items, minted):
-                collecting_logger = CollectingResultLogger()
-                processed = await self._process_sources(
-                    run_id=run_id,
-                    source_items=[source_item],
-                    steps=steps,
-                    repeats=repeats,
-                    create_scenario=_PreMintedScenarios([scenario]),
-                    result_logger=collecting_logger,
-                    refresh_metrics=_noop_refresh_metrics,
-                    runners=runners,
-                    revisions=revisions,
-                    fetch_trace=self._fetch_trace,
-                    # The SDK evaluate() loop IS the executor for custom-origin steps.
-                    execute_custom=True,
-                )
+            # ONE slice over ALL scenarios — the design's `process_slice(all
+            # scenarios, all steps)`. The engine's internal gather + semaphore run
+            # the scenarios concurrently (bounded by batch_size), which is what
+            # makes concurrency real; an outer per-scenario loop would feed the
+            # engine one item at a time and leave the semaphore inert.
+            # Live persistence, aligned with the API: each cell is populated as
+            # the engine produces it (SDKResultSetter), so the engine's inline
+            # per-scenario metric refresh (arefresh) sees persisted cells, and
+            # the engine's end-of-slice global refresh rolls up the run — the
+            # same variational-inline + global-at-end shape as the API worker.
+            processed = await self._process_sources(
+                run_id=run_id,
+                source_items=source_items,
+                steps=steps,
+                repeats=repeats,
+                create_scenario=_PreMintedScenarios(minted),
+                set_results=SDKResultSetter(populate=self._populate_slice),
+                refresh_metrics=self._refresh_metrics,
+                edit_scenario=self._edit_scenario,
+                runners=runners,
+                revisions=revisions,
+                fetch_trace=self._fetch_trace,
+                # The SDK evaluate() loop IS the executor for custom-origin steps.
+                execute_custom=True,
+            )
 
-                # populate this scenario's cells, then refresh its metrics.
-                if collecting_logger.cells:
-                    await self._populate_slice(results=collecting_logger.cells)
-                await self._refresh_slice(run_id=run_id, scenario_ids=[scenario.id])
-
-                scenarios.extend(
+            # Cells are live-written and status is written in-loop by the engine's
+            # edit_scenario adapter (same as the API), so here we only assemble
+            # the return payload.
+            for item in processed:
+                scenarios.append(
                     {
                         "scenario": item.scenario,
                         "results": item.results,
                         "metrics": item.metrics,
+                        "status": scenario_status(
+                            has_errors=item.has_errors,
+                            has_pending=item.has_pending,
+                        ),
                     }
-                    for item in processed
                 )
+            all_processed.extend(processed)
 
-        return scenarios
+        # Run status rolled up once from every touched scenario (shared with the
+        # API). The caller applies it (closes the run with it); it is NOT
+        # re-derived there.
+        return scenarios, run_status(all_processed)
 
 
 class _PreMintedScenarios:
@@ -443,32 +465,32 @@ class _PreMintedScenarios:
     minted them all up front via `add_scenarios`, so this cursor returns the next
     pre-minted scenario instead of creating a new one — the SDK analogue of the
     API's `_ExistingScenario` over a seed-bindings set.
+
+    Order/concurrency: the engine now runs scenarios concurrently (gather +
+    semaphore), so multiple coroutines call this. `create_scenario` is the FIRST
+    statement of the engine's `_process_one` and this body has no `await`, so
+    each task runs through the pop synchronously before reaching any real
+    suspension point — i.e. the pops happen in `source_items` order, pairing
+    scenario i with source_item i. The lock makes the index increment atomic so
+    that ordering can never degrade into a double-hand-out if scheduling shifts.
     """
 
     def __init__(self, scenarios: List[Any]):
         self._scenarios = list(scenarios)
         self._idx = 0
+        self._lock = Lock()
 
     async def __call__(self, run_id: UUID) -> Any:
-        scenario = self._scenarios[self._idx]
-        self._idx += 1
-        return scenario
+        async with self._lock:
+            scenario = self._scenarios[self._idx]
+            self._idx += 1
+            return scenario
 
 
-async def _noop_refresh_metrics(*_args: Any, **_kwargs: Any) -> None:
-    """No-op refresh for the SDK execute pass.
-
-    The SDK refreshes ONCE at the end via `refresh_slice` (bulk), so the engine's
-    inline per-scenario refresh hook does nothing here — avoiding N redundant
-    metric calls mid-execution.
-    """
-    return None
-
-
-class ResultLogger(Protocol):
+class ResultSetter(Protocol):
     """Adapter boundary for persisting planned result cells."""
 
-    async def log(self, request: ResultLogRequest) -> Any: ...
+    async def set(self, request: ResultLogRequest) -> Any: ...
 
 
 # Adapter boundary for loading a runner's trace after a step executes: a plain

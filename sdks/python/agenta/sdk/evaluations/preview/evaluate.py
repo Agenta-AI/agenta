@@ -31,12 +31,13 @@ from agenta.sdk.evaluations.runs import (
 )
 from agenta.sdk.evaluations.scenarios import (
     aadd as aadd_scenarios,
+    aedit_scenario,
 )
 from agenta.sdk.evaluations.results import (
     apopulate as apopulate_slice,
 )
 from agenta.sdk.evaluations.metrics import (
-    arefresh_slice,
+    arefresh,
     aquery_global as aquery_metrics,
 )
 from agenta.sdk.evaluations.runtime.processor import process_sources
@@ -51,6 +52,15 @@ from agenta.sdk.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
+
+
+async def _edit_scenario(scenario: Any, status: Any) -> Any:
+    """Engine `edit_scenario` adapter: bridge the `(scenario, status)` engine
+    contract to the SDK client's `aedit_scenario(scenario_id=, status=)`."""
+    return await aedit_scenario(
+        scenario_id=scenario.id,
+        status=getattr(status, "value", status),
+    )
 
 
 class EvaluateSpecs(BaseModel):
@@ -455,6 +465,16 @@ async def aevaluate(
         print("[failure] could not create evaluation")
         return None
 
+    log.info(
+        "[EVAL] run created",
+        run_id=str(run.id),
+        **({"name": run_data.name} if run_data.name else {}),
+        testsets=len(run_data.testset_steps or {}),
+        applications=len(run_data.application_steps or {}),
+        evaluators=len(run_data.evaluator_steps or {}),
+        repeats=run_data.repeats or 1,
+    )
+
     runner = AsyncioEvaluationTaskRunner(
         retrieve_testset=aretrieve_testset,
         retrieve_application=aretrieve_application,
@@ -463,16 +483,17 @@ async def aevaluate(
         fetch_trace=afetch_trace,
         #
         add_scenarios=aadd_scenarios,
+        edit_scenario=_edit_scenario,
         #
         populate_slice=apopulate_slice,
-        refresh_slice=arefresh_slice,
+        refresh_metrics=arefresh,
         #
         process_sources=process_sources,
         #
         workflow_runner=SDKWorkflowRunner(),
     )
 
-    scenarios = await runner.process_run_locally(
+    scenarios, run_status = await runner.process_run_locally(
         run_id=run.id,
         run_data=run_data,
     )
@@ -485,6 +506,14 @@ async def aevaluate(
 
     run = await aclose_run(
         run_id=run.id,
+        status=run_status.value,
+    )
+
+    log.info(
+        "[EVAL] run closed",
+        run_id=str(run.id),
+        status=run_status.value,
+        scenarios=len(scenarios),
     )
 
     # Global metrics only
