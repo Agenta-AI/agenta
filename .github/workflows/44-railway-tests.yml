@@ -235,7 +235,11 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.needs_deployment == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Backstop only: the real hangs are bounded per-step (wait_for caps at ~10m,
+    # the browser install retries with a 180s/attempt cap). This guards against
+    # an unexpected hang without cutting off a legitimately slow run (deploy
+    # readiness wait + cold browser install can take ~20m).
+    timeout-minutes: 30
     steps:
       - name: Wait for deployed web and API
         env:
@@ -282,7 +286,7 @@ jobs:
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "22"
 
       - name: Install pnpm
         if: steps.auth_bootstrap.outputs.enabled == 'true'
@@ -295,22 +299,50 @@ jobs:
         working-directory: web
         run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
 
-      - name: Cache Playwright browser
+      # Cache the downloaded browsers. On a cache hit `playwright install` is a
+      # no-op, which avoids the chromium download entirely — and that download
+      # is what stalls: the debug trace showed the 170 MiB transfer hitting 100%
+      # in ~2s, then the install hanging (no progress) until killed. apt deps
+      # were never the problem (they finished in ~10s).
+      - name: Cache Playwright browsers
+        id: pw-cache
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('web/tests/package.json') }}
-          restore-keys: playwright-chromium-${{ runner.os }}-
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
+      # OS libraries for chromium. This is the fast, reliable part (~10s); kept
+      # as its own step so a browser-download stall can't be confused with it.
+      - name: Install Playwright system dependencies
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+        working-directory: web/tests
+        run: pnpm exec playwright install-deps chromium
+
+      # Browser binaries. Root cause of the original ~6h hang: Playwright 1.59's
+      # zip extraction deadlocks on Node 24 (reproduced locally: Node 22/23
+      # extract in ~16s, Node 24 hangs indefinitely). The job is pinned to Node
+      # 22 (LTS) above, which fixes it. The cache makes this a no-op on a hit,
+      # and the retry + per-attempt timeout guard against any transient stall.
       - name: Install Playwright browser
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         working-directory: web/tests
-        # Intentionally omit --with-deps: the ubuntu-latest runner already has
-        # Chromium's core runtime libraries. --with-deps runs apt-get for ~200
-        # X11/font/GTK packages and adds 25+ minutes on a cold run. The auth
-        # bootstrap (login form + save cookies) doesn't need those extras.
-        run: pnpm exec playwright install chromium
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::playwright install chromium (attempt ${attempt}/3)"
+            if timeout 180 pnpm exec playwright install chromium; then
+              echo "::endgroup::"
+              echo "browser install succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "attempt ${attempt} stalled or failed; retrying after 5s..."
+            sleep 5
+          done
+          echo "playwright browser install failed after 3 attempts" >&2
+          exit 1
 
       - name: Bootstrap auth with global setup
         if: steps.auth_bootstrap.outputs.enabled == 'true'
@@ -600,7 +632,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "22"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
