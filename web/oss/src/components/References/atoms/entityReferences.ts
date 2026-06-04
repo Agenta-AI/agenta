@@ -6,6 +6,7 @@ import {testsetQueryAtomFamily, type Testset} from "@agenta/entities/testset"
 import {
     fetchWorkflow,
     fetchWorkflowRevisionById,
+    parseWorkflowKeyFromUri,
     resolveOutputSchemaProperties,
     workflowMolecule,
     workflowsListQueryStateAtom,
@@ -245,6 +246,7 @@ export interface EvaluatorReference {
     id?: string | null
     slug?: string | null
     name?: string | null
+    workflowKey?: string | null
     metrics?: EvaluatorReferenceMetric[]
 }
 
@@ -335,6 +337,7 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                             id: workflow.workflow_id ?? workflow.id ?? id,
                             slug: workflow.slug ?? slug ?? null,
                             name: workflow.name ?? workflow.slug ?? slug ?? id ?? null,
+                            workflowKey: parseWorkflowKeyFromUri(workflow.data?.uri ?? null),
                             metrics: extractMetricsFromWorkflow(workflow),
                         },
                         isPending: false,
@@ -360,6 +363,7 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                             id: listMatch.id ?? id ?? null,
                             slug: listMatch.slug ?? slug,
                             name: listMatch.name ?? listMatch.slug ?? slug,
+                            workflowKey: parseWorkflowKeyFromUri(listMatch.data?.uri ?? null),
                             metrics: extractMetricsFromWorkflow(listMatch),
                         },
                         isPending: false,
@@ -387,6 +391,7 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                     id: id ?? null,
                     slug: slug ?? null,
                     name: slug ?? id ?? null,
+                    workflowKey: null,
                     metrics: [],
                 },
                 isPending: false,
@@ -422,7 +427,7 @@ const toEnvironmentReference = (
     appId: string | null,
 ): EnvironmentReference => ({
     id: null, // Entity deployment doesn't expose environment ID
-    slug: env.name,
+    slug: env.slug,
     name: env.name,
     appId: appId ?? null,
     deployedAppVariantId: env.deployedVariantId ?? null,

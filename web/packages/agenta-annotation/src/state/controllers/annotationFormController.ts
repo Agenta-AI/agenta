@@ -1052,8 +1052,10 @@ interface StepRefs {
     evaluator_revision?: {id?: string; slug?: string; version?: string}
 }
 
-function normalizeReferenceVersion(version: string | number | undefined): string | undefined {
-    if (version === undefined || version === null) return undefined
+function normalizeReferenceVersion(
+    version: string | number | null | undefined,
+): string | undefined {
+    if (version == null) return undefined
     return String(version)
 }
 

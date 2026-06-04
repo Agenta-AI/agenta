@@ -40,7 +40,7 @@ const ChatMessageItem: React.FC<{
     showCopyButton: boolean
     allowFileUpload: boolean
     enableTokens: boolean
-    templateFormat?: "curly" | "fstring" | "jinja2"
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
     tokens?: string[]
     loadingFallback: "skeleton" | "none" | "static"
     maxPasteChars?: number
@@ -280,7 +280,7 @@ export interface ChatMessageListProps {
     /** Whether to enable variable token highlighting */
     enableTokens?: boolean
     /** Template format for variable syntax highlighting */
-    templateFormat?: "curly" | "fstring" | "jinja2"
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
     /** Available template variables for token highlighting */
     tokens?: string[]
     /** Optional image preview component */

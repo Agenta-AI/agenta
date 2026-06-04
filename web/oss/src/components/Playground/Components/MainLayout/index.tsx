@@ -12,7 +12,9 @@ import {
     GenerationComparisonOutputHeader,
     GenerationComparisonInputHeader as PlaygroundComparisonGenerationInputHeader,
 } from "@agenta/playground-ui/execution-item-comparison-view"
-import ExecutionItems from "@agenta/playground-ui/execution-items"
+import ExecutionItems, {
+    type PlaygroundGenerationsProps,
+} from "@agenta/playground-ui/execution-items"
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -45,6 +47,8 @@ type MainLayoutProps = BaseContainerProps & {
     configViewMode?: ConfigViewMode
     /** Callback when config view mode changes. */
     onConfigViewModeChange?: (mode: ConfigViewMode) => void
+    /** Render slot for testset menu in the per-entity Generations header (single view). */
+    renderTestsetActions?: PlaygroundGenerationsProps["renderTestsetActions"]
 }
 
 const SplitterPanel = Splitter.Panel
@@ -96,6 +100,7 @@ const PlaygroundMainView = ({
     embedded = false,
     configViewMode,
     onConfigViewModeChange,
+    renderTestsetActions,
     ...divProps
 }: MainLayoutProps) => {
     const selectedEntityIds = useAtomValue(playgroundController.selectors.entityIds())
@@ -312,7 +317,11 @@ const PlaygroundMainView = ({
                             ) : (
                                 layoutEntityIds.map((variantId) =>
                                     displayedEntities.includes(variantId) || isEvaluatorMode ? (
-                                        <ExecutionItems key={variantId} entityId={variantId} />
+                                        <ExecutionItems
+                                            key={variantId}
+                                            entityId={variantId}
+                                            renderTestsetActions={renderTestsetActions}
+                                        />
                                     ) : (
                                         <GenerationPanelPlaceholder
                                             key={`generation-placeholder-${variantId}`}

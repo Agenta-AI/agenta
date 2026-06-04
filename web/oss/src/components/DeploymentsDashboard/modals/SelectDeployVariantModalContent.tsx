@@ -78,11 +78,26 @@ function useCurrentDeployment(envName: string, appId: string | null) {
     }, [appId, envName, envQuery.data])
 }
 
+function resolveEnvironmentSlug(
+    envName: string,
+    environments: {name?: string | null; slug?: string | null}[],
+): string | null {
+    if (!envName) return null
+    const match = environments.find(
+        (env) =>
+            env.slug === envName ||
+            env.name === envName ||
+            env.name?.toLowerCase() === envName.toLowerCase(),
+    )
+    return match?.slug ?? null
+}
+
 export const useSelectDeployVariant = () => {
     const state = useAtomValue(selectDeployVariantStateAtom)
     const close = useSetAtom(closeSelectDeployVariantModalAtom)
     const {mutateAsync: publish, isPending} = useAtomValue(publishMutationAtom)
     const appId = useAtomValue(routerAppIdAtom)
+    const envListQuery = useAtomValue(environmentsListQueryAtomFamily(false))
 
     const [selectedRowKeys, setSelectedRowKeys] = useState<(string | number)[]>([])
     const [note, setNote] = useState("")
@@ -100,6 +115,14 @@ export const useSelectDeployVariant = () => {
         if (!row) return
 
         const envName = state.envName
+        const environmentSlug = resolveEnvironmentSlug(
+            envName,
+            envListQuery.data?.environments ?? [],
+        )
+        if (!environmentSlug) {
+            message.error(`Environment "${envName}" not found`)
+            return
+        }
 
         // Resolve application slug from the workflows list
         const store = getDefaultStore()
@@ -110,7 +133,7 @@ export const useSelectDeployVariant = () => {
         try {
             await publish({
                 revisionId: row.revisionId,
-                environmentSlug: envName,
+                environmentSlug,
                 applicationId: row.workflowId || appId || "",
                 workflowVariantId: row.variantId || undefined,
                 variantSlug: row.variantSlug || undefined,
@@ -124,7 +147,7 @@ export const useSelectDeployVariant = () => {
             const errorMessage = e instanceof Error ? e.message : "Deployment failed"
             message.error(errorMessage)
         }
-    }, [state.envName, publish, appId, note, close])
+    }, [state.envName, envListQuery.data, publish, appId, note, close])
 
     return {
         close,

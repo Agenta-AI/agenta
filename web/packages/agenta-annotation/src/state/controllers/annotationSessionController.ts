@@ -559,15 +559,14 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
             step.references?.evaluator_variant?.slug ??
             deriveEvaluatorSlugFromStepKey(step.key) ??
             evaluatorEntity?.slug ??
-            step.references?.evaluator_revision?.slug ??
-            workflowId
+            step.references?.evaluator_revision?.slug
 
         if (!slug && !workflowId) continue
         const key = workflowId ?? slug
         if (!key) continue
 
         byKey.set(key, {
-            slug: slug ?? key ?? "",
+            slug: slug ?? "",
             name,
             workflowId,
         })
