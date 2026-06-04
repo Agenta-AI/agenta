@@ -8,7 +8,7 @@
 
 import {extractChatMessages, type ChatExtractionPreference} from "./utils"
 
-// Loose JSON-string parser for the beautified dispatcher.
+// Loose JSON-string parser for the pretty dispatcher.
 //
 // `tryParseJsonValue` in @agenta/shared is intentionally strict and leaves
 // strings as strings, which is correct for the testcase / playground editors.
@@ -37,7 +37,7 @@ const tryParseJsonString = (input: unknown): unknown => {
 
 export type Preview =
     | {renderer: "chat"; data: unknown[]; source: string}
-    | {renderer: "beautified"; data: Record<string, unknown>; source: string}
+    | {renderer: "pretty"; data: Record<string, unknown>; source: string}
     | {renderer: "json"; data: unknown; source: string}
 
 interface RuleContext {
@@ -72,7 +72,7 @@ const inputKeyRule: Rule = {
         if (ctx.side === "output") return null
         if (!isPlainObject(value)) return null
         if (!isDefined(value.input)) return null
-        return {renderer: "beautified", data: {input: value.input}, source: "input-key"}
+        return {renderer: "pretty", data: {input: value.input}, source: "input-key"}
     },
 }
 
@@ -89,11 +89,11 @@ const outputKeyRule: Rule = {
 
         const rv = value.returnValues
         if (isPlainObject(rv) && isDefined(rv.output)) {
-            return {renderer: "beautified", data: {output: rv.output}, source: "output-key"}
+            return {renderer: "pretty", data: {output: rv.output}, source: "output-key"}
         }
 
         if (isDefined(value.output)) {
-            return {renderer: "beautified", data: {output: value.output}, source: "output-key"}
+            return {renderer: "pretty", data: {output: value.output}, source: "output-key"}
         }
 
         return null
@@ -126,9 +126,9 @@ const generationsOutputRule: Rule = {
 
         if (texts.length === 0) return null
         if (texts.length === 1) {
-            return {renderer: "beautified", data: {output: texts[0]}, source: "generations-output"}
+            return {renderer: "pretty", data: {output: texts[0]}, source: "generations-output"}
         }
-        return {renderer: "beautified", data: {outputs: texts}, source: "generations-output"}
+        return {renderer: "pretty", data: {outputs: texts}, source: "generations-output"}
     },
 }
 

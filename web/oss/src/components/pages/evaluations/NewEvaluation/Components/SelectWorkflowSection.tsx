@@ -69,6 +69,7 @@ const createSelectWorkflowColumns = () =>
                     <WorkflowTypeTag
                         isEvaluator={record.isEvaluator}
                         workflowKey={record.workflowKey}
+                        evaluatorTypeKey={record.workflowType}
                         workflowType={record.workflowType}
                     />
                 </div>

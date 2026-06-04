@@ -20,7 +20,7 @@ interface LastInputMessageCellProps {
  * On hover, shows the full conversation in a popover with copy support.
  *
  * For non-chat values, delegates to SmartCellContent so the new dispatch rules
- * (e.g. beautified extraction) apply.
+ * (e.g. pretty extraction) apply.
  */
 const LastInputMessageCell = ({
     value,

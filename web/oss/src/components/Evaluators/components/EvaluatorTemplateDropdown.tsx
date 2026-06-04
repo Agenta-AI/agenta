@@ -16,7 +16,7 @@ import {
     DEFAULT_TAB_KEY,
     filterEnabledEvaluators,
     filterEvaluatorsByTag,
-    getEvaluatorTagClassName,
+    getEvaluatorTagColor,
 } from "@/oss/components/Evaluators/assets/evaluatorFiltering"
 
 interface EvaluatorTemplateDropdownProps {
@@ -110,7 +110,7 @@ const EvaluatorTemplateDropdown = ({
         return (
             <div className="flex flex-col max-h-[320px] overflow-y-auto">
                 {filteredEvaluators.map((item) => {
-                    const tagClassnames = getEvaluatorTagClassName(item)
+                    const tagColor = getEvaluatorTagColor(item)
 
                     return (
                         <div
@@ -125,10 +125,7 @@ const EvaluatorTemplateDropdown = ({
                             )}
                         >
                             <div className="flex items-center gap-2">
-                                <Tag
-                                    variant="filled"
-                                    className={cn("w-fit text-xs", tagClassnames)}
-                                >
+                                <Tag variant="filled" color={tagColor} className="w-fit text-xs">
                                     {item.name}
                                 </Tag>
                                 <ArrowRight
