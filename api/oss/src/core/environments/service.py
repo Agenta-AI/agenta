@@ -1011,7 +1011,7 @@ class EnvironmentsService:
             variant_refs=environment_variant_refs,
             revision_refs=environment_revision_refs,
             #
-            application_refs=references,
+            references=references,
             #
             include_archived=include_archived,
             #

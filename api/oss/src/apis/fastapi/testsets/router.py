@@ -996,7 +996,7 @@ class TestsetsRouter:
         """Fork an existing testset variant into a new variant.
 
         The new variant starts from the source variant's head revision (or a
-        pinned revision if `testset_revision_id` is provided). Provide `slug`
+        pinned revision if `testset_revision_ref` is provided). Provide `slug`
         and `name` in the fork body to identify the new variant.
         """
         if is_ee():
