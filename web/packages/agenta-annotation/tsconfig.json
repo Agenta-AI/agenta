@@ -7,5 +7,5 @@
         "moduleResolution": "bundler"
     },
     "include": ["src/**/*.ts", "src/**/*.tsx", "../css-modules.d.ts"],
-    "exclude": ["node_modules", "dist"]
+    "exclude": ["node_modules", "dist", "tests", "src/**/__tests__/**"]
 }

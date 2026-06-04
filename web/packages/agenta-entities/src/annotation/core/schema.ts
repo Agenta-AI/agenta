@@ -20,16 +20,16 @@ import {z} from "zod"
 
 /**
  * Annotation channel — how the annotation was submitted.
- * Maps to backend `AnnotationChannel`.
+ * Maps to backend `SimpleTraceChannel` (otlp | web | sdk | api).
  */
-export const annotationChannelSchema = z.enum(["web", "sdk", "api"])
+export const annotationChannelSchema = z.enum(["otlp", "web", "sdk", "api"])
 export type AnnotationChannel = z.infer<typeof annotationChannelSchema>
 
 /**
  * Annotation kind — purpose of the annotation.
- * Maps to backend `AnnotationKind`.
+ * Maps to backend `SimpleTraceKind` (adhoc | eval | play).
  */
-export const annotationKindSchema = z.enum(["adhoc", "eval"])
+export const annotationKindSchema = z.enum(["adhoc", "eval", "play"])
 export type AnnotationKind = z.infer<typeof annotationKindSchema>
 
 /**
@@ -128,10 +128,13 @@ export const annotationSchema = z.object({
     // Links to invocation traces (keyed by step key)
     links: z.record(z.string(), annotationLinkSchema).optional(),
 
-    // Classification
-    channel: annotationChannelSchema.optional(),
-    kind: annotationKindSchema.optional(),
-    origin: annotationOriginSchema.optional(),
+    // Classification — tolerate unknown/new backend values instead of dropping
+    // the whole annotation. A classification we don't recognize degrades to
+    // `undefined` rather than failing validation (which silently emptied the
+    // annotation list, breaking testset sync from the annotation queue).
+    channel: annotationChannelSchema.optional().catch(undefined),
+    kind: annotationKindSchema.optional().catch(undefined),
+    origin: annotationOriginSchema.optional().catch(undefined),
 
     // Metadata
     meta: annotationMetaSchema.optional(),
