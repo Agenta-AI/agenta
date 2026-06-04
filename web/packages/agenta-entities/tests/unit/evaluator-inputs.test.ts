@@ -37,7 +37,7 @@ describe("buildEvaluatorExecutionInputs", () => {
                 messages: [{role: "user", content: "What is the capital of France?"}],
                 context: "Use factual geography knowledge only.",
             },
-            outputs: '{"role":"assistant","content":"Paris"}',
+            outputs: {role: "assistant", content: "Paris"},
         })
     })
 })
