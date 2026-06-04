@@ -109,6 +109,7 @@ from oss.src.core.evaluations.types import (
     SimpleQueueScenariosQuery,
     EvaluationQueueScenariosQuery,
     EvaluationScenarioQuery,
+    EvaluationScenarioNotFound,
 )
 
 if is_ee():
@@ -2402,12 +2403,21 @@ class SimpleEvaluationsRouter:
                 ),
             )
 
-        results = await self.simple_evaluations_service.populate_slice(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            results=populate_slice_request.results,
-        )
+        try:
+            results = await self.simple_evaluations_service.populate_slice(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                results=populate_slice_request.results,
+            )
+        except EvaluationScenarioNotFound as e:
+            # A result referenced a scenario that does not exist; the caller must
+            # mint via `add_scenarios` first. 400 (client error), not a swallowed
+            # empty write or an opaque 500.
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            ) from e
 
         return EvaluationResultsResponse(
             count=len(results),

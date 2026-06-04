@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import not_, and_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.inspection import inspect
@@ -18,6 +19,7 @@ from oss.src.core.evaluations.interfaces import EvaluationsDAOInterface
 from oss.src.core.evaluations.types import (
     EvaluationClosedConflict,
     EvaluationMetricsInvalid,
+    EvaluationScenarioNotFound,
 )
 from oss.src.core.evaluations.types import (
     EvaluationStatus,
@@ -1403,7 +1405,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             raise
 
-    @suppress_exceptions(default=[], exclude=[EvaluationClosedConflict])
+    @suppress_exceptions(
+        default=[],
+        exclude=[EvaluationClosedConflict, EvaluationScenarioNotFound],
+    )
     async def set_results(
         self,
         *,
@@ -1518,10 +1523,27 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         for col in conflict_update_cols
                     },
                 )
-                res = await session.execute(stmt.returning(EvaluationResultDBE))
-                returned_result_dbes.extend(res.scalars().all())
+                try:
+                    res = await session.execute(stmt.returning(EvaluationResultDBE))
+                    returned_result_dbes.extend(res.scalars().all())
 
-            await session.commit()
+                    await session.commit()
+                except IntegrityError as e:
+                    # A result FKs to its scenario on (project_id, scenario_id);
+                    # writing for an unminted scenario raises a FK violation.
+                    # Translate to a domain error so the router returns 400 (the
+                    # caller must mint via `add_scenarios` first) instead of the
+                    # write being swallowed to an empty 200 by suppress_exceptions
+                    # or surfaced as an opaque 500.
+                    if "evaluation_steps_project_id_scenario_id_fkey" in str(e.orig):
+                        raise EvaluationScenarioNotFound(
+                            scenario_ids=sorted(
+                                {r.scenario_id for r in _results if r.scenario_id}
+                            ),
+                        ) from e
+                    raise
+            else:
+                await session.commit()
 
         return [
             create_dto_from_dbe(
