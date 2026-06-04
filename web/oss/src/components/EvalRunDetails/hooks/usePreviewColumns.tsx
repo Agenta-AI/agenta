@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useCallback, useRef} from "react"
 import type {ReactNode} from "react"
 
+import type {MetricColumnDefinition} from "@agenta/entities/workflow"
 import {Typography} from "antd"
 
 import type {ColumnTreeNode} from "@/oss/components/InfiniteVirtualTable"
@@ -14,7 +15,6 @@ import {
     EvaluationTableColumn,
     EvaluationTableColumnGroup,
     EvaluationTableColumnsResult,
-    MetricColumnDefinition,
 } from "../atoms/table"
 import type {PreviewTableRow} from "../atoms/tableRows"
 import PreviewEvaluationInputCell from "../components/TableCells/InputCell"

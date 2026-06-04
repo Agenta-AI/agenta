@@ -49,6 +49,7 @@ import usePreviewTableData from "./hooks/usePreviewTableData"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
 import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
+import {selectStaticMetricColumnsForEvaluationType} from "./utils/evaluationMetricColumns"
 
 type TableRowData = PreviewTableRow
 
@@ -500,10 +501,10 @@ const EvalRunDetailsTable = ({
 
         // Add static metric columns (they have composite keys like "groupId::metricPath")
         if (columnResult?.groups && columnResult?.staticMetricColumns) {
-            const metricsForType =
-                evaluationType === "auto"
-                    ? columnResult.staticMetricColumns.auto
-                    : columnResult.staticMetricColumns.human
+            const metricsForType = selectStaticMetricColumnsForEvaluationType(
+                columnResult.staticMetricColumns,
+                evaluationType,
+            )
 
             columnResult.groups
                 .filter((group) => group.kind === "metric")

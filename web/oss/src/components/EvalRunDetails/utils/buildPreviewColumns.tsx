@@ -1,5 +1,6 @@
 import React from "react"
 
+import type {MetricColumnDefinition} from "@agenta/entities/workflow"
 import {Tooltip} from "antd"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 import clsx from "clsx"
@@ -7,11 +8,7 @@ import clsx from "clsx"
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
 import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
-import type {
-    EvaluationTableColumn,
-    EvaluationTableColumnGroup,
-    MetricColumnDefinition,
-} from "../atoms/table"
+import type {EvaluationTableColumn, EvaluationTableColumnGroup} from "../atoms/table"
 import PreviewEvaluationActionCell from "../components/TableCells/ActionCell"
 import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import PreviewEvaluationInvocationCell from "../components/TableCells/InvocationCell"
@@ -19,6 +16,7 @@ import PreviewEvaluationMetricCell from "../components/TableCells/MetricCell"
 import StepGroupHeader from "../components/TableHeaders/StepGroupHeader"
 import {COLUMN_WIDTHS} from "../constants/table"
 
+import {selectStaticMetricColumnsForEvaluationType} from "./evaluationMetricColumns"
 import {humanizeStepKey, resolveGroupLabel} from "./labelHelpers"
 
 const TITLEIZE = (value: string) =>
@@ -210,11 +208,11 @@ export function buildPreviewColumns<RowType>({
     renderSkeleton,
 }: BuildPreviewColumnsArgs<RowType>): BuildPreviewColumnsResult<RowType> {
     const columnsMap = new Map(columns.map((column) => [column.id, column]))
-    // Online evaluations use auto metrics, human evaluations use human metrics
-    const metricsForType =
-        evaluationType === "auto" || evaluationType === "online"
-            ? staticMetricColumns.auto
-            : staticMetricColumns.human
+    // Auto, live, and SDK evaluations use auto metrics; human evaluations use human metrics.
+    const metricsForType = selectStaticMetricColumnsForEvaluationType(
+        staticMetricColumns,
+        evaluationType,
+    )
 
     const defaultSkeleton = () => (
         <div className="h-3 w-full rounded bg-neutral-200 animate-pulse" />

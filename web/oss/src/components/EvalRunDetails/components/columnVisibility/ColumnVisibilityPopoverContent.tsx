@@ -1,29 +1,32 @@
 import {useMemo, useCallback, useEffect, useRef} from "react"
 
+import type {MetricColumnDefinition} from "@agenta/entities/workflow"
 import {Typography} from "antd"
 
 import type {ColumnTreeNode, ColumnVisibilityState} from "@/oss/components/InfiniteVirtualTable"
 import ColumnVisibilityPopoverContentBase, {
     type ColumnVisibilityNodeMeta,
 } from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent"
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {
     type EvaluationTableColumn,
     type EvaluationTableColumnGroup,
     type EvaluationTableColumnsResult,
-    type MetricColumnDefinition,
 } from "../../atoms/table"
 import usePreviewTableData from "../../hooks/usePreviewTableData"
 import {buildSkeletonColumnResult} from "../../utils/buildSkeletonColumns"
+import {
+    selectStaticMetricColumnsForEvaluationType,
+    usesAutoMetricColumns,
+} from "../../utils/evaluationMetricColumns"
 import {resolveGroupLabel, humanizeStepKey, titleize} from "../../utils/labelHelpers"
 import StepGroupHeader from "../TableHeaders/StepGroupHeader"
 
-type EvaluationType = "auto" | "human"
-
 interface ScenarioColumnVisibilityPopoverContentProps {
     runId: string
-    evaluationType: EvaluationType
+    evaluationType: EvaluationRunKind
     controls?: ColumnVisibilityState<any>
     onClose: () => void
     scopeId?: string | null
@@ -33,7 +36,7 @@ interface ScenarioColumnVisibilityPopoverContentProps {
 
 const selectColumnsForType = (
     result: EvaluationTableColumnsResult | undefined,
-    evaluationType: EvaluationType,
+    evaluationType: EvaluationRunKind,
 ) => {
     if (
         !result ||
@@ -43,17 +46,18 @@ const selectColumnsForType = (
         return buildSkeletonColumnResult(evaluationType)
     }
 
+    const useAutoMetrics = usesAutoMetricColumns(evaluationType)
+
     const relevantGroups = result.groups.filter((group) => {
         if (group.kind !== "metric") return true
-        return evaluationType === "auto"
+        return useAutoMetrics
             ? group.id.includes("metrics:auto")
             : group.id.includes("metrics:human")
     })
 
-    const staticMetrics =
-        evaluationType === "auto"
-            ? {auto: result.staticMetricColumns.auto, human: [] as MetricColumnDefinition[]}
-            : {auto: [] as MetricColumnDefinition[], human: result.staticMetricColumns.human}
+    const staticMetrics = useAutoMetrics
+        ? {auto: result.staticMetricColumns.auto, human: [] as MetricColumnDefinition[]}
+        : {auto: [] as MetricColumnDefinition[], human: result.staticMetricColumns.human}
 
     return {
         columns: result.columns,
@@ -157,10 +161,10 @@ const ScenarioColumnVisibilityPopoverContent = ({
             string,
             {metric: MetricColumnDefinition; group?: EvaluationTableColumnGroup}
         >()
-        const metricsForType =
-            evaluationType === "auto"
-                ? columnData.staticMetricColumns.auto
-                : columnData.staticMetricColumns.human
+        const metricsForType = selectStaticMetricColumnsForEvaluationType(
+            columnData.staticMetricColumns,
+            evaluationType,
+        )
 
         if (!metricsForType.length) return map
 

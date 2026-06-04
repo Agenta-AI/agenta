@@ -2,6 +2,7 @@ import type {KeyboardEvent, ReactNode} from "react"
 import {memo, useCallback, useMemo, useRef, useState} from "react"
 import {isValidElement} from "react"
 
+import type {MetricColumnDefinition} from "@agenta/entities/workflow"
 import {
     formatMetricDisplay,
     METRIC_PLACEHOLDER as METRIC_EMPTY_PLACEHOLDER,
@@ -26,11 +27,7 @@ import {
     variantReferenceQueryAtomFamily,
 } from "../atoms/references"
 import {runDisplayNameAtomFamily} from "../atoms/runDerived"
-import type {
-    ColumnValueDescriptor,
-    EvaluationTableColumn,
-    MetricColumnDefinition,
-} from "../atoms/table"
+import type {ColumnValueDescriptor, EvaluationTableColumn} from "../atoms/table"
 import type {EvaluationTableColumnGroup} from "../atoms/table"
 import {
     columnValueDescriptorMapAtomFamily,
