@@ -108,7 +108,7 @@ from oss.src.core.evaluations.utils import (
 
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
-from oss.src.core.evaluations.runtime.sources import resolve_queue_source_batches
+from oss.src.core.evaluations.runtime.sources import SourceResolution
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.types import RunSlice
 from oss.src.core.evaluations.runtime.operations import SliceOperations
@@ -236,11 +236,7 @@ class EvaluationsService:
         # the SDK engine needs; absent those (e.g. worker/parser contexts) the
         # ops degrade to None and probe/populate no-op.
         self.run_slice_operations: Optional[SliceOperations] = None
-        if (
-            testcases_service is not None
-            and workflows_service is not None
-            and applications_service is not None
-        ):
+        if testcases_service is not None and workflows_service is not None:
             from oss.src.core.evaluations.tasks.processor import APISliceProcessor
 
             self.run_slice_operations = SliceOperations(
@@ -250,7 +246,6 @@ class EvaluationsService:
                     tracing_service=tracing_service,
                     testcases_service=testcases_service,
                     workflows_service=workflows_service,
-                    applications_service=applications_service,
                 ),
             )
 
@@ -4115,6 +4110,12 @@ class SimpleQueuesService:
         self.simple_evaluations_service = simple_evaluations_service
         self.evaluators_service = evaluators_service
 
+        # Built once, reused across dispatches.
+        self._sources = SourceResolution(
+            queries_service=simple_evaluations_service.queries_service,
+            testsets_service=simple_evaluations_service.testsets_service,
+        )
+
     async def create(
         self,
         *,
@@ -4579,11 +4580,9 @@ class SimpleQueuesService:
         if not run.id or not run.data or not run.data.steps:
             return False
 
-        batches = await resolve_queue_source_batches(
+        batches = await self._sources.resolve_queue_source_batches(
             project_id=project_id,
             run=run,
-            queries_service=self.simple_evaluations_service.queries_service,
-            testsets_service=self.simple_evaluations_service.testsets_service,
         )
 
         dispatched = False

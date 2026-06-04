@@ -1,4 +1,4 @@
-from typing import List, Optional, Protocol
+from typing import TYPE_CHECKING, List, Optional, Protocol
 from uuid import UUID
 
 from oss.src.core.evaluations.runtime.types import (
@@ -6,6 +6,11 @@ from oss.src.core.evaluations.runtime.types import (
     RunProbeSummary,
     RunSlice,
 )
+
+if TYPE_CHECKING:
+    # Imported under TYPE_CHECKING only: `service` imports this module at runtime
+    # (service -> operations), so a runtime import here would be a cycle.
+    from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.types import (
     EvaluationMetricsRefresh,
     EvaluationResult,
@@ -34,6 +39,7 @@ def _slice_is_empty(run_slice: RunSlice) -> bool:
 def _query_from_slice(run_slice: RunSlice) -> EvaluationResultQuery:
     return EvaluationResultQuery(
         run_id=run_slice.run_id,
+        #
         scenario_ids=run_slice.scenario_ids,
         step_keys=run_slice.step_keys,
         repeat_idxs=run_slice.repeat_idxs,
@@ -62,6 +68,7 @@ class SliceProcessor(Protocol):
         *,
         project_id: UUID,
         user_id: UUID,
+        #
         run_slice: RunSlice,
     ) -> ProcessSummary: ...
 
@@ -70,7 +77,8 @@ class SliceOperations:
     def __init__(
         self,
         *,
-        evaluations_service,
+        evaluations_service: "EvaluationsService",
+        #
         slice_processor: Optional[SliceProcessor] = None,
     ):
         self.evaluations_service = evaluations_service
@@ -80,6 +88,7 @@ class SliceOperations:
         self,
         *,
         project_id: UUID,
+        #
         run_slice: RunSlice,
     ) -> List[EvaluationResult]:
         if _slice_is_empty(run_slice):
@@ -95,6 +104,7 @@ class SliceOperations:
         *,
         project_id: UUID,
         user_id: UUID,
+        #
         results: List[EvaluationResultCreate],
     ) -> List[EvaluationResult]:
         # `populate` only writes result cells. Metrics are a separate operation
@@ -106,6 +116,7 @@ class SliceOperations:
         return await self.evaluations_service.set_results(
             project_id=project_id,
             user_id=user_id,
+            #
             results=results,
         )
 
@@ -113,11 +124,14 @@ class SliceOperations:
         self,
         *,
         project_id: UUID,
+        #
         run_slice: RunSlice,
+        #
         expected_count: Optional[int] = None,
     ) -> RunProbeSummary:
         results = await self.probe(
             project_id=project_id,
+            #
             run_slice=run_slice,
         )
         existing_count = len(results)
@@ -149,6 +163,7 @@ class SliceOperations:
         *,
         project_id: UUID,
         user_id: UUID,
+        #
         run_slice: RunSlice,
     ) -> List[UUID]:
         # `prune` removes result cells, then re-triggers a metrics refresh over
@@ -163,6 +178,7 @@ class SliceOperations:
         # than hydrating full result DTOs via `probe`.
         result_ids = await self.evaluations_service.query_result_ids(
             project_id=project_id,
+            #
             result=_query_from_slice(run_slice),
         )
         if not result_ids:
@@ -170,11 +186,13 @@ class SliceOperations:
 
         deleted = await self.evaluations_service.delete_results(
             project_id=project_id,
+            #
             result_ids=result_ids,
         )
         await self.refresh(
             project_id=project_id,
             user_id=user_id,
+            #
             run_slice=run_slice,
         )
         return deleted
@@ -184,6 +202,7 @@ class SliceOperations:
         *,
         project_id: UUID,
         user_id: UUID,
+        #
         run_slice: RunSlice,
     ) -> ProcessSummary:
         """Execute the runnable cells in the slice and return what changed.
@@ -214,6 +233,7 @@ class SliceOperations:
         return await self.slice_processor.process(
             project_id=project_id,
             user_id=user_id,
+            #
             run_slice=run_slice,
         )
 
@@ -222,6 +242,7 @@ class SliceOperations:
         *,
         project_id: UUID,
         user_id: UUID,
+        #
         run_slice: RunSlice,
     ) -> None:
         """Recompute metrics over the slice's scope — variational AND aggregate.
@@ -248,8 +269,10 @@ class SliceOperations:
         await self.evaluations_service.refresh_metrics(
             project_id=project_id,
             user_id=user_id,
+            #
             metrics=EvaluationMetricsRefresh(
                 run_id=run_id,
+                #
                 scenario_ids=run_slice.scenario_ids,
             ),
         )
@@ -257,6 +280,7 @@ class SliceOperations:
         # 2. Aggregate — temporal (live) or global (non-live).
         run = await self.evaluations_service.fetch_run(
             project_id=project_id,
+            #
             run_id=run_id,
         )
         if not run:
@@ -269,6 +293,7 @@ class SliceOperations:
             await self.evaluations_service.refresh_metrics(
                 project_id=project_id,
                 user_id=user_id,
+                #
                 metrics=EvaluationMetricsRefresh(run_id=run_id),
             )
             return
@@ -278,8 +303,10 @@ class SliceOperations:
         # (interval, timestamp) bucket is recomputed.
         scenarios = await self.evaluations_service.query_scenarios(
             project_id=project_id,
+            #
             scenario=EvaluationScenarioQuery(
                 run_id=run_id,
+                #
                 ids=run_slice.scenario_ids,
             ),
         )
@@ -297,6 +324,7 @@ class SliceOperations:
             await self.evaluations_service.refresh_metrics(
                 project_id=project_id,
                 user_id=user_id,
+                #
                 metrics=EvaluationMetricsRefresh(run_id=run_id),
             )
             return
@@ -305,6 +333,7 @@ class SliceOperations:
             await self.evaluations_service.refresh_metrics(
                 project_id=project_id,
                 user_id=user_id,
+                #
                 metrics=EvaluationMetricsRefresh(
                     run_id=run_id,
                     timestamps=sorted(timestamps),

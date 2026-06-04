@@ -8,7 +8,11 @@ from oss.src.core.evaluations.runtime.types import (
     ResolvedTestsetInputSpec,
 )
 from oss.src.core.evaluations.types import EvaluationRun, EvaluationRunDataStep
-from oss.src.core.evaluations.utils import fetch_trace
+from oss.src.core.evaluations.utils import TraceFetcher
+from oss.src.core.queries.service import QueriesService
+from oss.src.core.testcases.service import TestcasesService
+from oss.src.core.testsets.service import TestsetsService
+from oss.src.core.tracing.service import TracingService
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.tracing.dtos import (
     Filtering,
@@ -94,7 +98,11 @@ class SourceResolver:
 class QueryRevisionTraceResolver(SourceResolver):
     source_reference_key = "query_revision"
 
-    def __init__(self, *, queries_service: Any):
+    def __init__(
+        self,
+        *,
+        queries_service: QueriesService,
+    ):
         self.queries_service = queries_service
 
     async def resolve(
@@ -111,7 +119,9 @@ class QueryRevisionTraceResolver(SourceResolver):
 
         query_revision = await self.queries_service.fetch_query_revision(
             project_id=project_id,
+            #
             query_revision_ref=query_revision_ref,
+            #
             include_trace_ids=True,
         )
         trace_ids = (
@@ -126,6 +136,7 @@ class QueryRevisionTraceResolver(SourceResolver):
         return ResolvedSourceBatch(
             kind="traces",
             step_key=step.key,
+            #
             trace_ids=trace_ids,
         )
 
@@ -133,7 +144,11 @@ class QueryRevisionTraceResolver(SourceResolver):
 class TestsetRevisionTestcaseResolver(SourceResolver):
     source_reference_key = "testset_revision"
 
-    def __init__(self, *, testsets_service: Any):
+    def __init__(
+        self,
+        *,
+        testsets_service: TestsetsService,
+    ):
         self.testsets_service = testsets_service
 
     async def resolve(
@@ -150,7 +165,9 @@ class TestsetRevisionTestcaseResolver(SourceResolver):
 
         testset_revision = await self.testsets_service.fetch_testset_revision(
             project_id=project_id,
+            #
             testset_revision_ref=testset_revision_ref,
+            #
             include_testcase_ids=True,
         )
         testcase_ids = (
@@ -167,12 +184,17 @@ class TestsetRevisionTestcaseResolver(SourceResolver):
         return ResolvedSourceBatch(
             kind="testcases",
             step_key=step.key,
+            #
             testcase_ids=testcase_ids,
         )
 
 
 class TestsetRevisionPayloadResolver:
-    def __init__(self, *, testsets_service: Any):
+    def __init__(
+        self,
+        *,
+        testsets_service: TestsetsService,
+    ):
         self.testsets_service = testsets_service
 
     async def resolve(
@@ -191,6 +213,7 @@ class TestsetRevisionPayloadResolver:
 
         testset_revision = await self.testsets_service.fetch_testset_revision(
             project_id=project_id,
+            #
             testset_revision_ref=testset_revision_ref,
         )
         if not testset_revision:
@@ -204,6 +227,7 @@ class TestsetRevisionPayloadResolver:
 
         testset_variant = await self.testsets_service.fetch_testset_variant(
             project_id=project_id,
+            #
             testset_variant_ref=Reference(id=testset_revision.variant_id),
         )
         if not testset_variant:
@@ -213,6 +237,7 @@ class TestsetRevisionPayloadResolver:
 
         testset = await self.testsets_service.fetch_testset(
             project_id=project_id,
+            #
             testset_ref=Reference(id=testset_variant.testset_id),
         )
         if not testset:
@@ -224,256 +249,301 @@ class TestsetRevisionPayloadResolver:
         # revision (which exposes testset_id/variant_id) plus the testcases.
         return ResolvedTestsetInputSpec(
             step_key=step.key,
+            #
             testset_revision=testset_revision,
             testcases=testcases,
         )
 
 
-async def resolve_queue_source_batches(
-    *,
-    project_id: UUID,
-    run: EvaluationRun,
-    queries_service: Any,
-    testsets_service: Any,
-) -> List[ResolvedSourceBatch]:
-    if not run.data or not run.data.steps:
-        return []
+class SourceResolution:
+    """Resolves a run's input steps into source batches / hydrated source items.
 
-    resolvers: List[SourceResolver] = [
-        QueryRevisionTraceResolver(queries_service=queries_service),
-        TestsetRevisionTestcaseResolver(testsets_service=testsets_service),
-    ]
-    batches: List[ResolvedSourceBatch] = []
+    The services are injected ONCE here instead of threaded through every
+    resolve call. Each service is Optional because a given flow only needs the
+    subset its sources require (e.g. the direct-ingest path needs
+    testcases/tracing; the queue-probe path needs queries/testsets).
+    """
 
-    for step in run.data.steps:
-        if step.type != "input" or not step.key:
-            continue
+    def __init__(
+        self,
+        *,
+        queries_service: Optional[QueriesService] = None,
+        testsets_service: Optional[TestsetsService] = None,
+        testcases_service: Optional[TestcasesService] = None,
+        tracing_service: Optional[TracingService] = None,
+    ):
+        self.queries_service = queries_service
+        self.testsets_service = testsets_service
+        self.testcases_service = testcases_service
+        self.tracing_service = tracing_service
+        self._traces = TraceFetcher(tracing_service=tracing_service)
 
-        # Exactly one recognized source reference per input step. Selecting by
-        # the applicable key (not by first non-empty result) means an empty
-        # result — a query with zero traces — stays an empty batch instead of
-        # falling through to the wrong resolver.
-        applicable = [resolver for resolver in resolvers if resolver.applies(step)]
+    async def resolve_queue_source_batches(
+        self,
+        *,
+        project_id: UUID,
+        run: EvaluationRun,
+    ) -> List[ResolvedSourceBatch]:
+        if not run.data or not run.data.steps:
+            return []
 
-        if not applicable:
-            continue
-
-        if len(applicable) > 1:
-            raise SourceResolutionError(
-                f"Input step '{step.key}' carries multiple source references "
-                f"({', '.join(r.source_reference_key for r in applicable)}); "
-                "exactly one is allowed."
-            )
-
-        batch = await applicable[0].resolve(
-            project_id=project_id,
-            step=step,
-        )
-        if batch:
-            batches.append(batch)
-
-    return batches
-
-
-async def resolve_testset_input_specs(
-    *,
-    project_id: UUID,
-    input_steps: List[EvaluationRunDataStep],
-    testsets_service: Any,
-) -> List[ResolvedTestsetInputSpec]:
-    resolver = TestsetRevisionPayloadResolver(testsets_service=testsets_service)
-    return [
-        await resolver.resolve(
-            project_id=project_id,
-            step=input_step,
-        )
-        for input_step in input_steps
-    ]
-
-
-async def resolve_direct_source_items(
-    *,
-    project_id: UUID,
-    trace_ids: Optional[List[str]] = None,
-    testcase_ids: Optional[List[UUID]] = None,
-    testcases_service: Any = None,
-    tracing_service: Any = None,
-) -> List[ResolvedSourceItem]:
-    source_items: List[ResolvedSourceItem] = []
-    testcase_ids = testcase_ids or []
-    trace_ids = trace_ids or []
-
-    testcases = (
-        await testcases_service.fetch_testcases(
-            project_id=project_id,
-            testcase_ids=testcase_ids,
-        )
-        if testcase_ids and testcases_service is not None
-        else []
-    )
-    testcases_by_id = {
-        testcase.id: testcase for testcase in testcases if getattr(testcase, "id", None)
-    }
-    traces_by_id: Dict[str, Any] = {}
-
-    if trace_ids and tracing_service is not None:
-        for trace_id in trace_ids:
-            trace = await fetch_trace(
-                tracing_service=tracing_service,
-                project_id=project_id,
-                trace_id=trace_id,
-                max_retries=1,
-                delay=0,
-            )
-            if trace is not None:
-                traces_by_id[trace_id] = trace
-
-    source_items.extend(
-        ResolvedSourceItem(
-            kind="testcase",
-            step_key="",
-            testcase=testcases_by_id.get(testcase_id),
-            testcase_id=testcase_id,
-        )
-        for testcase_id in testcase_ids
-    )
-    for trace_id in trace_ids:
-        trace = traces_by_id.get(trace_id)
-        ag_data = _extract_ag_data(trace) if trace is not None else {}
-        root_span = _extract_root_span(trace) if trace is not None else None
-        source_items.append(
-            ResolvedSourceItem(
-                kind="trace",
-                step_key="",
-                trace_id=trace_id,
-                span_id=_extract_span_id(root_span),
-                trace=trace,
-                inputs=ag_data.get("inputs"),
-                outputs=ag_data.get("outputs"),
-            )
-        )
-
-    return source_items
-
-
-async def resolve_live_query_traces(
-    *,
-    project_id: UUID,
-    query_revisions: Dict[str, Any],
-    tracing_service: Any,
-    newest: Optional[datetime] = None,
-    oldest: Optional[datetime] = None,
-    use_windowing: bool = False,
-) -> Dict[str, List[Any]]:
-    query_traces: Dict[str, List[Any]] = {}
-
-    for query_step_key, query_revision in query_revisions.items():
-        formatting = Formatting(
-            focus=Focus.TRACE,
-            format=Format.AGENTA,
-        )
-        filtering = Filtering(
-            operator=LogicalOperator.AND,
-            conditions=[],
-        )
-        windowing = Windowing(
-            oldest=oldest,
-            newest=newest,
-            next=None,
-            limit=None,
-            order="ascending",
-            interval=None,
-            rate=None,
-        )
-
-        query_revision_data = getattr(query_revision, "data", None)
-        if query_revision_data:
-            query_filtering = getattr(query_revision_data, "filtering", None)
-            query_windowing = getattr(query_revision_data, "windowing", None)
-
-            if query_filtering:
-                filtering = query_filtering
-
-            if query_windowing and use_windowing:
-                windowing = Windowing(
-                    oldest=query_windowing.oldest,
-                    newest=query_windowing.newest,
-                    limit=query_windowing.limit,
-                    order=query_windowing.order,
-                    rate=query_windowing.rate,
-                )
-            elif query_windowing:
-                windowing.rate = query_windowing.rate
-
-        query_traces[query_step_key] = (
-            await tracing_service.query_traces(
-                project_id=project_id,
-                query=TracingQuery(
-                    formatting=formatting,
-                    filtering=filtering,
-                    windowing=windowing,
-                ),
-            )
-            or []
-        )
-
-    return query_traces
-
-
-async def resolve_query_source_items(
-    *,
-    project_id: UUID,
-    run: EvaluationRun,
-    queries_service: Any,
-    tracing_service: Any,
-    newest: Optional[datetime] = None,
-    oldest: Optional[datetime] = None,
-    use_windowing: bool = False,
-) -> Dict[str, List[ResolvedSourceItem]]:
-    if not run.data or not run.data.steps:
-        return {}
-
-    query_revisions: Dict[str, Any] = {}
-    for step in run.data.steps:
-        if step.type != "input" or not step.key:
-            continue
-
-        query_revision_ref = (step.references or {}).get("query_revision")
-        if not query_revision_ref:
-            continue
-
-        query_revision = await queries_service.fetch_query_revision(
-            project_id=project_id,
-            query_revision_ref=query_revision_ref,
-        )
-        if (
-            not query_revision
-            or not getattr(query_revision, "id", None)
-            or not getattr(query_revision, "slug", None)
-        ):
-            continue
-
-        query_revisions[step.key] = query_revision
-
-    query_traces = await resolve_live_query_traces(
-        project_id=project_id,
-        query_revisions=query_revisions,
-        tracing_service=tracing_service,
-        newest=newest,
-        oldest=oldest,
-        use_windowing=use_windowing,
-    )
-
-    return {
-        query_step_key: [
-            ResolvedSourceItem(
-                kind="trace",
-                step_key=query_step_key,
-                trace_id=trace.trace_id,
-                trace=trace,
-            )
-            for trace in traces
-            if trace and trace.trace_id
+        resolvers: List[SourceResolver] = [
+            QueryRevisionTraceResolver(
+                queries_service=self.queries_service,
+            ),
+            TestsetRevisionTestcaseResolver(
+                testsets_service=self.testsets_service,
+            ),
         ]
-        for query_step_key, traces in query_traces.items()
-    }
+        batches: List[ResolvedSourceBatch] = []
+
+        for step in run.data.steps:
+            if step.type != "input" or not step.key:
+                continue
+
+            # Exactly one recognized source reference per input step. Selecting
+            # by the applicable key (not by first non-empty result) means an
+            # empty result — a query with zero traces — stays an empty batch
+            # instead of falling through to the wrong resolver.
+            applicable = [resolver for resolver in resolvers if resolver.applies(step)]
+
+            if not applicable:
+                continue
+
+            if len(applicable) > 1:
+                raise SourceResolutionError(
+                    f"Input step '{step.key}' carries multiple source references "
+                    f"({', '.join(r.source_reference_key for r in applicable)}); "
+                    "exactly one is allowed."
+                )
+
+            batch = await applicable[0].resolve(
+                project_id=project_id,
+                #
+                step=step,
+            )
+            if batch:
+                batches.append(batch)
+
+        return batches
+
+    async def resolve_testset_input_specs(
+        self,
+        *,
+        project_id: UUID,
+        #
+        input_steps: List[EvaluationRunDataStep],
+    ) -> List[ResolvedTestsetInputSpec]:
+        resolver = TestsetRevisionPayloadResolver(
+            testsets_service=self.testsets_service
+        )
+        return [
+            await resolver.resolve(
+                project_id=project_id,
+                #
+                step=input_step,
+            )
+            for input_step in input_steps
+        ]
+
+    async def resolve_direct_source_items(
+        self,
+        *,
+        project_id: UUID,
+        #
+        trace_ids: Optional[List[str]] = None,
+        testcase_ids: Optional[List[UUID]] = None,
+    ) -> List[ResolvedSourceItem]:
+        source_items: List[ResolvedSourceItem] = []
+        testcase_ids = testcase_ids or []
+        trace_ids = trace_ids or []
+
+        testcases = (
+            await self.testcases_service.fetch_testcases(
+                project_id=project_id,
+                #
+                testcase_ids=testcase_ids,
+            )
+            if testcase_ids and self.testcases_service is not None
+            else []
+        )
+        testcases_by_id = {
+            testcase.id: testcase
+            for testcase in testcases
+            if getattr(testcase, "id", None)
+        }
+        traces_by_id: Dict[str, Any] = {}
+
+        if trace_ids and self.tracing_service is not None:
+            for trace_id in trace_ids:
+                trace = await self._traces.fetch_trace(
+                    project_id=project_id,
+                    #
+                    trace_id=trace_id,
+                    #
+                    max_retries=1,
+                    delay=0,
+                )
+                if trace is not None:
+                    traces_by_id[trace_id] = trace
+
+        source_items.extend(
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="",
+                #
+                testcase_id=testcase_id,
+                testcase=testcases_by_id.get(testcase_id),
+            )
+            for testcase_id in testcase_ids
+        )
+        for trace_id in trace_ids:
+            trace = traces_by_id.get(trace_id)
+            ag_data = _extract_ag_data(trace) if trace is not None else {}
+            root_span = _extract_root_span(trace) if trace is not None else None
+            source_items.append(
+                ResolvedSourceItem(
+                    kind="trace",
+                    step_key="",
+                    #
+                    trace_id=trace_id,
+                    span_id=_extract_span_id(root_span),
+                    trace=trace,
+                    #
+                    inputs=ag_data.get("inputs"),
+                    outputs=ag_data.get("outputs"),
+                )
+            )
+
+        return source_items
+
+    async def resolve_live_query_traces(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query_revisions: Dict[str, Any],
+        #
+        newest: Optional[datetime] = None,
+        oldest: Optional[datetime] = None,
+        #
+        use_windowing: bool = False,
+    ) -> Dict[str, List[Any]]:
+        query_traces: Dict[str, List[Any]] = {}
+
+        for query_step_key, query_revision in query_revisions.items():
+            formatting = Formatting(
+                focus=Focus.TRACE,
+                format=Format.AGENTA,
+            )
+            filtering = Filtering(
+                operator=LogicalOperator.AND,
+                conditions=[],
+            )
+            windowing = Windowing(
+                oldest=oldest,
+                newest=newest,
+                next=None,
+                limit=None,
+                order="ascending",
+                interval=None,
+                rate=None,
+            )
+
+            query_revision_data = getattr(query_revision, "data", None)
+            if query_revision_data:
+                query_filtering = getattr(query_revision_data, "filtering", None)
+                query_windowing = getattr(query_revision_data, "windowing", None)
+
+                if query_filtering:
+                    filtering = query_filtering
+
+                if query_windowing and use_windowing:
+                    windowing = Windowing(
+                        oldest=query_windowing.oldest,
+                        newest=query_windowing.newest,
+                        limit=query_windowing.limit,
+                        order=query_windowing.order,
+                        rate=query_windowing.rate,
+                    )
+                elif query_windowing:
+                    windowing.rate = query_windowing.rate
+
+            query_traces[query_step_key] = (
+                await self.tracing_service.query_traces(
+                    project_id=project_id,
+                    #
+                    query=TracingQuery(
+                        formatting=formatting,
+                        filtering=filtering,
+                        windowing=windowing,
+                    ),
+                )
+                or []
+            )
+
+        return query_traces
+
+    async def resolve_query_source_items(
+        self,
+        *,
+        project_id: UUID,
+        #
+        run: EvaluationRun,
+        #
+        newest: Optional[datetime] = None,
+        oldest: Optional[datetime] = None,
+        #
+        use_windowing: bool = False,
+    ) -> Dict[str, List[ResolvedSourceItem]]:
+        if not run.data or not run.data.steps:
+            return {}
+
+        query_revisions: Dict[str, Any] = {}
+        for step in run.data.steps:
+            if step.type != "input" or not step.key:
+                continue
+
+            query_revision_ref = (step.references or {}).get("query_revision")
+            if not query_revision_ref:
+                continue
+
+            query_revision = await self.queries_service.fetch_query_revision(
+                project_id=project_id,
+                #
+                query_revision_ref=query_revision_ref,
+            )
+            if (
+                not query_revision
+                or not getattr(query_revision, "id", None)
+                or not getattr(query_revision, "slug", None)
+            ):
+                continue
+
+            query_revisions[step.key] = query_revision
+
+        query_traces = await self.resolve_live_query_traces(
+            project_id=project_id,
+            #
+            query_revisions=query_revisions,
+            #
+            newest=newest,
+            oldest=oldest,
+            #
+            use_windowing=use_windowing,
+        )
+
+        return {
+            query_step_key: [
+                ResolvedSourceItem(
+                    kind="trace",
+                    step_key=query_step_key,
+                    #
+                    trace_id=trace.trace_id,
+                    trace=trace,
+                )
+                for trace in traces
+                if trace and trace.trace_id
+            ]
+            for query_step_key, traces in query_traces.items()
+        }

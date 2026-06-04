@@ -85,7 +85,11 @@ class QueriesRouter:
     # `QueriesService.commit_query_revision`, not from this router. See
     # core/events/utils.py module docstring for the read-vs-write split
     # rationale.
-    def __init__(self, *, queries_service: QueriesService):
+    def __init__(
+        self,
+        *,
+        queries_service: QueriesService,
+    ):
         self.queries_service = queries_service
         self.router = APIRouter()
 

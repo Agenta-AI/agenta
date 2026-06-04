@@ -24,7 +24,7 @@ paths at once.
 | `EvaluationPlanner.plan` — cell grid (scenario × step × repeat) | `runtime/planner.py` |
 | `scenario_status` / `run_status` — verdict ranking (ERRORS > PENDING > SUCCESS; run = ERRORS/RUNNING/SUCCESS) | `runtime/processor.py` |
 | `classify_steps_topology` | `runtime/topology.py` |
-| `ResolvedSourceItem`, `PlannedCell`, `EvaluationStep`, `RunSlice`, `WorkflowExecution*`, `ResultLogRequest`, `ProcessSummary` | `runtime/models.py` |
+| `ResolvedSourceItem`, `PlannedCell`, `EvaluationStep`, `RunSlice`, `WorkflowExecution*`, `ResultSetRequest`, `ProcessSummary` | `runtime/models.py` |
 | `DEFAULT_BATCH_SIZE = 10` (default in-slice concurrency) | `runtime/processor.py` |
 | Adapter protocols: `ResultSetter.set`, `RefreshMetrics`, `EditScenario`, `CreateScenario`, `TraceLoader`, `WorkflowRunner` | `runtime/executor.py` |
 | **Engine call shape: ONE slice over all scenarios** | both drivers |

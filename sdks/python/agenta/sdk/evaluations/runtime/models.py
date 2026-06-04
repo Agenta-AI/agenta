@@ -26,7 +26,7 @@ class EvaluationStep(BaseModel):
 
     key: str
     type: StepType
-    origin: Origin = "custom"
+    origin: Origin
     references: Dict[str, Any] = Field(default_factory=dict)
     inputs: List[str] = Field(default_factory=list)
 
@@ -122,16 +122,4 @@ class WorkflowExecutionResult(BaseModel):
     hash_id: Optional[str] = None
     outputs: Optional[Any] = None
     trace: Optional[Any] = None
-    error: Optional[Dict[str, Any]] = None
-
-
-class ResultLogRequest(BaseModel):
-    """Runner-agnostic request for persisting a planned result cell."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    cell: PlannedCell
-    trace_id: Optional[str] = None
-    span_id: Optional[str] = None
-    testcase_id: Optional[UUID] = None
     error: Optional[Dict[str, Any]] = None

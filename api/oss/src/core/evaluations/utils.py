@@ -268,46 +268,6 @@ def make_hash(
     )
 
 
-async def fetch_traces_by_hash(
-    tracing_service,
-    project_id: UUID,
-    *,
-    hash_id: str,
-    limit: Optional[int] = None,
-) -> Traces:
-    if not hash_id:
-        return []
-
-    return await tracing_service.query_traces(
-        project_id=project_id,
-        query=TracingQuery(
-            formatting=Formatting(
-                focus=Focus.TRACE,
-                format=Format.AGENTA,
-            ),
-            windowing=Windowing(
-                limit=limit,
-                order="descending",
-            ),
-            filtering=Filtering(
-                operator=LogicalOperator.AND,
-                conditions=[
-                    Condition(
-                        field=Fields.PARENT_ID,
-                        operator=ComparisonOperator.IS,
-                        value=None,
-                    ),
-                    Condition(
-                        field=Fields.HASHES,
-                        operator=ListOperator.IN,
-                        value=[{"id": hash_id}],
-                    ),
-                ],
-            ),
-        ),
-    )
-
-
 def select_traces_for_reuse(
     *,
     traces: Optional[Traces],
@@ -396,59 +356,106 @@ def _has_usable_root_span(trace: Any) -> bool:
     return False
 
 
-async def fetch_trace(
-    tracing_service,
-    project_id: UUID,
-    #
-    trace_id: str,
-    max_retries: int = 8,
-    delay: float = 0.5,
-    max_delay: float = 4.0,
-) -> Optional[Trace]:
-    current_delay = delay
-    for attempt in range(max_retries):
-        had_exception = False
-        try:
-            trace = await tracing_service.fetch_trace(
-                project_id=project_id,
-                trace_id=trace_id,
-            )
-            if trace and _has_usable_root_span(trace):
-                if isinstance(trace, Trace):
-                    return trace
+class TraceFetcher:
+    """Owns the tracing service; per-call values are method params."""
 
-                if hasattr(trace, "model_dump"):
-                    trace_payload = trace.model_dump(
-                        mode="json",
-                        exclude_none=True,
+    def __init__(self, *, tracing_service):
+        self.tracing_service = tracing_service
+
+    async def fetch_trace(
+        self,
+        *,
+        project_id: UUID,
+        #
+        trace_id: str,
+        max_retries: int = 8,
+        delay: float = 0.5,
+        max_delay: float = 4.0,
+    ) -> Optional[Trace]:
+        current_delay = delay
+        for attempt in range(max_retries):
+            had_exception = False
+            try:
+                trace = await self.tracing_service.fetch_trace(
+                    project_id=project_id,
+                    trace_id=trace_id,
+                )
+                if trace and _has_usable_root_span(trace):
+                    if isinstance(trace, Trace):
+                        return trace
+
+                    if hasattr(trace, "model_dump"):
+                        trace_payload = trace.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
+                    else:
+                        trace_payload = {
+                            key: value
+                            for key, value in vars(trace).items()
+                            if value is not None
+                        }
+
+                    return Trace(**trace_payload)
+
+            except Exception:  # pylint: disable=broad-exception-caught
+                had_exception = True
+                if attempt == max_retries - 1:
+                    log.warning(
+                        "[EVAL] [trace] fetch failed after retries",
+                        trace_id=trace_id,
+                        attempts=max_retries,
+                        exc_info=True,
                     )
-                else:
-                    trace_payload = {
-                        key: value
-                        for key, value in vars(trace).items()
-                        if value is not None
-                    }
 
-                return Trace(**trace_payload)
-
-        except Exception:  # pylint: disable=broad-exception-caught
-            had_exception = True
-            if attempt == max_retries - 1:
+            if attempt < max_retries - 1:
+                await sleep(current_delay)
+                current_delay = min(current_delay * 2, max_delay)
+            elif not had_exception:
                 log.warning(
-                    "[EVAL] [trace] fetch failed after retries",
+                    "[EVAL] [trace] empty or incomplete trace response after retries",
                     trace_id=trace_id,
                     attempts=max_retries,
-                    exc_info=True,
                 )
 
-        if attempt < max_retries - 1:
-            await sleep(current_delay)
-            current_delay = min(current_delay * 2, max_delay)
-        elif not had_exception:
-            log.warning(
-                "[EVAL] [trace] empty or incomplete trace response after retries",
-                trace_id=trace_id,
-                attempts=max_retries,
-            )
+        return None
 
-    return None
+    async def fetch_traces_by_hash(
+        self,
+        *,
+        project_id: UUID,
+        #
+        hash_id: str,
+        limit: Optional[int] = None,
+    ) -> Traces:
+        if not hash_id:
+            return []
+
+        return await self.tracing_service.query_traces(
+            project_id=project_id,
+            query=TracingQuery(
+                formatting=Formatting(
+                    focus=Focus.TRACE,
+                    format=Format.AGENTA,
+                ),
+                windowing=Windowing(
+                    limit=limit,
+                    order="descending",
+                ),
+                filtering=Filtering(
+                    operator=LogicalOperator.AND,
+                    conditions=[
+                        Condition(
+                            field=Fields.PARENT_ID,
+                            operator=ComparisonOperator.IS,
+                            value=None,
+                        ),
+                        Condition(
+                            field=Fields.HASHES,
+                            operator=ListOperator.IN,
+                            value=[{"id": hash_id}],
+                        ),
+                    ],
+                ),
+            ),
+        )

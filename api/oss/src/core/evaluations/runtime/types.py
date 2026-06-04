@@ -3,41 +3,55 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from oss.src.core.evaluations.types import EvaluationStatus, Origin, Type
+# The evaluation engine lives in the SDK and owns these runtime types. The API
+# imports them DIRECTLY (same class identity, no API-side copy) so there is no
+# duplication and no SDK<->API conversion at the seam. Only the API-only shapes
+# below (ingest specs, run-slice ops, summaries) are declared here.
+from agenta.sdk.evaluations.runtime.models import (
+    Dispatch,
+    DispatchMode,
+    DispatchSource,
+    EvaluationStep,
+    ExecutionPlan,
+    PlannedCell,
+    ResolvedSourceItem,
+    ScenarioBinding,
+    SourceKind,
+    StepType,
+    TopologyDecision,
+    TopologyStatus,
+)
 
-InputSourceKind = Literal[
-    "query",
-    "testset",
-    "trace",
-    "testcase",
-    "direct",
+__all__ = [
+    # Re-exported engine types (defined in the SDK).
+    "Dispatch",
+    "DispatchMode",
+    "DispatchSource",
+    "EvaluationStep",
+    "ExecutionPlan",
+    "PlannedCell",
+    "ResolvedSourceItem",
+    "ScenarioBinding",
+    "SourceKind",
+    "StepType",
+    "TopologyDecision",
+    "TopologyStatus",
+    # API-only runtime types.
+    "SourceBatchKind",
+    "RuntimeModel",
+    "InputSourceSpec",
+    "ResolvedSourceBatch",
+    "ResolvedTestsetInputSpec",
+    "RunSlice",
+    "RunProbeSummary",
+    "ProcessSummary",
 ]
+
+
 SourceBatchKind = Literal[
     "traces",
     "testcases",
 ]
-TopologyStatus = Literal[
-    "supported",
-    "potential",
-    "not_planned",
-    "unsupported",
-]
-DispatchSource = Literal[
-    "query",
-    "testset",
-    "trace",
-    "testcase",
-]
-DispatchMode = Literal[
-    "live",
-    "batch",
-    "queue",
-]
-
-
-class Dispatch(BaseModel):
-    source: DispatchSource
-    mode: DispatchMode
 
 
 class RuntimeModel(BaseModel):
@@ -45,27 +59,10 @@ class RuntimeModel(BaseModel):
 
 
 class InputSourceSpec(RuntimeModel):
-    kind: InputSourceKind
+    kind: SourceKind
     step_key: str
 
     references: Dict[str, Any] = Field(default_factory=dict)
-
-
-class ResolvedSourceItem(RuntimeModel):
-    kind: InputSourceKind
-    step_key: str
-
-    references: Dict[str, Any] = Field(default_factory=dict)
-
-    trace_id: Optional[str] = None
-    span_id: Optional[str] = None
-    trace: Optional[Any] = None
-
-    testcase_id: Optional[UUID] = None
-    testcase: Optional[Any] = None
-
-    inputs: Optional[Any] = None
-    outputs: Optional[Any] = None
 
 
 class ResolvedSourceBatch(RuntimeModel):
@@ -90,24 +87,6 @@ class ResolvedTestsetInputSpec(RuntimeModel):
         ]
 
 
-class ScenarioBinding(RuntimeModel):
-    source: ResolvedSourceItem
-
-    scenario_id: UUID
-    interval: Optional[int] = None
-    timestamp: Optional[Any] = None
-
-
-class EvaluationStep(RuntimeModel):
-    key: str
-    type: Type
-    origin: Origin
-
-    references: Dict[str, Any] = Field(default_factory=dict)
-
-    inputs: List[str] = Field(default_factory=list)
-
-
 class RunSlice(RuntimeModel):
     run_id: UUID
 
@@ -127,45 +106,9 @@ class RunProbeSummary(RuntimeModel):
     any_count: int = 0
 
 
-class PlannedCell(RuntimeModel):
-    run_id: UUID
-
-    scenario_id: UUID
-    step_key: str
-    repeat_idx: int
-
-    step_type: Type
-    step_origin: Origin
-
-    status: EvaluationStatus
-
-    should_execute: bool = False
-
-    trace_id: Optional[str] = None
-    span_id: Optional[str] = None
-    testcase_id: Optional[UUID] = None
-    error: Optional[Dict[str, Any]] = None
-
-
-class ExecutionPlan(RuntimeModel):
-    run_id: UUID
-    cells: List[PlannedCell]
-
-    @property
-    def executable_cells(self) -> List[PlannedCell]:
-        return [cell for cell in self.cells if cell.should_execute]
-
-
 class ProcessSummary(RuntimeModel):
     created: int = 0
     reused: int = 0
     pending: int = 0
     failed: int = 0
     skipped: int = 0
-
-
-class TopologyDecision(RuntimeModel):
-    status: TopologyStatus
-    label: str
-    reason: str
-    dispatch: Optional[Dispatch] = None

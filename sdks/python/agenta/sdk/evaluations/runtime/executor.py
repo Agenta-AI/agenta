@@ -13,7 +13,6 @@ from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep,
     PlannedCell,
     ResolvedSourceItem,
-    ResultLogRequest,
     WorkflowExecutionRequest,
     WorkflowExecutionResult,
 )
@@ -33,6 +32,7 @@ class WorkflowRunner(Protocol):
 
     async def execute(
         self,
+        *,
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult: ...
 
@@ -42,6 +42,7 @@ class WorkflowBatchRunner(WorkflowRunner, Protocol):
 
     async def execute_batch(
         self,
+        *,
         requests: List[WorkflowExecutionRequest],
         semaphore: Optional[Semaphore] = None,
     ) -> List[WorkflowExecutionResult]: ...
@@ -58,11 +59,11 @@ async def execute_workflow_batch(
     async def _guarded(request: WorkflowExecutionRequest) -> WorkflowExecutionResult:
         if semaphore is not None:
             async with semaphore:
-                return await runner.execute(request)
-        return await runner.execute(request)
+                return await runner.execute(request=request)
+        return await runner.execute(request=request)
 
     if execute_batch is not None:
-        return await execute_batch(requests, semaphore=semaphore)
+        return await execute_batch(requests=requests, semaphore=semaphore)
 
     return list(await gather(*(_guarded(request) for request in requests)))
 
@@ -485,7 +486,7 @@ class _PreMintedScenarios:
         self._idx = 0
         self._lock = Lock()
 
-    async def __call__(self, run_id: UUID) -> Any:
+    async def __call__(self, *, run_id: UUID) -> Any:
         async with self._lock:
             scenario = self._scenarios[self._idx]
             self._idx += 1
@@ -495,13 +496,22 @@ class _PreMintedScenarios:
 class ResultSetter(Protocol):
     """Adapter boundary for persisting planned result cells."""
 
-    async def set(self, request: ResultLogRequest) -> Any: ...
+    async def set(
+        self,
+        *,
+        cell,
+        trace_id=None,
+        testcase_id=None,
+        error=None,
+    ) -> Any: ...
 
 
 # Adapter boundary for loading a runner's trace after a step executes: a plain
-# async callable `(trace_id) -> trace | None`. The SDK passes `afetch_trace`
-# directly; the API passes its (callable) APITraceLoader instance.
-TraceLoader = Callable[[str], Awaitable[Optional[Any]]]
+# async callable `(trace_id=...) -> trace | None`. The SDK passes `afetch_trace`
+# directly; the API passes its (callable) APITraceLoader instance. The engine
+# invokes it by keyword (`fetch_trace(trace_id=...)`), which a positional-only
+# `Callable[[str], ...]` can't express, so the alias uses `Callable[..., ...]`.
+TraceLoader = Callable[..., Awaitable[Optional[Any]]]
 
 
 class RuntimeExecutionContext:

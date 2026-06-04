@@ -25,8 +25,7 @@ from oss.src.core.evaluations.runtime.operations import SliceOperations
 from oss.src.core.evaluations.runtime.types import RunSlice
 from oss.src.core.evaluations.tasks import run as run_module
 from oss.src.core.evaluations.tasks.run import (
-    run_from_source,
-    rerun,
+    RunProcessor,
 )
 from oss.src.core.evaluations.runtime.types import Dispatch, TopologyDecision
 from oss.src.core.evaluations.types import (
@@ -330,18 +329,21 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
         _FakeRunOperations,
     )
 
-    ok = await rerun(
+    processor = RunProcessor(
+        evaluations_service=SimpleNamespace(),
+        tracing_service=MagicMock(),
+        testcases_service=MagicMock(),
+        workflows_service=MagicMock(),
+        testsets_service=MagicMock(),
+        queries_service=MagicMock(),
+    )
+    ok = await processor.rerun(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
         overwrite=True,
-        tracing_service=MagicMock(),
-        testcases_service=MagicMock(),
-        workflows_service=MagicMock(),
-        applications_service=MagicMock(),
-        evaluations_service=SimpleNamespace(),
     )
 
     assert ok is True
@@ -777,17 +779,18 @@ async def test_run_from_source_routes_queue_topologies(monkeypatch, dispatch):
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
 
-    ok = await run_from_source(
+    processor = RunProcessor(
+        evaluations_service=evaluations_service,
+        tracing_service=MagicMock(),
+        testcases_service=MagicMock(),
+        workflows_service=MagicMock(),
+        testsets_service=MagicMock(),
+        queries_service=MagicMock(),
+    )
+    ok = await processor.run_from_source(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=run_id,
-        tracing_service=MagicMock(),
-        testsets_service=MagicMock(),
-        queries_service=MagicMock(),
-        workflows_service=MagicMock(),
-        applications_service=MagicMock(),
-        evaluations_service=evaluations_service,
-        simple_evaluators_service=MagicMock(),
     )
 
     # Handled (not the unsupported-topology False).
@@ -815,17 +818,18 @@ async def test_run_from_source_unsupported_topology_returns_false(monkeypatch):
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
 
-    ok = await run_from_source(
+    processor = RunProcessor(
+        evaluations_service=evaluations_service,
+        tracing_service=MagicMock(),
+        testcases_service=MagicMock(),
+        workflows_service=MagicMock(),
+        testsets_service=MagicMock(),
+        queries_service=MagicMock(),
+    )
+    ok = await processor.run_from_source(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=run_id,
-        tracing_service=MagicMock(),
-        testsets_service=MagicMock(),
-        queries_service=MagicMock(),
-        workflows_service=MagicMock(),
-        applications_service=MagicMock(),
-        evaluations_service=evaluations_service,
-        simple_evaluators_service=MagicMock(),
     )
 
     assert ok is False

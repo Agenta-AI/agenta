@@ -25,7 +25,10 @@ log = get_module_logger(__name__)
 
 
 class VaultRouter:
-    def __init__(self, vault_service: VaultService):
+    def __init__(
+        self,
+        vault_service: VaultService,
+    ):
         self.service = vault_service
 
         self.router = APIRouter()

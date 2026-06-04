@@ -30,15 +30,11 @@ Target = Union[List[UUID], Dict[UUID, Origin]]
 
 CURRENT_VERSION = "2025-07-14"
 
-
-class EvaluationStatus(str, Enum):
-    PENDING = "pending"
-    QUEUED = "queued"
-    RUNNING = "running"
-    SUCCESS = "success"
-    FAILURE = "failure"
-    ERRORS = "errors"
-    CANCELLED = "cancelled"
+# Re-exported from the SDK so the engine and the API share ONE status enum
+# (identical members/values); the API's runtime types embed it, and the SDK
+# engine is the package that ships it. Importers keep using
+# `core.evaluations.types.EvaluationStatus` unchanged.
+from agenta.sdk.models.evaluations import EvaluationStatus  # noqa: E402
 
 
 class EvaluationClosedConflict(Exception):

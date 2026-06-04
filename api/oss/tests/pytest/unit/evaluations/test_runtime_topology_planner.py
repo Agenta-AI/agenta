@@ -23,11 +23,8 @@ from oss.src.core.evaluations.runtime.planner import (
     planned_cells_to_result_creates,
 )
 from oss.src.core.evaluations.runtime.sources import (
+    SourceResolution,
     SourceResolutionError,
-    resolve_direct_source_items,
-    resolve_live_query_traces,
-    resolve_queue_source_batches,
-    resolve_testset_input_specs,
 )
 from oss.src.core.evaluations.runtime.operations import SliceOperations
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
@@ -437,15 +434,17 @@ async def test_cache_resolver_skips_lookup_when_disabled_and_fetches_when_enable
         async def query_traces(self, *, project_id, query):
             return [SimpleNamespace(trace_id="trace-1"), SimpleNamespace(trace_id=None)]
 
-    disabled = await RunnableCacheResolver().resolve(
-        tracing_service=DummyTracingService(),
+    disabled = await RunnableCacheResolver(
+        tracing_service=DummyTracingService()
+    ).resolve(
         project_id=project_id,
         enabled=False,
         references={"evaluator_revision": Reference(id=uuid4())},
         required_count=2,
     )
-    enabled = await RunnableCacheResolver().resolve(
-        tracing_service=DummyTracingService(),
+    enabled = await RunnableCacheResolver(
+        tracing_service=DummyTracingService()
+    ).resolve(
         project_id=project_id,
         enabled=True,
         references={"evaluator_revision": Reference(id=uuid4())},
@@ -462,8 +461,7 @@ async def test_cache_resolver_skips_lookup_when_disabled_and_fetches_when_enable
 async def test_cache_resolver_zero_required_count_does_not_query_traces():
     tracing_service = SimpleNamespace(query_traces=AsyncMock())
 
-    resolution = await RunnableCacheResolver().resolve(
-        tracing_service=tracing_service,
+    resolution = await RunnableCacheResolver(tracing_service=tracing_service).resolve(
         project_id=uuid4(),
         enabled=True,
         references={"evaluator_revision": Reference(id=uuid4())},
@@ -512,11 +510,12 @@ async def test_queue_source_resolver_resolves_query_and_testset_batches():
         )
     )
 
-    batches = await resolve_queue_source_batches(
-        project_id=project_id,
-        run=run,
+    batches = await SourceResolution(
         queries_service=queries_service,
         testsets_service=testsets_service,
+    ).resolve_queue_source_batches(
+        project_id=project_id,
+        run=run,
     )
 
     assert [batch.kind for batch in batches] == ["traces", "testcases"]
@@ -545,9 +544,7 @@ async def test_queue_source_resolver_skips_empty_sources():
         ],
     )
 
-    batches = await resolve_queue_source_batches(
-        project_id=uuid4(),
-        run=run,
+    batches = await SourceResolution(
         queries_service=SimpleNamespace(
             fetch_query_revision=AsyncMock(
                 return_value=SimpleNamespace(data=SimpleNamespace(trace_ids=[]))
@@ -558,6 +555,9 @@ async def test_queue_source_resolver_skips_empty_sources():
                 return_value=SimpleNamespace(data=SimpleNamespace(testcase_ids=[]))
             )
         ),
+    ).resolve_queue_source_batches(
+        project_id=uuid4(),
+        run=run,
     )
 
     assert batches == []
@@ -581,15 +581,16 @@ async def test_queue_source_resolver_empty_query_does_not_fall_through_to_testse
         return_value=SimpleNamespace(data=SimpleNamespace(testcase_ids=[uuid4()]))
     )
 
-    batches = await resolve_queue_source_batches(
-        project_id=uuid4(),
-        run=run,
+    batches = await SourceResolution(
         queries_service=SimpleNamespace(
             fetch_query_revision=AsyncMock(
                 return_value=SimpleNamespace(data=SimpleNamespace(trace_ids=[]))
             )
         ),
         testsets_service=SimpleNamespace(fetch_testset_revision=fetch_testset_revision),
+    ).resolve_queue_source_batches(
+        project_id=uuid4(),
+        run=run,
     )
 
     assert batches == []
@@ -613,11 +614,12 @@ async def test_queue_source_resolver_rejects_step_with_multiple_source_refs():
     )
 
     with pytest.raises(SourceResolutionError):
-        await resolve_queue_source_batches(
-            project_id=uuid4(),
-            run=run,
+        await SourceResolution(
             queries_service=SimpleNamespace(fetch_query_revision=AsyncMock()),
             testsets_service=SimpleNamespace(fetch_testset_revision=AsyncMock()),
+        ).resolve_queue_source_batches(
+            project_id=uuid4(),
+            run=run,
         )
 
 
@@ -651,7 +653,9 @@ async def test_testset_payload_source_resolver_preserves_testcase_payloads():
         ),
     )
 
-    specs = await resolve_testset_input_specs(
+    specs = await SourceResolution(
+        testsets_service=testsets_service,
+    ).resolve_testset_input_specs(
         project_id=project_id,
         input_steps=[
             _step(
@@ -660,7 +664,6 @@ async def test_testset_payload_source_resolver_preserves_testcase_payloads():
                 references={"testset_revision": Reference(id=testset_revision_id)},
             )
         ],
-        testsets_service=testsets_service,
     )
 
     assert len(specs) == 1
@@ -681,11 +684,12 @@ async def test_direct_source_resolver_preserves_order_and_missing_testcases():
         fetch_testcases=AsyncMock(return_value=[testcase])
     )
 
-    source_items = await resolve_direct_source_items(
+    source_items = await SourceResolution(
+        testcases_service=testcases_service,
+    ).resolve_direct_source_items(
         project_id=project_id,
         testcase_ids=[testcase_id_1, testcase_id_2],
         trace_ids=["trace-1"],
-        testcases_service=testcases_service,
     )
 
     assert [source_item.kind for source_item in source_items] == [
@@ -733,10 +737,11 @@ async def test_direct_source_resolver_loads_trace_context():
     )
     tracing_service = SimpleNamespace(fetch_trace=AsyncMock(return_value=trace))
 
-    source_items = await resolve_direct_source_items(
+    source_items = await SourceResolution(
+        tracing_service=tracing_service,
+    ).resolve_direct_source_items(
         project_id=project_id,
         trace_ids=[trace_id],
-        tracing_service=tracing_service,
     )
 
     assert len(source_items) == 1
@@ -763,12 +768,13 @@ async def test_live_query_trace_resolver_applies_default_windowing():
 
     tracing_service = DummyTracingService()
 
-    resolved = await resolve_live_query_traces(
+    resolved = await SourceResolution(
+        tracing_service=tracing_service,
+    ).resolve_live_query_traces(
         project_id=project_id,
         query_revisions={
             "query-main": SimpleNamespace(data=SimpleNamespace()),
         },
-        tracing_service=tracing_service,
     )
 
     assert resolved == {"query-main": traces}
@@ -795,14 +801,15 @@ async def test_live_query_trace_resolver_uses_revision_windowing_when_requested(
         rate=0.5,
     )
 
-    await resolve_live_query_traces(
+    await SourceResolution(
+        tracing_service=tracing_service,
+    ).resolve_live_query_traces(
         project_id=uuid4(),
         query_revisions={
             "query-main": SimpleNamespace(
                 data=SimpleNamespace(filtering=None, windowing=revision_windowing)
             ),
         },
-        tracing_service=tracing_service,
         use_windowing=True,
     )
 
@@ -1129,8 +1136,6 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
         )
     )
     runner = APIWorkflowRunner(
-        project_id=project_id,
-        user_id=user_id,
         workflows_service=workflows_service,
     )
     revision = {
@@ -1148,7 +1153,9 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
         "flags": {"is_chat": True},
     }
     request = WorkflowExecutionRequest(
-        step=SDKEvaluationStep(key="application-main", type="invocation"),
+        step=SDKEvaluationStep(
+            key="application-main", type="invocation", origin="custom"
+        ),
         cell=SDKPlannedCell(
             run_id=uuid4(),
             scenario_id=uuid4(),
@@ -1172,7 +1179,9 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
         references={"application_revision": {"id": str(application_revision_id)}},
     )
 
-    result = await runner.execute(request)
+    result = await runner.execute(
+        request=request, project_id=project_id, user_id=user_id
+    )
 
     assert result.status == SDKEvaluationStatus.SUCCESS
     assert result.trace_id == "app-trace"
@@ -1215,8 +1224,6 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
         )
     )
     runner = APIWorkflowRunner(
-        project_id=project_id,
-        user_id=user_id,
         workflows_service=workflows_service,
     )
     revision = SimpleNamespace(
@@ -1256,7 +1263,9 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
         upstream_outputs={"answer": "world"},
     )
 
-    result = await runner.execute(request)
+    result = await runner.execute(
+        request=request, project_id=project_id, user_id=user_id
+    )
 
     assert result.status == SDKEvaluationStatus.SUCCESS
     assert result.trace_id == "eval-trace"
@@ -1291,8 +1300,6 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
         )
     )
     runner = APIWorkflowRunner(
-        project_id=project_id,
-        user_id=user_id,
         workflows_service=workflows_service,
     )
     revision = {
@@ -1326,7 +1333,9 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
         revision=revision,
     )
 
-    result = await runner.execute(request)
+    result = await runner.execute(
+        request=request, project_id=project_id, user_id=user_id
+    )
 
     assert result.status == SDKEvaluationStatus.SUCCESS
     workflows_service.invoke_workflow.assert_awaited_once()
@@ -1347,6 +1356,7 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
 @pytest.mark.asyncio
 async def test_backend_cached_runner_preserves_partial_hit_order():
     project_id = uuid4()
+    user_id = uuid4()
     cached_trace = SimpleNamespace(trace_id="cached-trace")
     tracing_service = SimpleNamespace(
         query_traces=AsyncMock(side_effect=[[cached_trace], []])
@@ -1356,7 +1366,9 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
         def __init__(self):
             self.requests = []
 
-        async def execute_batch(self, requests, semaphore=None):
+        async def execute_batch(
+            self, requests, semaphore=None, *, project_id=None, user_id=None
+        ):
             self.requests.append(requests)
             return [
                 WorkflowExecutionResult(
@@ -1369,12 +1381,13 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
     runner = APICachedRunner(
         runner=batch_runner,
         tracing_service=tracing_service,
-        project_id=project_id,
         enabled=True,
     )
     requests = [
         WorkflowExecutionRequest(
-            step=SDKEvaluationStep(key="evaluator-auto", type="annotation"),
+            step=SDKEvaluationStep(
+                key="evaluator-auto", type="annotation", origin="custom"
+            ),
             cell=SDKPlannedCell(
                 run_id=uuid4(),
                 scenario_id=uuid4(),
@@ -1391,7 +1404,9 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
         for idx in range(2)
     ]
 
-    results = await runner.execute_batch(requests)
+    results = await runner.execute_batch(
+        requests=requests, project_id=project_id, user_id=user_id
+    )
 
     assert [result.trace_id for result in results] == ["cached-trace", "fresh-trace"]
     assert len(batch_runner.requests) == 1
@@ -1614,25 +1629,19 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
 
     # The direct ids are hydrated once by the resolver; the unified flow seeds
     # those items into the executor (no downstream re-fetch).
+    async def _fake_resolve_direct(self, **kwargs):
+        return [
+            run_tasks.ResolvedSourceItem(kind="trace", step_key="", trace_id=tid)
+            for tid in (kwargs.get("trace_ids") or [])
+        ] + [
+            run_tasks.ResolvedSourceItem(kind="testcase", step_key="", testcase_id=tcid)
+            for tcid in (kwargs.get("testcase_ids") or [])
+        ]
+
     monkeypatch.setattr(
-        run_tasks,
+        SourceResolution,
         "resolve_direct_source_items",
-        AsyncMock(
-            side_effect=lambda **kwargs: (
-                [
-                    run_tasks.ResolvedSourceItem(
-                        kind="trace", step_key="", trace_id=tid
-                    )
-                    for tid in (kwargs.get("trace_ids") or [])
-                ]
-                + [
-                    run_tasks.ResolvedSourceItem(
-                        kind="testcase", step_key="", testcase_id=tcid
-                    )
-                    for tcid in (kwargs.get("testcase_ids") or [])
-                ]
-            )
-        ),
+        _fake_resolve_direct,
     )
 
     process_calls = []
@@ -1649,7 +1658,7 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
             user_id,
             run_slice,
             seed_bindings=None,
-            refresh_metrics_without_auto_results=True,
+            should_refresh_metrics=True,
             finalize_run_status=True,
         ):
             process_calls.append(run_slice)
@@ -1658,18 +1667,22 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
 
     monkeypatch.setattr(run_tasks, "APISliceProcessor", _FakeSliceProcessor)
 
-    ok = await run_tasks.run_from_batch(
+    processor = run_tasks.RunProcessor(
+        evaluations_service=evaluations_service,  # type: ignore[arg-type]
+        tracing_service=object(),  # type: ignore[arg-type]
+        testcases_service=object(),  # type: ignore[arg-type]
+        workflows_service=object(),  # type: ignore[arg-type]
+        testsets_service=object(),  # type: ignore[arg-type]
+        queries_service=object(),  # type: ignore[arg-type]
+    )
+
+    ok = await processor.run_from_batch(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
         source_kind="traces",
         trace_ids=["trace-1", "trace-2"],
         input_step_key="query-main",
-        tracing_service=object(),  # type: ignore[arg-type]
-        testcases_service=object(),  # type: ignore[arg-type]
-        workflows_service=object(),  # type: ignore[arg-type]
-        applications_service=object(),  # type: ignore[arg-type]
-        evaluations_service=evaluations_service,  # type: ignore[arg-type]
     )
 
     assert ok is True
@@ -1706,18 +1719,13 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
     process_calls.clear()
     seed_calls.clear()
 
-    ok = await run_tasks.run_from_batch(
+    ok = await processor.run_from_batch(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
         source_kind="testcases",
         testcase_ids=[testcase_id],
         input_step_key="query-main",
-        tracing_service=object(),  # type: ignore[arg-type]
-        testcases_service=object(),  # type: ignore[arg-type]
-        workflows_service=object(),  # type: ignore[arg-type]
-        applications_service=object(),  # type: ignore[arg-type]
-        evaluations_service=evaluations_service,  # type: ignore[arg-type]
     )
     assert ok is True
     binding = seed_calls[0][scenario_a]
@@ -1748,23 +1756,21 @@ async def test_run_processor_routes_batch_inference_through_testset_application_
     )
     run.id = run_id
     run_testset_source = AsyncMock()
-    monkeypatch.setattr(
-        run_tasks,
-        "_run_testset_source",
-        run_testset_source,
-    )
 
-    processed = await run_tasks.run_from_source(
+    processor = run_tasks.RunProcessor(
+        evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=run)),
+        tracing_service=object(),  # type: ignore[arg-type]
+        testcases_service=object(),  # type: ignore[arg-type]
+        workflows_service=object(),  # type: ignore[arg-type]
+        testsets_service=object(),  # type: ignore[arg-type]
+        queries_service=object(),  # type: ignore[arg-type]
+    )
+    processor._run_testset_source = run_testset_source
+
+    processed = await processor.run_from_source(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
-        tracing_service=object(),  # type: ignore[arg-type]
-        testsets_service=object(),  # type: ignore[arg-type]
-        queries_service=object(),  # type: ignore[arg-type]
-        workflows_service=object(),  # type: ignore[arg-type]
-        applications_service=object(),  # type: ignore[arg-type]
-        evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=run)),
-        simple_evaluators_service=object(),  # type: ignore[arg-type]
     )
 
     assert processed is True
@@ -1781,11 +1787,6 @@ async def test_run_processor_routes_query_topologies_with_windowing(monkeypatch)
     newest = object()
     oldest = object()
     run_query_source = AsyncMock()
-    monkeypatch.setattr(
-        run_tasks,
-        "_run_query_source",
-        run_query_source,
-    )
     live_run = _run(
         flags=EvaluationRunFlags(is_live=True),
         steps=[
@@ -1808,19 +1809,22 @@ async def test_run_processor_routes_query_topologies_with_windowing(monkeypatch)
     for run, expected_use_windowing in [(live_run, False), (batch_run, True)]:
         run_query_source.reset_mock()
 
-        processed = await run_tasks.run_from_source(
+        processor = run_tasks.RunProcessor(
+            evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=run)),
+            tracing_service=object(),  # type: ignore[arg-type]
+            testcases_service=object(),  # type: ignore[arg-type]
+            workflows_service=object(),  # type: ignore[arg-type]
+            testsets_service=object(),  # type: ignore[arg-type]
+            queries_service=object(),  # type: ignore[arg-type]
+        )
+        processor._run_query_source = run_query_source
+
+        processed = await processor.run_from_source(
             project_id=project_id,
             user_id=user_id,
             run_id=run_id,
             newest=newest,  # type: ignore[arg-type]
             oldest=oldest,  # type: ignore[arg-type]
-            tracing_service=object(),  # type: ignore[arg-type]
-            testsets_service=object(),  # type: ignore[arg-type]
-            queries_service=object(),  # type: ignore[arg-type]
-            workflows_service=object(),  # type: ignore[arg-type]
-            applications_service=object(),  # type: ignore[arg-type]
-            evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=run)),
-            simple_evaluators_service=object(),  # type: ignore[arg-type]
         )
 
         assert processed is True
@@ -1856,31 +1860,37 @@ async def test_run_processor_returns_false_for_missing_or_unsupported_run():
     )
     unsupported_run.id = run_id
 
-    common_kwargs = dict(
-        project_id=project_id,
-        user_id=user_id,
-        run_id=run_id,
-        tracing_service=object(),
-        testsets_service=object(),
-        queries_service=object(),
-        workflows_service=object(),
-        applications_service=object(),
-        simple_evaluators_service=object(),
-    )
+    def _processor(*, evaluations_service):
+        return run_tasks.RunProcessor(
+            evaluations_service=evaluations_service,
+            tracing_service=object(),  # type: ignore[arg-type]
+            testcases_service=object(),  # type: ignore[arg-type]
+            workflows_service=object(),  # type: ignore[arg-type]
+            testsets_service=object(),  # type: ignore[arg-type]
+            queries_service=object(),  # type: ignore[arg-type]
+        )
 
+    missing = _processor(
+        evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=None))
+    )
     assert (
-        await run_tasks.run_from_source(
-            **common_kwargs,  # type: ignore[arg-type]
-            evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=None)),
+        await missing.run_from_source(
+            project_id=project_id,
+            user_id=user_id,
+            run_id=run_id,
         )
         is False
     )
+    unsupported = _processor(
+        evaluations_service=SimpleNamespace(
+            fetch_run=AsyncMock(return_value=unsupported_run)
+        )
+    )
     assert (
-        await run_tasks.run_from_source(
-            **common_kwargs,  # type: ignore[arg-type]
-            evaluations_service=SimpleNamespace(
-                fetch_run=AsyncMock(return_value=unsupported_run)
-            ),
+        await unsupported.run_from_source(
+            project_id=project_id,
+            user_id=user_id,
+            run_id=run_id,
         )
         is False
     )
@@ -1958,7 +1968,7 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
     )
 
     monkeypatch.setattr(
-        source_slice_tasks,
+        SourceResolution,
         "resolve_direct_source_items",
         AsyncMock(
             return_value=[
@@ -1991,7 +2001,6 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
         tracing_service=None,
         testcases_service=None,
         workflows_service=workflows_service,
-        applications_service=None,
     )
     summary = await processor.process(
         project_id=project_id,
@@ -2012,7 +2021,7 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
     # Source rebuilt from the input cell's trace_id.
     assert kwargs["source_items"][0].trace_id == trace_id
     # The loop reuses the EXISTING scenario rather than creating a new one.
-    created_scenario = await kwargs["create_scenario"](run_id)
+    created_scenario = await kwargs["create_scenario"](run_id=run_id)
     assert created_scenario.id == scenario_id
     # The auto evaluator runner was wired from the run's current revision.
     assert "evaluator-auto" in kwargs["runners"]
@@ -2089,14 +2098,10 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
         fetch_workflow_revision=AsyncMock(
             return_value=SimpleNamespace(id=evaluator_revision_id)
         ),
-        fetch_application_revision=AsyncMock(return_value=SimpleNamespace(id=uuid4())),
-    )
-    applications_service = SimpleNamespace(
-        fetch_application_revision=AsyncMock(return_value=SimpleNamespace(id=uuid4()))
     )
 
     monkeypatch.setattr(
-        source_slice_tasks,
+        SourceResolution,
         "resolve_direct_source_items",
         AsyncMock(
             side_effect=[
@@ -2138,7 +2143,6 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
         tracing_service=None,
         testcases_service=None,
         workflows_service=workflows_service,
-        applications_service=applications_service,
     )
     summary = await processor.process(
         project_id=project_id,
@@ -2154,9 +2158,9 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
     assert summary.created == 1
     sdk_loop.assert_awaited_once()
     kwargs = sdk_loop.await_args.kwargs
-    # initial_context_by_repeat is now a per-scenario async callable (batched
+    # initial_context_seed is now a per-scenario async callable (batched
     # slice): resolve it for this scenario to get its {repeat: ctx} dict.
-    scenario_context = await kwargs["initial_context_by_repeat"](scenario_id)
+    scenario_context = await kwargs["initial_context_seed"](scenario_id)
     assert scenario_context[1]["trace_id"] == trace_id
     assert scenario_context[1]["outputs"] == {"answer": "ok"}
     assert kwargs["plan_cell_filter"](
@@ -2250,7 +2254,7 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
         )
     )
     monkeypatch.setattr(
-        source_slice_tasks,
+        SourceResolution,
         "resolve_direct_source_items",
         AsyncMock(
             return_value=[
@@ -2281,7 +2285,6 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
         tracing_service=None,
         testcases_service=None,
         workflows_service=workflows_service,
-        applications_service=None,
     )
 
     fill_missing = await processor.process(

@@ -3,7 +3,6 @@ from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
 from agenta.sdk.evaluations.runtime.models import (
-    ResultLogRequest,
     WorkflowExecutionRequest,
     WorkflowExecutionResult,
 )
@@ -19,7 +18,7 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioEdit,
     EvaluationStatus,
 )
-from oss.src.core.evaluations.utils import fetch_trace
+from oss.src.core.evaluations.utils import TraceFetcher
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -121,29 +120,34 @@ class APIWorkflowServiceRunner:
                 if has_error
                 else SDKEvaluationStatus.SUCCESS
             ),
+            error=error,
+            #
+            outputs=getattr(response, "outputs", None),
+            #
             trace_id=getattr(response, "trace_id", None),
             span_id=getattr(response, "span_id", None),
-            error=error,
-            outputs=getattr(response, "outputs", None),
         )
 
 
 class APIScenarioCreator:
+    """Stateless: only the service is held; the request context
+    (project_id/user_id/timestamp/interval) is passed per call."""
+
     def __init__(
         self,
         *,
-        project_id: UUID,
-        user_id: UUID,
         evaluations_service: Any,
     ):
-        self.project_id = project_id
-        self.user_id = user_id
         self.evaluations_service = evaluations_service
 
     async def create(
         self,
-        run_id: UUID,
         *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        #
         count: int,
         timestamp: Any = None,
         interval: Optional[int] = None,
@@ -159,13 +163,16 @@ class APIScenarioCreator:
         if count <= 0:
             return []
         scenarios = await self.evaluations_service.create_scenarios(
-            project_id=self.project_id,
-            user_id=self.user_id,
+            project_id=project_id,
+            user_id=user_id,
+            #
             scenarios=[
                 EvaluationScenarioCreate(
                     run_id=run_id,
+                    #
                     timestamp=timestamp,
                     interval=interval,
+                    #
                     status=EvaluationStatus.RUNNING,
                 )
                 for _ in range(count)
@@ -180,46 +187,53 @@ class APIScenarioCreator:
 
 
 class APIResultSetter:
+    """Stateless: only the service is held. The request context
+    (project_id/user_id/timestamp/interval) is passed per `set` call — bound at
+    the slice boundary where it is known, not at construction."""
+
     def __init__(
+        self,
+        *,
+        evaluations_service: Any,
+    ):
+        self.evaluations_service = evaluations_service
+
+    async def set(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
-        timestamp: Any,
-        interval: Optional[int],
-        evaluations_service: Any,
-    ):
-        self.project_id = project_id
-        self.user_id = user_id
-        self.timestamp = timestamp
-        self.interval = interval
-        self.evaluations_service = evaluations_service
-
-    async def set(self, request: ResultLogRequest) -> Any:
-        cell = request.cell
+        #
+        cell,
+        trace_id=None,
+        span_id=None,
+        testcase_id=None,
+        error=None,
+        #
+        timestamp: Any = None,
+        interval: Optional[int] = None,
+    ) -> Any:
         results = await self.evaluations_service.set_results(
-            project_id=self.project_id,
-            user_id=self.user_id,
+            project_id=project_id,
+            user_id=user_id,
+            #
             results=[
                 EvaluationResultCreate(
                     run_id=cell.run_id,
+                    #
                     scenario_id=cell.scenario_id,
                     step_key=cell.step_key,
                     repeat_idx=cell.repeat_idx,
+                    #
                     status=_status(cell.status),
-                    trace_id=(
-                        request.trace_id
-                        if request.trace_id is not None
-                        else cell.trace_id
-                    ),
+                    trace_id=(trace_id if trace_id is not None else cell.trace_id),
                     testcase_id=(
-                        request.testcase_id
-                        if request.testcase_id is not None
-                        else cell.testcase_id
+                        testcase_id if testcase_id is not None else cell.testcase_id
                     ),
-                    error=request.error if request.error is not None else cell.error,
-                    timestamp=self.timestamp,
-                    interval=self.interval,
+                    error=error if error is not None else cell.error,
+                    #
+                    timestamp=timestamp,
+                    interval=interval,
                 )
             ],
         )
@@ -238,23 +252,31 @@ class APIScenarioEditor:
     def __init__(
         self,
         *,
-        project_id: UUID,
-        user_id: UUID,
         evaluations_service: Any,
     ):
-        self.project_id = project_id
-        self.user_id = user_id
         self.evaluations_service = evaluations_service
 
-    async def __call__(self, scenario: Any, status: Any) -> Any:
+    async def __call__(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        scenario: Any,
+        status: Any,
+    ) -> Any:
         try:
             return await self.evaluations_service.edit_scenario(
-                project_id=self.project_id,
-                user_id=self.user_id,
+                project_id=project_id,
+                user_id=user_id,
+                #
                 scenario=EvaluationScenarioEdit(
                     id=scenario.id,
+                    #
+                    flags=getattr(scenario, "flags", None),
                     tags=getattr(scenario, "tags", None),
                     meta=getattr(scenario, "meta", None),
+                    #
                     status=_status(status),
                 ),
             )
@@ -279,27 +301,27 @@ class APIMetricsRefresher:
     def __init__(
         self,
         *,
-        project_id: UUID,
-        user_id: UUID,
         evaluations_service: Any,
     ):
-        self.project_id = project_id
-        self.user_id = user_id
         self.evaluations_service = evaluations_service
 
     async def __call__(
         self,
-        run_id: UUID,
-        scenario_id: Optional[UUID] = None,
         *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        #
+        scenario_id: Optional[UUID] = None,
         scenario_ids: Optional[List[UUID]] = None,
         timestamps: Optional[List[Any]] = None,
         interval: Optional[int] = None,
     ) -> Any:
-        # The SDK runtime calls this positionally as (run_id, scenario_id) for
-        # the per-scenario variational refresh and (run_id, None) for the
-        # run-level global rollup. `_refresh_slice_aggregate` calls it by keyword
-        # for the temporal buckets and the global fallback.
+        # The SDK runtime calls this by keyword as (run_id=, scenario_id=) for
+        # the per-scenario variational refresh and (run_id=, scenario_id=None) for
+        # the run-level global rollup. `_refresh_slice_aggregate` calls it by
+        # keyword for the temporal buckets and the global fallback.
         has_scenario = scenario_id is not None or bool(scenario_ids)
         has_temporal = bool(timestamps)
         if has_scenario and has_temporal:
@@ -310,10 +332,12 @@ class APIMetricsRefresher:
             )
 
         return await self.evaluations_service.refresh_metrics(
-            project_id=self.project_id,
-            user_id=self.user_id,
+            project_id=project_id,
+            user_id=user_id,
+            #
             metrics=EvaluationMetricsRefresh(
                 run_id=run_id,
+                #
                 scenario_id=scenario_id,
                 scenario_ids=scenario_ids,
                 timestamps=timestamps,
@@ -334,41 +358,56 @@ class APITraceFetcher:
     def __init__(
         self,
         *,
-        project_id: UUID,
         tracing_service: Any,
     ):
-        self.project_id = project_id
         self.tracing_service = tracing_service
+        self._traces = TraceFetcher(tracing_service=tracing_service)
 
-    async def __call__(self, trace_id: str) -> Any:
-        return await fetch_trace(
-            tracing_service=self.tracing_service,
-            project_id=self.project_id,
+    async def __call__(self, *, trace_id: str, project_id: UUID) -> Any:
+        return await self._traces.fetch_trace(
+            project_id=project_id,
+            #
             trace_id=trace_id,
         )
 
 
 class APIWorkflowRunner:
+    """Stateless: only the service is held. The request identity
+    (project_id/user_id) the workflow is invoked AS is passed per execution and
+    bound at the wiring boundary, not at construction."""
+
     def __init__(
         self,
         *,
-        project_id: UUID,
-        user_id: UUID,
         workflows_service: Any,
     ):
-        self.project_id = project_id
-        self.user_id = user_id
         self.workflows_service = workflows_service
 
     async def execute(
         self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
-        return (await self.execute_batch([request]))[0]
+        return (
+            await self.execute_batch(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                requests=[request],
+            )
+        )[0]
 
     async def execute_batch(
         self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
         requests: List[WorkflowExecutionRequest],
+        #
         semaphore: Optional[Semaphore] = None,
     ) -> List[WorkflowExecutionResult]:
         async def _guarded(
@@ -376,13 +415,27 @@ class APIWorkflowRunner:
         ) -> WorkflowExecutionResult:
             if semaphore is not None:
                 async with semaphore:
-                    return await self._execute_one(request)
-            return await self._execute_one(request)
+                    return await self._execute_one(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        request=request,
+                    )
+            return await self._execute_one(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                request=request,
+            )
 
         return list(await gather(*(_guarded(r) for r in requests)))
 
     async def _execute_one(
         self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
         revision = request.revision
@@ -410,11 +463,17 @@ class APIWorkflowRunner:
 
         testcase = request.source.testcase
         if hasattr(testcase, "model_dump"):
-            testcase = testcase.model_dump(mode="json", exclude_none=True)
+            testcase = testcase.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
 
         trace = request.upstream_trace
         if hasattr(trace, "model_dump"):
-            trace = trace.model_dump(mode="json", exclude_none=True)
+            trace = trace.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
 
         request_data = WorkflowServiceRequestData(
             revision=revision_dump,
@@ -432,8 +491,9 @@ class APIWorkflowRunner:
         )
 
         response = await self.workflows_service.invoke_workflow(
-            project_id=self.project_id,
-            user_id=self.user_id,
+            project_id=project_id,
+            user_id=user_id,
+            #
             request=service_request,
         )
 
@@ -444,7 +504,10 @@ class APIWorkflowRunner:
         error = None
         if has_error:
             error = (
-                status.model_dump(mode="json", exclude_none=True)
+                status.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
                 if hasattr(status, "model_dump")
                 else {"code": status_code}
             )
@@ -463,29 +526,53 @@ class APIWorkflowRunner:
 
 
 class APICachedRunner:
+    """Stateless: holds only its deps (the wrapped runner, tracing_service, the
+    cache toggle). The request identity (project_id/user_id) is passed per
+    execution — it scopes the trace-cache lookup and the wrapped invocation."""
+
     def __init__(
         self,
         *,
-        runner: Any,
         tracing_service: Any,
-        project_id: UUID,
+        #
+        runner: Any,
+        #
         enabled: bool,
     ):
-        self.runner = runner
         self.tracing_service = tracing_service
-        self.project_id = project_id
+
+        self.runner = runner
         self.enabled = enabled
-        self.cache_resolver = RunnableCacheResolver()
+
+        self.cache_resolver = RunnableCacheResolver(
+            tracing_service=tracing_service,
+        )
 
     async def execute(
         self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
-        return (await self.execute_batch([request]))[0]
+        return (
+            await self.execute_batch(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                requests=[request],
+            )
+        )[0]
 
     async def execute_batch(
         self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
         requests: List[WorkflowExecutionRequest],
+        #
         semaphore: Optional[Semaphore] = None,
     ) -> List[WorkflowExecutionResult]:
         results: List[Optional[WorkflowExecutionResult]] = [None] * len(requests)
@@ -494,11 +581,13 @@ class APICachedRunner:
 
         for idx, request in enumerate(requests):
             cache = await self.cache_resolver.resolve(
-                tracing_service=self.tracing_service,
-                project_id=self.project_id,
+                project_id=project_id,
+                #
                 enabled=self.enabled and self.tracing_service is not None,
+                #
                 references=request.references,
                 links=request.links,
+                #
                 required_count=1,
             )
             reusable = cache.reusable_traces[0] if cache.reusable_traces else None
@@ -514,7 +603,14 @@ class APICachedRunner:
             missing_positions.append(idx)
 
         if missing:
-            executed = await self.runner.execute_batch(missing, semaphore=semaphore)
+            executed = await self.runner.execute_batch(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                requests=missing,
+                #
+                semaphore=semaphore,
+            )
             for idx, execution in zip(missing_positions, executed):
                 results[idx] = execution
 

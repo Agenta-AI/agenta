@@ -4,9 +4,9 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.evaluations.utils import (
+    TraceFetcher,
     build_repeat_indices,
     effective_is_split,
-    fetch_traces_by_hash,
     make_hash,
     plan_missing_traces,
     required_traces_for_step,
@@ -166,9 +166,10 @@ async def test_fetch_traces_by_hash_wrapper_delegates_to_tracing_service():
 
     uuid_project_id = uuid4()
 
-    traces = await fetch_traces_by_hash(
-        DummyTracingService(),
-        uuid_project_id,
+    traces = await TraceFetcher(
+        tracing_service=DummyTracingService(),
+    ).fetch_traces_by_hash(
+        project_id=uuid_project_id,
         hash_id="hash-1",
         limit=2,
     )
