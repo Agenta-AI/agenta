@@ -108,10 +108,10 @@ from oss.src.core.evaluations.utils import (
 
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
-from oss.src.core.evaluations.runtime.sources import resolve_queue_source_batches
+from oss.src.core.evaluations.runtime.sources import SourceResolution
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
-from oss.src.core.evaluations.runtime.models import SliceProcessMode, TensorSlice
-from oss.src.core.evaluations.runtime.tensor import TensorSliceOperations
+from oss.src.core.evaluations.runtime.types import RunSlice
+from oss.src.core.evaluations.runtime.operations import SliceOperations
 
 
 log = get_module_logger(__name__)
@@ -228,29 +228,24 @@ class EvaluationsService:
             else None
         )
 
-        # Tensor slice ops (probe/populate run in-process; process dispatches
+        # Run slice ops (probe/populate run in-process; process dispatches
         # async via taskiq). Built here so the service owns its runtime
         # collaborator, like `evaluations_task_runner` above. `APISliceProcessor`
         # lives in `tasks/processor.py` which imports this module, so it is
         # imported locally to avoid a circular import. Requires the sub-services
         # the SDK engine needs; absent those (e.g. worker/parser contexts) the
         # ops degrade to None and probe/populate no-op.
-        self.tensor_slice_operations: Optional[TensorSliceOperations] = None
-        if (
-            testcases_service is not None
-            and workflows_service is not None
-            and applications_service is not None
-        ):
+        self.run_slice_operations: Optional[SliceOperations] = None
+        if testcases_service is not None and workflows_service is not None:
             from oss.src.core.evaluations.tasks.processor import APISliceProcessor
 
-            self.tensor_slice_operations = TensorSliceOperations(
+            self.run_slice_operations = SliceOperations(
                 evaluations_service=self,
                 slice_processor=APISliceProcessor(
                     evaluations_service=self,
                     tracing_service=tracing_service,
                     testcases_service=testcases_service,
                     workflows_service=workflows_service,
-                    applications_service=applications_service,
                 ),
             )
 
@@ -544,7 +539,7 @@ class EvaluationsService:
         Checks Redis for eval:run:{run_id}:lock.
         """
         from oss.src.core.evaluations.runtime.locks import (
-            has_mutation_lock as _has_mutation_lock,
+            has_run_lock as _has_mutation_lock,
         )
 
         return await _has_mutation_lock(run_id=str(run_id))
@@ -573,7 +568,7 @@ class EvaluationsService:
         in both cases.
 
         Steps:
-          1. prune tensor cells (and input-only scenarios + their metrics) for
+          1. prune run cells (and input-only scenarios + their metrics) for
              any step that existed before but is gone from the current graph,
              per `docs/designs/unified-eval-loops/step-removal-semantics.md`.
           2. reconcile the default queue + `is_queue` from the current graph.
@@ -602,7 +597,7 @@ class EvaluationsService:
     ) -> None:
         """Destructively prune cells, orphan scenarios, and metrics for steps
         that left the graph. Removal is destructive (Model A): stored graph and
-        stored tensor keep the same shape. A no-op when nothing was removed.
+        stored run shape keep the same shape. A no-op when nothing was removed.
         """
         if not removed_step_keys or not run.id:
             return
@@ -2660,7 +2655,10 @@ class SimpleEvaluationsService:
                 topology = classify_run_topology(run)
 
                 if topology.dispatch:
-                    if topology.dispatch == "batch_query":
+                    if (
+                        topology.dispatch.source == "query"
+                        and topology.dispatch.mode == "batch"
+                    ):
                         await self._ensure_human_annotation_queue(
                             project_id=project_id,
                             user_id=user_id,
@@ -2827,7 +2825,7 @@ class SimpleEvaluationsService:
         )
         return True
 
-    # --- TENSOR SLICE OPS -----------------------------------------------------
+    # --- RUN SLICE OPS -----------------------------------------------------
     #
     # Coordinate-addressed ops over EXISTING scenarios (scenarios x steps x
     # repeats), distinct from the source-keyed dispatch_*_slice above (which
@@ -2835,7 +2833,7 @@ class SimpleEvaluationsService:
     # fill-missing / run-added-step), dispatched async via taskiq under the job
     # lock. `probe` (read) and `populate` (write) are immediate, in-process.
 
-    async def dispatch_tensor_slice(
+    async def dispatch_run_slice(
         self,
         *,
         project_id: UUID,
@@ -2845,11 +2843,11 @@ class SimpleEvaluationsService:
         scenario_ids: Optional[List[UUID]] = None,
         step_keys: Optional[List[str]] = None,
         repeat_idxs: Optional[List[int]] = None,
-        process_mode: SliceProcessMode = "fill-missing",
+        overwrite: bool = False,
     ) -> bool:
         if self.evaluations_task_runner is None:
             log.warning(
-                "[EVAL] Taskiq client missing; cannot dispatch tensor slice",
+                "[EVAL] Taskiq client missing; cannot dispatch run slice",
                 run_id=run_id,
             )
             return False
@@ -2860,7 +2858,7 @@ class SimpleEvaluationsService:
         )
         if not run:
             log.warning(
-                "[EVAL] tensor slice dispatch requires an existing run",
+                "[EVAL] run slice dispatch requires an existing run",
                 run_id=run_id,
             )
             return False
@@ -2872,7 +2870,7 @@ class SimpleEvaluationsService:
             scenario_ids=scenario_ids,
             step_keys=step_keys,
             repeat_idxs=repeat_idxs,
-            process_mode=process_mode,
+            overwrite=overwrite,
         )
         return True
 
@@ -2886,14 +2884,14 @@ class SimpleEvaluationsService:
         step_keys: Optional[List[str]] = None,
         repeat_idxs: Optional[List[int]] = None,
     ) -> List[EvaluationResult]:
-        tensor_ops = self.evaluations_service.tensor_slice_operations
-        if tensor_ops is None:
-            log.warning("[EVAL] tensor ops not wired; cannot probe slice")
+        run_operations = self.evaluations_service.run_slice_operations
+        if run_operations is None:
+            log.warning("[EVAL] run operations not wired; cannot probe slice")
             return []
 
-        return await tensor_ops.probe(
+        return await run_operations.probe(
             project_id=project_id,
-            tensor_slice=TensorSlice(
+            run_slice=RunSlice(
                 run_id=run_id,
                 scenario_ids=scenario_ids,
                 step_keys=step_keys,
@@ -2909,12 +2907,12 @@ class SimpleEvaluationsService:
         #
         results: List[EvaluationResultCreate],
     ) -> List[EvaluationResult]:
-        tensor_ops = self.evaluations_service.tensor_slice_operations
-        if tensor_ops is None:
-            log.warning("[EVAL] tensor ops not wired; cannot populate slice")
+        run_operations = self.evaluations_service.run_slice_operations
+        if run_operations is None:
+            log.warning("[EVAL] run operations not wired; cannot populate slice")
             return []
 
-        return await tensor_ops.populate(
+        return await run_operations.populate(
             project_id=project_id,
             user_id=user_id,
             results=results,
@@ -2931,15 +2929,15 @@ class SimpleEvaluationsService:
         step_keys: Optional[List[str]] = None,
         repeat_idxs: Optional[List[int]] = None,
     ) -> List[UUID]:
-        tensor_ops = self.evaluations_service.tensor_slice_operations
-        if tensor_ops is None:
-            log.warning("[EVAL] tensor ops not wired; cannot prune slice")
+        run_operations = self.evaluations_service.run_slice_operations
+        if run_operations is None:
+            log.warning("[EVAL] run operations not wired; cannot prune slice")
             return []
 
-        return await tensor_ops.prune(
+        return await run_operations.prune(
             project_id=project_id,
             user_id=user_id,
-            tensor_slice=TensorSlice(
+            run_slice=RunSlice(
                 run_id=run_id,
                 scenario_ids=scenario_ids,
                 step_keys=step_keys,
@@ -2965,15 +2963,15 @@ class SimpleEvaluationsService:
         populates the finished cells) invoke this to roll up the per-scenario,
         temporal, and global metric rows without re-running anything.
         """
-        tensor_ops = self.evaluations_service.tensor_slice_operations
-        if tensor_ops is None:
-            log.warning("[EVAL] tensor ops not wired; cannot refresh slice")
+        run_operations = self.evaluations_service.run_slice_operations
+        if run_operations is None:
+            log.warning("[EVAL] run operations not wired; cannot refresh slice")
             return
 
-        await tensor_ops.refresh(
+        await run_operations.refresh(
             project_id=project_id,
             user_id=user_id,
-            tensor_slice=TensorSlice(
+            run_slice=RunSlice(
                 run_id=run_id,
                 scenario_ids=scenario_ids,
                 step_keys=step_keys,
@@ -2981,14 +2979,14 @@ class SimpleEvaluationsService:
             ),
         )
 
-    # --- GRAPH-DIMENSION OPS --------------------------------------------------
+    # --- SHAPE-DIMENSION OPS --------------------------------------------------
     #
-    # Modify the tensor's SHAPE (scenarios x steps x repeats) — distinct from the
-    # tensor ops (probe/populate/process/prune) that fill or clear cells WITHIN a
+    # Modify the run.s SHAPE (scenarios x steps x repeats) — distinct from the
+    # run operations (probe/populate/process/prune) that fill or clear cells WITHIN a
     # fixed shape. Three axes, each with a paired add/remove (or set):
     #
     #   height — `add_scenarios` / `remove_scenarios`  (scenario rows)
-    #   width  — `add_steps` / `remove_steps`          (graph step columns)
+    #   width  — `add_steps` / `remove_steps`          (step columns)
     #   depth  — `set_repeats`                         (repeat count)
     #
     # `process` operates only on EXISTING coordinates — it never mints scenarios
@@ -3098,7 +3096,7 @@ class SimpleEvaluationsService:
         run_id: UUID,
         steps: List[EvaluationRunDataStep],
     ) -> Optional[EvaluationRun]:
-        """Append graph steps to the run (width dimension).
+        """Append steps to the run (width dimension).
 
         Adds new step columns to `run.data.steps`; the cells under them start
         empty and a subsequent `process` fills them. Steps whose key already
@@ -3137,7 +3135,7 @@ class SimpleEvaluationsService:
         run_id: UUID,
         step_keys: List[str],
     ) -> Optional[EvaluationRun]:
-        """Drop graph steps from the run by key (width dimension).
+        """Drop steps from the run by key (width dimension).
 
         The inverse of `add_steps`: removes the named step columns from
         `run.data.steps`. The result cells under those steps are not deleted here
@@ -4112,6 +4110,12 @@ class SimpleQueuesService:
         self.simple_evaluations_service = simple_evaluations_service
         self.evaluators_service = evaluators_service
 
+        # Built once, reused across dispatches.
+        self._sources = SourceResolution(
+            queries_service=simple_evaluations_service.queries_service,
+            testsets_service=simple_evaluations_service.testsets_service,
+        )
+
     async def create(
         self,
         *,
@@ -4576,11 +4580,9 @@ class SimpleQueuesService:
         if not run.id or not run.data or not run.data.steps:
             return False
 
-        batches = await resolve_queue_source_batches(
+        batches = await self._sources.resolve_queue_source_batches(
             project_id=project_id,
             run=run,
-            queries_service=self.simple_evaluations_service.queries_service,
-            testsets_service=self.simple_evaluations_service.testsets_service,
         )
 
         dispatched = False

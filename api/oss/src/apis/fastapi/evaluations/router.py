@@ -53,13 +53,13 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationResultsResponse,
     EvaluationResultIdResponse,
     EvaluationResultIdsResponse,
-    # EVALUATION TENSOR SLICE
+    # EVALUATION RUN SLICE
     ProcessSliceRequest,
     PopulateSliceRequest,
     ProbeSliceRequest,
     PruneSliceRequest,
     RefreshSliceRequest,
-    # EVALUATION GRAPH-SHAPE OPS
+    # EVALUATION SHAPE OPS
     AddScenariosRequest,
     RemoveScenariosRequest,
     AddStepsRequest,
@@ -109,6 +109,7 @@ from oss.src.core.evaluations.types import (
     SimpleQueueScenariosQuery,
     EvaluationQueueScenariosQuery,
     EvaluationScenarioQuery,
+    EvaluationScenarioNotFound,
 )
 
 if is_ee():
@@ -2364,7 +2365,7 @@ class SimpleEvaluationsRouter:
 
         return response
 
-    # TENSOR SLICE OPS ---------------------------------------------------------
+    # RUN SLICE OPS ---------------------------------------------------------
 
     # POST /api/simple/evaluations/{evaluation_id}/populate
     @intercept_exceptions()
@@ -2402,12 +2403,21 @@ class SimpleEvaluationsRouter:
                 ),
             )
 
-        results = await self.simple_evaluations_service.populate_slice(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            results=populate_slice_request.results,
-        )
+        try:
+            results = await self.simple_evaluations_service.populate_slice(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                results=populate_slice_request.results,
+            )
+        except EvaluationScenarioNotFound as e:
+            # A result referenced a scenario that does not exist; the caller must
+            # mint via `add_scenarios` first. 400 (client error), not a swallowed
+            # empty write or an opaque 500.
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            ) from e
 
         return EvaluationResultsResponse(
             count=len(results),
@@ -2422,7 +2432,7 @@ class SimpleEvaluationsRouter:
         request: Request,
         *,
         evaluation_id: UUID,
-        preocess_slice_request: ProcessSliceRequest,
+        process_slice_request: ProcessSliceRequest,
     ) -> None:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -2433,19 +2443,17 @@ class SimpleEvaluationsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # Async dispatch via taskiq — the 202 acknowledges acceptance; the work
-        # finishes on the worker. No body to return. `overwrite` maps to the
-        # internal process mode (force = re-run all; else fill-missing).
-        await self.simple_evaluations_service.dispatch_tensor_slice(
+        # finishes on the worker. No body to return. `overwrite=True` re-runs
+        # every addressed cell; `overwrite=False` runs only the missing cells.
+        await self.simple_evaluations_service.dispatch_run_slice(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
-            scenario_ids=preocess_slice_request.scenario_ids,
-            step_keys=preocess_slice_request.step_keys,
-            repeat_idxs=preocess_slice_request.repeat_idxs,
-            process_mode="force"
-            if preocess_slice_request.overwrite
-            else "fill-missing",
+            scenario_ids=process_slice_request.scenario_ids,
+            step_keys=process_slice_request.step_keys,
+            repeat_idxs=process_slice_request.repeat_idxs,
+            overwrite=process_slice_request.overwrite,
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/probe

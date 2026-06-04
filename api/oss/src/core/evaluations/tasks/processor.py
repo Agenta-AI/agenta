@@ -1,23 +1,27 @@
 import asyncio
-from typing import Dict, List, Optional, Any, Tuple
+from functools import partial
+from typing import Dict, List, Mapping, Optional, Any, Tuple
 from types import SimpleNamespace
 
 from uuid import UUID
 
-from agenta.sdk.evaluations.runtime.models import (
-    EvaluationStep as SdkEvaluationStep,
-    ResolvedSourceItem as SdkResolvedSourceItem,
-)
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.evaluations.runtime.processor import (
     process_sources as sdk_process_evaluation_source_slice,
+    Concurrency,
+    CreateScenario,
+    InitialContextSeed,
+    PlanCellFilter,
+    RefreshMetrics,
+)
+from agenta.sdk.evaluations.runtime.status import (
     run_status as compute_run_status,
+    ProcessedScenario,
 )
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.testcases.service import TestcasesService
-from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluations.service import EvaluationsService
 
@@ -44,14 +48,15 @@ from oss.src.core.evaluations.runtime.adapters import (
     APITraceFetcher,
     APIWorkflowRunner,
 )
-from oss.src.core.evaluations.runtime.models import (
+from oss.src.core.evaluations.runtime.types import (
+    EvaluationStep,
     ProcessSummary,
     PlannedCell,
     ResolvedSourceItem,
     ScenarioBinding,
 )
 from oss.src.core.evaluations.runtime.sources import (
-    resolve_direct_source_items,
+    SourceResolution,
 )
 
 
@@ -62,34 +67,28 @@ def _cell_key(cell: Any) -> Tuple[str, int]:
     return cell.step_key, int(cell.repeat_idx or 0)
 
 
-def _to_sdk_source_item(
-    source_item: ResolvedSourceItem,
+def _with_resolved_inputs(
     *,
-    step_key_fallback: Optional[str] = None,
-) -> SdkResolvedSourceItem:
-    """Shape an api-side ResolvedSourceItem into the SDK engine's input type.
+    source_item: ResolvedSourceItem,
+) -> ResolvedSourceItem:
+    """Return a copy of the source item with its `inputs` defaulted.
 
-    The ingest and re-execute paths build this identically; the only variation
-    is the step key, which re-execute carries on the item and ingest derives
-    from the run's input step. Keeping one helper removes that duplication.
+    The engine reads `inputs` as the input-step payload; when a testcase source
+    carries none, fall back to the testcase's own `.data`. Both the ingest and
+    re-execute paths normalize identically, so one helper covers both.
     """
-    return SdkResolvedSourceItem(
-        kind=source_item.kind,
-        step_key=source_item.step_key or step_key_fallback or "",
-        references=source_item.references or {},
-        trace_id=source_item.trace_id,
-        span_id=source_item.span_id,
-        testcase_id=source_item.testcase_id,
-        testcase=source_item.testcase,
-        trace=source_item.trace,
-        inputs=source_item.inputs or getattr(source_item.testcase, "data", None),
-        outputs=source_item.outputs,
+    return source_item.model_copy(
+        update={
+            "step_key": source_item.step_key or "",
+            "inputs": source_item.inputs or getattr(source_item.testcase, "data", None),
+        }
     )
 
 
 def _cell_is_addressed(
     *,
     cell: PlannedCell,
+    #
     requested_steps: set[str],
     requested_repeats: set[int],
 ) -> bool:
@@ -130,136 +129,10 @@ def _seed_context_from_source(
     return {repeat_idx: context for repeat_idx in range(count)}
 
 
-async def _seed_context_by_repeat(
-    *,
-    project_id: UUID,
-    scenario_cells: List[EvaluationResult],
-    invocation_step_keys: set[str],
-    tracing_service: Optional[TracingService],
-) -> Dict[int, Dict[str, Any]]:
-    trace_ids_by_repeat = {
-        int(cell.repeat_idx or 0): cell.trace_id
-        for cell in scenario_cells
-        if cell.step_key in invocation_step_keys and cell.trace_id
-    }
-    if not trace_ids_by_repeat:
-        return {}
-
-    hydrated = await resolve_direct_source_items(
-        project_id=project_id,
-        trace_ids=list(dict.fromkeys(trace_ids_by_repeat.values())),
-        tracing_service=tracing_service,
-    )
-    trace_items = {item.trace_id: item for item in hydrated if item.trace_id}
-    context_by_repeat: Dict[int, Dict[str, Any]] = {}
-
-    for repeat_idx, trace_id in trace_ids_by_repeat.items():
-        item = trace_items.get(trace_id)
-        context_by_repeat[repeat_idx] = {
-            "trace": item.trace if item is not None else None,
-            "trace_id": trace_id,
-            "span_id": item.span_id if item is not None else None,
-            "outputs": item.outputs if item is not None else None,
-        }
-
-    return context_by_repeat
-
-
-async def _resolve_runners_and_revisions(
-    *,
-    project_id: UUID,
-    user_id: UUID,
-    run: EvaluationRun,
-    invocation_steps: List[Any],
-    annotation_steps: List[Any],
-    tracing_service: Optional[TracingService],
-    workflows_service: Optional[WorkflowsService],
-    applications_service: Optional[ApplicationsService],
-) -> tuple[Dict[str, Any], Dict[str, Any]]:
-    """Wire one cache-aware runner + its revision per executable step.
-
-    The returned `runners` are `APICachedRunner`s, so hashed-trace reuse
-    (cache lookup by step references/links before invoking) is handled here for
-    both ingest and slice re-execution. `auto` annotations are wired; `human`
-    and `custom` annotations are not (the backend never executes them).
-    """
-    run_id = run.id
-    runners: Dict[str, Any] = {}
-    revisions: Dict[str, Any] = {}
-
-    if invocation_steps:
-        if applications_service is None:
-            raise ValueError("applications_service is required for invocation steps")
-        if workflows_service is None:
-            raise ValueError("workflows_service is required for invocation steps")
-        invocation_step = invocation_steps[0]
-        application_revision_ref = invocation_step.references.get(
-            "application_revision"
-        )
-        if not application_revision_ref or not isinstance(
-            application_revision_ref.id, UUID
-        ):
-            raise ValueError(
-                f"Evaluation run with id {run_id} missing invocation.application_revision reference."
-            )
-        application_revision = await applications_service.fetch_application_revision(
-            project_id=project_id,
-            application_revision_ref=application_revision_ref,
-        )
-        if application_revision is None:
-            raise ValueError(
-                f"App revision with id {application_revision_ref.id} not found!"
-            )
-        runners[invocation_step.key] = APICachedRunner(
-            runner=APIWorkflowRunner(
-                project_id=project_id,
-                user_id=user_id,
-                workflows_service=workflows_service,
-            ),
-            tracing_service=tracing_service,
-            project_id=project_id,
-            enabled=bool(run.flags and run.flags.is_cached),
-        )
-        revisions[invocation_step.key] = application_revision
-
-    auto_annotation_steps = [
-        step for step in annotation_steps if step.origin not in {"human", "custom"}
-    ]
-    if auto_annotation_steps and workflows_service is None:
-        raise ValueError("workflows_service is required for auto annotation steps")
-    for annotation_step in auto_annotation_steps:
-        evaluator_revision_ref = (annotation_step.references or {}).get(
-            "evaluator_revision"
-        )
-        evaluator_revision = (
-            await workflows_service.fetch_workflow_revision(  # type: ignore[union-attr]
-                project_id=project_id,
-                workflow_revision_ref=evaluator_revision_ref,
-            )
-            if evaluator_revision_ref
-            else None
-        )
-        if evaluator_revision is None:
-            continue
-        runners[annotation_step.key] = APICachedRunner(
-            runner=APIWorkflowRunner(
-                project_id=project_id,
-                user_id=user_id,
-                workflows_service=workflows_service,
-            ),
-            tracing_service=tracing_service,
-            project_id=project_id,
-            enabled=bool(run.flags and run.flags.is_cached),
-        )
-        revisions[annotation_step.key] = evaluator_revision
-
-    return runners, revisions
-
-
 def _source_item_from_input_cells(
     *,
-    input_steps: List[Any],
     cells_by_step: Dict[str, List[EvaluationResult]],
+    input_steps: List[Any],
 ) -> Optional[ResolvedSourceItem]:
     """Rebuild the scenario's source binding from its stored input result cells.
 
@@ -279,139 +152,111 @@ def _source_item_from_input_cells(
             return ResolvedSourceItem(
                 kind="trace",
                 step_key=step.key,
+                #
                 trace_id=cell.trace_id,
             )
         if cell.testcase_id:
             return ResolvedSourceItem(
                 kind="testcase",
                 step_key=step.key,
+                #
                 testcase_id=cell.testcase_id,
             )
     return None
 
 
-async def _resolve_source_from_input_cells(
-    *,
-    project_id: UUID,
-    input_steps: List[Any],
-    cells_by_step: Dict[str, List[EvaluationResult]],
-    tracing_service: Optional[Any],
-    testcases_service: Optional[Any],
-) -> Optional[SdkResolvedSourceItem]:
-    """The input-cache ladder: recover a scenario's source from its stored cell.
+class _BoundResultSetter:
+    """Per-slice binder presenting the engine's `ResultSetter.set(cell=...)` seam.
 
-    A scenario that already exists carries its source identity in its input
-    result cell (a `trace_id` or `testcase_id`). This reads that id back and
-    re-hydrates the trace/testcase payload — the same data the original run
-    resolved — so cache reuse and evaluator inputs match. Returns None when the
-    scenario has no usable input cell (nothing to reconstruct from); the caller
-    treats that as "must be populated first".
+    The engine writes cells context-free; this binds the stateless
+    `APIResultSetter` to one slice's request context (project_id/user_id +
+    temporal coordinates). It holds no service — only the context and a
+    reference to the shared, stateless setter.
     """
-    source_item = _source_item_from_input_cells(
-        input_steps=input_steps,
-        cells_by_step=cells_by_step,
-    )
-    if source_item is None:
-        return None
 
-    hydrated = await resolve_direct_source_items(
-        project_id=project_id,
-        testcase_ids=[source_item.testcase_id] if source_item.testcase_id else None,
-        trace_ids=[source_item.trace_id] if source_item.trace_id else None,
-        testcases_service=testcases_service,
-        tracing_service=tracing_service,
-    )
-    resolved = hydrated[0] if hydrated else source_item
-    resolved.step_key = source_item.step_key
-    return _to_sdk_source_item(resolved)
+    def __init__(
+        self,
+        setter: APIResultSetter,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        timestamp: Any,
+        interval: Optional[int],
+    ):
+        self._setter = setter
+        self._project_id = project_id
+        self._user_id = user_id
+        self._timestamp = timestamp
+        self._interval = interval
+
+    async def set(
+        self,
+        *,
+        cell,
+        trace_id=None,
+        testcase_id=None,
+        error=None,
+    ) -> Any:
+        return await self._setter.set(
+            cell=cell,
+            trace_id=trace_id,
+            testcase_id=testcase_id,
+            error=error,
+            project_id=self._project_id,
+            user_id=self._user_id,
+            timestamp=self._timestamp,
+            interval=self._interval,
+        )
 
 
-async def _run_sdk_source_slice(
-    *,
-    project_id: UUID,
-    user_id: UUID,
-    run: Any,
-    evaluations_service: Any,
-    sdk_source_items: List[SdkResolvedSourceItem],
-    sdk_steps: List[SdkEvaluationStep],
-    invocation_steps: List[Any],
-    annotation_steps: List[Any],
-    runners: Any,
-    revisions: Any,
-    #
-    # --- the seams (the only things that differ between callers) ---
-    create_scenario: Any,
-    refresh_metrics: Any,
-    log_pending: bool,
-    timestamp: Optional[Any] = None,
-    interval: Optional[int] = None,
-    refresh_metrics_without_auto_results: bool = True,
-    plan_cell_filter: Optional[Any] = None,
-    initial_context_by_repeat: Optional[Any] = None,
-    tracing_service: Optional[Any] = None,
-) -> List[Any]:
-    """The single execution call: drive the SDK engine over a source slice.
+class _BoundRunner:
+    """Per-slice binder presenting the engine's `WorkflowRunner` seam.
 
-    Both the ingest path (NEW scenarios from source ids) and the re-execute path
-    (EXISTING scenarios by coordinate) funnel through here. They differ only in
-    the injected seams: the scenario factory (create vs reuse), the metrics
-    refresher (inline vs deferred), `log_pending`, the cell filter, and the
-    per-repeat context seed. Everything else is intrinsic to `run` + services
-    and identical for both, so it lives here once.
+    The engine drives runners context-free (`execute(request)` /
+    `execute_batch(requests, semaphore)`); this binds the stateless runner to
+    one run's execution identity (project_id/user_id). Holds no service — only
+    the context and a reference to the shared runner.
     """
-    return await sdk_process_evaluation_source_slice(
-        run_id=run.id,
-        source_items=sdk_source_items,
-        steps=sdk_steps,
-        repeats=run.data.repeats,
-        create_scenario=create_scenario,
-        set_results=APIResultSetter(
-            project_id=project_id,
-            user_id=user_id,
-            timestamp=timestamp,
-            interval=interval,
-            evaluations_service=evaluations_service,
-        ),
-        edit_scenario=APIScenarioEditor(
-            project_id=project_id,
-            user_id=user_id,
-            evaluations_service=evaluations_service,
-        ),
-        refresh_metrics=refresh_metrics,
-        runners=runners,
-        revisions=revisions,
-        fetch_trace=(
-            APITraceFetcher(
-                project_id=project_id,
-                tracing_service=tracing_service,
-            )
-            if tracing_service is not None
-            else None
-        ),
-        is_split=effective_is_split(
-            is_split=bool(run.flags and run.flags.is_split),
-            has_application_steps=bool(invocation_steps),
-            has_evaluator_steps=bool(annotation_steps),
-        ),
-        log_pending=log_pending,
-        refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
-        batch_size=run.data.concurrency.batch_size if run.data.concurrency else None,
-        max_retries=run.data.concurrency.max_retries if run.data.concurrency else None,
-        retry_delay=run.data.concurrency.retry_delay if run.data.concurrency else None,
-        initial_context_by_repeat=initial_context_by_repeat,
-        plan_cell_filter=plan_cell_filter,
-    )
+
+    def __init__(
+        self,
+        runner: Any,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+    ):
+        self._runner = runner
+        self._project_id = project_id
+        self._user_id = user_id
+
+    async def execute(self, *, request: Any) -> Any:
+        return await self._runner.execute(
+            request=request,
+            project_id=self._project_id,
+            user_id=self._user_id,
+        )
+
+    async def execute_batch(self, *, requests: Any, semaphore: Any = None) -> Any:
+        return await self._runner.execute_batch(
+            requests=requests,
+            semaphore=semaphore,
+            project_id=self._project_id,
+            user_id=self._user_id,
+        )
 
 
 async def _finalize_run_after_slice(
     *,
     project_id: UUID,
     user_id: UUID,
-    run: Any,
-    processed: List[Any],
-    run_status_override: Optional[Any] = None,
-    evaluations_service: Any,
+    #
+    run: EvaluationRun,
+    #
+    processed: List[ProcessedScenario],
+    run_status_override: Optional[EvaluationStatus] = None,
     finalize_run_status: bool = True,
+    #
+    evaluations_service: EvaluationsService,
 ) -> None:
     """Shared "done" for `process`: finalize the RUN from the touched set.
 
@@ -447,6 +292,7 @@ async def _finalize_run_after_slice(
     # is_active=True).
     current_run = await evaluations_service.fetch_run(
         project_id=project_id,
+        #
         run_id=run.id,
     )
 
@@ -493,14 +339,19 @@ async def _finalize_run_after_slice(
         await evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
+            #
             run=EvaluationRunEdit(
                 id=run.id,
+                #
                 name=run.name,
                 description=run.description,
+                #
+                flags=final_flags,
                 tags=run.tags,
                 meta=run.meta,
+                #
                 status=run_status,
-                flags=final_flags,
+                #
                 data=run.data,
             ),
         )
@@ -519,7 +370,7 @@ class APISliceProcessor:
 
     Unlike `process_evaluation_source_slice` (an INGEST loop that creates a new
     scenario per source item), this re-executes EXISTING scenarios addressed by
-    a `TensorSlice` — the retry / fill-missing / re-run-one-evaluator axis. For
+    a `RunSlice` — the retry / fill-missing / re-run-one-evaluator axis. For
     each scenario in the slice it: rebuilds the source binding from the stored
     input cells, re-hydrates trace/testcase context, plans only the requested
     `step_keys`/`repeat_idxs`, runs the cache-aware runners (so hashed traces are
@@ -531,26 +382,305 @@ class APISliceProcessor:
     def __init__(
         self,
         *,
-        evaluations_service: EvaluationsService,
         tracing_service: Optional[TracingService] = None,
         testcases_service: Optional[TestcasesService] = None,
         workflows_service: Optional[WorkflowsService] = None,
-        applications_service: Optional[ApplicationsService] = None,
+        evaluations_service: EvaluationsService,
     ):
-        self.evaluations_service = evaluations_service
         self.tracing_service = tracing_service
         self.testcases_service = testcases_service
         self.workflows_service = workflows_service
-        self.applications_service = applications_service
+        self.evaluations_service = evaluations_service
+
+        # Stateless collaborators, built ONCE here and reused across every
+        # slice. The per-slice request context (project_id/user_id/timestamp)
+        # is bound at the call boundary via the _Bound* binders / partial.
+        self._sources = SourceResolution(
+            testcases_service=testcases_service,
+            tracing_service=tracing_service,
+        )
+        self._scenario_editor = APIScenarioEditor(
+            evaluations_service=evaluations_service,
+        )
+        self._result_setter = APIResultSetter(
+            evaluations_service=evaluations_service,
+        )
+        self._metrics_refresher = APIMetricsRefresher(
+            evaluations_service=evaluations_service,
+        )
+        self._trace_fetcher = (
+            APITraceFetcher(tracing_service=tracing_service)
+            if tracing_service is not None
+            else None
+        )
+
+    async def _seed_context_by_repeat(
+        self,
+        *,
+        project_id: UUID,
+        #
+        scenario_cells: List[EvaluationResult],
+        invocation_step_keys: set[str],
+    ) -> Dict[int, Dict[str, Any]]:
+        trace_ids_by_repeat = {
+            int(cell.repeat_idx or 0): cell.trace_id
+            for cell in scenario_cells
+            if cell.step_key in invocation_step_keys and cell.trace_id
+        }
+        if not trace_ids_by_repeat:
+            return {}
+
+        hydrated = await self._sources.resolve_direct_source_items(
+            project_id=project_id,
+            #
+            trace_ids=list(dict.fromkeys(trace_ids_by_repeat.values())),
+        )
+        trace_items = {item.trace_id: item for item in hydrated if item.trace_id}
+        context_by_repeat: Dict[int, Dict[str, Any]] = {}
+
+        for repeat_idx, trace_id in trace_ids_by_repeat.items():
+            item = trace_items.get(trace_id)
+            context_by_repeat[repeat_idx] = {
+                "trace": item.trace if item is not None else None,
+                "trace_id": trace_id,
+                "span_id": item.span_id if item is not None else None,
+                "outputs": item.outputs if item is not None else None,
+            }
+
+        return context_by_repeat
+
+    async def _resolve_runners_and_revisions(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        #
+        invocation_steps: List[Any],
+        annotation_steps: List[Any],
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Wire one cache-aware runner + its revision per executable step.
+
+        The returned `runners` are `APICachedRunner`s, so hashed-trace reuse
+        (cache lookup by step references/links before invoking) is handled here for
+        both ingest and slice re-execution. `auto` annotations are wired; `human`
+        and `custom` annotations are not (the backend never executes them).
+        """
+        run_id = run.id
+        runners: Dict[str, Any] = {}
+        revisions: Dict[str, Any] = {}
+
+        if invocation_steps:
+            if self.workflows_service is None:
+                raise ValueError("workflows_service is required for invocation steps")
+            invocation_step = invocation_steps[0]
+            application_revision_ref = invocation_step.references.get(
+                "application_revision"
+            )
+            if not application_revision_ref or not isinstance(
+                application_revision_ref.id, UUID
+            ):
+                raise ValueError(
+                    f"Evaluation run with id {run_id} missing invocation.application_revision reference."
+                )
+            application_revision = await self.workflows_service.fetch_workflow_revision(
+                project_id=project_id,
+                #
+                workflow_revision_ref=application_revision_ref,
+            )
+            if application_revision is None:
+                raise ValueError(
+                    f"App revision with id {application_revision_ref.id} not found!"
+                )
+            runners[invocation_step.key] = _BoundRunner(
+                APICachedRunner(
+                    runner=APIWorkflowRunner(workflows_service=self.workflows_service),
+                    #
+                    enabled=bool(run.flags and run.flags.is_cached),
+                    #
+                    tracing_service=self.tracing_service,
+                ),
+                project_id=project_id,
+                user_id=user_id,
+            )
+            revisions[invocation_step.key] = application_revision
+
+        auto_annotation_steps = [
+            step for step in annotation_steps if step.origin not in {"human", "custom"}
+        ]
+        if auto_annotation_steps and self.workflows_service is None:
+            raise ValueError("workflows_service is required for auto annotation steps")
+        for annotation_step in auto_annotation_steps:
+            evaluator_revision_ref = (annotation_step.references or {}).get(
+                "evaluator_revision"
+            )
+            evaluator_revision = (
+                await self.workflows_service.fetch_workflow_revision(  # type: ignore[union-attr]
+                    project_id=project_id,
+                    #
+                    workflow_revision_ref=evaluator_revision_ref,
+                )
+                if evaluator_revision_ref
+                else None
+            )
+            if evaluator_revision is None:
+                continue
+            runners[annotation_step.key] = _BoundRunner(
+                APICachedRunner(
+                    runner=APIWorkflowRunner(workflows_service=self.workflows_service),
+                    #
+                    enabled=bool(run.flags and run.flags.is_cached),
+                    #
+                    tracing_service=self.tracing_service,
+                ),
+                project_id=project_id,
+                user_id=user_id,
+            )
+            revisions[annotation_step.key] = evaluator_revision
+
+        return runners, revisions
+
+    async def _resolve_source_from_input_cells(
+        self,
+        *,
+        project_id: UUID,
+        #
+        cells_by_step: Dict[str, List[EvaluationResult]],
+        input_steps: List[Any],
+    ) -> Optional[ResolvedSourceItem]:
+        """The input-cache ladder: recover a scenario's source from its stored cell.
+
+        A scenario that already exists carries its source identity in its input
+        result cell (a `trace_id` or `testcase_id`). This reads that id back and
+        re-hydrates the trace/testcase payload — the same data the original run
+        resolved — so cache reuse and evaluator inputs match. Returns None when the
+        scenario has no usable input cell (nothing to reconstruct from); the caller
+        treats that as "must be populated first".
+        """
+        source_item = _source_item_from_input_cells(
+            cells_by_step=cells_by_step,
+            input_steps=input_steps,
+        )
+        if source_item is None:
+            return None
+
+        hydrated = await self._sources.resolve_direct_source_items(
+            project_id=project_id,
+            #
+            trace_ids=[source_item.trace_id] if source_item.trace_id else None,
+            testcase_ids=[source_item.testcase_id] if source_item.testcase_id else None,
+        )
+        resolved = hydrated[0] if hydrated else source_item
+        resolved.step_key = source_item.step_key
+        return _with_resolved_inputs(source_item=resolved)
+
+    async def _run_sdk_source_slice(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        #
+        steps: List[EvaluationStep],
+        #
+        source_items: List[ResolvedSourceItem],
+        #
+        revisions: Mapping[str, Any],
+        #
+        runners: Mapping[str, Any],
+        #
+        timestamp: Optional[Any] = None,
+        interval: Optional[int] = None,
+        #
+        create_scenario: CreateScenario,
+        refresh_metrics: RefreshMetrics,
+        #
+        should_set_pending: bool,
+        should_refresh_metrics: bool = True,
+        #
+        plan_cell_filter: Optional[PlanCellFilter] = None,
+        initial_context_seed: Optional[InitialContextSeed] = None,
+    ) -> List[ProcessedScenario]:
+        """The single execution call: drive the SDK engine over a source slice.
+
+        Both the ingest path (NEW scenarios from source ids) and the re-execute path
+        (EXISTING scenarios by coordinate) funnel through here. They differ only in
+        the injected seams: the scenario factory (create vs reuse), the metrics
+        refresher (inline vs deferred), `should_set_pending`, the cell filter, and the
+        per-repeat context seed. Everything else is intrinsic to `run` + services
+        and identical for both, so it lives here once.
+
+        The data-seam adapters are built once on the processor (`self._*`); only the
+        per-slice request context is bound here via the cheap `_Bound*` / partial
+        wrappers so the engine can drive them through its context-free seams.
+        """
+        return await sdk_process_evaluation_source_slice(
+            run_id=run.id,
+            #
+            steps=steps,
+            repeats=run.data.repeats if run.data and run.data.repeats else 1,
+            #
+            source_items=source_items,
+            #
+            revisions=revisions,
+            #
+            runners=runners,
+            #
+            create_scenario=create_scenario,
+            edit_scenario=partial(
+                self._scenario_editor,
+                project_id=project_id,
+                user_id=user_id,
+            ),
+            set_results=_BoundResultSetter(
+                self._result_setter,
+                project_id=project_id,
+                user_id=user_id,
+                timestamp=timestamp,
+                interval=interval,
+            ),
+            refresh_metrics=refresh_metrics,
+            fetch_trace=(
+                partial(self._trace_fetcher, project_id=project_id)
+                if self._trace_fetcher is not None
+                else None
+            ),
+            #
+            is_split=effective_is_split(
+                is_split=bool(run.flags and run.flags.is_split),
+                #
+                has_application_steps=any(step.type == "invocation" for step in steps),
+                has_evaluator_steps=any(step.type == "annotation" for step in steps),
+            ),
+            should_set_pending=should_set_pending,
+            should_refresh_metrics=should_refresh_metrics,
+            #
+            concurrency=(
+                Concurrency(
+                    batch_size=run.data.concurrency.batch_size,
+                    max_retries=run.data.concurrency.max_retries,
+                    retry_delay=run.data.concurrency.retry_delay,
+                )
+                if run.data and run.data.concurrency
+                else None
+            ),
+            #
+            plan_cell_filter=plan_cell_filter,
+            initial_context_seed=initial_context_seed,
+        )
 
     async def process(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
-        tensor_slice,
+        #
+        run_slice,
         seed_bindings: Optional[Dict[UUID, ScenarioBinding]] = None,
-        refresh_metrics_without_auto_results: bool = True,
+        #
+        should_refresh_metrics: bool = True,
         finalize_run_status: bool = True,
     ) -> ProcessSummary:
         """Re-execute scenarios in the slice.
@@ -561,11 +691,11 @@ class APISliceProcessor:
         cells, no per-id trace/testcase re-fetch. Bindings also carry the
         per-scenario `timestamp`/`interval` (live-query temporal coordinates).
 
-        When `seed_bindings` is None (the tensor-retry flow), the source is
+        When `seed_bindings` is None (the run-slice retry flow), the source is
         recovered from the scenario's stored input cells as before.
         """
         seed_bindings = seed_bindings or {}
-        run_id = tensor_slice.run_id
+        run_id = run_slice.run_id
         run = await self.evaluations_service.fetch_run(
             project_id=project_id,
             run_id=run_id,
@@ -581,18 +711,20 @@ class APISliceProcessor:
         # Probe the existing cells in the slice scope, grouped by scenario.
         existing = await self.evaluations_service.query_results(
             project_id=project_id,
+            #
             result=EvaluationResultQuery(
                 run_id=run_id,
-                scenario_ids=tensor_slice.scenario_ids,
-                step_keys=tensor_slice.step_keys,
-                repeat_idxs=tensor_slice.repeat_idxs,
+                #
+                scenario_ids=run_slice.scenario_ids,
+                step_keys=run_slice.step_keys,
+                repeat_idxs=run_slice.repeat_idxs,
             ),
         )
         # Inputs are always needed to rebuild the source binding even when the
         # slice's step_keys exclude them, so probe inputs separately per scenario.
         scenario_ids = (
-            sorted(set(tensor_slice.scenario_ids or []), key=str)
-            if tensor_slice.scenario_ids is not None
+            sorted(set(run_slice.scenario_ids or []), key=str)
+            if run_slice.scenario_ids is not None
             else sorted(
                 {cell.scenario_id for cell in existing if cell.scenario_id},
                 key=str,
@@ -601,27 +733,28 @@ class APISliceProcessor:
         if not scenario_ids:
             return ProcessSummary()
 
-        runners, revisions = await _resolve_runners_and_revisions(
+        runners, revisions = await self._resolve_runners_and_revisions(
             project_id=project_id,
             user_id=user_id,
+            #
             run=run,
+            #
             invocation_steps=invocation_steps,
             annotation_steps=annotation_steps,
-            tracing_service=self.tracing_service,
-            workflows_service=self.workflows_service,
-            applications_service=self.applications_service,
         )
 
-        requested_steps = set(tensor_slice.step_keys or [])
-        requested_repeats = set(tensor_slice.repeat_idxs or [])
-        force_rerun = tensor_slice.process_mode == "force"
+        requested_steps = set(run_slice.step_keys or [])
+        requested_repeats = set(run_slice.repeat_idxs or [])
+        force_rerun = run_slice.overwrite
 
-        sdk_steps_all = [
-            SdkEvaluationStep(
+        steps_all = [
+            EvaluationStep(
                 key=step.key,
                 type=step.type,
                 origin=step.origin,
+                #
                 references=step.references or {},
+                #
                 inputs=[step_input.key for step_input in (step.inputs or [])],
             )
             for step in steps
@@ -631,6 +764,7 @@ class APISliceProcessor:
 
         effective_is_split_value = effective_is_split(
             is_split=bool(run.flags and run.flags.is_split),
+            #
             has_application_steps=bool(invocation_steps),
             has_evaluator_steps=bool(annotation_steps),
         )
@@ -641,7 +775,7 @@ class APISliceProcessor:
         # the engine's gather+semaphore give cross-scenario concurrency (matching
         # the SDK and the design's process_slice(all scenarios)).
         scenarios_in_order: List[Any] = []
-        batch_source_items: List[SdkResolvedSourceItem] = []
+        batch_source_items: List[ResolvedSourceItem] = []
         target_keys_by_scenario: Dict[UUID, set] = {}
         context_by_scenario: Dict[UUID, Dict[int, Any]] = {}
         # timestamp/interval are constant across a single process call (seeded:
@@ -657,7 +791,7 @@ class APISliceProcessor:
                 # so skip the input-cell read and per-id re-fetch. Fresh scenarios
                 # have no prior cells, hence no reuse to account for.
                 existing_cell_keys: set = set()
-                sdk_source_item = _to_sdk_source_item(binding.source)
+                source_item = _with_resolved_inputs(source_item=binding.source)
                 scenario_context = _seed_context_from_source(
                     source_item=binding.source,
                     repeats=run.data.repeats,
@@ -667,8 +801,10 @@ class APISliceProcessor:
             else:
                 input_cells = await self.evaluations_service.query_results(
                     project_id=project_id,
+                    #
                     result=EvaluationResultQuery(
                         run_id=run_id,
+                        #
                         scenario_id=scenario_id,
                     ),
                 )
@@ -677,31 +813,33 @@ class APISliceProcessor:
                     cells_by_step.setdefault(cell.step_key, []).append(cell)
                 existing_cell_keys = {_cell_key(cell) for cell in input_cells}
 
-                sdk_source_item = await _resolve_source_from_input_cells(
+                source_item = await self._resolve_source_from_input_cells(
                     project_id=project_id,
+                    #
                     input_steps=input_steps,
                     cells_by_step=cells_by_step,
-                    tracing_service=self.tracing_service,
-                    testcases_service=self.testcases_service,
                 )
-                if sdk_source_item is None:
+                if source_item is None:
                     # No populated input for this scenario (no trace_id/testcase_id
                     # to reconstruct from): there is nothing to run, so the line is
                     # skipped — not a failure (which means execution errored).
                     summary.skipped += 1
                     continue
-                scenario_context = await _seed_context_by_repeat(
+                scenario_context = await self._seed_context_by_repeat(
                     project_id=project_id,
+                    #
                     scenario_cells=input_cells,
                     invocation_step_keys={step.key for step in invocation_steps},
-                    tracing_service=self.tracing_service,
                 )
             preview_plan = EvaluationPlanner().plan(
                 run_id=run_id,
-                scenario_id=scenario_id,
-                source=sdk_source_item,
-                steps=sdk_steps_all,
+                #
+                steps=steps_all,
                 repeats=run.data.repeats,
+                #
+                scenario_id=scenario_id,
+                source=source_item,
+                #
                 is_split=effective_is_split_value,
             )
             addressed_cells = [
@@ -709,6 +847,7 @@ class APISliceProcessor:
                 for cell in preview_plan.cells
                 if _cell_is_addressed(
                     cell=cell,
+                    #
                     requested_steps=requested_steps,
                     requested_repeats=requested_repeats,
                 )
@@ -728,7 +867,7 @@ class APISliceProcessor:
                 continue
 
             scenarios_in_order.append(SimpleNamespace(id=scenario_id))
-            batch_source_items.append(sdk_source_item)
+            batch_source_items.append(source_item)
             target_keys_by_scenario[scenario_id] = target_keys
             context_by_scenario[scenario_id] = scenario_context
             summary.created += len(target_keys)
@@ -736,7 +875,7 @@ class APISliceProcessor:
         # --- Single batched execution over all recovered scenarios. The engine
         # creates scenarios via the ordered cursor, filters cells per-scenario,
         # and resolves each scenario's recovered context lazily via the callable.
-        all_processed: List[Any] = []
+        all_processed: List[ProcessedScenario] = []
         if batch_source_items:
 
             async def _scenario_context(
@@ -751,36 +890,42 @@ class APISliceProcessor:
             ) -> bool:
                 return _cell_key(cell) in _keys.get(cell.scenario_id, set())
 
-            all_processed = await _run_sdk_source_slice(
+            all_processed = await self._run_sdk_source_slice(
                 project_id=project_id,
                 user_id=user_id,
+                #
                 run=run,
-                evaluations_service=self.evaluations_service,
-                sdk_source_items=batch_source_items,
-                sdk_steps=sdk_steps_all,
-                invocation_steps=invocation_steps,
-                annotation_steps=annotation_steps,
-                runners=runners,
+                #
+                steps=steps_all,
+                #
+                source_items=batch_source_items,
+                #
                 revisions=revisions,
-                # reuse existing scenarios in order; do NOT mint new ones.
-                create_scenario=_OrderedScenarios(scenarios_in_order),
-                # process is a tensor-write op: it refreshes the touched scope's
-                # metrics incrementally per-scenario (and rolls up), the same as
-                # ingest — re-execute no longer opts out with a no-op.
-                refresh_metrics=APIMetricsRefresher(
-                    project_id=project_id,
-                    user_id=user_id,
-                    evaluations_service=self.evaluations_service,
-                ),
-                log_pending=True,
-                refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
+                #
+                runners=runners,
+                #
                 # Seeded scenarios carry the run's temporal coordinates (live
                 # query); recovered scenarios already have them on their cells.
                 # Constant across the slice, so passed once.
                 timestamp=slice_timestamp,
                 interval=slice_interval,
-                tracing_service=self.tracing_service,
-                initial_context_by_repeat=_scenario_context,
+                # reuse existing scenarios in order; do NOT mint new ones.
+                create_scenario=_OrderedScenarios(scenarios_in_order),
+                # process is a run-write op: it refreshes the touched scope's
+                # metrics incrementally per-scenario (and rolls up), the same as
+                # ingest — re-execute no longer opts out with a no-op. The
+                # refresher is stateless; the request ctx binds via partial so
+                # the engine can call it context-free as refresh_metrics(run_id,
+                # scenario_id).
+                refresh_metrics=partial(
+                    self._metrics_refresher,
+                    project_id=project_id,
+                    user_id=user_id,
+                ),
+                should_set_pending=True,
+                should_refresh_metrics=should_refresh_metrics,
+                #
+                initial_context_seed=_scenario_context,
                 plan_cell_filter=_plan_cell_filter,
             )
 
@@ -796,20 +941,27 @@ class APISliceProcessor:
             await _finalize_run_after_slice(
                 project_id=project_id,
                 user_id=user_id,
+                #
                 run=run,
+                #
                 processed=all_processed,
-                evaluations_service=self.evaluations_service,
+                #
                 finalize_run_status=finalize_run_status,
+                #
+                evaluations_service=self.evaluations_service,
             )
 
         log.info(
             "[SLICE] re-execute complete",
             run_id=str(run_id),
+            #
             scenarios=len(scenario_ids),
+            #
             created=summary.created,
             pending=summary.pending,
             failed=summary.failed,
             skipped=summary.skipped,
+            #
             requested_steps=sorted(requested_steps) or None,
             requested_repeats=sorted(requested_repeats) or None,
         )
@@ -838,7 +990,7 @@ class _OrderedScenarios:
         self._idx = 0
         self._lock = asyncio.Lock()
 
-    async def __call__(self, run_id: UUID):
+    async def __call__(self, *, run_id: UUID):
         async with self._lock:
             scenario = self._scenarios[self._idx]
             self._idx += 1

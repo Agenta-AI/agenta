@@ -51,7 +51,9 @@ def _testset_revision(*, slug="t1", testcases):
         slug=slug,
         version="1",
         testset_id=uuid4(),
+        testset_slug="ts-" + slug,
         testset_variant_id=uuid4(),
+        testset_variant_slug="tsv-" + slug,
         data=SimpleNamespace(testcases=testcases),
     )
 
@@ -62,7 +64,9 @@ def _application_revision(*, slug="app1"):
         slug=slug,
         version="1",
         application_id=uuid4(),
+        application_slug="app-" + slug,
         application_variant_id=uuid4(),
+        application_variant_slug="appv-" + slug,
         data=SimpleNamespace(),
     )
 
@@ -73,7 +77,9 @@ def _evaluator_revision(*, slug="ev1"):
         slug=slug,
         version="1",
         evaluator_id=uuid4(),
+        evaluator_slug="ev-" + slug,
         evaluator_variant_id=uuid4(),
+        evaluator_variant_slug="evv-" + slug,
         data=SimpleNamespace(),
     )
 
@@ -107,8 +113,9 @@ def _patch_io(*, testset_revision, application_revision, evaluator_revision, cap
     async def fake_add_scenarios(*, run_id, count, timestamp=None):
         return [SimpleNamespace(id=uuid4()) for _ in range(count)]
 
-    # aevaluate queries the GLOBAL aggregate metric at end-of-run; the SDK
-    # client (aquery_global) asks the API for that single row and returns it.
+    # aevaluate queries metrics at end-of-run via two explicit selectors:
+    # aquery_global (the single whole-run row) and aquery_variational (one row
+    # per scenario). The result's `metrics` is {global, variational}.
     global_metric = SimpleNamespace(
         scenario_id=None, timestamp=None, data={"score": 1.0}
     )
@@ -121,7 +128,8 @@ def _patch_io(*, testset_revision, application_revision, evaluator_revision, cap
         patch(f"{MOD}.apopulate_slice", AsyncMock(return_value=[])),
         patch(f"{MOD}.arefresh", AsyncMock(return_value=None)),
         patch(f"{MOD}.aedit_scenario", AsyncMock(return_value=None)),
-        patch(f"{MOD}.aquery_metrics", AsyncMock(return_value=global_metric)),
+        patch(f"{MOD}.aquery_global", AsyncMock(return_value=global_metric)),
+        patch(f"{MOD}.aquery_variational", AsyncMock(return_value=[])),
         patch(f"{MOD}.aretrieve_testset", AsyncMock(return_value=testset_revision)),
         patch(
             f"{MOD}.aretrieve_application",
@@ -227,6 +235,7 @@ class TestAevaluateOrchestration:
         assert set(result.keys()) == {"run", "scenarios", "metrics"}
         # one processed scenario per source item (2 default testcases)
         assert len(result["scenarios"]) == 2
-        # metrics is the GLOBAL aggregate row queried at end-of-run (not the
-        # per-scenario one); its data carries the run's headline score.
-        assert result["metrics"].data == {"score": 1.0}
+        # metrics is {global, variational}; the global row carries the headline
+        # score, variational is the per-scenario list.
+        assert result["metrics"]["global"].data == {"score": 1.0}
+        assert result["metrics"]["variational"] == []

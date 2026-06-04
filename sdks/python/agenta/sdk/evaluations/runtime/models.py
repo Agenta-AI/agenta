@@ -5,16 +5,34 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agenta.sdk.models.evaluations import EvaluationStatus, Origin
 
-StepType = Literal["input", "invocation", "annotation"]
-SourceKind = Literal["query", "testset", "trace", "testcase", "direct"]
-TopologyStatus = Literal["supported", "potential", "not_planned", "unsupported"]
-DispatchKind = Literal[
-    "batch_query",
-    "batch_testset",
-    "batch_invocation",
-    "queue_traces",
-    "queue_testcases",
-    "live_query",
+StepType = Literal[
+    "input",
+    "invocation",
+    "annotation",
+]
+SourceKind = Literal[
+    "query",
+    "testset",
+    "trace",
+    "testcase",
+    "direct",
+]
+TopologyStatus = Literal[
+    "supported",
+    "potential",
+    "not_planned",
+    "unsupported",
+]
+DispatchSource = Literal[
+    "query",
+    "testset",
+    "trace",
+    "testcase",
+]
+DispatchMode = Literal[
+    "live",
+    "batch",
+    "queue",
 ]
 
 
@@ -23,8 +41,10 @@ class EvaluationStep(BaseModel):
 
     key: str
     type: StepType
-    origin: Origin = "custom"
+    origin: Origin
+
     references: Dict[str, Any] = Field(default_factory=dict)
+
     inputs: List[str] = Field(default_factory=list)
 
 
@@ -33,12 +53,16 @@ class ResolvedSourceItem(BaseModel):
 
     kind: SourceKind
     step_key: str
+
     references: Dict[str, Any] = Field(default_factory=dict)
+
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
+    trace: Optional[Any] = None
+
     testcase_id: Optional[UUID] = None
     testcase: Optional[Any] = None
-    trace: Optional[Any] = None
+
     inputs: Optional[Any] = None
     outputs: Optional[Any] = None
 
@@ -47,7 +71,9 @@ class ScenarioBinding(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     scenario_id: UUID
+
     source: ResolvedSourceItem
+
     interval: Optional[int] = None
     timestamp: Optional[Any] = None
 
@@ -56,13 +82,18 @@ class PlannedCell(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     run_id: UUID
+
     scenario_id: UUID
     step_key: str
-    step_type: StepType
-    origin: Origin
     repeat_idx: int
+
+    step_type: StepType
+    step_origin: Origin
+
     status: EvaluationStatus
+
     should_execute: bool = False
+
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
     testcase_id: Optional[UUID] = None
@@ -73,6 +104,7 @@ class ExecutionPlan(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     run_id: UUID
+
     cells: List[PlannedCell]
 
     @property
@@ -80,11 +112,16 @@ class ExecutionPlan(BaseModel):
         return [cell for cell in self.cells if cell.should_execute]
 
 
+class Dispatch(BaseModel):
+    source: DispatchSource
+    mode: DispatchMode
+
+
 class TopologyDecision(BaseModel):
     status: TopologyStatus
     label: str
     reason: str
-    dispatch: Optional[DispatchKind] = None
+    dispatch: Optional[Dispatch] = None
 
 
 class WorkflowExecutionRequest(BaseModel):
@@ -95,10 +132,12 @@ class WorkflowExecutionRequest(BaseModel):
     step: EvaluationStep
     cell: PlannedCell
     source: ResolvedSourceItem
+
     revision: Any
     parameters: Optional[Any] = None
     references: Dict[str, Any] = Field(default_factory=dict)
     links: Optional[Dict[str, Any]] = None
+
     upstream_trace: Optional[Any] = None
     upstream_outputs: Optional[Any] = None
 
@@ -109,21 +148,11 @@ class WorkflowExecutionResult(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     status: EvaluationStatus
+
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
     hash_id: Optional[str] = None
+
     outputs: Optional[Any] = None
+    error: Optional[Dict[str, Any]] = None
     trace: Optional[Any] = None
-    error: Optional[Dict[str, Any]] = None
-
-
-class ResultLogRequest(BaseModel):
-    """Runner-agnostic request for persisting a planned result cell."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    cell: PlannedCell
-    trace_id: Optional[str] = None
-    span_id: Optional[str] = None
-    testcase_id: Optional[UUID] = None
-    error: Optional[Dict[str, Any]] = None

@@ -30,15 +30,11 @@ Target = Union[List[UUID], Dict[UUID, Origin]]
 
 CURRENT_VERSION = "2025-07-14"
 
-
-class EvaluationStatus(str, Enum):
-    PENDING = "pending"
-    QUEUED = "queued"
-    RUNNING = "running"
-    SUCCESS = "success"
-    FAILURE = "failure"
-    ERRORS = "errors"
-    CANCELLED = "cancelled"
+# Re-exported from the SDK so the engine and the API share ONE status enum
+# (identical members/values); the API's runtime types embed it, and the SDK
+# engine is the package that ships it. Importers keep using
+# `core.evaluations.types.EvaluationStatus` unchanged.
+from agenta.sdk.models.evaluations import EvaluationStatus  # noqa: E402
 
 
 class EvaluationClosedConflict(Exception):
@@ -71,6 +67,35 @@ class EvaluationClosedConflict(Exception):
             _message += f" result_id={self.result_id}"
         if self.metrics_id:
             _message += f" metrics_id={self.metrics_id}"
+
+        return _message
+
+
+class EvaluationScenarioNotFound(Exception):
+    """A result cell references a scenario that does not exist.
+
+    `evaluation_results` FKs to `evaluation_scenarios` on
+    (project_id, scenario_id); writing a result for an unminted scenario is a
+    client error (mint via `add_scenarios` first), so it surfaces as a 400 at
+    the router rather than a swallowed empty write or an opaque 500.
+    """
+
+    def __init__(
+        self,
+        message: str = "Cannot populate a result for a scenario that does not exist.",
+        scenario_ids: Optional[List[UUID]] = None,
+    ):
+        super().__init__(message)
+
+        self.message = message
+        self.scenario_ids = scenario_ids or []
+
+    def __str__(self):
+        _message = self.message
+
+        if self.scenario_ids:
+            ids = ", ".join(str(s) for s in self.scenario_ids)
+            _message += f" scenario_ids=[{ids}]"
 
         return _message
 

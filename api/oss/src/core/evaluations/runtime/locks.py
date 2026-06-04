@@ -291,7 +291,7 @@ async def acquire_job_lock(
     )
 
 
-async def acquire_mutation_lock(
+async def acquire_run_lock(
     *,
     run_id: str,
     job_id: str,
@@ -321,7 +321,7 @@ async def renew_job_lock(
     )
 
 
-async def renew_mutation_lock(
+async def renew_run_lock(
     *,
     run_id: str,
     job_token: str,
@@ -347,7 +347,7 @@ async def release_job_lock(
     )
 
 
-async def release_mutation_lock(
+async def release_run_lock(
     *,
     run_id: str,
     job_token: str,
@@ -393,7 +393,7 @@ async def list_active_job_locks(
     return payloads
 
 
-async def get_mutation_lock(
+async def get_run_lock(
     *,
     run_id: str,
 ) -> Optional[LockPayload]:
@@ -409,7 +409,7 @@ async def is_run_executing(
     return False
 
 
-async def has_mutation_lock(
+async def has_run_lock(
     *,
     run_id: str,
 ) -> bool:

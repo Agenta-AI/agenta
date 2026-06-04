@@ -1,11 +1,11 @@
-"""Unit tests for the tensor slice operations surface (PR: unify eval loops).
+"""Unit tests for the run slice operations surface (PR: unify eval loops).
 
 Covers the coordinate-addressed ops over EXISTING scenarios — distinct from the
 source-keyed dispatch_*_slice path (which ingests NEW source items):
 
   - TaskiqEvaluationTaskRunner.process_rerun (dispatch, omits empty kwargs)
-  - SimpleEvaluationsService.dispatch_tensor_slice / probe_slice / populate_slice
-  - EvaluationsService self-builds TensorSliceOperations from its sub-services
+  - SimpleEvaluationsService.dispatch_run_slice / probe_slice / populate_slice
+  - EvaluationsService self-builds SliceOperations from its sub-services
   - rerun entry fn runs process() then refresh()
 """
 
@@ -21,14 +21,13 @@ from oss.src.core.evaluations.service import (
     SimpleEvaluationsService,
 )
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
-from oss.src.core.evaluations.runtime.tensor import TensorSliceOperations
-from oss.src.core.evaluations.runtime.models import TensorSlice
+from oss.src.core.evaluations.runtime.operations import SliceOperations
+from oss.src.core.evaluations.runtime.types import RunSlice
 from oss.src.core.evaluations.tasks import run as run_module
 from oss.src.core.evaluations.tasks.run import (
-    run_from_source,
-    rerun,
+    RunProcessor,
 )
-from oss.src.core.evaluations.runtime.models import TopologyDecision
+from oss.src.core.evaluations.runtime.types import Dispatch, TopologyDecision
 from oss.src.core.evaluations.types import (
     EvaluationResult,
     EvaluationResultCreate,
@@ -49,7 +48,7 @@ async def test_runner_process_rerun_dispatches_and_omits_empty_kwargs():
     run_id = uuid4()
     scenario_id = uuid4()
     worker = SimpleNamespace(
-        process_rerun=SimpleNamespace(kiq=AsyncMock(return_value="tensor-task")),
+        process_rerun=SimpleNamespace(kiq=AsyncMock(return_value="run-task")),
     )
     runner = TaskiqEvaluationTaskRunner(worker=worker)
 
@@ -59,10 +58,10 @@ async def test_runner_process_rerun_dispatches_and_omits_empty_kwargs():
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
-        # repeat_idxs / process_mode left None -> must be omitted from the call
+        # repeat_idxs left None / overwrite left default -> omitted from the call
     )
 
-    assert result == "tensor-task"
+    assert result == "run-task"
     worker.process_rerun.kiq.assert_awaited_once_with(
         project_id=project_id,
         user_id=user_id,
@@ -87,7 +86,7 @@ async def test_runner_process_rerun_forwards_all_kwargs_when_present():
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
         repeat_idxs=[0, 1],
-        process_mode="force",
+        overwrite=True,
     )
 
     worker.process_rerun.kiq.assert_awaited_once_with(
@@ -97,11 +96,11 @@ async def test_runner_process_rerun_forwards_all_kwargs_when_present():
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
         repeat_idxs=[0, 1],
-        process_mode="force",
+        overwrite=True,
     )
 
 
-# --- SimpleEvaluationsService.dispatch_tensor_slice ---------------------------
+# --- SimpleEvaluationsService.dispatch_run_slice ---------------------------
 
 
 def _simple_service(*, worker=None, evaluations_service=None):
@@ -116,7 +115,7 @@ def _simple_service(*, worker=None, evaluations_service=None):
 
 
 @pytest.mark.asyncio
-async def test_dispatch_tensor_slice_dispatches_to_runner():
+async def test_dispatch_run_slice_dispatches_to_runner():
     project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
     run = SimpleNamespace(id=run_id, flags=SimpleNamespace())
     worker = SimpleNamespace(
@@ -125,13 +124,13 @@ async def test_dispatch_tensor_slice_dispatches_to_runner():
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
     service = _simple_service(worker=worker, evaluations_service=evaluations_service)
 
-    ok = await service.dispatch_tensor_slice(
+    ok = await service.dispatch_run_slice(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
-        process_mode="force",
+        overwrite=True,
     )
 
     assert ok is True
@@ -141,16 +140,16 @@ async def test_dispatch_tensor_slice_dispatches_to_runner():
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
-        process_mode="force",
+        overwrite=True,
     )
 
 
 @pytest.mark.asyncio
-async def test_dispatch_tensor_slice_returns_false_without_runner():
+async def test_dispatch_run_slice_returns_false_without_runner():
     run_id = uuid4()
     service = _simple_service(worker=None, evaluations_service=SimpleNamespace())
 
-    ok = await service.dispatch_tensor_slice(
+    ok = await service.dispatch_run_slice(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=run_id,
@@ -160,14 +159,14 @@ async def test_dispatch_tensor_slice_returns_false_without_runner():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_tensor_slice_returns_false_when_run_missing():
+async def test_dispatch_run_slice_returns_false_when_run_missing():
     worker = SimpleNamespace(
         process_rerun=SimpleNamespace(kiq=AsyncMock()),
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=None))
     service = _simple_service(worker=worker, evaluations_service=evaluations_service)
 
-    ok = await service.dispatch_tensor_slice(
+    ok = await service.dispatch_run_slice(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=uuid4(),
@@ -181,11 +180,11 @@ async def test_dispatch_tensor_slice_returns_false_when_run_missing():
 
 
 @pytest.mark.asyncio
-async def test_probe_slice_delegates_to_tensor_ops_with_built_slice():
+async def test_probe_slice_delegates_to_run_operations_with_built_slice():
     project_id, run_id, scenario_id = uuid4(), uuid4(), uuid4()
     result = MagicMock(spec=EvaluationResult)
-    tensor_ops = SimpleNamespace(probe=AsyncMock(return_value=[result]))
-    evaluations_service = SimpleNamespace(tensor_slice_operations=tensor_ops)
+    run_operations = SimpleNamespace(probe=AsyncMock(return_value=[result]))
+    evaluations_service = SimpleNamespace(run_slice_operations=run_operations)
     service = _simple_service(evaluations_service=evaluations_service)
 
     results = await service.probe_slice(
@@ -197,10 +196,10 @@ async def test_probe_slice_delegates_to_tensor_ops_with_built_slice():
     )
 
     assert results == [result]
-    tensor_ops.probe.assert_awaited_once()
-    _, kwargs = tensor_ops.probe.await_args
+    run_operations.probe.assert_awaited_once()
+    _, kwargs = run_operations.probe.await_args
     assert kwargs["project_id"] == project_id
-    built: TensorSlice = kwargs["tensor_slice"]
+    built: RunSlice = kwargs["run_slice"]
     assert built.run_id == run_id
     assert built.scenario_ids == [scenario_id]
     assert built.step_keys == ["evaluator-auto"]
@@ -208,8 +207,8 @@ async def test_probe_slice_delegates_to_tensor_ops_with_built_slice():
 
 
 @pytest.mark.asyncio
-async def test_probe_slice_returns_empty_when_tensor_ops_unwired():
-    evaluations_service = SimpleNamespace(tensor_slice_operations=None)
+async def test_probe_slice_returns_empty_when_run_operations_unwired():
+    evaluations_service = SimpleNamespace(run_slice_operations=None)
     service = _simple_service(evaluations_service=evaluations_service)
 
     results = await service.probe_slice(project_id=uuid4(), run_id=uuid4())
@@ -218,11 +217,11 @@ async def test_probe_slice_returns_empty_when_tensor_ops_unwired():
 
 
 @pytest.mark.asyncio
-async def test_populate_slice_delegates_results_to_tensor_ops():
+async def test_populate_slice_delegates_results_to_run_operations():
     project_id, user_id = uuid4(), uuid4()
     result = MagicMock(spec=EvaluationResult)
-    tensor_ops = SimpleNamespace(populate=AsyncMock(return_value=[result]))
-    evaluations_service = SimpleNamespace(tensor_slice_operations=tensor_ops)
+    run_operations = SimpleNamespace(populate=AsyncMock(return_value=[result]))
+    evaluations_service = SimpleNamespace(run_slice_operations=run_operations)
     service = _simple_service(evaluations_service=evaluations_service)
 
     create = EvaluationResultCreate(
@@ -238,7 +237,7 @@ async def test_populate_slice_delegates_results_to_tensor_ops():
     )
 
     assert results == [result]
-    tensor_ops.populate.assert_awaited_once_with(
+    run_operations.populate.assert_awaited_once_with(
         project_id=project_id,
         user_id=user_id,
         results=[create],
@@ -246,8 +245,8 @@ async def test_populate_slice_delegates_results_to_tensor_ops():
 
 
 @pytest.mark.asyncio
-async def test_populate_slice_returns_empty_when_tensor_ops_unwired():
-    evaluations_service = SimpleNamespace(tensor_slice_operations=None)
+async def test_populate_slice_returns_empty_when_run_operations_unwired():
+    evaluations_service = SimpleNamespace(run_slice_operations=None)
     service = _simple_service(evaluations_service=evaluations_service)
 
     results = await service.populate_slice(
@@ -259,7 +258,7 @@ async def test_populate_slice_returns_empty_when_tensor_ops_unwired():
     assert results == []
 
 
-# --- EvaluationsService self-builds TensorSliceOperations ---------------------
+# --- EvaluationsService self-builds SliceOperations ---------------------
 
 
 def _evaluations_service(*, with_sub_services: bool) -> EvaluationsService:
@@ -280,20 +279,20 @@ def _evaluations_service(*, with_sub_services: bool) -> EvaluationsService:
     )
 
 
-def test_service_builds_tensor_ops_when_sub_services_present():
+def test_service_builds_run_operations_when_sub_services_present():
     service = _evaluations_service(with_sub_services=True)
 
-    ops = service.tensor_slice_operations
-    assert isinstance(ops, TensorSliceOperations)
+    ops = service.run_slice_operations
+    assert isinstance(ops, SliceOperations)
     assert ops.slice_processor is not None
     # the ops reference the owning service (probe/populate go through it)
     assert ops.evaluations_service is service
 
 
-def test_service_leaves_tensor_ops_none_without_sub_services():
+def test_service_leaves_run_operations_none_without_sub_services():
     service = _evaluations_service(with_sub_services=False)
 
-    assert service.tensor_slice_operations is None
+    assert service.run_slice_operations is None
 
 
 # --- rerun entry fn --------------------------------
@@ -304,8 +303,8 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
     """rerun orchestrates process(slice) then refresh(slice) over the same scope.
 
     The refresh DETAIL (variational + global/temporal aggregate) lives in
-    TensorSliceOperations.refresh and is covered by
-    test_tensor_operations_refresh_* — here we only assert rerun delegates both
+    SliceOperations.refresh and is covered by
+    test_run_operations_refresh_* — here we only assert rerun delegates both
     steps, in order, against the same coordinate slice.
     """
     project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
@@ -313,35 +312,38 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
     calls = []
     captured = {}
 
-    class _FakeTensorOps:
+    class _FakeRunOperations:
         def __init__(self, *, evaluations_service, slice_processor):
             captured["slice_processor"] = slice_processor
 
-        async def process(self, *, project_id, user_id, tensor_slice):
+        async def process(self, *, project_id, user_id, run_slice):
             calls.append("process")
-            captured["process_slice"] = tensor_slice
+            captured["process_slice"] = run_slice
 
-        async def refresh(self, *, project_id, user_id, tensor_slice):
+        async def refresh(self, *, project_id, user_id, run_slice):
             calls.append("refresh")
-            captured["refresh_slice"] = tensor_slice
+            captured["refresh_slice"] = run_slice
 
     monkeypatch.setattr(
-        "oss.src.core.evaluations.tasks.run.TensorSliceOperations",
-        _FakeTensorOps,
+        "oss.src.core.evaluations.tasks.run.SliceOperations",
+        _FakeRunOperations,
     )
 
-    ok = await rerun(
+    processor = RunProcessor(
+        evaluations_service=SimpleNamespace(),
+        tracing_service=MagicMock(),
+        testcases_service=MagicMock(),
+        workflows_service=MagicMock(),
+        testsets_service=MagicMock(),
+        queries_service=MagicMock(),
+    )
+    ok = await processor.rerun(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
-        process_mode="force",
-        tracing_service=MagicMock(),
-        testcases_service=MagicMock(),
-        workflows_service=MagicMock(),
-        applications_service=MagicMock(),
-        evaluations_service=SimpleNamespace(),
+        overwrite=True,
     )
 
     assert ok is True
@@ -350,12 +352,12 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
     assert captured["process_slice"].run_id == run_id
     assert captured["process_slice"].scenario_ids == [scenario_id]
     assert captured["process_slice"].step_keys == ["evaluator-auto"]
-    assert captured["process_slice"].process_mode == "force"
+    assert captured["process_slice"].overwrite is True
     assert captured["refresh_slice"].scenario_ids == [scenario_id]
 
 
 @pytest.mark.asyncio
-async def test_tensor_operations_refresh_global_for_non_live():
+async def test_run_operations_refresh_global_for_non_live():
     """Non-live run -> refresh does variational + the GLOBAL aggregate row."""
     project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
 
@@ -367,12 +369,12 @@ async def test_tensor_operations_refresh_global_for_non_live():
         query_scenarios=AsyncMock(return_value=[]),
         refresh_metrics=refresh_mock,
     )
-    operations = TensorSliceOperations(evaluations_service=evaluations_service)
+    operations = SliceOperations(evaluations_service=evaluations_service)
 
     await operations.refresh(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=TensorSlice(run_id=run_id, scenario_ids=[scenario_id]),
+        run_slice=RunSlice(run_id=run_id, scenario_ids=[scenario_id]),
     )
 
     kinds = [c.kwargs["metrics"] for c in refresh_mock.await_args_list]
@@ -389,7 +391,7 @@ async def test_tensor_operations_refresh_global_for_non_live():
 
 
 @pytest.mark.asyncio
-async def test_tensor_operations_refresh_temporal_for_live():
+async def test_run_operations_refresh_temporal_for_live():
     """Live run -> refresh does variational + a TEMPORAL aggregate per interval."""
     project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
     s1, s2 = uuid4(), uuid4()
@@ -408,12 +410,12 @@ async def test_tensor_operations_refresh_temporal_for_live():
         ),
         refresh_metrics=refresh_mock,
     )
-    operations = TensorSliceOperations(evaluations_service=evaluations_service)
+    operations = SliceOperations(evaluations_service=evaluations_service)
 
     await operations.refresh(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=TensorSlice(run_id=run_id, scenario_ids=[s1, s2]),
+        run_slice=RunSlice(run_id=run_id, scenario_ids=[s1, s2]),
     )
 
     kinds = [c.kwargs["metrics"] for c in refresh_mock.await_args_list]
@@ -702,12 +704,12 @@ async def test_prune_uses_query_result_ids_not_full_probe():
         ),
         query_scenarios=AsyncMock(return_value=[]),
     )
-    tensor_ops = TensorSliceOperations(evaluations_service=evaluations_service)
+    run_operations = SliceOperations(evaluations_service=evaluations_service)
 
-    deleted = await tensor_ops.prune(
+    deleted = await run_operations.prune(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=TensorSlice(run_id=run_id, scenario_ids=[uuid4()]),
+        run_slice=RunSlice(run_id=run_id, scenario_ids=[uuid4()]),
     )
 
     assert deleted == result_ids
@@ -727,12 +729,12 @@ async def test_prune_empty_slice_is_noop():
         delete_results=AsyncMock(),
         refresh_metrics=AsyncMock(),
     )
-    tensor_ops = TensorSliceOperations(evaluations_service=evaluations_service)
+    run_operations = SliceOperations(evaluations_service=evaluations_service)
 
-    deleted = await tensor_ops.prune(
+    deleted = await run_operations.prune(
         project_id=uuid4(),
         user_id=uuid4(),
-        tensor_slice=TensorSlice(run_id=uuid4(), scenario_ids=[]),
+        run_slice=RunSlice(run_id=uuid4(), scenario_ids=[]),
     )
 
     assert deleted == []
@@ -743,10 +745,16 @@ async def test_prune_empty_slice_is_noop():
 # --- run dispatch routes queue_* topologies (UEL-019) ------------------------
 
 
-@pytest.mark.parametrize("dispatch", ["queue_traces", "queue_testcases"])
+@pytest.mark.parametrize(
+    "dispatch",
+    [
+        Dispatch(source="trace", mode="queue"),
+        Dispatch(source="testcase", mode="queue"),
+    ],
+)
 @pytest.mark.asyncio
 async def test_run_from_source_routes_queue_topologies(monkeypatch, dispatch):
-    """queue_traces/queue_testcases must be handled (returns True), not dropped.
+    """queue (trace/testcase) topologies must be handled (returns True), not dropped.
 
     Before UEL-019 these truthy-dispatch topologies fell through to the
     "unsupported topology" branch and returned False at run-start, silently
@@ -771,17 +779,18 @@ async def test_run_from_source_routes_queue_topologies(monkeypatch, dispatch):
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
 
-    ok = await run_from_source(
+    processor = RunProcessor(
+        evaluations_service=evaluations_service,
+        tracing_service=MagicMock(),
+        testcases_service=MagicMock(),
+        workflows_service=MagicMock(),
+        testsets_service=MagicMock(),
+        queries_service=MagicMock(),
+    )
+    ok = await processor.run_from_source(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=run_id,
-        tracing_service=MagicMock(),
-        testsets_service=MagicMock(),
-        queries_service=MagicMock(),
-        workflows_service=MagicMock(),
-        applications_service=MagicMock(),
-        evaluations_service=evaluations_service,
-        simple_evaluators_service=MagicMock(),
     )
 
     # Handled (not the unsupported-topology False).
@@ -809,17 +818,18 @@ async def test_run_from_source_unsupported_topology_returns_false(monkeypatch):
     )
     evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
 
-    ok = await run_from_source(
+    processor = RunProcessor(
+        evaluations_service=evaluations_service,
+        tracing_service=MagicMock(),
+        testcases_service=MagicMock(),
+        workflows_service=MagicMock(),
+        testsets_service=MagicMock(),
+        queries_service=MagicMock(),
+    )
+    ok = await processor.run_from_source(
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=run_id,
-        tracing_service=MagicMock(),
-        testsets_service=MagicMock(),
-        queries_service=MagicMock(),
-        workflows_service=MagicMock(),
-        applications_service=MagicMock(),
-        evaluations_service=evaluations_service,
-        simple_evaluators_service=MagicMock(),
     )
 
     assert ok is False

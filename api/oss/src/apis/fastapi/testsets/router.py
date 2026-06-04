@@ -270,7 +270,11 @@ class TestsetsRouter:
         has_traces=False,
     )
 
-    def __init__(self, *, testsets_service: TestsetsService):
+    def __init__(
+        self,
+        *,
+        testsets_service: TestsetsService,
+    ):
         self.testsets_service = testsets_service
 
         self.router = APIRouter()

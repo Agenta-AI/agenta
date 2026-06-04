@@ -1567,6 +1567,39 @@ class EvaluationsClient:
         _response = self._raw_client.prune_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
         return _response.data
     
+    def refresh_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> None:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        None
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.refresh_slice(
+            evaluation_id="evaluation_id",
+        )
+        """
+        _response = self._raw_client.refresh_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        return _response.data
+    
     def add_scenarios(self, evaluation_id: str, *, count: int, timestamp: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:
         """
         Parameters
@@ -3824,6 +3857,47 @@ class AsyncEvaluationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.prune_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
+        return _response.data
+    
+    async def refresh_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> None:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        None
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.refresh_slice(
+                evaluation_id="evaluation_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.refresh_slice(evaluation_id, scenario_ids=scenario_ids, step_keys=step_keys, repeat_idxs=repeat_idxs, request_options=request_options)
         return _response.data
     
     async def add_scenarios(self, evaluation_id: str, *, count: int, timestamp: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluationScenariosResponse:

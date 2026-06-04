@@ -134,6 +134,9 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
     const hasFilledMetrics = useAtomValue(
         annotationFormController.selectors.hasFilledMetrics(scenarioId),
     )
+    const hasPendingChanges = useAtomValue(
+        annotationFormController.selectors.hasPendingChanges(scenarioId),
+    )
     const isCompleted = useAtomValue(annotationSessionController.selectors.isCurrentCompleted())
     const navigateNext = useSetAtom(annotationSessionController.actions.navigateNext)
     const navigatePrev = useSetAtom(annotationSessionController.actions.navigatePrev)
@@ -165,7 +168,7 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
         onSubmit: handleKeyboardSubmit,
         hasPrev,
         hasNext,
-        canSubmit: !isSubmitting && hasFilledMetrics,
+        canSubmit: !isSubmitting && (isCompleted ? hasPendingChanges : hasFilledMetrics),
         enabled: !!currentScenarioId,
     })
 

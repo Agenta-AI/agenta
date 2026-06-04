@@ -1,6 +1,10 @@
 from typing import Iterable, List, Optional
 
-from agenta.sdk.evaluations.runtime.models import EvaluationStep, TopologyDecision
+from agenta.sdk.evaluations.runtime.models import (
+    Dispatch,
+    EvaluationStep,
+    TopologyDecision,
+)
 
 
 def _has_reference(step: EvaluationStep, token: str) -> bool:
@@ -77,7 +81,7 @@ def classify_steps_topology(
             status="supported",
             label="live query -> evaluator",
             reason="live query evaluator runs keep scheduler/windowing behavior",
-            dispatch="live_query",
+            dispatch=Dispatch(source="query", mode="live"),
         )
 
     if has_evaluators and not has_applications:
@@ -86,14 +90,14 @@ def classify_steps_topology(
                 status="supported",
                 label="direct testcases -> evaluator",
                 reason="direct testcase batches are worker-dispatched",
-                dispatch="queue_testcases",
+                dispatch=Dispatch(source="testcase", mode="queue"),
             )
         if has_traces:
             return TopologyDecision(
                 status="supported",
                 label="direct traces -> evaluator",
                 reason="direct trace batches are worker-dispatched",
-                dispatch="queue_traces",
+                dispatch=Dispatch(source="trace", mode="queue"),
             )
 
     if has_queries and has_applications:
@@ -119,7 +123,7 @@ def classify_steps_topology(
             status="supported",
             label="batch query -> evaluator",
             reason="batch query evaluator runs are worker-dispatched",
-            dispatch="batch_query",
+            dispatch=Dispatch(source="query", mode="batch"),
         )
 
     if has_testsets and has_applications and has_evaluators:
@@ -127,7 +131,7 @@ def classify_steps_topology(
             status="supported",
             label="testset -> application -> evaluator",
             reason="batch testset evaluation is worker-dispatched",
-            dispatch="batch_testset",
+            dispatch=Dispatch(source="testset", mode="batch"),
         )
 
     if has_testsets and has_applications and not has_evaluators and not has_queries:
@@ -135,7 +139,7 @@ def classify_steps_topology(
             status="supported",
             label="testset -> application",
             reason="batch inference / batch invocation is worker-dispatched",
-            dispatch="batch_invocation",
+            dispatch=Dispatch(source="testset", mode="batch"),
         )
 
     return TopologyDecision(

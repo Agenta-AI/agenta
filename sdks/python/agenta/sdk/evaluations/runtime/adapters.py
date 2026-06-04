@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional
 
 from agenta.sdk.decorators.running import invoke_application, invoke_evaluator
 from agenta.sdk.evaluations.runtime.models import (
-    ResultLogRequest,
     WorkflowExecutionRequest,
     WorkflowExecutionResult,
 )
@@ -28,6 +27,7 @@ class SDKWorkflowRunner:
 
     async def execute(
         self,
+        *,
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
         data = WorkflowServiceRequestData(
@@ -50,7 +50,6 @@ class SDKWorkflowRunner:
         else:
             response = await invoke_evaluator(
                 request=EvaluatorServiceRequest(
-                    version="2025.07.14",
                     data=data,
                     references=request.references,  # type: ignore[arg-type]
                     links=request.links,  # type: ignore[arg-type]
@@ -61,7 +60,9 @@ class SDKWorkflowRunner:
 
     async def execute_batch(
         self,
+        *,
         requests: list[WorkflowExecutionRequest],
+        #
         semaphore: Optional[Semaphore] = None,
     ) -> list[WorkflowExecutionResult]:
         # Concurrent, semaphore-bounded — same shape as APIWorkflowRunner. The
@@ -73,8 +74,8 @@ class SDKWorkflowRunner:
         ) -> WorkflowExecutionResult:
             if semaphore is not None:
                 async with semaphore:
-                    return await self.execute(request)
-            return await self.execute(request)
+                    return await self.execute(request=request)
+            return await self.execute(request=request)
 
         return list(await gather(*(_guarded(request) for request in requests)))
 
@@ -94,25 +95,29 @@ class SDKResultSetter:
     def __init__(self, *, populate: Any) -> None:
         self._populate = populate
 
-    async def set(self, request: ResultLogRequest) -> Dict[str, Any]:
-        cell = request.cell
+    async def set(
+        self,
+        *,
+        cell,
+        trace_id=None,
+        testcase_id=None,
+        error=None,
+    ) -> Dict[str, Any]:
         payload = dict(
             run_id=str(cell.run_id),
+            #
             scenario_id=str(cell.scenario_id),
             step_key=cell.step_key,
             repeat_idx=cell.repeat_idx,
+            #
             status=getattr(cell.status, "value", cell.status),
-            trace_id=request.trace_id
-            if request.trace_id is not None
-            else cell.trace_id,
+            trace_id=trace_id if trace_id is not None else cell.trace_id,
             testcase_id=str(
-                request.testcase_id
-                if request.testcase_id is not None
-                else cell.testcase_id
+                testcase_id if testcase_id is not None else cell.testcase_id
             )
-            if (request.testcase_id is not None or cell.testcase_id is not None)
+            if (testcase_id is not None or cell.testcase_id is not None)
             else None,
-            error=request.error if request.error is not None else cell.error,
+            error=error if error is not None else cell.error,
         )
         await self._populate(results=[payload])
         return payload
@@ -130,10 +135,12 @@ class SDKScenarioEditor:
     def __init__(self, *, edit: Any) -> None:
         self._edit = edit
 
-    async def __call__(self, scenario: Any, status: Any) -> Any:
+    async def __call__(self, *, scenario: Any, status: Any) -> Any:
         return await self._edit(
             scenario_id=scenario.id,
+            #
             status=getattr(status, "value", status),
+            #
             tags=getattr(scenario, "tags", None),
             meta=getattr(scenario, "meta", None),
         )
@@ -151,8 +158,18 @@ class SDKMetricsRefresher:
     def __init__(self, *, refresh: Any) -> None:
         self._refresh = refresh
 
-    async def __call__(self, run_id: Any, scenario_id: Any = None) -> Any:
-        return await self._refresh(run_id, scenario_id)
+    async def __call__(
+        self,
+        *,
+        run_id: Any,
+        #
+        scenario_id: Any = None,
+    ) -> Any:
+        return await self._refresh(
+            run_id=run_id,
+            #
+            scenario_id=scenario_id,
+        )
 
 
 class SDKTraceFetcher:
@@ -162,11 +179,19 @@ class SDKTraceFetcher:
     client so the engine loads a runner's trace after a step executes.
     """
 
-    def __init__(self, *, fetch: Any) -> None:
+    def __init__(
+        self,
+        *,
+        fetch: Any,
+    ) -> None:
         self._fetch = fetch
 
-    async def __call__(self, trace_id: str) -> Any:
-        return await self._fetch(trace_id)
+    async def __call__(
+        self,
+        *,
+        trace_id: str,
+    ) -> Any:
+        return await self._fetch(trace_id=trace_id)
 
 
 def _normalize_service_response(response: Any) -> WorkflowExecutionResult:

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from agenta.sdk.utils.client import authed_api
@@ -41,6 +41,42 @@ async def aquery_global(
 
     metrics = [EvaluationMetrics(**m) for m in response.get("metrics", [])]
     return metrics[0] if metrics else None
+
+
+async def aquery_variational(
+    *,
+    run_id: UUID,
+) -> List[EvaluationMetrics]:
+    """Read back the VARIATIONAL (per-scenario) metric rows for a run.
+
+    Mirrors `POST /evaluations/metrics/query` with the variational selector
+    `scenario_ids=True, timestamps=False` — the DAO reads these as
+    "scenario_id IS NOT NULL" and "timestamp IS NULL", i.e. the one aggregate row
+    per scenario (not the whole-run global row, nor the temporal rows). Paired
+    with `aquery_global` so the SDK surfaces both the headline and per-scenario
+    metrics after executing+refreshing.
+    """
+    response = authed_api()(
+        method="POST",
+        endpoint="/evaluations/metrics/query",
+        json=dict(
+            metrics=dict(
+                run_id=str(run_id),
+                scenario_ids=True,
+                timestamps=False,
+            )
+        ),
+    )
+
+    try:
+        response.raise_for_status()
+    except Exception:
+        print(response.text)
+        raise
+
+    response = response.json()
+
+    return [EvaluationMetrics(**m) for m in response.get("metrics", [])]
 
 
 async def arefresh(

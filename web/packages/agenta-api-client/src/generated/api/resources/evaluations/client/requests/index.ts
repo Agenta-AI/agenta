@@ -44,6 +44,7 @@ export type { PopulateSliceRequest } from "./PopulateSliceRequest.js";
 export type { ProbeSliceRequest } from "./ProbeSliceRequest.js";
 export type { ProcessSliceRequest } from "./ProcessSliceRequest.js";
 export type { PruneSliceRequest } from "./PruneSliceRequest.js";
+export type { RefreshSliceRequest } from "./RefreshSliceRequest.js";
 export type { RemoveScenariosRequest } from "./RemoveScenariosRequest.js";
 export type { RemoveStepsRequest } from "./RemoveStepsRequest.js";
 export type { SetRepeatsRequest } from "./SetRepeatsRequest.js";

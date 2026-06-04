@@ -38,7 +38,8 @@ from agenta.sdk.evaluations.results import (
 )
 from agenta.sdk.evaluations.metrics import (
     arefresh,
-    aquery_global as aquery_metrics,
+    aquery_global,
+    aquery_variational,
 )
 from agenta.sdk.evaluations.runtime.processor import process_sources
 from agenta.sdk.evaluations.runtime.executor import AsyncioEvaluationTaskRunner
@@ -394,15 +395,31 @@ async def _prepare_run_data(
     )
 
 
-UNICODE = {
-    "here": "•  ",
-    "root": "┌─ ",
-    "next": "├─ ",
-    "last": "└─ ",
-    "pipe": "│  ",
-    "skip": "   ",
-    "this": "── ",
-}
+def _build_local_runner() -> AsyncioEvaluationTaskRunner:
+    """Wire the in-process runner from the SDK's module-level API wrappers.
+
+    aevaluate() runs the slice locally; this gathers the collaborators
+    (entity retrieval, scenario/result/metric writes, the shared engine, the
+    local workflow runner) into one place so the orchestrator just calls
+    `process_run_locally` instead of hand-wiring ten dependencies inline.
+    """
+    return AsyncioEvaluationTaskRunner(
+        retrieve_testset=aretrieve_testset,
+        retrieve_application=aretrieve_application,
+        retrieve_evaluator=aretrieve_evaluator,
+        #
+        fetch_trace=afetch_trace,
+        #
+        add_scenarios=aadd_scenarios,
+        edit_scenario=aedit_scenario,
+        #
+        populate_slice=apopulate_slice,
+        refresh_metrics=arefresh,
+        #
+        process_sources=process_sources,
+        #
+        workflow_runner=SDKWorkflowRunner(),
+    )
 
 
 # @debug
@@ -466,23 +483,7 @@ async def aevaluate(
         repeats=run_data.repeats or 1,
     )
 
-    runner = AsyncioEvaluationTaskRunner(
-        retrieve_testset=aretrieve_testset,
-        retrieve_application=aretrieve_application,
-        retrieve_evaluator=aretrieve_evaluator,
-        #
-        fetch_trace=afetch_trace,
-        #
-        add_scenarios=aadd_scenarios,
-        edit_scenario=aedit_scenario,
-        #
-        populate_slice=apopulate_slice,
-        refresh_metrics=arefresh,
-        #
-        process_sources=process_sources,
-        #
-        workflow_runner=SDKWorkflowRunner(),
-    )
+    runner = _build_local_runner()
 
     scenarios, run_status = await runner.process_run_locally(
         run_id=run.id,
@@ -507,10 +508,19 @@ async def aevaluate(
         scenarios=len(scenarios),
     )
 
-    # Global metrics only
-    metrics = await aquery_metrics(
+    # Global (headline) + variational (per-scenario) metrics — two explicit
+    # selectors, two queries.
+    metrics_global = await aquery_global(
         run_id=run.id,
     )
+    metrics_variational = await aquery_variational(
+        run_id=run.id,
+    )
+
+    metrics = {
+        "global": metrics_global,
+        "variational": metrics_variational,
+    }
 
     run_url = await aget_url(
         run_id=run.id,

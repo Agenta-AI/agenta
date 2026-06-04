@@ -11,11 +11,11 @@ from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep,
     PlannedCell,
     ResolvedSourceItem,
-    ResultLogRequest,
     ScenarioBinding,
 )
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.evaluations.runtime.processor import (
+    Concurrency,
     process_sources,
 )
 from agenta.sdk.evaluations.runtime.topology import classify_steps_topology
@@ -35,8 +35,8 @@ def test_sdk_runtime_planner_matches_split_repeat_rules():
             testcase_id=uuid4(),
         ),
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
-            EvaluationStep(key="application-main", type="invocation"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
+            EvaluationStep(key="application-main", type="invocation", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
             EvaluationStep(key="evaluator-human", type="annotation", origin="human"),
         ],
@@ -88,8 +88,8 @@ def test_sdk_runtime_planner_handles_multiple_scenario_bindings():
             ),
         ],
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
-            EvaluationStep(key="application-main", type="invocation"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
+            EvaluationStep(key="application-main", type="invocation", origin="custom"),
         ],
         repeats=2,
     )
@@ -122,24 +122,27 @@ def test_sdk_runtime_topology_classifier_matches_batch_inference_shape():
             EvaluationStep(
                 key="testset-main",
                 type="input",
+                origin="custom",
                 references={"testset_revision": {"id": str(uuid4())}},
             ),
             EvaluationStep(
                 key="application-main",
                 type="invocation",
+                origin="custom",
                 references={"application_revision": {"id": str(uuid4())}},
             ),
         ],
     )
 
     assert decision.status == "supported"
-    assert decision.dispatch == "batch_invocation"
+    assert decision.dispatch.source == "testset"
+    assert decision.dispatch.mode == "batch"
 
 
 def test_sdk_runtime_topology_classifier_distinguishes_direct_testcases_from_testsets():
     decision = classify_steps_topology(
         steps=[
-            EvaluationStep(key="testcases", type="input"),
+            EvaluationStep(key="testcases", type="input", origin="custom"),
             EvaluationStep(key="evaluator-human", type="annotation", origin="human"),
         ],
         has_testcases=True,
@@ -147,7 +150,8 @@ def test_sdk_runtime_topology_classifier_distinguishes_direct_testcases_from_tes
     )
 
     assert decision.status == "supported"
-    assert decision.dispatch == "queue_testcases"
+    assert decision.dispatch.source == "testcase"
+    assert decision.dispatch.mode == "queue"
 
 
 def test_sdk_runtime_topology_classifier_keeps_deferred_query_to_application_shape():
@@ -156,11 +160,13 @@ def test_sdk_runtime_topology_classifier_keeps_deferred_query_to_application_sha
             EvaluationStep(
                 key="query-main",
                 type="input",
+                origin="custom",
                 references={"query_revision": {"id": str(uuid4())}},
             ),
             EvaluationStep(
                 key="application-main",
                 type="invocation",
+                origin="custom",
                 references={"application_revision": {"id": str(uuid4())}},
             ),
         ],
@@ -221,7 +227,20 @@ async def test_sdk_source_slice_batches_runnable_cells():
             ]
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
+            request = SimpleNamespace(
+                cell=cell,
+                trace_id=trace_id,
+                testcase_id=testcase_id,
+                error=error,
+            )
             logged.append((request.cell.step_key, request.cell.repeat_idx))
             return SimpleNamespace(id=uuid4())
 
@@ -244,7 +263,7 @@ async def test_sdk_source_slice_batches_runnable_cells():
             )
         ],
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=3,
@@ -297,7 +316,14 @@ async def test_sdk_source_slice_isolates_one_scenario_failure():
             ]
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
             return SimpleNamespace(id=uuid4())
 
     calls = {"n": 0}
@@ -331,7 +357,7 @@ async def test_sdk_source_slice_isolates_one_scenario_failure():
         run_id=run_id,
         source_items=source_items,
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=1,
@@ -364,7 +390,20 @@ async def test_sdk_source_slice_marks_short_runner_batch_as_error():
             ]
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
+            request = SimpleNamespace(
+                cell=cell,
+                trace_id=trace_id,
+                testcase_id=testcase_id,
+                error=error,
+            )
             logged.append(request)
             return SimpleNamespace(id=uuid4())
 
@@ -385,7 +424,7 @@ async def test_sdk_source_slice_marks_short_runner_batch_as_error():
             )
         ],
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=2,
@@ -430,7 +469,20 @@ async def test_sdk_source_slice_handles_over_count_runner_batch():
             ]
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
+            request = SimpleNamespace(
+                cell=cell,
+                trace_id=trace_id,
+                testcase_id=testcase_id,
+                error=error,
+            )
             logged.append(request)
             return SimpleNamespace(id=uuid4())
 
@@ -451,7 +503,7 @@ async def test_sdk_source_slice_handles_over_count_runner_batch():
             )
         ],
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=2,
@@ -479,7 +531,20 @@ async def test_sdk_source_slice_marks_missing_runner_as_error():
     logged = []
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
+            request = SimpleNamespace(
+                cell=cell,
+                trace_id=trace_id,
+                testcase_id=testcase_id,
+                error=error,
+            )
             logged.append(request)
             return SimpleNamespace(id=uuid4())
 
@@ -499,7 +564,7 @@ async def test_sdk_source_slice_marks_missing_runner_as_error():
             )
         ],
         steps=[
-            EvaluationStep(key="query-main", type="input"),
+            EvaluationStep(key="query-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=1,
@@ -527,7 +592,20 @@ async def test_sdk_source_slice_can_defer_manual_results_without_metric_refresh(
     logged = []
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
+            request = SimpleNamespace(
+                cell=cell,
+                trace_id=trace_id,
+                testcase_id=testcase_id,
+                error=error,
+            )
             logged.append(request.cell.step_key)
             return SimpleNamespace(id=uuid4())
 
@@ -546,7 +624,7 @@ async def test_sdk_source_slice_can_defer_manual_results_without_metric_refresh(
             )
         ],
         steps=[
-            EvaluationStep(key="query-main", type="input"),
+            EvaluationStep(key="query-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-human", type="annotation", origin="human"),
         ],
         repeats=1,
@@ -555,8 +633,8 @@ async def test_sdk_source_slice_can_defer_manual_results_without_metric_refresh(
         refresh_metrics=refresh_metrics,
         runners={},
         revisions={},
-        log_pending=False,
-        refresh_metrics_without_auto_results=False,
+        should_set_pending=False,
+        should_refresh_metrics=False,
     )
 
     assert processed[0].has_pending is True
@@ -609,7 +687,14 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
             ]
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -629,8 +714,8 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
             )
         ],
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
-            EvaluationStep(key="application-main", type="invocation"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
+            EvaluationStep(key="application-main", type="invocation", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=2,
@@ -675,7 +760,7 @@ async def test_sdk_result_setter_writes_populate_ready_cell_live():
         scenario_id=scenario_id,
         step_key="evaluator-auto",
         step_type="annotation",
-        origin="auto",
+        step_origin="auto",
         repeat_idx=2,
         status=EvaluationStatus.SUCCESS,
         testcase_id=testcase_id,
@@ -689,10 +774,8 @@ async def test_sdk_result_setter_writes_populate_ready_cell_live():
 
     setter = runtime_adapters.SDKResultSetter(populate=fake_populate)
     returned = await setter.set(
-        ResultLogRequest(
-            cell=cell,
-            trace_id="trace-repeat",
-        )
+        cell=cell,
+        trace_id="trace-repeat",
     )
 
     expected = {
@@ -732,7 +815,9 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     testset_revision = SimpleNamespace(
         id=testset_revision_id,
         testset_id=testset_id,
+        testset_slug="ts-main",
         testset_variant_id=testset_variant_id,
+        testset_variant_slug="tsv-main",
         slug="main",
         version="1",
         data=SimpleNamespace(testcases=[testcase]),
@@ -740,7 +825,9 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     application_revision = SimpleNamespace(
         id=application_revision_id,
         application_id=uuid4(),
+        application_slug="app-app",
         application_variant_id=uuid4(),
+        application_variant_slug="appv-app",
         slug="app",
         version="1",
         data=SimpleNamespace(parameters={"temperature": 0}),
@@ -749,7 +836,9 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     evaluator_revision = SimpleNamespace(
         id=evaluator_revision_id,
         evaluator_id=uuid4(),
+        evaluator_slug="ev-eval",
         evaluator_variant_id=uuid4(),
+        evaluator_variant_slug="evv-eval",
         slug="eval",
         version="1",
         data=SimpleNamespace(parameters={"threshold": 1}),
@@ -843,10 +932,9 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     monkeypatch.setattr(preview_evaluate, "apopulate_slice", fake_populate_slice)
     monkeypatch.setattr(preview_evaluate, "arefresh", fake_refresh)
     monkeypatch.setattr(preview_evaluate, "aedit_scenario", fake_edit_scenario)
+    monkeypatch.setattr(preview_evaluate, "aquery_global", AsyncMock(return_value=None))
     monkeypatch.setattr(
-        preview_evaluate,
-        "aquery_metrics",
-        AsyncMock(return_value=[]),
+        preview_evaluate, "aquery_variational", AsyncMock(return_value=[])
     )
     monkeypatch.setattr(runtime_adapters, "invoke_application", fake_invoke_application)
     monkeypatch.setattr(runtime_adapters, "invoke_evaluator", fake_invoke_evaluator)
@@ -909,7 +997,9 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     testset_revision = SimpleNamespace(
         id=testset_revision_id,
         testset_id=uuid4(),
+        testset_slug="ts-main",
         testset_variant_id=uuid4(),
+        testset_variant_slug="tsv-main",
         slug="main",
         version="1",
         data=SimpleNamespace(testcases=[_testcase(tc_a, "a"), _testcase(tc_b, "b")]),
@@ -917,7 +1007,9 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     application_revision = SimpleNamespace(
         id=application_revision_id,
         application_id=uuid4(),
+        application_slug="app-app",
         application_variant_id=uuid4(),
+        application_variant_slug="appv-app",
         slug="app",
         version="1",
         data=SimpleNamespace(parameters={}),
@@ -926,7 +1018,9 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     evaluator_revision = SimpleNamespace(
         id=evaluator_revision_id,
         evaluator_id=uuid4(),
+        evaluator_slug="ev-eval",
         evaluator_variant_id=uuid4(),
+        evaluator_variant_slug="evv-eval",
         slug="eval",
         version="1",
         data=SimpleNamespace(parameters={}),
@@ -986,10 +1080,9 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     monkeypatch.setattr(preview_evaluate, "apopulate_slice", fake_populate_slice)
     monkeypatch.setattr(preview_evaluate, "arefresh", fake_refresh)
     monkeypatch.setattr(preview_evaluate, "aedit_scenario", fake_edit_scenario)
+    monkeypatch.setattr(preview_evaluate, "aquery_global", AsyncMock(return_value=None))
     monkeypatch.setattr(
-        preview_evaluate,
-        "aquery_metrics",
-        AsyncMock(return_value=[]),
+        preview_evaluate, "aquery_variational", AsyncMock(return_value=[])
     )
     monkeypatch.setattr(runtime_adapters, "invoke_application", fake_invoke_application)
     monkeypatch.setattr(runtime_adapters, "invoke_evaluator", fake_invoke_evaluator)
@@ -1049,7 +1142,7 @@ async def test_sdk_workflow_runner_execute_batch_is_concurrent_bounded():
     requests = [SimpleNamespace(idx=i) for i in range(6)]
     semaphore = asyncio.Semaphore(2)
 
-    results = await runner.execute_batch(requests, semaphore=semaphore)
+    results = await runner.execute_batch(requests=requests, semaphore=semaphore)
 
     assert len(results) == 6
     assert peak <= 2  # honored the semaphore
@@ -1093,7 +1186,14 @@ async def test_sdk_source_slice_runs_scenarios_concurrently_up_to_batch_size():
             return results
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
             return SimpleNamespace(id=uuid4())
 
     scenarios_created = []
@@ -1120,7 +1220,7 @@ async def test_sdk_source_slice_runs_scenarios_concurrently_up_to_batch_size():
         run_id=run_id,
         source_items=source_items,
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=1,
@@ -1129,7 +1229,7 @@ async def test_sdk_source_slice_runs_scenarios_concurrently_up_to_batch_size():
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": ConcurrentRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},
-        batch_size=2,
+        concurrency=Concurrency(batch_size=2),
     )
 
     assert len(scenarios_created) == 4
@@ -1168,7 +1268,14 @@ async def test_sdk_source_slice_semaphore_shared_across_repeats():
             return [await _one(req) for req in requests]
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -1188,7 +1295,7 @@ async def test_sdk_source_slice_semaphore_shared_across_repeats():
             )
         ],
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=4,
@@ -1197,7 +1304,7 @@ async def test_sdk_source_slice_semaphore_shared_across_repeats():
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": ConcurrentRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},
-        batch_size=2,
+        concurrency=Concurrency(batch_size=2),
     )
 
     assert peak <= 2
@@ -1220,7 +1327,14 @@ async def test_sdk_source_slice_no_batch_size_runs_all_concurrently():
             ]
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -1244,7 +1358,7 @@ async def test_sdk_source_slice_no_batch_size_runs_all_concurrently():
         run_id=run_id,
         source_items=source_items,
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=1,
@@ -1253,7 +1367,7 @@ async def test_sdk_source_slice_no_batch_size_runs_all_concurrently():
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": Runner()},
         revisions={"evaluator-auto": {"id": "rev"}},
-        batch_size=None,
+        concurrency=Concurrency(batch_size=None),
     )
 
     assert len(processed) == 5
@@ -1289,7 +1403,20 @@ async def test_sdk_source_slice_retries_failed_cells_and_succeeds():
     logged = []
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
+            request = SimpleNamespace(
+                cell=cell,
+                trace_id=trace_id,
+                testcase_id=testcase_id,
+                error=error,
+            )
             logged.append((request.cell.step_key, request.trace_id, request.error))
             return SimpleNamespace(id=uuid4())
 
@@ -1310,7 +1437,7 @@ async def test_sdk_source_slice_retries_failed_cells_and_succeeds():
             )
         ],
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=1,
@@ -1319,7 +1446,7 @@ async def test_sdk_source_slice_retries_failed_cells_and_succeeds():
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": FlakyRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},
-        max_retries=1,
+        concurrency=Concurrency(max_retries=1),
     )
 
     assert call_count == 2
@@ -1349,7 +1476,14 @@ async def test_sdk_source_slice_exhausts_retries_and_marks_error():
             ]
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -1369,7 +1503,7 @@ async def test_sdk_source_slice_exhausts_retries_and_marks_error():
             )
         ],
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=1,
@@ -1378,7 +1512,7 @@ async def test_sdk_source_slice_exhausts_retries_and_marks_error():
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": AlwaysFailRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},
-        max_retries=1,
+        concurrency=Concurrency(max_retries=1),
     )
 
     assert call_count == 2
@@ -1415,7 +1549,14 @@ async def test_sdk_source_slice_retries_only_failed_cells_in_batch():
             return results
 
     class Logger:
-        async def set(self, request):
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            testcase_id=None,
+            error=None,
+        ):
             return SimpleNamespace(id=uuid4())
 
     async def create_scenario(run_id):
@@ -1435,7 +1576,7 @@ async def test_sdk_source_slice_retries_only_failed_cells_in_batch():
             )
         ],
         steps=[
-            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
             EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
         ],
         repeats=2,
@@ -1444,7 +1585,7 @@ async def test_sdk_source_slice_retries_only_failed_cells_in_batch():
         refresh_metrics=refresh_metrics,
         runners={"evaluator-auto": SelectiveFlakyRunner()},
         revisions={"evaluator-auto": {"id": "rev"}},
-        max_retries=1,
+        concurrency=Concurrency(max_retries=1),
     )
 
     assert processed[0].has_errors is False

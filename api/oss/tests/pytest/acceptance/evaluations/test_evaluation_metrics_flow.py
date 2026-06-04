@@ -154,7 +154,7 @@ class TestEvaluationMetricsFlow:
     def test_refresh_recomputes_metrics_for_a_finished_run(self, authed_api):
         # `refresh` is the standalone metrics op (decoupled from process). After
         # a run finishes, re-invoking refresh over the run scope must recompute
-        # and return the same metrics (idempotent over a stable tensor).
+        # and return the same metrics (idempotent over a stable run).
         # ARRANGE --------------------------------------------------------------
         testset = create_testset(authed_api)
         application = create_mock_application(authed_api, key="echo")

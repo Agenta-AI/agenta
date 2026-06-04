@@ -8,7 +8,6 @@ from taskiq import AsyncBroker, Context, TaskiqDepends
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.testsets.service import TestsetsService
 
-from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -17,15 +16,12 @@ from oss.src.core.evaluations.service import EvaluationsService
 
 from oss.src.core.evaluations.tasks.run import (
     EvaluationSliceSource,
-    run_from_source,
-    run_from_batch,
-    rerun,
+    RunProcessor,
 )
-from oss.src.core.evaluations.runtime.models import SliceProcessMode
 from oss.src.core.evaluations.runtime.locks import (
     acquire_job_lock,
     release_job_lock,
-    has_mutation_lock,
+    has_run_lock,
     run_job_heartbeat,
 )
 from oss.src.utils.logging import get_module_logger
@@ -63,7 +59,6 @@ class EvaluationsWorker:
         testcases_service: TestcasesService,
         queries_service: QueriesService,
         workflows_service: WorkflowsService,
-        applications_service: ApplicationsService,
         evaluations_service: EvaluationsService,
     ):
         """
@@ -79,10 +74,20 @@ class EvaluationsWorker:
         self.testcases_service = testcases_service
         self.queries_service = queries_service
         self.workflows_service = workflows_service
-        self.applications_service = applications_service
         self.evaluations_service = evaluations_service
         #
         self.simple_evaluators_service = simple_evaluators_service
+
+        # Built once: the run orchestrator gets its services here instead of
+        # having them threaded through every task body's call.
+        self.run_processor = RunProcessor(
+            evaluations_service=evaluations_service,
+            tracing_service=tracing_service,
+            testcases_service=testcases_service,
+            workflows_service=workflows_service,
+            testsets_service=testsets_service,
+            queries_service=queries_service,
+        )
 
         self._register_tasks()
 
@@ -110,7 +115,7 @@ class EvaluationsWorker:
         run_id_str = str(run_id)
         lock_id = job_id if allow_concurrency else "singleton"
 
-        if await has_mutation_lock(run_id=run_id_str):
+        if await has_run_lock(run_id=run_id_str):
             log.error(
                 "[LOCK] Mutation lock detected before job start — task failed, re-dispatch required",
                 run_id=run_id_str,
@@ -251,19 +256,12 @@ class EvaluationsWorker:
                 job_id=context.message.task_id or str(uuid4()),
                 job_type="api",
                 allow_concurrency=False,
-                runner=lambda: run_from_source(
+                runner=lambda: self.run_processor.run_from_source(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run_id,
                     newest=newest,
                     oldest=oldest,
-                    tracing_service=self.tracing_service,
-                    testsets_service=self.testsets_service,
-                    queries_service=self.queries_service,
-                    workflows_service=self.workflows_service,
-                    applications_service=self.applications_service,
-                    evaluations_service=self.evaluations_service,
-                    simple_evaluators_service=self.simple_evaluators_service,
                 ),
             )
             log.info("[TASK] Completed process_run_from_source")
@@ -292,7 +290,7 @@ class EvaluationsWorker:
                 job_id=context.message.task_id or str(uuid4()),
                 job_type="api",
                 allow_concurrency=True,
-                runner=lambda: run_from_batch(
+                runner=lambda: self.run_processor.run_from_batch(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run_id,
@@ -300,11 +298,6 @@ class EvaluationsWorker:
                     trace_ids=trace_ids,
                     testcase_ids=testcase_ids,
                     input_step_key=input_step_key,
-                    tracing_service=self.tracing_service,
-                    testcases_service=self.testcases_service,
-                    workflows_service=self.workflows_service,
-                    applications_service=self.applications_service,
-                    evaluations_service=self.evaluations_service,
                 ),
             )
             log.info("[TASK] Completed process_run_from_batch", source_kind=source_kind)
@@ -324,7 +317,7 @@ class EvaluationsWorker:
             scenario_ids: Optional[list[UUID]] = None,
             step_keys: Optional[list[str]] = None,
             repeat_idxs: Optional[list[int]] = None,
-            process_mode: SliceProcessMode = "fill-missing",
+            overwrite: bool = False,
             context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting process_rerun", run_id=str(run_id))
@@ -333,19 +326,14 @@ class EvaluationsWorker:
                 job_id=context.message.task_id or str(uuid4()),
                 job_type="api",
                 allow_concurrency=True,
-                runner=lambda: rerun(
+                runner=lambda: self.run_processor.rerun(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run_id,
                     scenario_ids=scenario_ids,
                     step_keys=step_keys,
                     repeat_idxs=repeat_idxs,
-                    process_mode=process_mode,
-                    tracing_service=self.tracing_service,
-                    testcases_service=self.testcases_service,
-                    workflows_service=self.workflows_service,
-                    applications_service=self.applications_service,
-                    evaluations_service=self.evaluations_service,
+                    overwrite=overwrite,
                 ),
             )
             log.info("[TASK] Completed process_rerun", run_id=str(run_id))

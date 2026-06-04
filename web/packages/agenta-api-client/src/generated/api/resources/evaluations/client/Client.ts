@@ -3780,6 +3780,83 @@ export class EvaluationsClient {
     }
 
     /**
+     * @param {AgentaApi.RefreshSliceRequest} request
+     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.evaluations.refreshSlice({
+     *         evaluation_id: "evaluation_id"
+     *     })
+     */
+    public refreshSlice(
+        request: AgentaApi.RefreshSliceRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): core.HttpResponsePromise<void> {
+        return core.HttpResponsePromise.fromPromise(this.__refreshSlice(request, requestOptions));
+    }
+
+    private async __refreshSlice(
+        request: AgentaApi.RefreshSliceRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<void>> {
+        const { evaluation_id: evaluationId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `simple/evaluations/${core.url.encodePathParam(evaluationId)}/refresh`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: undefined, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/simple/evaluations/{evaluation_id}/refresh",
+        );
+    }
+
+    /**
      * @param {AgentaApi.AddScenariosRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *

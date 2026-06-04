@@ -24,6 +24,7 @@ from oss.src.core.evaluations.types import (
     SimpleQueueData,
 )
 from oss.src.core.evaluations.service import SimpleQueuesService
+from oss.src.core.evaluations.runtime.sources import SourceResolution
 from oss.src.core.evaluations.tasks import run as run_module
 
 
@@ -224,7 +225,7 @@ async def test_run_query_source_marks_human_steps_pending(monkeypatch):
     # The query resolver hands the unified flow an already-hydrated trace; no
     # re-fetch happens downstream (Option A seed path).
     monkeypatch.setattr(
-        run_module,
+        SourceResolution,
         "resolve_query_source_items",
         AsyncMock(
             return_value={
@@ -241,18 +242,21 @@ async def test_run_query_source_marks_human_steps_pending(monkeypatch):
     )
 
     # Live run (use_windowing=False) routes through the query seam directly.
-    await run_module._run_query_source(
+    processor = run_module.RunProcessor(
+        evaluations_service=evaluations_service,
+        tracing_service=SimpleNamespace(),
+        testcases_service=SimpleNamespace(),
+        workflows_service=workflows_service,
+        testsets_service=SimpleNamespace(),
+        queries_service=queries_service,
+    )
+    await processor._run_query_source(
         project_id=project_id,
         user_id=user_id,
         run=run,
         newest=None,
         oldest=None,
         use_windowing=False,
-        tracing_service=SimpleNamespace(),
-        queries_service=queries_service,
-        workflows_service=workflows_service,
-        applications_service=SimpleNamespace(),
-        evaluations_service=evaluations_service,
     )
 
     # The input cell is written under the query step key. The unified flow
@@ -315,25 +319,29 @@ async def test_run_query_source_skips_empty_query_results(monkeypatch):
     )
     execute_bindings = AsyncMock()
     monkeypatch.setattr(
-        run_module,
+        SourceResolution,
         "resolve_query_source_items",
         AsyncMock(return_value={"query-main": []}),
     )
-    monkeypatch.setattr(run_module, "_execute_bindings", execute_bindings)
+
+    processor = run_module.RunProcessor(
+        evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=run)),
+        tracing_service=SimpleNamespace(),
+        testcases_service=SimpleNamespace(),
+        workflows_service=SimpleNamespace(),
+        testsets_service=SimpleNamespace(),
+        queries_service=SimpleNamespace(),
+    )
+    processor._execute_bindings = execute_bindings
 
     # Live run (use_windowing=False): an empty tick must not mint or execute.
-    await run_module._run_query_source(
+    await processor._run_query_source(
         project_id=project_id,
         user_id=user_id,
         run=run,
         newest=None,
         oldest=None,
         use_windowing=False,
-        tracing_service=SimpleNamespace(),
-        queries_service=SimpleNamespace(),
-        workflows_service=SimpleNamespace(),
-        applications_service=SimpleNamespace(),
-        evaluations_service=SimpleNamespace(fetch_run=AsyncMock(return_value=run)),
     )
 
     execute_bindings.assert_not_awaited()
@@ -372,24 +380,27 @@ async def test_run_query_source_finalizes_batch_run_on_pre_slice_error(
         edit_run=edit_run,
     )
     monkeypatch.setattr(
-        run_module,
+        SourceResolution,
         "resolve_query_source_items",
         AsyncMock(side_effect=RuntimeError("boom: trace fetch failed")),
     )
 
     # Must not raise — the error is handled and the run finalized.
-    await run_module._run_query_source(
+    processor = run_module.RunProcessor(
+        evaluations_service=evaluations_service,
+        tracing_service=SimpleNamespace(),
+        testcases_service=SimpleNamespace(),
+        workflows_service=SimpleNamespace(),
+        testsets_service=SimpleNamespace(),
+        queries_service=SimpleNamespace(),
+    )
+    await processor._run_query_source(
         project_id=project_id,
         user_id=user_id,
         run=run,
         newest=None,
         oldest=None,
         use_windowing=True,
-        tracing_service=SimpleNamespace(),
-        queries_service=SimpleNamespace(),
-        workflows_service=SimpleNamespace(),
-        applications_service=SimpleNamespace(),
-        evaluations_service=evaluations_service,
     )
 
     edit_run.assert_awaited_once()
@@ -426,23 +437,26 @@ async def test_run_query_source_live_run_not_finalized_on_error(monkeypatch):
         edit_run=edit_run,
     )
     monkeypatch.setattr(
-        run_module,
+        SourceResolution,
         "resolve_query_source_items",
         AsyncMock(side_effect=RuntimeError("boom")),
     )
 
-    await run_module._run_query_source(
+    processor = run_module.RunProcessor(
+        evaluations_service=evaluations_service,
+        tracing_service=SimpleNamespace(),
+        testcases_service=SimpleNamespace(),
+        workflows_service=SimpleNamespace(),
+        testsets_service=SimpleNamespace(),
+        queries_service=SimpleNamespace(),
+    )
+    await processor._run_query_source(
         project_id=project_id,
         user_id=user_id,
         run=run,
         newest=None,
         oldest=None,
         use_windowing=False,
-        tracing_service=SimpleNamespace(),
-        queries_service=SimpleNamespace(),
-        workflows_service=SimpleNamespace(),
-        applications_service=SimpleNamespace(),
-        evaluations_service=evaluations_service,
     )
 
     # live runs are never finalized on error — the scheduler keeps polling.

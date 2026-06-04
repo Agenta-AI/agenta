@@ -33,8 +33,15 @@ pytestmark = [pytest.mark.acceptance]
 # Helpers
 # ---------------------------------------------------------------------------
 
-_POLL_INTERVAL = 0.5  # seconds between trace-fetch retries
-_POLL_TIMEOUT = 30.0  # maximum seconds to wait for a trace to appear
+# Trace fetch uses exponential backoff rather than a fixed interval. A span has
+# to traverse an async pipeline (invoke -> OTLP -> Redis Stream -> TracingWorker
+# -> Postgres) before it is fetchable, so the first ~second of polling almost
+# always misses; starting slower avoids hammering the API with sure-to-miss
+# reads, and doubling the wait each miss lets the total window stretch further
+# for the tail case (worker drain lag under parallel load) in very few requests.
+_POLL_INITIAL = 1.0  # first wait before the initial fetch (ingestion is async)
+_POLL_BACKOFF = 2.0  # multiplier applied to the wait after each miss (doubling)
+_POLL_TIMEOUT = 45.0  # maximum seconds to wait for a trace to appear
 
 
 def _uid() -> str:
@@ -189,9 +196,19 @@ def _maybe_xfail_for_llm_provider_error(
 def _fetch_trace(
     mod_api, trace_id: str, *, timeout: float = _POLL_TIMEOUT
 ) -> Optional[dict]:
-    """Poll observability API until trace appears or timeout elapses."""
+    """Poll the observability API until the trace appears or the timeout elapses.
+
+    Exponential backoff (slow start, uncapped doubling): the span is ingested
+    asynchronously, so an immediate fetch almost always misses; we wait
+    `_POLL_INITIAL` first, then double the wait (`_POLL_BACKOFF`) after each miss.
+    This spends far fewer requests than a tight fixed interval while still
+    covering the slow tail within the timeout (1, 2, 4, 8, 16, 32s).
+    """
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    wait = _POLL_INITIAL
+    while True:
+        time.sleep(min(wait, max(0.0, deadline - time.monotonic())))
+
         resp = mod_api("GET", f"/tracing/traces/{trace_id}")
         if resp.status_code == 200:
             data = resp.json()
@@ -206,8 +223,10 @@ def _fetch_trace(
                         return first_trace
             elif isinstance(data, list) and data:
                 return data
-        time.sleep(_POLL_INTERVAL)
-    return None
+
+        if time.monotonic() >= deadline:
+            return None
+        wait = wait * _POLL_BACKOFF
 
 
 def _assert_trace_structure(trace: dict, *, trace_id: str) -> None:

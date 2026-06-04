@@ -1,4 +1,4 @@
-"""Acceptance tests for the tensor slice HTTP endpoints (PR: unify eval loops).
+"""Acceptance tests for the run slice HTTP endpoints (PR: unify eval loops).
 
 Covers the coordinate-addressed ops over EXISTING scenarios exposed on the
 simple-evaluations router:
@@ -7,7 +7,7 @@ simple-evaluations router:
   POST /simple/evaluations/{id}/probe     -> read result cells in a slice
   POST /simple/evaluations/{id}/populate  -> bulk-write result cells
 
-These assert the HTTP contract (routes exist, accept the TensorSlice-shaped
+These assert the HTTP contract (routes exist, accept the RunSlice-shaped
 body, return the right envelope) without depending on live-LLM execution, which
 is covered elsewhere and is inherently flaky.
 """
@@ -71,7 +71,7 @@ def _create_testset_evaluator_evaluation(authed_api) -> dict:
         "/simple/evaluations/",
         json={
             "evaluation": {
-                "name": f"tensor-slice-{uuid4().hex[:8]}",
+                "name": f"run-slice-{uuid4().hex[:8]}",
                 "flags": {"is_cached": False, "is_split": False},
                 "data": {
                     "testset_steps": {testset["revision_id"]: "custom"},
@@ -100,7 +100,7 @@ def _input_step_key(authed_api, run_id) -> str:
     return input_steps[0]["key"]
 
 
-class TestTensorSliceEndpoints:
+class TestRunSliceEndpoints:
     def test_probe_returns_results_envelope_for_empty_slice(self, authed_api):
         evaluation = _create_testset_evaluator_evaluation(authed_api)
         run_id = evaluation["id"]
@@ -153,8 +153,18 @@ class TestTensorSliceEndpoints:
     def test_populate_writes_input_result_cells(self, authed_api):
         evaluation = _create_testset_evaluator_evaluation(authed_api)
         run_id = evaluation["id"]
-        scenario_id = str(uuid4())
         step_key = _input_step_key(authed_api, run_id)
+
+        # A result cell FKs to an existing scenario (you cannot populate into a
+        # scenario that does not exist), so mint one via the height op first,
+        # then populate its input cell with the returned id.
+        created = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_id}/scenarios/add",
+            json={"count": 1},
+        )
+        assert created.status_code == 200, created.text
+        scenario_id = created.json()["scenarios"][0]["id"]
 
         # Populate an input cell (the source identity) directly.
         response = authed_api(
@@ -177,7 +187,39 @@ class TestTensorSliceEndpoints:
         body = response.json()
         assert "count" in body
         assert "results" in body
+        # The cell was actually written (one result back), not silently dropped
+        # by an FK violation — the orphan-scenario bug this test used to mask.
+        assert body["count"] == 1
         assert body["count"] == len(body["results"])
+        assert str(body["results"][0]["scenario_id"]) == scenario_id
+        assert body["results"][0]["step_key"] == step_key
+
+    def test_populate_rejects_result_for_a_missing_scenario(self, authed_api):
+        """A result FKs to its scenario; populating one for a scenario that was
+        never minted is a client error -> 400, not a swallowed empty 200 (the
+        FK violation used to be suppressed to `[]`)."""
+        evaluation = _create_testset_evaluator_evaluation(authed_api)
+        run_id = evaluation["id"]
+        step_key = _input_step_key(authed_api, run_id)
+        missing_scenario_id = str(uuid4())  # never created via /scenarios/add
+
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run_id}/populate",
+            json={
+                "results": [
+                    {
+                        "run_id": run_id,
+                        "scenario_id": missing_scenario_id,
+                        "step_key": step_key,
+                        "repeat_idx": 0,
+                        "status": "success",
+                    }
+                ]
+            },
+        )
+
+        assert response.status_code == 400, response.text
 
     def test_populate_accepts_empty_results(self, authed_api):
         evaluation = _create_testset_evaluator_evaluation(authed_api)
