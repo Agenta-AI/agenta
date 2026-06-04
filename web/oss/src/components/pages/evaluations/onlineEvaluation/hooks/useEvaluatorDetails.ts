@@ -2,6 +2,8 @@ import {useMemo} from "react"
 
 import type {Workflow} from "@agenta/entities/workflow"
 
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
+
 import {PARAMETER_KEYS_TO_HIDE} from "../constants"
 import type {EvaluatorDetails} from "../types"
 import {
@@ -13,9 +15,9 @@ import {
 } from "../utils/evaluatorDetails"
 
 const EMPTY_DETAILS: EvaluatorDetails = {
+    typeKey: undefined,
     typeSlug: undefined,
     typeLabel: undefined,
-    typeColor: undefined,
     parameters: [],
     visibleParameters: [],
     parameterPayload: {},
@@ -88,7 +90,6 @@ export const useEvaluatorDetails = ({
             return EMPTY_DETAILS
         }
         const typeInfo = extractEvaluatorType(resolvedEvaluator, evaluatorTypeLookup)
-        const typeColor = (resolvedEvaluator as any)?.color
 
         const parameters = extractParameterList(resolvedEvaluator)
         const model = extractModelName(resolvedEvaluator)
@@ -109,9 +110,9 @@ export const useEvaluatorDetails = ({
         }, {})
 
         return {
+            typeKey: resolveEvaluatorKey(resolvedEvaluator as any) ?? undefined,
             typeSlug: typeInfo.slug,
             typeLabel: typeInfo.label,
-            typeColor: typeColor,
             parameters,
             visibleParameters,
             parameterPayload,

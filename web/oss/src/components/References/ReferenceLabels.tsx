@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {getWorkflowTypeColor, workflowMolecule} from "@agenta/entities/workflow"
 import {Skeleton, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -589,6 +589,14 @@ export const EvaluatorReferenceLabel = memo(
               "—")
         // Don't show link for deleted evaluators
         const href = isDeleted ? null : explicitHref
+        const workflowTypeColor = getWorkflowTypeColor(ref?.workflowKey)
+        const workflowTypeStyle = workflowTypeColor
+            ? {
+                  backgroundColor: workflowTypeColor.bg,
+                  borderColor: workflowTypeColor.border,
+                  color: workflowTypeColor.text,
+              }
+            : undefined
 
         return (
             <ReferenceTag
@@ -599,6 +607,8 @@ export const EvaluatorReferenceLabel = memo(
                 className={clsx("max-w-[220px] w-fit", className)}
                 tone={toneOverride === null ? undefined : (toneOverride ?? "evaluator")}
                 openExternally={openExternally}
+                style={workflowTypeStyle}
+                iconColor={workflowTypeColor?.text}
             />
         )
     },

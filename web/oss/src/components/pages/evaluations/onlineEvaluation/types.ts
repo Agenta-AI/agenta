@@ -26,9 +26,9 @@ export interface PromptPreviewSection {
 }
 
 export interface EvaluatorDetails {
+    typeKey?: string
     typeSlug?: string
     typeLabel?: string
-    typeColor?: string
     parameters: ParameterPreviewItem[]
     visibleParameters: ParameterPreviewItem[]
     parameterPayload: Record<string, string>

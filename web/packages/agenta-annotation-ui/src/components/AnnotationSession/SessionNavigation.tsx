@@ -259,7 +259,9 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                     <Button
                         type="primary"
                         onClick={handleMarkComplete}
-                        disabled={isSubmitting || !hasFilledMetrics}
+                        disabled={
+                            isSubmitting || (isCompleted ? !hasPendingChanges : !hasFilledMetrics)
+                        }
                         loading={isSubmitting}
                         className="w-[160px]"
                         size="small"

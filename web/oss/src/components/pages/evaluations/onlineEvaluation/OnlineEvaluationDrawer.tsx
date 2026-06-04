@@ -20,7 +20,6 @@ import {v4 as uuidv4} from "uuid"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
-import {getColorPairFromStr} from "@/oss/lib/helpers/colors"
 import type {Filter} from "@/oss/lib/Types"
 
 import {
@@ -145,19 +144,12 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
 
     const hasParameters = evaluatorDetails.visibleParameters.length > 0
 
-    // Config-derived label/color with meta fallback
+    // Config-derived label/type with meta fallback
     const evaluatorReferenceForType = matchedPreviewEvaluator ?? selectedEvaluatorConfig
-    const {label: cfgLabel, color: cfgColor} = useEvaluatorTypeFromConfigs({
+    const {label: cfgLabel, typeKey: cfgTypeKey} = useEvaluatorTypeFromConfigs({
         evaluator: evaluatorReferenceForType,
     })
-    const evaluatorTypeColors = useMemo(
-        () =>
-            !cfgColor && evaluatorDetails.typeSlug
-                ? getColorPairFromStr(evaluatorDetails.typeSlug)
-                : undefined,
-        [cfgColor, evaluatorDetails.typeSlug],
-    )
-    const finalTypeColor = cfgColor ?? evaluatorDetails.typeColor
+    const finalTypeKey = cfgTypeKey ?? evaluatorDetails.typeKey ?? evaluatorDetails.typeSlug
     const finalTypeLabel = useMemo(() => {
         if (cfgLabel) return cfgLabel
         if (evaluatorDetails.typeLabel) return evaluatorDetails.typeLabel
@@ -403,14 +395,10 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
         return (
             <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--ag-c-1D2939)] font-medium">{displayName}</span>
-                <EvaluatorTypeTag
-                    label={finalTypeLabel}
-                    color={finalTypeColor}
-                    fallback={evaluatorTypeColors}
-                />
+                <EvaluatorTypeTag label={finalTypeLabel} typeKey={finalTypeKey} />
             </div>
         )
-    }, [selectedEvaluatorConfig, finalTypeLabel, finalTypeColor, evaluatorTypeColors])
+    }, [selectedEvaluatorConfig, finalTypeLabel, finalTypeKey])
 
     const querySummary = useMemo<ReactNode>(() => {
         const summaryParts: string[] = []
@@ -672,13 +660,8 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                     <EvaluatorDetailsPreview
                                         details={evaluatorDetails}
                                         typeLabel={finalTypeLabel}
-                                        typeColor={
-                                            typeof finalTypeColor === "string"
-                                                ? finalTypeColor
-                                                : undefined
-                                        }
+                                        typeKey={finalTypeKey}
                                         key={selectedEvaluatorRevisionId ?? "empty"}
-                                        fallbackColors={evaluatorTypeColors}
                                         showType={hasEvaluatorType}
                                     />
                                 </>
