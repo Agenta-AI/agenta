@@ -96,7 +96,9 @@ const SWITCHER_MENU_CLASS = clsx(
     "[&_.ant-dropdown-menu-item-group-title]:sticky",
     "[&_.ant-dropdown-menu-item-group-title]:top-0",
     "[&_.ant-dropdown-menu-item-group-title]:z-10",
-    "[&_.ant-dropdown-menu-item-group-title]:bg-[var(--ag-c-FFFFFF)]",
+    "[&_.ant-dropdown-menu-item-group-title]:!bg-[var(--ant-color-bg-elevated)]",
+    "[&_.ant-dropdown-menu-item-group-title]:!text-[var(--ant-color-text-secondary)]",
+    "[&_.ant-dropdown-menu-item-group-title]:!pb-2",
 )
 
 /**
@@ -222,26 +224,28 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
 
     if (collapsed) {
         return (
-            <Dropdown
-                trigger={["click"]}
-                placement="bottomLeft"
-                destroyOnHidden
-                open={switcherOpen}
-                onOpenChange={setSwitcherOpen}
-                styles={{root: {zIndex: 2000, minWidth: 280}}}
-                menu={{
-                    items: switcherItems,
-                    selectedKeys,
-                    onClick: handleSwitcherClick,
-                    className: SWITCHER_MENU_CLASS,
-                }}
-            >
-                <Button
-                    type="text"
-                    className="flex items-center justify-center w-full"
-                    icon={<ArrowsLeftRight size={14} />}
-                />
-            </Dropdown>
+            <div className="flex justify-center w-full">
+                <Dropdown
+                    trigger={["click"]}
+                    placement="bottomLeft"
+                    destroyOnHidden
+                    open={switcherOpen}
+                    onOpenChange={setSwitcherOpen}
+                    styles={{root: {zIndex: 2000, minWidth: 280}}}
+                    menu={{
+                        items: switcherItems,
+                        selectedKeys,
+                        onClick: handleSwitcherClick,
+                        className: SWITCHER_MENU_CLASS,
+                    }}
+                >
+                    <Button
+                        type="text"
+                        className="!w-[28px] !h-[28px] !p-0 flex items-center justify-center"
+                        icon={<ArrowsLeftRight size={14} />}
+                    />
+                </Dropdown>
+            </div>
         )
     }
 

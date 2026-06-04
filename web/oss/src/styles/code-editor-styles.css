@@ -248,7 +248,8 @@
         top: 0 !important;
         width: 30px !important;
         text-align: right !important;
-        color: #6b7280 !important;
+        color: var(--editor-line-number) !important;
+        background-color: var(--editor-bg) !important;
         font-size: 10px !important;
         line-height: inherit !important;
         font-family:
@@ -271,7 +272,8 @@
         top: 0 !important;
         width: 30px !important;
         text-align: left !important;
-        color: #6b7280 !important;
+        color: var(--editor-line-number) !important;
+        background-color: var(--editor-bg) !important;
         font-size: 10px !important;
         line-height: inherit !important;
         font-family:
