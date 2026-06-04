@@ -1381,6 +1381,17 @@ function PlaygroundConfigSection({
                             onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-2 flex-shrink-0"
                         >
+                            {/* Note: the prompt template_format picker is NOT
+                             *  rendered here. Per Mahmoud's QA on the
+                             *  mustache rollout (Slack #release-v100, 2026-
+                             *  05-28), the picker only belongs to the right
+                             *  of the output-type / response-format control
+                             *  inside `PromptSchemaControl`, not in this
+                             *  section header. Adding it here was a
+                             *  duplicate placement (commit 2854349c47) and
+                             *  has been reverted. The original picker in
+                             *  `PromptSchemaControl` continues to handle
+                             *  the format choice for the playground. */}
                             {!disabled && onRefinePrompt && hasMessages && (
                                 <Tooltip title="Refine prompt with AI">
                                     <Button
@@ -1446,6 +1457,7 @@ function PlaygroundConfigSection({
             handleConfigureOpenChange,
             configurePopoverContent,
             onRefinePrompt,
+            updatePromptRootField,
         ],
     )
 

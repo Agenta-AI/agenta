@@ -158,6 +158,14 @@ export function nestEvaluatorConfiguration(
         model,
         response_type,
         json_schema,
+        // Prompt template format — surfaced into the nested `prompt` so the
+        // template-format picker reads it. Extracted from the destructure so
+        // it doesn't also spread into the top level via `...rest`. New LLM
+        // judges are seeded with `mustache` at creation
+        // (`createEvaluatorFromTemplate`); legacy judges have no stored
+        // format, so this stays `undefined` and the picker keeps its
+        // existing curly fallback (no behaviour change for them).
+        template_format,
         // Hidden fields - stored in __evaluator_meta for persistence but not rendered
         version: _version,
         correct_answer_key: _correctAnswerKey,
@@ -189,6 +197,7 @@ export function nestEvaluatorConfiguration(
     const result: Record<string, unknown> = {
         prompt: {
             messages: prompt_template,
+            ...(typeof template_format === "string" ? {template_format} : {}),
             llm_config: {
                 model,
             },
@@ -238,6 +247,16 @@ export function flattenEvaluatorConfiguration(
         ...(originalFlat ?? {}),
         prompt_template: prompt.messages,
         model: llmConfig?.model ?? originalFlat?.model,
+    }
+
+    // Round-trip the prompt's template format back to the flat params so a
+    // picker change (or the mustache default seeded for new judges) persists
+    // on commit. Previously this was dropped — judge template_format changes
+    // silently didn't save. Only write when the nested prompt actually
+    // carries one, so legacy judges (no format) stay untouched and don't
+    // flip to dirty.
+    if (typeof prompt.template_format === "string") {
+        result.template_format = prompt.template_format
     }
 
     // Extract response_type and json_schema from feedback_config (if provided)
