@@ -1056,6 +1056,22 @@ const UPSTREAM_OUTPUT_KEYS = new Set(["outputs", "prediction"])
 /** Known input keys that map to the testcase data as a whole object */
 const TESTCASE_OBJECT_KEYS = new Set(["inputs"])
 
+function unwrapEvaluatorTestcaseData(
+    testcaseData: Record<string, unknown>,
+): Record<string, unknown> {
+    const nestedInputs = testcaseData.inputs
+    if (
+        nestedInputs &&
+        typeof nestedInputs === "object" &&
+        !Array.isArray(nestedInputs) &&
+        ("outputs" in testcaseData || "prediction" in testcaseData)
+    ) {
+        return nestedInputs as Record<string, unknown>
+    }
+
+    return testcaseData
+}
+
 /**
  * Build evaluator execution inputs using the evaluator's input schema.
  *
@@ -1076,7 +1092,8 @@ const TESTCASE_OBJECT_KEYS = new Set(["inputs"])
  * @returns The `inputs` object to send in `{ inputs, settings }` to the evaluator endpoint.
  */
 export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Record<string, unknown> {
-    const {testcaseData, upstreamOutput, settings, inputSchema} = ctx
+    const {upstreamOutput, settings, inputSchema} = ctx
+    const testcaseData = unwrapEvaluatorTestcaseData(ctx.testcaseData)
 
     // RFC invariant: native JSON stays native until template rendering.
     // We pass `upstreamOutput` through as-is (object, array, string, primitive)
@@ -1230,7 +1247,8 @@ export interface EvaluatorInputValidation {
  *          or `valid: false` with a list of missing inputs and an explanation message.
  */
 export function validateEvaluatorInputs(ctx: EvaluatorInputContext): EvaluatorInputValidation {
-    const {testcaseData, settings, inputSchema} = ctx
+    const {settings, inputSchema} = ctx
+    const testcaseData = unwrapEvaluatorTestcaseData(ctx.testcaseData)
 
     const schemaProperties =
         inputSchema?.properties && typeof inputSchema.properties === "object"
