@@ -1,7 +1,7 @@
 from typing import Dict, Iterable, List, Optional
 from uuid import UUID
 
-from oss.src.core.evaluations.runtime.models import (
+from oss.src.core.evaluations.runtime.types import (
     EvaluationStep,
     ExecutionPlan,
     PlannedCell,
@@ -86,7 +86,7 @@ class EvaluationPlanner:
                     scenario_id=cell.scenario_id,
                     step_key=cell.step_key,
                     step_type=cell.step_type,
-                    origin=cell.origin,
+                    step_origin=cell.step_origin,
                     repeat_idx=cell.repeat_idx,
                     status=EvaluationStatus(cell.status.value),
                     should_execute=cell.should_execute,

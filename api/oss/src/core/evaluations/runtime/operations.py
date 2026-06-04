@@ -1,7 +1,7 @@
 from typing import List, Optional, Protocol
 from uuid import UUID
 
-from oss.src.core.evaluations.runtime.models import (
+from oss.src.core.evaluations.runtime.types import (
     ProcessSummary,
     RunProbeSummary,
     RunSlice,

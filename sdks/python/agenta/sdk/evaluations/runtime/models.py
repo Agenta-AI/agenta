@@ -8,14 +8,17 @@ from agenta.sdk.models.evaluations import EvaluationStatus, Origin
 StepType = Literal["input", "invocation", "annotation"]
 SourceKind = Literal["query", "testset", "trace", "testcase", "direct"]
 TopologyStatus = Literal["supported", "potential", "not_planned", "unsupported"]
-DispatchKind = Literal[
-    "batch_query",
-    "batch_testset",
-    "batch_invocation",
-    "queue_traces",
-    "queue_testcases",
-    "live_query",
-]
+
+# A worker-dispatched topology is two orthogonal axes, not one flat enum:
+#   - source: which input family seeds the run (query / testset / trace / testcase)
+#   - mode:   how items arrive / are executed
+#       live  = scheduler-driven, windowed by the tick (keeps windowing OFF on
+#               the source resolver so each tick's range is preserved)
+#       batch = one-shot over a bounded set (windows from the source's own bounds)
+#       queue = an open queue; nothing runs at start, batches arrive async via
+#               run_from_batch
+DispatchSource = Literal["query", "testset", "trace", "testcase"]
+DispatchMode = Literal["live", "batch", "queue"]
 
 
 class EvaluationStep(BaseModel):
@@ -59,7 +62,7 @@ class PlannedCell(BaseModel):
     scenario_id: UUID
     step_key: str
     step_type: StepType
-    origin: Origin
+    step_origin: Origin
     repeat_idx: int
     status: EvaluationStatus
     should_execute: bool = False
@@ -80,11 +83,16 @@ class ExecutionPlan(BaseModel):
         return [cell for cell in self.cells if cell.should_execute]
 
 
+class Dispatch(BaseModel):
+    source: DispatchSource
+    mode: DispatchMode
+
+
 class TopologyDecision(BaseModel):
     status: TopologyStatus
     label: str
     reason: str
-    dispatch: Optional[DispatchKind] = None
+    dispatch: Optional[Dispatch] = None
 
 
 class WorkflowExecutionRequest(BaseModel):

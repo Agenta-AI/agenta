@@ -2422,7 +2422,7 @@ class SimpleEvaluationsRouter:
         request: Request,
         *,
         evaluation_id: UUID,
-        preocess_slice_request: ProcessSliceRequest,
+        process_slice_request: ProcessSliceRequest,
     ) -> None:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -2433,19 +2433,17 @@ class SimpleEvaluationsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # Async dispatch via taskiq — the 202 acknowledges acceptance; the work
-        # finishes on the worker. No body to return. `overwrite` maps to the
-        # internal process mode (force = re-run all; else fill-missing).
+        # finishes on the worker. No body to return. `overwrite=True` re-runs
+        # every addressed cell; `overwrite=False` runs only the missing cells.
         await self.simple_evaluations_service.dispatch_run_slice(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
-            scenario_ids=preocess_slice_request.scenario_ids,
-            step_keys=preocess_slice_request.step_keys,
-            repeat_idxs=preocess_slice_request.repeat_idxs,
-            process_mode="force"
-            if preocess_slice_request.overwrite
-            else "fill-missing",
+            scenario_ids=process_slice_request.scenario_ids,
+            step_keys=process_slice_request.step_keys,
+            repeat_idxs=process_slice_request.repeat_idxs,
+            overwrite=process_slice_request.overwrite,
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/probe

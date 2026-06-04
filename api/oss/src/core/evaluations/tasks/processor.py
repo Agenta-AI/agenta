@@ -44,7 +44,7 @@ from oss.src.core.evaluations.runtime.adapters import (
     APITraceFetcher,
     APIWorkflowRunner,
 )
-from oss.src.core.evaluations.runtime.models import (
+from oss.src.core.evaluations.runtime.types import (
     ProcessSummary,
     PlannedCell,
     ResolvedSourceItem,
@@ -614,7 +614,7 @@ class APISliceProcessor:
 
         requested_steps = set(run_slice.step_keys or [])
         requested_repeats = set(run_slice.repeat_idxs or [])
-        force_rerun = run_slice.process_mode == "force"
+        force_rerun = run_slice.overwrite
 
         sdk_steps_all = [
             SDKEvaluationStep(

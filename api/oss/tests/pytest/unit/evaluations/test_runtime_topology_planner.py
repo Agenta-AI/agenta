@@ -10,7 +10,7 @@ from oss.src.core.evaluations.runtime.adapters import (
     APIWorkflowServiceRunner,
 )
 from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
-from oss.src.core.evaluations.runtime.models import (
+from oss.src.core.evaluations.runtime.types import (
     ProcessSummary,
     ResolvedSourceItem,
     RunSlice,
@@ -130,9 +130,12 @@ def test_topology_classifier_preserves_current_batch_dispatch_shapes():
         ]
     )
 
-    assert classify_run_topology(query_eval).dispatch == "batch_query"
-    assert classify_run_topology(testset_eval).dispatch == "batch_testset"
-    assert classify_run_topology(batch_inference).dispatch == "batch_invocation"
+    query_dispatch = classify_run_topology(query_eval).dispatch
+    assert (query_dispatch.source, query_dispatch.mode) == ("query", "batch")
+    testset_dispatch = classify_run_topology(testset_eval).dispatch
+    assert (testset_dispatch.source, testset_dispatch.mode) == ("testset", "batch")
+    inference_dispatch = classify_run_topology(batch_inference).dispatch
+    assert (inference_dispatch.source, inference_dispatch.mode) == ("testset", "batch")
 
 
 def test_topology_classifier_names_deferred_shapes():
@@ -1045,7 +1048,7 @@ async def test_backend_workflow_service_runner_adapts_sdk_runtime_request():
             scenario_id=uuid4(),
             step_key="evaluator-auto",
             step_type="annotation",
-            origin="auto",
+            step_origin="auto",
             repeat_idx=0,
             status=SDKEvaluationStatus.QUEUED,
         ),
@@ -1151,7 +1154,7 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
             scenario_id=uuid4(),
             step_key="application-main",
             step_type="invocation",
-            origin="custom",
+            step_origin="custom",
             repeat_idx=0,
             status=SDKEvaluationStatus.QUEUED,
         ),
@@ -1236,7 +1239,7 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
             scenario_id=uuid4(),
             step_key="evaluator-auto",
             step_type="annotation",
-            origin="auto",
+            step_origin="auto",
             repeat_idx=0,
             status=SDKEvaluationStatus.QUEUED,
         ),
@@ -1311,7 +1314,7 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
             scenario_id=uuid4(),
             step_key="evaluator-auto",
             step_type="annotation",
-            origin="auto",
+            step_origin="auto",
             repeat_idx=0,
             status=SDKEvaluationStatus.QUEUED,
         ),
@@ -1377,7 +1380,7 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
                 scenario_id=uuid4(),
                 step_key="evaluator-auto",
                 step_type="annotation",
-                origin="auto",
+                step_origin="auto",
                 repeat_idx=idx,
                 status=SDKEvaluationStatus.QUEUED,
             ),
@@ -1686,7 +1689,7 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
     run_slice = process_calls[0]
     assert run_slice.run_id == run_id
     assert set(run_slice.scenario_ids) == {scenario_a, scenario_b}
-    assert run_slice.process_mode == "force"
+    assert run_slice.overwrite is True
 
     # seed bindings carry the hydrated source for each minted scenario (Option A:
     # the executor reuses them instead of re-reading the input cell). Each binds
@@ -1998,7 +2001,7 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
             scenario_ids=[scenario_id],
             step_keys=["evaluator-auto"],
             repeat_idxs=[0],
-            process_mode="force",
+            overwrite=True,
         ),
     )
 
@@ -2162,7 +2165,7 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
             scenario_id=scenario_id,
             step_key="evaluator-auto",
             step_type="annotation",
-            origin="auto",
+            step_origin="auto",
             repeat_idx=1,
             status=EvaluationStatus.QUEUED,
             should_execute=True,
@@ -2174,7 +2177,7 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
             scenario_id=scenario_id,
             step_key="evaluator-auto",
             step_type="annotation",
-            origin="auto",
+            step_origin="auto",
             repeat_idx=0,
             status=EvaluationStatus.QUEUED,
             should_execute=True,
@@ -2303,7 +2306,7 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
             scenario_ids=[scenario_id],
             step_keys=["evaluator-auto"],
             repeat_idxs=[0],
-            process_mode="force",
+            overwrite=True,
         ),
     )
     assert force.created == 1

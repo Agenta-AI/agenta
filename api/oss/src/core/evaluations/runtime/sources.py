@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from oss.src.core.evaluations.runtime.models import (
+from oss.src.core.evaluations.runtime.types import (
     ResolvedSourceBatch,
     ResolvedSourceItem,
     ResolvedTestsetInputSpec,
@@ -219,15 +219,13 @@ class TestsetRevisionPayloadResolver:
             raise ValueError(f"Testset with id {testset_variant.testset_id} not found!")
 
         testcases = testset_revision.data.testcases
+        # `testset` is fetched above only to validate the
+        # revision -> variant -> testset chain; the spec carries just the
+        # revision (which exposes testset_id/variant_id) plus the testcases.
         return ResolvedTestsetInputSpec(
             step_key=step.key,
-            testset=testset,
             testset_revision=testset_revision,
             testcases=testcases,
-            testcases_data=[
-                {**testcase.data, "testcase_id": str(testcase.id)}
-                for testcase in testcases
-            ],
         )
 
 

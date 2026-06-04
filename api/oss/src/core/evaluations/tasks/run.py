@@ -3,10 +3,9 @@ from typing import Any, List, Literal, Optional
 from uuid import UUID
 
 from oss.src.core.applications.service import ApplicationsService
-from oss.src.core.evaluations.runtime.models import (
+from oss.src.core.evaluations.runtime.types import (
     ResolvedSourceItem,
     ScenarioBinding,
-    SliceProcessMode,
     RunSlice,
 )
 from oss.src.core.evaluations.runtime.operations import SliceOperations
@@ -146,7 +145,7 @@ async def _execute_bindings(
 ) -> None:
     """Re-execute freshly-minted scenarios with their hydrated source seeded in.
 
-    `process_mode="force"` because the scenarios are new: their runnable cells
+    `overwrite=True` because the scenarios are new: their runnable cells
     must be filled even though no result exists yet. `APISliceProcessor` owns
     per-scenario status writes and run finalization for terminal status.
 
@@ -170,7 +169,7 @@ async def _execute_bindings(
         run_slice=RunSlice(
             run_id=run_id,
             scenario_ids=[binding.scenario_id for binding in bindings],
-            process_mode="force",
+            overwrite=True,
         ),
         seed_bindings={binding.scenario_id: binding for binding in bindings},
         refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
@@ -256,16 +255,17 @@ async def run_from_source(
         return False
 
     topology = classify_run_topology(run)
+    dispatch = topology.dispatch
 
-    if topology.dispatch in ("live_query", "batch_query"):
-        use_windowing = topology.dispatch == "batch_query"
+    if dispatch and dispatch.source == "query":
+        # Batch query runs window from the query revision's own bounds, not the
+        # scheduler tick — so the tick's newest/oldest are dropped. Live runs
+        # carry the tick's range for temporal bucketing.
+        use_windowing = dispatch.mode == "batch"
         await _run_query_source(
             project_id=project_id,
             user_id=user_id,
             run=run,
-            # Batch query runs window from the query revision's own bounds, not
-            # the scheduler tick — so the tick's newest/oldest are dropped. Live
-            # runs carry the tick's range for temporal bucketing.
             newest=None if use_windowing else newest,
             oldest=None if use_windowing else oldest,
             use_windowing=use_windowing,
@@ -277,7 +277,7 @@ async def run_from_source(
         )
         return True
 
-    if topology.dispatch in ("batch_testset", "batch_invocation"):
+    if dispatch and dispatch.source == "testset" and dispatch.mode == "batch":
         await _run_testset_source(
             project_id=project_id,
             user_id=user_id,
@@ -291,7 +291,7 @@ async def run_from_source(
         )
         return True
 
-    if topology.dispatch in ("queue_traces", "queue_testcases"):
+    if dispatch and dispatch.mode == "queue":
         # An open queue: direct trace/testcase batches arrive later via
         # run_from_batch and each finalizes its own scenarios. There
         # is nothing to execute at run-start; leave the run RUNNING and active.
@@ -341,7 +341,7 @@ async def _run_testset_source(
                 step_key=input_spec.step_key,
                 references={
                     "testcase": {"id": str(testcase.id)},
-                    "testset": {"id": str(input_spec.testset.id)},
+                    "testset": {"id": str(input_spec.testset_revision.testset_id)},
                     "testset_variant": {
                         "id": str(input_spec.testset_revision.variant_id)
                     },
@@ -628,7 +628,7 @@ async def rerun(
     scenario_ids: Optional[List[UUID]] = None,
     step_keys: Optional[List[str]] = None,
     repeat_idxs: Optional[List[int]] = None,
-    process_mode: SliceProcessMode = "fill-missing",
+    overwrite: bool = False,
     tracing_service: TracingService,
     testcases_service: TestcasesService,
     workflows_service: WorkflowsService,
@@ -650,7 +650,7 @@ async def rerun(
         scenario_ids=scenario_ids,
         step_keys=step_keys,
         repeat_idxs=repeat_idxs,
-        process_mode=process_mode,
+        overwrite=overwrite,
     )
 
     slice_processor = APISliceProcessor(

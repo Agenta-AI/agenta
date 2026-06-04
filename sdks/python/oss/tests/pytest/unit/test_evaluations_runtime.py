@@ -133,7 +133,8 @@ def test_sdk_runtime_topology_classifier_matches_batch_inference_shape():
     )
 
     assert decision.status == "supported"
-    assert decision.dispatch == "batch_invocation"
+    assert decision.dispatch.source == "testset"
+    assert decision.dispatch.mode == "batch"
 
 
 def test_sdk_runtime_topology_classifier_distinguishes_direct_testcases_from_testsets():
@@ -147,7 +148,8 @@ def test_sdk_runtime_topology_classifier_distinguishes_direct_testcases_from_tes
     )
 
     assert decision.status == "supported"
-    assert decision.dispatch == "queue_testcases"
+    assert decision.dispatch.source == "testcase"
+    assert decision.dispatch.mode == "queue"
 
 
 def test_sdk_runtime_topology_classifier_keeps_deferred_query_to_application_shape():
@@ -675,7 +677,7 @@ async def test_sdk_result_setter_writes_populate_ready_cell_live():
         scenario_id=scenario_id,
         step_key="evaluator-auto",
         step_type="annotation",
-        origin="auto",
+        step_origin="auto",
         repeat_idx=2,
         status=EvaluationStatus.SUCCESS,
         testcase_id=testcase_id,

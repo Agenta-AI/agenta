@@ -110,7 +110,7 @@ from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from oss.src.core.evaluations.runtime.sources import resolve_queue_source_batches
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
-from oss.src.core.evaluations.runtime.models import SliceProcessMode, RunSlice
+from oss.src.core.evaluations.runtime.types import RunSlice
 from oss.src.core.evaluations.runtime.operations import SliceOperations
 
 
@@ -2660,7 +2660,10 @@ class SimpleEvaluationsService:
                 topology = classify_run_topology(run)
 
                 if topology.dispatch:
-                    if topology.dispatch == "batch_query":
+                    if (
+                        topology.dispatch.source == "query"
+                        and topology.dispatch.mode == "batch"
+                    ):
                         await self._ensure_human_annotation_queue(
                             project_id=project_id,
                             user_id=user_id,
@@ -2845,7 +2848,7 @@ class SimpleEvaluationsService:
         scenario_ids: Optional[List[UUID]] = None,
         step_keys: Optional[List[str]] = None,
         repeat_idxs: Optional[List[int]] = None,
-        process_mode: SliceProcessMode = "fill-missing",
+        overwrite: bool = False,
     ) -> bool:
         if self.evaluations_task_runner is None:
             log.warning(
@@ -2872,7 +2875,7 @@ class SimpleEvaluationsService:
             scenario_ids=scenario_ids,
             step_keys=step_keys,
             repeat_idxs=repeat_idxs,
-            process_mode=process_mode,
+            overwrite=overwrite,
         )
         return True
 

@@ -67,7 +67,7 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
         scenario_ids: Optional[List[UUID]] = None,
         step_keys: Optional[List[str]] = None,
         repeat_idxs: Optional[List[int]] = None,
-        process_mode: Optional[str] = None,
+        overwrite: bool = False,
     ) -> Any:
         # Re-execute EXISTING scenarios by coordinate (the run-slice process(slice)
         # op): retry transiently-failed scenarios, run a newly-added evaluator
@@ -85,7 +85,7 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
             kwargs["step_keys"] = step_keys
         if repeat_idxs is not None:
             kwargs["repeat_idxs"] = repeat_idxs
-        if process_mode is not None:
-            kwargs["process_mode"] = process_mode
+        if overwrite:
+            kwargs["overwrite"] = overwrite
 
         return await self.worker.process_rerun.kiq(**kwargs)

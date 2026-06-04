@@ -22,13 +22,13 @@ from oss.src.core.evaluations.service import (
 )
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.operations import SliceOperations
-from oss.src.core.evaluations.runtime.models import RunSlice
+from oss.src.core.evaluations.runtime.types import RunSlice
 from oss.src.core.evaluations.tasks import run as run_module
 from oss.src.core.evaluations.tasks.run import (
     run_from_source,
     rerun,
 )
-from oss.src.core.evaluations.runtime.models import TopologyDecision
+from oss.src.core.evaluations.runtime.types import Dispatch, TopologyDecision
 from oss.src.core.evaluations.types import (
     EvaluationResult,
     EvaluationResultCreate,
@@ -59,7 +59,7 @@ async def test_runner_process_rerun_dispatches_and_omits_empty_kwargs():
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
-        # repeat_idxs / process_mode left None -> must be omitted from the call
+        # repeat_idxs left None / overwrite left default -> omitted from the call
     )
 
     assert result == "run-task"
@@ -87,7 +87,7 @@ async def test_runner_process_rerun_forwards_all_kwargs_when_present():
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
         repeat_idxs=[0, 1],
-        process_mode="force",
+        overwrite=True,
     )
 
     worker.process_rerun.kiq.assert_awaited_once_with(
@@ -97,7 +97,7 @@ async def test_runner_process_rerun_forwards_all_kwargs_when_present():
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
         repeat_idxs=[0, 1],
-        process_mode="force",
+        overwrite=True,
     )
 
 
@@ -131,7 +131,7 @@ async def test_dispatch_run_slice_dispatches_to_runner():
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
-        process_mode="force",
+        overwrite=True,
     )
 
     assert ok is True
@@ -141,7 +141,7 @@ async def test_dispatch_run_slice_dispatches_to_runner():
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
-        process_mode="force",
+        overwrite=True,
     )
 
 
@@ -336,7 +336,7 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
-        process_mode="force",
+        overwrite=True,
         tracing_service=MagicMock(),
         testcases_service=MagicMock(),
         workflows_service=MagicMock(),
@@ -350,7 +350,7 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
     assert captured["process_slice"].run_id == run_id
     assert captured["process_slice"].scenario_ids == [scenario_id]
     assert captured["process_slice"].step_keys == ["evaluator-auto"]
-    assert captured["process_slice"].process_mode == "force"
+    assert captured["process_slice"].overwrite is True
     assert captured["refresh_slice"].scenario_ids == [scenario_id]
 
 
@@ -743,10 +743,16 @@ async def test_prune_empty_slice_is_noop():
 # --- run dispatch routes queue_* topologies (UEL-019) ------------------------
 
 
-@pytest.mark.parametrize("dispatch", ["queue_traces", "queue_testcases"])
+@pytest.mark.parametrize(
+    "dispatch",
+    [
+        Dispatch(source="trace", mode="queue"),
+        Dispatch(source="testcase", mode="queue"),
+    ],
+)
 @pytest.mark.asyncio
 async def test_run_from_source_routes_queue_topologies(monkeypatch, dispatch):
-    """queue_traces/queue_testcases must be handled (returns True), not dropped.
+    """queue (trace/testcase) topologies must be handled (returns True), not dropped.
 
     Before UEL-019 these truthy-dispatch topologies fell through to the
     "unsupported topology" branch and returned False at run-start, silently

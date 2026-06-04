@@ -1,7 +1,7 @@
 from agenta.sdk.evaluations.runtime.topology import classify_steps_topology
 
 from oss.src.core.evaluations.runtime.planner import normalize_steps
-from oss.src.core.evaluations.runtime.models import TopologyDecision
+from oss.src.core.evaluations.runtime.types import Dispatch, TopologyDecision
 from oss.src.core.evaluations.types import EvaluationRun
 
 
@@ -30,5 +30,9 @@ def classify_run_topology(run: EvaluationRun) -> TopologyDecision:
         status=decision.status,
         label=decision.label,
         reason=decision.reason,
-        dispatch=decision.dispatch,
+        dispatch=(
+            Dispatch(source=decision.dispatch.source, mode=decision.dispatch.mode)
+            if decision.dispatch
+            else None
+        ),
     )

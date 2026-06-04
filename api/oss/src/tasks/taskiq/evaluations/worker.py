@@ -21,7 +21,6 @@ from oss.src.core.evaluations.tasks.run import (
     run_from_batch,
     rerun,
 )
-from oss.src.core.evaluations.runtime.models import SliceProcessMode
 from oss.src.core.evaluations.runtime.locks import (
     acquire_job_lock,
     release_job_lock,
@@ -324,7 +323,7 @@ class EvaluationsWorker:
             scenario_ids: Optional[list[UUID]] = None,
             step_keys: Optional[list[str]] = None,
             repeat_idxs: Optional[list[int]] = None,
-            process_mode: SliceProcessMode = "fill-missing",
+            overwrite: bool = False,
             context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting process_rerun", run_id=str(run_id))
@@ -340,7 +339,7 @@ class EvaluationsWorker:
                     scenario_ids=scenario_ids,
                     step_keys=step_keys,
                     repeat_idxs=repeat_idxs,
-                    process_mode=process_mode,
+                    overwrite=overwrite,
                     tracing_service=self.tracing_service,
                     testcases_service=self.testcases_service,
                     workflows_service=self.workflows_service,
