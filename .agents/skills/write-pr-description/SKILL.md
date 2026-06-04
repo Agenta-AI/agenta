@@ -15,14 +15,15 @@ This is the default quality bar from the first draft. Don't ship a generic versi
 
 The title states the actual change in plain words.
 
-- Use the conventional prefix the repo already uses, e.g. `fix(api):`, `feat(frontend):`, `chore(sdk):`, `docs:`.
-- If the user gave you an issue id, prefix it: `[AGE-1234] fix(frontend): <Title>`.
+- Use the conventional prefix the repo already uses, e.g. `[fix] <Title>`, `[feat] <Title>`, `[chore] <Title>`, `[docs] <Title>`.
+- If the user gave you an issue id, suffix it: `[fix] <Title> [AGE-1234]`.
+- Define the title as an active intent in present tense, e.g `[fix] Resolve broken evaluation links`.
 - Keep it under ~70 characters. Detail goes in the body.
 
 Good vs bad:
 
-- Good: `fix(api): map OpenInference tool definitions into real tool objects`
-- Bad: `fix: parse X into structured objects` (abstract, says nothing concrete)
+- Good: `[fix] Map OpenInference tool definitions into real tool objects`
+- Bad: `fix(api) parse X into structured objects` (abstract, says nothing concrete)
 - Bad: `Update tool handling` (vague, no symptom, no domain)
 
 ## 2. Body structure
@@ -30,17 +31,17 @@ Good vs bad:
 Use this shape unless the change is truly trivial:
 
 ```
-## What was broken
+## Context
 <one or two sentences: the symptom a user or teammate would notice, then the root cause in plain words>
 
-## The fix
+## Changes
 <plain-words explanation of the change, with a concrete before/after when a data shape, signature, or behavior changed>
 
 ## Tests / notes
 <short bullet list or prose: what you verified, anything reviewers should watch for>
 ```
 
-Adapt the headings if the situation calls for it (e.g. a pure feature PR might use "What this adds" instead of "What was broken"). The order stays the same: symptom or user-visible change first, then the fix, then verification.
+Adapt the headings if the situation calls for it (e.g. a pure feature PR might use "What this adds" instead of "What was broken"). The order stays the same: the obeservation (symptom or user-visible change first or intent), then the changes, then verification and validation.
 
 ## 3. Show, don't restate the diff
 
@@ -105,7 +106,7 @@ Skip the section entirely if there is nothing real to say. A blank "Tests" headi
 
 Before you finalize, read your own draft and ask:
 
-1. After 30 seconds, does a reviewer know **what was broken** and **what changed**?
+1. After 30 seconds, does a reviewer know **the context** and **what changed**?
 2. Is there a concrete before/after anywhere a shape or behavior moved?
 3. Did you delete every sentence that doesn't earn its place?
 4. Did you scan for em dashes and marketing words?
@@ -122,7 +123,7 @@ A bad first draft:
 - Improved compatibility with the playground
 - Added robust error handling for edge cases
 
-## Changes
+## Includes
 - Modified parseTools function
 - Updated type definitions
 - Added new test cases
@@ -131,10 +132,10 @@ A bad first draft:
 A good rewrite:
 
 ```
-## What was broken
+## Context
 When you opened an OpenInference trace in the playground, the tools panel was empty. The trace stored tool definitions as `[{tool: {json_schema: "..."}}]`, but the playground expected the OpenAI shape `[{type: "function", function: {...}}]`, so the parser dropped them silently.
 
-## The fix
+## Changes
 `parseToolsFromTrace` now unwraps `json_schema` and rebuilds each entry in the OpenAI shape before it hits the playground. Traces that already use the OpenAI shape pass through unchanged.
 
 Before:
@@ -148,4 +149,4 @@ After:
 - Opened a real OpenInference trace from the staging project and confirmed the tools panel renders.
 ```
 
-The second version is shorter and tells the reviewer everything they need to start reading the diff.
+The second version is cleaner and tells the reviewer everything they need to start reading the diff.
