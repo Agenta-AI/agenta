@@ -17,7 +17,7 @@ from oss.src.core.evaluations.runtime.sources import (
     resolve_testset_input_specs,
 )
 from oss.src.core.evaluations.runtime.adapters import (
-    APIScenarioFactory,
+    APIScenarioCreator,
 )
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.types import (
@@ -103,12 +103,12 @@ async def _mint_and_bind(
     if not source_items:
         return []
 
-    factory = APIScenarioFactory(
+    creator = APIScenarioCreator(
         project_id=project_id,
         user_id=user_id,
         evaluations_service=evaluations_service,
     )
-    scenarios = await factory.bulk_create(
+    scenarios = await creator.create(
         run.id,
         count=len(source_items),
         timestamp=timestamp,

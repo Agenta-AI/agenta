@@ -128,7 +128,7 @@ class APIWorkflowServiceRunner:
         )
 
 
-class APIScenarioFactory:
+class APIScenarioCreator:
     def __init__(
         self,
         *,
@@ -140,7 +140,7 @@ class APIScenarioFactory:
         self.user_id = user_id
         self.evaluations_service = evaluations_service
 
-    async def bulk_create(
+    async def create(
         self,
         run_id: UUID,
         *,
@@ -150,12 +150,11 @@ class APIScenarioFactory:
     ) -> List[Any]:
         """Mint `count` RUNNING scenarios for a run in one DAO call.
 
-        The bulk counterpart of the retired streaming factory: the unified
-        ingest flows (run/slice) mint all scenarios up front, then populate and
-        re-execute them. `timestamp`/`interval` are the run-wide temporal
-        coordinates (live query); they stay None for non-live runs. Order is
-        preserved by `create_scenarios`, so the returned list aligns 1:1 with
-        the source items the caller intends to bind.
+        The unified ingest flows (run/slice) mint all scenarios up front, then
+        populate and re-execute them. `timestamp`/`interval` are the run-wide
+        temporal coordinates (live query); they stay None for non-live runs.
+        Order is preserved by `create_scenarios`, so the returned list aligns
+        1:1 with the source items the caller intends to bind.
         """
         if count <= 0:
             return []
