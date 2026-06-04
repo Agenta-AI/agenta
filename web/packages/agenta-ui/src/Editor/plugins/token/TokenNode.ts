@@ -37,10 +37,16 @@ function applyTokenStyles(dom: HTMLElement, text: string): void {
         return
     }
 
-    // Variable token `{{ expr }}` — check whether `expr` routes to a known
-    // envelope slot. Paths like `$.input.xx.abc` (typo of `$.inputs.*`) are
-    // structurally invalid; paint them with an error state so the user sees
-    // the problem at the source instead of silently getting no input.
+    // Variable token `{{ expr }}` — validate the inner expression. Only
+    // structurally malformed expressions get the error paint now (empty
+    // placeholders, `$<not-dot>` like `$outputs.country`, `$.` with no
+    // field, `$..foo` empty segments, and multi-segment JSON Pointers that
+    // don't root at a known envelope slot). Near-typos of envelope slots
+    // (e.g. `$.input.xx.abc`) are NO LONGER flagged — per the post-2026-
+    // 05-28 mustache QA principle, the playground auto-creates a variable
+    // named after the root segment and the backend reports any shape
+    // mismatch at render time. See `templateVariable.ts` for the full
+    // validation policy.
     //
     // Tooltip content is published on data-* attributes; a React overlay
     // (TokenTooltipPlugin) reads them on hover and renders an Ant Tooltip.

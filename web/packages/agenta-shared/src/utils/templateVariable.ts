@@ -2,10 +2,24 @@
  * Template variable validation against the workflow service request envelope.
  *
  * Prompt placeholders can be written as paths the backend resolver navigates
- * at runtime (JSONPath `$.*`, JSON Pointer `/*`, dot notation). When such a
- * path roots at an unknown envelope segment (e.g. `$.input.*` — `input`
- * singular is a typo, not a slot), the path can never resolve — the frontend
- * should treat it as invalid and avoid producing an input control for it.
+ * at runtime (JSONPath `$.*`, JSON Pointer `/*`, dot notation).
+ *
+ * Validation philosophy (post-mustache QA, 2026-05-28):
+ *   - JSONPath (`$.foo.bar`) is treated permissively in the playground — the
+ *     root segment is assumed to be a variable / testcase-spread key and is
+ *     auto-surfaced as a column. We do NOT validate against any known-slot
+ *     list and do NOT emit typo suggestions. Format mismatches surface as
+ *     runtime errors from the API at invocation time, not UI errors. This
+ *     matches Mahmoud's QA principle: "the general behavior in the playground
+ *     is to create variables for prompt variables automatically … send it as
+ *     is and let the API return an error" (Slack #release-v100).
+ *   - The validator only rejects structurally malformed expressions:
+ *       · empty placeholders
+ *       · empty segments between separators (`$..foo`, `/foo//bar`)
+ *       · `$` followed by anything other than `.` (e.g. `$outputs.country`)
+ *       · `$.` with no field after the dot
+ *   - JSON Pointer (`/<path>`) keeps the stricter envelope-slot check
+ *     because it's a legacy contract that requires rooting at a known slot.
  *
  * Kept in `@agenta/shared/utils` so both `@agenta/entities/runnable`
  * (variable grouping) and `@agenta/ui/editor` (token-node styling) can
@@ -28,9 +42,10 @@
  * internal envelope between api and workflow services), so there's no
  * runtime source we can derive this from — the list is hand-synced.
  *
- * Variable paths whose first segment isn't in this set (e.g.
- * `$.input.xx.abc` — `input` singular is a typo) are considered
- * structurally invalid and surfaced as such in the prompt editor.
+ * Used today only by the JSON Pointer (`/<path>`) validation branch, which
+ * keeps the legacy strict envelope-rooting requirement. The JSONPath (`$.*`)
+ * branch is intentionally permissive per the mustache QA principle — see
+ * the file-level docstring.
  */
 export const KNOWN_ENVELOPE_SLOTS = new Set([
     "inputs",
@@ -47,6 +62,9 @@ export const KNOWN_ENVELOPE_SLOTS = new Set([
  * suggestion only when the typed segment is a prefix of a known slot or
  * vice-versa (catches `input` → `inputs`, `output` → `outputs`, `inpu` →
  * `inputs`, etc.), avoiding wild guesses for truly unrelated names.
+ *
+ * Used only by the JSON Pointer branch — the JSONPath branch no longer
+ * emits typo suggestions (per the file-level docstring rationale).
  */
 function suggestEnvelopeSlot(typed: string): string | null {
     if (!typed) return null
@@ -71,14 +89,21 @@ export interface TemplateVariableValidation {
 }
 
 /**
- * Validate a template placeholder against the envelope schema.
+ * Validate a template placeholder.
  *
- * - JSONPath / JSON Pointer: the root segment MUST be a known envelope slot.
+ * - JSONPath (`$.<path>`): permissive. Any well-formed `$.<segment>...`
+ *   is valid — the root segment becomes a variable / testcase column. Only
+ *   `$<not-dot>...`, `$.` (no field), and `$..foo` (empty segment) are
+ *   rejected. Per the mustache QA principle (file-level docstring).
+ * - JSON Pointer (`/<path>`): strict. Must root at a known envelope slot
+ *   from `KNOWN_ENVELOPE_SLOTS`, otherwise rejected with an optional
+ *   `did-you-mean` suggestion.
  * - Plain names and dot-notation: permissive (no envelope prefix, can't
  *   validate structurally without more context).
  *
- * When invalid, returns a `reason` string suitable for a tooltip plus an
- * optional `suggestion` for near-miss typos (e.g. `input` → `inputs`).
+ * When invalid, returns a `reason` string suitable for a tooltip; the
+ * JSON Pointer branch may additionally return a `suggestion` for near-miss
+ * envelope-slot typos.
  */
 /**
  * Detect a malformed path with consecutive separators (e.g. `$.inputs..country`
@@ -106,28 +131,66 @@ export function validateTemplateVariable(expr: string): TemplateVariableValidati
     }
 
     if (expr.startsWith("$")) {
+        // `{{$}}` (whole context as compact JSON) is valid mustache JSONPath.
+        if (expr === "$") return {valid: true}
+        // `$<anything-not-dot>...` is malformed — JSONPath roots descend with
+        // `.` (or end at the bare `$`). e.g. `$outputs.country` is not a path,
+        // it's a `$`-prefixed identifier we don't recognise. Per Mahmoud's QA
+        // on the mustache rollout (Slack #release-v100, 2026-05-28), typeahead
+        // steers users to insert the `.` automatically when they accept a
+        // suggestion at `$<char>`; this branch is the safety net for when a
+        // user bypasses typeahead and types or pastes a bare `$<name>` form.
+        if (expr[1] !== ".") {
+            return {
+                valid: false,
+                reason: "JSONPath root must be followed by `.` (e.g. `$.foo` not `$foo`).",
+            }
+        }
+        // From here we know `expr` starts with `$.`. Tokenise to find the
+        // root segment — used only to verify there IS a field after `$.`.
         const tokens = expr
             .replace(/^\$\.?/, "")
             .split(/[.[\]'"]/)
             .filter(Boolean)
         if (tokens.length === 0) {
+            // `{{$.}}` (root + trailing dot, no field) — `hasEmptySegment`
+            // only catches DUPLICATED separators (`..`, `//`), not a lone
+            // trailing one, so reject it explicitly here.
             return {
                 valid: false,
-                reason: `JSONPath root has no envelope slot. Expected one of: ${knownList}.`,
+                reason: "JSONPath root has no field after `$.`.",
             }
         }
-        if (!KNOWN_ENVELOPE_SLOTS.has(tokens[0])) {
-            const suggestion = suggestEnvelopeSlot(tokens[0])
-            return {
-                valid: false,
-                reason: `Unknown envelope slot \`${tokens[0]}\`. Must root at one of: ${knownList}.`,
-                ...(suggestion ? {suggestion} : {}),
-            }
-        }
+        // Per Mahmoud's QA (Slack #release-v100, 2026-05-28), the playground
+        // does NOT validate JSONPath roots against any known-slot list or
+        // testset schema. Any well-formed `$.<segment>...` references a
+        // column named after the root segment — auto-created on the right-
+        // side panel, with the backend resolving the full path at render
+        // time. Format mismatches surface as runtime errors from the API,
+        // not UI errors. Previously we flagged near-typos of envelope slots
+        // (e.g. `$.output.country` because `output` prefix-matches `outputs`)
+        // and emitted a "did you mean…?" suggestion — that's gone now. The
+        // user's literal text wins; we don't second-guess them.
         return {valid: true}
     }
 
     if (expr.startsWith("/")) {
+        // Mustache section close tags look like `{{/identifier}}` —
+        // single-segment, identifier-shaped, with no further `/`. JSON
+        // Pointer paths to envelope slots are also single-segment (e.g.
+        // `/inputs`), and we can't tell mustache vs JSON Pointer without
+        // format context here. Pragmatic disambiguation: single-segment
+        // identifier-shaped paths are accepted unconditionally (the runtime
+        // is the source of truth — if the close tag has no matching open,
+        // the mustache renderer surfaces a clear error at render time; if
+        // the user meant a legacy JSON Pointer to `/input`, the typo
+        // detection was already a "best effort" hint). Multi-segment JSON
+        // Pointers (`/inputs/foo/bar`) still get the envelope-slot check.
+        const isSingleSegmentIdentifier = /^\/[a-zA-Z_][\w.]*$/.test(expr)
+        if (isSingleSegmentIdentifier) {
+            return {valid: true}
+        }
+
         const tokens = expr.split("/").filter(Boolean)
         if (tokens.length === 0) {
             return {

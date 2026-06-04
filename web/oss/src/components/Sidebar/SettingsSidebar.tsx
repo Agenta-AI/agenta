@@ -45,11 +45,9 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const canShowUsageBilling = isEE() && isOwner
     const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
-    // The Audit Log tab is gated by the `view_events` PERMISSION (whether the
-    // role can see audit events), not by the `Flag.AUDIT` entitlement. The
-    // entitlement gates the page CONTENT (table vs upgrade CTA) inside AuditLog.
-    // In OSS `hasPermission` short-circuits to `true`, so the tab stays visible.
-    const canShowAuditLog = canViewEvents
+    // Audit Log is an EE feature. Within EE the tab is gated by `view_events`;
+    // the page content is gated separately by the `Flag.AUDIT` entitlement.
+    const canShowAuditLog = isEE() && canViewEvents
     const activeTab = useMemo(() => {
         const requestedTab = tab ?? settingsTab ?? "workspace"
 

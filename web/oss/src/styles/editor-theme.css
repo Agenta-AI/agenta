@@ -57,12 +57,16 @@ h1 {
     min-height: 150px;
     resize: none;
     /* font-size: 15px; */
-    caret-color: rgb(5, 5, 5);
+    /* Theme-aware caret: follows the text color so the cursor is visible
+       in both light and dark. Previously hardcoded to `#444` (dark grey)
+       which read as dark-on-dark in dark mode — invisible for the user.
+       Affects all `.editor-input` instances: chat-message editors, the
+       FormView leaf editors, the prompt template, etc. */
+    caret-color: var(--ag-colorText);
     position: relative;
     tab-size: 1;
     outline: 0;
     /* padding: 15px 10px; */
-    caret-color: #444;
 }
 
 .editor-placeholder {

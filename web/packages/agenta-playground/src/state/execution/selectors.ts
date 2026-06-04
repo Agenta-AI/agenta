@@ -36,7 +36,24 @@ import {
 import {displayedEntityIdsAtom} from "./displayedEntities"
 import {createExecutionItemHandle, type ExecutionItemLifecycleSnapshot} from "./executionItems"
 import type {RunStatus} from "./types"
+import {splitInputsVisibility} from "./visibility"
 
+/**
+ * UI-display helper. Converts a cell value to a string for rendering inside
+ * a text-mode editor.
+ *
+ * ⚠️ MUST NOT be used to build invocation payloads. Native JSON must reach
+ * the runtime as native JSON (RFC: "native JSON stays native until template
+ * rendering"). The invocation path reads testcase data directly from
+ * `loadableController.selectors.row(...).data` — preserves native types.
+ *
+ * This helper feeds only the controller-surface atoms
+ * (`rowVariableValueAtomFamily`, `testcaseCellValueAtomFamily`) that hand
+ * string output to React components for the text-mode SharedEditor. When the
+ * V2 input UX adds Form / JSON / YAML modes (Step 3), those modes consume
+ * the native value directly via `testcaseMolecule.atoms.cell(...)` — they
+ * do not route through this helper.
+ */
 const toDisplayString = (value: unknown): string => {
     if (value === undefined || value === null) return ""
     if (typeof value === "string") return value
@@ -293,36 +310,30 @@ const evaluatorExpectedColumnsAtom = atom<string[]>((get) => {
  * a Jotai issue where module-level derived atoms don't re-evaluate when
  * playgroundNodesAtom changes in disconnect→reconnect flows.
  */
-const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
+/**
+ * Schema-referenced variable keys: prompt template input ports + downstream
+ * evaluator expected columns. Excludes testcase-only extras.
+ *
+ * This is the "what does the prompt actually reference" view used by the
+ * variable-visibility rule (`playgroundInputsAtomFamily` below): referenced
+ * keys feed expanded variable cards; testcase columns NOT in this set get
+ * collapsed under the "unused columns" footer.
+ *
+ * `rowVariableKeysAtomFamily` (below) wraps this with the testcase-extras
+ * merge for callers that want the full "what's available" view.
+ */
+const referencedVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
     atom<string[]>((get) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return []
         const isChat = get(isChatModeAtom) === true
         const columns = get(loadableController.selectors.columns(loadableId))
         const primaryKeys = columns.map((column) => column.key)
-
         const evaluatorKeys = get(evaluatorExpectedColumnsAtom)
-
-        // In connected mode (testset loaded), include extra columns from
-        // testcase entity data that aren't in the template (e.g. "expected_output").
-        // In local mode, the template's input ports are the sole authority —
-        // testcase data may contain stale keys from a previous template or app.
-        const mode = get(loadableController.selectors.mode(loadableId))
-        const testcaseKeys: string[] = []
-        if (mode === "connected") {
-            const testcaseColumns = get(testcaseMolecule.atoms.columns) as {key: string}[]
-            if (testcaseColumns) {
-                for (const c of testcaseColumns) {
-                    if (!isSystemField(c.key)) {
-                        testcaseKeys.push(c.key)
-                    }
-                }
-            }
-        }
 
         const keySet = new Set(primaryKeys)
         const merged = [...primaryKeys]
-        for (const key of [...evaluatorKeys, ...testcaseKeys]) {
+        for (const key of evaluatorKeys) {
             if (key && !keySet.has(key)) {
                 keySet.add(key)
                 merged.push(key)
@@ -330,6 +341,34 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
         }
         if (!isChat) return merged
         return merged.filter((key) => key !== "messages" && key !== "outputs")
+    }),
+)
+
+const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
+    atom<string[]>((get) => {
+        const loadableId = get(derivedLoadableIdAtom)
+        if (!loadableId) return []
+        const referencedKeys = get(referencedVariableKeysAtomFamily(downstreamKey))
+
+        // In connected mode (testset loaded), include extra columns from
+        // testcase entity data that aren't in the template (e.g. "expected_output").
+        // In local mode, the template's input ports are the sole authority —
+        // testcase data may contain stale keys from a previous template or app.
+        const mode = get(loadableController.selectors.mode(loadableId))
+        if (mode !== "connected") return referencedKeys
+
+        const testcaseColumns = get(testcaseMolecule.atoms.columns) as {key: string}[]
+        if (!testcaseColumns) return referencedKeys
+
+        const keySet = new Set(referencedKeys)
+        const merged = [...referencedKeys]
+        for (const c of testcaseColumns) {
+            if (!isSystemField(c.key) && !keySet.has(c.key)) {
+                keySet.add(c.key)
+                merged.push(c.key)
+            }
+        }
+        return merged
     }),
 )
 
@@ -341,7 +380,75 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
  */
 export const rowVariableKeysWithContextAtom = rowVariableKeysAtomFamily("")
 
-export {rowVariableKeysAtomFamily}
+export {referencedVariableKeysAtomFamily, rowVariableKeysAtomFamily}
+
+// ============================================================================
+// PLAYGROUND INPUTS VISIBILITY (Step 4 of the playground mustache + input UX)
+// ============================================================================
+
+/**
+ * The visibility view that `PlaygroundInputsBody` consumes: referenced
+ * variables (with draft annotation for those missing from the testcase) +
+ * unreferenced testcase columns.
+ *
+ * Reactivity:
+ *   referencedVariableKeysAtomFamily(downstreamKey)
+ *        │
+ *        ├──▶ playgroundInputsAtomFamily({testcaseId, downstreamKey})
+ *        │       = atom((get) => splitInputsVisibility({
+ *        │           referencedKeys: get(referenced...),
+ *        │           testcaseData:   get(testcaseMolecule.atoms.data),
+ *        │         }))
+ *        │
+ *   testcaseMolecule.atoms.data(testcaseId)
+ *
+ * System fields (`__id__`, etc.) are stripped from `testcaseData` before
+ * the split so they don't bleed into the unused-columns footer.
+ */
+export interface PlaygroundInputsAtomKey {
+    testcaseId: string
+    /** Downstream-evaluator context key — pass the same string the caller
+     *  uses with `rowVariableKeysAtomFamily` (`""` is the default). */
+    downstreamKey?: string
+}
+
+export const playgroundInputsAtomFamily = atomFamily(
+    ({testcaseId, downstreamKey = ""}: PlaygroundInputsAtomKey) =>
+        atom((get) => {
+            const referencedKeys = get(referencedVariableKeysAtomFamily(downstreamKey))
+            const isChat = get(isChatModeAtom) === true
+            // `testcaseMolecule.data(id)` returns the testcase ENTITY
+            // (`{id, data, flags, tags, meta, ...}`), not the row data
+            // dict. The actual column values live at `entity.data` — see
+            // `testcaseDataAtomFamily` below for the canonical pattern.
+            const entity = get(testcaseMolecule.data(testcaseId)) as {
+                data?: Record<string, unknown>
+            } | null
+            const raw = entity?.data ?? {}
+
+            // Strip system fields up-front so the unused-columns footer
+            // doesn't expose `__id__` and friends to the user.
+            //
+            // In chat mode we ALSO strip `messages` and `outputs` — those are
+            // implicitly used by the chat UI (`messageIdsAtomFamily`) and the
+            // run-output panel respectively, not by a `{{messages}}` template
+            // token. `referencedVariableKeysAtomFamily` filters them out of
+            // `referencedKeys` (so they don't render as input cards), but the
+            // testcase entity still carries them as data, so without this
+            // strip they leak into the unreferenced-columns footer ("1 unused
+            // testcase column hidden — `messages`"). Mahmoud reported this
+            // confusion in QA on 2026-06-01.
+            const testcaseData: Record<string, unknown> = {}
+            for (const [key, value] of Object.entries(raw)) {
+                if (isSystemField(key)) continue
+                if (isChat && (key === "messages" || key === "outputs")) continue
+                testcaseData[key] = value
+            }
+
+            return splitInputsVisibility({referencedKeys, testcaseData})
+        }),
+    (a, b) => a.testcaseId === b.testcaseId && (a.downstreamKey ?? "") === (b.downstreamKey ?? ""),
+)
 
 // ============================================================================
 // DIRECT TESTCASE ENTITY SELECTORS

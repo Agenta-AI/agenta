@@ -50,11 +50,11 @@ const Automations = dynamic(
     },
 )
 
-const AuditLog = dynamic(() => import("@/oss/components/pages/settings/AuditLog/AuditLog"), {
-    ssr: false,
-})
+interface SettingsProps {
+    AuditLogComponent?: React.ComponentType
+}
 
-const Settings: React.FC = () => {
+export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
     const tab = tabQuery ?? settingsTab ?? "workspace"
@@ -66,14 +66,13 @@ const Settings: React.FC = () => {
     const canShowBilling = isEE() && isOwner
     const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
+    const canShowAuditLog = isEE() && canViewEvents
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
         (tab === "billing" && !canShowBilling) ||
         (tab === "tools" && !canShowTools) ||
         (tab === "apiKeys" && !canViewApiKeys) ||
-        // Audit Log tab requires the `view_events` permission. Content (table vs
-        // upgrade CTA) is gated separately by the `Flag.AUDIT` entitlement.
-        (tab === "auditLog" && !canViewEvents)
+        (tab === "auditLog" && !canShowAuditLog)
             ? "workspace"
             : tab
     const {project} = useProjectData()
@@ -179,7 +178,10 @@ const Settings: React.FC = () => {
             case "automations":
                 return {content: <Automations />, title: "Automations"}
             case "auditLog":
-                return {content: <AuditLog />, title: "Audit Log"}
+                return {
+                    content: AuditLogComponent ? <AuditLogComponent /> : <WorkspaceManage />,
+                    title: "Audit Log",
+                }
             case "projects":
                 return {content: <ProjectsSettings />, title: "Projects"}
             default:
@@ -197,6 +199,7 @@ const Settings: React.FC = () => {
         isDemoOrg,
         isOwner,
         billingEnabled,
+        AuditLogComponent,
     ])
 
     return (

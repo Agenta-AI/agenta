@@ -93,7 +93,6 @@ from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.tracing.router import TracesRouter
 from oss.src.apis.fastapi.tracing.router import SpansRouter
-from oss.src.apis.fastapi.events.router import EventsRouter
 from oss.src.apis.fastapi.testcases.router import TestcasesRouter
 from oss.src.apis.fastapi.testsets.router import TestsetsRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
@@ -569,10 +568,6 @@ spans = SpansRouter(
     queries_service=queries_service,
 )
 
-events = EventsRouter(
-    events_service=events_service,
-)
-
 testcases = TestcasesRouter(
     testcases_service=testcases_service,
     testsets_service=testsets_service,
@@ -779,12 +774,6 @@ app.include_router(
     tags=["Deprecated"],
     deprecated=True,
     include_in_schema=False,
-)
-
-app.include_router(
-    router=events.router,
-    prefix="/events",
-    tags=["Events"],
 )
 
 app.include_router(

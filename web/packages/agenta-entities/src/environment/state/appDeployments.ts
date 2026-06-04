@@ -26,6 +26,8 @@ import {environmentsListQueryAtomFamily} from "./store"
  * This is the shape all deployment UI components consume.
  */
 export interface AppEnvironmentDeployment {
+    /** Environment slug (e.g., "production") */
+    slug: string
     /** Environment name (e.g., "production") */
     name: string
     /** Variant display name (app prefix stripped) */
@@ -105,6 +107,7 @@ function toAppEnvironmentDeployment(env: Environment, appId: string): AppEnviron
     }
 
     return {
+        slug: env.slug ?? "",
         name: env.name ?? env.slug ?? "",
         deployedVariantName: variantName,
         deployedVariantId: dep?.applicationVariant?.id ?? null,
