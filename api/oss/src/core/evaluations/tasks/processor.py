@@ -449,17 +449,6 @@ class APISliceProcessor:
                 "outputs": item.outputs if item is not None else None,
             }
 
-        log.debug(
-            "[REEXEC] invocation context",
-            requested_trace_ids=list(dict.fromkeys(trace_ids_by_repeat.values())),
-            hydrated_count=len(hydrated) if hydrated else 0,
-            matched_trace_ids=[str(t) for t in trace_items.keys()],
-            outputs_by_repeat={
-                idx: (ctx["outputs"] is not None)
-                for idx, ctx in context_by_repeat.items()
-            },
-        )
-
         return context_by_repeat
 
     async def _resolve_runners_and_revisions(
@@ -519,15 +508,6 @@ class APISliceProcessor:
             )
             revisions[invocation_step.key] = application_revision
 
-        log.debug(
-            "[PLAN] annotation steps",
-            all_annotation=[
-                {"key": s.key, "origin": str(s.origin)} for s in annotation_steps
-            ],
-            auto_keys=[
-                s.key for s in annotation_steps if s.origin not in {"human", "custom"}
-            ],
-        )
         auto_annotation_steps = [
             step for step in annotation_steps if step.origin not in {"human", "custom"}
         ]
@@ -547,12 +527,6 @@ class APISliceProcessor:
                 else None
             )
             if evaluator_revision is None:
-                log.warning(
-                    "[PLAN] annotation step has no resolvable evaluator revision; not wiring runner",
-                    step_key=annotation_step.key,
-                    origin=str(annotation_step.origin),
-                    has_ref=evaluator_revision_ref is not None,
-                )
                 continue
             runners[annotation_step.key] = _BoundRunner(
                 APICachedRunner(
@@ -601,24 +575,7 @@ class APISliceProcessor:
         )
         resolved = hydrated[0] if hydrated else source_item
         resolved.step_key = source_item.step_key
-        final = _with_resolved_inputs(source_item=resolved)
-        log.debug(
-            "[REEXEC] hydrated source item",
-            step_key=final.step_key,
-            kind=final.kind,
-            testcase_id=str(source_item.testcase_id)
-            if source_item.testcase_id
-            else None,
-            trace_id=str(source_item.trace_id) if source_item.trace_id else None,
-            hydrated_count=len(hydrated) if hydrated else 0,
-            input_keys=(
-                sorted(final.inputs.keys()) if isinstance(final.inputs, dict) else None
-            ),
-            has_outputs=final.outputs is not None,
-            has_trace=final.trace is not None,
-            resolved_trace_id=str(final.trace_id) if final.trace_id else None,
-        )
-        return final
+        return _with_resolved_inputs(source_item=resolved)
 
     async def _run_sdk_source_slice(
         self,
@@ -786,23 +743,6 @@ class APISliceProcessor:
             #
             invocation_steps=invocation_steps,
             annotation_steps=annotation_steps,
-        )
-
-        log.info(
-            "[PLAN] full step plan",
-            run_id=str(run_id),
-            total_steps=len(steps),
-            steps=[
-                {
-                    "key": s.key,
-                    "type": s.type,
-                    "origin": str(s.origin),
-                    "has_runner": s.key in runners,
-                    "has_revision": s.key in revisions,
-                }
-                for s in steps
-            ],
-            runner_keys=sorted(runners.keys()),
         )
 
         requested_steps = set(run_slice.step_keys or [])

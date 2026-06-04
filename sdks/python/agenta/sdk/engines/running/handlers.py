@@ -346,26 +346,13 @@ def auto_exact_match_v0(
 
     # --------------------------------------------------------------------------
     success = False
-    matched_branch = "none"
     if isinstance(outputs, str) and isinstance(correct_answer, str):
         success = outputs == correct_answer
-        matched_branch = "str"
     elif isinstance(outputs, dict) and isinstance(correct_answer, dict):
         outputs = dumps(outputs, sort_keys=True)
         correct_answer = dumps(correct_answer, sort_keys=True)
         success = outputs == correct_answer
-        matched_branch = "dict"
     # --------------------------------------------------------------------------
-
-    log.debug(
-        "[EXACT_MATCH] compare",
-        outputs_type=type(outputs).__name__,
-        correct_answer_type=type(correct_answer).__name__,
-        matched_branch=matched_branch,
-        outputs_repr=repr(outputs)[:200],
-        correct_answer_repr=repr(correct_answer)[:200],
-        success=success,
-    )
 
     return {"success": success}
 
