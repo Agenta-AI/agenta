@@ -38,7 +38,8 @@ from agenta.sdk.evaluations.results import (
 )
 from agenta.sdk.evaluations.metrics import (
     arefresh,
-    aquery_global as aquery_metrics,
+    aquery_global,
+    aquery_variational,
 )
 from agenta.sdk.evaluations.runtime.processor import process_sources
 from agenta.sdk.evaluations.runtime.executor import AsyncioEvaluationTaskRunner
@@ -507,10 +508,19 @@ async def aevaluate(
         scenarios=len(scenarios),
     )
 
-    # Global metrics only
-    metrics = await aquery_metrics(
+    # Global (headline) + variational (per-scenario) metrics — two explicit
+    # selectors, two queries.
+    metrics_global = await aquery_global(
         run_id=run.id,
     )
+    metrics_variational = await aquery_variational(
+        run_id=run.id,
+    )
+
+    metrics = {
+        "global": metrics_global,
+        "variational": metrics_variational,
+    }
 
     run_url = await aget_url(
         run_id=run.id,

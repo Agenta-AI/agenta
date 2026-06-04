@@ -15,7 +15,7 @@ from oss.src.core.evaluations.types import (
     EvaluationStatus,
 )
 from agenta.sdk.evaluations.runtime.planner import (
-    EvaluationPlanner as SdkEvaluationPlanner,
+    EvaluationPlanner as SDKEvaluationPlanner,
 )
 
 
@@ -67,7 +67,7 @@ class EvaluationPlanner:
         steps = normalize_steps(run.data.steps if run.data else None)
         flags = run.flags
 
-        sdk_plan = SdkEvaluationPlanner().plan_bindings(
+        sdk_plan = SDKEvaluationPlanner().plan_bindings(
             run_id=run.id,
             bindings=bindings,  # type: ignore[arg-type]
             steps=steps,  # type: ignore[arg-type]

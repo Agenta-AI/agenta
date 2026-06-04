@@ -6,7 +6,6 @@ import pytest
 
 from oss.src.core.evaluations.runtime.adapters import (
     APICachedRunner,
-    APIEvaluatorRunner,
     APIWorkflowRunner,
     APIWorkflowServiceRunner,
 )
@@ -30,20 +29,20 @@ from oss.src.core.evaluations.runtime.sources import (
     resolve_queue_source_batches,
     resolve_testset_input_specs,
 )
-from oss.src.core.evaluations.runtime.operations import RunSliceOperations
+from oss.src.core.evaluations.runtime.operations import SliceOperations
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from agenta.sdk.evaluations.runtime.models import (
-    EvaluationStep as SdkEvaluationStep,
-    PlannedCell as SdkPlannedCell,
-    ResolvedSourceItem as SdkResolvedSourceItem,
+    EvaluationStep as SDKEvaluationStep,
+    PlannedCell as SDKPlannedCell,
+    ResolvedSourceItem as SDKResolvedSourceItem,
     WorkflowExecutionRequest,
     WorkflowExecutionResult,
 )
 from agenta.sdk.evaluations.runtime.processor import (
-    ProcessedScenario as SdkProcessedScenario,
+    ProcessedScenario as SDKProcessedScenario,
 )
-from agenta.sdk.models.evaluations import EvaluationStatus as SdkEvaluationStatus
+from agenta.sdk.models.evaluations import EvaluationStatus as SDKEvaluationStatus
 from oss.src.core.evaluations.types import (
     EvaluationResult,
     EvaluationResultCreate,
@@ -837,7 +836,7 @@ async def test_run_slice_operations_probe_populate_prune_and_process():
         ),
         query_scenarios=AsyncMock(return_value=[]),
     )
-    operations = RunSliceOperations(evaluations_service=evaluations_service)
+    operations = SliceOperations(evaluations_service=evaluations_service)
     run_slice = RunSlice(
         run_id=run_id,
         scenario_ids=[scenario_id],
@@ -910,7 +909,7 @@ async def test_run_slice_process_delegates_to_injected_processor():
     run_id = uuid4()
     expected = ProcessSummary(created=2, pending=1)
     slice_processor = SimpleNamespace(process=AsyncMock(return_value=expected))
-    operations = RunSliceOperations(
+    operations = SliceOperations(
         evaluations_service=SimpleNamespace(),
         slice_processor=slice_processor,
     )
@@ -971,7 +970,7 @@ async def test_run_slice_probe_summary_counts_statuses_and_missing_cells():
         )
     )
 
-    summary = await RunSliceOperations(
+    summary = await SliceOperations(
         evaluations_service=evaluations_service
     ).probe_summary(
         project_id=project_id,
@@ -993,7 +992,7 @@ async def test_run_slice_probe_summary_counts_statuses_and_missing_cells():
 async def test_run_slice_empty_dimension_short_circuits_probe_and_process():
     project_id = uuid4()
     user_id = uuid4()
-    operations = RunSliceOperations(
+    operations = SliceOperations(
         evaluations_service=SimpleNamespace(
             query_results=AsyncMock(),
             refresh_metrics=AsyncMock(),
@@ -1040,23 +1039,23 @@ async def test_backend_workflow_service_runner_adapts_sdk_runtime_request():
         },
     )
     request = WorkflowExecutionRequest(
-        step=SdkEvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
-        cell=SdkPlannedCell(
+        step=SDKEvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        cell=SDKPlannedCell(
             run_id=uuid4(),
             scenario_id=uuid4(),
             step_key="evaluator-auto",
             step_type="annotation",
             origin="auto",
             repeat_idx=0,
-            status=SdkEvaluationStatus.QUEUED,
+            status=SDKEvaluationStatus.QUEUED,
         ),
-        source=SdkResolvedSourceItem(kind="trace", step_key="query-main"),
+        source=SDKResolvedSourceItem(kind="trace", step_key="query-main"),
         revision={"slug": "evaluator-auto"},
     )
 
     result = await runner.execute(request)
 
-    assert result.status == SdkEvaluationStatus.SUCCESS
+    assert result.status == SDKEvaluationStatus.SUCCESS
     assert result.trace_id == "trace-success"
     assert result.span_id == "span-success"
     workflows_service.invoke_workflow.assert_awaited_once_with(
@@ -1146,17 +1145,17 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
         "flags": {"is_chat": True},
     }
     request = WorkflowExecutionRequest(
-        step=SdkEvaluationStep(key="application-main", type="invocation"),
-        cell=SdkPlannedCell(
+        step=SDKEvaluationStep(key="application-main", type="invocation"),
+        cell=SDKPlannedCell(
             run_id=uuid4(),
             scenario_id=uuid4(),
             step_key="application-main",
             step_type="invocation",
             origin="custom",
             repeat_idx=0,
-            status=SdkEvaluationStatus.QUEUED,
+            status=SDKEvaluationStatus.QUEUED,
         ),
-        source=SdkResolvedSourceItem(
+        source=SDKResolvedSourceItem(
             kind="testcase",
             step_key="testset-main",
             inputs={
@@ -1172,7 +1171,7 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
 
     result = await runner.execute(request)
 
-    assert result.status == SdkEvaluationStatus.SUCCESS
+    assert result.status == SDKEvaluationStatus.SUCCESS
     assert result.trace_id == "app-trace"
     workflows_service.invoke_workflow.assert_awaited_once()
     kwargs = workflows_service.invoke_workflow.await_args.kwargs
@@ -1212,7 +1211,7 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
             )
         )
     )
-    runner = APIEvaluatorRunner(
+    runner = APIWorkflowRunner(
         project_id=project_id,
         user_id=user_id,
         workflows_service=workflows_service,
@@ -1231,17 +1230,17 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
         model_dump=lambda **kwargs: {"id": str(workflow_revision_id)},
     )
     request = WorkflowExecutionRequest(
-        step=SdkEvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
-        cell=SdkPlannedCell(
+        step=SDKEvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        cell=SDKPlannedCell(
             run_id=uuid4(),
             scenario_id=uuid4(),
             step_key="evaluator-auto",
             step_type="annotation",
             origin="auto",
             repeat_idx=0,
-            status=SdkEvaluationStatus.QUEUED,
+            status=SDKEvaluationStatus.QUEUED,
         ),
-        source=SdkResolvedSourceItem(
+        source=SDKResolvedSourceItem(
             kind="testcase",
             step_key="testset-main",
             inputs={"input": "hello"},
@@ -1256,7 +1255,7 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
 
     result = await runner.execute(request)
 
-    assert result.status == SdkEvaluationStatus.SUCCESS
+    assert result.status == SDKEvaluationStatus.SUCCESS
     assert result.trace_id == "eval-trace"
     workflows_service.invoke_workflow.assert_awaited_once()
     kwargs = workflows_service.invoke_workflow.await_args.kwargs
@@ -1288,7 +1287,7 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
             )
         )
     )
-    runner = APIEvaluatorRunner(
+    runner = APIWorkflowRunner(
         project_id=project_id,
         user_id=user_id,
         workflows_service=workflows_service,
@@ -1306,17 +1305,17 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
         "flags": {"is_custom": True},
     }
     request = WorkflowExecutionRequest(
-        step=SdkEvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
-        cell=SdkPlannedCell(
+        step=SDKEvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        cell=SDKPlannedCell(
             run_id=uuid4(),
             scenario_id=uuid4(),
             step_key="evaluator-auto",
             step_type="annotation",
             origin="auto",
             repeat_idx=0,
-            status=SdkEvaluationStatus.QUEUED,
+            status=SDKEvaluationStatus.QUEUED,
         ),
-        source=SdkResolvedSourceItem(
+        source=SDKResolvedSourceItem(
             kind="testcase",
             step_key="testset-main",
             inputs={"input": "hello"},
@@ -1326,7 +1325,7 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
 
     result = await runner.execute(request)
 
-    assert result.status == SdkEvaluationStatus.SUCCESS
+    assert result.status == SDKEvaluationStatus.SUCCESS
     workflows_service.invoke_workflow.assert_awaited_once()
     workflow_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
     assert workflow_request.flags == {"is_custom": True}
@@ -1358,7 +1357,7 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
             self.requests.append(requests)
             return [
                 WorkflowExecutionResult(
-                    status=SdkEvaluationStatus.SUCCESS,
+                    status=SDKEvaluationStatus.SUCCESS,
                     trace_id="fresh-trace",
                 )
             ]
@@ -1372,17 +1371,17 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
     )
     requests = [
         WorkflowExecutionRequest(
-            step=SdkEvaluationStep(key="evaluator-auto", type="annotation"),
-            cell=SdkPlannedCell(
+            step=SDKEvaluationStep(key="evaluator-auto", type="annotation"),
+            cell=SDKPlannedCell(
                 run_id=uuid4(),
                 scenario_id=uuid4(),
                 step_key="evaluator-auto",
                 step_type="annotation",
                 origin="auto",
                 repeat_idx=idx,
-                status=SdkEvaluationStatus.QUEUED,
+                status=SDKEvaluationStatus.QUEUED,
             ),
-            source=SdkResolvedSourceItem(kind="trace", step_key="query-main"),
+            source=SDKResolvedSourceItem(kind="trace", step_key="query-main"),
             revision={"id": "evaluator-revision"},
             references={"evaluator_revision": {"id": f"revision-{idx}"}},
         )
@@ -1971,7 +1970,7 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
     )
     sdk_loop = AsyncMock(
         return_value=[
-            SdkProcessedScenario(
+            SDKProcessedScenario(
                 scenario=SimpleNamespace(id=scenario_id),
                 results={"evaluator-auto": object()},
                 auto_results_created=True,
@@ -2120,7 +2119,7 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
     )
     sdk_loop = AsyncMock(
         return_value=[
-            SdkProcessedScenario(
+            SDKProcessedScenario(
                 scenario=SimpleNamespace(id=scenario_id),
                 results={"evaluator-auto": object()},
                 auto_results_created=True,
@@ -2158,7 +2157,7 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
     assert scenario_context[1]["trace_id"] == trace_id
     assert scenario_context[1]["outputs"] == {"answer": "ok"}
     assert kwargs["plan_cell_filter"](
-        SdkPlannedCell(
+        SDKPlannedCell(
             run_id=run_id,
             scenario_id=scenario_id,
             step_key="evaluator-auto",
@@ -2170,7 +2169,7 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
         )
     )
     assert not kwargs["plan_cell_filter"](
-        SdkPlannedCell(
+        SDKPlannedCell(
             run_id=run_id,
             scenario_id=scenario_id,
             step_key="evaluator-auto",
@@ -2263,7 +2262,7 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
     )
     sdk_loop = AsyncMock(
         return_value=[
-            SdkProcessedScenario(
+            SDKProcessedScenario(
                 scenario=SimpleNamespace(id=scenario_id),
                 results={"evaluator-auto": object()},
                 auto_results_created=True,

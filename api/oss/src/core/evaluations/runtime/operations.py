@@ -66,7 +66,7 @@ class SliceProcessor(Protocol):
     ) -> ProcessSummary: ...
 
 
-class RunSliceOperations:
+class SliceOperations:
     def __init__(
         self,
         *,
@@ -206,7 +206,7 @@ class RunSliceOperations:
         if self.slice_processor is None:
             raise NotImplementedError(
                 "process(slice) requires a wired slice_processor; "
-                "RunSliceOperations was constructed without one. "
+                "SliceOperations was constructed without one. "
                 "Use probe/populate/prune for read/write/delete, or wire a "
                 "SliceProcessor at the composition root to execute the slice."
             )

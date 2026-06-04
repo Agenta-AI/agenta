@@ -843,10 +843,9 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     monkeypatch.setattr(preview_evaluate, "apopulate_slice", fake_populate_slice)
     monkeypatch.setattr(preview_evaluate, "arefresh", fake_refresh)
     monkeypatch.setattr(preview_evaluate, "aedit_scenario", fake_edit_scenario)
+    monkeypatch.setattr(preview_evaluate, "aquery_global", AsyncMock(return_value=None))
     monkeypatch.setattr(
-        preview_evaluate,
-        "aquery_metrics",
-        AsyncMock(return_value=[]),
+        preview_evaluate, "aquery_variational", AsyncMock(return_value=[])
     )
     monkeypatch.setattr(runtime_adapters, "invoke_application", fake_invoke_application)
     monkeypatch.setattr(runtime_adapters, "invoke_evaluator", fake_invoke_evaluator)
@@ -986,10 +985,9 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     monkeypatch.setattr(preview_evaluate, "apopulate_slice", fake_populate_slice)
     monkeypatch.setattr(preview_evaluate, "arefresh", fake_refresh)
     monkeypatch.setattr(preview_evaluate, "aedit_scenario", fake_edit_scenario)
+    monkeypatch.setattr(preview_evaluate, "aquery_global", AsyncMock(return_value=None))
     monkeypatch.setattr(
-        preview_evaluate,
-        "aquery_metrics",
-        AsyncMock(return_value=[]),
+        preview_evaluate, "aquery_variational", AsyncMock(return_value=[])
     )
     monkeypatch.setattr(runtime_adapters, "invoke_application", fake_invoke_application)
     monkeypatch.setattr(runtime_adapters, "invoke_evaluator", fake_invoke_evaluator)

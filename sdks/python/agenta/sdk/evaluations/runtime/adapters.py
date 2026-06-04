@@ -50,7 +50,6 @@ class SDKWorkflowRunner:
         else:
             response = await invoke_evaluator(
                 request=EvaluatorServiceRequest(
-                    version="2025.07.14",
                     data=data,
                     references=request.references,  # type: ignore[arg-type]
                     links=request.links,  # type: ignore[arg-type]

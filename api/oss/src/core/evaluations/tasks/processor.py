@@ -5,8 +5,8 @@ from types import SimpleNamespace
 from uuid import UUID
 
 from agenta.sdk.evaluations.runtime.models import (
-    EvaluationStep as SdkEvaluationStep,
-    ResolvedSourceItem as SdkResolvedSourceItem,
+    EvaluationStep as SDKEvaluationStep,
+    ResolvedSourceItem as SDKResolvedSourceItem,
 )
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.evaluations.runtime.processor import (
@@ -66,14 +66,14 @@ def _to_sdk_source_item(
     source_item: ResolvedSourceItem,
     *,
     step_key_fallback: Optional[str] = None,
-) -> SdkResolvedSourceItem:
+) -> SDKResolvedSourceItem:
     """Shape an api-side ResolvedSourceItem into the SDK engine's input type.
 
     The ingest and re-execute paths build this identically; the only variation
     is the step key, which re-execute carries on the item and ingest derives
     from the run's input step. Keeping one helper removes that duplication.
     """
-    return SdkResolvedSourceItem(
+    return SDKResolvedSourceItem(
         kind=source_item.kind,
         step_key=source_item.step_key or step_key_fallback or "",
         references=source_item.references or {},
@@ -297,7 +297,7 @@ async def _resolve_source_from_input_cells(
     cells_by_step: Dict[str, List[EvaluationResult]],
     tracing_service: Optional[Any],
     testcases_service: Optional[Any],
-) -> Optional[SdkResolvedSourceItem]:
+) -> Optional[SDKResolvedSourceItem]:
     """The input-cache ladder: recover a scenario's source from its stored cell.
 
     A scenario that already exists carries its source identity in its input
@@ -332,8 +332,8 @@ async def _run_sdk_source_slice(
     user_id: UUID,
     run: Any,
     evaluations_service: Any,
-    sdk_source_items: List[SdkResolvedSourceItem],
-    sdk_steps: List[SdkEvaluationStep],
+    sdk_source_items: List[SDKResolvedSourceItem],
+    sdk_steps: List[SDKEvaluationStep],
     invocation_steps: List[Any],
     annotation_steps: List[Any],
     runners: Any,
@@ -617,7 +617,7 @@ class APISliceProcessor:
         force_rerun = run_slice.process_mode == "force"
 
         sdk_steps_all = [
-            SdkEvaluationStep(
+            SDKEvaluationStep(
                 key=step.key,
                 type=step.type,
                 origin=step.origin,
@@ -641,7 +641,7 @@ class APISliceProcessor:
         # the engine's gather+semaphore give cross-scenario concurrency (matching
         # the SDK and the design's process_slice(all scenarios)).
         scenarios_in_order: List[Any] = []
-        batch_source_items: List[SdkResolvedSourceItem] = []
+        batch_source_items: List[SDKResolvedSourceItem] = []
         target_keys_by_scenario: Dict[UUID, set] = {}
         context_by_scenario: Dict[UUID, Dict[int, Any]] = {}
         # timestamp/interval are constant across a single process call (seeded:

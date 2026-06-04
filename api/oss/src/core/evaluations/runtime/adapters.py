@@ -7,7 +7,7 @@ from agenta.sdk.evaluations.runtime.models import (
     WorkflowExecutionRequest,
     WorkflowExecutionResult,
 )
-from agenta.sdk.models.evaluations import EvaluationStatus as SdkEvaluationStatus
+from agenta.sdk.models.evaluations import EvaluationStatus as SDKEvaluationStatus
 
 from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
 from oss.src.core.evaluations.types import (
@@ -117,9 +117,9 @@ class APIWorkflowServiceRunner:
 
         return WorkflowExecutionResult(
             status=(
-                SdkEvaluationStatus.FAILURE
+                SDKEvaluationStatus.FAILURE
                 if has_error
-                else SdkEvaluationStatus.SUCCESS
+                else SDKEvaluationStatus.SUCCESS
             ),
             trace_id=getattr(response, "trace_id", None),
             span_id=getattr(response, "span_id", None),
@@ -396,6 +396,7 @@ class APIWorkflowRunner:
             revision_dump = revision
 
         parameters = _read_field(data, "parameters") if data else None
+
         flags = _read_field(revision, "flags")
         flags = (
             _dump_model(
@@ -407,72 +408,58 @@ class APIWorkflowRunner:
             if flags
             else None
         )
+
+        testcase = request.source.testcase
+        if hasattr(testcase, "model_dump"):
+            testcase = testcase.model_dump(mode="json", exclude_none=True)
+
+        trace = request.upstream_trace
+        if hasattr(trace, "model_dump"):
+            trace = trace.model_dump(mode="json", exclude_none=True)
+
+        request_data = WorkflowServiceRequestData(
+            revision=revision_dump,
+            parameters=parameters,
+            testcase=testcase,
+            inputs=_project_inputs(request.source.inputs, data),
+            trace=trace,
+            outputs=request.upstream_outputs or request.source.outputs,
+        )
+        service_request = WorkflowServiceRequest(
+            flags=flags,
+            data=request_data,
+            references=_dump_json(request.references),
+            links=request.links or {},
+        )
+
         response = await self.workflows_service.invoke_workflow(
             project_id=self.project_id,
             user_id=self.user_id,
-            request=WorkflowServiceRequest(
-                version="2025.07.14",
-                flags=flags,
-                data=WorkflowServiceRequestData(
-                    revision=revision_dump,
-                    parameters=parameters,
-                    testcase=(
-                        request.source.testcase.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                        )
-                        if hasattr(request.source.testcase, "model_dump")
-                        else request.source.testcase
-                    ),
-                    inputs=_project_inputs(request.source.inputs, data),
-                    trace=(
-                        request.upstream_trace.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                        )
-                        if hasattr(request.upstream_trace, "model_dump")
-                        else request.upstream_trace
-                    ),
-                    outputs=request.upstream_outputs or request.source.outputs,
-                ),
-                references=_dump_json(request.references),
-                links=request.links or {},
-            ),
+            request=service_request,
         )
+
         status = getattr(response, "status", None)
         status_code = getattr(status, "code", None)
         has_error = status_code != 200
+
+        error = None
+        if has_error:
+            error = (
+                status.model_dump(mode="json", exclude_none=True)
+                if hasattr(status, "model_dump")
+                else {"code": status_code}
+            )
+
         return WorkflowExecutionResult(
             status=(
-                SdkEvaluationStatus.FAILURE
+                SDKEvaluationStatus.FAILURE
                 if has_error
-                else SdkEvaluationStatus.SUCCESS
+                else SDKEvaluationStatus.SUCCESS
             ),
             trace_id=getattr(response, "trace_id", None),
             span_id=getattr(response, "span_id", None),
-            error=(
-                status.model_dump(mode="json", exclude_none=True)
-                if has_error and hasattr(status, "model_dump")
-                else {"code": status_code}
-                if has_error
-                else None
-            ),
+            error=error,
             outputs=getattr(response, "outputs", None),
-        )
-
-
-class APIEvaluatorRunner(APIWorkflowRunner):
-    def __init__(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        workflows_service: Any,
-    ):
-        super().__init__(
-            project_id=project_id,
-            user_id=user_id,
-            workflows_service=workflows_service,
         )
 
 
@@ -518,7 +505,7 @@ class APICachedRunner:
             reusable = cache.reusable_traces[0] if cache.reusable_traces else None
             if reusable and getattr(reusable, "trace_id", None):
                 results[idx] = WorkflowExecutionResult(
-                    status=SdkEvaluationStatus.SUCCESS,
+                    status=SDKEvaluationStatus.SUCCESS,
                     trace_id=str(reusable.trace_id),
                     trace=reusable,
                 )

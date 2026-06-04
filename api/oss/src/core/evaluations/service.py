@@ -111,7 +111,7 @@ from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from oss.src.core.evaluations.runtime.sources import resolve_queue_source_batches
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.models import SliceProcessMode, RunSlice
-from oss.src.core.evaluations.runtime.operations import RunSliceOperations
+from oss.src.core.evaluations.runtime.operations import SliceOperations
 
 
 log = get_module_logger(__name__)
@@ -235,7 +235,7 @@ class EvaluationsService:
         # imported locally to avoid a circular import. Requires the sub-services
         # the SDK engine needs; absent those (e.g. worker/parser contexts) the
         # ops degrade to None and probe/populate no-op.
-        self.run_slice_operations: Optional[RunSliceOperations] = None
+        self.run_slice_operations: Optional[SliceOperations] = None
         if (
             testcases_service is not None
             and workflows_service is not None
@@ -243,7 +243,7 @@ class EvaluationsService:
         ):
             from oss.src.core.evaluations.tasks.processor import APISliceProcessor
 
-            self.run_slice_operations = RunSliceOperations(
+            self.run_slice_operations = SliceOperations(
                 evaluations_service=self,
                 slice_processor=APISliceProcessor(
                     evaluations_service=self,

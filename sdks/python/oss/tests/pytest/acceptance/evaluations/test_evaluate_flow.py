@@ -81,7 +81,9 @@ def _assert_eval_result(result, *, expected_scenarios):
 
 
 def _metrics_data(result):
-    m = result["metrics"]
+    # metrics is {global, variational}; the evaluator outputs land in the
+    # whole-run (global) row's data.
+    m = (result["metrics"] or {}).get("global")
     return getattr(m, "data", None) or {}
 
 

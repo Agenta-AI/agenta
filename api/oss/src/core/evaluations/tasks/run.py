@@ -9,7 +9,7 @@ from oss.src.core.evaluations.runtime.models import (
     SliceProcessMode,
     RunSlice,
 )
-from oss.src.core.evaluations.runtime.operations import RunSliceOperations
+from oss.src.core.evaluations.runtime.operations import SliceOperations
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from oss.src.core.evaluations.runtime.sources import (
     resolve_direct_source_items,
@@ -660,7 +660,7 @@ async def rerun(
         workflows_service=workflows_service,
         applications_service=applications_service,
     )
-    run_operations = RunSliceOperations(
+    run_operations = SliceOperations(
         evaluations_service=evaluations_service,
         slice_processor=slice_processor,
     )

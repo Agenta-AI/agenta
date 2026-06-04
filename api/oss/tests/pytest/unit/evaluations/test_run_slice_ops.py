@@ -5,7 +5,7 @@ source-keyed dispatch_*_slice path (which ingests NEW source items):
 
   - TaskiqEvaluationTaskRunner.process_rerun (dispatch, omits empty kwargs)
   - SimpleEvaluationsService.dispatch_run_slice / probe_slice / populate_slice
-  - EvaluationsService self-builds RunSliceOperations from its sub-services
+  - EvaluationsService self-builds SliceOperations from its sub-services
   - rerun entry fn runs process() then refresh()
 """
 
@@ -21,7 +21,7 @@ from oss.src.core.evaluations.service import (
     SimpleEvaluationsService,
 )
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
-from oss.src.core.evaluations.runtime.operations import RunSliceOperations
+from oss.src.core.evaluations.runtime.operations import SliceOperations
 from oss.src.core.evaluations.runtime.models import RunSlice
 from oss.src.core.evaluations.tasks import run as run_module
 from oss.src.core.evaluations.tasks.run import (
@@ -259,7 +259,7 @@ async def test_populate_slice_returns_empty_when_run_operations_unwired():
     assert results == []
 
 
-# --- EvaluationsService self-builds RunSliceOperations ---------------------
+# --- EvaluationsService self-builds SliceOperations ---------------------
 
 
 def _evaluations_service(*, with_sub_services: bool) -> EvaluationsService:
@@ -284,7 +284,7 @@ def test_service_builds_run_operations_when_sub_services_present():
     service = _evaluations_service(with_sub_services=True)
 
     ops = service.run_slice_operations
-    assert isinstance(ops, RunSliceOperations)
+    assert isinstance(ops, SliceOperations)
     assert ops.slice_processor is not None
     # the ops reference the owning service (probe/populate go through it)
     assert ops.evaluations_service is service
@@ -304,7 +304,7 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
     """rerun orchestrates process(slice) then refresh(slice) over the same scope.
 
     The refresh DETAIL (variational + global/temporal aggregate) lives in
-    RunSliceOperations.refresh and is covered by
+    SliceOperations.refresh and is covered by
     test_run_operations_refresh_* — here we only assert rerun delegates both
     steps, in order, against the same coordinate slice.
     """
@@ -326,7 +326,7 @@ async def test_rerun_runs_process_then_refresh(monkeypatch):
             captured["refresh_slice"] = run_slice
 
     monkeypatch.setattr(
-        "oss.src.core.evaluations.tasks.run.RunSliceOperations",
+        "oss.src.core.evaluations.tasks.run.SliceOperations",
         _FakeRunOperations,
     )
 
@@ -367,7 +367,7 @@ async def test_run_operations_refresh_global_for_non_live():
         query_scenarios=AsyncMock(return_value=[]),
         refresh_metrics=refresh_mock,
     )
-    operations = RunSliceOperations(evaluations_service=evaluations_service)
+    operations = SliceOperations(evaluations_service=evaluations_service)
 
     await operations.refresh(
         project_id=project_id,
@@ -408,7 +408,7 @@ async def test_run_operations_refresh_temporal_for_live():
         ),
         refresh_metrics=refresh_mock,
     )
-    operations = RunSliceOperations(evaluations_service=evaluations_service)
+    operations = SliceOperations(evaluations_service=evaluations_service)
 
     await operations.refresh(
         project_id=project_id,
@@ -702,7 +702,7 @@ async def test_prune_uses_query_result_ids_not_full_probe():
         ),
         query_scenarios=AsyncMock(return_value=[]),
     )
-    run_operations = RunSliceOperations(evaluations_service=evaluations_service)
+    run_operations = SliceOperations(evaluations_service=evaluations_service)
 
     deleted = await run_operations.prune(
         project_id=project_id,
@@ -727,7 +727,7 @@ async def test_prune_empty_slice_is_noop():
         delete_results=AsyncMock(),
         refresh_metrics=AsyncMock(),
     )
-    run_operations = RunSliceOperations(evaluations_service=evaluations_service)
+    run_operations = SliceOperations(evaluations_service=evaluations_service)
 
     deleted = await run_operations.prune(
         project_id=uuid4(),
