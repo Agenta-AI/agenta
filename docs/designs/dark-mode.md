@@ -3,9 +3,13 @@
 How theming works in `web/oss` (and `web/ee`, which inherits it), and how to add
 or adjust theme-aware styling without re-introducing the bugs we've already fixed.
 
-Related: [`jss-to-tailwind-migration.md`](./jss-to-tailwind-migration.md) (the
-ongoing CSS-in-JS → Tailwind cleanup, which is what makes most components
-theme-aware "for free").
+Related:
+- [`dark-mode-designer-handoff.md`](./dark-mode-designer-handoff.md) — **start
+  here if you're a designer** (or a designer's agent): the dials you own, the
+  deliverable format, and the "light is frozen" rule.
+- [`jss-to-tailwind-migration.md`](./jss-to-tailwind-migration.md) — the ongoing
+  CSS-in-JS → Tailwind cleanup, which is what makes most components theme-aware
+  "for free".
 
 ---
 
