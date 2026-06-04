@@ -878,17 +878,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenarios: List[EvaluationScenarioCreate],
     ) -> List[EvaluationScenario]:
-        for scenario in scenarios:
-            run_flags = await _get_run_flags(
-                project_id=project_id,
-                run_id=scenario.run_id,
-            )
-
-            if run_flags.get("is_closed", False):
-                raise EvaluationClosedConflict(
-                    run_id=scenario.run_id,
-                )
-
         _scenarios = [
             EvaluationScenario(
                 **scenario.model_dump(
@@ -912,6 +901,20 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
         try:
             async with self.engine.session() as session:
+                # Reuse this session for the closed-run check so a fanned-out
+                # slice does not exhaust the connection pool.
+                for run_id in {scenario.run_id for scenario in scenarios}:
+                    run_flags = await _get_run_flags(
+                        project_id=project_id,
+                        run_id=run_id,
+                        session=session,
+                    )
+
+                    if run_flags.get("is_closed", False):
+                        raise EvaluationClosedConflict(
+                            run_id=run_id,
+                        )
+
                 session.add_all(scenario_dbes)
 
                 await session.commit()
@@ -1432,17 +1435,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         - id, project_id, run_id, scenario_id, step_key, repeat_idx (identity)
         """
 
-        for result in results:
-            run_flags = await _get_run_flags(
-                project_id=project_id,
-                run_id=result.run_id,
-            )
-
-            if run_flags.get("is_closed", False):
-                raise EvaluationClosedConflict(
-                    run_id=result.run_id,
-                )
-
         _results = [
             EvaluationResult(
                 **result.model_dump(
@@ -1467,6 +1459,20 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         # Batch upsert over the single composite unique index, returning the
         # upserted rows in the same statement (no per-row follow-up SELECT).
         async with self.engine.session() as session:
+            # Reuse this session for the closed-run check so a fanned-out
+            # slice does not exhaust the connection pool.
+            for run_id in {result.run_id for result in results}:
+                run_flags = await _get_run_flags(
+                    project_id=project_id,
+                    run_id=run_id,
+                    session=session,
+                )
+
+                if run_flags.get("is_closed", False):
+                    raise EvaluationClosedConflict(
+                        run_id=run_id,
+                    )
+
             returned_result_dbes = []
             # Convert DBE instances to dicts using SQLAlchemy's inspection
             mapper = inspect(EvaluationResultDBE)
