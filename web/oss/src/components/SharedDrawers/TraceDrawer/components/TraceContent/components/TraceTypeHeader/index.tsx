@@ -210,7 +210,7 @@ const TraceTypeHeader = ({
                     title="Copy span id"
                     tooltipProps={{placement: "bottom", arrow: true}}
                 >
-                    <Tag className="font-mono truncate bg-[#0517290F]" variant="filled">
+                    <Tag className="font-mono truncate bg-[var(--ag-c-0517290F)]" variant="filled">
                         # {activeTrace?.span_id || "-"}
                     </Tag>
                 </TooltipWithCopyAction>

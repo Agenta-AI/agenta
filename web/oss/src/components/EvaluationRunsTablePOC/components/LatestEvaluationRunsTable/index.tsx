@@ -92,7 +92,7 @@ const LatestEvaluationRunsTable = ({
                     hideOnboardingVideos={true}
                     className={clsx(
                         withContainerStyles &&
-                            "border border-gray-100 rounded-lg px-2 py-4 bg-white shadow-sm",
+                            "border border-gray-100 rounded-lg px-2 py-4 bg-[var(--ag-c-FFFFFF)] shadow-sm",
                     )}
                 />
             </EvaluationRunsTableStoreProvider>

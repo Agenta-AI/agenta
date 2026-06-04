@@ -111,7 +111,7 @@ const EvaluatorResultPopover = ({
     // Build popover content
     const popoverContent = useMemo(() => {
         if (!fullResult || status === "idle" || status === "cancelled") {
-            return <span className="text-[#bdc7d1] text-xs">Pending run</span>
+            return <span className="text-[var(--ag-c-BDC7D1)] text-xs">Pending run</span>
         }
         if (status === "running" || status === "pending") {
             return <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
@@ -384,7 +384,7 @@ const ChatTurnView = ({
                                             rowId={turnId}
                                             kind="assistant"
                                             className="w-full"
-                                            headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
+                                            headerClassName="border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
                                             messageProps={messageProps}
                                             messageOverride={msg}
                                             repetitionProps={
@@ -432,7 +432,7 @@ const ChatTurnView = ({
                                 rowId={turnId}
                                 kind="assistant"
                                 className="w-full"
-                                headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
+                                headerClassName="border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
                                 messageProps={messageProps}
                                 messageOverride={displayedAssistantMessage ?? messageOverride}
                                 repetitionProps={repetitionProps}

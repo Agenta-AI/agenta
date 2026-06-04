@@ -21,7 +21,7 @@ export const ClickRunPlaceholder: FC<{className?: string; variant?: "block" | "i
         return (
             <div
                 className={clsx(
-                    "rounded-md bg-[#fafafa] text-gray-600 border border-solid border-[rgba(5,23,41,0.06)] px-2 py-1 text-[12px] leading-4",
+                    "rounded-md bg-[var(--ag-c-FAFAFA)] text-gray-600 border border-solid border-[var(--ag-rgba-051729-06)] px-2 py-1 text-[12px] leading-4",
                     className,
                 )}
             >
@@ -33,14 +33,14 @@ export const ClickRunPlaceholder: FC<{className?: string; variant?: "block" | "i
     return (
         <div className={clsx("w-full rounded-md px-3 py-2.5", className)}>
             <div className="flex items-start gap-2">
-                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#0517290A] text-[#344054bf]">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--ag-c-0517290A)] text-[var(--ag-c-344054BF)]">
                     <PlayIcon size={12} />
                 </div>
                 <div className="min-w-0">
-                    <p className="m-0 text-[12px] font-medium leading-4 text-[#344054bf]">
+                    <p className="m-0 text-[12px] font-medium leading-4 text-[var(--ag-c-344054BF)]">
                         No output yet
                     </p>
-                    <p className="m-0 mt-0.5 text-[12px] leading-4 text-[#667085bf]">
+                    <p className="m-0 mt-0.5 text-[12px] leading-4 text-[var(--ag-c-667085BF)]">
                         Click Run (Ctrl+Enter / ⌘+Enter) to generate output.
                     </p>
                 </div>

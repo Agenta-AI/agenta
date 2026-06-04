@@ -106,7 +106,7 @@ const DrawerHeader = ({entityId, onClose}: {entityId: string; onClose: () => voi
     )
 
     return (
-        <div className="flex items-center justify-between px-4 py-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+        <div className="flex items-center justify-between px-4 py-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
             <Typography.Text className="text-base font-semibold">{name}</Typography.Text>
             <div className="flex items-center gap-2">
                 <EntityPicker<WorkflowRevisionSelectionResult>

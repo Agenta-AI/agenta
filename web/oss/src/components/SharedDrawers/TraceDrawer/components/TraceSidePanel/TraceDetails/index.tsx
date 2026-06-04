@@ -16,10 +16,12 @@ import {
     spanStartTimeAtomFamily,
 } from "@/oss/state/newObservability"
 
-import {useStyles} from "./assets/styles"
+const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
+const resultTagClass = "flex items-center font-mono gap-1"
+const tokenContainerClass =
+    "[&>div:nth-of-type(1)]:leading-[1.5714285714285714] [&>div:nth-of-type(1)]:font-medium [&>div:nth-of-type(2)]:leading-[1.5714285714285714] [&>div:nth-of-type(2)]:font-normal"
 
 const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
-    const classes = useStyles()
     const {icon, bgColor, color} = statusMapper(activeTrace?.span_type)
     const formattedTokens = useAtomValue(formattedSpanTokensAtomFamily(activeTrace))
     const formattedCost = useAtomValue(formattedSpanCostAtomFamily(activeTrace))
@@ -33,7 +35,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     return (
         <Flex vertical gap={12}>
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={classes.title}>Type</Typography.Text>
+                <Typography.Text className={titleClass}>Type</Typography.Text>
 
                 <ResultTag
                     style={{
@@ -51,7 +53,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </Space>
 
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={classes.title}>Status</Typography.Text>
+                <Typography.Text className={titleClass}>Status</Typography.Text>
                 <StatusRenderer
                     status={activeTrace?.status_code}
                     message={activeTrace?.status_message}
@@ -60,12 +62,12 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </Space>
 
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={classes.title}>Latency</Typography.Text>
+                <Typography.Text className={titleClass}>Latency</Typography.Text>
                 <ResultTag
                     bordered={false}
-                    className="bg-[#0517290F]"
+                    className="bg-[var(--ag-c-0517290F)]"
                     value1={
-                        <div className={classes.resultTag}>
+                        <div className={resultTagClass}>
                             <Timer size={14} /> {formattedLatency}
                         </div>
                     }
@@ -73,18 +75,18 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </Space>
 
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={classes.title}>Timestamp</Typography.Text>
+                <Typography.Text className={titleClass}>Timestamp</Typography.Text>
 
                 <ResultTag
-                    value1={<div className={classes.resultTag}>Start - {traceStartTime}</div>}
+                    value1={<div className={resultTagClass}>Start - {traceStartTime}</div>}
                     bordered={false}
-                    className="bg-[#0517290F]"
+                    className="bg-[var(--ag-c-0517290F)]"
                 />
                 <ResultTag
                     bordered={false}
-                    className="bg-[#0517290F]"
+                    className="bg-[var(--ag-c-0517290F)]"
                     value1={
-                        <div className={classes.resultTag}>
+                        <div className={resultTagClass}>
                             End {"  "}- {traceEndTime}
                         </div>
                     }
@@ -92,23 +94,23 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </Space>
 
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={classes.title}>Tokens & Cost</Typography.Text>
+                <Typography.Text className={titleClass}>Tokens & Cost</Typography.Text>
                 <ResultTag
                     bordered={false}
-                    className="bg-[#0517290F]"
+                    className="bg-[var(--ag-c-0517290F)]"
                     value1={
-                        <div className={classes.resultTag}>
+                        <div className={resultTagClass}>
                             <PlusCircle size={14} />
                             {formattedTokens} / {formattedCost}
                         </div>
                     }
                     popoverContent={
                         <Space orientation="vertical">
-                            <Space className={classes.tokenContainer}>
+                            <Space className={tokenContainerClass}>
                                 <div>{formattedPromptTokens}</div>
                                 <div>Prompt tokens</div>
                             </Space>
-                            <Space className={classes.tokenContainer}>
+                            <Space className={tokenContainerClass}>
                                 <div>{formattedCompletionTokens}</div>
                                 <div>Completion tokens</div>
                             </Space>

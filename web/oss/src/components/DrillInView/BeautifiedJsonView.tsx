@@ -484,14 +484,16 @@ const ScalarValue = ({value}: {value: unknown}) => {
     }
     if (typeof value === "boolean") {
         return (
-            <span className={`font-mono text-[12.5px] ${value ? "text-green-7" : "text-orange-6"}`}>
+            <span
+                className={`font-mono text-[12.5px] ${value ? "text-green-7 dark:text-[var(--ant-green-7)]" : "text-orange-6"}`}
+            >
                 {String(value)}
             </span>
         )
     }
     if (typeof value === "number") {
         return (
-            <span className="font-mono text-[12.5px] text-blue-7 tabular-nums">
+            <span className="font-mono text-[12.5px] text-blue-7 dark:text-[var(--ant-blue-7)] tabular-nums">
                 {String(value)}
             </span>
         )

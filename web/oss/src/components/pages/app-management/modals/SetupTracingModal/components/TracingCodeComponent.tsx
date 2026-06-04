@@ -1,7 +1,8 @@
 import {CopyButton} from "@agenta/ui"
 import {Flex, Space, Typography} from "antd"
+import {IBM_Plex_Mono} from "next/font/google"
 
-import {useStyles} from "../assets/styles"
+const ibm_plex_mono = IBM_Plex_Mono({weight: "400", subsets: ["latin"]})
 
 const {Text} = Typography
 
@@ -12,8 +13,6 @@ export const TracingCodeComponent = ({
     command: {title: string; code: string}
     index: number
 }) => {
-    const classes = useStyles()
-
     return (
         <div className="flex flex-col gap-2">
             <Flex align="center" justify="space-between">
@@ -23,8 +22,8 @@ export const TracingCodeComponent = ({
                 </Space>
                 <CopyButton buttonText={""} icon text={code} />
             </Flex>
-            <div className={classes.command}>
-                <pre className="m-0">{code}</pre>
+            <div className="p-2 bg-colorBgContainerDisabled rounded-lg overflow-auto">
+                <pre className={`m-0 ${ibm_plex_mono.className}`}>{code}</pre>
             </div>
         </div>
     )

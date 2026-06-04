@@ -21,12 +21,12 @@ const AggregatedOverviewSection = ({runIds}: AggregatedOverviewSectionProps) => 
     return (
         <Card variant="outlined" className="[&_.ant-card-body]:p-0">
             <div className="flex flex-col">
-                <div className="border border-solid border-[#EAEFF5] rounded h-full">
-                    <div className="py-2 px-3 flex flex-col justify-center border-0 border-b border-solid border-[#EAEFF5]">
+                <div className="border border-solid border-[var(--ag-c-EAEFF5)] rounded h-full">
+                    <div className="py-2 px-3 flex flex-col justify-center border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]">
                         <Typography.Text className="font-medium">
                             Evaluator Scores Overview
                         </Typography.Text>
-                        <Typography.Text className="text-[#758391]">
+                        <Typography.Text className="text-[var(--ag-c-758391)]">
                             Average evaluator score across evaluations
                         </Typography.Text>
                     </div>

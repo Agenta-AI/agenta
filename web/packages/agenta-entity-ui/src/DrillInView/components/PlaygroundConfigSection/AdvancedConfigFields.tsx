@@ -46,7 +46,7 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
         <div ref={rootRef} className="flex flex-col gap-3">
             <button
                 type="button"
-                className="flex items-center gap-1 border-0 bg-transparent p-0 text-left text-[rgba(5,23,41,0.45)] cursor-pointer"
+                className="flex items-center gap-1 border-0 bg-transparent p-0 text-left text-[var(--ag-rgba-051729-45)] cursor-pointer"
                 onClick={() => setIsAdvancedOpen((prev) => !prev)}
                 disabled={disabled}
             >

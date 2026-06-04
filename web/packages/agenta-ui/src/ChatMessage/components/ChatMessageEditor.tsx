@@ -49,7 +49,7 @@ export interface ChatMessageEditorProps {
     /** Whether to enable token highlighting */
     enableTokens?: boolean
     /** Template format for variable syntax highlighting */
-    templateFormat?: "curly" | "fstring" | "jinja2"
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
     /** Available template variables for token highlighting */
     tokens?: string[]
     /** Editor state: filled, readOnly, etc. */
@@ -184,6 +184,32 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             initialValue={text}
             value={text}
             handleChange={(v: string) => onChangeText?.(v)}
+            // Chat message editors emit on every keystroke — no 300ms
+            // debounce window. The default `useDebounceInput` behavior in
+            // SharedEditor lets late emits with stale text race against
+            // external value updates: e.g. the Refine Prompt modal writes
+            // refined messages to the molecule, the chat editor receives
+            // the new value, but a previously-scheduled debounced emit
+            // fires shortly after with the editor's pre-refine buffer (or
+            // the post-hydration text content after normalization) and
+            // propagates back up through `PromptSchemaControl
+            // .handleMessagesChange`. The spread `{...value, messages:
+            // STALE}` overwrites the just-applied refinement, reverting
+            // the prompt. Disabling the debounce makes emits synchronous
+            // — every onChange propagates immediately, so the molecule's
+            // state stays consistent with what the user sees.
+            //
+            // Performance trade-off: every keystroke fires `onChangeText`,
+            // which propagates through `ChatMessageList` →
+            // `MessagesSchemaControl` → `PromptSchemaControl` →
+            // `setUpdate`. Each step is an atom set or callback dispatch
+            // (cheap) and downstream re-renders are limited by Jotai's
+            // reactive granularity. In practice the chain is fast enough
+            // for normal typing cadence; the previous 300ms debounce was
+            // a performance hedge, not a correctness requirement.
+            //
+            // Kaosiso QA 2026-06-02 (also reproduces in production).
+            disableDebounce
             editorClassName={editorClassName}
             placeholder={placeholder}
             disabled={disabled}

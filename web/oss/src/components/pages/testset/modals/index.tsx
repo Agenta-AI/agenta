@@ -1,5 +1,4 @@
 import {ModalProps} from "antd"
-import {createUseStyles} from "react-jss"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {TestsetCreationMode} from "@/oss/lib/Types"
@@ -9,18 +8,8 @@ import CreateTestset from "./CreateTestset"
 import CreateTestsetFromApi from "./CreateTestsetFromApi"
 import CreateTestsetFromScratch from "./CreateTestsetFromScratch"
 
-const useStyles = createUseStyles({
-    modal: {
-        transition: "width 0.3s ease",
-        "& .ant-modal-content": {
-            overflow: "hidden",
-            borderRadius: 16,
-            "& > .ant-modal-close": {
-                top: 16,
-            },
-        },
-    },
-})
+const modalClass =
+    "transition-[width] duration-300 ease-[ease] [&_.ant-modal-content]:overflow-hidden [&_.ant-modal-content]:rounded-2xl [&_.ant-modal-content>.ant-modal-close]:top-4"
 
 interface Props extends ModalProps {
     testsetCreationMode: TestsetCreationMode
@@ -40,8 +29,6 @@ const TestsetModal: React.FC<Props> = ({
     setCurrent,
     ...props
 }) => {
-    const classes = useStyles()
-
     const onCancel = () => props.onCancel?.({} as any)
 
     const onCloseModal = () => {
@@ -77,7 +64,7 @@ const TestsetModal: React.FC<Props> = ({
             title={null}
             width={480}
             afterClose={onCloseModal}
-            className={classes.modal}
+            className={modalClass}
             {...props}
         >
             {steps[current]?.content}

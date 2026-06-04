@@ -134,7 +134,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         top: 48,
         right: 24,
         zIndex: 100,
-        background: "#fff",
+        background: theme.colorBgContainer,
         borderRadius: 6,
         boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
         display: "flex",
