@@ -12,10 +12,35 @@ const ThemeSwitcher = () => {
             size="small"
             value={themeMode}
             onChange={(val) => toggleAppTheme(val as ThemeMode)}
+            className="[&_.ant-segmented-group]:!gap-1 [&_.ant-segmented-item-label]:!flex [&_.ant-segmented-item-label]:!items-center [&_.ant-segmented-item-label]:!justify-center"
             options={[
-                {value: ThemeMode.Light, icon: <Sun size={14} />, title: "Light"},
-                {value: ThemeMode.System, icon: <Desktop size={14} />, title: "System"},
-                {value: ThemeMode.Dark, icon: <Moon size={14} />, title: "Dark"},
+                {
+                    value: ThemeMode.Light,
+                    icon: (
+                        <span className="flex items-center justify-center">
+                            <Sun size={14} />
+                        </span>
+                    ),
+                    title: "Light",
+                },
+                {
+                    value: ThemeMode.System,
+                    icon: (
+                        <span className="flex items-center justify-center">
+                            <Desktop size={14} />
+                        </span>
+                    ),
+                    title: "System",
+                },
+                {
+                    value: ThemeMode.Dark,
+                    icon: (
+                        <span className="flex items-center justify-center">
+                            <Moon size={14} />
+                        </span>
+                    ),
+                    title: "Dark",
+                },
             ]}
         />
     )

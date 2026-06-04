@@ -129,7 +129,7 @@ The consumer layer is a **convenience API** and a **set of UI views** that orche
    - An EvaluationQueue with optional user assignments
 4. Annotator works through rows → fills in labels → submits
 5. On submit: same annotation creation + result linking as today
-6. **Write-back step** (separate action): User clicks "Save annotations to test set" → creates a new test set revision with annotation values as new columns
+6. **Write-back step** (separate action): User clicks "Add to Testset" → each annotated row is matched to its existing test-set row (by testcase id, falling back to `testcase_dedup_id`), updated **in place** with the annotation columns, and committed as a new revision. See [Write Back / Save as Test Set](#write-back--save-as-test-set) for the identity model and matching rules.
 
 **Key design choice: annotating ≠ modifying the test set.** The annotation step creates annotation traces (OTel spans). These reference the test cases but don't modify them. Writing back to the test set is a separate, explicit action that creates a new revision. This preserves test case immutability and versioning.
 
@@ -264,26 +264,58 @@ Uses existing endpoints — no change needed:
 
 ### Write Back / Save as Test Set
 
-```
-POST /annotation-queues/{queue_id}/export
-{
-  // For testset-sourced queues: create new revision with annotation columns
-  "target": "testset_revision",
-  "column_mapping": {
-    "correctness": "is_correct",
-    "quality": "quality_score"
-  }
+The user clicks **"Add to Testset"** on the queue and either appends to an
+existing test set (new revision) or creates a new one. **As implemented this is a
+client-side operation**, not a backend export: the FE resolves the target's
+latest revision, computes a row delta, and commits a new revision via
+`POST /testsets/revisions/commit`. (The originally-proposed
+`POST /annotation-queues/{queue_id}/export` endpoint was not built — the FE owns
+the delta.)
 
-  // For trace-sourced queues: create new test set from annotated traces
-  // "target": "new_testset",
-  // "name": "Curated Q1 traces",
-  // "include_annotations_as_columns": true
-}
-```
+**Identity model.** FE-created annotation queues are **testcase-id-backed**, not
+testset-revision-backed: the queue references each row by its testcase id and the
+testcase blob's stable `testcase_dedup_id`. Test cases are immutable, so any
+update mints a new testcase id — `testcase_dedup_id` is the only key that survives
+across revisions, and only if it is preserved on every write.
 
-The endpoint name is `export` rather than `write-back` to better reflect that it works for both directions: writing annotations back to an existing test set (new revision) or creating an entirely new test set from annotated traces.
+**Behavior (existing test set):**
 
-**Who triggers this:** The queue creator/admin, not individual annotators. It's a one-time action available on the queue detail page.
+1. Base the commit on the test set's **latest _non-archived_ revision**.
+2. Match each annotated row to an existing row by **testcase id, falling back to
+   `testcase_dedup_id`** — the id match works on the first save; the dedup
+   fallback carries the match after a prior save reassigned the id.
+3. **Replace** on match, **add** on miss, and **preserve `testcase_dedup_id`** on
+   every replaced row so the lineage stays matchable for the next save.
+4. **Skip unchanged rows** (deep-equal vs the base row), and skip the commit
+   entirely when the resulting delta is empty — re-saving with nothing changed is
+   a no-op (no churn revision).
+
+The annotated row is updated **in place** (new testcase id, same dedup); the row
+count stays stable instead of growing.
+
+**For trace-sourced queues** there is no source test set, so the action always
+creates a new test set from the annotated rows.
+
+**Who triggers this:** the queue creator/admin, not individual annotators. It's a
+one-time action available on the queue detail page.
+
+#### Status & known constraints (AGE-3761)
+
+- **Fixed.** The first implementation committed with blind `add`, appending every
+  annotated row → duplicates. Two further traps were fixed: base rows were read
+  through `normalizeRevision`, which strips `testcase_dedup_id` (so the dedup
+  fallback silently never fired and the second save duplicated) — base rows are
+  now read **raw**; and "latest" was resolved via `retrieve {testset_ref}`, which
+  returns **archived** revisions — it's now resolved via the archived-excluding
+  `query` path.
+- **Not FE-fixable.** A test set whose rows already carry **duplicate or missing
+  `testcase_dedup_id`s** from earlier corruption cannot be cleaned by FE matching
+  (the dedup→row mapping is ambiguous). The durable fix is backend-owned: a stable,
+  unique testcase identity preserved on every write, or an upsert-by-stable-key
+  primitive so the FE never computes the delta.
+- **Deferred — multi-testset queues.** When a queue's rows originate from more than
+  one test set, routing each annotated row back to its source test set is future
+  work; the current single-target modal is kept.
 
 ---
 
@@ -442,7 +474,7 @@ The metadata-on-traces approach (tagging spans with review status) was considere
 
 3. **Queue visibility in eval runs:** When an eval run has human evaluators, is the auto-created queue visible in the eval run detail view? Or is it fully hidden?
 
-4. **Write-back granularity:** When writing annotations back to a test set, does the user choose which annotation fields become columns? Or do all fields from all evaluators get written back?
+4. **Write-back granularity:** ~~When writing annotations back to a test set, does the user choose which annotation fields become columns?~~ **Resolved (as shipped):** all annotation outputs from the queue-scoped evaluators are written back as columns (keyed per evaluator, e.g. `quality-rating`); there is no per-field picker. The export is scoped to the active queue's annotations so other queues' annotations on the same testcase don't bleed in.
 
 5. **Queue lifecycle:** Do annotation queues have a lifecycle (draft → active → completed)? Or are they always active and implicitly complete when all items are annotated?
 

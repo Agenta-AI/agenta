@@ -156,7 +156,7 @@ const PlaygroundVariantConfigHeader = ({
 
     return (
         <section
-            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 bg-colorBgBase ${className ?? ""}`}
+            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] ${className ?? ""}`}
             {...divProps}
         >
             <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">

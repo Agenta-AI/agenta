@@ -31,6 +31,7 @@ import {
     type TestcaseDataConfig,
     type TestcaseTableRow,
 } from "@agenta/entities/testcase"
+import {SmartCellContent, TextCellContent} from "@agenta/ui/cell-renderers"
 import type {RowHeightFeatureConfig, TypeChipConfig} from "@agenta/ui/table"
 
 import {EntityTable} from "../shared"
@@ -73,6 +74,38 @@ const DEFAULT_ROW_HEIGHT_CONFIG: RowHeightFeatureConfig = {
     defaultSize: "medium",
 }
 
+function getNativeColumnValue(
+    record: Record<string, unknown> | null | undefined,
+    columnKey: string,
+): unknown {
+    if (!record) return undefined
+
+    const directValue = record[columnKey]
+    if (directValue !== undefined) return directValue
+
+    const parts = columnKey.split(".")
+    if (parts.length === 1) return undefined
+
+    let current: unknown = record
+
+    for (const part of parts) {
+        if (current === null || current === undefined) return undefined
+
+        if (Array.isArray(current)) {
+            const index = Number(part)
+            if (!Number.isInteger(index) || String(index) !== part) return undefined
+            current = current[index]
+            continue
+        }
+
+        if (typeof current !== "object") return undefined
+
+        current = (current as Record<string, unknown>)[part]
+    }
+
+    return current
+}
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -102,6 +135,19 @@ export function TestcaseTable({
         return testcase.get.cell(record.id, columnKey)
     }, [])
 
+    const getTypeChipValue = useCallback((record: TestcaseTableRow, columnKey: string): unknown => {
+        const entity = testcase.get.data(record.id)
+        return getNativeColumnValue(entity?.data, columnKey)
+    }, [])
+
+    const renderCell = useCallback((value: unknown) => {
+        if (typeof value === "string") {
+            return <TextCellContent value={value} />
+        }
+
+        return <SmartCellContent value={value} />
+    }, [])
+
     // Share chip visibility pref with OSS TestcasesTableShell so toggling
     // chips off in one surface (eg. main testsets page) hides them in all
     // testcase tables consistently.
@@ -109,9 +155,9 @@ export function TestcaseTable({
         () => ({
             defaultEnabled: true,
             storageKey: "agenta:testcase-table:type-chips-enabled",
-            getRowValue: getCellValue,
+            getRowValue: getTypeChipValue,
         }),
-        [getCellValue],
+        [getTypeChipValue],
     )
 
     return (
@@ -130,6 +176,7 @@ export function TestcaseTable({
             showSettings={showSettings}
             enableExport={canExportData}
             typeChips={typeChips}
+            renderCell={renderCell}
             emptyMessage="No testcases found"
         />
     )

@@ -16,7 +16,7 @@ workflow state. The user has to open the drawer to see anything useful.
 This RFC adds a second heuristic layer between chat detection and the raw JSON
 fallback. For span values whose shape we recognize, an extractor pulls a small
 subset of fields and the cell renders only that subset using the existing
-beautified key/value view. Everything else still falls through to raw JSON.
+pretty key/value view. Everything else still falls through to raw JSON.
 
 The two existing detector calls (one for chat, one implicit for JSON) become
 internal rules of a single dispatcher. The cell stops chaining nullable checks
@@ -44,9 +44,9 @@ both the data to render and the renderer to use.
 
 ```ts
 type Preview =
-  | { renderer: "chat";       data: unknown[];                  source: string }
-  | { renderer: "beautified"; data: Record<string, unknown>;    source: string }
-  | { renderer: "json";       data: unknown;                    source: string }
+  | { renderer: "chat";   data: unknown[];               source: string }
+  | { renderer: "pretty"; data: Record<string, unknown>; source: string }
+  | { renderer: "json";   data: unknown;                 source: string }
 
 export function extractPreview(
   value: unknown,
@@ -60,9 +60,9 @@ The cell becomes a single switch.
 function SmartCellContent({value}: {value: unknown}) {
   const preview = extractPreview(value)
   switch (preview.renderer) {
-    case "chat":       return <ChatCell value={preview.data} />
-    case "beautified": return <BeautifiedJsonCell value={preview.data} />
-    case "json":       return <JsonCell value={preview.data} />
+    case "chat":   return <ChatCell value={preview.data} />
+    case "pretty": return <PrettyJsonCell value={preview.data} />
+    case "json":   return <JsonCell value={preview.data} />
   }
 }
 ```
@@ -84,7 +84,7 @@ type Rule =
       extract: (v: unknown, ctx: { side?: "input" | "output" }) => unknown[] | null
     }
   | {
-      kind: "beautified"
+      kind: "pretty"
       name: string
       extract: (v: unknown, ctx: { side?: "input" | "output" }) => Record<string, unknown> | null
     }
@@ -158,10 +158,10 @@ behavior automatically because they go through `SmartCellContent`.
 `extractChatMessages` stays as an internal helper that the chat rule wraps.
 External callers that import it directly keep working unchanged.
 
-`JsonCellContent.beautified` already exists. The dispatcher uses it as the
-"beautified" renderer. The `SmartCellContent.beautifyJson` prop remains as a
+`JsonCellContent.pretty` already exists. The dispatcher uses it as the
+"pretty" renderer. The `SmartCellContent.prettyJson` prop remains as a
 caller opt-in for the JSON fallback path (used by `ScenarioListView` to force
-beautified rendering on the raw-JSON branch).
+pretty rendering on the raw-JSON branch).
 
 `LastInputMessageCell` uses the dispatcher and renders only the last message
 when the chat rule matches. For non-chat values it delegates to
@@ -173,8 +173,8 @@ when the chat rule matches. For non-chat values it delegates to
   hookable comes later.
 - Rules that need span type or other span context. Shape-only for the first
   pass.
-- Aligning the cell's beautified styling with the drawer's
-  `BeautifiedJsonView`. The cell version is the lightweight one we already
+- Aligning the cell's pretty styling with the drawer's
+  `PrettyJsonView`. The cell version is the lightweight one we already
   have. Visual parity with the drawer is a separate piece of work.
 - Sharing rules with the drawer. The drawer has its own structure today. If
   the rule set proves valuable, we lift it out and reuse it.

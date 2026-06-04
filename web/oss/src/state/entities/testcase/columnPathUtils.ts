@@ -1,10 +1,4 @@
-import {
-    deleteValueAtPath,
-    getValueAtPath,
-    getValueAtStringPath,
-    parsePath,
-    type DataPath,
-} from "@agenta/shared/utils"
+import {deleteValueAtPath, getValueAtPath, parsePath, type DataPath} from "@agenta/shared/utils"
 
 export interface TestcaseColumnMetadata {
     key: string
@@ -16,21 +10,6 @@ export interface TestcaseColumnMetadata {
 interface NestedColumnParts {
     parentKey: string
     subKey: string
-}
-
-function parseJsonContainer(value: string): unknown {
-    const trimmed = value.trim()
-    const canBeContainer =
-        (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-        (trimmed.startsWith("[") && trimmed.endsWith("]"))
-
-    if (!canBeContainer) return undefined
-
-    try {
-        return JSON.parse(trimmed)
-    } catch {
-        return undefined
-    }
 }
 
 function getNestedColumnParts(key: string): NestedColumnParts | null {
@@ -75,28 +54,11 @@ export function tryParseAsObjectColumnValue(value: unknown): Record<string, unkn
         return value as Record<string, unknown>
     }
 
-    if (typeof value !== "string") {
-        return null
-    }
-
-    const parsed = parseJsonContainer(value)
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>
-    }
-
     return null
 }
 
 export function isArrayColumnValue(value: unknown): boolean {
-    if (Array.isArray(value)) {
-        return true
-    }
-
-    if (typeof value !== "string") {
-        return false
-    }
-
-    return Array.isArray(parseJsonContainer(value))
+    return Array.isArray(value)
 }
 
 export function getColumnValueFromRecord(
@@ -118,10 +80,6 @@ export function getColumnValueFromRecord(
     let current: unknown = record
 
     for (const part of parts) {
-        if (typeof current === "string") {
-            current = parseJsonContainer(current)
-        }
-
         if (current === undefined || current === null) {
             return undefined
         }
@@ -147,23 +105,6 @@ export function getColumnValueFromRecord(
 
 function isEmptyObjectLike(value: unknown): boolean {
     if (!value || typeof value !== "object") {
-        if (typeof value === "string") {
-            const trimmed = value.trim()
-            if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-                try {
-                    const parsed = JSON.parse(trimmed)
-                    return (
-                        !!parsed &&
-                        typeof parsed === "object" &&
-                        !Array.isArray(parsed) &&
-                        Object.keys(parsed).length === 0
-                    )
-                } catch {
-                    return false
-                }
-            }
-        }
-
         return false
     }
 
@@ -211,7 +152,7 @@ export function buildDeleteColumnValueUpdates(
     }
 
     const path = parsePath(columnKey)
-    if (path.length < 2 || getValueAtStringPath(record, columnKey) === undefined) {
+    if (path.length < 2 || getColumnValueFromRecord(record, columnKey) === undefined) {
         return null
     }
 

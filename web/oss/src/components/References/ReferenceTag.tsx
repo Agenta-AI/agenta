@@ -10,6 +10,7 @@ interface ReferenceTagProps extends TagProps {
     label: string
     href?: string
     showIcon?: boolean
+    iconColor?: string
     tooltip?: string
     copyValue?: string
     tone?: ReferenceTone
@@ -20,6 +21,7 @@ const ReferenceTag = ({
     label,
     href,
     showIcon = true,
+    iconColor,
     className,
     tooltip,
     copyValue,
@@ -75,7 +77,7 @@ const ReferenceTag = ({
                     aria-label="Open link"
                     size={14}
                     className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 cursor-pointer"
-                    style={{color: toneColors?.text ?? "currentColor"}}
+                    style={{color: iconColor ?? toneColors?.text ?? "currentColor"}}
                     onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()

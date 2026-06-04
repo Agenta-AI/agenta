@@ -308,7 +308,12 @@ export const triggerExecutionAtom = atom(
         }
 
         // Get testcase row data from the loadable
-        const rowEntry = get(loadableController.selectors.row(loadableId, logicalRowId)) as {
+        const displayRowIds = get(loadableController.selectors.displayRowIds(loadableId))
+        const testcaseRowId =
+            isChat && Array.isArray(displayRowIds) && displayRowIds.length > 0
+                ? displayRowIds[0]
+                : logicalRowId
+        const rowEntry = get(loadableController.selectors.row(loadableId, testcaseRowId)) as {
             data?: Record<string, unknown>
         } | null
         const testcaseData: Record<string, unknown> = rowEntry?.data ?? {}
