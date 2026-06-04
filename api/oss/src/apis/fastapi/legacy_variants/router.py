@@ -18,8 +18,11 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import FORBIDDEN_EXCEPTION, check_action_access
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        FORBIDDEN_EXCEPTION,
+        check_action_access,
+    )
 
 
 def _as_reference(ref: Optional[ReferenceRequestModel]) -> Optional[Reference]:

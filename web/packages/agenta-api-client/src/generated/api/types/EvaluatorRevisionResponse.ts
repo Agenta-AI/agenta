@@ -12,4 +12,6 @@ export interface EvaluatorRevisionResponse {
     evaluator_revision?: (AgentaApi.EvaluatorRevision | null) | undefined;
     /** Embed-resolution metadata. Populated when `resolve=true` was requested. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    /** References used to retrieve the top-level revision. */
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

@@ -176,6 +176,26 @@ Concrete examples:
 - Legacy app storage marker (`WORKFLOW_MARKER_KEY`): `api/oss/src/core/applications/service.py`
 - Legacy dedup key normalization (`__dedup_id__` <-> `testcase_dedup_id`): `api/oss/src/apis/fastapi/testsets/router.py`
 
+### Alembic migration chains (OSS + EE)
+
+Migrations live in two separate, parallel chains that must each resolve to a
+single head:
+- OSS: `api/oss/databases/postgres/migrations/core/versions/`
+- EE: `api/ee/databases/postgres/migrations/core/versions/`
+
+Rules:
+- After adding/editing/renaming any migration, verify each chain has exactly ONE
+  head with the bundled tool: from each `.../migrations/` directory run
+  `python3 find_head.py core` and confirm the `Heads:` list has a single entry.
+  Run it for BOTH OSS and EE.
+- New migrations chain linearly after the existing head — never fork off an older
+  node (a fork produces two heads; alembic then can't resolve a linear upgrade).
+- Revision ids must be globally unique within a chain. A duplicate id makes
+  alembic silently skip one file (the migration never runs).
+- The EE chain and the OSS chain are parallel, so an OSS migration chains after
+  the OSS head while its EE counterpart chains after the EE head — same revision id,
+  possibly different `down_revision`.
+
 ### Router and function style conventions
 
 Router style:

@@ -1,6 +1,6 @@
 from typing import Tuple, Callable, Optional
 
-from ee.src.core.entitlements.types import Quota
+from ee.src.core.access.entitlements.types import Quota
 from ee.src.core.meters.types import MeterDTO, MeterScope, MeterPeriod, Meters
 
 

@@ -4,30 +4,29 @@ Walks the effective plan map and, for each plan that defines a non-null
 ``Counter.EVENTS_INGESTED.retention``, deletes events older than the
 retention cutoff for projects whose org subscribes to that plan.
 
-Parallel to ``ee.src.core.tracing.service.TracingService`` (same shape,
-different counter and DAO). Both names live in EE; the OSS counterparts
-(``oss.src.core.events.service.EventsService`` and
-``oss.src.core.tracing.service.TracingService``) own ingest/query.
+Parallel to ``ee.src.core.tracing.service.TracingRetentionService`` (same shape,
+different counter and DAO). The OSS counterpart
+(``oss.src.core.events.service.EventsService``) owns ingest/query.
 """
 
 from datetime import datetime, timezone, timedelta
 
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.entitlements.types import Tracker, Counter
-from ee.src.core.entitlements.controls import get_plans
-from ee.src.dbs.postgres.events.dao import EventsDAO
+from ee.src.core.access.entitlements.types import Tracker, Counter
+from ee.src.core.access.controls import get_plans
+from ee.src.dbs.postgres.events.dao import EventsRetentionDAO
 
 
 log = get_module_logger(__name__)
 
 
-class EventsService:
+class EventsRetentionService:
     def __init__(
         self,
-        events_dao: EventsDAO,
+        events_retention_dao: EventsRetentionDAO,
     ):
-        self.events_dao = events_dao
+        self.events_dao = events_retention_dao
 
     async def flush_events(
         self,

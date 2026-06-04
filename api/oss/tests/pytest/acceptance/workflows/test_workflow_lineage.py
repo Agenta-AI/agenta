@@ -112,9 +112,11 @@ def mock_data(authed_api):
 
     workflow_revision_slug = uuid4()
 
+    # Subsequent revisions on the same variant go through commit — the plain
+    # create endpoint only seeds the variant's initial revision.
     response = authed_api(
         "POST",
-        "/workflows/revisions/",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-second",
@@ -135,6 +137,7 @@ def mock_data(authed_api):
                     "meta2": "value2",
                     "meta3": "value3",
                 },
+                "data": {"parameters": {"v": 2}},
                 "workflow_id": workflow_id,
                 "workflow_variant_id": workflow_variant_id,
             }
@@ -147,7 +150,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/workflows/revisions/",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-third",
@@ -168,6 +171,7 @@ def mock_data(authed_api):
                     "meta2": "value2",
                     "meta3": "value3",
                 },
+                "data": {"parameters": {"v": 3}},
                 "workflow_id": workflow_id,
                 "workflow_variant_id": workflow_variant_id,
             }

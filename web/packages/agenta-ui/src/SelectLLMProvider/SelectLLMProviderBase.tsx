@@ -207,7 +207,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             popupRender={(menu) => (
                 <div className="flex flex-col gap-1">
                     {showSearch && (
-                        <div className="relative border-0 border-b border-solid border-[#f0f0f0]">
+                        <div className="relative border-0 border-b border-solid border-[var(--ag-c-F0F0F0)]">
                             <Input
                                 ref={inputRef}
                                 placeholder="Search"
@@ -256,7 +256,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                 {group.options.map((option) => (
                                                     <div
                                                         key={option.key ?? option.value}
-                                                        className="px-3 py-[5px] cursor-pointer hover:bg-[#f5f5f5] flex items-center gap-2"
+                                                        className="px-3 py-[5px] cursor-pointer hover:bg-[var(--ag-c-F5F5F5)] flex items-center gap-2"
                                                         onMouseDown={(e) => {
                                                             e.preventDefault()
                                                             e.stopPropagation()
@@ -272,18 +272,18 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     >
                                         <div
                                             className={clsx([
-                                                "px-3 py-[5px] cursor-pointer flex items-center gap-2 hover:bg-[#f5f5f5]",
-                                                isHovered && "bg-[#f5f5f5]",
+                                                "px-3 py-[5px] cursor-pointer flex items-center gap-2 hover:bg-[var(--ag-c-F5F5F5)]",
+                                                isHovered && "bg-[var(--ag-c-F5F5F5)]",
                                             ])}
                                         >
                                             {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
                                             <span className="flex-1">{displayName}</span>
-                                            <span className="text-[rgba(0,0,0,0.45)] text-xs">
+                                            <span className="text-[var(--ag-rgba-000-45)] text-xs">
                                                 {group.options.length}
                                             </span>
                                             <CaretRight
                                                 size={12}
-                                                className="text-[rgba(0,0,0,0.45)]"
+                                                className="text-[var(--ag-rgba-000-45)]"
                                             />
                                         </div>
                                     </Popover>

@@ -31,10 +31,10 @@ const EvalDrawerDataSection = ({
     if (!columns.length) return null
 
     return (
-        <div className="flex flex-col border-t border-solid border-[#0517290F]">
+        <div className="flex flex-col border-t border-solid border-[var(--ag-c-0517290F)]">
             {headerExtra ? (
                 <div className="flex items-center justify-between gap-2 px-4 py-1.5">
-                    <span className="text-xs font-medium uppercase tracking-wider text-[#98A2B3]">
+                    <span className="text-xs font-medium uppercase tracking-wider text-[var(--ag-c-98A2B3)]">
                         {title}
                     </span>
                     <div className="flex items-center gap-2">{headerExtra}</div>

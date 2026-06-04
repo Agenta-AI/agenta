@@ -15,15 +15,13 @@ from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluations.service import EvaluationsService
 
-from oss.src.core.evaluations.tasks.legacy import (
-    evaluate_batch_testset as evaluate_batch_testset_impl,
-    evaluate_batch_invocation as evaluate_batch_invocation_impl,
-    evaluate_batch_testcases as evaluate_batch_testcases_impl,
-    evaluate_batch_traces as evaluate_batch_traces_impl,
+from oss.src.core.evaluations.tasks.run import (
+    EvaluationSliceSource,
+    run_from_source,
+    run_from_batch,
+    rerun,
 )
-from oss.src.core.evaluations.tasks.live import (
-    evaluate_live_query as evaluate_live_query_impl,
-)
+from oss.src.core.evaluations.runtime.models import SliceProcessMode
 from oss.src.core.evaluations.runtime.locks import (
     acquire_job_lock,
     release_job_lock,
@@ -225,55 +223,12 @@ class EvaluationsWorker:
         """Register all evaluation tasks with the broker."""
 
         @self.broker.task(
-            task_name="evaluations.legacy.annotate",
+            task_name="evaluations.run_from_source.process",
             retry_on_error=False,
             max_retries=0,  # Never retry - handle errors in application logic
         )
-        async def evaluate_batch_testset(
+        async def process_run_from_source(
             *,
-            project_id: UUID,
-            user_id: UUID,
-            #
-            run_id: UUID,
-            context: Context = TaskiqDepends(),
-        ) -> Any:
-            """Legacy annotation task - wraps the existing annotate function."""
-            log.info(
-                "[TASK] Starting evaluate_batch_testset",
-                project_id=str(project_id),
-                user_id=str(user_id),
-            )
-
-            result = await self._with_job_lock(
-                run_id,
-                job_id=context.message.task_id or str(uuid4()),
-                job_type="api",
-                allow_concurrency=False,
-                runner=lambda: evaluate_batch_testset_impl(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    run_id=run_id,
-                    #
-                    tracing_service=self.tracing_service,
-                    testsets_service=self.testsets_service,
-                    queries_service=self.queries_service,
-                    workflows_service=self.workflows_service,
-                    applications_service=self.applications_service,
-                    evaluations_service=self.evaluations_service,
-                    #
-                    simple_evaluators_service=self.simple_evaluators_service,
-                ),
-            )
-            log.info("[TASK] Completed evaluate_batch_testset")
-            return result
-
-        @self.broker.task(
-            task_name="evaluations.live.evaluate",
-            retry_on_error=False,
-            max_retries=0,  # Never retry - handle errors in application logic
-        )
-        async def evaluate_live_query(
             project_id: UUID,
             user_id: UUID,
             #
@@ -283,8 +238,8 @@ class EvaluationsWorker:
             oldest: Optional[datetime] = None,
             context: Context = TaskiqDepends(),
         ) -> Any:
-            """Live evaluation task - evaluates traces against evaluators."""
-            log.info("[TASK] Starting evaluate_live_query")
+            """Process one evaluation run using the unified topology dispatcher."""
+            log.info("[TASK] Starting process_run_from_source")
 
             if newest is None:
                 newest = datetime.now(timezone.utc)
@@ -296,168 +251,107 @@ class EvaluationsWorker:
                 job_id=context.message.task_id or str(uuid4()),
                 job_type="api",
                 allow_concurrency=False,
-                runner=lambda: evaluate_live_query_impl(
+                runner=lambda: run_from_source(
                     project_id=project_id,
                     user_id=user_id,
-                    #
                     run_id=run_id,
-                    #
                     newest=newest,
                     oldest=oldest,
-                ),
-            )
-            log.info("[TASK] Completed evaluate_live_query")
-            return result
-
-        @self.broker.task(
-            task_name="evaluations.queries.batch",
-            retry_on_error=False,
-            max_retries=0,
-        )
-        async def evaluate_batch_query(
-            *,
-            project_id: UUID,
-            user_id: UUID,
-            #
-            run_id: UUID,
-            context: Context = TaskiqDepends(),
-        ) -> Any:
-            """One-shot query evaluation task for non-live runs."""
-            log.info("[TASK] Starting evaluate_batch_query")
-
-            result = await self._with_job_lock(
-                run_id,
-                job_id=context.message.task_id or str(uuid4()),
-                job_type="api",
-                allow_concurrency=False,
-                runner=lambda: evaluate_live_query_impl(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    run_id=run_id,
-                    #
-                    newest=None,
-                    oldest=None,
-                    #
-                    use_windowing=True,
-                ),
-            )
-            log.info("[TASK] Completed evaluate_batch_query")
-            return result
-
-        @self.broker.task(
-            task_name="evaluations.invocations.batch",
-            retry_on_error=False,
-            max_retries=0,
-        )
-        async def evaluate_batch_invocation(
-            *,
-            project_id: UUID,
-            user_id: UUID,
-            #
-            run_id: UUID,
-            context: Context = TaskiqDepends(),
-        ) -> Any:
-            log.info("[TASK] Starting evaluate_batch_invocation")
-            result = await self._with_job_lock(
-                run_id,
-                job_id=context.message.task_id or str(uuid4()),
-                job_type="api",
-                allow_concurrency=False,
-                runner=lambda: evaluate_batch_invocation_impl(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    run_id=run_id,
-                    #
                     tracing_service=self.tracing_service,
                     testsets_service=self.testsets_service,
+                    queries_service=self.queries_service,
+                    workflows_service=self.workflows_service,
+                    applications_service=self.applications_service,
+                    evaluations_service=self.evaluations_service,
+                    simple_evaluators_service=self.simple_evaluators_service,
+                ),
+            )
+            log.info("[TASK] Completed process_run_from_source")
+            return result
+
+        @self.broker.task(
+            task_name="evaluations.run_from_batch.process",
+            retry_on_error=False,
+            max_retries=0,
+        )
+        async def process_run_from_batch(
+            *,
+            project_id: UUID,
+            user_id: UUID,
+            #
+            run_id: UUID,
+            source_kind: EvaluationSliceSource,
+            trace_ids: Optional[list[str]] = None,
+            testcase_ids: Optional[list[UUID]] = None,
+            input_step_key: Optional[str] = None,
+            context: Context = TaskiqDepends(),
+        ) -> Any:
+            log.info("[TASK] Starting process_run_from_batch", source_kind=source_kind)
+            result = await self._with_job_lock(
+                run_id,
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=True,
+                runner=lambda: run_from_batch(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run_id,
+                    source_kind=source_kind,
+                    trace_ids=trace_ids,
+                    testcase_ids=testcase_ids,
+                    input_step_key=input_step_key,
+                    tracing_service=self.tracing_service,
+                    testcases_service=self.testcases_service,
+                    workflows_service=self.workflows_service,
                     applications_service=self.applications_service,
                     evaluations_service=self.evaluations_service,
                 ),
             )
-            log.info("[TASK] Completed evaluate_batch_invocation")
+            log.info("[TASK] Completed process_run_from_batch", source_kind=source_kind)
             return result
 
         @self.broker.task(
-            task_name="evaluations.traces.batch",
+            task_name="evaluations.rerun.process",
             retry_on_error=False,
             max_retries=0,
         )
-        async def evaluate_batch_traces(
+        async def process_rerun(
             *,
             project_id: UUID,
             user_id: UUID,
             #
             run_id: UUID,
-            trace_ids: list[str],
-            input_step_key: Optional[str] = None,
+            scenario_ids: Optional[list[UUID]] = None,
+            step_keys: Optional[list[str]] = None,
+            repeat_idxs: Optional[list[int]] = None,
+            process_mode: SliceProcessMode = "fill-missing",
             context: Context = TaskiqDepends(),
         ) -> Any:
-            log.info("[TASK] Starting evaluate_batch_traces")
+            log.info("[TASK] Starting process_rerun", run_id=str(run_id))
             result = await self._with_job_lock(
                 run_id,
                 job_id=context.message.task_id or str(uuid4()),
                 job_type="api",
                 allow_concurrency=True,
-                runner=lambda: evaluate_batch_traces_impl(
+                runner=lambda: rerun(
                     project_id=project_id,
                     user_id=user_id,
-                    #
                     run_id=run_id,
-                    trace_ids=trace_ids,
-                    input_step_key=input_step_key,
-                    #
-                    tracing_service=self.tracing_service,
-                    workflows_service=self.workflows_service,
-                    evaluations_service=self.evaluations_service,
-                ),
-            )
-            log.info("[TASK] Completed evaluate_batch_traces")
-            return result
-
-        @self.broker.task(
-            task_name="evaluations.testcases.batch",
-            retry_on_error=False,
-            max_retries=0,
-        )
-        async def evaluate_batch_testcases(
-            *,
-            project_id: UUID,
-            user_id: UUID,
-            #
-            run_id: UUID,
-            testcase_ids: list[UUID],
-            input_step_key: Optional[str] = None,
-            context: Context = TaskiqDepends(),
-        ) -> Any:
-            log.info("[TASK] Starting evaluate_batch_testcases")
-            result = await self._with_job_lock(
-                run_id,
-                job_id=context.message.task_id or str(uuid4()),
-                job_type="api",
-                allow_concurrency=True,
-                runner=lambda: evaluate_batch_testcases_impl(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    run_id=run_id,
-                    testcase_ids=testcase_ids,
-                    input_step_key=input_step_key,
-                    #
+                    scenario_ids=scenario_ids,
+                    step_keys=step_keys,
+                    repeat_idxs=repeat_idxs,
+                    process_mode=process_mode,
                     tracing_service=self.tracing_service,
                     testcases_service=self.testcases_service,
                     workflows_service=self.workflows_service,
+                    applications_service=self.applications_service,
                     evaluations_service=self.evaluations_service,
                 ),
             )
-            log.info("[TASK] Completed evaluate_batch_testcases")
+            log.info("[TASK] Completed process_rerun", run_id=str(run_id))
             return result
 
         # Store task references for external access
-        self.evaluate_batch_testset = evaluate_batch_testset
-        self.evaluate_live_query = evaluate_live_query
-        self.evaluate_batch_query = evaluate_batch_query
-        self.evaluate_batch_invocation = evaluate_batch_invocation
-        self.evaluate_batch_traces = evaluate_batch_traces
-        self.evaluate_batch_testcases = evaluate_batch_testcases
+        self.process_run_from_source = process_run_from_source
+        self.process_run_from_batch = process_run_from_batch
+        self.process_rerun = process_rerun

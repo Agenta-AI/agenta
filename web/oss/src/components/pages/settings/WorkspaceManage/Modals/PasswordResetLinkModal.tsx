@@ -49,7 +49,7 @@ const PasswordResetLinkModal = ({
                     <AvatarWithLabel name={username} />
                 </div>
 
-                <div className="py-1 px-3 rounded-md gap-2 bg-[#0517290A]">
+                <div className="py-1 px-3 rounded-md gap-2 bg-[var(--ag-c-0517290A)]">
                     <div className="flex items-center justify-between">
                         <Typography.Text className="font-medium">
                             Password reset link

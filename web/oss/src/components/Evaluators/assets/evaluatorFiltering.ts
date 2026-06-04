@@ -57,12 +57,16 @@ export const DEFAULT_TAB_KEY = "all"
  * Tailwind CSS class mappings for evaluator category badges.
  * Each category has a distinct color scheme.
  */
+// These hues (sky/orange/blue/violet/amber) aren't var-backed, so the light -100
+// pills don't adapt to dark. Add dark: variants (dark tint + light text) so the
+// tags read as proper tinted chips in dark instead of glaring light pills. Light
+// is unchanged.
 export const TAG_CLASSNAME_MAP: Record<string, string> = {
-    rag: "bg-sky-100 text-sky-700",
-    classifiers: "bg-orange-100 text-orange-700",
-    similarity: "bg-blue-100 text-blue-700",
-    ai_llm: "bg-violet-100 text-violet-700",
-    functional: "bg-amber-100 text-amber-700",
+    rag: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
+    classifiers: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+    similarity: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+    ai_llm: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
+    functional: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
 }
 
 /**

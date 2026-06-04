@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Union, Optional, Tuple
+from typing import Dict, List, Any, Union, Optional
 from uuid import UUID
 from copy import deepcopy
 from datetime import datetime
@@ -10,17 +10,6 @@ from agenta.sdk.models.evaluations import (
     Target,
     SimpleEvaluationData,
 )
-from agenta.sdk.models.shared import Link, Reference
-from agenta.sdk.models.workflows import (
-    ApplicationRevision,
-    EvaluatorRevision,
-    WorkflowServiceRequestData,
-    ApplicationServiceRequest,
-    EvaluatorServiceRequest,
-)
-from agenta.sdk.models.testsets import TestsetRevision
-
-from agenta.sdk.evaluations.preview.utils import fetch_trace_data
 
 from agenta.sdk.managers.testsets import (
     acreate as acreate_testset,
@@ -35,25 +24,30 @@ from agenta.sdk.managers.evaluators import (
     aretrieve as aretrieve_evaluator,
 )
 from agenta.sdk.evaluations.runs import (
+    RunData,
     acreate as acreate_run,
     aclose as aclose_run,
     aurl as aget_url,
 )
 from agenta.sdk.evaluations.scenarios import (
-    acreate as aadd_scenario,
+    aadd as aadd_scenarios,
+    aedit_scenario,
 )
 from agenta.sdk.evaluations.results import (
-    acreate as alog_result,
+    apopulate as apopulate_slice,
 )
 from agenta.sdk.evaluations.metrics import (
-    arefresh as acompute_metrics,
+    arefresh,
+    aquery_global as aquery_metrics,
 )
+from agenta.sdk.evaluations.runtime.processor import process_sources
+from agenta.sdk.evaluations.runtime.executor import AsyncioEvaluationTaskRunner
+from agenta.sdk.evaluations.runtime.adapters import (
+    SDKWorkflowRunner,
+)
+from agenta.sdk.evaluations.preview.utils import afetch_trace
 
 
-from agenta.sdk.decorators.running import (
-    invoke_application,
-    invoke_evaluator,
-)
 from agenta.sdk.utils.logging import get_module_logger
 
 
@@ -169,9 +163,59 @@ async def _parse_evaluate_kwargs(
     return simple_evaluation_data
 
 
-async def _upsert_entities(
+async def _resolve_testset_steps_to_revisions(
+    testset_steps: Any,
+) -> Dict[str, Origin]:
+    """Pin each testset step key to a concrete revision id.
+
+    A normalized testset step is `{id: origin}`, but `id` may be a testset id or
+    a revision id. Resolve each: try it as a revision id, fall back to a testset
+    id (latest revision). The backend persists these step refs verbatim and does
+    no JIT resolution, so this must happen before the run is created.
+    """
+    if not testset_steps or not isinstance(testset_steps, dict):
+        return testset_steps
+
+    resolved: Dict[str, Origin] = {}
+    for testset_id_str, origin in testset_steps.items():
+        try:
+            testset_uuid = UUID(str(testset_id_str))
+        except Exception:
+            continue
+
+        testset_revision = await aretrieve_testset(
+            testset_revision_id=testset_uuid,
+        )
+
+        if not testset_revision or not testset_revision.id:
+            # Fallback: treat as testset_id (latest revision)
+            testset_revision = await aretrieve_testset(
+                testset_id=testset_uuid,
+            )
+
+        if testset_revision and testset_revision.id:
+            resolved[str(testset_revision.id)] = origin
+
+    return resolved
+
+
+async def _resolve_entities(
     simple_evaluation_data: SimpleEvaluationData,
 ) -> SimpleEvaluationData:
+    """Resolve a parsed draft into a revision-pinned SimpleEvaluationData.
+
+    The draft's `*_steps` arrive loose (a `Target`: revision ids, entity ids,
+    callables, or inline testcase data). This is THE phase that turns each into
+    a `{revision_id: origin}` dict — its postcondition is the invariant the rest
+    of the pipeline relies on: every step map is keyed by a concrete revision id.
+
+    Two mechanisms get there:
+      - mint: callable -> revision (`aupsert_*`), inline data -> testset revision
+        (`acreate_testset`); these return revision ids directly;
+      - disambiguate: a passed testset UUID may be a testset id OR a revision id,
+        so testset steps are pinned to revision ids here (no JIT resolution in
+        the backend, which persists these step refs verbatim on the run).
+    """
     if simple_evaluation_data.testset_steps:
         if isinstance(simple_evaluation_data.testset_steps, list):
             testset_steps: Dict[str, Origin] = {}
@@ -206,6 +250,14 @@ async def _upsert_entities(
     simple_evaluation_data.testset_steps = _normalize_target_steps(
         steps=simple_evaluation_data.testset_steps,
         step_name="testset steps",
+    )
+
+    # Pin testset steps to revision ids. A passed UUID may be a testset id or a
+    # revision id; the backend does no JIT resolution and persists these step
+    # refs verbatim on the run, so disambiguate to revision ids here. (Apps and
+    # evaluators already resolve to revision ids above, via id or upsert.)
+    simple_evaluation_data.testset_steps = await _resolve_testset_steps_to_revisions(
+        simple_evaluation_data.testset_steps
     )
 
     if simple_evaluation_data.application_steps:
@@ -289,60 +341,57 @@ async def _upsert_entities(
     return simple_evaluation_data
 
 
-async def _retrieve_entities(
-    simple_evaluation_data: SimpleEvaluationData,
-) -> Tuple[
-    Dict[UUID, TestsetRevision],
-    Dict[UUID, ApplicationRevision],
-    Dict[UUID, EvaluatorRevision],
-]:
-    testset_revisions: Dict[UUID, TestsetRevision] = {}
-    for testset_ref, origin in simple_evaluation_data.testset_steps.items():
-        testset_revision = await aretrieve_testset(
-            testset_revision_id=testset_ref,
-        )
-
-        if not testset_revision or not testset_revision.id:
-            testset_revision = await aretrieve_testset(
-                testset_id=testset_ref,
-            )
-
-        if not testset_revision or not testset_revision.id:
-            continue
-
-        testset_revisions[testset_revision.id] = testset_revision
-
-    application_revisions: Dict[UUID, ApplicationRevision] = {}
-    for (
-        application_revision_id,
-        origin,
-    ) in simple_evaluation_data.application_steps.items():
-        application_revision = await aretrieve_application(
-            application_revision_id=application_revision_id,
-        )
-
-        if not application_revision:
-            continue
-
-        application_revisions[application_revision_id] = application_revision
-
-    evaluator_revisions: Dict[UUID, EvaluatorRevision] = {}
-    for evaluator_revision_id, origin in simple_evaluation_data.evaluator_steps.items():
-        evaluator_revision = await aretrieve_evaluator(
-            evaluator_revision_id=evaluator_revision_id,
-        )
-
-        if not evaluator_revision:
-            continue
-
-        evaluator_revisions[evaluator_revision_id] = evaluator_revision
-
-    return testset_revisions, application_revisions, evaluator_revisions
-
-
 def _timestamp_suffix():
     suffix = datetime.now().strftime("%y-%m-%d · %H:%M")
     return f" [{suffix}]"
+
+
+async def _prepare_run_data(
+    *,
+    name: Optional[str],
+    description: Optional[str],
+    testsets: Optional[Target],
+    applications: Optional[Target],
+    evaluators: Optional[Target],
+    repeats: Optional[int],
+    specs: Optional[Union[EvaluateSpecs, Dict[str, Any]]],
+) -> RunData:
+    """Turn the raw `evaluate()` kwargs into the `RunData` for `acreate_run`.
+
+    The full input phase:
+      1. parse — pack the loose kwargs into a draft (`*_steps` still a `Target`:
+         ids, callables, or inline data);
+      2. resolve — mint + disambiguate every step to a revision id, so the
+         revision-pinned invariant holds before the run is created;
+      3. assemble — pair the resolved step maps with the timestamped run name
+         (defaulting to "SDK Eval"), description, and repeats.
+    """
+    draft = await _parse_evaluate_kwargs(
+        testsets=testsets,
+        applications=applications,
+        evaluators=evaluators,
+        repeats=repeats,
+        specs=specs,
+    )
+
+    simple_evaluation_data = await _resolve_entities(
+        simple_evaluation_data=draft,
+    )
+
+    base_name = name.strip() if isinstance(name, str) else ""
+    if not base_name:
+        base_name = "SDK Eval"
+
+    return RunData(
+        name=f"{base_name}{_timestamp_suffix()}",
+        description=description,
+        #
+        testset_steps=simple_evaluation_data.testset_steps,
+        application_steps=simple_evaluation_data.application_steps,
+        evaluator_steps=simple_evaluation_data.evaluator_steps,
+        #
+        repeats=simple_evaluation_data.repeats,
+    )
 
 
 UNICODE = {
@@ -370,16 +419,17 @@ async def aevaluate(
     #
     specs: Optional[Union[EvaluateSpecs, Dict[str, Any]]] = None,
 ):
-    simple_evaluation_data = await _parse_evaluate_kwargs(
+    run_data = await _prepare_run_data(
+        name=name,
+        description=description,
+        #
         testsets=testsets,
         applications=applications,
         evaluators=evaluators,
+        #
         repeats=repeats,
+        #
         specs=specs,
-    )
-
-    simple_evaluation_data = await _upsert_entities(
-        simple_evaluation_data=simple_evaluation_data,
     )
 
     print()
@@ -391,440 +441,80 @@ async def aevaluate(
         "────────────────────────────────────────────────────────────────────────────"
     )
 
-    # Normalize testset_steps to revision ids (no JIT transfers in backend)
-    if simple_evaluation_data.testset_steps and isinstance(
-        simple_evaluation_data.testset_steps, dict
-    ):
-        normalized_testset_steps: Dict[str, Origin] = {}
-        for testset_id_str, origin in simple_evaluation_data.testset_steps.items():
-            try:
-                testset_uuid = UUID(str(testset_id_str))
-            except Exception:
-                continue
-
-            testset_revision = await aretrieve_testset(
-                testset_revision_id=testset_uuid,
-            )
-
-            if not testset_revision or not testset_revision.id:
-                # Fallback: treat as testset_id (latest revision)
-                testset_revision = await aretrieve_testset(
-                    testset_id=testset_uuid,
-                )
-
-            if testset_revision and testset_revision.id:
-                normalized_testset_steps[str(testset_revision.id)] = origin
-
-        simple_evaluation_data.testset_steps = normalized_testset_steps
-
-    suffix = _timestamp_suffix()
-    base_name = name.strip() if isinstance(name, str) else ""
-    if not base_name:
-        base_name = "SDK Eval"
-    name = f"{base_name}{suffix}"
-
     run = await acreate_run(
-        name=name,
-        description=description,
+        name=run_data.name,
+        description=run_data.description,
         #
-        testset_steps=simple_evaluation_data.testset_steps,
-        application_steps=simple_evaluation_data.application_steps,
-        evaluator_steps=simple_evaluation_data.evaluator_steps,
+        testset_steps=run_data.testset_steps,
+        application_steps=run_data.application_steps,
+        evaluator_steps=run_data.evaluator_steps,
         #
-        repeats=simple_evaluation_data.repeats,
-    )
-
-    print(
-        f"{UNICODE['here']}"
-        f"{UNICODE['skip']}"
-        f"{UNICODE['skip']}"
-        f"{UNICODE['skip']}"
-        f"{UNICODE['skip']}"
-        f"     run_id={str(run.id)}",
+        repeats=run_data.repeats,
     )
 
     if not run.id:
         print("[failure] could not create evaluation")
         return None
 
-    (
-        testset_revisions,
-        application_revisions,
-        evaluator_revisions,
-    ) = await _retrieve_entities(
-        simple_evaluation_data=simple_evaluation_data,
+    log.info(
+        "[EVAL] run created",
+        run_id=str(run.id),
+        **({"name": run_data.name} if run_data.name else {}),
+        testsets=len(run_data.testset_steps or {}),
+        applications=len(run_data.application_steps or {}),
+        evaluators=len(run_data.evaluator_steps or {}),
+        repeats=run_data.repeats or 1,
     )
 
-    scenarios = list()
+    runner = AsyncioEvaluationTaskRunner(
+        retrieve_testset=aretrieve_testset,
+        retrieve_application=aretrieve_application,
+        retrieve_evaluator=aretrieve_evaluator,
+        #
+        fetch_trace=afetch_trace,
+        #
+        add_scenarios=aadd_scenarios,
+        edit_scenario=aedit_scenario,
+        #
+        populate_slice=apopulate_slice,
+        refresh_metrics=arefresh,
+        #
+        process_sources=process_sources,
+        #
+        workflow_runner=SDKWorkflowRunner(),
+    )
 
-    metrics = dict()
+    scenarios, run_status = await runner.process_run_locally(
+        run_id=run.id,
+        run_data=run_data,
+    )
 
-    for testset_revision in testset_revisions.values():
-        if not testset_revision.data or not testset_revision.data.testcases:
-            continue
-
-        testcases = testset_revision.data.testcases
-
-        print(
-            f"{UNICODE['next']}"
-            f"{UNICODE['here']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f" testset_id={str(testset_revision.testset_id)}",
-        )
-
-        for testcase_idx, testcase in enumerate(testcases):
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['skip']}"
-                f"{UNICODE['skip']}"
-                f"{UNICODE['skip']}"
-                "-----------------------"
-                "--------------------------------------"
-            )
-
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['next' if testcase_idx < len(testcases) - 1 else 'last']}"
-                f"{UNICODE['here']}"
-                f"{UNICODE['skip']}"
-                f"{UNICODE['skip']}"
-                f"testcase_id={str(testcase.id)}",
-            )
-
-            scenario = await aadd_scenario(
-                run_id=run.id,
-            )
-
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                f"{UNICODE['next']}"
-                f"{UNICODE['here']}"
-                f"{UNICODE['skip']}"
-                f"scenario_id={str(scenario.id)}",
-            )
-
-            results = dict()
-
-            result = await alog_result(
-                run_id=run.id,
-                scenario_id=scenario.id,
-                step_key="testset-" + testset_revision.slug,  # type: ignore
-                testcase_id=testcase.id,
-            )
-
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['next']}"
-                f"{UNICODE['here']}"
-                f"  result_id={str(result.id)} (testcase)",
-            )
-
-            results[testset_revision.slug] = result
-
-            _testcase = testcase.model_dump(
-                mode="json",
-                exclude_none=True,
-            )  # type: ignore
-            inputs = testcase.data
-            if isinstance(inputs, dict):
-                if "testcase_dedup_id" in inputs:
-                    del inputs["testcase_dedup_id"]
-
-            for application_revision in application_revisions.values():
-                if not application_revision or not application_revision.data:
-                    print("Missing or invalid application revision")
-                    if application_revision:
-                        print(application_revision.model_dump(exclude_none=True))
-                    continue
-
-                # print(f"  Application   {application_revision.model_dump(exclude_none=True)}")  # type: ignore
-
-                references = dict(
-                    testset=Reference(
-                        id=testset_revision.testset_id,
-                    ),
-                    testset_variant=Reference(
-                        id=testset_revision.testset_variant_id,
-                    ),
-                    testset_revision=Reference(
-                        id=testset_revision.id,
-                        slug=testset_revision.slug,
-                        version=testset_revision.version,
-                    ),
-                    application=Reference(
-                        id=application_revision.application_id,
-                    ),
-                    application_variant=Reference(
-                        id=application_revision.application_variant_id,
-                    ),
-                    application_revision=Reference(
-                        id=application_revision.id,
-                        slug=application_revision.slug,
-                        version=application_revision.version,
-                    ),
-                )
-                links = None
-
-                _revision = application_revision.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                )
-                parameters = (
-                    application_revision.data.parameters
-                    if application_revision.data
-                    else None
-                )
-
-                _trace = None
-                outputs = None
-
-                workflow_service_request_data = WorkflowServiceRequestData(
-                    revision=_revision,
-                    parameters=parameters,
-                    #
-                    testcase=_testcase,
-                    inputs=inputs,
-                    #
-                    trace=_trace,
-                    outputs=outputs,
-                )
-
-                application_request = ApplicationServiceRequest(
-                    data=workflow_service_request_data,
-                    #
-                    references=references,  # type: ignore
-                    links=links,  # type: ignore
-                )
-
-                application_response = await invoke_application(
-                    request=application_request,
-                )
-
-                if (
-                    not application_response
-                    or not application_response.data
-                    or not application_response.trace_id
-                ):
-                    print("Missing or invalid application response")
-                    if application_response:
-                        print(application_response.model_dump(exclude_none=True))
-                    continue
-
-                trace_id = application_response.trace_id
-
-                if not application_revision.slug:
-                    print("Missing application revision slug")
-                    continue
-
-                application_slug = application_revision.slug
-
-                trace = fetch_trace_data(trace_id, max_retries=30, delay=1.0)
-
-                result = await alog_result(
-                    run_id=run.id,
-                    scenario_id=scenario.id,
-                    step_key="application-" + application_slug,  # type: ignore
-                    trace_id=trace_id,
-                )
-
-                print(
-                    f"{UNICODE['pipe']}"
-                    f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                    f"{UNICODE['pipe']}"
-                    f"{UNICODE['next']}"
-                    f"{UNICODE['here']}"
-                    f"  result_id={str(result.id)} (invocation)",
-                )
-
-                results[application_slug] = result
-
-                trace = await trace
-
-                if not trace:
-                    print("Failed to fetch trace data for application")
-                    continue
-
-                root_span = list(trace.get("spans", {}).values())[0]
-                trace_attributes: dict = root_span.get("attributes", {})
-                trace_attributes_ag: dict = trace_attributes.get("ag", {})
-                trace_attributes_ag_data: dict = trace_attributes_ag.get("data", {})
-                outputs = trace_attributes_ag_data.get("outputs")
-                inputs = inputs or trace_attributes_ag_data.get("inputs")
-
-                for i, evaluator_revision in enumerate(evaluator_revisions.values()):
-                    if not evaluator_revision or not evaluator_revision.data:
-                        print("Missing or invalid evaluator revision")
-                        if evaluator_revision:
-                            print(evaluator_revision.model_dump(exclude_none=True))
-                        continue
-
-                    references = dict(
-                        testset=Reference(
-                            id=testset_revision.testset_id,
-                        ),
-                        testset_variant=Reference(
-                            id=testset_revision.testset_variant_id,
-                        ),
-                        testset_revision=Reference(
-                            id=testset_revision.id,
-                            slug=testset_revision.slug,
-                            version=testset_revision.version,
-                        ),
-                        evaluator=Reference(
-                            id=evaluator_revision.evaluator_id,
-                        ),
-                        evaluator_variant=Reference(
-                            id=evaluator_revision.evaluator_variant_id,
-                        ),
-                        evaluator_revision=Reference(
-                            id=evaluator_revision.id,
-                            slug=evaluator_revision.slug,
-                            version=evaluator_revision.version,
-                        ),
-                    )
-                    links = (
-                        dict(
-                            invocation=Link(
-                                trace_id=application_response.trace_id,
-                                span_id=application_response.span_id,
-                            )
-                        )
-                        if application_response.trace_id
-                        and application_response.span_id
-                        else None
-                    )
-
-                    _revision = evaluator_revision.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    )
-                    parameters = (
-                        evaluator_revision.data.parameters
-                        if evaluator_revision.data
-                        else None
-                    )
-
-                    workflow_service_request_data = WorkflowServiceRequestData(
-                        revision=_revision,
-                        parameters=parameters,
-                        #
-                        testcase=_testcase,
-                        inputs=inputs,
-                        #
-                        trace=trace,
-                        outputs=outputs,
-                    )
-
-                    evaluator_request = EvaluatorServiceRequest(
-                        version="2025.07.14",
-                        #
-                        data=workflow_service_request_data,
-                        #
-                        references=references,  # type: ignore
-                        links=links,  # type: ignore
-                    )
-
-                    evaluator_response = await invoke_evaluator(
-                        request=evaluator_request,
-                    )
-
-                    if (
-                        not evaluator_response
-                        or not evaluator_response.data
-                        or not evaluator_response.trace_id
-                    ):
-                        print("Missing or invalid evaluator response")
-                        if evaluator_response:
-                            print(evaluator_response.model_dump(exclude_none=True))
-                        continue
-
-                    trace_id = evaluator_response.trace_id
-
-                    trace = fetch_trace_data(trace_id, max_retries=30, delay=1.0)
-
-                    result = await alog_result(
-                        run_id=run.id,
-                        scenario_id=scenario.id,
-                        step_key="evaluator-" + evaluator_revision.slug,  # type: ignore
-                        trace_id=trace_id,
-                    )
-
-                    print(
-                        f"{UNICODE['pipe']}"
-                        f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                        f"{UNICODE['pipe']}"
-                        f"{UNICODE['last' if (i == len(evaluator_revisions) - 1) else 'next']}"
-                        f"{UNICODE['here']}"
-                        f"  result_id={str(result.id)} (annotation)",
-                    )
-
-                    results[evaluator_revision.slug] = result
-
-                    trace = await trace
-
-                    if not trace:
-                        print("Failed to fetch trace data for evaluator")
-                        continue
-
-            metrics = await acompute_metrics(
-                run_id=run.id,
-                scenario_id=scenario.id,
-            )
-
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                f"{UNICODE['last']}"
-                f"{UNICODE['here']}"
-                f"{UNICODE['skip']}"
-                f" metrics_id={str(metrics.id)}",
-            )
-
-            scenarios.append(
-                {
-                    "scenario": scenario,
-                    "results": results,
-                    "metrics": metrics,
-                },
-            )
-
-        print(
-            f"{UNICODE['pipe']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            "-----------------------"
-            "--------------------------------------"
-        )
-
-    metrics = dict()
-
-    if len(scenarios) > 0:
-        metrics = await acompute_metrics(
-            run_id=run.id,
-        )
-
-        print(
-            f"{UNICODE['last']}"
-            f"{UNICODE['here']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f" metrics_id={str(metrics.id)}",
+    if not scenarios:
+        log.warning(
+            "[EVAL] evaluation produced no scenarios; check testset",
+            run_id=str(run.id),
         )
 
     run = await aclose_run(
         run_id=run.id,
+        status=run_status.value,
     )
 
-    run_url = await aget_url(run_id=run.id)
+    log.info(
+        "[EVAL] run closed",
+        run_id=str(run.id),
+        status=run_status.value,
+        scenarios=len(scenarios),
+    )
+
+    # Global metrics only
+    metrics = await aquery_metrics(
+        run_id=run.id,
+    )
+
+    run_url = await aget_url(
+        run_id=run.id,
+    )
 
     print(
         "────────────────────────────────────────────────────────────────────────────"

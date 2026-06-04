@@ -49,7 +49,7 @@ const ImageWithFallback = ({src, alt, fallback, ...props}: ImageWithFallbackProp
     const safeSrc = typeof src === "string" && isSafeImageSrc(src) ? src : undefined
 
     if (!safeSrc || hasError) {
-        return fallback ?? <ImageBroken size={48} className="text-[#D61010]" />
+        return fallback ?? <ImageBroken size={48} className="text-[var(--ag-c-D61010)]" />
     }
 
     return <img src={safeSrc} alt={alt} onError={() => setHasError(true)} {...props} />

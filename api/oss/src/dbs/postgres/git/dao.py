@@ -35,7 +35,10 @@ from oss.src.core.git.dtos import (
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
 from oss.src.utils.exceptions import suppress_exceptions
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.git.mappings import (
     map_dbe_to_dto,
     map_dto_to_dbe,
@@ -55,10 +58,14 @@ class GitDAO(GitDAOInterface):
         ArtifactDBE: Type[T],
         VariantDBE: Type[T],
         RevisionDBE: Type[T],
+        engine: TransactionsEngine = None,
     ):
         self.ArtifactDBE = ArtifactDBE  # pylint: disable=invalid-name
         self.VariantDBE = VariantDBE  # pylint: disable=invalid-name
         self.RevisionDBE = RevisionDBE  # pylint: disable=invalid-name
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     # ─ artifacts ──────────────────────────────────────────────────────────────
 
@@ -97,7 +104,7 @@ class GitDAO(GitDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(artifact_dbe)
 
                 await session.commit()
@@ -130,7 +137,7 @@ class GitDAO(GitDAOInterface):
         if not artifact_ref:
             return None
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
@@ -168,7 +175,7 @@ class GitDAO(GitDAOInterface):
         #
         artifact_edit: ArtifactEdit,
     ) -> Optional[Artifact]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
@@ -225,7 +232,7 @@ class GitDAO(GitDAOInterface):
         #
         artifact_id: UUID,
     ) -> Optional[Artifact]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
@@ -267,7 +274,7 @@ class GitDAO(GitDAOInterface):
         #
         artifact_id: UUID,
     ) -> Optional[Artifact]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
@@ -314,7 +321,7 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Artifact]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
@@ -453,7 +460,7 @@ class GitDAO(GitDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(variant_dbe)
 
                 await session.commit()
@@ -487,9 +494,7 @@ class GitDAO(GitDAOInterface):
         if not artifact_ref and not variant_ref:
             return None
 
-        applied_identifying_filter = False
-
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 select(self.VariantDBE)
                 .options(
@@ -501,6 +506,12 @@ class GitDAO(GitDAOInterface):
             )
 
             pick_default_variant = False
+
+            # Track whether any identifying filter was applied. If we reach the
+            # query without one, bail out instead of running
+            # `WHERE project_id = ... LIMIT 1`, which would return an arbitrary
+            # row.
+            applied_identifying_filter = False
 
             if artifact_ref:
                 if artifact_ref.id:
@@ -566,7 +577,7 @@ class GitDAO(GitDAOInterface):
         #
         variant_edit: VariantEdit,
     ) -> Optional[Variant]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.VariantDBE).filter(
                 self.VariantDBE.project_id == project_id,  # type: ignore
             )
@@ -613,7 +624,7 @@ class GitDAO(GitDAOInterface):
         #
         variant_id: UUID,
     ) -> Optional[Variant]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.VariantDBE).filter(
                 self.VariantDBE.project_id == project_id,  # type: ignore
             )
@@ -672,7 +683,7 @@ class GitDAO(GitDAOInterface):
         #
         variant_id: UUID,
     ) -> Optional[Variant]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.VariantDBE).filter(
                 self.VariantDBE.project_id == project_id,  # type: ignore
             )
@@ -736,7 +747,7 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Variant]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 select(self.VariantDBE)
                 .options(
@@ -1031,7 +1042,7 @@ class GitDAO(GitDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(revision_dbe)
 
                 await session.commit()
@@ -1077,15 +1088,7 @@ class GitDAO(GitDAOInterface):
         if not variant_ref and not revision_ref:
             return None
 
-        # Track whether any identifying filter was applied. If we reach the
-        # query without one (e.g. `revision_ref` carries only a `version` and
-        # no `variant_ref` is provided to scope it), bail out instead of
-        # running `WHERE project_id = ... LIMIT 1`, which would return an
-        # arbitrary row. A version is a per-variant sequence number and cannot
-        # identify a revision on its own.
-        applied_identifying_filter = False
-
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 select(self.RevisionDBE)
                 .options(
@@ -1096,6 +1099,14 @@ class GitDAO(GitDAOInterface):
                     self.RevisionDBE.project_id == project_id,  # type: ignore
                 )
             )
+
+            # Track whether any identifying filter was applied. If we reach the
+            # query without one (e.g. `revision_ref` carries only a `version` and
+            # no `variant_ref` is provided to scope it), bail out instead of
+            # running `WHERE project_id = ... LIMIT 1`, which would return an
+            # arbitrary row. A version is a per-variant sequence number and cannot
+            # identify a revision on its own.
+            applied_identifying_filter = False
 
             if revision_ref and (revision_ref.id or revision_ref.slug):
                 if revision_ref.id:
@@ -1163,7 +1174,7 @@ class GitDAO(GitDAOInterface):
         #
         revision_edit: RevisionEdit,
     ) -> Optional[Revision]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
@@ -1210,7 +1221,7 @@ class GitDAO(GitDAOInterface):
         #
         revision_id: UUID,
     ) -> Optional[Revision]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
@@ -1252,7 +1263,7 @@ class GitDAO(GitDAOInterface):
         #
         revision_id: UUID,
     ) -> Optional[Revision]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
@@ -1303,7 +1314,7 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 select(self.RevisionDBE)
                 .options(
@@ -1591,7 +1602,7 @@ class GitDAO(GitDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 if initial and revision_commit.variant_id:
                     # Lock the variant row so concurrent initial commits queue up rather
                     # than racing through the count check below.
@@ -1727,7 +1738,7 @@ class GitDAO(GitDAOInterface):
         # `include_archived`. ROW_NUMBER() over that set gives us each row's
         # 1-indexed position; we then keep rows up to the target's position
         # and limit to `depth` from the tail.
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             visibility_filter = (
                 (self.RevisionDBE.deleted_at.is_(None),)  # type: ignore
                 if not include_archived
@@ -1793,7 +1804,7 @@ class GitDAO(GitDAOInterface):
         variant_id: UUID,
         revision_id: UUID,
     ) -> str:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 select(func.count())  # pylint: disable=not-callable
                 .select_from(self.RevisionDBE)  # type: ignore
@@ -1817,7 +1828,7 @@ class GitDAO(GitDAOInterface):
         revision_id: UUID,
         version: str,
     ) -> None:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = update(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
@@ -1836,7 +1847,7 @@ class GitDAO(GitDAOInterface):
         project_id: UUID,
         revision_id: UUID,
     ) -> None:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 update(self.RevisionDBE)
                 .filter(

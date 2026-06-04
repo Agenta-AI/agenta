@@ -4,13 +4,13 @@ from typing import Optional, List, Dict
 from pydantic import BaseModel
 
 from ee.src.models.api.api_models import TimestampModel
-from ee.src.models.shared_models import Permission
+from ee.src.core.access.permissions.types import Permission
 
 
 class WorkspacePermission(BaseModel):
     # Role slugs are dynamic (env-overridable via AGENTA_ACCESS_ROLES);
     # validation against the effective scope catalog happens at the API
-    # boundary via `ee.src.core.entitlements.controls.get_role`.
+    # boundary via `ee.src.core.access.controls.get_role`.
     role_name: str
     role_description: Optional[str] = None
     permissions: Optional[List[Permission]] = None

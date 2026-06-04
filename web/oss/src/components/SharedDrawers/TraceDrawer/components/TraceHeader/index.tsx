@@ -482,7 +482,7 @@ const TraceHeader = ({
 
                     <Typography.Text className="text-sm font-medium">Trace</Typography.Text>
                     <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
-                        <Tag className="font-mono bg-[#0517290F]" variant="filled">
+                        <Tag className="font-mono bg-[var(--ag-c-0517290F)]" variant="filled">
                             # {displayTraceId || "-"}
                         </Tag>
                     </TooltipWithCopyAction>

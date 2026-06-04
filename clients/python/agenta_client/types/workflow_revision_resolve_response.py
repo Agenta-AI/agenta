@@ -5,6 +5,7 @@ import typing
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .resolution_info import ResolutionInfo
+from .retrieval_info import RetrievalInfo
 from .workflow_revision_output import WorkflowRevisionOutput
 
 
@@ -22,6 +23,11 @@ class WorkflowRevisionResolveResponse(UniversalBaseModel):
     resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)
     """
     Metadata describing which references were resolved, depth reached, and errors.
+    """
+    
+    retrieval_info: typing.Optional[RetrievalInfo] = pydantic.Field(default=None)
+    """
+    References (artifact / variant / revision) actually used to retrieve this revision.
     """
     
     

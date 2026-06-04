@@ -82,6 +82,7 @@ import {
     newTestcaseCountAtom,
     newTestcaseDataHashAtom,
 } from "../execution/selectors"
+import {pruneDanglingConnections} from "../helpers/connectionGraph"
 import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessages"
 import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
@@ -412,8 +413,17 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
         label: entity.label,
     }
 
-    set(playgroundNodesAtom, [updatedNode, ...nodes.slice(1)])
-    set(outputConnectionsAtom, [])
+    const nextNodes = [updatedNode, ...nodes.slice(1)]
+    set(playgroundNodesAtom, nextNodes)
+
+    // Preserve downstream connections instead of clearing them. The primary
+    // node is updated in place, so its `id` is unchanged and any chain sourced
+    // from it (e.g. app → evaluator) stays valid. Clearing unconditionally
+    // orphaned the downstream evaluator on app-revision re-selection:
+    // connectDownstreamNode then no-ops because the evaluator node is still
+    // present, so the edge was never recreated and the evaluator silently
+    // stopped running. Only drop connections whose endpoints no longer exist.
+    set(outputConnectionsAtom, pruneDanglingConnections(get(outputConnectionsAtom), nextNodes))
 
     // Update local testset name if not connected to a remote testset
     const currentTestset = get(connectedTestsetAtom)
@@ -530,10 +540,27 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
     const normalizedRows = normalizeTestcaseRowsForLoad(testcases)
 
     // Ensure testcases have IDs and store them in nested testcase formatat
-    const testcasesWithIds = normalizedRows.map((row, index) => {
+    const allTestcasesWithIds = normalizedRows.map((row, index) => {
         const id = row.id ?? `testcase-${Date.now()}-${index}`
         return {id, data: row.data}
     })
+
+    // Chat-mode single-row gate. Per Mahmoud's QA on 2026-06-01
+    // (Slack #release-v100), chat playgrounds must load ONE testcase only —
+    // multi-row sync concatenates all rows' messages into a single shared
+    // thread (see `extractAndLoadChatMessagesAtom` iteration over
+    // `datasetMessages`), which produces a nonsensical "row 1 user → row 1
+    // assistant → row 2 user → row 2 assistant → …" stream. The legacy OSS
+    // `LoadTestsetButton` flow enforced this by construction; the new
+    // package-resident path generalised to N rows and lost the gate.
+    //
+    // Slicing here is the source of truth for the constraint — both
+    // `connectToSource` (the loadable row list) and
+    // `extractAndLoadChatMessagesAtom` (the chat message seed) receive the
+    // narrowed list. The defensive isChat check inside the seed atom is a
+    // backup for entrypoints that bypass this controller.
+    const isChat = get(isChatModeAtom) ?? false
+    const testcasesWithIds = isChat ? allTestcasesWithIds.slice(0, 1) : allTestcasesWithIds
     const flatRows = testcasesWithIds.map(({id, data}) => ({id, ...data}))
 
     // Connect to source via loadable controller
@@ -555,7 +582,6 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
     // The entity layer stores `messages` as a regular data column, but the
     // playground chat UI reads from messageIdsAtomFamily/messagesByIdAtomFamily.
     // Without this step, inputPorts load correctly but chat messages are lost.
-    const isChat = get(isChatModeAtom) ?? false
     if (isChat) {
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
@@ -577,7 +603,13 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
 const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayload) => {
     const {loadableId, testcases} = payload
     const normalizedRows = normalizeTestcaseRowsForLoad(testcases)
-    const flatRows = normalizedRows.map(({id, data}) => (id ? {id, ...data} : {...data}))
+    const allFlatRows = normalizedRows.map(({id, data}) => (id ? {id, ...data} : {...data}))
+
+    // Same chat-mode single-row gate as `connectToTestsetAtom` — see that
+    // atom's comments for the full rationale. Import mode shares the chat
+    // seed pathway, so the gate must mirror.
+    const isChat = get(isChatModeAtom) ?? false
+    const flatRows = isChat ? allFlatRows.slice(0, 1) : allFlatRows
 
     // Import rows via loadable controller (stays in local mode)
     set(loadableController.actions.importRows, loadableId, flatRows)
@@ -585,7 +617,6 @@ const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayloa
     // Extract chat messages from imported testcase rows if in chat mode.
     // Same reasoning as connectToTestsetAtom — the entity layer stores `messages`
     // as data but the chat UI needs them in the message atom system.
-    const isChat = get(isChatModeAtom) ?? false
     if (isChat) {
         set(extractAndLoadChatMessagesAtom, {
             loadableId,

@@ -3,7 +3,7 @@
 Walks ``projects ⋈ subscriptions`` to find projects on a given plan, then
 deletes events older than a cutoff from the ``events`` table. Lives in EE
 because the project-to-plan join goes through the EE ``SubscriptionDBE``
-table — same reason ``ee.src.dbs.postgres.tracing.dao.TracingDAO`` is
+table — same reason ``ee.src.dbs.postgres.tracing.dao.TracingRetentionDAO`` is
 EE-side.
 
 The OSS counterpart (``oss.src.dbs.postgres.events.dao.EventsDAO``) owns
@@ -11,7 +11,7 @@ ingest/query and never imports EE types.
 """
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import bindparam, delete, func, literal, select, tuple_
@@ -22,7 +22,12 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.models.db_models import ProjectDB
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    AnalyticsEngine,
+    get_transactions_engine,
+    get_analytics_engine,
+)
 from oss.src.dbs.postgres.events.dbes import EventDBE
 
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
@@ -31,13 +36,24 @@ from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 log = get_module_logger(__name__)
 
 
-class EventsDAO:
+class EventsRetentionDAO:
     """EE events DAO (retention).
 
-    Same-name OSS class exists at ``oss.src.dbs.postgres.events.dao.EventsDAO``
-    for ingest/query — both are imported by their full path so they never
-    collide. Matches the EE/OSS tracing pattern.
+    ``oss.src.dbs.postgres.events.dao.EventsDAO`` owns ingest/query; this class
+    owns retention only.
     """
+
+    def __init__(
+        self,
+        transactions_engine: Optional[TransactionsEngine] = None,
+        analytics_engine: Optional[AnalyticsEngine] = None,
+    ):
+        if transactions_engine is None:
+            transactions_engine = get_transactions_engine()
+        if analytics_engine is None:
+            analytics_engine = get_analytics_engine()
+        self.transactions_engine = transactions_engine
+        self.analytics_engine = analytics_engine
 
     async def fetch_projects_with_plan(
         self,
@@ -47,7 +63,7 @@ class EventsDAO:
         max_projects: int,
     ) -> List[UUID]:
         """Page through projects whose org subscribes to the given plan."""
-        async with engine.core_session() as session:
+        async with self.transactions_engine.session() as session:
             stmt = (
                 select(ProjectDB.id)
                 .select_from(
@@ -88,7 +104,7 @@ class EventsDAO:
         if not project_ids:
             return 0
 
-        async with engine.tracing_session() as session:
+        async with self.analytics_engine.session() as session:
             project_ids_param = bindparam(
                 "project_ids",
                 value=project_ids,

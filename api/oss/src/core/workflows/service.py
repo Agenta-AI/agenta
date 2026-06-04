@@ -95,7 +95,7 @@ from oss.src.core.embeds.dtos import (
     ResolutionInfo,
 )
 
-from oss.src.services.auth_service import sign_secret_token
+from oss.src.middlewares.auth import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 
 from agenta.sdk.decorators.running import (

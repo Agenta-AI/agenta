@@ -6,11 +6,12 @@
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {getValueAtPath, generateId} from "@agenta/shared/utils"
+import {getValueAtPath, generateId, parseMustache, walkMustache} from "@agenta/shared/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {parseEvaluatorKeyFromUri} from "../workflow/core"
 
+import {groupTemplateVariables} from "./portHelpers"
 import type {
     RunnableType,
     RunnableData,
@@ -446,13 +447,14 @@ export function autoMapInputs(
 // TEMPLATE VARIABLE EXTRACTION
 // ============================================================================
 
-type TemplateFormat = "curly" | "fstring" | "jinja2"
+type TemplateFormat = "mustache" | "curly" | "fstring" | "jinja2"
 
 /** Normalize a raw template_format string to a known TemplateFormat, or null if unrecognized. */
-function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat | null {
+export function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat | null {
     if (raw === "fstring") return "fstring"
     if (raw === "jinja2" || raw === "jinja") return "jinja2"
     if (raw === "curly") return "curly"
+    if (raw === "mustache") return "mustache"
     return null
 }
 
@@ -461,6 +463,7 @@ function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat |
  *
  * Supports multiple template formats:
  * - "curly" (default): {{variableName}}
+ * - "mustache": {{variableName}} (shares the {{...}} extraction path with curly)
  * - "jinja2": {{variableName}} (blocks {% %} and comments {# #} are ignored — they are not variables)
  * - "fstring": {variableName} (single braces; literal braces escaped as {{ / }})
  *
@@ -503,18 +506,128 @@ export function extractTemplateVariables(
         return variables
     }
 
-    // curly and jinja2 both use {{variableName}} for variable substitution
-    // Linear scan: find '{{', then find '}}', extract the content between them
+    // curly, jinja2, and mustache all use {{variableName}} for variable substitution
+    // Linear scan: find '{{', then find '}}', extract the content between them.
+    //
+    // For MUSTACHE, normalise / skip block-level syntax AND track section depth:
+    //
+    //   keep (strip prefix → variable name) WHEN AT TOP LEVEL (depth 0):
+    //     - `{{#name}}` — section opener: `name` IS a variable (the iterable
+    //                      / truthiness check). Increments section depth.
+    //     - `{{^name}}` — inverted section opener: same — `name` is a variable.
+    //                      Increments section depth.
+    //     - `{{&name}}` — unescaped variable: `name` IS the variable.
+    //     - bare `{{name}}` — plain variable reference.
+    //
+    //   structural / inert tokens (no variable emitted regardless of depth):
+    //     - `{{/name}}`      — section closer. Decrements section depth.
+    //     - `{{!comment}}`   — comment.
+    //     - `{{> partial}}`  — partial template inclusion (resolved at render).
+    //     - `{{.}}`          — implicit iterator (current item, no base name).
+    //
+    //   **inside a section (depth > 0): variable extraction is suppressed.**
+    //   `{{#repo}}{{name}}{{/repo}}` emits `['repo']`, NOT `['repo', 'name']`.
+    //   Mahmoud's QA on 2026-06-02: "since `name` is in that loop, it's
+    //   actually `repo.name`". We don't yet model scoped names, so we skip
+    //   the bare reference rather than register a phantom top-level port.
+    //   Section openers nested inside another section are ALSO skipped for
+    //   the same reason. The user fills the top-level section variable
+    //   (`repo`) with raw JSON (array of objects, single object, or scalar
+    //   per their template's intent); the runtime resolves the inner names
+    //   at render time. Full scope-aware discovery is Phase 2 — see
+    //   `docs/designs/mustache-section-support.md`.
+    //
+    // For CURLY / JINJA2, none of those prefix characters are valid in
+    // identifiers — those formats have no section semantics, no implicit
+    // iterator, no inline comments / partials inside `{{...}}`. If the user
+    // wrote `{{#items}}` in a curly prompt it's an authoring error (likely
+    // mustache syntax pasted in). Skip the extraction so no phantom port
+    // appears in the playground — the user sees the broken token in the
+    // editor without the FE silently masking it.
+    //
+    // The TokenPlugin highlights all of these via its own regex — this filter
+    // is for PORT DISCOVERY only. The mustache renderer pairs `#`/`^`/`/`
+    // structurally at render time.
+    // Mustache: defer to the structural parser
+    // (`@agenta/shared/utils/mustache#parseMustache`) and emit scope-aware
+    // variable PATHS. Phase 2 of `docs/designs/mustache-section-support.md`.
+    //
+    //   `{{#repo}}{{name}}{{/repo}}`        → ['repo', 'repo.name']
+    //   `{{#org}}{{#users}}{{name}}{{/users}}{{/org}}`
+    //                                       → ['org', 'org.users', 'org.users.name']
+    //   `{{name}}{{#sec}}{{a}}{{/sec}}{{country.a}}`
+    //                                       → ['name', 'sec', 'sec.a', 'country.a']
+    //
+    // Section openers contribute their name (the user must provide a value
+    // for the section to render). Variables inside a section join the
+    // open-stack with `.` separators.
+    //
+    //   `{{.}}` — implicit iterator, never emits.
+    //   `{{&body}}` joins the stack like a plain variable.
+    //   Structural-only tags (comments, partials, set-delimiter,
+    //   inheritance blocks `{{$x}}`, parent templates `{{<x}}`) NEVER emit.
+    //   Mustache inheritance is recognised by the parser so the FE doesn't
+    //   surface phantom variable names like `$slot`.
+    //
+    // Duplicates dedupe in source order (first occurrence wins).
+    if (templateFormat === "mustache") {
+        const {ast} = parseMustache(input)
+        const seen = new Set<string>()
+        const pathStack: string[] = []
+        const join = (name: string): string =>
+            pathStack.length === 0 ? name : `${pathStack.join(".")}.${name}`
+        const emit = (name: string) => {
+            if (!name) return
+            if (seen.has(name)) return
+            seen.add(name)
+            variables.push(name)
+        }
+        walkMustache(ast, {
+            onEnter: (node) => {
+                if (node.kind === "section") {
+                    // Empty section names — produced while the user is
+                    // mid-typing `{{#|}}` (autoclose state, no name yet) —
+                    // contribute nothing to paths AND must not push the
+                    // empty string onto the stack. Otherwise inner
+                    // variables would join as `".name"` (leading dot).
+                    if (!node.name) return
+                    emit(join(node.name))
+                    pathStack.push(node.name)
+                } else if (node.kind === "variable") {
+                    if (node.implicitIterator) return
+                    emit(join(node.name))
+                }
+                // text / comment / partial / delimiter / block / parent
+                // contribute no variables.
+            },
+            onExit: (node) => {
+                // Symmetric to onEnter — only pop when the corresponding
+                // push happened. The parser's walk is depth-paired so
+                // this keeps stack alignment safe.
+                if (node.kind === "section" && node.name) pathStack.pop()
+            },
+        })
+        return variables
+    }
+
+    // curly / jinja2: linear scan for `{{name}}`. Anything starting with
+    // mustache-style markers is an authoring error in these formats; skip
+    // so the playground doesn't surface a port for the bad token.
     let i = 0
     while (i < input.length - 1) {
         if (input[i] === "{" && input[i + 1] === "{") {
             const start = i + 2
             const end = input.indexOf("}}", start)
             if (end !== -1) {
-                const variable = input.slice(start, end).trim()
-                if (variable && !variables.includes(variable)) {
-                    variables.push(variable)
+                const raw = input.slice(start, end).trim()
+                // Authoring-error guard: include `$<` and `=` so spec-mustache
+                // inheritance tags pasted into a curly/jinja2 prompt don't
+                // surface as phantom ports.
+                const startsWithMustacheMarker = /^[#^&/!>.$<=]/.test(raw)
+                if (raw && !startsWithMustacheMarker && !variables.includes(raw)) {
+                    variables.push(raw)
                 }
+
                 i = end + 2
             } else {
                 // No closing '}}' found, no more variables possible
@@ -526,6 +639,56 @@ export function extractTemplateVariables(
     }
 
     return variables
+}
+
+/**
+ * Extract section opener PATHS from a mustache template string.
+ *
+ * Walks the AST and emits a dotted path for every section opener
+ * (`{{#name}}` or `{{^name}}`) — joined with `.` against the path
+ * stack of enclosing sections. So for
+ *
+ *   `{{#repos}}{{#contributors}}{{name}}{{/contributors}}{{/repos}}`
+ *
+ * the returned set is `{"repos", "repos.contributors"}`.
+ *
+ * Callers (`groupTemplateVariables` via `portHelpers.ts`, and the schema
+ * producer in `molecule.ts` via `buildSubPathSchema`) use this hint to:
+ *   - infer the GROUP'S type as `array` when its top-level name is a
+ *     section opener (`repos` here),
+ *   - emit nested array-of-objects schemas when a SUB-PATH is itself a
+ *     section opener (`repos.contributors` here).
+ *
+ * Distinct from `extractTemplateVariables`, which returns every referenced
+ * placeholder (variables, section openers, dotted access). Always returns
+ * an empty set for non-mustache formats: curly / jinja2 / fstring don't
+ * have section semantics, so the hint isn't meaningful there.
+ */
+export function extractMustacheSectionOpeners(
+    input: string,
+    templateFormat: TemplateFormat = "curly",
+): Set<string> {
+    const paths = new Set<string>()
+    if (templateFormat !== "mustache") return paths
+
+    const {ast} = parseMustache(input)
+    const stack: string[] = []
+    walkMustache(ast, {
+        onEnter: (node) => {
+            if (node.kind === "section") {
+                // Skip empty section names (mid-typing autoclose state)
+                // — they'd contribute a leading-dot path otherwise.
+                if (!node.name) return
+                const path = stack.length === 0 ? node.name : `${stack.join(".")}.${node.name}`
+                paths.add(path)
+                stack.push(node.name)
+            }
+        },
+        onExit: (node) => {
+            if (node.kind === "section" && node.name) stack.pop()
+        },
+    })
+    return paths
 }
 
 /**
@@ -706,6 +869,60 @@ export function extractVariablesFromConfig(
 }
 
 /**
+ * Mirror of `extractVariablesFromConfig` that collects mustache SECTION
+ * OPENERS (`{{#name}}` / `{{^name}}`) across all prompt-like entries in
+ * config. Used alongside `extractVariablesFromConfig` to feed the
+ * `sectionOpeners` hint into `groupTemplateVariables`, so a name referenced
+ * only via section markers (no sub-paths) surfaces as an `array` port
+ * instead of the default `string` port.
+ *
+ * Always returns an empty set for non-mustache prompts — section semantics
+ * are mustache-specific.
+ */
+export function extractSectionOpenersFromConfig(
+    agConfig: Record<string, unknown> | undefined,
+): Set<string> {
+    const openers = new Set<string>()
+    if (!agConfig) return openers
+
+    for (const value of Object.values(agConfig)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+        const prompt = value as Record<string, unknown>
+
+        const rawTf = (prompt.template_format ?? prompt.templateFormat) as string | undefined
+        const tf = resolveTemplateFormat(rawTf) ?? "curly"
+        if (tf !== "mustache") continue
+
+        if (!Array.isArray(prompt.messages)) continue
+        for (const message of prompt.messages) {
+            if (!message || typeof message !== "object") continue
+            const content = (message as Record<string, unknown>).content
+            if (typeof content === "string") {
+                for (const opener of extractMustacheSectionOpeners(content, tf)) {
+                    openers.add(opener)
+                }
+            } else if (Array.isArray(content)) {
+                for (const part of content) {
+                    if (typeof part === "string") {
+                        for (const opener of extractMustacheSectionOpeners(part, tf)) {
+                            openers.add(opener)
+                        }
+                    } else if (part && typeof part === "object") {
+                        const text = (part as Record<string, unknown>).text
+                        if (typeof text === "string") {
+                            for (const opener of extractMustacheSectionOpeners(text, tf)) {
+                                openers.add(opener)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return openers
+}
+
+/**
  * Synchronize `input_keys` for prompt configs in a parameters object.
  *
  * Supports both wrapped params (`{ag_config: {...}}`) and direct config objects.
@@ -725,6 +942,60 @@ export function syncPromptInputKeysInParameters(
     return syncPromptInputKeysInConfig(parameters)
 }
 
+/**
+ * Compute the `input_keys` for a single prompt config.
+ *
+ * `input_keys` must be the set of TOP-LEVEL keys that the runtime `inputs`
+ * dict is keyed by — NOT the raw scoped/dotted placeholder paths. For
+ * mustache/jinja2 a reference like `{{country.name}}` resolves `name`
+ * against the top-level `country` object, so the input key is `country`;
+ * a section `{{#repos}}{{name}}{{/repos}}` has input key `repos`. For
+ * curly, dotted names are LITERAL testcase columns (backend literal-key
+ * resolver), so `{{user.name}}` stays `user.name`.
+ *
+ * `groupTemplateVariables` already encodes exactly this format-aware
+ * collapse (via `parseTemplateExpression`), and is the same helper the
+ * input-port discovery (`inputPortsAtomFamily`) and the invoke request
+ * builder use. Routing `input_keys` through it keeps the SAVED config in
+ * sync with what the backend validates at invoke time.
+ *
+ * Background: previously this used the raw `extractVariablesFromConfig`
+ * output, which for mustache returns scoped dotted paths (`country.name`,
+ * `repos.name`). The saved `input_keys` then mismatched the actual inputs
+ * dict keys, and every deployed invoke failed with
+ * `Invalid inputs: Expected [...] Got [...]` (Mahmoud QA 2026-06-03).
+ */
+function computePromptInputKeys(
+    promptKey: string,
+    promptConfig: Record<string, unknown>,
+): string[] {
+    const vars = extractVariablesFromConfig({[promptKey]: promptConfig})
+    if (vars.length === 0) return []
+
+    const sectionOpeners = extractSectionOpenersFromConfig({[promptKey]: promptConfig})
+    const rawTf = (promptConfig.template_format ?? promptConfig.templateFormat) as
+        | string
+        | undefined
+    const templateFormat = resolveTemplateFormat(rawTf) ?? undefined
+
+    const grouped = groupTemplateVariables(vars, {sectionOpeners, templateFormat})
+
+    // Only `inputs`-envelope keys become testcase columns / input keys.
+    // Other envelopes (`$.outputs.*`, `$.parameters.*`, ...) are runtime-
+    // resolved and must not appear in `input_keys`. Dedup in first-seen
+    // order (groupTemplateVariables already dedups by envelope.key, but
+    // guard defensively).
+    const seen = new Set<string>()
+    const keys: string[] = []
+    for (const group of grouped) {
+        if (group.envelope !== "inputs") continue
+        if (seen.has(group.key)) continue
+        seen.add(group.key)
+        keys.push(group.key)
+    }
+    return keys
+}
+
 function syncPromptInputKeysInConfig(config: Record<string, unknown>): Record<string, unknown> {
     let changed = false
     const result = {...config}
@@ -735,7 +1006,7 @@ function syncPromptInputKeysInConfig(config: Record<string, unknown>): Record<st
         const promptConfig = value as Record<string, unknown>
         if (!Array.isArray(promptConfig.messages)) continue
 
-        const variables = extractVariablesFromConfig({[key]: promptConfig})
+        const variables = computePromptInputKeys(key, promptConfig)
         const existing = promptConfig.input_keys
 
         if (
@@ -807,7 +1078,10 @@ const TESTCASE_OBJECT_KEYS = new Set(["inputs"])
 export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Record<string, unknown> {
     const {testcaseData, upstreamOutput, settings, inputSchema} = ctx
 
-    const prediction = normalizeCompact(upstreamOutput)
+    // RFC invariant: native JSON stays native until template rendering.
+    // We pass `upstreamOutput` through as-is (object, array, string, primitive)
+    // and expose it under both `prediction` and `outputs` keys downstream —
+    // they are the same value, not a stringified copy and a native copy.
 
     const schemaProperties =
         inputSchema?.properties && typeof inputSchema.properties === "object"
@@ -820,13 +1094,12 @@ export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Recor
             inputSchema: inputSchema!,
             testcaseData,
             upstreamOutput,
-            prediction,
             settings,
         })
     }
 
     // Legacy fallback — no schema available
-    return buildLegacy({testcaseData, prediction, settings})
+    return buildLegacy({testcaseData, upstreamOutput, settings})
 }
 
 /**
@@ -838,10 +1111,9 @@ function buildFromSchema(ctx: {
     inputSchema: Record<string, unknown>
     testcaseData: Record<string, unknown>
     upstreamOutput: unknown
-    prediction: string
     settings: Record<string, unknown>
 }): Record<string, unknown> {
-    const {schemaProperties, inputSchema, testcaseData, upstreamOutput, prediction, settings} = ctx
+    const {schemaProperties, inputSchema, testcaseData, upstreamOutput, settings} = ctx
     const inputs: Record<string, unknown> = {}
 
     for (const key of Object.keys(schemaProperties)) {
@@ -854,13 +1126,15 @@ function buildFromSchema(ctx: {
             const columnName = keySettingValue.startsWith("testcase.")
                 ? keySettingValue.split(".")[1]
                 : keySettingValue
-            inputs[key] = normalizeCompact(testcaseData[columnName])
+            // RFC invariant: native value passes through, not stringified.
+            inputs[key] = testcaseData[columnName]
             continue
         }
 
-        // 2. Known upstream output keys
+        // 2. Known upstream output keys — both `prediction` and `outputs`
+        //    expose the SAME native upstream value; do not stringify either one.
         if (UPSTREAM_OUTPUT_KEYS.has(key)) {
-            inputs[key] = key === "prediction" ? prediction : normalizeCompact(upstreamOutput)
+            inputs[key] = upstreamOutput
             continue
         }
 
@@ -887,9 +1161,9 @@ function buildFromSchema(ctx: {
         }
     }
 
-    // Ensure upstream output is always present in some form
+    // Ensure upstream output is always present in some form (native, both keys).
     if (!("prediction" in inputs) && !("outputs" in inputs)) {
-        inputs.prediction = prediction
+        inputs.prediction = upstreamOutput
         inputs.outputs = upstreamOutput
     }
 
@@ -902,10 +1176,10 @@ function buildFromSchema(ctx: {
  */
 function buildLegacy(ctx: {
     testcaseData: Record<string, unknown>
-    prediction: string
+    upstreamOutput: unknown
     settings: Record<string, unknown>
 }): Record<string, unknown> {
-    const {testcaseData, prediction, settings} = ctx
+    const {testcaseData, upstreamOutput, settings} = ctx
 
     const correctAnswerKey = settings.correct_answer_key
     const groundTruthKey =
@@ -915,12 +1189,12 @@ function buildLegacy(ctx: {
               ? correctAnswerKey
               : undefined
 
-    const rawGT = groundTruthKey ? testcaseData[groundTruthKey] : undefined
-    const ground_truth = normalizeCompact(rawGT)
+    // RFC invariant: native ground-truth value passes through, not stringified.
+    const ground_truth = groundTruthKey ? testcaseData[groundTruthKey] : undefined
 
     const inputs: Record<string, unknown> = {
         ...testcaseData,
-        prediction,
+        prediction: upstreamOutput,
     }
 
     if (groundTruthKey) {
@@ -1025,24 +1299,6 @@ export function validateEvaluatorInputs(ctx: EvaluatorInputContext): EvaluatorIn
     }
 
     return {valid: true, missingInputs: []}
-}
-
-/**
- * Normalize a value to a compact string representation.
- * Mirrors DebugSection's `normalizeCompact` helper.
- */
-function normalizeCompact(val: unknown): string {
-    if (val === undefined || val === null) return ""
-    const str = typeof val === "string" ? val : JSON.stringify(val)
-    try {
-        const parsed = JSON.parse(str)
-        if (parsed && typeof parsed === "object") {
-            return JSON.stringify(parsed)
-        }
-        return str
-    } catch {
-        return str
-    }
 }
 
 /**

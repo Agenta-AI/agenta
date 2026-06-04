@@ -1,14 +1,26 @@
 import {memo, useCallback, useMemo} from "react"
 
 import {QuestionCircleOutlined} from "@ant-design/icons"
-import {Button, Col, Flex, Form, Input, InputNumber, Row, Tooltip, Typography} from "antd"
+import {Button, Flex, Form, InputNumber, Tooltip, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 
 import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
-import {AdvancedSettingsProps} from "../types"
+import {AdvancedSettingsProps, EvaluationConcurrencySettings} from "../types"
+
+const FIELD_LABELS: Record<keyof EvaluationConcurrencySettings, string> = {
+    batch_size: "Batch Size",
+    max_retries: "Max Retries",
+    retry_delay: "Retry Delay (s)",
+}
+
+const FIELD_TOOLTIPS: Record<keyof EvaluationConcurrencySettings, string> = {
+    batch_size: "Maximum number of concurrent invocations",
+    max_retries: "How many times to retry a failed invocation",
+    retry_delay: "Seconds to wait before retrying a failed invocation",
+}
 
 const AdvancedSettings = ({advanceSettings, setAdvanceSettings}: AdvancedSettingsProps) => {
-    const handleChange = (key: string, value: any) => {
+    const handleChange = (key: keyof EvaluationConcurrencySettings, value: number | null) => {
         setAdvanceSettings((prev) => ({
             ...prev,
             [key]: value,
@@ -24,17 +36,14 @@ const AdvancedSettings = ({advanceSettings, setAdvanceSettings}: AdvancedSetting
         [advanceSettings],
     )
 
-    const {correct_answer_column, ...rateLimitConfig} = advanceSettings
-
     return (
         <Flex vertical gap={8}>
             <Form requiredMark={false} layout="vertical">
                 <Form.Item
-                    required
                     label={
                         <div className="w-full flex items-center gap-2 h-10">
                             <Typography.Text className="text-md font-medium">
-                                Rate Limit Configuration
+                                Concurrency
                             </Typography.Text>
                             {isAdvancedSettingsChanged && (
                                 <Button
@@ -50,59 +59,38 @@ const AdvancedSettings = ({advanceSettings, setAdvanceSettings}: AdvancedSetting
                     }
                     style={{marginBottom: 0}}
                 >
-                    <Row gutter={16}>
-                        {Object.entries(rateLimitConfig).map(([key, value]) => (
-                            <Col span={12} key={key}>
-                                <Form.Item
-                                    label={
-                                        <>
-                                            {key
-                                                .replace(/_/g, " ")
-                                                .replace(/\b\w/g, (c) => c.toUpperCase())}
-                                            &nbsp;
-                                            <Tooltip title={`Description for ${key}`}>
-                                                <QuestionCircleOutlined />
-                                            </Tooltip>
-                                        </>
-                                    }
-                                    rules={[
-                                        {
-                                            validator: (_, value) => {
-                                                if (value !== null) {
-                                                    return Promise.resolve()
-                                                }
-                                                return Promise.reject("This field is required")
-                                            },
-                                        },
-                                    ]}
-                                >
-                                    <InputNumber
-                                        value={advanceSettings[key as keyof typeof advanceSettings]}
-                                        onChange={(value) => handleChange(key, value)}
-                                        style={{width: "100%"}}
-                                        min={0}
-                                    />
-                                </Form.Item>
-                            </Col>
-                        ))}
-                    </Row>
-                </Form.Item>
-                <Form.Item
-                    required
-                    label={
-                        <>
-                            Correct Answer Column&nbsp;
-                            <Tooltip title="Column in the testset containing the correct/expected answer">
-                                <QuestionCircleOutlined />
-                            </Tooltip>
-                        </>
-                    }
-                >
-                    <Input
-                        value={advanceSettings.correct_answer_column}
-                        onChange={(e) => handleChange("correct_answer_column", e.target.value)}
-                        style={{width: "50%"}}
-                    />
+                    {(
+                        Object.keys(
+                            DEFAULT_ADVANCE_SETTINGS,
+                        ) as (keyof EvaluationConcurrencySettings)[]
+                    ).map((key) => (
+                        <Form.Item
+                            key={key}
+                            label={
+                                <>
+                                    {FIELD_LABELS[key]}&nbsp;
+                                    <Tooltip title={FIELD_TOOLTIPS[key]}>
+                                        <QuestionCircleOutlined />
+                                    </Tooltip>
+                                </>
+                            }
+                            rules={[
+                                {
+                                    validator: (_, value) =>
+                                        value !== null
+                                            ? Promise.resolve()
+                                            : Promise.reject("This field is required"),
+                                },
+                            ]}
+                        >
+                            <InputNumber
+                                value={advanceSettings[key]}
+                                onChange={(value) => handleChange(key, value)}
+                                style={{width: "100%"}}
+                                min={0}
+                            />
+                        </Form.Item>
+                    ))}
                 </Form.Item>
             </Form>
         </Flex>

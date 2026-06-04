@@ -68,14 +68,16 @@ class _SessionContext:
         return False
 
 
-def _patch_session(monkeypatch, session: _Session):
-    from ee.src.dbs.postgres.meters import dao as dao_module
+class _Engine:
+    def __init__(self, session: _Session):
+        self._session = session
 
-    monkeypatch.setattr(
-        dao_module.engine,
-        "core_session",
-        lambda: _SessionContext(session),
-    )
+    def session(self):
+        return _SessionContext(self._session)
+
+
+def _dao_with_session(session: _Session) -> MetersDAO:
+    return MetersDAO(engine=_Engine(session))
 
 
 def _where_sql(stmt) -> str:
@@ -103,12 +105,11 @@ def _where_sql(stmt) -> str:
 
 class TestFetchScopeFilters:
     @pytest.mark.asyncio
-    async def test_org_only_scope_binds_finer_dims_to_is_null(self, monkeypatch):
+    async def test_org_only_scope_binds_finer_dims_to_is_null(self):
         """`MeterScope(organization_id=X)` → finer dims IS NULL."""
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(scope=MeterScope(organization_id=ORG))
 
         assert len(session.executed_statements) == 1
@@ -118,12 +119,11 @@ class TestFetchScopeFilters:
         assert "user_id is null" in sql
 
     @pytest.mark.asyncio
-    async def test_workspace_scope_binds_below_to_is_null(self, monkeypatch):
+    async def test_workspace_scope_binds_below_to_is_null(self):
         """workspace-scoped read should not match project/user rows."""
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(
             scope=MeterScope(organization_id=ORG, workspace_id=WRK),
         )
@@ -134,12 +134,11 @@ class TestFetchScopeFilters:
         assert "user_id is null" in sql
 
     @pytest.mark.asyncio
-    async def test_user_scope_binds_every_dim(self, monkeypatch):
+    async def test_user_scope_binds_every_dim(self):
         """fully-bound user scope → all four dims bound to concrete values."""
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(
             scope=MeterScope(
                 organization_id=ORG,
@@ -155,12 +154,11 @@ class TestFetchScopeFilters:
         assert "is null" not in sql
 
     @pytest.mark.asyncio
-    async def test_scope_none_applies_no_filter(self, monkeypatch):
+    async def test_scope_none_applies_no_filter(self):
         """`scope=None` escape hatch — no scope filter at all."""
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(scope=None)
 
         sql = _where_sql(session.executed_statements[0]).lower()
@@ -170,12 +168,11 @@ class TestFetchScopeFilters:
         assert "user_id" not in sql
 
     @pytest.mark.asyncio
-    async def test_empty_scope_is_equivalent_to_scope_none(self, monkeypatch):
+    async def test_empty_scope_is_equivalent_to_scope_none(self):
         """`MeterScope()` (all dims unset) is treated as the same admin escape as `scope=None`."""
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(scope=MeterScope())
 
         sql = _where_sql(session.executed_statements[0]).lower()
@@ -187,12 +184,11 @@ class TestFetchScopeFilters:
 
 class TestFetchPeriodFilters:
     @pytest.mark.asyncio
-    async def test_monthly_period_binds_day_to_is_null(self, monkeypatch):
+    async def test_monthly_period_binds_day_to_is_null(self):
         """MONTHLY read (year, month, day=None) must not match DAILY rows."""
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(period=MeterPeriod(year=2026, month=5))
 
         sql = _where_sql(session.executed_statements[0]).lower()
@@ -201,12 +197,11 @@ class TestFetchPeriodFilters:
         assert "day is null" in sql
 
     @pytest.mark.asyncio
-    async def test_daily_period_binds_every_dim(self, monkeypatch):
+    async def test_daily_period_binds_every_dim(self):
         """DAILY read binds year+month+day to concrete values."""
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(period=MeterPeriod(year=2026, month=5, day=19))
 
         sql = _where_sql(session.executed_statements[0]).lower()
@@ -217,12 +212,11 @@ class TestFetchPeriodFilters:
         assert "day is null" not in sql
 
     @pytest.mark.asyncio
-    async def test_empty_period_binds_all_to_is_null(self, monkeypatch):
+    async def test_empty_period_binds_all_to_is_null(self):
         """`MeterPeriod()` (no period) → all three IS NULL — pins lifetime rows."""
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(period=MeterPeriod())
 
         sql = _where_sql(session.executed_statements[0]).lower()
@@ -231,12 +225,11 @@ class TestFetchPeriodFilters:
         assert "day is null" in sql
 
     @pytest.mark.asyncio
-    async def test_period_none_applies_no_filter(self, monkeypatch):
+    async def test_period_none_applies_no_filter(self):
         """`period=None` escape hatch — no period filter at all."""
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(period=None)
 
         sql = _where_sql(session.executed_statements[0]).lower()
@@ -247,22 +240,20 @@ class TestFetchPeriodFilters:
 
 class TestFetchKeyFilter:
     @pytest.mark.asyncio
-    async def test_key_bound(self, monkeypatch):
+    async def test_key_bound(self):
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(key=Meters.TRACES_RETRIEVED)
 
         sql = _where_sql(session.executed_statements[0]).lower()
         assert "key" in sql
 
     @pytest.mark.asyncio
-    async def test_key_none_applies_no_filter(self, monkeypatch):
+    async def test_key_none_applies_no_filter(self):
         session = _Session()
-        _patch_session(monkeypatch, session)
 
-        dao = MetersDAO()
+        dao = _dao_with_session(session)
         await dao.fetch(key=None)
 
         sql = _where_sql(session.executed_statements[0]).lower()

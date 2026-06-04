@@ -285,7 +285,9 @@ const ConfigureProviderDrawerContent = ({
                                     </Form.Item>
 
                                     {field.note && (
-                                        <Text className="text-[#586673] -mt-2">{field.note}</Text>
+                                        <Text className="text-[var(--ag-c-586673)] -mt-2">
+                                            {field.note}
+                                        </Text>
                                     )}
                                 </React.Fragment>
                             )
@@ -306,7 +308,7 @@ const ConfigureProviderDrawerContent = ({
                                     </div>
 
                                     {fields.length === 0 ? (
-                                        <Text className="text-[#586673]">
+                                        <Text className="text-[var(--ag-c-586673)]">
                                             No custom models configured
                                         </Text>
                                     ) : (

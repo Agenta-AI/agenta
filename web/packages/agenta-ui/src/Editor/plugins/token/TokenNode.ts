@@ -24,23 +24,29 @@ function applyTokenStyles(dom: HTMLElement, text: string): void {
 
     if (text.startsWith("{#")) {
         // Jinja comment — grey
-        dom.style.backgroundColor = "#e2e8f0"
-        dom.style.color = "#6b7280"
+        dom.style.backgroundColor = "var(--ag-c-E2E8F0)"
+        dom.style.color = "var(--ag-c-6B7280)"
         dom.style.border = ""
         return
     }
     if (text.startsWith("{%")) {
         // Jinja block — purple
-        dom.style.backgroundColor = "#e2e8f0"
-        dom.style.color = "#a855f7"
+        dom.style.backgroundColor = "var(--ag-c-E2E8F0)"
+        dom.style.color = "var(--ag-c-A855F7)"
         dom.style.border = ""
         return
     }
 
-    // Variable token `{{ expr }}` — check whether `expr` routes to a known
-    // envelope slot. Paths like `$.input.xx.abc` (typo of `$.inputs.*`) are
-    // structurally invalid; paint them with an error state so the user sees
-    // the problem at the source instead of silently getting no input.
+    // Variable token `{{ expr }}` — validate the inner expression. Only
+    // structurally malformed expressions get the error paint now (empty
+    // placeholders, `$<not-dot>` like `$outputs.country`, `$.` with no
+    // field, `$..foo` empty segments, and multi-segment JSON Pointers that
+    // don't root at a known envelope slot). Near-typos of envelope slots
+    // (e.g. `$.input.xx.abc`) are NO LONGER flagged — per the post-2026-
+    // 05-28 mustache QA principle, the playground auto-creates a variable
+    // named after the root segment and the backend reports any shape
+    // mismatch at render time. See `templateVariable.ts` for the full
+    // validation policy.
     //
     // Tooltip content is published on data-* attributes; a React overlay
     // (TokenTooltipPlugin) reads them on hover and renders an Ant Tooltip.
@@ -48,13 +54,13 @@ function applyTokenStyles(dom: HTMLElement, text: string): void {
     const result = validateTemplateVariable(expr)
 
     if (result.valid) {
-        dom.style.backgroundColor = "#e2e8f0"
-        dom.style.color = "#1677FF"
+        dom.style.backgroundColor = "var(--ag-c-E2E8F0)"
+        dom.style.color = "var(--ag-c-1677FF)"
         dom.style.border = ""
     } else {
-        dom.style.backgroundColor = "#FEF2F2" // red-50
-        dom.style.color = "#B91C1C" // red-700
-        dom.style.border = "1px dashed #F87171" // red-400
+        dom.style.backgroundColor = "var(--ag-c-FEF2F2)" // red-50
+        dom.style.color = "var(--ag-c-B91C1C)" // red-700
+        dom.style.border = "1px dashed var(--ag-c-F87171)" // red-400
         dom.setAttribute("data-invalid", "true")
         dom.setAttribute("data-tooltip", result.reason ?? "Invalid template placeholder.")
         if (result.suggestion) {

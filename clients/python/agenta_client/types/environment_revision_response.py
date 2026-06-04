@@ -6,12 +6,14 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .environment_revision import EnvironmentRevision
 from .resolution_info import ResolutionInfo
+from .retrieval_info import RetrievalInfo
 
 
 class EnvironmentRevisionResponse(UniversalBaseModel):
     count: typing.Optional[int] = None
     environment_revision: typing.Optional[EnvironmentRevision] = None
     resolution_info: typing.Optional[ResolutionInfo] = None
+    retrieval_info: typing.Optional[RetrievalInfo] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -1657,11 +1657,11 @@ export class EvaluatorsClient {
     }
 
     /**
-     * Create a new revision on an evaluator variant.
+     * Create and commit the initial revision for an evaluator variant.
      *
      * Prefer `/evaluators/revisions/commit` for the standard commit
-     * flow. This endpoint exists for internal create paths that need
-     * to insert a revision without the commit semantics.
+     * flow. This endpoint commits an initial revision with the `initial`
+     * guard, preventing duplicate initial revisions for the same variant.
      *
      * @param {AgentaApi.EvaluatorRevisionCreateRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.

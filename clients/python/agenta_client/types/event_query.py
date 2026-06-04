@@ -9,9 +9,10 @@ from .request_type import RequestType
 
 
 class EventQuery(UniversalBaseModel):
-    request_id: typing.Optional[str] = None
     request_type: typing.Optional[RequestType] = None
+    request_id: typing.Optional[str] = None
     event_type: typing.Optional[EventType] = None
+    event_id: typing.Optional[str] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

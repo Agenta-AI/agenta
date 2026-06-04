@@ -392,17 +392,31 @@ const SharedEditor = ({
                 "[&_.agenta-editor-wrapper]:w-full",
                 "p-[11px]",
                 {
-                    "border-[#BDC7D1]": editorType === "border",
-                    "hover:border-[#394857] focus:border-[#BDC7D1]": editorType === "border",
-                    "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
+                    // Default border + hover/focus parity for `border` mode.
+                    // Focus uses the SAME darker color as hover so the user
+                    // gets visible feedback when typing into the input
+                    // (Kaosiso QA 2026-06-02 follow-up). The CSS `focus:`
+                    // pseudo only matches when the OUTER div is focused;
+                    // typing happens in a descendant <ContentEditable>, so
+                    // the `isEditorFocused` rule below carries the styling
+                    // through to descendant-focus.
+                    "border-[var(--ag-c-BDC7D1)]": editorType === "border",
+                    "hover:border-[var(--ag-c-394857)] focus:border-[var(--ag-c-394857)]":
+                        editorType === "border",
+                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
-                    "hover:border-[394857] focus:border-[394857]":
-                        state === "filled" && editorType === "border",
+                    // Removed: `"hover:border-[394857] focus:border-[394857]"`
+                    // override for `state === "filled" && editorType === "border"`.
+                    // The bare `[394857]` literal had no `#` or `var()`
+                    // wrapping, so Tailwind read it as a class name and
+                    // silently dropped the colour. The default rule above
+                    // applies the correct hover/focus colors via the codemod
+                    // var, so this branch is redundant.
                 },
                 {
-                    "border-[transparent] hover:!border-[#BDC7D1] focus:border-[#BDC7D1]":
+                    "border-[transparent] hover:!border-[var(--ag-c-BDC7D1)] focus:border-[var(--ag-c-BDC7D1)]":
                         editorType === "borderless",
-                    "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
+                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "borderless",
                     "hover:border-[transparent] focus:border-[transparent]":
                         state === "filled" && editorType === "borderless",
@@ -413,7 +427,12 @@ const SharedEditor = ({
                     "pt-0 [&_.editor-code]:!pr-2 [&_.editor-code]:!bg-[transparent] [&_.editor-code]:!m-0 [&_.editor-code]:!pt-2 [&_.editor-code]:!pb-1 [&_.agenta-editor-wrapper]:!-ml-[12px] [&_.agenta-editor-wrapper]:!w-[calc(100%+24px)] [&_.agenta-editor-wrapper]:mb-1 overflow-hidden":
                         editorProps?.codeOnly,
                 },
-                isEditorFocused && "!border-[#BDC7D1]",
+                // JS-tracked descendant-focus → applies the hover color
+                // border whenever a child element (the ContentEditable) is
+                // focused. Previously this reverted the border to the
+                // default light colour with `!important` — the visible
+                // bug Kaosiso reported.
+                isEditorFocused && "!border-[var(--ag-c-394857)]",
                 className,
             ),
         [
@@ -455,9 +474,9 @@ const SharedEditor = ({
             {header}
 
             {isHandlingLargePaste ? (
-                <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-[rgba(255,255,255,0.78)] backdrop-blur-[1px]">
+                <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-[var(--ag-rgba-fff-78)] backdrop-blur-[1px]">
                     <Spin size="small" />
-                    <span className="text-[13px] text-[rgba(5,23,41,0.72)]">
+                    <span className="text-[13px] text-[var(--ag-rgba-051729-72)]">
                         Pasting large content…
                     </span>
                 </div>
@@ -534,7 +553,9 @@ const SharedEditor = ({
             )}
 
             {pasteLimitError ? (
-                <div className="mt-2 text-[13px] leading-5 text-[#D61010]">{pasteLimitError}</div>
+                <div className="mt-2 text-[13px] leading-5 text-[var(--ag-c-D61010)]">
+                    {pasteLimitError}
+                </div>
             ) : null}
 
             {footer}

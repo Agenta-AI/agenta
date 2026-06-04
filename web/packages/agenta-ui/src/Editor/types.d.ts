@@ -44,7 +44,7 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     enableTokens?: boolean
     tokens?: string[]
     /** Template format for prompt variable/tag highlighting */
-    templateFormat?: "curly" | "fstring" | "jinja2"
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
     noProvider?: boolean
     showLineNumbers?: boolean
     /** Custom render function to override node rendering in Form view */

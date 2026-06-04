@@ -198,7 +198,7 @@ const StringField = memo(function StringField({
                 value={value ?? ""}
                 onChange={(e) => onChange(e.target.value || null)}
                 disabled={isDisabled}
-                placeholder="Enter value"
+                placeholder="Enter a value"
                 autoSize={{minRows: 2, maxRows: 6}}
             />
         </div>
