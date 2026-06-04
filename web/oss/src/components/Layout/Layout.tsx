@@ -1,16 +1,12 @@
-import {memo, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject} from "react"
+import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
-import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
-import {ConfigProvider, Layout, Modal, Space, theme} from "antd"
+import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import {selectAtom} from "jotai/utils"
-import dynamic from "next/dynamic"
-import Link from "next/link"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
-import {useResizeObserver} from "usehooks-ts"
 
 import useURL from "@/oss/hooks/useURL"
 import {currentAppAtom} from "@/oss/state/app"
@@ -146,11 +142,6 @@ const useCommittedLayoutFlags = (): LayoutRouteFlags => {
     return committedFlags
 }
 
-const FooterIsland = dynamic(() => import("./FooterIsland").then((m) => m.FooterIsland), {
-    ssr: false,
-    loading: () => null,
-})
-
 type StyleClasses = ReturnType<typeof useStyles>
 
 const {Content} = Layout
@@ -169,7 +160,6 @@ const AppWithVariants = memo(
         isEvaluator,
         isFullHeight,
         appTheme,
-        footerHeight,
     }: {
         children: ReactNode
         isAppRoute: boolean
@@ -179,7 +169,6 @@ const AppWithVariants = memo(
         classes: StyleClasses
         appTheme: string
         isPlayground?: boolean
-        footerHeight?: number
     }) => {
         const {baseAppURL} = useURL()
         const appState = useAppState()
@@ -361,24 +350,6 @@ const AppWithVariants = memo(
                                 </Content>
                             )}
                         </div>
-                        <div className="w-full h-[30px]"></div>
-                        <FooterIsland className={classes.footer}>
-                            <Space className={classes.footerLeft} size={10}>
-                                <Link href={"https://github.com/Agenta-AI/agenta"} target="_blank">
-                                    <GithubFilled className={classes.footerLinkIcon} />
-                                </Link>
-                                <Link
-                                    href={"https://www.linkedin.com/company/agenta-ai/"}
-                                    target="_blank"
-                                >
-                                    <LinkedinFilled className={classes.footerLinkIcon} />
-                                </Link>
-                                <Link href={"https://twitter.com/agenta_ai"} target="_blank">
-                                    <TwitterOutlined className={classes.footerLinkIcon} />
-                                </Link>
-                            </Space>
-                            <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
-                        </FooterIsland>
                     </Layout>
                 </Layout>
             </div>
@@ -388,12 +359,7 @@ const AppWithVariants = memo(
 
 const App: React.FC<LayoutProps> = ({children}) => {
     const {appTheme} = useAppTheme()
-    const ref = useRef<HTMLElement | null>(null)
-    const {height: footerHeight} = useResizeObserver({
-        ref: ref as RefObject<HTMLElement>,
-        box: "border-box",
-    })
-    const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
         useCommittedLayoutFlags()
 
@@ -419,7 +385,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         isHumanEval={isHumanEval}
                         isEvaluator={isEvaluator}
                         isFullHeight={isFullHeight}
-                        footerHeight={footerHeight}
                     >
                         {children}
                         {contextHolder}
