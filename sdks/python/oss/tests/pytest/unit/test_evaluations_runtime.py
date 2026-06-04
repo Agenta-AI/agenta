@@ -876,7 +876,16 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
         # scenario_id is set, global when it is None.
         refresh_calls.append((run_id, scenario_id))
 
-    async def fake_edit_scenario(*, scenario_id, status, tags=None, meta=None):
+    async def fake_edit_scenario(
+        *,
+        scenario_id,
+        status,
+        flags=None,
+        tags=None,
+        meta=None,
+        interval=None,
+        timestamp=None,
+    ):
         edit_status_calls.append((scenario_id, status))
 
     async def fake_invoke_application(**kwargs):
@@ -1046,7 +1055,16 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     async def fake_refresh(run_id, scenario_id=None):
         refresh_calls.append((run_id, scenario_id))
 
-    async def fake_edit_scenario(*, scenario_id, status, tags=None, meta=None):
+    async def fake_edit_scenario(
+        *,
+        scenario_id,
+        status,
+        flags=None,
+        tags=None,
+        meta=None,
+        interval=None,
+        timestamp=None,
+    ):
         edit_status_calls.append((scenario_id, status))
 
     async def fake_invoke_application(**kwargs):

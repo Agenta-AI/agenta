@@ -141,8 +141,16 @@ class SDKScenarioEditor:
             #
             status=getattr(status, "value", status),
             #
+            # The edit is a full PUT, not a partial PATCH: every field not sent is
+            # overwritten to its default. Carry EVERY persisted scenario field so
+            # the status write does not wipe them (a dropped `flags` is what
+            # leaves a scenario grey instead of green in the UI).
+            flags=getattr(scenario, "flags", None),
             tags=getattr(scenario, "tags", None),
             meta=getattr(scenario, "meta", None),
+            #
+            interval=getattr(scenario, "interval", None),
+            timestamp=getattr(scenario, "timestamp", None),
         )
 
 

@@ -161,6 +161,7 @@ class RunProcessor:
             user_id=user_id,
             #
             run_id=run.id,
+            #
             count=len(source_items),
             #
             timestamp=timestamp,

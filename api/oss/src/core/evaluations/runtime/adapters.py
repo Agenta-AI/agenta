@@ -149,16 +149,19 @@ class APIScenarioCreator:
         run_id: UUID,
         #
         count: int,
+        #
         timestamp: Any = None,
         interval: Optional[int] = None,
     ) -> List[Any]:
         """Mint `count` RUNNING scenarios for a run in one DAO call.
 
         The unified ingest flows (run/slice) mint all scenarios up front, then
-        populate and re-execute them. `timestamp`/`interval` are the run-wide
-        temporal coordinates (live query); they stay None for non-live runs.
-        Order is preserved by `create_scenarios`, so the returned list aligns
-        1:1 with the source items the caller intends to bind.
+        populate and re-execute them. `flags` are the run's flags, stamped on
+        each scenario so they survive the later full-PUT status edit (a scenario
+        minted without flags renders grey). `timestamp`/`interval` are the
+        run-wide temporal coordinates (live query); they stay None for non-live
+        runs. Order is preserved by `create_scenarios`, so the returned list
+        aligns 1:1 with the source items the caller intends to bind.
         """
         if count <= 0:
             return []
@@ -266,6 +269,10 @@ class APIScenarioEditor:
         status: Any,
     ) -> Any:
         try:
+            # The edit is a full PUT: carry EVERY persisted scenario field, not
+            # just status, or the omitted ones are wiped on write (dropped flags
+            # leave the scenario grey; dropped interval/timestamp break temporal
+            # metrics). Only `status` is the value being changed here.
             return await self.evaluations_service.edit_scenario(
                 project_id=project_id,
                 user_id=user_id,
@@ -276,6 +283,9 @@ class APIScenarioEditor:
                     flags=getattr(scenario, "flags", None),
                     tags=getattr(scenario, "tags", None),
                     meta=getattr(scenario, "meta", None),
+                    #
+                    interval=getattr(scenario, "interval", None),
+                    timestamp=getattr(scenario, "timestamp", None),
                     #
                     status=_status(status),
                 ),

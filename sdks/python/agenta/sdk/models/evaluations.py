@@ -82,6 +82,12 @@ class EvaluationScenario(BaseModel):
 
     run_id: UUID
 
+    status: Optional[EvaluationStatus] = None
+
+    flags: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
+
 
 class EvaluationResult(BaseModel):
     id: UUID

@@ -336,6 +336,8 @@ class EvaluationRunQuery(Header, Metadata):
 
 
 class EvaluationScenario(Version, Identifier, Lifecycle, Metadata):
+    flags: Optional[EvaluationRunFlags] = None  # type: ignore
+
     status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
     interval: Optional[int] = None
@@ -345,6 +347,8 @@ class EvaluationScenario(Version, Identifier, Lifecycle, Metadata):
 
 class EvaluationScenarioCreate(Metadata):
     version: str = CURRENT_VERSION
+
+    flags: Optional[EvaluationRunFlags] = None  # type: ignore
 
     status: Optional[EvaluationStatus] = None
 
@@ -356,7 +360,16 @@ class EvaluationScenarioCreate(Metadata):
 class EvaluationScenarioEdit(Identifier, Metadata):
     version: str = CURRENT_VERSION
 
+    # The edit is a full PUT: every column is overwritten from this DTO, so it
+    # must carry EVERY persisted scenario field, not just status. Any field
+    # omitted here is wiped on write (a dropped `flags` is what leaves a scenario
+    # grey; dropped `interval`/`timestamp` would break temporal metrics).
+    flags: Optional[EvaluationRunFlags] = None  # type: ignore
+
     status: Optional[EvaluationStatus] = None
+
+    interval: Optional[int] = None
+    timestamp: Optional[datetime] = None
 
 
 class EvaluationScenarioQuery(Metadata):
