@@ -427,7 +427,7 @@ function BuiltinToolsPane({
 
     return (
         <div className="flex flex-col h-full">
-            <div className="px-2 py-1.5 border-0 border-b border-solid border-zinc-100">
+            <div className="px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
                 <Input
                     variant="borderless"
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
@@ -617,7 +617,7 @@ function GatewayActionsPane({
                 />
             )}
 
-            <div className="px-2 py-1 border-0 border-b border-solid border-zinc-100">
+            <div className="px-2 py-1 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
                 <Input
                     variant="borderless"
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
@@ -822,12 +822,12 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     }, [gatewayTools, resetAndClose])
 
     const content = (
-        <div className="flex min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-zinc-100 shadow-sm">
+        <div className="flex min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
             <div
                 ref={leftPanelRef}
-                className="w-[232px] border-0 border-r border-solid border-zinc-100"
+                className="w-[232px] border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]"
             >
-                <div className="px-2 py-2 border-0 border-b border-solid border-zinc-100">
+                <div className="px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
                     <Input
                         variant="borderless"
                         value={leftSearch}

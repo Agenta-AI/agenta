@@ -335,7 +335,14 @@ export const currentColumnsAtom = atom((get) => {
         }
     })
 
-    return Array.from(columnMap.values())
+    // Filter out flat columns that are strict ancestor prefixes of nested columns
+    // already in the map. If "ddd" and "ddd.ashraf" both land in the map, "ddd"
+    // as a standalone data column conflicts with the nested column definition —
+    // remove it so the table and drawer see only "ddd.ashraf".
+    const allKeys = Array.from(columnMap.keys())
+    return Array.from(columnMap.values()).filter(
+        (col) => !allKeys.some((k) => k !== col.key && k.startsWith(col.key + ".")),
+    )
 })
 
 // ============================================================================
@@ -393,7 +400,8 @@ function collectObjectSubKeysRecursive(
             return
         }
 
-        // Try to parse as object to check if it's empty
+        // Check native object values only. Stringified JSON remains a string
+        // column and must not expand into nested columns.
         const nestedObj = tryParseAsObjectColumnValue(subValue)
 
         // Skip empty objects (e.g., "{}" from deleted nested properties)
@@ -423,7 +431,7 @@ function collectObjectSubKeysRecursive(
 /**
  * Derived atom: analyzes testcase data to detect object-type columns
  * Returns a map of column key -> set of sub-keys found in that column's objects
- * Handles native objects and JSON object strings
+ * Handles native objects only. Stringified JSON remains a string column.
  * Recursively expands up to MAX_COLUMN_DEPTH levels
  */
 export const objectColumnSubKeysAtom = atom((get) => {
@@ -523,7 +531,12 @@ export const expandedColumnsAtom = atom((get) => {
         }
     })
 
-    return expandedColumns
+    const seenKeys = new Set<string>()
+    return expandedColumns.filter((column) => {
+        if (seenKeys.has(column.key)) return false
+        seenKeys.add(column.key)
+        return true
+    })
 })
 
 // ============================================================================

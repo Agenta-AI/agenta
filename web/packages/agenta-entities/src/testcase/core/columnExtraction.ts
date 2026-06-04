@@ -2,7 +2,7 @@
  * Column Extraction Utilities
  *
  * Utilities for extracting column definitions from testcase row data.
- * Handles nested objects and JSON strings to discover column structure.
+ * Handles native nested objects to discover column structure.
  *
  * @example
  * ```typescript
@@ -17,7 +17,7 @@
  * ```
  */
 
-import {isPlainObject, tryParseAsObject} from "@agenta/shared/utils"
+import {isPlainObject} from "@agenta/shared/utils"
 
 import {isSystemField} from "./schema"
 import type {Column} from "./types"
@@ -51,7 +51,7 @@ export interface ColumnPathInfo {
 
 /**
  * Recursively collect column paths from nested objects.
- * Also handles JSON strings that represent objects.
+ * Stringified JSON remains a string leaf and is not expanded.
  *
  * @param obj - Object to collect paths from
  * @param parentPath - Current path prefix
@@ -81,17 +81,6 @@ export function collectColumnPaths(
             continue
         }
 
-        // Intentionally exempt from the native-types rule: testset column
-        // discovery must surface paths inside legacy stringified-JSON payloads
-        // so imported CSV/JSONL rows expose the same nested columns as native
-        // objects. The drill-in/cell renderers treat such strings as strings,
-        // but column extraction needs to peek inside.
-        const parsedJson = typeof value === "string" ? tryParseAsObject(value) : null
-        if (parsedJson && Object.keys(parsedJson).length > 0) {
-            collectColumnPaths(parsedJson, fullPath, results, depth + 1, maxDepth)
-            continue
-        }
-
         // Leaf value (primitive, array, empty object, or non-object JSON)
         results.set(fullPath, {parentKey: parentPath || undefined})
     }
@@ -113,7 +102,7 @@ export interface ExtractColumnsOptions {
 
 /**
  * Extract columns from an array of data objects.
- * Samples rows to discover column structure, handling nested objects and JSON strings.
+ * Samples rows to discover column structure, handling native nested objects.
  *
  * Note: For Testcase entities, pass `testcase.data` (the nested data property),
  * not the full testcase object. This function expects plain data objects.
